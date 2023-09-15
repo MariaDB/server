@@ -8,6 +8,7 @@ drop DATABASE if exists mysqltest_1;
 
 # Test to see if select will get the lock ahead of low priority update
 
+--disable_ps2_protocol
 connect (locker,localhost,root,,);
 connect (locker2,localhost,root,,);
 connect (reader,localhost,root,,);
@@ -87,6 +88,7 @@ select release_lock("mysqltest_lock");
 connection writer;
 reap;
 drop table t1;
+--enable_ps2_protocol
 
 #
 # Test problem when using locks with multi-updates

@@ -58,6 +58,171 @@ SET SESSION session_track_system_variables=NULL;
 ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
 # End of 10.3 tests
 #
+# MDEV-25237: crash after setting global session_track_system_variables
+# to an invalid value
+#
+SET GLOBAL session_track_system_variables='a';
+ERROR HY000: Unknown system variable 'a'
+SET GLOBAL event_scheduler=1;
+# check that value really returns as it was
+set GLOBAL session_track_system_variables='character_set_connection';
+SET GLOBAL session_track_system_variables='a';
+ERROR HY000: Unknown system variable 'a'
+connect  con,localhost,root,,test;
+SET NAMES 'utf8';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_connection
+-- utf8mb3
+
+SET NAMES 'big5';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_connection
+-- big5
+
+select @@session_track_system_variables;
+@@session_track_system_variables
+character_set_connection
+connection default;
+disconnect con;
+SET GLOBAL session_track_system_variables=default;
+SET GLOBAL event_scheduler=default;
+# End of 10.4 test
+#
 # MDEV-16470 - Session user variables tracker
 #
 # End of 10.5 tests
+#
+# MDEV-31746 Problems with tx_isolation after MDEV-21921
+#
+# tracking info on
+SET session_track_system_variables='max_insert_delayed_threads';
+SET max_delayed_threads=0;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- max_insert_delayed_threads
+-- 0
+
+SET @@max_delayed_threads=0;
+SET SESSION max_delayed_threads=0;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- max_insert_delayed_threads
+-- 0
+
+SET session_track_system_variables='max_delayed_threads';
+SET max_insert_delayed_threads=@@global.max_delayed_threads;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- max_delayed_threads
+-- 20
+
+SET session_track_system_variables='tx_isolation';
+SET @@session.tx_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-COMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- REPEATABLE-READ
+
+Track 2, get 2
+SET session_track_system_variables='tx_isolation,transaction_isolation';
+select @@session_track_system_variables;
+@@session_track_system_variables
+tx_isolation
+SET @@session.tx_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-COMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- REPEATABLE-READ
+
+SET session_track_system_variables='transaction_isolation';
+SET @@session.tx_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- transaction_isolation
+-- READ-COMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- transaction_isolation
+-- READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- transaction_isolation
+-- REPEATABLE-READ
+
+SET session_track_system_variables='tx_isolation,transaction_isolation,tx_isolation';
+SELECT @@session_track_system_variables;
+@@session_track_system_variables
+tx_isolation
+SET @@session.tx_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-COMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- REPEATABLE-READ
+
+accumulate as we encounter duplicates
+SET session_track_system_variables='*';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- session_track_system_variables
+-- *
+
+SET @@session.tx_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-COMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation
+-- REPEATABLE-READ
+
+# End of 11.1 tests

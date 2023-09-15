@@ -48,6 +48,7 @@
 #define HA_OPEN_NO_PSI_CALL             1024U   /* Don't call/connect PSI */
 #define HA_OPEN_MERGE_TABLE		2048U
 #define HA_OPEN_FOR_CREATE              4096U
+#define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
@@ -270,10 +271,9 @@ enum ha_base_keytype {
 
 #define HA_NOSAME		 1U	/* Set if not dupplicated records */
 #define HA_PACK_KEY		 2U	/* Pack string key to previous key */
-#define HA_AUTO_KEY		 16U
+#define HA_AUTO_KEY		 16U    /* MEMORY/MyISAM/Aria internal */
 #define HA_BINARY_PACK_KEY	 32U	/* Packing of all keys to prev key */
 #define HA_FULLTEXT		128U    /* For full-text search */
-#define HA_UNIQUE_CHECK		256U	/* Check the key for uniqueness */
 #define HA_SPATIAL		1024U   /* For spatial search */
 #define HA_NULL_ARE_EQUAL	2048U	/* NULL in key are cmp as equal */
 #define HA_GENERATED_KEY	8192U	/* Automatically generated key */
@@ -285,7 +285,7 @@ enum ha_base_keytype {
 
         /* The combination of the above can be used for key type comparison. */
 #define HA_KEYFLAG_MASK (HA_NOSAME | HA_AUTO_KEY | \
-                         HA_FULLTEXT | HA_UNIQUE_CHECK | \
+                         HA_FULLTEXT | \
                          HA_SPATIAL | HA_NULL_ARE_EQUAL | HA_GENERATED_KEY | \
                          HA_UNIQUE_HASH)
 
@@ -454,6 +454,7 @@ enum ha_base_keytype {
 #define HA_ERR_CRASHED		126	/* Indexfile is crashed */
 #define HA_ERR_WRONG_IN_RECORD	127	/* Record-file is crashed */
 #define HA_ERR_OUT_OF_MEM	128	/* Out of memory */
+#define HA_ERR_RETRY_INIT 129 /* Initialization failed and should be retried */
 #define HA_ERR_NOT_A_TABLE      130     /* not a MYI file - no signature */
 #define HA_ERR_WRONG_COMMAND	131	/* Command not supported */
 #define HA_ERR_OLD_FILE		132	/* old databasfile */
@@ -529,14 +530,15 @@ enum ha_base_keytype {
 #define HA_ERR_DISK_FULL          189
 #define HA_ERR_INCOMPATIBLE_DEFINITION 190
 #define HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE 191 /* Too many words in a phrase */
-#define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but decypt failed */
+#define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but decrypt failed */
 #define HA_ERR_FK_DEPTH_EXCEEDED  193 /* FK cascade depth exceeded */
 #define HA_ERR_TABLESPACE_MISSING 194  /* Missing Tablespace */
 #define HA_ERR_SEQUENCE_INVALID_DATA 195
 #define HA_ERR_SEQUENCE_RUN_OUT   196
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
-#define HA_ERR_LAST               198  /* Copy of last error nr * */
+#define HA_ERR_NO_ENCRYPTION      199
+#define HA_ERR_LAST               199  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

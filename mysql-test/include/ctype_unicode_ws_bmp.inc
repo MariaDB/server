@@ -10,6 +10,7 @@ SELECT
 FROM
   seq_0_to_65535', @@character_set_connection, @@collation_connection);
 
+--disable_service_connection
 SELECT COLLATION(c) FROM v_bmp LIMIT 1;
 
 SELECT HEX(codepoint) FROM v_bmp WHERE HEX(WEIGHT_STRING(c))='FFFD';
@@ -22,5 +23,7 @@ FROM v_bmp;
 SELECT codepoint_hex4,HEX(WEIGHT_STRING(c))
 FROM v_bmp
 WHERE codepoint_hex4<>HEX(WEIGHT_STRING(c));
+
+--enable_service_connection
 
 DROP VIEW v_bmp;

@@ -1,0 +1,75 @@
+#
+# Start of 10.5 tests
+#
+#
+#  MDEV-30662 SQL/PL package body does not appear in I_S.ROUTINES.ROUTINE_DEFINITION
+#
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE pkg1 AS
+FUNCTION f1() RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f1() RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+END;
+$$
+SELECT routine_name, routine_type, routine_definition
+FROM information_schema.routines
+WHERE routine_type LIKE 'PACKAGE%'
+ORDER BY routine_type;
+routine_name	pkg1
+routine_type	PACKAGE
+routine_definition	AS
+FUNCTION f1() RETURN INT;
+END
+routine_name	pkg1
+routine_type	PACKAGE BODY
+routine_definition	AS
+FUNCTION f1() RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+END
+DROP PACKAGE pkg1;
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE pkg1 AS
+FUNCTION f1() RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f1() RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+BEGIN
+SET @a=10;
+SET @a=f1();
+END;
+$$
+SELECT routine_name, routine_type, routine_definition
+FROM information_schema.routines
+WHERE routine_type LIKE 'PACKAGE%'
+ORDER BY routine_type;
+routine_name	pkg1
+routine_type	PACKAGE
+routine_definition	AS
+FUNCTION f1() RETURN INT;
+END
+routine_name	pkg1
+routine_type	PACKAGE BODY
+routine_definition	AS
+FUNCTION f1() RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+BEGIN
+SET @a=10;
+SET @a=f1();
+END
+DROP PACKAGE pkg1;
+#
+# End of 10.5 tests
+#

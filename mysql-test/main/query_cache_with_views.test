@@ -13,6 +13,8 @@ set @save_query_cache_type=@@global.query_cache_type;
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
+
+--disable_ps2_protocol
 flush status;
 create table t1 (a int, b int);
 
@@ -32,11 +34,13 @@ select * from v2;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
+--enable_ps2_protocol
 
 drop view v1,v2;
 
 # SQL_CACHE option
 set query_cache_type=demand;
+--disable_ps2_protocol
 flush status;
 # query with view will be cached, but direct acess to table will not
 create view v1 (c,d) as select sql_cache a,b from t1;
@@ -61,6 +65,7 @@ show status like "Qcache_inserts";
 show status like "Qcache_hits";
 drop view v1;
 set query_cache_type=default;
+--enable_ps2_protocol
 
 drop table t1;
 
@@ -105,6 +110,7 @@ drop table t1;
 #
 # BUG#15119: returning temptable view from the query cache.
 #
+--disable_ps2_protocol
 flush status;
 create table t1 (a int, b int);
 create algorithm=temptable view v1 as select * from t1;
@@ -130,6 +136,7 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
 drop table t1;
+--enable_ps2_protocol
 
 --echo #
 --echo # Bug46615 Assertion in Query_cache::invalidate in INSERT in a VIEW of a MERGE table

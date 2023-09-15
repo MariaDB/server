@@ -74,6 +74,7 @@
 /***********************************************************************/
 #define STORAGE                     /* Initialize global variables     */
 
+#include "m_string.h"
 #include "osutil.h"
 #include "global.h"
 #include "plgdbsem.h"
@@ -329,14 +330,15 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 
   switch (*direc) {
     case '\0':
-      strcpy(direc, defdir);
+      snprintf(direc, sizeof(direc), "%s", defdir);
       break;
     case '\\':
     case '/':
       break;
     default:
       // This supposes that defdir ends with a SLASH
-      strcpy(direc, strcat(defdir, direc));
+      safe_strcat(defdir, sizeof(defdir), direc);
+      snprintf(direc, sizeof(direc), "%s", defdir);
     } // endswitch
 
   _makepath(newname, drive, direc, fname, ftype);
@@ -607,7 +609,7 @@ char *PlugDup(PGLOBAL g, const char *str)
   if (str) {
     char *sm = (char*)PlugSubAlloc(g, NULL, strlen(str) + 1);
 
-    strcpy(sm, str);
+    snprintf(sm, strlen(str) + 1, "%s", str);
     return sm;
   } else
     return NULL;

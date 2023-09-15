@@ -219,3 +219,7 @@ error:
   DBUG_RETURN(0);
 }
 
+char *get_tty_password(const char *opt_message)
+{
+  return my_get_tty_password(opt_message);
+}

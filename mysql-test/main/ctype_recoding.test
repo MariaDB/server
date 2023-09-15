@@ -178,8 +178,7 @@ drop table t1;
 #
 # Check more automatic conversion
 #
-# Enable view protocol after fix MDEV-28017
---disable_view_protocol
+--disable_service_connection
 set names koi8r;
 create table t1 (c1 char(10) character set cp1251);
 insert into t1 values ('ß');
@@ -204,7 +203,7 @@ select rpad(c1,3,'ö'), rpad('ö',3,c1) from t1;
 #select case c1 when 'ß' then 'ß' when 'ö' then 'ö' else 'c' end from t1;
 #select export_set(5,c1,'ö'), export_set(5,'ö',c1) from t1;
 drop table t1;
---enable_view_protocol
+--enable_service_connection
 
 #
 # Bug 20695: problem with field default value's character set

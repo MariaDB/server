@@ -37,6 +37,7 @@ update performance_schema.setup_consumers set enabled = 'YES';
 
 # Code to test
 
+--disable_ps2_protocol
 insert into marker set a = 1;
 insert into t1 set a = 1, v = 10;
 insert into marker set a = 1;
@@ -63,6 +64,7 @@ insert into marker set a = 1;
 select * from t1;
 insert into marker set a = 1;
 select * from t2;
+--enable_ps2_protocol
 
 # Stop recording events + pull results
 --source ../include/table_io_result_helper.inc

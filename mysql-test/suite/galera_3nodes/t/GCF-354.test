@@ -1,8 +1,10 @@
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/force_restart.inc
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
---connection node_3
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -101,4 +103,3 @@ CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consens
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
 
 --source ../galera/include/auto_increment_offset_restore.inc
-

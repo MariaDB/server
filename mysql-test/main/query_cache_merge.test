@@ -38,6 +38,7 @@ while ($1)
 # prepare and execute, and we will get a constant validation
 # error. See WL#4165 for details.
 #
+--disable_ps2_protocol
 --disable_view_protocol
 set @save_table_definition_cache= @@global.table_definition_cache;
 set @@global.table_definition_cache=512;
@@ -54,6 +55,7 @@ drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16,t17,t18,t19,t2
 SET @@global.query_cache_size=0;
 set @@global.table_definition_cache=@save_table_definition_cache;
 --enable_view_protocol
+--enable_ps2_protocol
 
 # End of 4.1 tests
 

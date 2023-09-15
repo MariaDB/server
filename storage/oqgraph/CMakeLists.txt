@@ -1,6 +1,6 @@
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-SET(CPACK_RPM_oqgraph-engine_PACKAGE_SUMMARY "OQGraph storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_SUMMARY "OQGraph storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_oqgraph-engine_PACKAGE_DESCRIPTION "The Open Query GRAPH computation engine, or OQGRAPH as the engine itself is called,
 allows you to handle hierarchies (tree structures) and complex graphs
 (nodes having many connections in several directions).

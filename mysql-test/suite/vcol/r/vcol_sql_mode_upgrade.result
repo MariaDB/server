@@ -73,6 +73,9 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
 SELECT * FROM t1;
 a	v
 1	1
@@ -86,6 +89,9 @@ a	v
 1	1
 2	2
 3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
 DROP TABLE t1;
 #
 # Fixing a Maria-10.2.26 table with a stored VARCHAR column
@@ -201,6 +207,9 @@ a	v
 1	1
 2	2
 3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
 DROP TABLE t1;
 #
 # Fixing a Maria-10.2.26 table with a virtual VARCHAR column

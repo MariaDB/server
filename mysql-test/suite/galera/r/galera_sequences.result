@@ -1,11 +1,6 @@
 connection node_2;
 connection node_1;
 connection node_1;
-CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-CALL mtr.add_suppression("WSREP: CREATE TABLE isolation failure");
-connection node_2;
-CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-connection node_1;
 CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
 SHOW CREATE SEQUENCE seq;
 Table	Create Table
@@ -15,14 +10,14 @@ SHOW CREATE SEQUENCE seq;
 Table	Create Table
 seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
 connection node_1;
-ALTER SEQUENCE seq MAXVALUE = 10000;
+ALTER SEQUENCE seq MAXVALUE = 10000 NOCACHE;
 SHOW CREATE SEQUENCE seq;
 Table	Create Table
-seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 10000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 10000 increment by 0 nocache nocycle ENGINE=InnoDB
 connection node_2;
 SHOW CREATE SEQUENCE seq;
 Table	Create Table
-seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 10000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 10000 increment by 0 nocache nocycle ENGINE=InnoDB
 connection node_1;
 DROP SEQUENCE seq;
 SHOW CREATE SEQUENCE seq;
@@ -31,25 +26,26 @@ connection node_2;
 SHOW CREATE SEQUENCE seq;
 ERROR 42S02: Table 'test.seq' doesn't exist
 connection node_1;
-CREATE SEQUENCE Seq1_1     START WITH 1     INCREMENT BY 1;
+CREATE SEQUENCE Seq1_1     START WITH 1     INCREMENT BY 1 NOCACHE;
 select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
 1
 alter table Seq1_1 engine=myisam;
+ERROR 42000: This version of MariaDB doesn't yet support 'Galera cluster does support only InnoDB sequences'
 select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
-1001
+2
 alter table Seq1_1 engine=innodb;
 select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
-2001
+3
 connection node_2;
 SHOW CREATE SEQUENCE Seq1_1;
 Table	Create Table
-Seq1_1	CREATE SEQUENCE `Seq1_1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+Seq1_1	CREATE SEQUENCE `Seq1_1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=InnoDB
 select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
-3001
+4
 connection node_1;
 DROP SEQUENCE Seq1_1;
 connection node_1;
@@ -83,27 +79,192 @@ SET SESSION autocommit=1;
 DROP SEQUENCE seq1;
 DROP SEQUENCE seq2;
 DROP TABLE t2;
+connection node_2;
 SET SESSION AUTOCOMMIT=0;
 SET SESSION wsrep_OSU_method='RSU';
 CREATE TABLE t1(c1 VARCHAR(10));
-INSERT INTO t1 (c1) VALUES('');
 create temporary sequence sq1 NOCACHE engine=innodb;
 create sequence sq2 NOCACHE engine=innodb;
 COMMIT;
+SET SESSION wsrep_OSU_method='TOI';
 SHOW CREATE SEQUENCE sq1;
 Table	Create Table
 sq1	CREATE SEQUENCE `sq1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=InnoDB
 SHOW CREATE SEQUENCE sq2;
 Table	Create Table
 sq2	CREATE SEQUENCE `sq2` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=InnoDB
-connection node_2;
+connection node_1;
 SHOW CREATE SEQUENCE sq1;
 ERROR 42S02: Table 'test.sq1' doesn't exist
 SHOW CREATE SEQUENCE sq2;
 ERROR 42S02: Table 'test.sq2' doesn't exist
-connection node_1;
+connection node_2;
 SET SESSION AUTOCOMMIT=1;
 DROP TABLE t1;
 DROP SEQUENCE sq1;
 DROP SEQUENCE sq2;
-SET SESSION wsrep_OSU_method='TOI';
+connection node_1;
+CREATE TABLE t (f INT) engine=innodb;
+LOCK TABLE t WRITE;
+CREATE OR REPLACE SEQUENCE t MAXVALUE=13 INCREMENT BY 1 NOCACHE engine=innodb;
+Warnings:
+Warning	138	Galera cluster does not support LOCK TABLE on SEQUENCES. Lock is released.
+LOCK TABLE t WRITE;
+ERROR 42000: This version of MariaDB doesn't yet support 'LOCK TABLE on SEQUENCES in Galera cluster'
+INSERT INTO t VALUES (0,0,1,1,1,0,0,0);
+SELECT * from t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+0	0	1	1	1	0	0	0
+SELECT NEXTVAL(t);
+NEXTVAL(t)
+0
+UNLOCK TABLES;
+DROP TABLE t;
+CREATE SEQUENCE t INCREMENT BY 0 NOCACHE ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t),
+b int) engine=innodb;
+INSERT INTO t1(b) VALUES (1),(2),(3);
+SELECT * FROM t1;
+a	b
+1	1
+3	2
+5	3
+connection node_2;
+SELECT * FROM t1;
+a	b
+1	1
+3	2
+5	3
+INSERT INTO t1(b) VALUES (4),(5),(6);
+SELECT * FROM t1;
+a	b
+1	1
+3	2
+5	3
+8	4
+10	5
+12	6
+connection node_1;
+SELECT * FROM t1;
+a	b
+1	1
+3	2
+5	3
+8	4
+10	5
+12	6
+DROP TABLE t1;
+DROP SEQUENCE t;
+CREATE SEQUENCE t ENGINE=MYISAM;
+ERROR 42000: This version of MariaDB doesn't yet support 'Galera cluster does support only InnoDB sequences'
+CREATE SEQUENCE t INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+connection node_2;
+# Wait DDL to replicate
+connection node_1;
+SELECT @@auto_increment_increment;
+@@auto_increment_increment
+2
+SELECT @@auto_increment_offset;
+@@auto_increment_offset
+1
+SET SESSION wsrep_sync_wait=0;
+connection node_2;
+SELECT @@auto_increment_increment;
+@@auto_increment_increment
+2
+SELECT @@auto_increment_offset;
+@@auto_increment_offset
+2
+SET SESSION wsrep_sync_wait=0;
+connection node_1;
+connection node_2;
+connection node_1;
+DROP SEQUENCE t;
+DROP TABLE t1;
+CREATE SEQUENCE t INCREMENT BY 0 NOCACHE ENGINE=INNODB;
+DROP SEQUENCE t;
+CREATE SEQUENCE t INCREMENT BY 1 CACHE=20 ENGINE=INNODB;
+ERROR 42000: This version of MariaDB doesn't yet support 'In Galera if you use CACHE you should set INCREMENT BY 0 to behave correctly in a cluster'
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+connection node_2;
+# Wait DDL to replicate
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+connection node_1;
+connection node_2;
+connection node_1;
+DROP SEQUENCE t;
+DROP TABLE t1;
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+ALTER TABLE t ENGINE=MYISAM;
+ERROR 42000: This version of MariaDB doesn't yet support 'Galera cluster does support only InnoDB sequences'
+ALTER SEQUENCE t INCREMENT BY 1 CACHE=10;
+ERROR 42000: This version of MariaDB doesn't yet support 'In Galera if you use CACHE you should set INCREMENT BY 0 to behave correctly in a cluster'
+ALTER SEQUENCE t INCREMENT BY 1 NOCACHE;
+ALTER SEQUENCE t INCREMENT BY 0 NOCACHE;
+ALTER SEQUENCE t INCREMENT BY 0 CACHE=10;
+DROP SEQUENCE t;
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+INSERT INTO t1(b) VALUES (2);
+INSERT INTO t1(b) VALUES (3);
+INSERT INTO t1(b) VALUES (4);
+INSERT INTO t1(a,b) VALUES (2,2);
+INSERT INTO t1(a,b) VALUES (3,2);
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+ROLLBACK;
+SELECT * FROM t1;
+a	b
+SELECT NEXTVAL(t);
+NEXTVAL(t)
+9
+connection node_2;
+SELECT * FROM t1;
+a	b
+SELECT NEXTVAL(t);
+NEXTVAL(t)
+2
+connection node_1;
+DROP TABLE t1;
+DROP SEQUENCE t;
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+INSERT INTO t1(b) VALUES (2);
+INSERT INTO t1(b) VALUES (3);
+INSERT INTO t1(b) VALUES (4);
+INSERT INTO t1(a,b) VALUES (2,2);
+INSERT INTO t1(a,b) VALUES (3,2);
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+COMMIT;
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+3	2
+5	3
+7	4
+SELECT NEXTVAL(t);
+NEXTVAL(t)
+9
+connection node_2;
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+3	2
+5	3
+7	4
+SELECT NEXTVAL(t);
+NEXTVAL(t)
+42
+connection node_1;
+DROP TABLE t1;
+DROP SEQUENCE t;

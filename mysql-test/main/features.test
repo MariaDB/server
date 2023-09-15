@@ -9,6 +9,8 @@ drop table if exists t1;
 
 set sql_mode="";
 
+--disable_ps2_protocol
+
 flush status;
 
 show status like "feature%";
@@ -115,7 +117,7 @@ select updatexml('<div><div><span>1</span><span>2</span></div></div>',
                  '/','<tr><td>1</td><td>2</td></tr>') as upd1;
 --replace_result 4 2
 show status like "feature_xml";
-
+--enable_ps2_protocol
 
 --echo #
 --echo # Feature delayed_keys
@@ -154,8 +156,10 @@ show status like "feature_insert_returning";
 --echo #
 create table t1(id1 int);
 insert into t1 values (1),(2);
+--disable_ps2_protocol
 select * into outfile '../../tmp/features_outfile.1' from t1;
 select * from t1 into outfile '../../tmp/features_outfile.2';
+--enable_ps2_protocol
 select id1 INTO @x from t1 where id1=1;
 select * from t1 where id1=1 into @y;
 select * from t1 where id1=@x;

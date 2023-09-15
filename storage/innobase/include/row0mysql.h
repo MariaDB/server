@@ -39,6 +39,7 @@ Created 9/17/2000 Heikki Tuuri
 
 struct row_prebuilt_t;
 class ha_innobase;
+class ha_handler_stats;
 
 /*******************************************************************//**
 Frees the blob heap in prebuilt when no longer needed. */

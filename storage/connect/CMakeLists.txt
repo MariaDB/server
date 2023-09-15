@@ -17,7 +17,7 @@ IF(WITHOUT_DYNAMIC_PLUGINS OR WITH_NONE OR ("${PLUGIN_CONNECT}" STREQUAL "NO"))
   RETURN()
 ENDIF()
 
-SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_connect-engine_PACKAGE_DESCRIPTION "Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
 connections to ODBC tables and remote MySQL tables, as well as a number of
 other interesting features." PARENT_SCOPE)
@@ -271,9 +271,11 @@ OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   FIND_PACKAGE(Java 1.6)
-  SET_PACKAGE_PROPERTIES(Java PROPERTIES TYPE OPTIONAL)
+  SET_PACKAGE_PROPERTIES(Java PROPERTIES TYPE OPTIONAL
+    PURPOSE "Required for the CONNECT_JDBC feature")
   FIND_PACKAGE(JNI)
-  SET_PACKAGE_PROPERTIES(JNI PROPERTIES TYPE OPTIONAL)
+  SET_PACKAGE_PROPERTIES(JNI PROPERTIES TYPE OPTIONAL
+    PURPOSE "Required for the CONNECT_JDBC feature")
   IF (JAVA_FOUND AND JNI_FOUND)
     INCLUDE(UseJava)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})

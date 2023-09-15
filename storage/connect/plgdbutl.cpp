@@ -381,7 +381,7 @@ char *SetPath(PGLOBAL g, const char *path)
 			return NULL;
 
 		if (PlugIsAbsolutePath(path)) {
-			strcpy(buf, path);
+			snprintf(buf, len, "%s", path);
 			return buf;
 		} // endif path
 
@@ -391,9 +391,9 @@ char *SetPath(PGLOBAL g, const char *path)
 #else   // !_WIN32
 			const char *s = "/";
 #endif  // !_WIN32
-			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
+			snprintf(buf, len, ".%s%s%s", s, path, s);
 		} else
-			strcpy(buf, path);
+			snprintf(buf, len, "%s", path);
 
 	} // endif path
 

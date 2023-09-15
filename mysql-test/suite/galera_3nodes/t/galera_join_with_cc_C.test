@@ -14,6 +14,12 @@
 --let $galera_server_number = 3
 --source include/galera_connect.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
@@ -297,3 +303,5 @@ call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State T
 
 --connection node_3
 call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+
+--source ../galera/include/auto_increment_offset_restore.inc

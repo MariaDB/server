@@ -94,10 +94,6 @@ Vers_type_trx             vers_type_trx;
 class Type_collection_std: public Type_collection
 {
 public:
-  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-  {
-    return NULL;
-  }
   const Type_handler *aggregate_for_result(const Type_handler *a,
                                            const Type_handler *b)
                                            const override
@@ -136,10 +132,6 @@ public:
   bool init(Type_handler_data *data) override
   {
     return false;
-  }
-  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-  {
-    return NULL;
   }
   const Type_handler *aggregate_for_result(const Type_handler *a,
                                            const Type_handler *b)
@@ -212,7 +204,7 @@ Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
   }
 
 #ifdef HAVE_SPATIAL
-  const Type_handler *ha= type_collection_geometry.handler_by_name(name);
+  const Type_handler *ha= Type_collection_geometry_handler_by_name(name);
   if (ha)
     return ha;
 #endif

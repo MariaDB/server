@@ -464,6 +464,7 @@ deallocate prepare stmt;
 # Bug#6088 "FOUND_ROWS returns wrong values for prepared statements when
 # LIMIT is used"
 # 
+--disable_ps2_protocol
 create table t1 (a int);
 insert into t1 (a) values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 prepare stmt from "select sql_calc_found_rows * from t1 limit 2";
@@ -475,6 +476,7 @@ execute stmt;
 select found_rows();
 deallocate prepare stmt;
 drop table t1;
+--enable_ps2_protocol
 
 #
 # Bug#6047 "permission problem when executing mysql_stmt_execute with derived
@@ -556,13 +558,14 @@ drop table t1;
 #
 # Bug #6089: FOUND_ROWS returns wrong values when no table/view is used 
 #
-
+--disable_ps2_protocol
 prepare stmt from "SELECT SQL_CALC_FOUND_ROWS 'foo' UNION SELECT 'bar' LIMIT 0";
 execute stmt;
 SELECT FOUND_ROWS();
 execute stmt;                                                                   
 SELECT FOUND_ROWS();                                                            
 deallocate prepare stmt;
+--enable_ps2_protocol
 
 #
 # Bug#9096 "select doesn't return all matched records if prepared statements
@@ -1410,11 +1413,13 @@ DEALLOCATE PREPARE b12651;
 # Bug #14956: ROW_COUNT() returns incorrect result after EXECUTE of prepared
 # statement
 #
+--disable_ps2_protocol
 create table t1 (id int);
 prepare ins_call from "insert into t1 (id) values (1)";
 execute ins_call;
 select row_count();
 drop table t1;
+--enable_ps2_protocol
 
 #
 # BUG#16474: SP crashed MySQL
@@ -3564,8 +3569,10 @@ flush status;
 execute st;
 show status like '%Handler_read%';
 flush status;
+--disable_ps2_protocol
 select * from t1 use index() where a=3;
 show status like '%Handler_read%';
+--enable_ps2_protocol
 flush status;
 execute st;
 show status like '%Handler_read%';

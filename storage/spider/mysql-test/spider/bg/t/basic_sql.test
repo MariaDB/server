@@ -889,7 +889,9 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps2_protocol
 SELECT found_rows();
+--enable_ps2_protocol
 
 --echo
 --echo select high_priority

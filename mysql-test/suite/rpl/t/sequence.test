@@ -27,7 +27,9 @@ set @@default_storage_engine="aria";
 
 CREATE SEQUENCE s1 cache=10;
 create table t1 select * from s1;
+--disable_ps2_protocol
 select NEXT VALUE for s1,seq from seq_1_to_20;
+--enable_ps2_protocol
 insert into t1 select * from s1;
 do setval(s1,5, 1, 0);
 insert into t1 select * from s1;

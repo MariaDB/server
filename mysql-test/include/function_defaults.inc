@@ -824,6 +824,7 @@ eval CREATE TABLE t2 (
   i $datetime DEFAULT $current_timestamp ON UPDATE $current_timestamp NOT NULL
 );
 
+--disable_ps2_protocol
 SELECT 1 INTO OUTFILE 't3.dat' FROM dual;
 
 SELECT NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -831,6 +832,7 @@ INTO OUTFILE 't4.dat'
 FROM dual;
 
 SELECT 1, 2 INTO OUTFILE 't5.dat' FROM dual;
+--enable_ps2_protocol
 
 --echo # Mon Aug 1 15:11:19 2011 UTC
 SET TIMESTAMP = 1312211479.918273;
@@ -929,9 +931,11 @@ remove_file $MYSQLD_DATADIR/test/t5.dat;
 --echo # Mon Aug 1 15:11:19 2011 UTC
 SET TIMESTAMP = 1312211479.089786;
 
+--disable_ps2_protocol
 SELECT 1 INTO OUTFILE "file1.dat" FROM dual;
 SELECT NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
  INTO OUTFILE "file2.dat" FROM dual;
+--enable_ps2_protocol
 
 --echo # Too short row
 

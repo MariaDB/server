@@ -114,7 +114,9 @@ SET @@GLOBAL.query_cache_limit = 0;
 
 #fetching results#
 --echo ** fetching results **
+--disable_ps2_protocol
 SELECT * FROM t;
+--enable_ps2_protocol
 
 # Check status after setting value#
 --echo ** Check status after setting value **

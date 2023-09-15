@@ -5,6 +5,7 @@ if (!$SERVER_AUDIT_SO) {
   skip No SERVER_AUDIT plugin;
 }
 
+--disable_ps2_protocol
 # An unfortunate wait for check-testcase.test to complete disconnect.
 let count_sessions= 1;
 source include/wait_until_count_sessions.inc;
@@ -240,6 +241,7 @@ uninstall plugin server_audit;
 --replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
 cat_file $MYSQLD_DATADIR/server_audit.log;
 remove_file $MYSQLD_DATADIR/server_audit.log;
+--enable_ps2_protocol
 
 --echo #
 --echo # MDEV-27631 Assertion `global_status_var.global_memory_used == 0' failed in mysqld_exit

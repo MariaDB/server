@@ -76,8 +76,10 @@ DROP TABLE t1;
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
 --enable_prepare_warnings
+--disable_ps2_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
 --disable_prepare_warnings
+--enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -88,11 +90,12 @@ DROP TABLE t1;
 let $MYSQLD_DATADIR= `select @@datadir`;
 remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
-
+--disable_ps2_protocol
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
 --enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
 --disable_prepare_warnings
+--enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);

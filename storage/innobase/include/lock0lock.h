@@ -748,9 +748,9 @@ private:
   /** waits and total number of lock waits; protected by wait_mutex */
   uint64_t wait_count;
   /** Cumulative wait time; protected by wait_mutex */
-  uint32_t wait_time;
+  uint64_t wait_time;
   /** Longest wait time; protected by wait_mutex */
-  uint32_t wait_time_max;
+  uint64_t wait_time_max;
 public:
   /** number of deadlocks detected; protected by wait_mutex */
   ulint deadlocks;
@@ -909,9 +909,9 @@ public:
   ulint get_wait_cumulative() const
   { return static_cast<ulint>(wait_count / WAIT_COUNT_STEP); }
   /** Cumulative wait time; protected by wait_mutex */
-  ulint get_wait_time_cumulative() const { return wait_time; }
+  uint64_t get_wait_time_cumulative() const { return wait_time; }
   /** Longest wait time; protected by wait_mutex */
-  ulint get_wait_time_max() const { return wait_time_max; }
+  uint64_t get_wait_time_max() const { return wait_time_max; }
 
   /** Get the lock hash table for a mode */
   hash_table &hash_get(ulint mode)

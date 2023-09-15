@@ -9,6 +9,7 @@
 --echo # Create and check
 --echo #
 
+--disable_ps2_protocol
 create sequence s1 engine=innodb;
 check table s1;
 select next value for s1;
@@ -27,6 +28,7 @@ check table s1;
 select next value for s1;
 select * from s1;
 drop sequence s1;
+--enable_ps2_protocol
 
 --echo #
 --echo # INSERT
@@ -45,7 +47,9 @@ insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
 select * from s1;
 insert into s1 values(1000,1,9223372036854775806,1,1,1000,0,0);
 select * from s1;
+--disable_ps2_protocol
 select next value for s1;
+--enable_ps2_protocol
 select * from s1;
 --error ER_SEQUENCE_INVALID_DATA
 insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
@@ -98,6 +102,7 @@ drop table s1;
 --echo # Many sequence calls with innodb
 --echo #
 
+--disable_ps2_protocol
 create sequence s1 cache=1000 engine=innodb;
 start transaction;
 select count(nextval(s1)) from seq_1_to_2000;
@@ -120,11 +125,13 @@ connection default;
 select * from s1;
 commit;
 drop sequence s1;
+--enable_ps2_protocol
 
 --echo #
 --echo # Flush tables with read lock
 --echo #
 
+--disable_ps2_protocol
 create sequence s1;
 select next value for s1;
 flush tables with read lock;
@@ -134,6 +141,7 @@ create sequence s2;
 select next value for s1;
 unlock tables;
 drop sequence s1;
+--enable_ps2_protocol
 
 --echo #
 --echo # MDEV-14761

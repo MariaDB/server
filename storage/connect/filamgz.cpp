@@ -88,7 +88,7 @@ int GZFAM::Zerror(PGLOBAL g)
   {
   int errnum;
 
-  strcpy(g->Message, gzerror(Zfile, &errnum));
+  snprintf(g->Message, sizeof(g->Message), "%s", gzerror(Zfile, &errnum));
 
   if (errnum == Z_ERRNO)
 #if defined(_WIN32)
@@ -142,7 +142,7 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
       /*****************************************************************/
       /* Updating GZ files not implemented yet.                        */
       /*****************************************************************/
-      strcpy(g->Message, MSG(UPD_ZIP_NOT_IMP));
+      snprintf(g->Message, sizeof(g->Message), MSG(UPD_ZIP_NOT_IMP));
       return true;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -379,7 +379,7 @@ int GZFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 int GZFAM::DeleteRecords(PGLOBAL g, int)
   {
-  strcpy(g->Message, MSG(NO_ZIP_DELETE));
+  snprintf(g->Message, sizeof(g->Message), MSG(NO_ZIP_DELETE));
   return RC_FX;
   } // end of DeleteRecords
 
@@ -926,7 +926,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
 
 #if 0
   if (!Optimized && Tdbp->NeedIndexing(g)) {
-    strcpy(g->Message, MSG(NOP_ZLIB_INDEX));
+    snprintf(g->Message, sizeof(g->Message), MSG(NOP_ZLIB_INDEX));
     return TRUE;
     } // endif indexing
 #endif // 0
@@ -993,7 +993,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
       CurBlk = Block - 1;
       CurNum = Last;
 
-      strcpy(g->Message, MSG(NO_PAR_BLK_INS));
+      snprintf(g->Message, sizeof(g->Message), "%s",MSG(NO_PAR_BLK_INS));
       return TRUE;
     } // endif Last
 
@@ -1068,7 +1068,7 @@ bool ZLBFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
   return true;
 #if 0 // All this must be checked
   if (pos < 0) {
-    strcpy(g->Message, MSG(INV_REC_POS));
+    snprintf(g->Message, sizeof(g->Message), MSG(INV_REC_POS));
     return true;
     } // endif recpos
 
@@ -1156,7 +1156,7 @@ int ZLBFAM::ReadBuffer(PGLOBAL g)
     rdbuf = Zlenp;
   } else {                     // !Optimized
     if (CurBlk != OldBlk + 1) {
-      strcpy(g->Message, MSG(INV_RAND_ACC));
+      snprintf(g->Message, sizeof(g->Message), MSG(INV_RAND_ACC));
       return RC_FX;
     } else
       Fpos = ftell(Stream);    // Used when optimizing
@@ -1276,7 +1276,7 @@ int ZLBFAM::WriteBuffer(PGLOBAL g)
 #if defined(_DEBUG)
     if (Tdbp->GetFtype() == RECFM_FIX &&
       (signed)strlen(CurLine) != Lrecl + (signed)strlen(CrLf)) {
-      strcpy(g->Message, MSG(BAD_LINE_LEN));
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_LINE_LEN));
       Closing = TRUE;
       return RC_FX;
       } // endif Lrecl

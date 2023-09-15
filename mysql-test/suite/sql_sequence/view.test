@@ -8,9 +8,11 @@
 create sequence s1;
 create view v1 as select * from s1;
 create view v2 as select next value for s1;
+--disable_ps2_protocol
 select * from v1;
 select * from v2;
 select * from v2;
+--enable_ps2_protocol
 --error ER_NOT_SEQUENCE
 select next value for v1;
 drop sequence s1;

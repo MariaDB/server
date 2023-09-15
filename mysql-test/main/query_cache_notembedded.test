@@ -113,6 +113,7 @@ disconnect root2;
 # query in QC from normal execution and SP (Bug#6897)
 # improved to also test Bug#3583 and Bug#12990
 #
+--disable_ps2_protocol
 flush query cache;
 reset query cache;
 flush status;
@@ -191,6 +192,7 @@ drop procedure f2;
 drop procedure f3;
 drop procedure f4;
 drop table t1;
+--enable_ps2_protocol
 
 #
 # Bug#14767 INSERT in SF + concurrent SELECT with query cache

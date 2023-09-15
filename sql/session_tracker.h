@@ -154,14 +154,7 @@ class Session_sysvars_tracker: public State_tracker
       my_hash_free(&m_registered_sysvars);
     }
 
-    sysvar_node_st *search(const sys_var *svar)
-    {
-      return reinterpret_cast<sysvar_node_st*>(
-               my_hash_search(&m_registered_sysvars,
-                             reinterpret_cast<const uchar*>(&svar),
-                             sizeof(sys_var*)));
-    }
-
+    sysvar_node_st *search(const sys_var *svar);
     sysvar_node_st *at(ulong i)
     {
       DBUG_ASSERT(i < m_registered_sysvars.records);

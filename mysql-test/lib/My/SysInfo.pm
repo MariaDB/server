@@ -68,7 +68,7 @@ sub _cpuinfo {
     }
   }
   $F= undef; # Close file
-  return $self;
+  return $self->{cpus};
 }
 
 
@@ -95,12 +95,7 @@ sub _kstat {
     push(@{$self->{cpus}}, $cpuinfo);
   }
 
-  # At least one cpu should have been found
-  # if this method worked
-  if ( $self->{cpus} ) {
-    return $self;
-  }
-  return undef;
+  return $self->{cpus};
 }
 
 

@@ -275,6 +275,7 @@ drop table t1;
 --echo #
 --echo # Test of MRR handler counters
 --echo #
+--disable_ps2_protocol
 flush status;
 show status like 'Handler_mrr%';
 create table t0 (a int);
@@ -322,6 +323,7 @@ show status like 'handler_mrr%';
 
 set join_cache_level= @join_cache_level_save;
 set join_buffer_size= @join_buffer_size_save;
+--enable_ps2_protocol
 
 drop table t0, t1;
 

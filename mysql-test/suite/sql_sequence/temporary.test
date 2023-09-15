@@ -11,7 +11,9 @@
 
 create temporary sequence s1 engine=innodb;
 alter table s1 engine myisam;
+--disable_ps2_protocol
 select nextval(s1);
+--enable_ps2_protocol
 select * from s1;
 drop temporary sequence s1;
 
@@ -28,6 +30,7 @@ DROP TEMPORARY SEQUENCE s1;
 --echo # MDEV-13007 ALTER .. ENGINE on temporary sequence may go wrong
 --echo #
 
+--disable_ps2_protocol
 create temporary sequence s1 engine=aria;
 alter table s1 engine myisam;
 select nextval(s1);
@@ -41,3 +44,4 @@ alter table s1 engine innodb;
 select nextval(s1);
 select nextval(s1);
 drop temporary sequence s1;
+--enable_ps2_protocol

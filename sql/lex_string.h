@@ -50,6 +50,60 @@ class Lex_cstring : public LEX_CSTRING
     str= _str;
     length= _len;
   }
+
+  /*
+    Trim left white spaces.
+    Assumes that there are no multi-bytes characters
+    that can be considered white-space.
+  */
+  Lex_cstring ltrim_whitespace(CHARSET_INFO *cs) const
+  {
+    DBUG_ASSERT(cs->mbminlen == 1);
+    Lex_cstring str= *this;
+    while (str.length > 0 && my_isspace(cs, str.str[0]))
+    {
+      str.length--;
+      str.str++;
+    }
+    return str;
+  }
+
+  /*
+    Trim right white spaces.
+    Assumes that there are no multi-bytes characters
+    that can be considered white-space.
+    Also, assumes that the character set supports backward space parsing.
+  */
+  Lex_cstring rtrim_whitespace(CHARSET_INFO *cs) const
+  {
+    DBUG_ASSERT(cs->mbminlen == 1);
+    Lex_cstring str= *this;
+    while (str.length > 0 && my_isspace(cs, str.str[str.length - 1]))
+    {
+      str.length --;
+    }
+    return str;
+  }
+
+  /*
+    Trim all spaces.
+  */
+  Lex_cstring trim_whitespace(CHARSET_INFO *cs) const
+  {
+    return ltrim_whitespace(cs).rtrim_whitespace(cs);
+  }
+
+  /*
+    Trim all spaces and return the length of the leading space sequence.
+  */
+  Lex_cstring trim_whitespace(CHARSET_INFO *cs, size_t *prefix_length) const
+  {
+    Lex_cstring tmp= Lex_cstring(*this).ltrim_whitespace(cs);
+    if (prefix_length)
+      *prefix_length= tmp.str - str;
+    return tmp.rtrim_whitespace(cs);
+  }
+
 };
 
 

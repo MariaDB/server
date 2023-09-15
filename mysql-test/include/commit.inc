@@ -6,6 +6,7 @@
 ## - $engine_type should be set
 ##
 
+--disable_ps2_protocol
 set sql_mode=no_engine_substitution;
 eval set default_storage_engine = $engine_type;
 set autocommit=1;
@@ -787,3 +788,4 @@ call p_verify_status_increment(2, 0, 2, 0);
 drop table t1, t2, t3;
 drop procedure p_verify_status_increment;
 drop function f1;
+--enable_ps2_protocol

@@ -174,7 +174,7 @@ static void get_options(int argc, char **argv)
 
   free_defaults(argv);
   if (tty_password)
-    password=get_tty_password(NullS);
+    password=my_get_tty_password(NullS);
   return;
 }
 

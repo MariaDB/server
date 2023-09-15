@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+SET @@global.wsrep_sst_donor = NULL;
+ERROR 42000: Variable 'wsrep_sst_donor' can't be set to the value of 'NULL'
+SET @@global.wsrep_cluster_address='NULL';
+SET SESSION wsrep_sync_wait=0;
+SELECT @@wsrep_sst_donor;
+@@wsrep_sst_donor
+
+SELECT @@wsrep_cluster_address;
+@@wsrep_cluster_address
+NULL
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	OFF
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Disconnected
+call mtr.add_suppression("WSREP: .*Invalid backend URI.*");
+call mtr.add_suppression("WSREP: gcs connect failed: Invalid argument");
+disconnect node_2;
+disconnect node_1;

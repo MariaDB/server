@@ -1,0 +1,143 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=3;
+SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode=aggressive;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo *** MDEV-31509: Lost data with FTWRL and STOP SLAVE
+# The bug was as follows:
+# 1. Event groups T1 and T2 are queued but not started yet.
+# 2. FLUSH TABLE WITH READ LOCKS starts, sets rpl_parallel_entry::pause_sub_id
+# 3. T2 Sees pause_sub_id, goes to wait for the pause to complete.
+# 4. FTWRL completes, UNLOCK TABLES is run.
+# 5. STOP SLAVE is run, sets rpl_parallel_entry::stop_sub_id.
+# 6. T2 wakes up after FTWRL pause, only now sets
+#    rpl_parallel_entry::largest_started_sub_id. This is the bug,
+#    largest_started_sub_id is set too late here.
+# 7. T1 starts, it sees stop_sub_id<T1, so T1 is skipped due to STOP SLAVE.
+# 8. T2 continues, its check for stop_sub_id was before STOP SLAVE. So T2 is
+#    wrongly applied, silently losing transaction T1.
+
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0,0);
+INSERT INTO t2 VALUES (0,0);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection slave
+--echo *** Arrange for T1 to delay before entering GCO wait.
+SET GLOBAL debug_dbug="+d,gco_wait_delay_gtid_0_x_99";
+--echo *** Arrange for T2 to wait for FTWRL to start.
+SET GLOBAL debug_dbug="+d,hold_worker_on_schedule";
+--echo *** Arrange for T2 to delay wakeup from FTWRL pause.
+SET GLOBAL debug_dbug="+d,delay_ftwrl_wait_gtid_0_x_100";
+
+--connection master
+--echo *** Event group T1
+SET SESSION gtid_seq_no=99;
+INSERT INTO t1 VALUES (1,1);
+
+--connection slave
+--echo *** 1a. Wait for T1 to be queued.
+SET debug_sync="now WAIT_FOR gco_wait_paused";
+
+--connection master
+--echo *** Event group T2
+SET SESSION gtid_seq_no=100;
+INSERT INTO t2 VALUES (2,2);
+
+--connection slave
+--echo *** 1b. Wait for T2 to be queued.
+SET debug_sync= "now WAIT_FOR reached_pause";
+
+--connection slave1
+--echo *** 2. Run FTWRL
+SET GLOBAL debug_dbug= "+d,pause_for_ftwrl_wait";
+send FLUSH TABLES WITH READ LOCK;
+
+--connection slave
+SET debug_sync= "now WAIT_FOR pause_ftwrl_waiting";
+
+--echo *** 3. Wait for T2 to be waiting for FTWRL pause
+SET debug_sync= "now SIGNAL continue_worker";
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "%Waiting due to global read lock%" and command="Slave_worker";
+--source include/wait_condition.inc
+
+--echo *** 4. FTWRL completes, UNLOCK TABLES.
+SET debug_sync="now SIGNAL pause_ftwrl_cont";
+
+--connection slave1
+reap;
+UNLOCK TABLES;
+
+--connection slave
+--echo *** T2 is now ready to proceed after FTWRL pause, but did not wake up yet.
+SET debug_sync="now WAIT_FOR pause_wait_started";
+
+--echo *** 5. STOP SLAVE is run.
+--connection slave1
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+send STOP SLAVE;
+
+--connection slave
+SET debug_sync="now WAIT_FOR wait_for_done_waiting";
+
+--echo *** 5. T2 wakes up after FTWRL pause, reaches wait_for_prior_commit().
+SET debug_sync="now SIGNAL pause_wait_continue";
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "%Waiting for prior transaction to commit%" and command="Slave_worker";
+--source include/wait_condition.inc
+
+--echo *** 6. T1 starts.
+SET debug_sync="now SIGNAL gco_wait_cont";
+
+--connection slave1
+reap;
+
+--connection slave
+--source include/wait_for_slave_to_stop.inc
+
+--connection master
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+# The bug here was that T2 was errorneously replicated while T1 was
+# being skipped due to STOP SLAVE. So the @@gtid_slave_pos was at T2,
+# but we were missing the data from T1.
+SELECT @@GLOBAL.gtid_slave_pos;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET DEBUG_SYNC= "RESET";
+SET GLOBAL slave_parallel_threads= @old_parallel_threads;
+SET GLOBAL slave_parallel_mode= @old_parallel_mode;
+SET GLOBAL debug_dbug=@old_dbug;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc

@@ -1594,6 +1594,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 50,
               "r_filtered": 100,
               "attached_condition": "t1.c = 10 or t1.c is null",
@@ -3483,6 +3484,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -3835,6 +3837,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -4004,6 +4007,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -4056,6 +4060,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -4114,6 +4119,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -4186,6 +4192,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -4361,6 +4368,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -4397,6 +4405,7 @@ ANALYZE
                       "cost": "REPLACED",
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
                       "filtered": 100,
                       "r_filtered": 2,
                       "attached_condition": "t1.b = t2.b"

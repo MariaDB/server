@@ -1,0 +1,89 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Replicas
+#
+connection slave;
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug= "d,negate_clock_diff_with_master";
+set @@GLOBAL.slave_parallel_mode= CONSERVATIVE;
+change master to master_delay=3, master_use_gtid=Slave_Pos;
+include/start_slave.inc
+connection master;
+create table t1 (a int);
+create table t2 (a int);
+include/sync_slave_sql_with_master.inc
+#
+# Pt 1) Ensure SBM is updated immediately upon arrival of the next event
+# Lock t1 on slave so the first received transaction does not complete/commit
+connection slave;
+LOCK TABLES t1 WRITE;
+connection master;
+# Sleep 2 to allow a buffer between events for SBM check
+insert into t1 values (0);
+include/save_master_gtid.inc
+connection slave;
+# Waiting for transaction to arrive on slave and begin SQL Delay..
+# Validating SBM is updated on event arrival..
+# ..done
+connection slave;
+UNLOCK TABLES;
+include/sync_with_master_gtid.inc
+#
+# Pt 2) If the worker threads have not entered an idle state, ensure
+# following events do not update SBM
+connection slave;
+LOCK TABLES t1 WRITE;
+connection master;
+# Sleep 2 to allow a buffer between events for SBM check
+insert into t1 values (1);
+# Sleep 3 to create gap between events
+insert into t1 values (2);
+include/save_master_pos.inc
+connection slave;
+# Wait for first transaction to complete SQL delay and begin execution..
+# Validate SBM calculation doesn't use the second transaction because worker threads shouldn't have gone idle..
+# ..and that SBM wasn't calculated using prior committed transactions
+# ..done
+connection slave;
+UNLOCK TABLES;
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+# Cleanup
+include/stop_slave.inc
+CHANGE MASTER TO master_delay=0;
+include/start_slave.inc
+#
+# MDEV-30619: Parallel Slave SQL Thread Can Update Seconds_Behind_Master with Active Workers
+#
+connection slave;
+# Ensure the replica is fully idle before starting transactions
+# Lock t1 on slave so the first received transaction does not complete/commit
+LOCK TABLES t1 WRITE;
+connection master;
+insert into t1 values (3);
+include/save_master_gtid.inc
+connection slave;
+# Waiting for first transaction to begin..
+connection master;
+# Sleep 2 sec to create a gap between events
+INSERT INTO t2 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+# Waiting for second transaction to begin..
+connection slave;
+UNLOCK TABLES;
+include/sync_with_master_gtid.inc
+#
+# Cleanup
+connection master;
+DROP TABLE t1, t2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug= "";
+set @@GLOBAL.slave_parallel_mode= "$save_parallel_mode";
+include/start_slave.inc
+include/rpl_end.inc
+# End of rpl_parallel_sbm.test

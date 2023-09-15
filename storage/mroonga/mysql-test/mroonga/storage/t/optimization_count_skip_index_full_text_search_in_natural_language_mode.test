@@ -33,8 +33,10 @@ INSERT INTO memos (content) VALUES ('Mroonga is good.');
 INSERT INTO memos (content) VALUES ('Mroonga is very good.');
 INSERT INTO memos (content) VALUES ('Mroonga uses Groonga.');
 
+--disable_ps2_protocol
 SELECT COUNT(*) FROM memos
  WHERE MATCH(content) AGAINST('Groonga');
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_count_skip';
 

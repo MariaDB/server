@@ -1,17 +1,30 @@
 call mtr.add_suppression('Unknown key id 1');
 call mtr.add_suppression('try to repair it');
 call mtr.add_suppression('Index is corrupted');
+call mtr.add_suppression("Initialization of encryption failed.*");
 set global aria_encrypt_tables= 1;
 create table t1 (pk int primary key, a int, key(a)) engine=aria transactional=1;
-alter table t1 disable keys;
-insert into t1 values  (1,1);
-alter table t1 enable keys;
-ERROR HY000: Unknown key id 1 for test/t1. Can't continue!
-repair table t1 use_frm;
-Table	Op	Msg_type	Msg_text
-test.t1	repair	warning	Number of rows changed from 0 to 1
-test.t1	repair	Error	Unknown key id 1 for test/t1. Can't continue!
-test.t1	repair	Error	Unknown key id 1 for test/t1. Can't continue!
-test.t1	repair	status	OK
-drop table t1;
+ERROR HY000: Initialization of encryption failed for ./test/t1
 set global aria_encrypt_tables= default;
+#
+# MDEV-26258 Various crashes/asserts/corruptions when Aria encryption is
+# enabled/used, but the encryption plugin is not loaded
+#
+SET GLOBAL aria_encrypt_tables=ON;
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=Aria;
+ERROR HY000: Initialization of encryption failed for ./test/t1
+# Restart with encryption enabled
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=Aria;
+INSERT INTO t1 VALUES (4,0);
+LOAD INDEX INTO CACHE t1 IGNORE LEAVES;
+Table	Op	Msg_type	Msg_text
+test.t1	preload_keys	status	OK
+LOAD INDEX INTO CACHE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	preload_keys	status	OK
+SELECT * FROM t1;
+ERROR HY000: Initialization of encryption failed for ./test/t1.MAD
+DROP TABLE t1;
+Warnings:
+Warning	199	Initialization of encryption failed for ./test/t1.MAD
+Cleanup

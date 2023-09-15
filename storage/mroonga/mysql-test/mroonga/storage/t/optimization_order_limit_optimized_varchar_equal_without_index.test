@@ -43,10 +43,12 @@ INSERT INTO diaries VALUES(5, 2011, 11, 13, "はれ", "天気がよいのは今�
 INSERT INTO diaries VALUES(6, 2011, 12, 1, "久しぶり", "天気が悪いからずっと留守番。");
 INSERT INTO diaries VALUES(7, 2011, 12, 2, "初雪", "今日の天気は雪！");
 
+--disable_ps2_protocol
 SELECT * FROM diaries
          WHERE MATCH(content) AGAINST("今日" IN BOOLEAN MODE) AND
                title = "hello"
          ORDER BY day LIMIT 1;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 

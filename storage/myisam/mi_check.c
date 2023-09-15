@@ -2945,6 +2945,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
 #else
       param->sort_buffer_length*sort_param[i].key_length/total_key_length;
 #endif
+    set_if_bigger(sort_param[i].sortbuff_size, MIN_SORT_BUFFER);
+
     if ((error= mysql_thread_create(mi_key_thread_find_all_keys,
                                     &sort_param[i].thr, &thr_attr,
                                     thr_find_all_keys,

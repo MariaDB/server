@@ -2719,6 +2719,8 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
       fixed underlying Item_field pointing to Field_row.
     - In case if we're assigning from a ROW() value, src and value[0] will
       point to the same Item_row.
+    - In case if we're assigning from a subselect, src and value[0] also
+      point to the same Item_singlerow_subselect.
   */
   Item *src;
   if (!(src= thd->sp_fix_func_item(value)) ||
@@ -2730,6 +2732,7 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
     DBUG_RETURN(true);
   }
 
+  src->bring_value();
   DBUG_RETURN(m_table->sp_set_all_fields_from_item(thd, src));
 }
 

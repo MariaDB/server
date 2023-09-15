@@ -1,0 +1,42 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE `t`(`id` INT, PRIMARY KEY(`id`)) ENGINE=InnoDB STATS_PERSISTENT=0;
+
+INSERT INTO t VALUES (1);
+
+SET GLOBAL innodb_monitor_reset = "module_innodb";
+
+BEGIN;
+SELECT * FROM t FOR UPDATE;
+
+--connect(con1,localhost,root,,)
+SET innodb_lock_wait_timeout = 1;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t FOR UPDATE;
+--disconnect con1
+
+--connection default
+COMMIT;
+
+SELECT variable_value > 100 FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time';
+SELECT variable_value > 100 FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time_max';
+SELECT variable_value > 100 FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
+
+SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME="lock_row_lock_time";
+SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME="lock_row_lock_time_max";
+SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME="lock_row_lock_time_avg";
+
+DROP TABLE t;
+
+--disable_warnings
+SET GLOBAL innodb_monitor_reset=default;
+--enable_warnings
+
+--source include/wait_until_count_sessions.inc

@@ -6,6 +6,7 @@
 --source include/master-slave.inc
 --source include/have_innodb.inc
 
+--disable_ps2_protocol
 connection master;
 create database s_db;
 grant all on s_db.* to normal_1@'%' identified by 'pass';
@@ -704,5 +705,6 @@ drop user normal_2@'%';
 drop user normal_3@'%';
 drop user normal_4@'%';
 drop user normal_5@'%';
+--enable_ps2_protocol
 
 --source include/rpl_end.inc

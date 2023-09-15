@@ -406,10 +406,10 @@ public:
   }
 
   // Returns offset to substring or -1
-  int strstr(const Binary_string &search, uint32 offset=0);
-  int strstr(const char *search, uint32 search_length, uint32 offset=0);
+  int strstr(const Binary_string &search, uint32 offset=0) const;
+  int strstr(const char *search, uint32 search_length, uint32 offset=0) const;
   // Returns offset to substring or -1
-  int strrstr(const Binary_string &search, uint32 offset=0);
+  int strrstr(const Binary_string &search, uint32 offset=0) const;
 
   /*
     The following append operations do not extend the strings and in production

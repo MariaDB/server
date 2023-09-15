@@ -47,11 +47,21 @@ Warnings:
 Note	1255	Slave already has been stopped
 RESET MASTER;
 SET @@global.gtid_slave_pos="";
-SET @@global.gtid_strict_mode=1;
 connection master;
 RESET MASTER;
 CREATE TABLE ti (a INT) ENGINE=innodb;
 CREATE SEQUENCE s2 ENGINE=innodb;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+include/rpl_restart_server.inc [server_number=2]
+SET @@global.slave_parallel_threads=2;
+SET @@global.slave_parallel_mode=optimistic;
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+SET @@global.gtid_strict_mode=1;
+connection master;
 SET @@gtid_seq_no=100;
 ALTER SEQUENCE s2 restart with 1;
 INSERT INTO ti SET a=1;
@@ -60,6 +70,7 @@ SELECT @@global.gtid_binlog_state "Master gtid state";
 Master gtid state
 0-1-101
 connection slave;
+SET STATEMENT sql_log_bin=0 FOR FLUSH TABLES;
 include/start_slave.inc
 SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "no 100,101 yet in both";
 @@global.gtid_binlog_state	no 100,101 yet in both

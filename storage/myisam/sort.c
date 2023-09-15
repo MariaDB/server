@@ -176,8 +176,7 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
 	maxbuffer_org= maxbuffer;
 	if (memavl < sizeof(BUFFPEK) * maxbuffer ||
 	    (keys= (memavl-sizeof(BUFFPEK)*maxbuffer)/
-             (sort_length+sizeof(char*))) <= 1 ||
-            keys < maxbuffer)
+             (sort_length+sizeof(char*))) <= 1)
 	{
 	  mi_check_print_error(info->sort_info->param,
 			       "myisam_sort_buffer_size is too small. Current myisam_sort_buffer_size: %llu  rows: %llu  sort_length: %u",
@@ -186,6 +185,15 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
           my_errno= ENOMEM;
 	  goto err;
 	}
+        if (keys < maxbuffer)
+        {
+          /*
+            There must be sufficient memory for at least one key per BUFFPEK,
+            otherwise repair by sort/parallel repair cannot operate.
+          */
+          keys= maxbuffer;
+          break;
+        }
       }
       while ((maxbuffer= (size_t) (records/(keys-1)+1)) != maxbuffer_org);
     }
@@ -229,6 +237,20 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
                               &tempfile,&tempfile_for_exceptions))
       == HA_POS_ERROR)
     goto err; /* purecov: tested */
+  if (maxbuffer >= keys)
+  {
+    /*
+      merge_many_buff will crash if maxbuffer >= keys as then we cannot store in memory
+      the keys for each buffer.
+    */
+    keys= maxbuffer + 1;
+    if (!(sort_keys= ((uchar **)
+                      my_realloc(PSI_INSTRUMENT_ME, sort_keys,
+                                 (size_t) (keys*(sort_length+sizeof(char*))+
+                                           HA_FT_MAXBYTELEN), MYF(MY_FREE_ON_ERROR)))))
+      goto err;
+  }
+
   if (maxbuffer == 0)
   {
     if (!no_messages)

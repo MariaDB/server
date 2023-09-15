@@ -67,7 +67,7 @@ Type_handler_geometry::type_handler_geom_by_type(uint type)
 
 
 const Type_handler *
-Type_collection_geometry::handler_by_name(const LEX_CSTRING &name) const
+Type_collection_geometry_handler_by_name(const LEX_CSTRING &name)
 {
   if (type_handler_point.name().eq(name))
     return &type_handler_point;

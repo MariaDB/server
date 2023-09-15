@@ -19,7 +19,9 @@ eval CREATE TEMPORARY TABLE tmp_a (
 ) $MASTER_1_ENGINE2;
 --enable_query_log
 
+--disable_ps2_protocol
 eval $DIRECT_SQL_COMMAND;
+--enable_ps2_protocol
 SELECT pkey FROM tmp_a;
 
 --echo

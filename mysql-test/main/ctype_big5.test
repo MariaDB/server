@@ -78,20 +78,19 @@ select hex(convert(_big5 0xC84041 using ucs2));
 set names big5;
 create table t1 (a blob);
 insert into t1 values (0xEE00);
+--disable_ps2_protocol
 select * into outfile 'test/t1.txt' from t1;
+--enable_ps2_protocol
 delete from t1;
-#enable after fix MDEV-27871
---disable_view_protocol
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---eval select hex(load_file('$MYSQLD_DATADIR/test/t1.txt'));
+--eval select hex(load_file('$MYSQLD_DATADIR/test/t1.txt')) as lf
 load data infile 't1.txt' into table t1;
 select hex(a) from t1;
 --remove_file $MYSQLD_DATADIR/test/t1.txt
 drop table t1;
-#enable_view_protocol
 #
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 
 --echo #

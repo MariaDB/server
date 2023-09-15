@@ -80,10 +80,12 @@ SET optimizer_switch='outer_join_with_cache=off';
 
 SET SESSION debug_dbug= '+d,only_one_Unique_may_be_created';
 
+--disable_ps2_protocol
 --replace_column 1 x 2 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x
 EXPLAIN
 SELECT * FROM t1 LEFT JOIN t2 ON ( t2.a < 10 OR t2.b < 10 );
 SELECT * FROM t1 LEFT JOIN t2 ON ( t2.a < 10 OR t2.b < 10 );
+--enable_ps2_protocol
 
 SET debug_dbug= @saved_dbug;
 

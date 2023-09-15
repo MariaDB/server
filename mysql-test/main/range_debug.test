@@ -10,7 +10,9 @@ insert into t2 select 2*(A.a + 10*(B.a + 10*C.a)) from t1 A, t1 B, t1 C;
 set in_predicate_conversion_threshold= 2000;
 
 set @a="select * from t2 force index (a) where a NOT IN(0";
+--disable_ps2_protocol
 select count(*) from (select @a:=concat(@a, ',', a) from t2 ) Z;
+--enable_ps2_protocol
 set @a=concat(@a, ')');
 
 insert into t2 values (11),(13),(15);

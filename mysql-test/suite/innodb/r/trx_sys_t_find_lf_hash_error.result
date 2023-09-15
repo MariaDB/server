@@ -1,0 +1,25 @@
+create table t1 (a int) engine=innodb STATS_PERSISTENT=0;
+create table t2 (a int) engine=innodb STATS_PERSISTENT=0;
+BEGIN;
+insert into t1 values(1);
+connect  con_1, localhost, root,,;
+SET DEBUG_SYNC="before_trx_hash_find_element_mutex_enter SIGNAL before_mutex_enter WAIT_FOR cont1";
+SET DEBUG_SYNC="after_trx_hash_find_element_mutex_enter SIGNAL after_mutex_enter WAIT_FOR cont2";
+SELECT * FROM t1 WHERE a = 1 FOR UPDATE;
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR before_mutex_enter";
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL cont1";
+SET DEBUG_SYNC="now WAIT_FOR after_mutex_enter";
+insert into t2 values(1);
+BEGIN;
+INSERT INTO t2 VALUES(2);
+SET DEBUG_SYNC="now SIGNAL cont2";
+connection con_1;
+a
+1
+disconnect con_1;
+connection default;
+DROP TABLE t1;
+DROP TABLE t2;
+SET DEBUG_SYNC="reset";

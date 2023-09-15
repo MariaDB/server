@@ -35,10 +35,10 @@ log, should the query be slow.
 2. Timing data. Measuring the time it took to run parts of query has noticeable
 overhead. Because of that, we measure the time only when running "ANALYZE
 $stmt").
-
 */
 
 /* fake microseconds as cycles if cycles isn't available */
+
 static inline double timer_tracker_frequency()
 {
 #if (MY_TIMER_ROUTINE_CYCLES)
@@ -47,6 +47,7 @@ static inline double timer_tracker_frequency()
   return static_cast<double>(sys_timer_info.microseconds.frequency);
 #endif
 }
+
 
 class Gap_time_tracker;
 void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker, ulonglong timeval);
@@ -75,8 +76,6 @@ protected:
   {
     ulonglong end= measure();
     cycles += end - last_start;
-    if (unlikely(end < last_start))
-      cycles += ULONGLONG_MAX;
 
     process_gap_time_tracker(thd, end);
     if (my_gap_tracker)
@@ -111,11 +110,21 @@ public:
 
   // interface for getting the time
   ulonglong get_loops() const { return count; }
-  double get_time_ms() const
+
+  inline double cycles_to_ms(ulonglong cycles_arg) const
   {
     // convert 'cycles' to milliseconds.
-    return 1000.0 * static_cast<double>(cycles) /
+    return 1000.0 * static_cast<double>(cycles_arg) /
       timer_tracker_frequency();
+  }
+
+  double get_time_ms() const
+  {
+    return cycles_to_ms(cycles);
+  }
+  ulonglong get_cycles() const
+  {
+    return cycles;
   }
 
   bool has_timed_statistics() const { return cycles > 0; }

@@ -1,0 +1,93 @@
+--source include/master-slave.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+
+--echo # MDEV-31448 OOO finish event group by killed worker
+# The test demonstrates how a killed worker access gco lists
+# in finish_event_group() out-of-order to fire
+#       DBUG_ASSERT(!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id);
+# in the buggy version.
+
+--echo # Initialize test data
+--connection master
+call mtr.add_suppression("Slave: Connection was killed");
+call mtr.add_suppression("Slave: Commit failed due to failure of an earlier commit on which this one depends");
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--let $save_slave_parallel_threads= `SELECT @@global.slave_parallel_threads`
+--let $save_slave_parallel_mode= `SELECT @@global.slave_parallel_mode`
+--let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+--let $save_transaction_retries= `SELECT @@global.slave_transaction_retries`
+set @@global.slave_parallel_threads= 4;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+set @@global.innodb_lock_wait_timeout= 30;
+set @@global.slave_transaction_retries= 0;
+
+--connection slave1
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+
+--connection master
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
+
+# GCO 1
+SET @commit_id= 10000;
+# T1
+update t1 set a=2 where a=1;
+# T2
+set statement skip_parallel_replication=1 for  insert into t2 values (1);
+
+# GCO 2
+# T3
+drop table t2;
+
+--connection slave
+--source include/start_slave.inc
+
+--echo # wait for T1
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(-1)%' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+--echo # wait for T2
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for prior transaction to commit%' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+--let $t2_tid= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for prior transaction to commit%' and  command LIKE 'Slave_worker'`
+--echo # wait for T3
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE  'Waiting for prior transaction to start commit%' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+--replace_result $t2_tid T2_TID
+--eval kill $t2_tid
+
+--sleep 1
+
+--connection slave1
+# Release the blocked T1
+ROLLBACK;
+
+--connection master
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--echo #
+--echo # Cleanup
+--source include/stop_slave.inc
+eval set @@global.slave_parallel_threads= $save_slave_parallel_threads;
+eval set @@global.slave_parallel_mode= $save_slave_parallel_mode;
+eval set @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout;
+eval set @@global.slave_transaction_retries= $save_transaction_retries;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+

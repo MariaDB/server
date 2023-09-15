@@ -1181,6 +1181,7 @@ DROP TABLE t1;
 # Bug#2198 SELECT INTO OUTFILE (with Sub-Select) Problem
 #
 
+--disable_ps2_protocol
 create table t1 (a int, b decimal(13, 3));
 insert into t1 values (1, 0.123);
 let $outfile_abs= $MYSQLTEST_VARDIR/tmp/subselect.out.file.1;
@@ -1193,7 +1194,7 @@ eval load data infile "$outfile_rel" into table t1;
 --remove_file $outfile_abs
 select * from t1;
 drop table t1;
-
+--enable_ps2_protocol
 
 #
 # Bug#2479 dependant subquery with limit crash
@@ -5861,6 +5862,7 @@ SELECT
      WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 
+--disable_ps2_protocol
 flush status;
 
 SELECT
@@ -5888,6 +5890,7 @@ FROM t2 alias1, t1 alias2, t1 alias3;
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
+--enable_ps2_protocol
 
 drop table t1, t2, t3;
 
@@ -5933,8 +5936,10 @@ set global userstat=on;
 flush table_statistics;
 flush index_statistics;
 
+--disable_ps2_protocol
 SELECT MIN(b) FROM ( SELECT * FROM t1, t2, t3 WHERE d = b ) AS alias1 
 WHERE SLEEP(0.1) OR c < 'p' OR b = ( SELECT MIN(b) FROM t2 );
+--enable_ps2_protocol
 
 --echo # The following shows that t2 was indeed scanned with a full scan.
 show table_statistics;

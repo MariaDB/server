@@ -27,13 +27,16 @@ SET @@global.wsrep_sst_donor='hyphenated-donor-name';
 SELECT @@global.wsrep_sst_donor;
 SET @@global.wsrep_sst_donor=default;
 SELECT @@global.wsrep_sst_donor;
-SET @@global.wsrep_sst_donor=NULL;
+SET @@global.wsrep_sst_donor='';
 SELECT @@global.wsrep_sst_donor;
 
 --echo
 --echo # invalid values
 --error ER_WRONG_TYPE_FOR_VAR
 SET @@global.wsrep_sst_donor=1;
+SELECT @@global.wsrep_sst_donor;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_donor=NULL;
 SELECT @@global.wsrep_sst_donor;
 
 --echo

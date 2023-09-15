@@ -33,8 +33,10 @@ return 0;
 end//
 delimiter ;//
 
+--disable_ps2_protocol
 select test.f1(1);
 select test.f1(2);
+--enable_ps2_protocol
 select * from test.t1;
 
 save_master_pos;

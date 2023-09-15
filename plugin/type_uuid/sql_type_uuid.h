@@ -17,13 +17,103 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_type_fixedbin_storage.h"
+
+template <bool force_swap>
 class UUID: public FixedBinTypeStorage<MY_UUID_SIZE, MY_UUID_STRING_LENGTH>
 {
+  bool get_digit(char ch, uint *val)
+  {
+    if (ch >= '0' && ch <= '9')
+    {
+      *val= (uint) ch - '0';
+      return false;
+    }
+    if (ch >= 'a' && ch <= 'f')
+    {
+      *val= (uint) ch - 'a' + 0x0a;
+      return false;
+    }
+    if (ch >= 'A' && ch <= 'F')
+    {
+      *val= (uint) ch - 'A' + 0x0a;
+      return false;
+    }
+    return true;
+  }
+
+  bool get_digit(uint *val, const char *str, const char *end)
+  {
+    if (str >= end)
+      return true;
+    return get_digit(*str, val);
+  }
+
+  size_t skip_hyphens(const char *str, const char *end)
+  {
+    const char *str0= str;
+    for ( ; str < end; str++)
+    {
+      if (str[0] != '-')
+        break;
+    }
+    return str - str0;
+  }
+
+  const char *get_two_digits(char *val, const char *str, const char *end)
+  {
+    uint hi, lo;
+    if (get_digit(&hi, str++, end))
+      return NULL;
+    str+= skip_hyphens(str, end);
+    if (get_digit(&lo, str++, end))
+      return NULL;
+    *val= (char) ((hi << 4) + lo);
+    return str;
+  }
+
 public:
   using FixedBinTypeStorage::FixedBinTypeStorage;
-  bool ascii_to_fbt(const char *str, size_t str_length);
-  size_t to_string(char *dst, size_t dstsize) const;
-  static const Name &default_value();
+  bool ascii_to_fbt(const char *str, size_t str_length)
+  {
+    const char *end= str + str_length;
+    /*
+      The format understood:
+      - Hyphen is not allowed on the first and the last position.
+      - Otherwise, hyphens are allowed on any (odd and even) position,
+        with any amount.
+    */
+    if (str_length < 32)
+      goto err;
+
+    for (uint oidx= 0; oidx < binary_length(); oidx++)
+    {
+      if (!(str= get_two_digits(&m_buffer[oidx], str, end)))
+        goto err;
+      // Allow hypheps after two digits, but not after the last digit
+      if (oidx + 1 < binary_length())
+        str+= skip_hyphens(str, end);
+    }
+    if (str < end)
+      goto err; // Some input left
+    if (m_buffer[6] & -m_buffer[8] & 0x80)
+      goto err; // impossible combination: version >= 8, variant = 0
+    return false;
+  err:
+    bzero(m_buffer, sizeof(m_buffer));
+    return true;
+  }
+
+  size_t to_string(char *dst, size_t dstsize) const
+  {
+    my_uuid2str((const uchar *) m_buffer, dst, 1);
+    return MY_UUID_STRING_LENGTH;
+  }
+
+  static const Name &default_value()
+  {
+    static Name def(STRING_WITH_LEN("00000000-0000-0000-0000-000000000000"));
+    return def;
+  }
 
   /*
     Binary (in-memory) UUIDv1 representation:
@@ -86,21 +176,31 @@ public:
   // Convert the in-memory representation to the in-record representation
   static void memory_to_record(char *to, const char *from)
   {
-    segment(0).memory_to_record(to, from);
-    segment(1).memory_to_record(to, from);
-    segment(2).memory_to_record(to, from);
-    segment(3).memory_to_record(to, from);
-    segment(4).memory_to_record(to, from);
+    if (force_swap || (from[6] > 0 && from[6] < 0x60 && from[8] & 0x80))
+    {
+      segment(0).memory_to_record(to, from);
+      segment(1).memory_to_record(to, from);
+      segment(2).memory_to_record(to, from);
+      segment(3).memory_to_record(to, from);
+      segment(4).memory_to_record(to, from);
+    }
+    else
+      memcpy(to, from, binary_length());
   }
 
   // Convert the in-record representation to the in-memory representation
   static void record_to_memory(char *to, const char *from)
   {
-    segment(0).record_to_memory(to, from);
-    segment(1).record_to_memory(to, from);
-    segment(2).record_to_memory(to, from);
-    segment(3).record_to_memory(to, from);
-    segment(4).record_to_memory(to, from);
+    if (force_swap || (from[6] & -from[8] & 0x80))
+    {
+      segment(0).record_to_memory(to, from);
+      segment(1).record_to_memory(to, from);
+      segment(2).record_to_memory(to, from);
+      segment(3).record_to_memory(to, from);
+      segment(4).record_to_memory(to, from);
+    }
+    else
+      memcpy(to, from, binary_length());
   }
 
   /*
@@ -179,8 +279,38 @@ public:
 
 };
 
+class Type_collection_uuid: public Type_collection
+{
+  const Type_handler *find_in_array(const Type_handler *what,
+                                    const Type_handler *stop,
+                                    bool for_comparison) const;
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  { return find_in_array(a, b, false); }
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  { return find_in_array(a, b, false); }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  { return find_in_array(a, b, true); }
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  { return NULL; }
+
+  static Type_collection_uuid *singleton()
+  {
+    static Type_collection_uuid tc;
+    return &tc;
+  }
+};
 
 #include "sql_type_fixedbin.h"
-typedef FixedBinTypeBundle<UUID> UUIDBundle;
+typedef Type_handler_fbt<UUID<1>, Type_collection_uuid> Type_handler_uuid_old;
+typedef Type_handler_fbt<UUID<0>, Type_collection_uuid> Type_handler_uuid_new;
 
 #endif // SQL_TYPE_UUID_INCLUDED

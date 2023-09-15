@@ -43,7 +43,9 @@ CONNECTION default;
 enable_query_log;
 
 SHOW STATUS LIKE 'mroonga_count_skip';
+--disable_ps2_protocol
 SELECT COUNT(*) FROM diaries WHERE MATCH(title) AGAINST("mroonga" IN BOOLEAN MODE);
+--enable_ps2_protocol
 SHOW STATUS LIKE 'mroonga_count_skip';
 
 DROP TABLE diaries;

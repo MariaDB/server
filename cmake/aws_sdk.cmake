@@ -10,7 +10,7 @@ FUNCTION (CHECK_AWS_SDK RETVAL REASON)
     SKIP_AWS_SDK("AWS_SDK_EXTERNAL_PROJECT is not ON")
   ENDIF()
   IF(NOT NOT_FOR_DISTRIBUTION)
-    SKIP_AWS_SDK("AWS SDK has Apache 2.0 License which is not complatible with GPLv2. Set -DNOT_FOR_DISTRIBUTION=ON if you need it")
+    SKIP_AWS_SDK("AWS SDK has Apache 2.0 License which is not compatible with GPLv2. Set -DNOT_FOR_DISTRIBUTION=ON if you need it")
   ENDIF()
   # Check compiler support
   IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")

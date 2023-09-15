@@ -195,7 +195,9 @@ end|
 
 delimiter ;|
 delete t1,t2 from t1,t2;
+--disable_ps2_protocol
 select fn1(20);
+--enable_ps2_protocol
 insert into t2 values(fn1(21));
 --sorted_result
 select * from t1;

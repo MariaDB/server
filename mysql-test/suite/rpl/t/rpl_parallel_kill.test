@@ -1,0 +1,15 @@
+--source include/master-slave.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+
+--source include/mdev-31448_conservative.inc
+
+--let $killed_trx_commits=1
+--source include/mdev-31448_optimistic.inc
+--let $killed_trx_commits=0
+--source include/mdev-31448_optimistic.inc
+
+
+
+--source include/rpl_end.inc

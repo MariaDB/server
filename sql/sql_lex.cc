@@ -486,11 +486,15 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
         be deleted by the destructor ~sp_instr_xxx().
         So we should remove "lex" from the stack sp_head::m_lex,
         to avoid double free.
-        Note, in case "lex" is not owned by any sp_instr_xxx,
-        it's also safe to remove it from the stack right now.
-        So we can remove it unconditionally, without testing lex->sp_lex_in_use.
       */
       lex->sphead->restore_lex(thd);
+      /*
+        No needs for "delete lex" here: "lex" is already linked
+        to the sp_instr_stmt (using sp_lex_keeper) instance created by
+        the call for new_sp_instr_stmt() above. It will be freed
+        by ~sp_head/~sp_instr/~sp_lex_keeper during THD::end_statement().
+      */
+      DBUG_ASSERT(lex->sp_lex_in_use); // used by sp_instr_stmt
       return true;
     }
     enum_var_type inner_option_type= lex->option_type;
@@ -1458,7 +1462,7 @@ bool is_lex_native_function(const LEX_CSTRING *name)
 
 bool is_native_function(THD *thd, const LEX_CSTRING *name)
 {
-  if (find_native_function_builder(thd, name))
+  if (native_functions_hash.find(thd, *name))
     return true;
 
   if (is_lex_native_function(name))
@@ -2839,34 +2843,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
 }
 
 
-void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length)
-{
-  /*
-    TODO:
-    This code assumes that there are no multi-bytes characters
-    that can be considered white-space.
-  */
-
-  size_t plen= 0;
-  while ((str->length > 0) && (my_isspace(cs, str->str[0])))
-  {
-    plen++;
-    str->length --;
-    str->str ++;
-  }
-  if (prefix_length)
-    *prefix_length= plen;
-  /*
-    FIXME:
-    Also, parsing backward is not safe with multi bytes characters
-  */
-  while ((str->length > 0) && (my_isspace(cs, str->str[str->length-1])))
-  {
-    str->length --;
-  }
-}
-
-
 /*
   st_select_lex structures initialisations
 */
@@ -3914,7 +3890,8 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0), json_table(NULL), default_used(0),
+    mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
+    default_used(0),
     with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
@@ -6809,7 +6786,6 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
   if (unlikely(!(bounds->m_index=
                  new (thd->mem_root) sp_assignment_lex(thd, this))))
     return true;
-  bounds->m_index->sp_lex_in_use= true;
   sphead->reset_lex(thd, bounds->m_index);
   DBUG_ASSERT(thd->lex != this);
   /*
@@ -7390,7 +7366,7 @@ bool LEX::sp_body_finalize_routine(THD *thd)
 {
   if (sphead->check_unresolved_goto())
     return true;
-  sphead->set_stmt_end(thd);
+  sphead->set_stmt_end(thd, thd->m_parser_state->m_lip.get_cpp_tok_start());
   sphead->restore_thd_mem_root(thd);
   return false;
 }
@@ -9322,8 +9298,7 @@ sp_package *LEX::create_package_start(THD *thd,
 bool LEX::create_package_finalize(THD *thd,
                                   const sp_name *name,
                                   const sp_name *name2,
-                                  const char *body_start,
-                                  const char *body_end)
+                                  const char *cpp_body_end)
 {
   if (name2 &&
       (name2->m_explicit_name != name->m_explicit_name ||
@@ -9336,18 +9311,8 @@ bool LEX::create_package_finalize(THD *thd,
              exp ? ErrConvDQName(name).ptr() : name->m_name.str);
     return true;
   }
-  // TODO: reuse code in LEX::create_package_finalize and sp_head::set_stmt_end
-  sphead->m_body.length= body_end - body_start;
-  if (unlikely(!(sphead->m_body.str= thd->strmake(body_start,
-                                                  sphead->m_body.length))))
-    return true;
 
-  size_t not_used;
-  Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-  sphead->m_defstr.length= lip->get_cpp_ptr() - lip->get_cpp_buf();
-  sphead->m_defstr.str= thd->strmake(lip->get_cpp_buf(), sphead->m_defstr.length);
-  trim_whitespace(thd->charset(), &sphead->m_defstr, &not_used);
-
+  sphead->set_stmt_end(thd, cpp_body_end);
   sphead->restore_thd_mem_root(thd);
   sp_package *pkg= sphead->get_package();
   DBUG_ASSERT(pkg);
@@ -9561,7 +9526,7 @@ Item *LEX::make_item_func_call_native_or_parse_error(THD *thd,
                                                      Lex_ident_cli_st &name,
                                                      List<Item> *args)
 {
-  Create_func *builder= find_native_function_builder(thd, &name);
+  Create_func *builder= native_functions_hash.find(thd, name);
   DBUG_EXECUTE_IF("make_item_func_call_native_simulate_not_found",
                   builder= NULL;);
   if (builder)

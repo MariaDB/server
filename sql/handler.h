@@ -36,6 +36,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vers_string.h"
+#include "ha_handler_stats.h"
 #include "optimizer_costs.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
@@ -2674,12 +2675,6 @@ typedef struct st_key_create_information
   uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
-  /**
-    A flag to determine if we will check for duplicate indexes.
-    This typically means that the key information was specified
-    directly by the user (set by the parser).
-  */
-  bool check_for_duplicate_indexes;
   bool is_ignored;
 } KEY_CREATE_INFO;
 
@@ -3151,6 +3146,9 @@ protected:
 
   ha_rows estimation_rows_to_insert;
   handler *lookup_handler;
+  /* Statistics for the query. Updated if handler_stats.in_use is set */
+  ha_handler_stats active_handler_stats;
+  void set_handler_stats();
 public:
   handlerton *ht;               /* storage engine of this handler */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
@@ -3158,7 +3156,14 @@ public:
   uchar *dup_ref;		/* Pointer to duplicate row */
   uchar *lookup_buffer;
 
+  /* General statistics for the table like number of row, file sizes etc */
   ha_statistics stats;
+  /*
+    Collect query stats here if pointer is != NULL.
+    This is a pointer because if we do a clone of the handler, we want to
+    use the original handler for collecting statistics.
+  */
+  ha_handler_stats *handler_stats;
 
   /** MultiRangeRead-related members: */
   range_seq_t mrr_iter;    /* Iterator to traverse the range sequence */
@@ -3356,8 +3361,8 @@ public:
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
     lookup_handler(this),
-    ht(ht_arg), costs(0), ref(0), lookup_buffer(NULL), end_range(NULL),
-    implicit_emptied(0),
+    ht(ht_arg), costs(0), ref(0), lookup_buffer(NULL), handler_stats(NULL),
+    end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
@@ -3880,7 +3885,7 @@ public:
     - How things are tracked in trx and in add_changed_table().
     - If we can combine several statements under one commit in the binary log.
   */
-  bool has_transactions()
+  bool has_transactions() const
   {
     return ((ha_table_flags() & (HA_NO_TRANSACTIONS | HA_PERSISTENT_TABLE))
             == 0);
@@ -3891,16 +3896,25 @@ public:
     we don't have to write failed statements to the log as they can be
     rolled back.
   */
-  bool has_transactions_and_rollback()
+  bool has_transactions_and_rollback() const
   {
     return has_transactions() && has_rollback();
   }
   /*
     True if the underlaying table support transactions and rollback
   */
-  bool has_transaction_manager()
+  bool has_transaction_manager() const
   {
     return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0 && has_rollback());
+  }
+
+  /*
+    True if the underlaying table support TRANSACTIONAL table option
+  */
+  bool has_transactional_option() const
+  {
+    extern handlerton *maria_hton;
+    return partition_ht() == maria_hton || has_transaction_manager();
   }
 
   /*
@@ -3908,7 +3922,7 @@ public:
     can be killed fast.
   */
 
-  bool has_rollback()
+  bool has_rollback() const
   {
     return ((ht->flags & HTON_NO_ROLLBACK) == 0);
   }
@@ -5037,6 +5051,22 @@ public:
   {
     check_table_binlog_row_based_done= 0;
   }
+  virtual void handler_stats_updated() {}
+
+  inline void ha_handler_stats_reset()
+  {
+    handler_stats= &active_handler_stats;
+    active_handler_stats.reset();
+    active_handler_stats.active= 1;
+    handler_stats_updated();
+  }
+  inline void ha_handler_stats_disable()
+  {
+    handler_stats= 0;
+    active_handler_stats.active= 0;
+    handler_stats_updated();
+  }
+
 private:
   /* Cache result to avoid extra calls */
   inline void mark_trx_read_write()
@@ -5397,6 +5427,7 @@ public:
   }
 
   bool log_not_redoable_operation(const char *operation);
+
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);

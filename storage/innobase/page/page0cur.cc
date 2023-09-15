@@ -1791,7 +1791,8 @@ page_cur_insert_rec_zip(
   ut_ad(rec_offs_comp(offsets));
   ut_ad(fil_page_get_type(page) == FIL_PAGE_INDEX ||
         fil_page_get_type(page) == FIL_PAGE_RTREE);
-  ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + page) == index->id);
+  ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + page) == index->id ||
+        index->is_dummy);
   ut_ad(!page_get_instant(page));
   ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
@@ -2258,7 +2259,7 @@ page_cur_delete_rec(
 	      == index->table->not_redundant());
 	ut_ad(fil_page_index_page_check(block->page.frame));
 	ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + block->page.frame)
-	      == index->id);
+	      == index->id || index->is_dummy);
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	/* The record must not be the supremum or infimum record. */

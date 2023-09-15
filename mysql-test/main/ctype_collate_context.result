@@ -3688,3 +3688,31 @@ DROP TABLE results_alter_db;
 DROP TABLE results_create_table;
 DROP TABLE results_alter_table;
 DROP TABLE results_convert_table;
+#
+# MDEV-30003 Assertion failure upon 2nd execution of SP trying to set collation on non-existing database
+#
+CREATE PROCEDURE p() ALTER SCHEMA db DEFAULT COLLATE = utf8_bin;
+CALL p;
+ERROR HY000: Can't create/write to file '<dir>db.opt' (Errcode: 2 "No such file or directory")
+CALL p;
+ERROR HY000: Can't create/write to file '<dir>db.opt' (Errcode: 2 "No such file or directory")
+DROP PROCEDURE p;
+CREATE DATABASE db1;
+CREATE PROCEDURE p() CREATE DATABASE db1 COLLATE DEFAULT;
+CALL p;
+ERROR HY000: Can't create database 'db1'; database exists
+CALL p;
+ERROR HY000: Can't create database 'db1'; database exists
+DROP DATABASE db1;
+DROP PROCEDURE p;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p() CREATE TABLE t1 (a INT) COLLATE DEFAULT;
+CALL p;
+ERROR 42S01: Table 't1' already exists
+CALL p;
+ERROR 42S01: Table 't1' already exists
+DROP TABLE t1;
+DROP PROCEDURE p;
+#
+# End of 10.9 tests
+#

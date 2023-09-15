@@ -896,6 +896,7 @@ drop table t1;
 --echo # If we have to wait on an exclusive locks while having
 --echo # an open HANDLER, ER_LOCK_DEADLOCK is reported.
 --echo #
+--disable_ps2_protocol
 create table t1 (a int, key a(a));
 handler t1 open;
 connection con1;
@@ -915,6 +916,7 @@ select release_lock('lock1');
 connection default;
 reap;
 select release_lock('lock1');
+--enable_ps2_protocol
 
 --echo # Demonstrate that there is no deadlock with FLUSH TABLE,
 --echo # even though it is waiting for the other table to go away

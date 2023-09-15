@@ -6,6 +6,7 @@
 --echo # Bug #39022: Mysql randomly crashing in lock_sec_rec_cons_read_sees
 --echo #
 
+--disable_ps2_protocol
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 
 CREATE TABLE t1(a TINYINT NOT NULL,b TINYINT,PRIMARY KEY(b)) ENGINE=innodb;
@@ -56,3 +57,4 @@ disconnect thread1;
 connection default;
 
 DROP TABLE t1,t2;
+--enable_ps2_protocol

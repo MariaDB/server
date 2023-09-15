@@ -110,6 +110,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "mariadb_stats.h"
+thread_local ha_handler_stats mariadb_dummy_stats;
+thread_local ha_handler_stats *mariadb_stats= &mariadb_dummy_stats;
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -966,8 +969,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"row_lock_current_waits", &export_vars.innodb_row_lock_current_waits,
    SHOW_SIZE_T},
   {"row_lock_time", &export_vars.innodb_row_lock_time, SHOW_LONGLONG},
-  {"row_lock_time_avg", &export_vars.innodb_row_lock_time_avg, SHOW_SIZE_T},
-  {"row_lock_time_max", &export_vars.innodb_row_lock_time_max, SHOW_SIZE_T},
+  {"row_lock_time_avg", &export_vars.innodb_row_lock_time_avg, SHOW_ULONGLONG},
+  {"row_lock_time_max", &export_vars.innodb_row_lock_time_max, SHOW_ULONGLONG},
   {"row_lock_waits", &export_vars.innodb_row_lock_waits, SHOW_SIZE_T},
   {"num_open_files", &fil_system.n_open, SHOW_SIZE_T},
   {"truncated_status_writes", &truncated_status_writes, SHOW_SIZE_T},
@@ -7737,6 +7740,7 @@ ha_innobase::write_row(
 #endif
 	int		error_result = 0;
 	bool		auto_inc_used = false;
+	mariadb_set_stats set_stats_temporary(handler_stats);
 
 	DBUG_ENTER("ha_innobase::write_row");
 
@@ -8041,6 +8045,10 @@ calc_row_difference(
 	trx_t* const	trx = prebuilt->trx;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	uint16_t	num_v = 0;
+#ifndef DBUG_OFF
+	uint		vers_fields = 0;
+#endif
+	prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	const bool skip_virtual = ha_innobase::omits_virtual_cols(*table->s);
 
 	ut_ad(!srv_read_only_mode);
@@ -8053,6 +8061,14 @@ calc_row_difference(
 
 	for (uint i = 0; i < table->s->fields; i++) {
 		field = table->field[i];
+
+#ifndef DBUG_OFF
+		if (!field->vers_sys_field()
+		    && !field->vers_update_unversioned()) {
+			++vers_fields;
+		}
+#endif
+
 		const bool is_virtual = !field->stored_in_db();
 		if (is_virtual && skip_virtual) {
 			num_v++;
@@ -8370,6 +8386,21 @@ calc_row_difference(
 
 	ut_a(buf <= (byte*) original_upd_buff + buff_len);
 
+	const TABLE_LIST *tl= table->pos_in_table_list;
+	const uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
+	/* Used to avoid reading history in FK check on DELETE (see MDEV-16210). */
+	prebuilt->upd_node->is_delete =
+		(op_map & trg2bit(TRG_EVENT_DELETE)
+		 && table->versioned(VERS_TIMESTAMP))
+		? VERSIONED_DELETE : NO_DELETE;
+
+	if (prebuilt->versioned_write) {
+		/* Guaranteed by CREATE TABLE, but anyway we make sure we
+		generate history only when there are versioned fields. */
+		DBUG_ASSERT(vers_fields);
+		prebuilt->upd_node->vers_make_update(trx);
+	}
+
 	ut_ad(uvect->validate());
 	return(DB_SUCCESS);
 }
@@ -8497,6 +8528,7 @@ ha_innobase::update_row(
 
 	dberr_t		error;
 	trx_t*		trx = thd_to_trx(m_user_thd);
+	mariadb_set_stats set_stats_temporary(handler_stats);
 
 	DBUG_ENTER("ha_innobase::update_row");
 
@@ -8547,45 +8579,23 @@ ha_innobase::update_row(
 		MySQL that the row is not really updated and it
 		should not increase the count of updated rows.
 		This is fix for http://bugs.mysql.com/29157 */
-		if (m_prebuilt->versioned_write
-		    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
-		    /* Multiple UPDATE of same rows in single transaction create
-		       historical rows only once. */
-		    && trx->id != table->vers_start_id()) {
-			error = row_insert_for_mysql((byte*) old_row,
-						     m_prebuilt,
-						     ROW_INS_HISTORICAL);
-			if (error != DB_SUCCESS) {
-				goto func_exit;
-			}
-		}
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
-		const bool vers_set_fields = m_prebuilt->versioned_write
-			&& m_prebuilt->upd_node->update->affects_versioned();
-		const bool vers_ins_row = vers_set_fields
-			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
-
-                TABLE_LIST *tl= table->pos_in_table_list;
-                uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
-		/* This is not a delete */
-		m_prebuilt->upd_node->is_delete =
-			(vers_set_fields && !vers_ins_row) ||
-			(op_map & trg2bit(TRG_EVENT_DELETE) &&
-				table->versioned(VERS_TIMESTAMP))
-			? VERSIONED_DELETE
-			: NO_DELETE;
-
 		if (m_prebuilt->upd_node->is_delete) {
 			trx->fts_next_doc_id = 0;
 		}
 
+		/* row_start was updated by vers_make_update()
+		in calc_row_difference() */
 		error = row_update_for_mysql(m_prebuilt);
 
-		if (error == DB_SUCCESS && vers_ins_row
+		if (error == DB_SUCCESS && m_prebuilt->versioned_write
 		    /* Multiple UPDATE of same rows in single transaction create
 		       historical rows only once. */
 		    && trx->id != table->vers_start_id()) {
+			/* UPDATE is not used by ALTER TABLE. Just precaution
+			as we don't need history generation for ALTER TABLE. */
+			ut_ad(thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
 			error = row_insert_for_mysql((byte*) old_row,
 						     m_prebuilt,
 						     ROW_INS_HISTORICAL);
@@ -8676,6 +8686,7 @@ ha_innobase::delete_row(
 {
 	dberr_t		error;
 	trx_t*		trx = thd_to_trx(m_user_thd);
+	mariadb_set_stats set_stats_temporary(handler_stats);
 
 	DBUG_ENTER("ha_innobase::delete_row");
 
@@ -8919,6 +8930,7 @@ ha_innobase::index_read(
 	enum ha_rkey_function find_flag)/*!< in: search flags from my_base.h */
 {
 	DBUG_ENTER("index_read");
+	mariadb_set_stats set_stats_temporary(handler_stats);
 	DEBUG_SYNC_C("ha_innobase_index_read_begin");
 
 	ut_a(m_prebuilt->trx == thd_to_trx(m_user_thd));
@@ -9238,6 +9250,7 @@ ha_innobase::general_fetch(
 {
 	DBUG_ENTER("general_fetch");
 
+	mariadb_set_stats set_stats_temporary(handler_stats);
 	const trx_t*	trx = m_prebuilt->trx;
 
 	ut_ad(trx == thd_to_trx(m_user_thd));
@@ -9438,7 +9451,6 @@ ha_innobase::rnd_next(
 			in MySQL format */
 {
 	int	error;
-
 	DBUG_ENTER("rnd_next");
 
 	if (m_start_of_scan) {
@@ -9708,6 +9720,7 @@ ha_innobase::ft_read(
 	uchar*		buf)		/*!< in/out: buf contain result row */
 {
 	row_prebuilt_t*	ft_prebuilt;
+	mariadb_set_stats set_stats_temporary(handler_stats);
 
 	ft_prebuilt = reinterpret_cast<NEW_FT_INFO*>(ft_handler)->ft_prebuilt;
 
@@ -12301,7 +12314,7 @@ create_table_info_t::create_foreign_keys()
 	}
 
 	while (Key* key = key_it++) {
-		if (key->type != Key::FOREIGN_KEY)
+		if (key->type != Key::FOREIGN_KEY || key->old)
 			continue;
 
 		if (tmp_table) {
@@ -13749,6 +13762,7 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 @retval	0	on success */
 int ha_innobase::truncate()
 {
+  mariadb_set_stats set_stats_temporary(handler_stats);
   DBUG_ENTER("ha_innobase::truncate");
 
   update_thd();
@@ -14314,7 +14328,7 @@ ha_innobase::estimate_rows_upper_bound()
 	const dict_index_t*	index;
 	ulonglong		estimate;
 	ulonglong		local_data_file_length;
-
+	mariadb_set_stats set_stats_temporary(handler_stats);
 	DBUG_ENTER("estimate_rows_upper_bound");
 
 	/* We do not know if MySQL can call this function before calling
@@ -16505,6 +16519,7 @@ ha_innobase::get_auto_increment(
 	trx_t*		trx;
 	dberr_t		error;
 	ulonglong	autoinc = 0;
+	mariadb_set_stats set_stats_temporary(handler_stats);
 
 	/* Prepare m_prebuilt->trx in the table handle */
 	update_thd(ha_thd());

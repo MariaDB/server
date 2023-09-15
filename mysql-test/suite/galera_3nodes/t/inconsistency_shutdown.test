@@ -76,6 +76,8 @@ SET GLOBAL wsrep_on=OFF;
 --source include/start_mysqld.inc
 --source include/galera_wait_ready.inc
 
+--let $wait_condition = SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
 DROP TABLE t1;
 
 #
@@ -100,6 +102,8 @@ CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 INT);
 SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
 # Introduce inconsistency
 SET wsrep_on=OFF;
+--let $wait_condition = SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
 DROP TABLE t2;
 SET wsrep_on=ON;
 
@@ -170,6 +174,9 @@ SET GLOBAL wsrep_on=OFF;
 --source include/shutdown_mysqld.inc
 --source include/start_mysqld.inc
 --source include/galera_wait_ready.inc
+
+--let $wait_condition = SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
 
 DROP TABLE t1;
 

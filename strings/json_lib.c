@@ -416,7 +416,7 @@ static int read_strn(json_engine_t *j)
     return 1;
 
   j->state= j->stack[j->stack_p];
-  j->value_len= (int)(j->s.c_str - j->value) - 1;
+  j->value_len= (int)(j->s.c_str - j->value) - j->s.c_next_len;
   return 0;
 }
 

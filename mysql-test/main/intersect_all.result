@@ -151,6 +151,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 100
                 }
@@ -177,6 +178,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 100
                 }
@@ -203,6 +205,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 100
                 }
@@ -265,6 +268,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -291,6 +295,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -317,6 +322,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -491,6 +497,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 100
                 }
@@ -517,6 +524,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 100
                 }
@@ -533,6 +541,7 @@ ANALYZE
                     "cost": "REPLACED",
                     "r_table_time_ms": "REPLACED",
                     "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -604,6 +613,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -630,6 +640,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -646,6 +657,7 @@ ANALYZE
                               "cost": "REPLACED",
                               "r_table_time_ms": "REPLACED",
                               "r_other_time_ms": "REPLACED",
+                              "r_engine_stats": REPLACED,
                               "filtered": 100,
                               "r_filtered": 100
                             },

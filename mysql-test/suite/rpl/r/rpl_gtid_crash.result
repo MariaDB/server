@@ -168,7 +168,7 @@ SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
 gtid_check
 Binlog pos ok
-# Wait 30 seconds for SQL thread to catch up with IO thread
+# Wait 60 seconds for SQL thread to catch up with IO thread
 connection server_2;
 SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
@@ -224,7 +224,7 @@ gtid_check
 Binlog pos ok
 gtid_check
 Current pos ok
-# Wait 30 seconds for SQL thread to catch up with IO thread
+# Wait 60 seconds for SQL thread to catch up with IO thread
 connection server_2;
 SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
@@ -275,7 +275,7 @@ COMMIT;
 Got one of the listed errors
 connection server_1;
 connection server_2;
-# Wait 30 seconds for IO thread to connect and SQL thread to catch up
+# Wait 60 seconds for IO thread to connect and SQL thread to catch up
 # with IO thread.
 include/stop_slave.inc
 connection server_1;

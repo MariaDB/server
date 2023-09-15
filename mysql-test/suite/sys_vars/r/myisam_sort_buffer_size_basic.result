@@ -26,10 +26,10 @@ Warning	1292	Truncated incorrect myisam_sort_buffer_size value: '4'
 SELECT @@global.myisam_sort_buffer_size  ;
 @@global.myisam_sort_buffer_size
 4096
-SET @@global.myisam_sort_buffer_size   = 4294967295;
+SET @@global.myisam_sort_buffer_size   = 268435455;
 SELECT @@global.myisam_sort_buffer_size  ;
 @@global.myisam_sort_buffer_size
-4294967295
+268435455
 SET @@global.myisam_sort_buffer_size   = 655354;
 SELECT @@global.myisam_sort_buffer_size  ;
 @@global.myisam_sort_buffer_size
@@ -41,10 +41,10 @@ Warning	1292	Truncated incorrect myisam_sort_buffer_size value: '4'
 SELECT @@session.myisam_sort_buffer_size  ;
 @@session.myisam_sort_buffer_size
 4096
-SET @@session.myisam_sort_buffer_size   = 4294967295;
+SET @@session.myisam_sort_buffer_size   = 268435455;
 SELECT @@session.myisam_sort_buffer_size  ;
 @@session.myisam_sort_buffer_size
-4294967295
+268435455
 SET @@session.myisam_sort_buffer_size   = 655345;
 SELECT @@session.myisam_sort_buffer_size  ;
 @@session.myisam_sort_buffer_size

@@ -514,15 +514,17 @@ static bool dict_stats_persistent_storage_check(bool dict_already_locked)
 		dict_sys.unlock();
 	}
 
-	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
-		ib::error() << errstr;
-		return(false);
-	} else if (ret == DB_STATS_DO_NOT_EXIST) {
+	switch (ret) {
+	case DB_SUCCESS:
+		return true;
+	default:
+		if (!opt_bootstrap) {
+			ib::error() << errstr;
+		}
+		/* fall through */
+	case DB_STATS_DO_NOT_EXIST:
 		return false;
 	}
-	/* else */
-
-	return(true);
 }
 
 /** Executes a given SQL statement using the InnoDB internal SQL parser.

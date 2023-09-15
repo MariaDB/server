@@ -132,6 +132,7 @@ if ($HAVE_PARTITION)
     (4, 'd', '2003-11-30 05:01:03'),
     (5, 'c', '2001-12-31 23:59:59');
   --enable_query_log
+  --disable_ps2_protocol
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
   SELECT COUNT(*) FROM ta_l2;
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
@@ -143,6 +144,7 @@ if ($HAVE_PARTITION)
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
   SELECT MIN(a) FROM ta_l2 WHERE a > 1;
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
+  --enable_ps2_protocol
   if ($USE_CHILD_GROUP2)
   {
     if (!$OUTPUT_CHILD_GROUP2)

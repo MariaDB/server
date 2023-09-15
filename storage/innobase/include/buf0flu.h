@@ -58,8 +58,9 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	dpage);	/*!< in/out: destination block */
 
 /** Complete write of a file page from buf_pool.
-@param request write request */
-void buf_page_write_complete(const IORequest &request);
+@param request write request
+@param error   whether the write may have failed */
+void buf_page_write_complete(const IORequest &request, bool error);
 
 /** Assign the full crc32 checksum for non-compressed page.
 @param[in,out]	page	page to be updated */

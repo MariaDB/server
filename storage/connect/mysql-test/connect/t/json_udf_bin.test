@@ -112,7 +112,9 @@ SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('not_exist.json'), 'd'));
 SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'));
 SELECT Json_File('bt1.json', 2);
 --echo # This does modify the file
+--disable_ps2_protocol
 SELECT Json_Array_Add(Jbin_File('bt1.json'), 'd');
+--enable_ps2_protocol
 SELECT Json_File('bt1.json', 2);
 --echo # Back to the original file
 SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
@@ -120,31 +122,45 @@ SELECT Json_Make_Object(Jbin_Array_Add(Jbin_Array('a','b','c'), 'd') "Jbin_foo")
 SELECT Json_Make_Object(Jbin_Array_Add(Jbin_File('bt1.json'), 'd')) AS "Result";
 SELECT Json_Make_Object(Jbin_Array_Add(Jbin_File('bt1.json'), 'd') "Jbin_bt1") AS "Result";
 --echo # This does modify the file
+--disable_ps2_protocol
 SELECT Json_Make_Object(Json_Array_Add(Jbin_File('bt1.json'), 'd') "Jfile_bt1") AS "Result";
+--enable_ps2_protocol
 SELECT Json_File('bt1.json');
 SELECT Json_File(Json_Array_Delete(Jbin_File('bt1.json'), 3), 2);
 SELECT Json_Make_Object(Jbin_Array_Add(Jbin_File('bt1.json'), 'd') "Jbin_bt1", n "t1") AS "Result" from t1;
+--disable_ps2_protocol
 SELECT Json_File(Json_Array_Add(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'), 'e')) AS "Result";
+--enable_ps2_protocol
 SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+--disable_ps2_protocol
 SELECT Json_File(Json_Array_Add(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'), 'e')) AS "Result" from t1;
+--enable_ps2_protocol
 SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+--disable_ps2_protocol
 SELECT Json_Array_Add(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'), n) AS "Result" from t1;
+--enable_ps2_protocol
 --echo # Show modified file
 SELECT Json_File('bt1.json');
 SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+--disable_ps2_protocol
 SELECT Json_Array_Add(Jbin_File('bt1.json'), n) AS "Result" from t1;
+--enable_ps2_protocol
 --echo # Show modified file
 SELECT Json_File('bt1.json');
 SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+--disable_ps2_protocol
 SELECT Json_File(Jbin_Item_Merge(Jbin_File('bt1.json'), Jbin_Array('d','e','f')));
 SELECT Json_File(Json_Item_Merge(Jbin_File('bt1.json'), Jbin_Array('d','e','f')));
+--enable_ps2_protocol
 SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
 --echo # Test DELETE from file
+--disable_ps2_protocol
 SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 1)) AS "Result";
 SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 2) "Jbin_bt1") AS "Result";
 SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 0) "Jbin_bt1", n "t1") AS "Result" from t1;
 SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 3 - n) "Jbin_bt1") AS "Result" from t1;
 SELECT Json_Make_Object(Json_Array_Delete(Jbin_File('bt1.json'), 3 - n) "Jbin_bt1") AS "Result" from t1;
+--enable_ps2_protocol
 --echo # Show modified file
 SELECT Json_File('bt1.json');
 --echo # Object file
@@ -181,9 +197,11 @@ SELECT Json_Serialize(Jbin_Object_List(Jbin_File('bt2.json'))) "Key list";
 # Test documentation examples
 #
 SELECT Jfile_Make('{"a":1, "b":[44, 55]}' json_, 'bt3.json', 0);
+--disable_ps2_protocol
 SELECT Json_Array_Add(Json_File('bt3.json', '$.b'), 66);
 SELECT Json_Array_Add(Json_File('bt3.json'), 66, '$.b');
 SELECT Json_Array_Add(Jbin_File('bt3.json', '$.b'), 66);
+--enable_ps2_protocol
 SELECT Json_File('bt3.json', 3);
 SELECT Jfile_Make('{"a":1, "b":[44, 55]}' json_, 'bt3.json', 0);
 #

@@ -8,6 +8,7 @@ enable_query_log;
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+--disable_ps2_protocol
 
 #
 # test of into outfile|dumpfile
@@ -139,3 +140,4 @@ drop database mysqltest;
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
+--enable_ps2_protocol

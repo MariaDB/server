@@ -266,6 +266,7 @@ BEGIN
 END//
 delimiter ;//
 
+--disable_ps2_protocol
 CALL sp_ins_1();
 SELECT row_count();
 --sorted_result
@@ -296,7 +297,7 @@ CALL sp_with_rowcount();
 SELECT row_count();
 --sorted_result
 SELECT * FROM temp;
-
+--enable_ps2_protocol
 
 # cleanup
 DROP PROCEDURE sp_ins_1;

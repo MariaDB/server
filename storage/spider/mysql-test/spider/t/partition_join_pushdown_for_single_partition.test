@@ -156,6 +156,7 @@ insert into tbl_a values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 insert into tbl_b values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 
 --connection master_1
+--disable_ps2_protocol
 SELECT sum(a.value), count(b.value2) FROM tbl_a a, tbl_b b WHERE a.value = b.value2 AND a.value = 5;
 SELECT sum(a.value), count(b.value2) FROM tbl_a a, tbl_b b WHERE a.value = 5 and b.value2 = 5;
 if ($USE_CHILD_GROUP2)
@@ -189,6 +190,7 @@ if ($USE_CHILD_GROUP2)
     --enable_result_log
   }
 }
+--enable_ps2_protocol
 
 --echo
 --echo deinit

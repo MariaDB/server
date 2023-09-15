@@ -408,8 +408,10 @@ BEGIN
 END !
 DELIMITER ;!
 
+--disable_ps2_protocol
 --echo # Without the patch, an error was getting reported.
 SELECT f1();
+--enable_ps2_protocol
 
 DROP FUNCTION f1;
 DROP VIEW v1;

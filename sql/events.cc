@@ -886,9 +886,9 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   /*
     Was disabled explicitly from the command line
   */
-  if (opt_event_scheduler == Events::EVENTS_DISABLED)
+  if (opt_event_scheduler == Events::EVENTS_DISABLED || opt_bootstrap)
     DBUG_RETURN(FALSE);
-  else if (opt_noacl_or_bootstrap)
+  if (opt_noacl_or_bootstrap)
   {
     if (opt_event_scheduler == Events::EVENTS_ON)
       sql_print_error("Event Scheduler will not function when starting with %s",
@@ -900,7 +900,6 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   /* We need a temporary THD during boot */
   if (!thd)
   {
-
     if (!(thd= new THD(0)))
     {
       res= TRUE;

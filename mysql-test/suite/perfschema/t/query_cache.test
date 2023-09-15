@@ -22,6 +22,7 @@ flush query cache;
 reset query cache;
 flush status;
 
+--disable_ps2_protocol
 select * from t1;
 
 show global status like "Qcache_queries_in_cache";
@@ -47,6 +48,7 @@ select spins from performance_schema.events_waits_current order by event_name li
 
 --replace_result CYCLE {CYCLE_OR_NANOSECOND} NANOSECOND {CYCLE_OR_NANOSECOND}
 select * from performance_schema.setup_timers where name='wait';
+--enable_ps2_protocol
 
 show global status like "Qcache_queries_in_cache";
 show global status like "Qcache_inserts";

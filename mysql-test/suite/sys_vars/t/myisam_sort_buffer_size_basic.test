@@ -61,7 +61,7 @@ SELECT @@session.myisam_sort_buffer_size = @default_myisam_sort_buffer_size;
 SET @@global.myisam_sort_buffer_size   = 4;
 SELECT @@global.myisam_sort_buffer_size  ;
 
-SET @@global.myisam_sort_buffer_size   = 4294967295;
+SET @@global.myisam_sort_buffer_size   = 268435455;
 SELECT @@global.myisam_sort_buffer_size  ;
 
 SET @@global.myisam_sort_buffer_size   = 655354;
@@ -76,7 +76,7 @@ SELECT @@global.myisam_sort_buffer_size  ;
 SET @@session.myisam_sort_buffer_size   = 4;
 SELECT @@session.myisam_sort_buffer_size  ;
 
-SET @@session.myisam_sort_buffer_size   = 4294967295;
+SET @@session.myisam_sort_buffer_size   = 268435455;
 SELECT @@session.myisam_sort_buffer_size  ;
 
 SET @@session.myisam_sort_buffer_size   = 655345;
@@ -96,33 +96,32 @@ SELECT @@global.myisam_sort_buffer_size  ;
 --disable_warnings
 SET @@global.myisam_sort_buffer_size   = 429496729533;
 --enable_warnings
---replace_result 429496729533 4294967295 
+--replace_result 429496729533 4294967295 268435455 4294967295
 SELECT @@global.myisam_sort_buffer_size  ;
-
 
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.myisam_sort_buffer_size   = 65530.34;
---replace_result 429496729533 4294967295 
+--replace_result 429496729533 4294967295 268435455 4294967295
 SELECT @@global.myisam_sort_buffer_size  ;
 
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.myisam_sort_buffer_size   = test;
---replace_result 429496729533 4294967295 
+--replace_result 429496729533 4294967295 268435455 4294967295
 SELECT @@global.myisam_sort_buffer_size  ;
 
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.myisam_sort_buffer_size   = "test";
---replace_result 429496729533 4294967295 
+--replace_result 429496729533 4294967295 268435455 4294967295
 SELECT @@global.myisam_sort_buffer_size  ;
 
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.myisam_sort_buffer_size   = 'test';
---replace_result 429496729533 4294967295 
+--replace_result 429496729533 4294967295 268435455 4294967295
 SELECT @@global.myisam_sort_buffer_size  ;
 
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.myisam_sort_buffer_size   = ON;
---replace_result 429496729533 4294967295 
+--replace_result 429496729533 4294967295 268435455 4294967295
 SELECT @@global.myisam_sort_buffer_size  ;
 
 

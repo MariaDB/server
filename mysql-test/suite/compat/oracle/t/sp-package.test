@@ -3,6 +3,7 @@
 SET sql_mode=ORACLE;
 
 --enable_prepare_warnings
+--disable_ps2_protocol
 
 --echo #
 --echo # Creating a body of a non-existing package
@@ -3013,6 +3014,7 @@ DELIMITER ;$$
 
 SELECT db2.pkg1.var1();
 CALL db2.pkg1.p2_db1_pkg1_p1;
+--enable_ps2_protocol
 
 DROP DATABASE db1;
 DROP DATABASE db2;

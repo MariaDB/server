@@ -195,10 +195,12 @@ delimiter ;//
 set @a:=7;
 create table tmp as select * from t1 where c3 < @a
   order by c3 limit 1;
+--disable_ps2_protocol # because SELECT with side effects
 select f1(@a);
 insert into tmp(c1,c2,c3) select * from t1 where c3 < @a
   order by c3 limit 1;
 select f1(@a);
+--enable_ps2_protocol
 --sorted_result
 select * from t1;
 insert into t1(c1,c2,c3) select c1,c2,c3 from tmp;

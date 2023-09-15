@@ -1,3 +1,4 @@
+--disable_ps2_protocol
 show status like '%window%';
 
 create table t1 (a int, b int);
@@ -16,3 +17,4 @@ from (select a, b, rank() over (order by a) as r1 from t1) t_a,
 show status like '%window%';
 
 drop table t1;
+--enable_ps2_protocol

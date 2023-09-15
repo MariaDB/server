@@ -78,14 +78,17 @@ connect (test_con2,localhost,root,,);
 connection test_con1;
 
 --echo ## Accessing data and using group_concat on column whose value is greater than 4 ##
+--disable_ps2_protocol
 SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
+--enable_ps2_protocol
 
 --echo ## Changing session value of variable and verifying its behavior, ##
 --echo ## warning should come here ##
 
 SET @@session.group_concat_max_len = 10;
+--disable_ps2_protocol
 SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
-
+--enable_ps2_protocol
 
 --echo '#--------------------FN_DYNVARS_034_03-------------------------#'
 ##############################################################################
@@ -103,8 +106,9 @@ SET @@session.group_concat_max_len = 20;
 
 --echo ## Verifying value of name column, it should not me more than 20 characters ##
 --echo ## Warning should come here ##
+--disable_ps2_protocol
 SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
-
+--enable_ps2_protocol
 
 --echo '#--------------------FN_DYNVARS_034_04-------------------------#'
 ###############################################################################

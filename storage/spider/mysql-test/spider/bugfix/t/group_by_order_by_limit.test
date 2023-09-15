@@ -66,6 +66,7 @@ TRUNCATE TABLE mysql.general_log;
 --connection child2_2
 TRUNCATE TABLE mysql.general_log;
 
+--disable_ps2_protocol
 --connection master_1
 SELECT skey, count(*) cnt FROM tbl_a GROUP BY skey ORDER BY cnt DESC, skey DESC LIMIT 5;
 
@@ -76,6 +77,7 @@ eval $CHILD2_1_SELECT_TABLES;
 --connection child2_2
 eval $CHILD2_2_SELECT_ARGUMENT1;
 eval $CHILD2_2_SELECT_TABLES;
+--enable_ps2_protocol
 
 --echo
 --echo deinit

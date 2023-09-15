@@ -2647,19 +2647,21 @@ static int
 my_xpath_parse_VariableReference(MY_XPATH *xpath)
 {
   LEX_CSTRING name;
-  int user_var;
-  const char *dollar_pos;
   THD *thd= xpath->thd;
-  if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOLLAR) ||
-      (!(dollar_pos= xpath->prevtok.beg)) ||
-      (!((user_var= my_xpath_parse_term(xpath, MY_XPATH_LEX_AT) &&
+  if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOLLAR))
+    return 0;
+  const char *dollar_pos= xpath->prevtok.beg;
+  if (!dollar_pos)
+    return 0;
+  int user_var= my_xpath_parse_term(xpath, MY_XPATH_LEX_AT);
+  if (!((user_var &&
          my_xpath_parse_term(xpath, MY_XPATH_LEX_IDENT))) &&
-       !my_xpath_parse_term(xpath, MY_XPATH_LEX_IDENT)))
+      !my_xpath_parse_term(xpath, MY_XPATH_LEX_IDENT))
     return 0;
 
   name.length= xpath->prevtok.end - xpath->prevtok.beg;
   name.str= (char*) xpath->prevtok.beg;
-  
+
   if (user_var)
     xpath->item= new (thd->mem_root) Item_func_get_user_var(thd, &name);
   else

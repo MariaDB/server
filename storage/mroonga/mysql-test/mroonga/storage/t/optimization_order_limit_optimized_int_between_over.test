@@ -36,10 +36,12 @@ INSERT INTO memos VALUES(3, "I will do something today!");
 INSERT INTO memos VALUES(4, "I don't want to anything today...");
 INSERT INTO memos VALUES(5, "I'm sleepy today.");
 
+--disable_ps2_protocol
 SELECT * FROM memos
          WHERE MATCH(content) AGAINST("today" IN BOOLEAN MODE) AND
                id BETWEEN 2 AND 6
          ORDER BY id LIMIT 1,2;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 

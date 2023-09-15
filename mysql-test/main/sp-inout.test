@@ -932,7 +932,9 @@ DELIMITER ;$$
 
 SELECT * from Persons;
 SET @a = 6;
+--disable_ps2_protocol
 SELECT func_main(@a);
+--enable_ps2_protocol
 SELECT * from Persons;
 DROP TABLE Persons;
 DROP FUNCTION func_main;
@@ -1041,7 +1043,9 @@ DELIMITER ;$$
 
 SELECT * from Persons;
 SET @a = 6;
+--disable_ps2_protocol
 SELECT func_main(@a);
+--enable_ps2_protocol
 SELECT * from Persons;
 DROP TABLE Persons;
 DROP FUNCTION func_sub;

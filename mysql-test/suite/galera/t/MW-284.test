@@ -29,6 +29,7 @@ SET global wsrep_sync_wait=0;
 --connection node_3
 SELECT @@wsrep_on;
 --sleep 1
+call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use (server_errno=1047)");
 START SLAVE;
 --let $slave_param= Slave_IO_Running
 --let $slave_param_value= Connecting

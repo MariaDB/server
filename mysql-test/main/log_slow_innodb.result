@@ -1,0 +1,78 @@
+CREATE TABLE t1(a INT primary key, b int) ENGINE=InnoDB;
+INSERT INTO t1 select seq, seq from seq_1_to_1000;
+SET SESSION min_examined_row_limit=0;
+SET SESSION long_query_time=0;
+SET SESSION log_slow_verbosity='innodb,query_plan';
+[slow_log_start.inc] log_slow_innodb-verbosity_1
+SELECT sum(a+b) FROM t1;
+sum(a+b)
+1001000
+UPDATE t1 set b=b+1 where a=1 or a=999;
+[log_slow_stop.inc] log_slow_innodb-verbosity_1
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Thread_id: .+ Schema: .+  QC_hit: (Yes|No)$ expected_matches: 3
+[log_grep.inc] found expected match count: 3
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Query_time: \d+\.\d+  Lock_time: \d+\.\d+  Rows_sent: \d+  Rows_examined: \d+$ expected_matches: 3
+[log_grep.inc] found expected match count: 3
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Rows_affected: \d+  Bytes_sent: \d+$ expected_matches: 3
+[log_grep.inc] found expected match count: 3
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Full_scan: (Yes|No)  Full_join: (Yes|No)  Tmp_table: (Yes|No)  Tmp_table_on_disk: (Yes|No)$
+[log_grep.inc] lines:   1
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
+[log_grep.inc] lines:   0
+SET SESSION log_slow_verbosity='innodb,query_plan';
+[slow_log_start.inc] log_slow_innodb-verbosity_2
+SELECT 1;
+1
+1
+[log_slow_stop.inc] log_slow_innodb-verbosity_2
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Thread_id: .+ Schema: .+  QC_hit: (Yes|No)$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Query_time: \d+\.\d+  Lock_time: \d+\.\d+  Rows_sent: \d+  Rows_examined: \d+$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Rows_affected: \d+  Bytes_sent: \d+$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Full_scan: (Yes|No)  Full_join: (Yes|No)  Tmp_table: (Yes|No)  Tmp_table_on_disk: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
+[log_grep.inc] lines:   0
+SET SESSION log_slow_verbosity='query_plan';
+[log_slow_stop.inc] log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000)
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Thread_id: .+ Schema: .+  QC_hit: (Yes|No)$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Query_time: \d+\.\d+  Lock_time: \d+\.\d+  Rows_sent: \d+  Rows_examined: \d+$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Rows_affected: \d+  Bytes_sent: \d+$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Full_scan: (Yes|No)  Full_join: (Yes|No)  Tmp_table: (Yes|No)  Tmp_table_on_disk: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
+[log_grep.inc] lines:   0
+DROP TABLE t1;

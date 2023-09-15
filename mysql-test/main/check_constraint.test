@@ -172,7 +172,10 @@ insert t1 (b) values (1);
 insert t1 (b) values (10);
 select * from t1 where a is null;
 set sql_auto_is_null=1;
+#Enable after fix MDEV-31307
+--disable_ps2_protocol
 select * from t1 where a is null;
+--enable_ps2_protocol
 --error ER_CONSTRAINT_FAILED
 insert t1 (b) values (1);
 drop table t1;

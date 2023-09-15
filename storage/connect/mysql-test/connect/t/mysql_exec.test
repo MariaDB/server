@@ -13,6 +13,7 @@ eval CREATE TABLE t1 (
     message VARCHAR(255) FLAG=2)
   ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test' OPTION_LIST='Execsrc=1,maxerr=2';
 
+--disable_ps2_protocol
 SELECT * FROM t1 WHERE command IN ('Warning','Note',
   'drop table if exists t1',
   'create table t1 (id int key auto_increment, msg varchar(32) not null)',
@@ -22,6 +23,7 @@ SELECT * FROM t1 WHERE command IN ('Warning','Note',
   'insert ignore into t1(id) values(NULL)',
   "update t1 set msg = 'Four' where id = 4",
   'select * from t1');
+--enable_ps2_protocol
 
 --echo #
 --echo # Checking Using Procedure

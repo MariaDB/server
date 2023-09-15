@@ -233,20 +233,6 @@ public:
     */
     return NULL;
   }
-
-  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-  {
-    /*
-      Name resolution is not needed yet.
-      JSON is not fully pluggable at the moment:
-      - It is parsed using a hard-coded rule in sql_yacc.yy
-      - It does not store extended data type information into
-        FRM file yet. JSON is detected by CHECK(JSON_VALID(col))
-        and this detection is also hard-coded.
-      This will change in the future.
-    */
-    return NULL;
-  }
 };
 
 

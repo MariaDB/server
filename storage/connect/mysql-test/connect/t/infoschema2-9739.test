@@ -5,5 +5,7 @@
 --source have_libxml2.inc
 
 create table t1 (i int) engine=Connect table_type=XML option_list='xmlsup=libxml2';
+--disable_ps2_protocol
 select * from information_schema.tables where table_schema='test' and create_options like '%table_type=XML%';
+--enable_ps2_protocol
 drop table t1;

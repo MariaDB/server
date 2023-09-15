@@ -8,12 +8,12 @@
 --echo MDEV-6268 SPIDER table with no COMMENT clause causes queries to wait forever
 --echo
 
---replace_regex /SOCKET ".*"/SOCKET "$MASTER_1_MYSOCK"/
-eval CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+--let $srv=srv_self_reference_multi
+evalp CREATE SERVER $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t2 (c int);
-create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
-create table t0 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
-alter table t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t0"';
+eval create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t2"';
+eval create table t0 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t1"';
+eval alter table t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t0"';
 --error 12719
 select * from t0;
 --error 12719

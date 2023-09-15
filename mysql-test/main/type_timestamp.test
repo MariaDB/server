@@ -403,12 +403,14 @@ INSERT INTO t2 VALUES( '2010-02-01 09:31:11' );
 --echo # The bug would cause the range optimizer's comparison to use an open
 --echo # interval here. This reveals itself only in the number of reads 
 --echo # performed.
+--disable_ps2_protocol
 FLUSH STATUS;
 --replace_column 1 x 2 x 3 x 5 x 6 x 7 x 8 x 9 x 10 x
 EXPLAIN
 SELECT * FROM t2 WHERE a < '2010-02-01 09:31:02.0';
 SELECT * FROM t2 WHERE a < '2010-02-01 09:31:02.0';
 SHOW STATUS LIKE 'Handler_read_next';
+--enable_ps2_protocol
 
 DROP TABLE t1, t2;
 
@@ -740,7 +742,9 @@ FLUSH TABLES;
 # 0xFF       - record flags
 # 0x77777777 - TIMESTAMP integer part
 # 0xFFFFFF   - TIMESTAMP bad fractional part
+--disable_ps2_protocol
 --eval SELECT CONCAT(0xFF,0x77777777,0xFFFFFF) INTO OUTFILE '$MYSQLD_DATADIR/test/t1.MYD' FIELDS TERMINATED BY '' ESCAPED BY '' LINES TERMINATED BY ''
+--enable_ps2_protocol
 --eval SELECT HEX(LOAD_FILE('$MYSQLD_DATADIR/test/t1.MYD')) AS MYD
 --enable_query_log
 SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;

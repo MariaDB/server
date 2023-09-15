@@ -6,6 +6,7 @@
 #error This is a WINDOWS only table type
 #endif   // !_WIN32
 #include "my_global.h"
+#include "m_string.h"
 #include <stdio.h>
 
 #include "global.h"
@@ -49,7 +50,7 @@ PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
     else if (!stricmp(nsp, "root\\cli"))
       classname = "Msft_CliAlias";
     else {
-      strcpy(g->Message, "Missing class name");
+      safe_strcpy(g->Message, sizeof(g->Message), "Missing class name");
       return NULL;
       } // endif classname
 
@@ -512,7 +513,8 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
       ncol++;
 
   if (ncol) {
-    colist = (char*)PlugSubAlloc(g, NULL, (NAM_LEN + 4) * ncol);
+    size_t colist_sz = (NAM_LEN + 4) * ncol;
+    colist = (char*)PlugSubAlloc(g, NULL, colist_sz);
 
     for (colp = Columns; colp; colp = colp->GetNext())
       if (!colp->IsSpecial()) {
@@ -521,10 +523,13 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
 
         if (colp->GetColUse(U_P | U_J_EXT) || noloc) {
           if (first) {
-            strcpy(colist, colp->GetName());
+            snprintf(colist, colist_sz, colp->GetName());
             first = false;
-          } else
+          } else {
             strcat(strcat(colist, ", "), colp->GetName());
+            safe_strcat(colist, colist_sz, ", ");
+            safe_strcat(colist, colist_sz, colp->GetName());
+          }
       
           } // endif ColUse
 
@@ -534,18 +539,19 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
     // ncol == 0 can occur for queries such that sql count(*) from...
     // for which we will count the rows from sql * from...
     colist = (char*)PlugSubAlloc(g, NULL, 2);
-    strcpy(colist, "*");
+    snprintf(colist, 2, "*");
   } // endif ncol
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(Wclass) + 14);
   len += (To_CondFil ? strlen(To_CondFil->Body) + 7 : 0);
   wql = (char*)PlugSubAlloc(g, NULL, len);
-  strcat(strcat(strcpy(wql, "SELECT "), colist), " FROM ");
-  strcat(wql, Wclass);
+  snprintf(wql, len, "SELECT %s FROM %s", colist, Wclass);
 
-  if (To_CondFil)
-    strcat(strcat(wql, " WHERE "), To_CondFil->Body);
+  if (To_CondFil) {
+    safe_strcat(wql, len, " WHERE ");
+    safe_strcat(wql, len, To_CondFil->Body);
+  }
 
   return wql;
   } // end of MakeWQL
@@ -654,13 +660,13 @@ bool TDBWMI::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* WMI tables cannot be modified.                                  */
     /*******************************************************************/
-    strcpy(g->Message, "WMI tables are read only");
+    safe_strcpy(g->Message, sizeof(g->Message), "WMI tables are read only");
     return true;
     } // endif Mode
 
   if (!To_CondFil && !stricmp(Wclass, "CIM_Datafile")
                   && !stricmp(Nspace, "root\\cimv2")) {
-    strcpy(g->Message, 
+    safe_strcpy(g->Message, sizeof(g->Message), 
       "Would last forever when not filtered, use DIR table instead");
     return true;
   } else
@@ -697,7 +703,7 @@ int TDBWMI::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBWMI::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, "WMI tables are read only");
+  safe_strcpy(g->Message, sizeof(g->Message), "WMI tables are read only");
   return RC_FX;
   } // end of WriteDB
 
@@ -706,7 +712,7 @@ int TDBWMI::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBWMI::DeleteDB(PGLOBAL g, int irc)
   {
-  strcpy(g->Message, "Delete not enabled for WMI tables");
+  safe_strcpy(g->Message, sizeof(g->Message), "Delete not enabled for WMI tables");
   return RC_FX;
   } // end of DeleteDB
 
