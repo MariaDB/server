@@ -32,24 +32,21 @@ class THD;
 
 class THD;
 
-/**
-  This class represents abstract time zone and provides 
-  basic interface for MYSQL_TIME <-> my_time_t conversion.
-  Actual time zones which are specified by DB, or via offset 
-  or use system functions are its descendants.
-*/
-
 /*
-  Has only offset from UTC, bool value to denote if it is
-  ahead (+), behind(-) of UTC and abbrevation.
+  Has only offset from UTC and abbrevation.
 */
 struct tz
 {
   long seconds_offset;
-  bool is_behind;
-  char abbrevation[8];
-  bool is_inited;
+  char abbrevation[64];
 };
+
+/**
+  This class represents abstract time zone and provides
+  basic interface for MYSQL_TIME <-> my_time_t conversion.
+  Actual time zones which are specified by DB, or via offset
+  or use system functions are its descendants.
+*/
 
 class Time_zone: public Sql_alloc 
 {
