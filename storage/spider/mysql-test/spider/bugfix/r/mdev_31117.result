@@ -16,6 +16,7 @@ create table t1 (c int) ENGINE=Spider CONNECTION='WRAPPER "mysql", srv \'srv\',T
 Warnings:
 Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 drop table t1, t2;
+drop server srv;
 for master_1
 for child2
 for child3
