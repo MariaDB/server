@@ -1292,6 +1292,25 @@ int main(int argc,char *argv[])
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_mem_root, 16384, 0, MYF(0));
+
+#ifdef MYSQL_CLIENT
+  /*
+    let's disable opt_ssl_verify_server_cert if neither CA nor FP and
+    nor password were specified and the protocol is TCP.
+  */
+#define no(S) (!(S) || !*(S))
+  if (opt_ssl_verify_server_cert==2 && no(opt_ssl_ca) && no(opt_ssl_capath) &&
+      no(opt_tls_fp) && no(opt_tls_fplist) && no(opt_password) &&
+      (opt_mysql_port || opt_protocol == MYSQL_PROTOCOL_TCP))
+
+  {
+    printf("WARNING: option --ssl-verify-server-cert is disabled, "
+           "because of an insecure passwordless login.\n");
+    opt_ssl_verify_server_cert= 0;
+  }
+#undef no
+#endif
+
   if (sql_connect(current_host,current_db,current_user,opt_password,
 		  opt_silent))
   {
@@ -1967,7 +1986,7 @@ get_one_option(const struct my_option *opt, const char *argument,
       MySQL might still have this option in their commands, and it will not work
       in MariaDB unless it is handled. Therefore output a warning and continue.
     */
-    printf("WARNING: option '--enable-cleartext-plugin' is obsolete.\n");
+    printf("WARNING: option --enable-cleartext-plugin is obsolete.\n");
     break;
   case 'A':
     opt_rehash= 0;

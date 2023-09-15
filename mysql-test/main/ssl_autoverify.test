@@ -35,7 +35,12 @@ create function have_ssl() returns char(3)
 --error 1
 --exec $MYSQL --protocol tcp -uroot --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 #
-# unless using a secure transport, like unix_socket or named pipes
+# except if ssl-verify-server-cert is left on default (not explicitly enabled)
+#
+--echo # mysql -uroot -e "select test.have_ssl()"
+--exec $EXE_MYSQL --no-defaults --protocol tcp --port $MASTER_MYPORT -uroot -e "select test.have_ssl()" 2>&1
+#
+# or unless using a secure transport, like unix_socket or named pipes
 #
 # note that SSL works over unix_socket, and it doesn't work over named pipes
 # but the connection is allowed either way, as the transport is secure
