@@ -2045,7 +2045,7 @@ int Field::store_text(const char *to, size_t length, CHARSET_INFO *cs,
 }
 
 
-int Field::store_timestamp_dec(const timeval &ts, uint dec)
+int Field::store_timestamp_dec(const my_timeval &ts, uint dec)
 {
   return store_time_dec(Datetime(get_thd(), ts).get_mysql_time(), dec);
 }
@@ -5398,7 +5398,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
+int Field_timestamp::store_timestamp_dec(const my_timeval &ts, uint dec)
 {
   int warn= 0;
   time_round_mode_t mode= Datetime::default_round_mode(get_thd());
@@ -5450,7 +5450,7 @@ int Field_timestamp::store_native(const Native &value)
     Field_timestamp*::store_timestamp_dec() do not use the "dec" parameter.
     Passing TIME_SECOND_PART_DIGITS is OK.
   */
-  return store_timestamp_dec(Timestamp(value).tv(), TIME_SECOND_PART_DIGITS);
+  return store_timestamp_dec(Timestamp(value), TIME_SECOND_PART_DIGITS);
 }
 
 
@@ -5651,7 +5651,7 @@ static longlong read_native(const uchar *from, uint bytes)
 #endif
 
 
-void Field_timestamp_hires::store_TIMEVAL(const timeval &tv)
+void Field_timestamp_hires::store_TIMEVAL(const my_timeval &tv)
 {
   mi_int4store(ptr, tv.tv_sec);
   store_bigendian(sec_part_shift(tv.tv_usec, dec), ptr+4, sec_part_bytes(dec));
@@ -5669,7 +5669,7 @@ my_time_t Field_timestamp_hires::get_timestamp(const uchar *pos,
 bool Field_timestamp_hires::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
-  struct timeval tm;
+  struct my_timeval tm;
   tm.tv_sec= mi_uint4korr(ptr);
   tm.tv_usec= (ulong) sec_part_unshift(read_bigendian(ptr+4, sec_part_bytes(dec)), dec);
   return Timestamp_or_zero_datetime(Timestamp(tm), tm.tv_sec == 0).
@@ -5746,7 +5746,7 @@ void Field_timestamp_with_dec::make_send_field(Send_field *field)
 ** MySQL-5.6 compatible TIMESTAMP(N)
 **************************************************************/
 
-void Field_timestampf::store_TIMEVAL(const timeval &tm)
+void Field_timestampf::store_TIMEVAL(const my_timeval &tm)
 {
   my_timestamp_to_binary(&tm, ptr, dec);
 }
@@ -5779,10 +5779,10 @@ bool Field_timestampf::is_max()
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
                                           ulong *sec_part) const
 {
-  struct timeval tm;
+  struct my_timeval tm;
   my_timestamp_from_binary(&tm, pos, dec);
   *sec_part= tm.tv_usec;
-  return tm.tv_sec;
+  return (my_time_t) tm.tv_sec;
 }
 
 
