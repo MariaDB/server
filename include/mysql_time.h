@@ -25,7 +25,16 @@
   Using the system built in time_t is not an option as
   we rely on the above requirements in the time functions   
 */
+
+#ifndef MYSQL_ABI_CHECK
+#if SIZEOF_LONG == 4 && SIZEOF_VOIDP == 8
+/* Windows 64 bit */
+typedef unsigned int my_time_t;
+#else
+/* 32 bit or Linux 64 bit. For Linux 64 bit my_time_t is same as longlong */
 typedef long my_time_t;
+#endif /* SIZEOF_LONG.. */
+#endif /* MYSQL_ABI_CHECK */
 
 /*
   Time declarations shared between the server and client API:
