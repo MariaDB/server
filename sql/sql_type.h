@@ -2480,7 +2480,7 @@ public:
   Datetime(THD *thd, int *warn, const my_decimal *d, date_mode_t fuzzydate)
    :Datetime(thd, warn, Sec9(d), fuzzydate)
   { }
-  Datetime(THD *thd, const timeval &tv);
+  Datetime(THD *thd, const my_timeval &tv);
 
   Datetime(THD *thd, Item *item, date_mode_t fuzzydate, uint dec)
    :Datetime(thd, item, fuzzydate)
@@ -2765,7 +2765,7 @@ public:
 };
 
 
-class Timestamp: protected Timeval
+class Timestamp: public Timeval
 {
   static uint binary_length_to_precision(uint length);
 protected:
@@ -2798,12 +2798,11 @@ public:
   Timestamp(my_time_t timestamp, ulong sec_part)
    :Timeval(timestamp, sec_part)
   { }
-  explicit Timestamp(const timeval &tv)
+  explicit Timestamp(const my_timeval &tv)
    :Timeval(tv)
   { }
   explicit Timestamp(const Native &native);
   Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code);
-  const struct timeval &tv() const { return *this; }
   int cmp(const Timestamp &other) const
   {
     return tv_sec < other.tv_sec   ? -1 :
@@ -2934,7 +2933,7 @@ public:
   {
     return is_zero_datetime() ?
            Datetime::zero() :
-           Datetime(thd, Timestamp(*this).tv());
+           Datetime(thd, Timestamp(*this));
   }
   bool is_zero_datetime() const
   {
