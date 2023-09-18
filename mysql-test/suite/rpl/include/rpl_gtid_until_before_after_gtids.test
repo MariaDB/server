@@ -72,6 +72,7 @@ if (!$ssu_before_gtids)
 
 --connection slave
 --source include/stop_slave.inc
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
 
 --connection master
 set session gtid_domain_id=0;
@@ -93,7 +94,15 @@ if (!$ssu_before_gtids)
 
 --connection slave
 --eval START SLAVE UNTIL $ssu_opt="$until_gtid"
---source include/wait_for_slave_sql_to_stop.inc
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
@@ -106,7 +115,6 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
 --connection master
 --source include/save_master_gtid.inc
 --connection slave
---source include/stop_slave.inc
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 
@@ -119,6 +127,7 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
 --echo # SQL_AFTER_GTIDS.
 
 --connection slave
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
 --source include/stop_slave.inc
 
 --connection master
@@ -147,7 +156,15 @@ set session gtid_domain_id=0;
 
 --connection slave
 --eval START SLAVE UNTIL $ssu_opt="$until_gtid"
---source include/wait_for_slave_sql_to_stop.inc
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
@@ -178,6 +195,7 @@ if (!$ssu_before_gtids)
 
 --connection slave
 --source include/stop_slave.inc
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
 
 --connection master
 set session gtid_domain_id=0;
@@ -215,7 +233,15 @@ set session gtid_domain_id=0;
 
 --connection slave
 --eval START SLAVE UNTIL $ssu_opt="$until_gtid"
---source include/wait_for_slave_sql_to_stop.inc
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
@@ -246,6 +272,7 @@ if (!$ssu_before_gtids)
 
 --connection slave
 --source include/stop_slave.inc
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
 
 --connection master
 --eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
@@ -278,7 +305,15 @@ if (!$ssu_before_gtids)
 
 --connection slave
 --eval START SLAVE UNTIL $ssu_opt="$until_gtid"
---source include/wait_for_slave_sql_to_stop.inc
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
