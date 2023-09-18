@@ -30,8 +30,9 @@ connection master;
 --let $rpl_server_number=1
 source include/rpl_stop_server.inc;
 
---connection slave
---source include/stop_slave.inc
+# After stoping the master, slave receives the disconnect error (2003)
+#--connection slave
+#--source include/stop_slave.inc
 
 #connection master;
 --echo # Restart master
@@ -42,8 +43,10 @@ source include/rpl_start_server.inc;
 # Clean up
 #
 --connection slave
---source include/stop_slave.inc
---source include/start_slave.inc
+--source include/wait_for_slave_sql_to_start.inc
+--let rpl_allow_error=1
+--source include/wait_for_slave_io_to_start.inc
+#--source include/start_slave.inc
 
 --connection master
 SET @@GLOBAL.debug_dbug="";

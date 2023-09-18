@@ -1175,9 +1175,9 @@ SET debug_sync='RESET';
 --save_master_pos
 
 --connection server_2
+# SQL thread stopped
 --let $slave_sql_errno= 1062
 --source include/wait_for_slave_sql_error.inc
---source include/wait_for_slave_sql_to_stop.inc
 # We should not see the row (112,3) here, it should be rolled back due to
 # error signal from the prior transaction.
 SELECT * FROM t3 WHERE a >= 110 ORDER BY a;

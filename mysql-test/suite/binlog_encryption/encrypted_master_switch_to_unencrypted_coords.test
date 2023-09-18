@@ -136,6 +136,8 @@ start slave;
 SHOW TABLES;
 
 --disable_connect_log
+# IO thread is stopped, stop SQL thread only
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 --enable_connect_log
 reset slave;
