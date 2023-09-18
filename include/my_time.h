@@ -30,7 +30,8 @@ C_MODE_START
 extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
-#if SIZEOF_LONG == 4
+#if SIZEOF_VOIDP == 4
+/* 32 bit system, using old timestamp */
 #define MY_TIME_T_MAX LONG_MAX
 #define MY_TIME_T_MIN LONG_MIN
 #define TIMESTAMP_MAX_YEAR 2038
@@ -39,7 +40,7 @@ extern uchar days_in_month[];
 #define TIMESTAMP_MAX_VALUE INT_MAX32
 #define TIMESTAMP_MIN_VALUE 0
 #else
-/* Use 4 byte unsigned timestamp */
+/* 64 bit system. Use 4 byte unsigned timestamp */
 #define MY_TIME_T_MAX ((longlong) UINT_MAX32)
 #define MY_TIME_T_MIN 0
 #define TIMESTAMP_MAX_YEAR 2106
@@ -47,7 +48,7 @@ extern uchar days_in_month[];
 #define TIMESTAMP_MAX_VALUE ((longlong) UINT_MAX32)
 #define TIMESTAMP_MAX_MONTH 2
 #define TIMESTAMP_MAX_DAY 7
-#endif /* SIZEOF_LONG */
+#endif /* SIZEOF_VOIDP */
 
 #define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
 /* two-digit years < this are 20..; >= this are 19.. */

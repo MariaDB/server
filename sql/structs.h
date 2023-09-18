@@ -1039,7 +1039,7 @@ protected:
 public:
   Timeval(my_time_t sec, ulong usec)
   {
-    tv_sec= sec;
+    tv_sec= (time_t) sec;
     /*
       Since tv_usec is not always of type ulong, cast usec parameter
       explicitly to uint to avoid compiler warnings about losing
