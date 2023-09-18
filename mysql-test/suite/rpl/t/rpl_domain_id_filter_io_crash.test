@@ -149,7 +149,7 @@ connection slave;
 SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
-
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);

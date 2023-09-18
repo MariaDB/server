@@ -60,9 +60,8 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1213,1205]
 set @@global.innodb_lock_wait_timeout=1;
 set @@global.slave_transaction_retries=100;
-include/restart_slave.inc
-Warnings:
-Note	1255	Slave already has been stopped
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_to_start.inc
 connection slave1;
 ROLLBACK;
 connection master;

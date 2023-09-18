@@ -70,8 +70,11 @@ connection slave;
 # b. Slave applier parameters for successful retry after restart
 set @@global.innodb_lock_wait_timeout=1;
 set @@global.slave_transaction_retries=100;
-
---source include/restart_slave_sql.inc
+# SQL thread is stopped and --source include/restart_slave_sql.inc script will try 
+# to stop SQL thread again. This will fail with 1213 error and since for the SQL thread
+# we cannot specify expected error don't use this script here.
+START SLAVE SQL_THREAD;
+source include/wait_for_slave_sql_to_start.inc;
 
 --let $last_retries= query_get_value(SHOW GLOBAL STATUS LIKE 'Slave_retried_transactions', Value, 1)
 --let $status_type=GLOBAL
