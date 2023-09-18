@@ -4775,7 +4775,13 @@ connected:
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
+    DBUG_EXECUTE_IF("fail_com_register_slave",
+                    {
+                      mi->report(ERROR_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
+                      ER(ER_SLAVE_MASTER_COM_FAILURE), "COM_REGISTER_SLAVE",
+                      "Debug Induced Error");
+                      goto err;
+                    });
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));

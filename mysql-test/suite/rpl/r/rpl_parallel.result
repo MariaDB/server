@@ -896,7 +896,6 @@ connection con2;
 SET debug_sync='RESET';
 connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1062]
-include/wait_for_slave_sql_to_stop.inc
 SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
 a	b
 110	1
