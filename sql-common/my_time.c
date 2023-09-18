@@ -1755,7 +1755,7 @@ int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
   @param      dec Precision, in the range 0..6.
   @return         The length of the result string.
 */
-int my_timeval_to_str(const struct timeval *tm, char *to, uint dec)
+int my_timeval_to_str(const struct my_timeval *tm, char *to, uint dec)
 {
   char *pos= longlong10_to_str((longlong) tm->tv_sec, to, 10);
   if (dec)
