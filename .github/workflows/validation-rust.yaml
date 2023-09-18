@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: true
+          submodules: recursive
       - name: Cache Docker layers
         uses: actions/cache@v3
         id: cache-docker
