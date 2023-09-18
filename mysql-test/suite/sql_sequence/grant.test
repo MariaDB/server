@@ -22,6 +22,7 @@ connect(read_write,localhost,read_write,,mysqltest_1);
 connect(alter,localhost,alter,,mysqltest_1);
 connect(only_alter, localhost, only_alter,,mysqltest_1);
 
+--disable_ps2_protocol
 connection normal;
 create sequence s1;
 select next value for s1;
@@ -52,6 +53,7 @@ select next value for s1;
 alter sequence s1 restart= 11;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from s1;
+--enable_ps2_protocol
 
 #
 # Cleanup

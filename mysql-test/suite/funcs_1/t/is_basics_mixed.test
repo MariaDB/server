@@ -185,12 +185,14 @@ let $OUTFILE = $MYSQLTEST_VARDIR/tmp/datadict.out;
 --error 0,1
 remove_file $OUTFILE;
 --replace_result $OUTFILE <OUTFILE>
+--disable_ps2_protocol
 eval SELECT table_name,table_schema
 INTO OUTFILE '$OUTFILE'
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
 FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
+--enable_ps2_protocol
 cat_file $OUTFILE;
 remove_file $OUTFILE;
 #

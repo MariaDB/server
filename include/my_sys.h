@@ -92,7 +92,6 @@ typedef struct my_aio_result {
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
-#define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
 #define MY_THREAD_MOVE     0x20000U /* realloc(); Memory can move */
 /* Tree that should delete things automatically */

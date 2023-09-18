@@ -1,0 +1,52 @@
+include/master-slave.inc
+[connection master]
+# MDEV-31448 OOO finish event group by killed worker
+# Initialize test data
+connection master;
+call mtr.add_suppression("Slave: Connection was killed");
+call mtr.add_suppression("Slave: Commit failed due to failure of an earlier commit on which this one depends");
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 4;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+set @@global.innodb_lock_wait_timeout= 30;
+set @@global.slave_transaction_retries= 0;
+connection slave1;
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+a
+1
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+update t1 set a=2 where a=1;
+set statement skip_parallel_replication=1 for  insert into t2 values (1);
+drop table t2;
+connection slave;
+include/start_slave.inc
+# wait for T1
+# wait for T2
+# wait for T3
+kill T2_TID;
+connection slave1;
+ROLLBACK;
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+#
+# Cleanup
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 0;
+set @@global.slave_parallel_mode= conservative;
+set @@global.innodb_lock_wait_timeout= 50;
+set @@global.slave_transaction_retries= 10;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

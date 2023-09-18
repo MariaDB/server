@@ -665,7 +665,7 @@ trx_undo_write_xid(
 {
 	DBUG_ASSERT(xid->gtrid_length >= 0);
 	DBUG_ASSERT(xid->bqual_length >= 0);
-	DBUG_ASSERT(xid->gtrid_length + xid->bqual_length < XIDDATASIZE);
+	DBUG_ASSERT(xid->gtrid_length + xid->bqual_length <= XIDDATASIZE);
 
 	mlog_write_ulint(log_hdr + TRX_UNDO_XA_FORMAT,
 			 static_cast<ulint>(xid->formatID),

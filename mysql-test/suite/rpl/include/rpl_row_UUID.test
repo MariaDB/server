@@ -40,7 +40,9 @@ end|
 
 delimiter ;|
 # test both in SELECT and in INSERT
+--disable_ps2_protocol
 select fn1(0);
+--enable_ps2_protocol
 eval create table t2 (a int) engine=$engine_type;
 insert into t2 values(fn1(2));
 

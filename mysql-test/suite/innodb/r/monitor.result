@@ -637,6 +637,8 @@ LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
 SET GLOBAL innodb_monitor_enable='%';
+SET GLOBAL innodb_monitor_reset_all= '%', innodb_compression_algorithm= foo;
+ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'foo'
 INSERT INTO t1 VALUES (5), (6), (7), (8);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;

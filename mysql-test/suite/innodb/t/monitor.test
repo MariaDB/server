@@ -356,6 +356,7 @@ primary key (a(1), c(1)), key(b)) engine = innodb;
 
 insert into monitor_test values("13", 2, "aa");
 
+--disable_ps2_protocol
 select a from monitor_test where b < 1 for update;
 
 # should have icp_attempts = 1 and icp_out_of_range = 1
@@ -367,6 +368,7 @@ select a from monitor_test where b < 3 for update;
 
 select name, count from information_schema.innodb_metrics
 where name like "icp%";
+--enable_ps2_protocol
 
 drop table monitor_test;
 set global innodb_monitor_disable = All;
@@ -406,6 +408,8 @@ SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='%';
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_monitor_reset_all= '%', innodb_compression_algorithm= foo;
 INSERT INTO t1 VALUES (5), (6), (7), (8); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
 SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME

@@ -34,6 +34,7 @@ INSERT INTO t2 SELECT * FROM t1;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10,100) GROUP BY a;
 EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
 
+--disable_ps2_protocol
 FLUSH status;
 SELECT a, MAX(b) FROM t1 WHERE a IN (10, 100) GROUP BY a;
 --echo # Should be no more than 4 reads.
@@ -43,5 +44,6 @@ FLUSH status;
 SELECT a, MAX(b) FROM t2 WHERE a IN (10, 100) GROUP BY a;
 --echo # Should be no more than 4 reads.
 SHOW status LIKE 'handler_read_key';
+--enable_ps2_protocol
 
 DROP TABLE t1, t2;

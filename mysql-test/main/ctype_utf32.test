@@ -1099,7 +1099,30 @@ CREATE TABLE t1 (
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---enable_service_connection
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-29019 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on SELECT
+--echo #
+
+CREATE TABLE t (a INT);
+SET collation_connection=utf32_unicode_ci;
+INSERT INTO t VALUES (0);
+SELECT * FROM t ORDER BY (OCT(a));
+SELECT HEX(OCT(a)) FROM t;
+DROP TABLE t;
+SET NAMES utf8;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--enable_service_connection

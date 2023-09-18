@@ -1,4 +1,5 @@
 --source suite/versioning/engines.inc
+--source suite/versioning/common.inc
 --source include/have_partition.inc
 --source include/master-slave.inc
 
@@ -6,6 +7,7 @@
 #Testing command counters -BEFORE.
 #Storing the before counts of Slave
 connection slave;
+--source suite/versioning/common.inc
 let $slave_com_commit_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_commit', Value, 1);
 let $slave_com_insert_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_insert', Value, 1);
 let $slave_com_delete_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_delete', Value, 1);
@@ -167,4 +169,55 @@ sync_slave_with_master;
 connection master;
 drop table t1;
 
+--echo #
+--echo # MDEV-31313 SYSTEM VERSIONING and FOREIGN KEY CASCADE create orphan rows on replica
+--echo #
+create table parent (
+  id int(11) not null auto_increment,
+  processdate datetime default null,
+  primary key (id)
+) engine=innodb with system versioning;
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into parent values (1, now());
+
+create table child (
+  id int(11) not null auto_increment,
+  ch_name varchar(30),
+  andreid int(11) default null,
+  primary key (id),
+  key andreid (andreid),
+  constraint fk_andreid foreign key (andreid) references parent (id) on delete cascade
+) engine=innodb  with system versioning;
+
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+insert into child values (null, 'vimtomar', 1);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+delete from parent where id = 1;
+
+select check_row(row_start, row_end) from parent for system_time all;
+select check_row(row_start, row_end) from child for system_time all;
+select * from child;
+select * from parent;
+
+sync_slave_with_master;
+
+# Annoying tweaking of microseconds in slave row_end, so row_end can be <= row_start
+select check_row_slave(row_start, row_end) from parent for system_time all;
+select check_row_slave(row_start, row_end) from child for system_time all;
+select * from child;
+select * from parent;
+
+# Cleanup
+--source suite/versioning/common_finish.inc
+--connection master
+set timestamp= default;
+drop table child;
+drop table parent;
+
+sync_slave_with_master;
+connection master;
+
+--source suite/versioning/common_finish.inc
 --source include/rpl_end.inc

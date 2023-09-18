@@ -44,6 +44,7 @@ struct st_mysql_options_extention {
   struct mysql_async_context *async_context;
   HASH connection_attributes;
   size_t connection_attributes_length;
+  my_bool tls_verify_server_cert;
 };
 
 typedef struct st_mysql_methods

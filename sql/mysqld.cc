@@ -4500,6 +4500,8 @@ static int init_common_variables()
     return 1;
   }
 
+  if (tls_version & (VIO_TLSv1_0 + VIO_TLSv1_1))
+      sql_print_warning("TLSv1.0 and TLSv1.1 are insecure and should not be used for tls_version");
 
 #ifdef WITH_WSREP
   /*
@@ -9299,7 +9301,7 @@ static int test_if_case_insensitive(const char *dir_name)
                                buff, 0666, O_RDWR, MYF(0))) < 0)
   {
     if (!opt_abort)
-      sql_print_warning("Can't create test file %s", buff);
+      sql_print_warning("Can't create test file '%s' (Errcode: %M)", buff, my_errno);
     DBUG_RETURN(-1);
   }
   mysql_file_close(file, MYF(0));

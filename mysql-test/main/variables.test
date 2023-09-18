@@ -173,7 +173,9 @@ select * from information_schema.session_variables where variable_name like 'cha
 select @@timestamp>0;
 
 set @@rand_seed1=10000000,@@rand_seed2=1000000;
+--disable_ps2_protocol
 select ROUND(RAND(),5);
+--enable_ps2_protocol
 
 
 --echo

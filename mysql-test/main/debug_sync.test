@@ -381,6 +381,7 @@ DROP TABLE IF EXISTS t1;
 --enable_warnings
 #
 # Test.
+--disable_ps2_protocol
 CREATE TABLE t1 (c1 INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1);
 SELECT GET_LOCK('mysqltest_lock', 100);
@@ -417,6 +418,7 @@ disconnect con1;
 disconnect con2;
 connection default;
 DROP TABLE t1;
+--enable_ps2_protocol
 
 #
 # Cleanup after test case.

@@ -30,7 +30,9 @@ insert into t1 values(5,50,"aa ii uu ii oo",null);
 
 show status like 'mroonga_fast_order_limit';
 
+--disable_ps2_protocol
 select *, match(c3) against("ii") from t1 order by c1 desc limit 2;
+--enable_ps2_protocol
 
 show status like 'mroonga_fast_order_limit';
 

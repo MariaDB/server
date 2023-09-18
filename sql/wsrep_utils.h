@@ -189,7 +189,11 @@ public:
 
   void set(enum wsrep::server_state::state status)
   {
-    wsrep_notify_status(status);
+    if (status == wsrep::server_state::s_donor ||
+	status == wsrep::server_state::s_synced)
+      wsrep_notify_status(status, &view_);
+    else
+      wsrep_notify_status(status);
 
     lock();
     status_= status;

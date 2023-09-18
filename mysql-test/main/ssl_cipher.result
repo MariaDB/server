@@ -66,3 +66,5 @@ Variable_name	Value
 Ssl_cipher_list	AES128-SHA
 disconnect ssl_con;
 connection default;
+call mtr.add_suppression("TLSv1.0 and TLSv1.1 are insecure");
+FOUND 2 /TLSv1.0 and TLSv1.1 are insecure/ in mysqld.1.err

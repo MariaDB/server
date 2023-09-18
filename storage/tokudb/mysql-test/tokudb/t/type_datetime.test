@@ -278,6 +278,7 @@ drop table t1;
 # Bug#28261: Wrong DATETIME comparison result when the GET_USER_VAR function
 #            is involved.
 #
+--disable_ps2_protocol
 create table t1(f1 date);
 insert into t1 values('01-01-01'),('02-02-02'),('01-01-01'),('02-02-02');
 set @bug28261='';
@@ -285,6 +286,7 @@ select if(@bug28261 = f1, '', @bug28261:= f1) from t1;
 select if(@bug28261 = f1, '', @bug28261:= f1) from t1;
 select if(@bug28261 = f1, '', @bug28261:= f1) from t1;
 drop table t1;
+--enable_ps2_protocol
 
 #
 # Bug#28778: Wrong result of BETWEEN when comparing a DATETIME field with an

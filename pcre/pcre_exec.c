@@ -513,7 +513,7 @@ Returns:       MATCH_MATCH if matched            )  these values are >= 0
 static int
 match(REGISTER PCRE_PUCHAR eptr, REGISTER const pcre_uchar *ecode,
   PCRE_PUCHAR mstart, int offset_top, match_data *md, eptrblock *eptrb,
-  unsigned int rdepth) __attribute__((noinline,noclone));
+  unsigned int rdepth) __attribute__((optnone,noinline,noclone));
 #endif
 static int
 match(REGISTER PCRE_PUCHAR eptr, REGISTER const pcre_uchar *ecode,

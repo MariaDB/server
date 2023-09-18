@@ -620,7 +620,11 @@ public:
     {
       if (sysvartrack_global_update(thd, new_val,
                                     var->save_result.string_value.length))
+      {
+        if (new_val)
+          my_free(new_val);
         new_val= 0;
+      }
     }
     global_update_finish(new_val);
     return (new_val == 0 && var->save_result.string_value.str != 0);

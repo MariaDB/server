@@ -54,6 +54,7 @@ select count(*) from test.index_tab;
 
 # Testing Code
 
+--disable_ps2_protocol
 # For getting avg(a) inspection of
 # - all rows (test.no_index_tab)
 # - all unique index values (test.index_tab, assuming the optimizer decides to
@@ -102,6 +103,7 @@ update performance_schema.setup_consumers set enabled='YES';
 delete from test.index_tab where a = 51;
 update performance_schema.setup_consumers set enabled='NO';
 eval $table_io_select 'index_tab';
+--enable_ps2_protocol
 
 # In case of failures, this will tell if table io are lost.
 show status like 'performance_schema_%';

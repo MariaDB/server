@@ -213,6 +213,7 @@ if ($commands == 'clean')
   --let $commands=
 }
 
+--disable_ps2_protocol
 while ($commands != '')
 {
   --disable_query_log
@@ -633,5 +634,6 @@ while ($commands != '')
     inc $trans_id;
   }
 }
+--enable_ps2_protocol
 
 --let $commands= $rme_initial_commands

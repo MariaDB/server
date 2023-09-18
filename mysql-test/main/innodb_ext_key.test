@@ -27,6 +27,7 @@ ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS() INDEXES();
 --enable_result_log
 --enable_query_log
 
+--disable_ps2_protocol
 explain
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
 flush status;
@@ -149,6 +150,7 @@ select o_orderkey, p_partkey
   where p_retailprice > 1100 and o_orderdate='1997-01-01' 
         and o_orderkey=l_orderkey and p_partkey=l_partkey;
 show status like 'handler_read%';
+--enable_ps2_protocol
 
 --echo #
 --echo # Bug mdev-3851: ref access used instead of expected eq_ref access
@@ -317,12 +319,14 @@ select
   A.a + 10 * B.a, A.a + 10 * B.a, A.a + 10 * B.a 
 from t1 A, t1 B;
 
+--disable_ps2_protocol
 --replace_column 9 #
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 flush status;
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 show status like 'handler_read%';
+--enable_ps2_protocol
 
 drop table t1,t2;
 

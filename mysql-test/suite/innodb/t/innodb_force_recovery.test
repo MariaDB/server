@@ -160,7 +160,9 @@ connection default;
 let $status=`SHOW ENGINE INNODB STATUS`;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 select * from t2;
+--enable_ps2_protocol
 SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 select * from t2;
 SET SESSION innodb_lock_wait_timeout=1;

@@ -48,6 +48,7 @@ our $timestamp= 0;
 our $timediff= 0;
 our $name;
 our $verbose;
+# TODO: no option for that? Why is it different from $verbose?
 our $verbose_restart= 0;
 our $timer= 1;
 our $tests_total;

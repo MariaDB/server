@@ -290,7 +290,10 @@ select count(*) from t4 where c1 = 140;
 select count(*) from t5 where c1 = 140;
 
 --replace_result $MYSQLTEST_VARDIR VARDIR
+--disable_ps2_protocol
 eval select * into outfile "$MYSQLTEST_VARDIR/tmp/t1.outfile" from t1;
+--enable_ps2_protocol
+
 
 create temporary table temp_1 engine = innodb as select * from t1 where 1=2;
 select count(*) from temp_1;

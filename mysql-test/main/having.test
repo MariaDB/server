@@ -892,8 +892,10 @@ CREATE TABLE t1 (t INT, u INT, KEY(t));
 INSERT INTO t1 VALUES(10, 10), (11, 11), (12, 12), (12, 13),(14, 15), (15, 16),
                      (16, 17), (17, 17);
 ANALYZE TABLE t1;
+--disable_ps2_protocol
 SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
        GROUP BY t HAVING r = 1  ORDER BY t1.u;
+--enable_ps2_protocol
 
 DROP TABLE t1;
 DROP FUNCTION next_seq_value;

@@ -49,6 +49,7 @@ TRUNCATE mysql.slow_log;
 
 source include/start_slave.inc;
 
+--disable_ps2_protocol
 connection master;
 CREATE TABLE t1 (a int, b int); 
 
@@ -341,3 +342,4 @@ DROP TABLE t1;
 SET @@global.log_output= @old_log_output;
 SET @@global.long_query_time= @old_long_query_time;
 --source include/rpl_end.inc
+--enable_ps2_protocol

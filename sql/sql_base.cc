@@ -913,7 +913,12 @@ void close_thread_tables(THD *thd)
           !thd->stmt_arena->is_stmt_prepare())
         table->part_info->vers_check_limit(thd);
 #endif
-      table->vcol_cleanup_expr(thd);
+      /*
+        For simple locking we cleanup it here because we don't close thread
+        tables. For prelocking we close it when we do close thread tables.
+      */
+      if (thd->locked_tables_mode != LTM_PRELOCKED)
+        table->vcol_cleanup_expr(thd);
     }
 
     /* Detach MERGE children after every statement. Even under LOCK TABLES. */
@@ -2013,15 +2018,15 @@ retry_share:
       goto err_lock;
     }
 
-    /* Open view */
-    if (mysql_make_view(thd, share, table_list, false))
-      goto err_lock;
-
     /*
       This table is a view. Validate its metadata version: in particular,
       that it was a view when the statement was prepared.
     */
     if (check_and_update_table_version(thd, table_list, share))
+      goto err_lock;
+
+    /* Open view */
+    if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
 
     /* TODO: Don't free this */
@@ -3960,6 +3965,12 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (tables->open_strategy && !tables->table)
     goto end;
 
+  /* Check and update metadata version of a base table. */
+  error= check_and_update_table_version(thd, tables, tables->table->s);
+
+  if (unlikely(error))
+    goto end;
+
   error= extend_table_list(thd, tables, prelocking_strategy, has_prelocking_list);
   if (unlikely(error))
     goto end;
@@ -3967,11 +3978,6 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   /* Copy grant information from TABLE_LIST instance to TABLE one. */
   tables->table->grant= tables->grant;
 
-  /* Check and update metadata version of a base table. */
-  error= check_and_update_table_version(thd, tables, tables->table->s);
-
-  if (unlikely(error))
-    goto end;
   /*
     After opening a MERGE table add the children to the query list of
     tables, so that they are opened too.

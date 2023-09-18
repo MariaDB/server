@@ -1,0 +1,142 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+call mtr.add_suppression("Slave: Commit failed due to failure of an earlier commit on which this one depends");
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @save.slave_parallel_threads= @@global.slave_parallel_threads;
+set @save.slave_parallel_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_threads= 3;
+set @@global.slave_parallel_mode= CONSERVATIVE;
+connection slave1;
+BEGIN;
+update t1 set a=2 where a=1;
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+update t1 set a=2 where a=1;
+insert into t2 values (1);
+SET @commit_id= 10001;
+insert into t1 values (3);
+connection slave;
+include/start_slave.inc
+kill $t3_tid;
+connection slave1;
+commit;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+update t1 set a=1 where a=2;
+set @@global.slave_parallel_threads = @save.slave_parallel_threads;
+set @@global.slave_parallel_mode = @save.slave_parallel_mode;
+include/start_slave.inc
+#
+# Cleanup
+connection master;
+DROP TABLE t1, t2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# MDEV-31448 OOO finish event group by killed worker
+# Initialize test data
+connection master;
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+call mtr.add_suppression("Connection was killed");
+call mtr.add_suppression("Can.t find record");
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @save.slave_parallel_threads= @@global.slave_parallel_threads;
+set @save.slave_parallel_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_threads= 3;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+connection slave1;
+begin;
+update t1 set a=2 where a=1;
+connection master;
+set @old_dbug= @@session.debug_dbug;
+set @@session.debug_dbug="+d,binlog_force_commit_id";
+set @commit_id= 10000;
+update t1 set a=2 where a=1;
+insert into t2 values (1);
+drop table t2;
+connection slave;
+include/start_slave.inc
+# wait for T1
+# wait for T2
+# wait for T3
+kill $t2_tid;
+include/wait_for_slave_param.inc [Last_Errno]
+connection slave1;
+commit;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+update t1 set a=1 where a=2;
+set @@global.slave_parallel_threads = @save.slave_parallel_threads;
+set @@global.slave_parallel_mode = @save.slave_parallel_mode;
+include/start_slave.inc
+#
+# Cleanup
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# MDEV-31448 OOO finish event group by killed worker
+# Initialize test data
+connection master;
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+call mtr.add_suppression("Connection was killed");
+call mtr.add_suppression("Can.t find record");
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @save.slave_parallel_threads= @@global.slave_parallel_threads;
+set @save.slave_parallel_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_threads= 3;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+connection slave1;
+begin;
+update t1 set a=2 where a=1;
+connection master;
+set @old_dbug= @@session.debug_dbug;
+set @@session.debug_dbug="+d,binlog_force_commit_id";
+set @commit_id= 10000;
+update t1 set a=2 where a=1;
+set @commit_id= 10001;
+set statement skip_parallel_replication=1 for  insert into t2 values (1);
+drop table t2;
+connection slave;
+include/start_slave.inc
+# wait for T1
+# wait for T2
+# wait for T3
+kill $t2_tid;
+include/wait_for_slave_param.inc [Last_Errno]
+connection slave1;
+commit;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+update t1 set a=1 where a=2;
+set @@global.slave_parallel_threads = @save.slave_parallel_threads;
+set @@global.slave_parallel_mode = @save.slave_parallel_mode;
+include/start_slave.inc
+#
+# Cleanup
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

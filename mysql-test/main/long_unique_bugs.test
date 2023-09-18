@@ -12,7 +12,9 @@ insert into t1 () values
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),();
+--disable_ps2_protocol
 select * into outfile 'load.data' from t1;
+--enable_ps2_protocol
 create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, unique (e));
 load data infile 'load.data' into table tmp;
 delete from tmp;
@@ -223,7 +225,9 @@ drop table t1;
 --echo #
 CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
 INSERT INTO t1 VALUES ('A');
+--disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
+--enable_ps2_protocol
 --error ER_DUP_ENTRY
 LOAD DATA INFILE 'load.data'  INTO TABLE t1;
 select * from t1;
@@ -237,7 +241,9 @@ DROP TABLE t1;
 CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES ('f'), ('o'), ('o');
+--disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
+--enable_ps2_protocol
 
 ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
 SELECT * FROM t1;
@@ -447,6 +453,38 @@ drop table t1;
 --echo #
 create table t1 (f text not null, unique (f));
 insert into t1 (f) select 'f';
+drop table t1;
+
+--echo #
+--echo # MDEV-32012 hash unique corrupts index on virtual blobs
+--echo #
+create table t1 (
+  f1 varchar(25),
+  v1 mediumtext generated always as (concat('f1:', f1)) virtual,
+  unique key (f1) using hash,
+  key (v1(1000))
+);
+flush status;
+insert ignore t1 (f1) values (9599),(94410);
+# handler_read_next must be 1 below, meaning there was a hash collision above.
+# if a change in the hash function causes these values not to collide anymore,
+# the test must be adjusted to use some other values that collide.
+# to find a collision add an assert into check_duplicate_long_entry_key()
+# and run, like, insert...select * seq_from_1_to_1000000000
+show status like 'handler_read_next';
+--echo # the above MUST BE =1
+check table t1 extended;
+update t1 set f1=100 where f1=9599;
+update t1 set f1=9599 where f1=100;
+check table t1 extended;
+drop table t1;
+
+--echo #
+--echo # MDEV-32015 insert into an empty table fails with hash unique
+--echo #
+create table t1 (f1 varchar(25), unique (f1) using hash);
+insert ignore t1 (f1) values ('new york'),('virginia'),('spouse'),(null),('zqekmqpwutxnzddrbjycyo'),('nebraska'),('illinois'),('qe'),('ekmqpwut'),('arizona'),('arizona');
+check table t1 extended;
 drop table t1;
 
 --echo #

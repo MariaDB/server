@@ -273,7 +273,9 @@ engine innodb;
 
 insert ignore into t1 (b) values ('foo');
 
+--disable_ps2_protocol
 select * into outfile 'load.data' from t1;
+--enable_ps2_protocol
 load data infile 'load.data' replace into table t1;
 
 set debug_sync= "now WAIT_FOR latch_released";
@@ -290,7 +292,9 @@ engine innodb;
 
 insert ignore into t1 (b) values ('foo');
 
+--disable_ps2_protocol
 select * into outfile 'load.data' from t1;
+--enable_ps2_protocol
 load data infile 'load.data' replace into table t1;
 
 set debug_sync= "now WAIT_FOR got_no_such_table";

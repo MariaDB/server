@@ -869,6 +869,7 @@ SET optimizer_switch=@save_optimizer_switch;
 
 DROP TABLE t1,t2;
 
+--disable_ps2_protocol
 --echo # check "Handler_pushed" status varuiables
 CREATE TABLE t1 (
   c1 CHAR(1),
@@ -890,6 +891,7 @@ SELECT * FROM t1 WHERE (c2='3' or c2='4') and c2 % 2 = 0 ;
 show status like "Handler_icp%";
 
 DROP TABLE t1;
+--enable_ps2_protocol
 
 #
 # MDEV-308 lp:1008516 - Failing assertion: templ->mysql_col_len == len

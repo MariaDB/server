@@ -1901,6 +1901,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         MYSQL_QUERY_DONE(thd->is_error());
       }
 
+      thd->lex->restore_set_statement_var();
+
 #if defined(ENABLED_PROFILING)
       thd->profiling.finish_current_query();
       thd->profiling.start_new_query("continuing");
@@ -6522,9 +6524,11 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   memcpy(&thd->status_var, &old_status_var,
          offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
+  thd->initial_status_var= NULL;
   return res;
 #ifdef WITH_WSREP
 wsrep_error_label: /* see WSREP_SYNC_WAIT() macro above */
+  thd->initial_status_var= NULL;
   return true;
 #endif /* WITH_WSREP */
 }

@@ -31,7 +31,9 @@ explain extended select log10(100),log10(18),log10(-4),log10(0),log10(NULL);
 select pow(10,log10(10)),power(2,4);
 explain extended select pow(10,log10(10)),power(2,4);
 set @@rand_seed1=10000000,@@rand_seed2=1000000;
+--disable_ps2_protocol
 select rand(999999),rand();
+--enable_ps2_protocol
 explain extended select rand(999999),rand();
 select pi(),format(sin(pi()/2),6),format(cos(pi()/2),6),format(abs(tan(pi())),6),format(cot(1),6),format(asin(1),6),format(acos(0),6),format(atan(1),6);
 explain extended select pi(),format(sin(pi()/2),6),format(cos(pi()/2),6),format(abs(tan(pi())),6),format(cot(1),6),format(asin(1),6),format(acos(0),6),format(atan(1),6);

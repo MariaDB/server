@@ -532,6 +532,40 @@ static void do_expand_string(Copy_field *copy)
 }
 
 
+/*
+  Copy from a Field_varstring with length_bytes==1
+  into another Field_varstring with length_bytes==1
+  when the target column is not shorter than the source column.
+  We don't need to calculate the prefix in this case. It works for
+  - non-compressed and compressed columns
+  - single byte and multi-byte character sets
+*/
+static void do_varstring1_no_truncation(Copy_field *copy)
+{
+  uint length= (uint) *(uchar*) copy->from_ptr;
+  DBUG_ASSERT(length <= copy->to_length - 1);
+  *(uchar*) copy->to_ptr= (uchar) length;
+  memcpy(copy->to_ptr+1, copy->from_ptr + 1, length);
+}
+
+/*
+  Copy from a Field_varstring with length_bytes==2
+  into another Field_varstring with length_bytes==2
+  when the target column is not shorter than the source column.
+  We don't need to calculate the prefix in this case. It works for
+  - non-compressed and compressed columns
+  - single byte and multi-byte character sets
+*/
+static void do_varstring2_no_truncation(Copy_field *copy)
+{
+  uint length= uint2korr(copy->from_ptr);
+  DBUG_ASSERT(length <= copy->to_length - HA_KEY_BLOB_LENGTH);
+  int2store(copy->to_ptr, length);
+  memcpy(copy->to_ptr + HA_KEY_BLOB_LENGTH,
+         copy->from_ptr + HA_KEY_BLOB_LENGTH, length);
+}
+
+
 static void do_varstring1(Copy_field *copy)
 {
   uint length= (uint) *(uchar*) copy->from_ptr;
@@ -776,6 +810,21 @@ Field::Copy_func *Field_varstring::get_copy_func(const Field *from) const
       length_bytes != ((const Field_varstring*) from)->length_bytes ||
       !compression_method() != !from->compression_method())
     return do_field_string;
+
+  if (field_length >= from->field_length)
+    return length_bytes == 1 ? do_varstring1_no_truncation :
+                               do_varstring2_no_truncation;
+
+  if (compression_method())
+  {
+    /*
+      Truncation is going to happen, so we need to calculate prefixes.
+      Can't calculate prefixes directly on compressed data,
+      need to go through val_str() to uncompress.
+    */
+    return do_field_string;
+  }
+
   return length_bytes == 1 ?
          (from->charset()->mbmaxlen == 1 ? do_varstring1 : do_varstring1_mb) :
          (from->charset()->mbmaxlen == 1 ? do_varstring2 : do_varstring2_mb);

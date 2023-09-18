@@ -34,10 +34,12 @@ INSERT INTO memos VALUES(2, "明日は山登り。");
 INSERT INTO memos VALUES(3, "今日はサボテンをもらった。");
 INSERT INTO memos VALUES(1, "今日は天気がよくてよかった。");
 
+--disable_ps2_protocol
 SELECT * FROM memos
          WHERE MATCH(内容) AGAINST("今日" IN BOOLEAN MODE)
          ORDER BY 識別子
          LIMIT 1;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 

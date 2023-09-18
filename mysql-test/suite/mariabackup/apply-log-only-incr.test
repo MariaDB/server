@@ -61,7 +61,9 @@ rmdir $incremental_dir;
 
 SELECT COUNT(*) FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 SELECT COUNT(*) FROM t;
+--enable_ps2_protocol
 
 --let $restart_parameters=
 --source include/restart_mysqld.inc

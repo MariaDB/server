@@ -232,6 +232,11 @@ bool TABLE::vers_check_update(List<Item> &items)
       }
     }
   }
+  /*
+    Tell TRX_ID-versioning that it does not insert history row
+    (see calc_row_difference()).
+  */
+  vers_write= false;
   return false;
 }
 

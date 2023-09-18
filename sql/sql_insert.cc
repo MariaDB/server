@@ -78,6 +78,7 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
+#include "rpl_rli.h"
 #include <my_bit.h>
 
 #include "debug_sync.h"
@@ -900,7 +901,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       same table in the same connection.
     */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-       values_list.elements > 1)
+        !table->s->long_unique_table && values_list.elements > 1)
     {
       using_bulk_insert= 1;
       table->file->ha_start_bulk_insert(values_list.elements);
@@ -1753,6 +1754,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   save_read_set=  table->read_set;
   save_write_set= table->write_set;
 
+  DBUG_EXECUTE_IF("rpl_write_record_small_sleep_gtid_100_200",
+    {
+      if (thd->rgi_slave && (thd->rgi_slave->current_gtid.seq_no == 100 ||
+                             thd->rgi_slave->current_gtid.seq_no == 200))
+        my_sleep(20000);
+    });
   if (info->handle_duplicates == DUP_REPLACE ||
       info->handle_duplicates == DUP_UPDATE)
   {
@@ -1916,7 +1923,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (error != HA_ERR_RECORD_IS_THE_SAME)
           {
             info->updated++;
-            if (table->versioned())
+            if (table->versioned() &&
+                table->vers_check_update(*info->update_fields))
             {
               if (table->versioned(VERS_TIMESTAMP))
               {
@@ -3922,7 +3930,7 @@ int select_insert::prepare2(JOIN *)
   DBUG_ENTER("select_insert::prepare2");
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      !thd->lex->describe)
+      !table->s->long_unique_table && !thd->lex->describe)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   if (table->validate_default_values_of_unset_fields(thd))
     DBUG_RETURN(1);
@@ -4656,7 +4664,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
-  if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+  if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+      !table->s->long_unique_table)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
   if (check_that_all_fields_are_given_values(thd, table, table_list))

@@ -36,13 +36,17 @@ CONNECT (con3,localhost,root,,);
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 SELECT * FROM t;
+--enable_ps2_protocol
 COMMIT;
 
 --source include/restart_mysqld.inc
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 SELECT * FROM t;
+--enable_ps2_protocol
 COMMIT;
 --sorted_result
 XA RECOVER;

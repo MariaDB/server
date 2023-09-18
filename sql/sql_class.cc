@@ -5144,12 +5144,6 @@ thd_need_wait_reports(const MYSQL_THD thd)
   deadlock with the pre-determined commit order, we kill the later
   transaction, and later re-try it, to resolve the deadlock.
 
-  This call need only receive reports about waits for locks that will remain
-  until the holding transaction commits. InnoDB auto-increment locks,
-  for example, are released earlier, and so need not be reported. (Such false
-  positives are not harmful, but could lead to unnecessary kill and retry, so
-  best avoided).
-
   Returns 1 if the OTHER_THD will be killed to resolve deadlock, 0 if not. The
   actual kill will happen later, asynchronously from another thread. The
   caller does not need to take any actions on the return value if the
@@ -5277,6 +5271,49 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   */
   return 0;
 }
+
+
+/*
+  If the storage engine detects a deadlock, and needs to choose a victim
+  transaction to roll back, it can call this function to ask the upper
+  server layer for which of two possible transactions is prefered to be
+  aborted and rolled back.
+
+  In parallel replication, if two transactions are running in parallel and
+  one is fixed to commit before the other, then the one that commits later
+  will be prefered as the victim - chosing the early transaction as a victim
+  will not resolve the deadlock anyway, as the later transaction still needs
+  to wait for the earlier to commit.
+
+  The return value is -1 if the first transaction is prefered as a deadlock
+  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  which case the storage engine can make the choice as it prefers).
+*/
+extern "C" int
+thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
+{
+  rpl_group_info *rgi1, *rgi2;
+
+  if (!thd1 || !thd2)
+    return 0;
+
+  /*
+    If the transactions are participating in the same replication domain in
+    parallel replication, then request to select the one that will commit
+    later (in the fixed commit order from the master) as the deadlock victim.
+  */
+  rgi1= thd1->rgi_slave;
+  rgi2= thd2->rgi_slave;
+  if (rgi1 && rgi2 &&
+      rgi1->is_parallel_exec &&
+      rgi1->rli == rgi2->rli &&
+      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
+    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
+
+  /* No preferences, let the storage engine decide. */
+  return 0;
+}
+
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
@@ -7499,6 +7536,7 @@ wait_for_commit::reinit()
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
   commit_started= false;
+  wakeup_blocked= false;
 #ifdef SAFE_MUTEX
   /*
     When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
@@ -7635,15 +7673,22 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   with register_wait_for_prior_commit(). If the commit already completed,
   returns immediately.
 
+  If ALLOW_KILL is set to true (the default), the wait can be aborted by a
+  kill. In case of kill, the wait registration is still removed, so another
+  call of unregister_wait_for_prior_commit() is needed to later retry the
+  wait. If ALLOW_KILL is set to false, then kill will be ignored and this
+  function will not return until the prior commit (if any) has called
+  wakeup_subsequent_commits().
+
   If thd->backup_commit_lock is set, release it while waiting for other threads
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
-  bool backup_lock_released= 0;
+  bool backup_lock_released= false;
 
   /*
     Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to commit
@@ -7653,7 +7698,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   */
   if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
   {
-    backup_lock_released= 1;
+    backup_lock_released= true;
     thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
     thd->backup_commit_lock->ticket= 0;
   }
@@ -7664,7 +7709,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (!allow_kill || likely(!thd->check_killed(1))))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   if (!loc_waitee)
   {
@@ -7706,14 +7751,14 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     use within enter_cond/exit_cond.
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
@@ -7763,6 +7808,9 @@ void
 wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 {
   wait_for_commit *waiter;
+
+  if (unlikely(wakeup_blocked))
+    return;
 
   mysql_mutex_lock(&LOCK_wait_commit);
   wakeup_subsequent_commits_running= true;

@@ -52,6 +52,11 @@ Created 3/26/1996 Heikki Tuuri
 #include <set>
 #include <new>
 
+#ifdef HAVE_REPLICATION
+extern "C"
+int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+#endif
+
 /** The bit pattern corresponding to TRX_ID_MAX */
 const byte trx_id_max_bytes[8] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
@@ -1472,8 +1477,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   trx_mutex_exit(this);
 
   ut_a(error_state == DB_SUCCESS);
-  if (!srv_read_only_mode)
-    srv_wake_purge_thread_if_not_active();
+  srv_wake_purge_thread_if_not_active();
 }
 
 /** Commit the transaction in a mini-transaction.
@@ -1906,6 +1910,16 @@ trx_weight_ge(
 {
 	ibool	a_notrans_edit;
 	ibool	b_notrans_edit;
+
+#ifdef HAVE_REPLICATION
+	/* First ask the upper server layer if it has any preference for which
+	to prefer as a deadlock victim. */
+	int pref= thd_deadlock_victim_preference(a->mysql_thd, b->mysql_thd);
+	if (pref < 0)
+		return FALSE;
+	else if (pref > 0)
+		return TRUE;
+#endif
 
 	/* If mysql_thd is NULL for a transaction we assume that it has
 	not edited non-transactional tables. */

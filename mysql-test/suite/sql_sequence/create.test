@@ -379,6 +379,7 @@ drop view v1;
 # CREATE TEMPORARY SEQUENCE
 #
 
+--disable_ps2_protocol
 CREATE TEMPORARY SEQUENCE t1;
 select next value for t1;
 drop temporary table t1;
@@ -411,6 +412,7 @@ select previous value for t1;
 drop temporary sequence t1;
 select previous value for t1;
 drop sequence t1;
+--enable_ps2_protocol
 
 #
 # Check that we can't create anything with the sequence engine

@@ -641,7 +641,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
         (!table->triggers ||
          !table->triggers->has_delete_triggers()))
         table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
-    if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+    if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+        !table->s->long_unique_table)
       table->file->ha_start_bulk_insert((ha_rows) 0);
     table->copy_blobs=1;
 
