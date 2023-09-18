@@ -1075,7 +1075,7 @@ void
 Time_zone_system::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
 {
   struct tm tmp_tm;
-  time_t tmp_t= (time_t)t;
+  time_t tmp_t= (time_t) t;
 
   localtime_r(&tmp_t, &tmp_tm);
   localtime_to_TIME(tmp, &tmp_tm);
