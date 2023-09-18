@@ -503,13 +503,44 @@ SET DEBUG_SYNC = 'now SIGNAL inserted';
 
 connection con1;
 reap;
-disconnect con1;
 
 connection default;
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
+
+SET @save_freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                PRIMARY KEY(f1), INDEX(f2, f1))ENGINE=InnoDB;
+
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+INSERT INTO t1 VALUES(1, 1);
+DELETE FROM t1;
+INSERT INTO t1 VALUES(2, 2), (3, 3), (4, 3);
+set DEBUG_SYNC="innodb_rollback_inplace_alter_table SIGNAL con1_start WAIT_FOR con1_commit";
+send ALTER TABLE t1 ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE, LOCK=SHARED;
+
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR con1_start";
+COMMIT;
+SLEEP 5;
+SET DEBUG_SYNC="now SIGNAL con1_commit";
+disconnect con1;
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+--source include/wait_all_purged.inc
+CHECK TABLE t1 extended;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_freq;
 
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.

@@ -530,7 +530,6 @@ INSERT INTO t1 VALUES(1,1);
 ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL inserted';
 connection con1;
-disconnect con1;
 connection default;
 SELECT * FROM t1;
 a	b
@@ -540,6 +539,32 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
+SET @save_freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+PRIMARY KEY(f1), INDEX(f2, f1))ENGINE=InnoDB;
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 VALUES(1, 1);
+DELETE FROM t1;
+INSERT INTO t1 VALUES(2, 2), (3, 3), (4, 3);
+set DEBUG_SYNC="innodb_rollback_inplace_alter_table SIGNAL con1_start WAIT_FOR con1_commit";
+ALTER TABLE t1 ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE, LOCK=SHARED;
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR con1_start";
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL con1_commit";
+disconnect con1;
+connection default;
+ERROR 23000: Duplicate entry '3' for key 'f2_2'
+InnoDB		0 transactions not purged
+CHECK TABLE t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_freq;
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
