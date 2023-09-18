@@ -10,7 +10,6 @@
 
 use std::collections::HashSet;
 use std::env;
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -102,10 +101,6 @@ fn configure_returning_incl_paths() -> [String; 2] {
     Command::new("cmake")
         .arg(format!("-S{root}"))
         .arg(format!("-B{output_dir}"))
-        .arg(format!(
-            "-j{}",
-            std::thread::available_parallelism().map_or(2, NonZeroUsize::get)
-        ))
         .output()
         .expect("failed to invoke cmake");
 
