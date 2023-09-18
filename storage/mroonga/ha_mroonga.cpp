@@ -11775,7 +11775,7 @@ int ha_mroonga::storage_encode_key_timestamp2(Field *field, const uchar *key,
   bool truncated = false;
 
   Field_timestampf *timestamp2_field = (Field_timestampf *)field;
-  struct timeval tm;
+  struct my_timeval tm;
   my_timestamp_from_binary(&tm, key, timestamp2_field->decimals());
   MYSQL_TIME mysql_time;
   mrn_my_tz_UTC->gmt_sec_to_TIME(&mysql_time, (my_time_t)tm.tv_sec);
