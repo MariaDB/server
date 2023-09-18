@@ -1,3 +1,5 @@
+#!/bin/sh
+
 set -eaux
 
 echo running tests
