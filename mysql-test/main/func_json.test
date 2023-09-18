@@ -3647,4 +3647,13 @@ SELECT JSON_SCHEMA_VALID('{}', NULL);
 SELECT JSON_SCHEMA_VALID(NULL, '{}');
 SELECT JSON_SCHEMA_VALID(NULL, NULL);
 
+--echo #
+--echo # MDEV-31599: Assertion `0' failed in Item_param::can_return_value from Item::val_json,
+--echo #             UBSAN: member access within null pointer of type 'struct String' in
+--echo #             sql/item_jsonfunc.cc
+--echo #
+
+--error ER_JSON_NO_VARIABLE_SCHEMA
+PREPARE s FROM 'SELECT JSON_SCHEMA_VALID (?,''{}'') FROM DUAL';
+
 --echo # End of 11.1 test

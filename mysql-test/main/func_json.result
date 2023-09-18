@@ -4762,4 +4762,11 @@ NULL
 SELECT JSON_SCHEMA_VALID(NULL, NULL);
 JSON_SCHEMA_VALID(NULL, NULL)
 NULL
+#
+# MDEV-31599: Assertion `0' failed in Item_param::can_return_value from Item::val_json,
+#             UBSAN: member access within null pointer of type 'struct String' in
+#             sql/item_jsonfunc.cc
+#
+PREPARE s FROM 'SELECT JSON_SCHEMA_VALID (?,''{}'') FROM DUAL';
+ERROR HY000: Variable schema is not supported.
 # End of 11.1 test
