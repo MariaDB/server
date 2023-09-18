@@ -31,7 +31,7 @@ SET sql_log_bin=1;
 START SLAVE;
 --let $slave_sql_errno=1062
 --source include/wait_for_slave_sql_error.inc
-
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 # Skip the problem event from the master.
 SET GLOBAL gtid_slave_pos= "0-1-100";
