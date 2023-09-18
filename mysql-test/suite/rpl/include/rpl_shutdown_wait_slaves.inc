@@ -75,17 +75,26 @@ EOF
 --connection server_1
 DROP TABLE t1;
 
+# Slaves IO thread will receive the disconnect error when master was shutdown
+# so we are allowing error on start.
 --connection server_2
 --disable_warnings
+--let rpl_allow_error=1
+--source include/wait_for_slave_io_to_start.inc
+
 --source include/start_slave.inc
 --enable_warnings
 
 --connection server_3
 --disable_warnings
+--let rpl_allow_error=1
+--source include/wait_for_slave_io_to_start.inc
 --source include/start_slave.inc
 --enable_warnings
 
 --connection server_4
 --disable_warnings
+--let rpl_allow_error=1
+--source include/wait_for_slave_io_to_start.inc
 --source include/start_slave.inc
 --enable_warnings

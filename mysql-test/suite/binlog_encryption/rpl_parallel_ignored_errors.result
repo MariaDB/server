@@ -35,6 +35,7 @@ connection server_2;
 connection con_temp2;
 COMMIT;
 connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1062]
 include/stop_slave.inc
 include/assert.inc [table t1 should have zero rows where a>32]
 SELECT * FROM t1 WHERE a>32;
