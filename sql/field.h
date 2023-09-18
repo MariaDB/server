@@ -969,11 +969,13 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  virtual int  store_timestamp_dec(const my_timeval &ts, uint dec);
   int store_timestamp(my_time_t timestamp, ulong sec_part)
   {
-    return store_timestamp_dec(Timeval(timestamp, sec_part),
-                               TIME_SECOND_PART_DIGITS);
+    struct my_timeval tmp;
+    tmp.tv_sec=  (longlong) timestamp;
+    tmp.tv_usec= (long) sec_part;
+    return store_timestamp_dec(tmp, TIME_SECOND_PART_DIGITS);
   }
   /**
     Store a value represented in native format
@@ -3236,10 +3238,10 @@ class Field_timestamp :public Field_temporal {
 protected:
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
-  virtual void store_TIMEVAL(const timeval &tv)= 0;
+  virtual void store_TIMEVAL(const my_timeval &tv)= 0;
   void store_TIMESTAMP(const Timestamp &ts)
   {
-    store_TIMEVAL(ts.tv());
+    store_TIMEVAL(ts);
   }
   int zero_time_stored_return_code_with_warning();
 public:
@@ -3260,7 +3262,7 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int  store_decimal(const my_decimal *) override;
-  int  store_timestamp_dec(const timeval &ts, uint dec) override;
+  int  store_timestamp_dec(const my_timeval &ts, uint dec) override;
   int  save_in_field(Field *to) override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
@@ -3290,7 +3292,7 @@ public:
 
 class Field_timestamp0 :public Field_timestamp
 {
-  void store_TIMEVAL(const timeval &tv) override
+  void store_TIMEVAL(const my_timeval &tv) override
   {
     int4store(ptr, tv.tv_sec);
   }
@@ -3382,7 +3384,7 @@ class Field_timestamp_hires :public Field_timestamp_with_dec {
   {
     return Type_handler_timestamp::sec_part_bytes(dec);
   }
-  void store_TIMEVAL(const timeval &tv) override;
+  void store_TIMEVAL(const my_timeval &tv) override;
 public:
   Field_timestamp_hires(uchar *ptr_arg,
                         uchar *null_ptr_arg, uchar null_bit_arg,
@@ -3411,7 +3413,7 @@ public:
   TIMESTAMP(0..6) - MySQL56 version
 */
 class Field_timestampf :public Field_timestamp_with_dec {
-  void store_TIMEVAL(const timeval &tv) override;
+  void store_TIMEVAL(const my_timeval &tv) override;
 public:
   Field_timestampf(uchar *ptr_arg,
                    uchar *null_ptr_arg, uchar null_bit_arg,

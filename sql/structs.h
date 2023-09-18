@@ -1032,26 +1032,31 @@ public:
 };
 
 
-class Timeval: public timeval
+class Timeval: public my_timeval
 {
 protected:
   Timeval() = default;
 public:
   Timeval(my_time_t sec, ulong usec)
   {
-    tv_sec= (time_t) sec;
+    tv_sec= (longlong) sec;
     /*
       Since tv_usec is not always of type ulong, cast usec parameter
       explicitly to uint to avoid compiler warnings about losing
       integer precision.
     */
     DBUG_ASSERT(usec < 1000000);
-    tv_usec= (uint)usec;
+    tv_usec= usec;
   }
-  explicit Timeval(const timeval &tv)
-   :timeval(tv)
-  { }
+  explicit Timeval(const my_timeval &tv)
+    :my_timeval(tv)
+  {}
 };
+
+static inline void my_timeval_trunc(struct my_timeval *tv, uint decimals)
+{
+  tv->tv_usec-= (suseconds_t) my_time_fraction_remainder(tv->tv_usec, decimals);
+}
 
 
 /*

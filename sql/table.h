@@ -3537,7 +3537,7 @@ public:
      @param[in] field number in a TABLE
      @param[in] value to store
    */
-  void store(uint field_id, timeval ts);
+  void store(uint field_id, my_timeval ts);
   /**
     Update the transaction_registry right before commit.
     @param start_id    transaction identifier at start

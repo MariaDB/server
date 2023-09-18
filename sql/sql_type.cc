@@ -390,7 +390,7 @@ bool Timestamp::to_native(Native *to, uint decimals) const
 
 bool Timestamp::to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const
 {
-  return thd->timestamp_to_TIME(to, tv_sec, tv_usec, fuzzydate);
+  return thd->timestamp_to_TIME(to, (my_time_t) tv_sec, tv_usec, fuzzydate);
 }
 
 
@@ -450,7 +450,7 @@ int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
     static Datetime zero(Datetime::zero());
     return field->store_time_dec(zero.get_mysql_time(), decimals);
   }
-  return field->store_timestamp_dec(Timestamp(*this).tv(), decimals);
+  return field->store_timestamp_dec(Timestamp(*this), decimals);
 }
 
 
@@ -782,9 +782,9 @@ void Timestamp::round_or_set_max(uint dec, int *warn)
 {
   DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   if (add_nanoseconds_usec(msec_round_add[dec]) &&
-      (ulonglong) tv_sec++ >= TIMESTAMP_MAX_VALUE)
+      tv_sec++ >= TIMESTAMP_MAX_VALUE)
   {
-    tv_sec= (time_t) TIMESTAMP_MAX_VALUE;
+    tv_sec= TIMESTAMP_MAX_VALUE;
     tv_usec= TIME_MAX_SECOND_PART;
     *warn|= MYSQL_TIME_WARN_OUT_OF_RANGE;
   }
@@ -1053,9 +1053,9 @@ void Datetime::make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
 }
 
 
-Datetime::Datetime(THD *thd, const timeval &tv)
+Datetime::Datetime(THD *thd, const my_timeval &tv)
 {
-  thd->variables.time_zone->gmt_sec_to_TIME(this, tv.tv_sec);
+  thd->variables.time_zone->gmt_sec_to_TIME(this, (my_time_t) tv.tv_sec);
   second_part= tv.tv_usec;
   thd->used|= THD::TIME_ZONE_USED;
   DBUG_ASSERT(is_valid_value_slow());

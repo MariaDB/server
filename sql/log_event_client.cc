@@ -685,7 +685,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
         goto return_null;
 
       char buf[MAX_DATE_STRING_REP_LENGTH];
-      struct timeval tm;
+      struct my_timeval tm;
       my_timestamp_from_binary(&tm, ptr, meta);
       int buflen= my_timeval_to_str(&tm, buf, meta);
       my_b_write(file, (uchar*)buf, buflen);

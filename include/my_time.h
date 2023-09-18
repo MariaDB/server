@@ -130,6 +130,13 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
   status->nanoseconds= 0;
 }
 
+struct my_timeval
+{
+  longlong tv_sec;
+  ulong tv_usec;
+};
+
+
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
 my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
@@ -227,7 +234,7 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 
-int my_timeval_to_str(const struct timeval *tm, char *to, uint dec);
+int my_timeval_to_str(const struct my_timeval *tm, char *to, uint dec);
 
 static inline longlong sec_part_shift(longlong second_part, uint digits)
 {
@@ -258,11 +265,6 @@ static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
 #ifdef _WIN32
 #define suseconds_t long
 #endif
-static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
-{
-  tv->tv_usec-= (suseconds_t) my_time_fraction_remainder(tv->tv_usec, decimals);
-}
-
 
 #define hrtime_to_my_time(X) ((my_time_t)hrtime_to_time(X))
 

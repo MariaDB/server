@@ -3388,7 +3388,7 @@ public:
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
-    struct st_trans_time : public timeval
+    struct st_trans_time : public my_timeval
     {
       void reset(THD *thd)
       {
@@ -4299,7 +4299,7 @@ private:
   }
 
 public:
-  timeval transaction_time()
+  my_timeval transaction_time()
   {
     if (!in_multi_stmt_transaction_mode())
       transaction->start_time.reset(this);
