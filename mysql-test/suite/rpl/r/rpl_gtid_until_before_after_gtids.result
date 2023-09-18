@@ -26,11 +26,10 @@ INSERT INTO t1 VALUES (101);
 INSERT INTO t1 VALUES (102);
 connection slave;
 START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-4";
+# Ensure the slave started
 # Clean replica state
 connection master;
 connection slave;
-Warnings:
-Note	1255	Slave already has been stopped
 #
 #  Test Case 2 (SQL_BEFORE_GTIDS): If a provided until GTID doesn't exist in the
 # binary log due to a gap, once an event is seen that is beyond the
@@ -47,6 +46,7 @@ set @@session.gtid_seq_no= 9;
 INSERT INTO t1 VALUES (105);
 connection slave;
 START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-8";
+# Ensure the slave started
 connection slave;
 connection master;
 connection slave;
@@ -69,6 +69,7 @@ INSERT INTO t2 VALUES (202);
 set session gtid_domain_id=0;
 connection slave;
 START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-11";
+# Ensure the slave started
 connection slave;
 connection master;
 connection slave;
@@ -87,6 +88,7 @@ SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (110);
 SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (205);
 connection slave;
 START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-13,1-1-5";
+# Ensure the slave started
 connection slave;
 connection master;
 connection slave;
@@ -136,11 +138,10 @@ INSERT INTO t1 VALUES (112);
 INSERT INTO t1 VALUES (113);
 connection slave;
 START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-4";
+# Ensure the slave started
 # Clean replica state
 connection master;
 connection slave;
-Warnings:
-Note	1255	Slave already has been stopped
 #
 #  Test Case 2 (SQL_AFTER_GTIDS): If a provided until GTID doesn't exist in the
 # binary log due to a gap, once an event is seen that is beyond the
@@ -157,6 +158,7 @@ set @@session.gtid_seq_no= 9;
 INSERT INTO t1 VALUES (116);
 connection slave;
 START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-8";
+# Ensure the slave started
 connection slave;
 connection master;
 connection slave;
@@ -179,6 +181,7 @@ INSERT INTO t2 VALUES (208);
 set session gtid_domain_id=0;
 connection slave;
 START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-11";
+# Ensure the slave started
 connection slave;
 connection master;
 connection slave;
@@ -197,6 +200,7 @@ SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (121);
 SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (211);
 connection slave;
 START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-13,1-1-5";
+# Ensure the slave started
 connection slave;
 connection master;
 connection slave;
