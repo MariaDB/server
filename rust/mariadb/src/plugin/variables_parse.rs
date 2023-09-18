@@ -35,35 +35,35 @@ use crate::helpers::str2bool;
 /// # Safety
 ///
 /// Variable has to be of the right type, bool
-pub unsafe fn check_func_atomic_bool<T>(
-    thd: *const c_void,
-    var: *mut c_void,
-    // var: *mut SysVarInfoU<bool>,
-    save: *mut c_void,
-    value: *const bindings::st_mysql_value,
-) -> c_int {
-    todo!()
-    // let sql_val = MySqlValue::from_ptr(value);
-    // let dest: *const AtomicBool = save.cast();
-    // let new_val = match sql_val.value() {
-    //     Value::Int(v) => {
-    //         let tmp = v.unwrap_or(0);
-    //         match tmp {
-    //             0 => false,
-    //             1 => true,
-    //             _ => return 1,
-    //         }
-    //     }
-    //     Value::String(s) => {
-    //         let inner = s.expect("got null string");
-    //         str2bool(&inner)
-    //             .unwrap_or_else(|| panic!("value '{inner}' is not a valid bool indicator"))
-    //     }
-    //     Value::Real(_) => panic!("unexpected real value"),
-    // };
-    // (*dest).store(new_val, Ordering::Relaxed);
-    // 0
-}
+// pub unsafe fn check_func_atomic_bool<T>(
+//     thd: *const c_void,
+//     var: *mut c_void,
+//     // var: *mut SysVarInfoU<bool>,
+//     save: *mut c_void,
+//     value: *const bindings::st_mysql_value,
+// ) -> c_int {
+//     todo!()
+// let sql_val = MySqlValue::from_ptr(value);
+// let dest: *const AtomicBool = save.cast();
+// let new_val = match sql_val.value() {
+//     Value::Int(v) => {
+//         let tmp = v.unwrap_or(0);
+//         match tmp {
+//             0 => false,
+//             1 => true,
+//             _ => return 1,
+//         }
+//     }
+//     Value::String(s) => {
+//         let inner = s.expect("got null string");
+//         str2bool(&inner)
+//             .unwrap_or_else(|| panic!("value '{inner}' is not a valid bool indicator"))
+//     }
+//     Value::Real(_) => panic!("unexpected real value"),
+// };
+// (*dest).store(new_val, Ordering::Relaxed);
+// 0
+// }
 
 // pub unsafe fn update_func_atomic_bool<T>(
 //     thd: *const c_void,

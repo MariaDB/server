@@ -52,7 +52,7 @@ pub trait WrapKeyMgr: KeyManager {
 
         // If successful, return 0. If an error occurs, return it
         match dbg!(Self::get_key(key_id, version, buf)) {
-            Ok(_) => 0,
+            Ok(()) => 0,
             Err(e) => {
                 dbg!(e);
 
