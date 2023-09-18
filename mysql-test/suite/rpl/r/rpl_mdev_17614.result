@@ -30,8 +30,8 @@ a	b	c
 1	1	1
 2	2	3
 stop slave;
-include/wait_for_slave_to_stop.inc
-include/reset_slave.inc
+include/stop_slave.inc
+reset slave;
 connection master;
 reset master;
 drop table t1;
@@ -190,8 +190,8 @@ a	b	c
 1	1	1
 2	2	3
 stop slave;
-include/wait_for_slave_to_stop.inc
-include/reset_slave.inc
+include/stop_slave.inc
+reset slave;
 connection master;
 reset master;
 drop table t1;

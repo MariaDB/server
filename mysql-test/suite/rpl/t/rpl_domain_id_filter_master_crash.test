@@ -67,8 +67,10 @@ connection master;
 save_master_pos;
 
 --connection slave
---source include/stop_slave.inc
---source include/start_slave.inc
+--let rpl_allow_error=1
+--source include/wait_for_slave_io_to_start.inc
+--let rpl_allow_error=
+--source include/wait_for_slave_sql_to_start.inc
 sync_with_master;
 select * from ti;
 select * from tm;

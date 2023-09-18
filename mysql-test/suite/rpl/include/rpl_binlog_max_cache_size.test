@@ -418,6 +418,8 @@ while ($n)
 COMMIT;
 
 --connection slave
+# Multi-statement transaction raised ER_TRANS_CACHE_FULL (4096=128x32)
+# that will stop SQL slave thread
 --let $slave_sql_errno= 1197
 if (`SELECT @@binlog_format = 'ROW'`)
 {
@@ -437,6 +439,8 @@ source include/show_binlog_events.inc;
 --replace_result $old_binlog_stmt_cache_size ORIGINAL_VALUE
 --eval SET GLOBAL binlog_stmt_cache_size= $old_binlog_stmt_cache_size
 
+# SQL slave is stopped, stop only IO thread
+--let $rpl_only_running_threads= 1
 source include/stop_slave.inc;
 source include/start_slave.inc;
 

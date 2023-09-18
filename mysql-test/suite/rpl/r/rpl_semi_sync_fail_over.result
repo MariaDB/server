@@ -43,7 +43,7 @@ SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
 # Kill the server
 connection server_2;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
-include/stop_slave.inc
+stop slave;
 include/assert.inc [Table t1 should have 2 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
@@ -121,7 +121,7 @@ SET DEBUG_SYNC= "now WAIT_FOR eof_reached";
 # Kill the server
 connection server_1;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
-include/stop_slave.inc
+stop slave;
 include/assert.inc [Table t1 should have 5 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
@@ -200,7 +200,7 @@ SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
 # Kill the server
 connection server_2;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
-include/stop_slave.inc
+stop slave;
 include/assert.inc [Table t1 should have 7 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos

@@ -128,6 +128,7 @@ if (!$slave_sql_errno)
 }
 
 --echo # Stop $con2 so it stops receiving $con1 events.
+# ER_GTID_STRICT_OUT_OF_ORDER obtained
 --source include/stop_slave.inc
 
 --connection $con1

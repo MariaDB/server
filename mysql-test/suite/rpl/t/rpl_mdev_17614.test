@@ -41,8 +41,9 @@ SELECT * FROM t1;
 
 # restart replication for the next testcase
 stop slave;
---source include/wait_for_slave_to_stop.inc
---source include/reset_slave.inc
+--let $rpl_only_running_threads= 1
+--source include/stop_slave.inc
+reset slave;
 connection master;
 reset master;
 drop table t1;
@@ -160,8 +161,9 @@ SELECT * FROM t1;
 
 # restart replication for the next testcase
 stop slave;
---source include/wait_for_slave_to_stop.inc
---source include/reset_slave.inc
+--let $rpl_only_running_threads= 1
+--source include/stop_slave.inc
+reset slave;
 connection master;
 reset master;
 drop table t1;
