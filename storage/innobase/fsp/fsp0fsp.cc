@@ -1679,6 +1679,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
 	ut_ad(byte_offset >= FIL_PAGE_DATA);
 	ut_ad(byte_offset + FSEG_HEADER_SIZE
 	      <= srv_page_size - FIL_PAGE_DATA_END);
+	buf_block_t* iblock= 0;
 
 	mtr->x_lock_space(space);
 	ut_d(space->modify_check(*mtr));
@@ -1690,8 +1691,6 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
 		block = nullptr;
 		goto funct_exit;
 	}
-
-	buf_block_t* iblock;
 
 inode_alloc:
 	inode = fsp_alloc_seg_inode(space, header, &iblock, mtr, err);
