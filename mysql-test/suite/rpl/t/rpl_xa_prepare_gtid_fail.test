@@ -95,7 +95,10 @@ ROLLBACK;
 drop table t1;
 
 --connection slave
---source include/stop_slave.inc
+# ER_CANNOT_UPDATE_GTID_STATE
+--let $slave_sql_errno= 1942
+--source include/wait_for_slave_sql_error.inc
+STOP SLAVE;
 --eval set @@global.gtid_slave_pos= "$new_gtid"
 --eval set @@global.slave_parallel_threads= $save_par_thds
 --eval set @@global.gtid_strict_mode= $save_strict_mode

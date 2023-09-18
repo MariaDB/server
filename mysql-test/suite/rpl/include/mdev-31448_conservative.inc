@@ -50,8 +50,8 @@ insert into t1 values (3);
 commit;
 
 --connection slave
---let $slave_timeout=1032
---source include/wait_for_slave_sql_to_stop.inc
+--let $slave_sql_errno=1032
+--source include/wait_for_slave_sql_error.inc
 
 update t1 set a=1 where a=2;
 set @@global.slave_parallel_threads = @save.slave_parallel_threads;

@@ -65,8 +65,8 @@ if ($case == 3)
 --let $slave_param_value= Slave has read all relay log; waiting for more updates
 source include/wait_for_slave_param.inc;
 
---error 2003
---source include/stop_slave.inc
+#--error 2003
+stop slave;
 
 --let $assert_cond= COUNT(*) = $expected_rows_on_slave FROM t1
 --let $assert_text= Table t1 should have $expected_rows_on_slave rows.

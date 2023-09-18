@@ -116,11 +116,13 @@ show status like 'Rpl_semi_sync_master_no_tx';
 --connection server_2
 --eval SET @@GLOBAL.debug_dbug= "$sav_server_2_dbug"
 --eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
+--let $rpl_only_running_threads= 1
 source include/stop_slave.inc;
 
 --connection server_3
 --eval SET @@GLOBAL.debug_dbug= "$sav_server_3_dbug"
 --eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
+--let $rpl_only_running_threads= 1
 source include/stop_slave.inc;
 
 --echo #-- Bring the master back up
