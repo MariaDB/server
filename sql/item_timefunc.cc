@@ -1253,8 +1253,8 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
   if ((null_value= native.is_null() || native.is_zero_datetime()))
     return true;
   Timestamp tm(native);
-  *seconds= tm.tv().tv_sec;
-  *second_part= tm.tv().tv_usec;
+  *seconds= (my_time_t) tm.tv_sec;
+  *second_part= tm.tv_usec;
   return false;
 }
 

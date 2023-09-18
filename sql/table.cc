@@ -10296,7 +10296,7 @@ void TR_table::store(uint field_id, ulonglong val)
   table->field[field_id]->set_notnull();
 }
 
-void TR_table::store(uint field_id, timeval ts)
+void TR_table::store(uint field_id, my_timeval ts)
 {
   table->field[field_id]->store_timestamp(ts.tv_sec, ts.tv_usec);
   table->field[field_id]->set_notnull();
@@ -10316,7 +10316,7 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
 
   store(FLD_BEGIN_TS, thd->transaction_time());
   thd->set_time();
-  timeval end_time= { (time_t) thd->query_start(), int(thd->query_start_sec_part())};
+  my_timeval end_time= { thd->query_start(), thd->query_start_sec_part()};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
   store(FLD_COMMIT_TS, end_time);
