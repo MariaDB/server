@@ -18,29 +18,17 @@ env:
   CARGO_UNSTABLE_SPARSE_REGISTRY: true
 
 jobs:
-  check:
-    name: "Check (cargo check)"
+  clippy:
+    name: "Clippy (cargo clippy)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            rust/target/
-            CMakeFiles/
-            CMakeCache.txt
-            CPackConfig.cmake
-            CPackSourceConfig.cmake
-            CTestTestfile.cmake
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --manifest-path rust/Cargo.toml
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
 
   test:
     strategy:
@@ -59,99 +47,73 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            rust/target/
-            CMakeFiles/
-            CMakeCache.txt
-            CPackConfig.cmake
-            CPackSourceConfig.cmake
-            CTestTestfile.cmake
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      # - run: sudo apt-get update && sudo apt-get install cmake
       - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
       - run: cargo test --manifest-path rust/Cargo.toml
 
+  mtr:
+    name: "Run mtr integration tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        id: cache-docker
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      - name: Cache Docker Output
+        id: cache-docker-out
+        uses: actions/cache@v3
+        with:
+          path: docker_obj
+          key: ${{ runner.os }}-primes
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Image
+        uses: docker/build-push-action@v3
+        with:
+          load: true
+          tags: mdb-test-build:latest
+          file: rust/scripts/Dockerfile
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+      - # Temp fix
+        # https://github.com/docker/build-push-action/issues/252
+        # https://github.com/moby/buildkit/issues/1896
+        name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+      - name: Start docker
+        run: >
+          docker run --rm
+          --volume $(pwd):/checkout:ro
+          --volume $(pwd)/docker_obj:/obj
+          mdb-test-build
+          rust/scripts/launch/run_mtr.sh
 
   fmt:
     name: "Format (cargo fmt)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            rust/target/
-            CMakeFiles/
-            CMakeCache.txt
-            CPackConfig.cmake
-            CPackSourceConfig.cmake
-            CTestTestfile.cmake
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+      - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-
-  clippy:
-    name: "Clippy (cargo clippy)"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            rust/target/
-            CMakeFiles/
-            CMakeCache.txt
-            CPackConfig.cmake
-            CPackSourceConfig.cmake
-            CTestTestfile.cmake
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: clippy
-      - run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
 
   doc:
     name: "Docs (cargo doc) & Pub"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            rust/target/
-            CMakeFiles/
-            CMakeCache.txt
-            CPackConfig.cmake
-            CPackSourceConfig.cmake
-            CTestTestfile.cmake
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: sudo apt-get update && sudo apt-get install cmake
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       # test docs for everything
       - name: Test build all docs
         run: cargo doc --manifest-path rust/Cargo.toml --no-deps
