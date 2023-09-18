@@ -93,7 +93,8 @@ jobs:
           --volume $(pwd):/checkout:ro
           --volume $(pwd)/docker_obj:/obj
           mdb-test-build
-          rust/scripts/launch/run_mtr.sh
+          /bin/bash -c
+          'rust/scripts/launch/build_maria.sh && rust/scripts/launch/run_mtr.sh'
 
   fmt:
     name: "Format (cargo fmt)"
