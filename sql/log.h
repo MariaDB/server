@@ -1351,6 +1351,7 @@ binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern handlerton *binlog_hton;
+extern handlerton *online_alter_hton;
 extern LOGGER logger;
 
 extern const char *log_bin_index;

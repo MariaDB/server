@@ -2185,7 +2185,6 @@ int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
               (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
-
   rc= binlog_rollback(hton, thd, TRUE);
   thd->ha_data[hton->slot].ha_info[1].reset();
 
@@ -2276,9 +2275,9 @@ int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
   if (!table->online_alter_cache)
   {
     table->online_alter_cache= online_alter_binlog_get_cache_data(thd, table);
-    trans_register_ha(thd, false, binlog_hton, 0);
+    trans_register_ha(thd, false, online_alter_hton, 0);
     if (thd->in_multi_stmt_transaction_mode())
-      trans_register_ha(thd, true, binlog_hton, 0);
+      trans_register_ha(thd, true, online_alter_hton, 0);
   }
 
   // We need to log all columns for the case if alter table changes primary key
@@ -2339,12 +2338,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
 
-  IF_DBUG(bool commit_online= !thd->online_alter_cache_list.empty(),);
-
   bool is_ending_transaction= ending_trans(thd, all);
-  error= binlog_online_alter_end_trans(thd, all, true);
-  if (error)
-    DBUG_RETURN(error);
 
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   /*
@@ -2352,7 +2346,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   */
   if (!cache_mngr)
   {
-    DBUG_ASSERT(WSREP(thd) || commit_online ||
+    DBUG_ASSERT(WSREP(thd) ||
                 (thd->lex->sql_command != SQLCOM_XA_PREPARE &&
                 !(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
                   thd->lex->xa_opt == XA_ONE_PHASE)));
@@ -2450,17 +2444,13 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   DBUG_ENTER("binlog_rollback");
 
   bool is_ending_trans= ending_trans(thd, all);
-
-  bool rollback_online= !thd->online_alter_cache_list.empty();
-  if (rollback_online)
-    binlog_online_alter_end_trans(thd, all, 0);
   int error= 0;
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   if (!cache_mngr)
   {
-    DBUG_ASSERT(WSREP(thd) || rollback_online);
-    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK || rollback_online);
+    DBUG_ASSERT(WSREP(thd));
+    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK);
 
     DBUG_RETURN(0);
   }
@@ -12538,3 +12528,61 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
 }
 
 #endif /* WITH_WSREP */
+
+static int online_alter_close_connection(handlerton *hton, THD *thd)
+{
+  DBUG_ASSERT(thd->online_alter_cache_list.empty());
+  return 0;
+}
+
+handlerton *online_alter_hton;
+
+int online_alter_log_init(void *p)
+{
+  online_alter_hton= (handlerton *)p;
+  online_alter_hton->db_type= DB_TYPE_ONLINE_ALTER;
+  online_alter_hton->savepoint_offset= sizeof(my_off_t);
+  online_alter_hton->close_connection= online_alter_close_connection;
+
+  online_alter_hton->savepoint_set= // Done by online_alter_savepoint_set
+          [](handlerton *, THD *, void *){ return 0; };
+  online_alter_hton->savepoint_rollback= // Done by online_alter_savepoint_rollback
+          [](handlerton *, THD *, void *){ return 0; };
+  online_alter_hton->savepoint_rollback_can_release_mdl=
+          [](handlerton *hton, THD *thd){ return true; };
+
+  online_alter_hton->commit= [](handlerton *, THD *thd, bool all)
+          { return binlog_online_alter_end_trans(thd, all, true); };
+  online_alter_hton->rollback= [](handlerton *, THD *thd, bool all)
+          { return binlog_online_alter_end_trans(thd, all, false); };
+  online_alter_hton->commit_by_xid= [](handlerton *hton, XID *xid)
+          { return binlog_online_alter_end_trans(current_thd, true, true); };
+  online_alter_hton->rollback_by_xid= [](handlerton *hton, XID *xid)
+          { return binlog_online_alter_end_trans(current_thd, true, false); };
+
+  online_alter_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  online_alter_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN
+                            | HTON_NO_ROLLBACK;
+  return 0;
+}
+
+struct st_mysql_storage_engine online_alter_storage_engine=
+{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+
+maria_declare_plugin(online_alter_log)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &online_alter_storage_engine,
+  "online_alter_log",
+  "MariaDB PLC",
+  "This is a pseudo storage engine to represent the online alter log in a transaction",
+  PLUGIN_LICENSE_GPL,
+  online_alter_log_init,
+  NULL,
+  0x0100, // 1.0
+  NULL,   // no status vars
+  NULL,   // no sysvars
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
+}
+maria_declare_plugin_end;
