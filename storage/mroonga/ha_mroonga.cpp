@@ -14630,6 +14630,7 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
     MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN |
     ALTER_DROP_COLUMN |
     ALTER_INDEX_ORDER |
+    ALTER_INDEX_IGNORABILITY |
     ALTER_COLUMN_NAME;
     ;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {
