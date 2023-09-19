@@ -734,9 +734,16 @@ row_vers_vc_matches_cluster(
 			    && (!compare[v_col->v_pos])) {
 
 				if (ind_field->prefix_len != 0
-				    && !dfield_is_null(field2)
-				    && field2->len > ind_field->prefix_len) {
-					field2->len = ind_field->prefix_len;
+				    && !dfield_is_null(field2)) {
+					field2->len = unsigned(
+						dtype_get_at_most_n_mbchars(
+							field2->type.prtype,
+							field2->type.mbminlen,
+							field2->type.mbmaxlen,
+							ind_field->prefix_len,
+							field2->len,
+							static_cast<char*>
+							(field2->data)));
 				}
 
 				/* The index field mismatch */
