@@ -1043,7 +1043,7 @@ class Client_field_extension: public Sql_alloc,
 public:
   Client_field_extension()
   {
-    memset(this, 0, sizeof(*this));
+    memset((void*) this, 0, sizeof(*this));
   }
   void copy_extended_metadata(MEM_ROOT *memroot,
                               const Send_field_extended_metadata &src)
