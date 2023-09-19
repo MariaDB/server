@@ -8935,5 +8935,30 @@ CREATE TABLE t1 (a INT);
 CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
 ERROR 42000: PROCEDURE does not support subqueries or stored functions
 DROP TABLE t1;
+#
+# MDEV-23902: MariaDB crash on calling function
+#
+CREATE FUNCTION f2 () RETURNS VARCHAR(1)
+BEGIN
+DECLARE rec1 ROW TYPE OF v1;
+SELECT z INTO rec1 FROM v1;
+RETURN 1;
+END|
+CREATE FUNCTION f1 () RETURNS VARCHAR(1) RETURN f2() ;
+CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN f_not_exist();
+CREATE VIEW v1 AS SELECT f3() z;
+SELECT f1();
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+# Check that crash doen't happen in case f3 completes with success.
+DROP FUNCTION f3;
+CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN '!';
+SELECT f1();
+f1()
+1
+# Clean up
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP VIEW v1;
 # End of 10.4 tests
 #
