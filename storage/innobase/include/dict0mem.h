@@ -1052,7 +1052,8 @@ struct dict_index_t {
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
 				that have not been committed to the
-				data dictionary yet */
+				data dictionary yet. Protected by
+				MDL */
 
 #ifdef UNIV_DEBUG
 	/** whether this is a dummy index object */
