@@ -334,6 +334,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	return node;
 }
 
+__attribute__((warn_unused_result, nonnull))
 /** Open a tablespace file.
 @param node  data file
 @return whether the file was successfully opened */
@@ -362,9 +363,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
                                  OS_FILE_AIO, type,
                                  srv_read_only_mode, &success);
-    if (node->is_open())
+
+    if (success && node->is_open())
     {
-      ut_ad(success);
 #ifndef _WIN32
       if (!node->space->id && !srv_read_only_mode && my_disable_locking &&
           os_file_lock(node->handle, node->name))

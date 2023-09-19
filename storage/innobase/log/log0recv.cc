@@ -1611,7 +1611,8 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   if (source_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
     memcpy_aligned<512>(buf, &log_sys.buf[source_offset & ~511], 512);
   else
-    recv_sys.read(source_offset & ~511, {buf, 512});
+    if (dberr_t err= recv_sys.read(source_offset & ~511, {buf, 512}))
+      return err;
 
   if (log_block_calc_checksum_format_0(buf) !=
       mach_read_from_4(my_assume_aligned<4>(buf + 508)) &&
