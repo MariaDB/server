@@ -3268,10 +3268,16 @@ public:
   bool agg_item_collations(DTCollation &c, const LEX_CSTRING &name,
                            Item **items, uint nitems,
                            uint flags, int item_sep);
+  struct Single_coll_err
+  {
+    const DTCollation& coll;
+    bool first;
+  };
   bool agg_item_set_converter(const DTCollation &coll,
                               const LEX_CSTRING &name,
                               Item **args, uint nargs,
-                              uint flags, int item_sep);
+                              uint flags, int item_sep,
+                              const Single_coll_err *single_item_err= NULL);
 
   /*
     Collect arguments' character sets together.

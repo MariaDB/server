@@ -90,7 +90,9 @@ ENDIF()
 SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-              ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
+              ../sql-common/client.c
+               cset_narrowing.cc
+               compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c
                field.cc field_conv.cc field_comp.cc
                filesort_utils.cc

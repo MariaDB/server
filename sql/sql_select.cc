@@ -15702,7 +15702,8 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
     Field *left_field= ((Item_field*) left_item)->field;
     Field *right_field= ((Item_field*) right_item)->field;
 
-    if (!left_field->eq_def(right_field))
+    if (!left_field->eq_def(right_field) &&
+        !fields_equal_using_narrowing(thd, left_field, right_field))
       return FALSE;
 
     /* Search for multiple equalities containing field1 and/or field2 */

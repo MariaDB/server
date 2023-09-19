@@ -30,6 +30,8 @@
 #include "sql_time.h"
 #include "mem_root_array.h"
 
+#include "cset_narrowing.h"
+
 C_MODE_START
 #include <ma_dyncol.h>
 
@@ -5399,8 +5401,10 @@ protected:
 
 public:
   // This method is used by Arg_comparator
-  bool agg_arg_charsets_for_comparison(CHARSET_INFO **cs, Item **a, Item **b)
+  bool agg_arg_charsets_for_comparison(CHARSET_INFO **cs, Item **a, Item **b,
+                                       bool allow_narrowing)
   {
+    THD *thd= current_thd;
     DTCollation tmp;
     if (tmp.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
         tmp.derivation == DERIVATION_NONE)
@@ -5413,11 +5417,40 @@ public:
                func_name());
       return true;
     }
+
+    if (allow_narrowing &&
+        (*a)->collation.derivation == (*b)->collation.derivation)
+    {
+      // allow_narrowing==true only for = and <=> comparisons.
+      if (Utf8_narrow::should_do_narrowing(thd, (*a)->collation.collation,
+                                                (*b)->collation.collation))
+      {
+        // a is a subset, b is a superset (e.g. utf8mb3 vs utf8mb4)
+        *cs= (*b)->collation.collation; // Compare using the wider cset
+        return false;
+      }
+      else
+      if (Utf8_narrow::should_do_narrowing(thd, (*b)->collation.collation,
+                                                (*a)->collation.collation))
+      {
+        // a is a superset, b is a subset (e.g. utf8mb4 vs utf8mb3)
+        *cs= (*a)->collation.collation; // Compare using the wider cset
+        return false;
+      }
+    }
+    /*
+      If necessary, convert both *a and *b to the collation in tmp:
+    */
+    Single_coll_err error_for_a= {(*b)->collation, true};
+    Single_coll_err error_for_b= {(*a)->collation, false};
+
     if (agg_item_set_converter(tmp, func_name_cstring(),
-                               a, 1, MY_COLL_CMP_CONV, 1) ||
+                               a, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_a) ||
         agg_item_set_converter(tmp, func_name_cstring(),
-                               b, 1, MY_COLL_CMP_CONV, 1))
-      return true;
+                               b, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_b))
+        return true;
     *cs= tmp.collation;
     return false;
   }

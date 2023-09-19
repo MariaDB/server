@@ -7973,4 +7973,16 @@ struct charset_info_st my_charset_utf8mb4_nopad_bin=
   &my_collation_utf8mb4_nopad_bin_handler
 };
 
+/*
+  Take a my_wc_t character and convert it to utf8mb3 representation.
+  Characters that are not in Basic Multilingual Plane are replaced with
+  MY_CS_REPLACEMENT_CHARACTER.
+*/
+int my_wc_mb_utf8mb4_bmp_only(CHARSET_INFO *cs, my_wc_t wc, uchar *r, uchar *e)
+{
+  if (wc > 0xFFFF)
+    wc= MY_CS_REPLACEMENT_CHARACTER;
+  return my_wc_mb_utf8mb4(cs, wc, r, e);
+}
+
 #endif /* HAVE_CHARSET_utf8mb4 */

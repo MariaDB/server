@@ -7508,7 +7508,8 @@ Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
   return !cmp_is_done_using_type_handler_of_this(cond, item) ?
          Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
          (charset() != cond->compare_collation() &&
-          !(cond->compare_collation()->state & MY_CS_BINSORT)) ?
+          !(cond->compare_collation()->state & MY_CS_BINSORT) &&
+          !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
          Data_type_compatibility::INCOMPATIBLE_COLLATION :
          Data_type_compatibility::OK;
 }
@@ -7519,6 +7520,18 @@ Field_longstr::can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
+  /*
+    So, we have an equality:  tbl.string_key = 'abc'
+
+    The comparison is the string comparison. Can we use index lookups to
+    find matching rows?  We can do that when:
+     - The comparison uses the same collation as tbl.string_key
+     - the comparison uses binary collation, while tbl.string_key
+       uses some other collation.
+       In this case, we will find matches in some collation. For example, for
+       'abc' we may find 'abc', 'ABC', and 'äbc'.
+       But we're certain that will find the row with the identical binary, 'abc'.
+  */
   return cmp_to_string_with_stricter_collation(cond, item);
 }
 
