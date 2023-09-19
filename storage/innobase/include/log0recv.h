@@ -283,7 +283,8 @@ public:
   /** Last added LSN to pages. */
   lsn_t last_stored_lsn= 0;
 
-  void read(os_offset_t offset, span<byte> buf);
+  __attribute__((warn_unused_result))
+  dberr_t read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
   void close_files() { files.clear(); files.shrink_to_fit(); }
 

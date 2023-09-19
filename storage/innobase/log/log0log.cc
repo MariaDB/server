@@ -280,6 +280,7 @@ dberr_t file_os_io::close() noexcept
   return DB_SUCCESS;
 }
 
+__attribute__((warn_unused_result))
 dberr_t file_os_io::read(os_offset_t offset, span<byte> buf) noexcept
 {
   return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size());
@@ -382,6 +383,7 @@ public:
                                                                    : DB_ERROR;
   }
   dberr_t close() noexcept final { return m_file.unmap(); }
+  __attribute__((warn_unused_result))
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept final
   {
     memcpy(buf.data(), m_file.data() + offset, buf.size());
@@ -448,6 +450,8 @@ dberr_t log_file_t::close() noexcept
   return DB_SUCCESS;
 }
 
+
+__attribute__((warn_unused_result))
 dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 {
   ut_ad(is_opened());
@@ -510,10 +514,10 @@ void log_t::file::write_header_durable(lsn_t lsn)
     log_sys.log.flush();
 }
 
-void log_t::file::read(os_offset_t offset, span<byte> buf)
+__attribute__((warn_unused_result))
+dberr_t log_t::file::read(os_offset_t offset, span<byte> buf)
 {
-  if (const dberr_t err= fd.read(offset, buf))
-    ib::fatal() << "read(" << fd.get_path() << ") returned "<< err;
+  return fd.read(offset, buf);
 }
 
 bool log_t::file::writes_are_durable() const noexcept
