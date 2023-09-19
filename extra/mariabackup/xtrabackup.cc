@@ -4503,14 +4503,21 @@ bool Backup_datasinks::backup_low()
 
 		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
 		    && log_sys.log.format != 0) {
-			if (max_cp_field == LOG_CHECKPOINT_1) {
-				log_header_read(max_cp_field);
+			switch (max_cp_field) {
+			case LOG_CHECKPOINT_1:
+				if (log_header_read(max_cp_field)) {
+					/* metadata_to_lsn still 0 so error returns below */
+					msg("Error: recv_find_max_checkpoint() failed.");
+					break;
+				}
+				/* fallthrough */
+			default:
+				metadata_to_lsn = mach_read_from_8(
+					log_sys.checkpoint_buf + LOG_CHECKPOINT_LSN);
+				msg("mariabackup: The latest check point"
+				    " (for incremental): '" LSN_PF "'",
+				    metadata_to_lsn);
 			}
-			metadata_to_lsn = mach_read_from_8(
-				log_sys.checkpoint_buf + LOG_CHECKPOINT_LSN);
-			msg("mariabackup: The latest check point"
-			    " (for incremental): '" LSN_PF "'",
-			    metadata_to_lsn);
 		} else {
 			msg("Error: recv_find_max_checkpoint() failed.");
 		}
@@ -4721,7 +4728,11 @@ reread_log_header:
 	checkpoint_lsn_start = log_sys.log.get_lsn();
 	checkpoint_no_start = log_sys.next_checkpoint_no;
 
-	log_header_read(max_cp_field);
+	if (log_header_read(max_cp_field)) {
+		log_mutex_exit();
+		goto fail;
+	}
+
 
 	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)
 	    || checkpoint_lsn_start
