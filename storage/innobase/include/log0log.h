@@ -506,7 +506,8 @@ public:
     /** reads buffer from log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer where to read */
-    void read(os_offset_t offset, span<byte> buf);
+    dberr_t MY_ATTRIBUTE((warn_unused_result)) read(os_offset_t offset,
+                                                    span<byte> buf);
     /** Tells whether writes require calling flush() */
     bool writes_are_durable() const noexcept;
     /** writes buffer to log file
