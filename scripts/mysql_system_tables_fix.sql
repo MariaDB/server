@@ -248,10 +248,6 @@ SET GLOBAL general_log = @old_log_state;
 SET @old_log_state = @@global.slow_query_log;
 SET GLOBAL slow_query_log = 'OFF';
 ALTER TABLE slow_log
-  ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
-ALTER TABLE slow_log
-  ADD COLUMN rows_affected INTEGER NOT NULL AFTER thread_id;
-ALTER TABLE slow_log
   MODIFY start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY query_time TIME(6) NOT NULL,
@@ -262,8 +258,12 @@ ALTER TABLE slow_log
   MODIFY last_insert_id INTEGER NOT NULL,
   MODIFY insert_id INTEGER NOT NULL,
   MODIFY server_id INTEGER UNSIGNED NOT NULL,
-  MODIFY sql_text MEDIUMTEXT NOT NULL,
-  MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
+  MODIFY sql_text MEDIUMTEXT NOT NULL;
+ALTER TABLE slow_log
+  ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
+ALTER TABLE slow_log
+  MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL,
+  ADD COLUMN rows_affected INTEGER NOT NULL AFTER thread_id;
 SET GLOBAL slow_query_log = @old_log_state;
 
 ALTER TABLE plugin
