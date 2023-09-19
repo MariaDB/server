@@ -169,6 +169,28 @@ select db_name,table_name,column_name,avg_length from mysql.column_stats order b
 drop table t1;
 truncate table mysql.column_stats;
 
+create table t1 (a int, b blob, unique(b)) engine= innodb;
+analyze table t1 persistent for all;
+select column_name from mysql.column_stats where table_name = 't1';
+drop table t1;
+
+create table t1 (a int, b blob, c int generated always as (length(b)) virtual) engine= innodb;
+analyze table t1 persistent for all;
+select column_name from mysql.column_stats where table_name = 't1';
+drop table t1;
+
+CREATE or replace TABLE t1 (a INT, b CHAR(8));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ALTER TABLE t1 CHANGE b c INT, ORDER BY b;
+SELECT db_name, table_name, column_name FROM mysql.column_stats where table_name = 't1';
+drop table t1;
+
+CREATE or replace TABLE t1 (a INT, b CHAR(8));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ALTER TABLE t1 RENAME COLUMN b to c, ALGORITHM=COPY;
+SELECT db_name, table_name, column_name FROM mysql.column_stats where table_name = 't1';
+drop table t1;
+
 --echo #
 --echo # End of 10.6 tests
 --echo #

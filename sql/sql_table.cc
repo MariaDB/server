@@ -6519,7 +6519,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
           ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
       }
 
-      /* Check if field was renamed (case-sensitive for detecting case change) */
+      /*
+        Check if field was renamed (case-sensitive for detecting case change)
+      */
       if (cmp(&field->field_name, &new_field->field_name))
       {
         field->flags|= FIELD_IS_RENAMED;
@@ -7856,7 +7858,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       vers_system_invisible= true;
     }
-    /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
+    /*
+      invisible versioning column is dropped automatically on
+      DROP SYSTEM VERSIONING
+    */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
         alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
@@ -10491,6 +10496,16 @@ do_continue:;
   /* Copy the data if necessary. */
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// calc cuted fields
   thd->cuted_fields=0L;
+
+  /*
+    Collect fields that was renamed.
+    We do not do that if fill_alter_inplace_info() has
+    already collected renamed fields.
+  */
+  if (alter_info->flags & (ALTER_CHANGE_COLUMN | ALTER_RENAME_COLUMN) &&
+      alter_info->rename_stat_fields.is_empty())
+    if (alter_info->collect_renamed_fields(thd))
+      goto err_new_table_cleanup;
 
   /*
     We do not copy data for MERGE tables. Only the children have data.

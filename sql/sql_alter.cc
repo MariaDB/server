@@ -298,6 +298,32 @@ uint Alter_info::check_vcol_field(Item_field *item) const
 }
 
 
+bool Alter_info::collect_renamed_fields(THD *thd)
+{
+  List_iterator_fast<Create_field> new_field_it;
+  Create_field *new_field;
+  DBUG_ENTER("Alter_info::collect_renamed_fields");
+
+  new_field_it.init(create_list);
+  while ((new_field= new_field_it++))
+  {
+    Field *field= new_field->field;
+
+    if (new_field->field &&
+        cmp(&field->field_name, &new_field->field_name))
+    {
+      field->flags|= FIELD_IS_RENAMED;
+      if (add_stat_rename_field(field,
+                                &new_field->field_name,
+                                thd->mem_root))
+        DBUG_RETURN(true);
+
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
 void Alter_info::delete_statistics(THD *thd, TABLE *table)
 {
   List_iterator<Field>                it(drop_stat_fields);

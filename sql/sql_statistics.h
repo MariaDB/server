@@ -119,7 +119,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
 int read_statistics_for_tables(THD *thd, TABLE_LIST *tables,
                                bool force_reload);
 int collect_statistics_for_table(THD *thd, TABLE *table);
-int alloc_statistics_for_table(THD *thd, TABLE *table);
+int alloc_statistics_for_table(THD *thd, TABLE *table, MY_BITMAP *stat_fields);
 int update_statistics_for_table(THD *thd, TABLE *table);
 int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);

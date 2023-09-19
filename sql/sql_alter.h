@@ -153,7 +153,9 @@ public:
     return rename_stat_fields.push_back(param, mem_root);
   }
 
-  /* Delete based on drop_stat_fields and drop_stat_indexes */
+  bool collect_renamed_fields(THD *thd);
+
+  /* Delete statistic from persistent statistics tables */
   void delete_statistics(THD *thd, TABLE *table);
 
 private:

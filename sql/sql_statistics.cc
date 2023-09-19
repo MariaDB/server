@@ -1037,7 +1037,8 @@ public:
   {
     StringBuffer<MAX_FIELD_WIDTH> val;
 
-    MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table, &stat_table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table,
+                                                 &stat_table->read_set);
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
@@ -1949,8 +1950,9 @@ public:
   @brief 
   Create fields for min/max values to collect column statistics
 
-  @param
-  table       Table the fields are created for
+  @param thd    The thread handle
+  @param table  Table the fields are created for
+  @param fields Fields for which we want to have statistics
 
   @details
   The function first allocates record buffers to store min/max values
@@ -1970,7 +1972,8 @@ public:
 */      
 
 static
-void create_min_max_statistical_fields_for_table(THD *thd, TABLE *table)
+void create_min_max_statistical_fields_for_table(THD *thd, TABLE *table,
+                                                 MY_BITMAP *fields)
 {
   uint rec_buff_length= table->s->rec_buff_length;
 
@@ -1987,7 +1990,7 @@ void create_min_max_statistical_fields_for_table(THD *thd, TABLE *table)
         Field *fld;
         Field *table_field= *field_ptr;
         my_ptrdiff_t diff= record-table->record[0];
-        if (!bitmap_is_set(table->read_set, table_field->field_index))
+        if (!bitmap_is_set(fields, table_field->field_index))
           continue; 
         if (!(fld= table_field->clone(thd->mem_root, table, diff)))
           continue;
@@ -2074,8 +2077,9 @@ create_min_max_statistical_fields(THD *thd,
   @brief 
   Allocate memory for the table's statistical data to be collected
 
-  @param
-  table       Table for which the memory for statistical data is allocated
+  @param thd          The thread handle
+  @param table        Table for which we should allocate statistical data
+  @param stat_fields  Fields for which we want to have statistics
 
   @note
   The function allocates the memory for the statistical data on 'table' with
@@ -2094,10 +2098,10 @@ create_min_max_statistical_fields(THD *thd,
   of the same table in parallel. 
 */      
 
-int alloc_statistics_for_table(THD* thd, TABLE *table)
+int alloc_statistics_for_table(THD* thd, TABLE *table, MY_BITMAP *stat_fields)
 { 
   Field **field_ptr;
-  uint fields= bitmap_bits_set(table->read_set);
+  uint fields= bitmap_bits_set(stat_fields);
   uint keys= table->s->keys;
   uint key_parts= table->s->ext_key_parts;
   uint hist_size= thd->variables.histogram_size;
@@ -2134,7 +2138,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
+    if (bitmap_is_set(stat_fields, (*field_ptr)->field_index))
     {
       column_stats->histogram.set_size(hist_size);
       column_stats->histogram.set_type(hist_type);
@@ -2166,7 +2170,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   */
   DBUG_ASSERT(idx_avg_frequency <= table_stats->idx_avg_frequency + key_parts);
 
-  create_min_max_statistical_fields_for_table(thd, table);
+  create_min_max_statistical_fields_for_table(thd, table, stat_fields);
 
   DBUG_RETURN(0);
 }
@@ -2208,7 +2212,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   Here the second and the third threads try to allocate the memory for
   statistical data at the same time. The precautions are taken to
   guarantee the correctness of the allocation.
-*/      
+*/
 
 static int
 alloc_engine_independent_statistics(THD *thd, const TABLE_SHARE *table_share,
@@ -2698,10 +2702,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   @brief
   Update statistics for a table in the persistent statistical tables
 
-  @param
-  thd         The thread handle
-  @param
-  table       The table to collect statistics on
+  @param thd    The thread handle
+  @param table  The table to collect statistics on
 
   @details
   For each statistical table st the function looks for the rows from this
