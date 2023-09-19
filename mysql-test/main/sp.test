@@ -10535,5 +10535,37 @@ CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1)
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-23902: MariaDB crash on calling function
+--echo #
+
+--delimiter |
+CREATE FUNCTION f2 () RETURNS VARCHAR(1)
+BEGIN
+	DECLARE rec1 ROW TYPE OF v1;
+	SELECT z INTO rec1 FROM v1;
+	RETURN 1;
+END|
+--delimiter ;
+
+CREATE FUNCTION f1 () RETURNS VARCHAR(1) RETURN f2() ;
+CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN f_not_exist();
+CREATE VIEW v1 AS SELECT f3() z;
+
+--error ER_VIEW_INVALID
+SELECT f1();
+
+--echo # Check that crash doen't happen in case f3 completes with success.
+DROP FUNCTION f3;
+CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN '!';
+
+SELECT f1();
+
+--echo # Clean up
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP VIEW v1;
+
 --echo # End of 10.4 tests
 --echo #

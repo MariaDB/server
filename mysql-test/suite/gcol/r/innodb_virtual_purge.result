@@ -159,4 +159,18 @@ UNIQUE(pk),
 KEY(e)
 ) ENGINE=InnoDB;
 DROP TABLE t1, t2;
+#
+# MDEV-30024 InnoDB: tried to purge non-delete-marked record
+#            of an index on a virtual column prefix
+#
+CREATE TABLE t(a BINARY(8), b CHAR(8) AS (a) VIRTUAL, KEY(b(4)))
+CHARACTER SET utf8 ENGINE=InnoDB;
+INSERT INTO t (a) VALUES (''),('');
+UPDATE t SET a = 'x';
+UPDATE t SET a = '';
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
