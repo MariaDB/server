@@ -254,6 +254,7 @@ public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
 
+  __attribute__((warn_unused_result)) 
   inline dberr_t read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
   void close_files();

@@ -169,6 +169,7 @@ dberr_t log_file_t::close() noexcept
   return DB_SUCCESS;
 }
 
+__attribute__((warn_unused_result))
 dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 {
   ut_ad(is_opened());
