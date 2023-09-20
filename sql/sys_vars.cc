@@ -4543,10 +4543,13 @@ static Sys_var_bit Sys_sql_warnings(
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_sql_notes(
-       "sql_notes", "If set to 1, the default, warning_count is incremented each "
-       "time a Note warning is encountered. If set to 0, Note warnings are not "
-       "recorded. mysqldump has outputs to set this variable to 0 so that no "
-       "unnecessary increments occur when data is reloaded.",
+       "sql_notes",
+       "If set to 1, the default, warning_count is incremented "
+       "each time a Note warning is encountered. If set to 0, Note warnings "
+       "are not recorded. mysqldump has outputs to set this variable to 0 so "
+       "that no unnecessary increments occur when data is reloaded. "
+       "See also note_verbosity, which allows one to define with notes are "
+       "sent.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SQL_NOTES,
        DEFAULT(TRUE));
 
@@ -6347,7 +6350,7 @@ static const char *log_slow_filter_names[]=
 
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
+       "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
@@ -6439,14 +6442,35 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
+/*
+  Full is not needed below anymore as one can set all bits with '= ALL', but
+  we need it for compatiblity with earlier versions.
+*/
 static const char *log_slow_verbosity_names[]=
-{ "innodb", "query_plan", "explain", "engine", "full", 0};
+{ "innodb", "query_plan", "explain", "engine", "warnings", "full", 0};
 
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "Verbosity level for the slow log",
        SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
+
+static Sys_var_ulong Sys_log_slow_max_warnings(
+       "log_slow_max_warnings",
+       "Max numbers of warnings printed to slow query log per statement",
+       SESSION_VAR(log_slow_max_warnings), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1000), DEFAULT(10), BLOCK_SIZE(1));
+
+static const char *note_verbosity_names[]=
+{ "basic", "unusable_keys", "explain", 0};
+
+static Sys_var_set Sys_note_verbosity(
+       "note_verbosity",
+       "Verbosity level for note-warnings given to the user. "
+       "See also @@sql_notes.",
+       SESSION_VAR(note_verbosity), CMD_LINE(REQUIRED_ARG),
+       note_verbosity_names, DEFAULT(NOTE_VERBOSITY_NORMAL |
+                                     NOTE_VERBOSITY_EXPLAIN));
 
 static Sys_var_ulong Sys_join_cache_level(
        "join_cache_level",

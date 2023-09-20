@@ -612,6 +612,9 @@ EXPLAIN SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	22	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `varchar` = "`t1`.`c1`" of type `date`
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `varchar` = "'2001-01-01'" of type `date`
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
 c1
 2001-01-01
@@ -621,6 +624,9 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	22	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `varchar` = "`t1`.`c1`" of type `date`
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `varchar` = "'2001-01-01'" of type `date`
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6989 BINARY and COLLATE xxx_bin comparisions are not used for optimization in some cases
@@ -767,3 +773,182 @@ DROP TABLE vchar;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col VARCHAR(32), KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (20230100+i);
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+20230101
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101" of type `int`
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101102030" of type `bigint`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101102030.1" of type `decimal`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101102030.1e0" of type `double`
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "DATE'2001-01-01'" of type `date`
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "TIME'10:20:30'" of type `time`
+Warning	1292	Truncated incorrect time value: '20230101'
+Warning	1292	Truncated incorrect time value: '20230102'
+Warning	1292	Truncated incorrect time value: '20230103'
+Warning	1292	Truncated incorrect time value: '20230104'
+Warning	1292	Truncated incorrect time value: '20230105'
+Warning	1292	Truncated incorrect time value: '20230106'
+Warning	1292	Truncated incorrect time value: '20230107'
+Warning	1292	Truncated incorrect time value: '20230108'
+Warning	1292	Truncated incorrect time value: '20230109'
+Warning	1292	Truncated incorrect time value: '20230110'
+Warning	1292	Truncated incorrect time value: '20230111'
+Warning	1292	Truncated incorrect time value: '20230112'
+Warning	1292	Truncated incorrect time value: '20230113'
+Warning	1292	Truncated incorrect time value: '20230114'
+Warning	1292	Truncated incorrect time value: '20230115'
+Warning	1292	Truncated incorrect time value: '20230116'
+Warning	1292	Truncated incorrect time value: '20230117'
+Warning	1292	Truncated incorrect time value: '20230118'
+Warning	1292	Truncated incorrect time value: '20230119'
+Warning	1292	Truncated incorrect time value: '20230120'
+Warning	1292	Truncated incorrect time value: '20230121'
+Warning	1292	Truncated incorrect time value: '20230122'
+Warning	1292	Truncated incorrect time value: '20230123'
+Warning	1292	Truncated incorrect time value: '20230124'
+Warning	1292	Truncated incorrect time value: '20230125'
+Warning	1292	Truncated incorrect time value: '20230126'
+Warning	1292	Truncated incorrect time value: '20230127'
+Warning	1292	Truncated incorrect time value: '20230128'
+Warning	1292	Truncated incorrect time value: '20230129'
+Warning	1292	Truncated incorrect time value: '20230130'
+Warning	1292	Truncated incorrect time value: '20230131'
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = _utf8mb3'0' collate utf8mb3_bin`
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `int`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `int unsigned`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `bigint`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `bigint unsigned`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `decimal`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `float`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `double`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01
+20230102	2023-01-02
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `date`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `datetime`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `timestamp`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = ``t2``.``not_indexed_col```
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

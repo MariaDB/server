@@ -411,6 +411,51 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 }
 
 
+/*
+  Iterate through arguments and compare them to the original arguments
+  in "old_args". If some argument was replaced:
+  - from Item_field pointing to an indexed Field
+  - to something else (for example, Item_func_conv_charset)
+  then we cannot use Field's indexes for range access any more.
+  Raise a note in this case.
+
+  Note, the number of arguments in "old_args" can be smaller than arg_count.
+  For example, for LIKE, BETWEEN, IN we pass only args[0] in old_args.
+
+  For a comparison predicate we pass both args[0] and args[1] to cover both:
+  - WHERE field=expr
+  - WHERE expr=field
+*/
+
+void Item_bool_func::raise_note_if_key_become_unused(THD *thd, const Item_args &old_args)
+{
+  if (!(thd->variables.note_verbosity & NOTE_VERBOSITY_UNUSABLE_KEYS))
+    return;
+
+  DBUG_ASSERT(old_args.argument_count() <= arg_count);
+  for (uint i= 0; i < old_args.argument_count(); i++)
+  {
+    if (args[i] != old_args.arguments()[i])
+    {
+      DBUG_ASSERT(old_args.arguments()[i]->fixed());
+      Item *real_item= old_args.arguments()[i]->real_item();
+      if (real_item->type() == Item::FIELD_ITEM)
+      {
+        Field *field= static_cast<Item_field*>(real_item)->field;
+        if (field->flags & PART_KEY_FLAG)
+        {
+          /*
+            It used to be Item_field (with indexes!) before the condition
+            rewrite. Now it's something else. Cannot use indexes any more.
+          */
+          field->raise_note_key_become_unused(thd, Print(this, QT_EXPLAIN));
+        }
+      }
+    }
+  }
+}
+
+
 bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
 {
   DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
@@ -450,6 +495,7 @@ Item_bool_rowready_func2::value_depends_on_sql_mode() const
 
 bool Item_bool_rowready_func2::fix_length_and_dec()
 {
+  THD *thd= current_thd;
   max_length= 1;				     // Function returns 0 or 1
 
   /*
@@ -458,7 +504,11 @@ bool Item_bool_rowready_func2::fix_length_and_dec()
   */
   if (!args[0] || !args[1])
     return FALSE;
-  return setup_args_and_comparator(current_thd, &cmp);
+  Item_args old_args(args[0], args[1]);
+  if (setup_args_and_comparator(thd, &cmp))
+    return true;
+  raise_note_if_key_become_unused(thd, old_args);
+  return false;
 }
 
 
@@ -2125,6 +2175,7 @@ void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
 bool Item_func_between::fix_length_and_dec()
 {
   max_length= 1;
+  THD *thd= current_thd;
 
   /*
     As some compare functions are generated after sql_yacc,
@@ -2132,16 +2183,18 @@ bool Item_func_between::fix_length_and_dec()
   */
   if (!args[0] || !args[1] || !args[2])
     return TRUE;
+  Item_args old_predicant(args[0]);
   if (m_comparator.aggregate_for_comparison(Item_func_between::
                                             func_name_cstring(),
                                             args, 3, false))
   {
-    DBUG_ASSERT(current_thd->is_error());
+    DBUG_ASSERT(thd->is_error());
     return TRUE;
   }
-
-  return m_comparator.type_handler()->
-    Item_func_between_fix_length_and_dec(this);
+  if (m_comparator.type_handler()->Item_func_between_fix_length_and_dec(this))
+    return true;
+  raise_note_if_key_become_unused(thd, old_predicant);
+  return false;
 }
 
 
@@ -4475,6 +4528,7 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
 
 bool Item_func_in::fix_length_and_dec()
 {
+  Item_args old_predicant(args[0]);
   THD *thd= current_thd;
   uint found_types;
   m_comparator.set_handler(type_handler_varchar.type_handler_for_comparison());
@@ -4531,7 +4585,7 @@ bool Item_func_in::fix_length_and_dec()
   else
   {
     DBUG_ASSERT(m_comparator.cmp_type() != ROW_RESULT);
-    if ( fix_for_scalar_comparison_using_cmp_items(thd, found_types))
+    if (fix_for_scalar_comparison_using_cmp_items(thd, found_types))
       return TRUE;
   }
 
@@ -4540,6 +4594,7 @@ bool Item_func_in::fix_length_and_dec()
                   ER_UNKNOWN_ERROR, "DBUG: types_compatible=%s bisect=%s",
                   arg_types_compatible ? "yes" : "no",
                   array != NULL ? "yes" : "no"););
+  raise_note_if_key_become_unused(thd, old_predicant);
   return FALSE;
 }
 

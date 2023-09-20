@@ -699,6 +699,7 @@ typedef struct system_variables
   ulonglong log_slow_verbosity; 
   ulonglong log_slow_disabled_statements;
   ulonglong log_disabled_statements;
+  ulonglong note_verbosity;
   ulonglong bulk_insert_buff_size;
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
@@ -771,6 +772,7 @@ typedef struct system_variables
   ulong trans_alloc_block_size;
   ulong trans_prealloc_size;
   ulong log_warnings;
+  ulong log_slow_max_warnings;
   /* Flags for slow log filtering */
   ulong log_slow_rate_limit; 
   ulong binlog_format; ///< binlog format for this thd (see enum_binlog_format)
@@ -5660,6 +5662,14 @@ public:
   {
     return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
            lex->analyze_stmt;
+  }
+
+  /* Return true if we should create a note when an unusable key is found */
+  bool give_notes_for_unusable_keys()
+  {
+    return ((variables.note_verbosity & (NOTE_VERBOSITY_UNUSABLE_KEYS)) ||
+            (lex->describe && // Is EXPLAIN
+             (variables.note_verbosity & NOTE_VERBOSITY_EXPLAIN)));
   }
 };
 

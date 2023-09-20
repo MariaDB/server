@@ -1,4 +1,5 @@
 -- source include/have_debug.inc
+-- source include/have_sequence.inc
 
 SET @org_slow_query_log= @@global.slow_query_log;
 SET @org_log_output= @@global.log_output;
@@ -82,6 +83,71 @@ TRUNCATE TABLE mysql.slow_log;
 --source include/log_slow_debug_common.inc
 CALL show_slow_log();
 
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type
+--echo # mismatch
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10), KEY(a));
+insert into t1 select seq  from seq_0_to_31;
+
+SET note_verbosity=all;
+SET log_slow_verbosity=all;
+SET global log_output='FILE';
+set @org_slow_query_log_file=@@global.slow_query_log_file;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval set global slow_query_log_file='$MYSQLTEST_VARDIR/tmp/log_slow_debug-1.log';
+FLUSH SLOW LOGS;
+--disable_ps_protocol
+SELECT * FROM t1 WHERE a=10;
+EXPLAIN SELECT * FROM t1 WHERE a=10;
+--enable_ps_protocol
+
+--let SEARCH_FILE = `SELECT @@slow_query_log_file`
+--let SEARCH_PATTERN=# Warnings
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= # Note.*Cannot use key.*varchar.*10.*int
+--source include/search_pattern_in_file.inc
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval set global slow_query_log_file='$MYSQLTEST_VARDIR/tmp/log_slow_debug-2.log';
+SET note_verbosity="explain";
+FLUSH SLOW LOGS;
+EXPLAIN SELECT * FROM t1 WHERE a=10;
+
+--let SEARCH_FILE = `SELECT @@slow_query_log_file`
+--let SEARCH_PATTERN=# Warnings
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= # Note.*Cannot use key.*varchar.*10.*int
+--source include/search_pattern_in_file.inc
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval set global slow_query_log_file='$MYSQLTEST_VARDIR/tmp/log_slow_debug-3.log';
+SET log_slow_verbosity=replace(@@log_slow_verbosity, "warnings", "");
+SET log_slow_verbosity=replace(@@log_slow_verbosity, "full", "");
+SET note_verbosity=all;
+FLUSH SLOW LOGS;
+SELECT * FROM t1 WHERE a=10;
+EXPLAIN SELECT * FROM t1 WHERE a=10;
+
+--let SEARCH_FILE = `SELECT @@slow_query_log_file`
+--let SEARCH_PATTERN=# Warnings
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= # Note.*Cannot use key.*varchar.*10.*int
+--source include/search_pattern_in_file.inc
+
+set @@global.slow_query_log_file= @org_slow_query_log_file;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/log_slow_debug-1.log
+--remove_file $MYSQLTEST_VARDIR/tmp/log_slow_debug-2.log
+--remove_file $MYSQLTEST_VARDIR/tmp/log_slow_debug-3.log
+
+DROP TABLE t1;
 
 --echo #
 --echo # Clean up

@@ -5137,7 +5137,7 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
                                           (table_map) 0,
                                           limit, 0, FALSE,
                                           TRUE,     /* remove_where_parts*/
-                                          FALSE)) ==
+                                          FALSE, TRUE)) ==
                1))
       DBUG_RETURN(select->quick->records);
     if (unlikely(error == -1))
@@ -6391,7 +6391,7 @@ add_key_field(JOIN *join,
       {
         /* 
           Save info to be able check whether this predicate can be 
-          considered as sargable for range analisis after reading const tables.
+          considered as sargable for range analysis after reading const tables.
           We do not save info about equalities as update_const_equal_items
           will take care of updating info on keys from sargable equalities. 
         */
@@ -6897,11 +6897,14 @@ add_keyuse(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field,
    1 - Out of memory.
 */
 
+static LEX_CSTRING equal_str= { STRING_WITH_LEN("=") };
+
 static bool
 add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 {
   Field *field=key_field->field;
   TABLE *form= field->table;
+  THD *thd= form->in_use;
 
   if (key_field->eq_func && !(key_field->optimize & KEY_OPTIMIZE_EXISTS))
   {
@@ -6916,19 +6919,31 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       uint key_parts= form->actual_n_key_parts(keyinfo);
       for (uint part=0 ; part <  key_parts ; part++)
       {
-        if (field->eq(form->key_info[key].key_part[part].field) &&
-            field->can_optimize_keypart_ref(key_field->cond, key_field->val))
-	{
-          if (add_keyuse(keyuse_array, key_field, key, part))
-            return TRUE;
-	}
+        if (field->eq(form->key_info[key].key_part[part].field))
+        {
+          Data_type_compatibility compat= 
+            field->can_optimize_keypart_ref(key_field->cond, key_field->val);
+          if (compat == Data_type_compatibility::OK)
+          {
+            if (add_keyuse(keyuse_array, key_field, key, part))
+              return TRUE;
+          }
+          else if (thd->give_notes_for_unusable_keys())
+          {
+            field->raise_note_cannot_use_key_part(thd, key, part,
+                                                  equal_str,
+                                                  key_field->val,
+                                                  compat);
+          }
+        }
       }
     }
     if (field->hash_join_is_possible() &&
         (key_field->optimize & KEY_OPTIMIZE_EQ) &&
         key_field->val->used_tables())
     {
-      if (!field->can_optimize_hash_join(key_field->cond, key_field->val))
+      if (field->can_optimize_hash_join(key_field->cond, key_field->val) !=
+          Data_type_compatibility::OK)
         return false;
       if (form->is_splittable())
         form->add_splitting_info_for_key_field(key_field);
@@ -11299,7 +11314,7 @@ bool JOIN::get_best_combination()
     form->reginfo.join_tab=j;
     DBUG_PRINT("info",("type: %d", j->type));
     if (j->type == JT_CONST)
-      goto loop_end;					// Handled in make_join_stat..
+      goto loop_end;				// Handled in make_join_stat..
 
     j->loosescan_match_tab= NULL;  //non-nulls will be set later
     j->inside_loosescan_range= FALSE;
@@ -12631,7 +12646,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           OPTION_FOUND_ROWS ?
                                           HA_POS_ERROR :
                                           join->unit->lim.get_select_limit()),0,
-                                         FALSE, FALSE, FALSE) < 0)
+                                         FALSE, FALSE, FALSE, TRUE) < 0)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
             else
@@ -22617,7 +22632,8 @@ test_if_quick_select(JOIN_TAB *tab)
   int res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                           (table_map) 0, HA_POS_ERROR, 0,
                                           FALSE, /*remove where parts*/FALSE,
-                                          FALSE);
+                                          FALSE,
+                                          /* no warnings */ TRUE);
   if (tab->explain_plan && tab->explain_plan->range_checked_fer)
     tab->explain_plan->range_checked_fer->collect_data(tab->select->quick);
 
@@ -30341,8 +30357,9 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
   { // check if some index scan & LIMIT is more efficient than filesort
     
     /*
-      Update opt_range_condition_rows since single table UPDATE/DELETE procedures
-      don't call make_join_statistics() and leave this variable uninitialized.
+      Update opt_range_condition_rows since single table UPDATE/DELETE
+      procedures don't call make_join_statistics() and leave this
+      variable uninitialized.
     */
     table->opt_range_condition_rows= table->stat_records();
     

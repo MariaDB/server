@@ -1020,7 +1020,8 @@ void THD::raise_note(uint sql_errno)
 {
   DBUG_ENTER("THD::raise_note");
   DBUG_PRINT("enter", ("code: %d", sql_errno));
-  if (!(variables.option_bits & OPTION_SQL_NOTES))
+  if (!(variables.option_bits & OPTION_SQL_NOTES) ||
+      (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* msg= ER_THD(this, sql_errno);
   (void) raise_condition(sql_errno,
@@ -1036,7 +1037,8 @@ void THD::raise_note_printf(uint sql_errno, ...)
   char    ebuff[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("THD::raise_note_printf");
   DBUG_PRINT("enter",("code: %u", sql_errno));
-  if (!(variables.option_bits & OPTION_SQL_NOTES))
+  if (!(variables.option_bits & OPTION_SQL_NOTES) ||
+      (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* format= ER_THD(this, sql_errno);
   va_start(args, sql_errno);
@@ -1060,8 +1062,9 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
-  if (!(variables.option_bits & OPTION_SQL_NOTES) &&
-      (level == Sql_condition::WARN_LEVEL_NOTE))
+  if ((level == Sql_condition::WARN_LEVEL_NOTE) &&
+      (!(variables.option_bits & OPTION_SQL_NOTES) ||
+       (variables.note_verbosity == 0)))
     DBUG_RETURN(NULL);
 #ifdef WITH_WSREP
   /*

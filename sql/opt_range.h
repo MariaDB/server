@@ -713,6 +713,8 @@ public:
   */
   bool remove_false_where_parts;
 
+  bool note_unusable_keys;        // Give SQL notes for unusable keys
+
   /*
     used_key_no -> table_key_no translation table. Only makes sense if
     using_real_indexes==TRUE
@@ -1733,7 +1735,8 @@ class SQL_SELECT :public Sql_alloc {
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
                         bool ordered_output, bool remove_false_parts_of_where,
-                        bool only_single_index_range_scan);
+                        bool only_single_index_range_scan,
+                        bool suppress_unusable_key_notes = 0);
 };
 
 
