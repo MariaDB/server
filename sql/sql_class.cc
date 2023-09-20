@@ -1338,7 +1338,7 @@ void THD::update_stats(void)
     /* A SQL query. */
     if (lex->sql_command == SQLCOM_SELECT)
       select_commands++;
-    else if (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND)
+    else if (sql_command_flags() & CF_STATUS_COMMAND)
     {
       /* Ignore 'SHOW ' commands */
     }
@@ -6598,8 +6598,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           blackhole_table_found= 1;
 
         if (share->non_determinstic_insert &&
-            (sql_command_flags[lex->sql_command] & CF_CAN_GENERATE_ROW_EVENTS
-             && !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE)))
+            (sql_command_flags() & CF_CAN_GENERATE_ROW_EVENTS
+             && !(sql_command_flags() & CF_SCHEMA_CHANGE)))
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->file->has_transactions();
@@ -6848,8 +6848,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
     if (blackhole_table_found &&
         variables.binlog_format == BINLOG_FORMAT_ROW &&
-        (sql_command_flags[lex->sql_command] &
-         (CF_UPDATES_DATA | CF_DELETES_DATA)))
+        (sql_command_flags() & (CF_UPDATES_DATA | CF_DELETES_DATA)))
     {
       String table_names;
       /*
@@ -6869,8 +6868,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       }
       if (!table_names.is_empty())
       {
-        bool is_update= MY_TEST(sql_command_flags[lex->sql_command] &
-                                CF_UPDATES_DATA);
+        bool is_update= MY_TEST(sql_command_flags() & CF_UPDATES_DATA);
         /*
           Replace the last ',' with '.' for table_names
         */

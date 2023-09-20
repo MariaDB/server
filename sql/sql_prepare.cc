@@ -4423,7 +4423,7 @@ reexecute:
     the error stack.
   */
 
-  if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
+  if (sql_command_flags() & CF_REEXECUTION_FRAGILE)
   {
     reprepare_observer.reset_reprepare_observer();
     DBUG_ASSERT(thd->m_reprepare_observer == NULL);
@@ -4435,7 +4435,7 @@ reexecute:
   thd->m_reprepare_observer= NULL;
 
   if (unlikely(error) &&
-      (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+      (sql_command_flags() & CF_REEXECUTION_FRAGILE) &&
       !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
       reprepare_observer.can_retry())
@@ -4528,7 +4528,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     goto err;
   }
 
-  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_SAFE))
+  if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_SAFE))
   {
     DBUG_PRINT("error", ("Command is not supported in bulk execution."));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
@@ -4538,7 +4538,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
      Here second buffer for not optimized commands,
      optimized commands do it inside thier internal loop.
   */
-  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
+  if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
       this->lex->has_returning())
   {
     // Above check can be true for SELECT in future
@@ -4571,7 +4571,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
       Here we set parameters for not optimized commands,
       optimized commands do it inside thier internal loop.
     */
-    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED))
+    if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED))
     {
       if (set_bulk_parameters(TRUE))
       {
@@ -4594,7 +4594,7 @@ reexecute:
       the error stack.
     */
 
-    if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
+    if (sql_command_flags() & CF_REEXECUTION_FRAGILE)
     {
       reprepare_observer.reset_reprepare_observer();
       DBUG_ASSERT(thd->m_reprepare_observer == NULL);
@@ -4606,8 +4606,7 @@ reexecute:
     thd->m_reprepare_observer= NULL;
 
 #ifdef WITH_WSREP
-    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
-	WSREP(thd))
+    if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED) && WSREP(thd))
     {
       if (wsrep_after_statement(thd))
       {
@@ -4623,7 +4622,7 @@ reexecute:
     else
 #endif /* WITH_WSREP */
     if (unlikely(error) &&
-        (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+        (sql_command_flags() & CF_REEXECUTION_FRAGILE) &&
         !thd->is_fatal_error && !thd->killed &&
         reprepare_observer.is_invalidated() &&
         reprepare_observer.can_retry())

@@ -1471,6 +1471,8 @@ struct send_column_info_state
   }
 };
 
+extern uint sql_command_flags[];
+
 
 /**
   @class Statement
@@ -1550,6 +1552,10 @@ public:
   void reset_query_inner()
   {
     set_query_inner(CSET_STRING());
+  }
+  ulong sql_command_flags() const
+  {
+    return ::sql_command_flags[lex->sql_command];
   }
   /**
     Name of the current (default) database.
