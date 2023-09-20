@@ -622,8 +622,9 @@ public:
         return NULL;
       return new (thd->mem_root) Item_literal_fbt(thd, tmp);
     }
-    bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                  const Item *item) const override
+    Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
+                                                     const Item *item)
+                                                     const override
     {
       /*
         Mixing of two different non-traditional types is currently prevented.
@@ -632,22 +633,22 @@ public:
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
                   item->type_handler() == type_handler());
-      return true;
+      return Data_type_compatibility::OK;
     }
     /**
       Test if Field can use range optimizer for a standard comparison operation:
         <=, <, =, <=>, >, >=
       Note, this method does not cover spatial operations.
     */
-    bool can_optimize_range(const Item_bool_func *cond,
-                            const Item *item,
-                            bool is_eq_func) const override
+    Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                               const Item *item,
+                                               bool is_eq_func) const override
     {
       // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
                   item->type_handler() == type_handler());
-      return true;
+      return Data_type_compatibility::OK;
     }
     void hash_not_null(Hasher *hasher) override
     {
@@ -658,7 +659,8 @@ public:
                          scalar_comparison_op op, Item *value) override
     {
       DBUG_ENTER("Field_fbt::get_mm_leaf");
-      if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+      if (can_optimize_scalar_range(prm, key_part, cond, op, value) !=
+          Data_type_compatibility::OK)
         DBUG_RETURN(0);
       int err= value->save_in_field_no_warnings(this, 1);
       if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
@@ -671,15 +673,17 @@ public:
       }
       DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
     }
-    bool can_optimize_hash_join(const Item_bool_func *cond,
-                                        const Item *item) const override
+    Data_type_compatibility can_optimize_hash_join(const Item_bool_func *cond,
+                                                   const Item *item)
+                                                   const override
     {
       return can_optimize_keypart_ref(cond, item);
     }
-    bool can_optimize_group_min_max(const Item_bool_func *cond,
+    Data_type_compatibility can_optimize_group_min_max(
+                                    const Item_bool_func *cond,
                                     const Item *const_item) const override
     {
-      return true;
+      return Data_type_compatibility::OK;
     }
 
     uint row_pack_length() const override { return pack_length(); }

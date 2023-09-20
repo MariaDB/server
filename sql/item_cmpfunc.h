@@ -215,6 +215,7 @@ protected:
   virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                                KEY_PART *key_part,
                                Item_func::Functype type, Item *value);
+  void raise_note_if_key_become_unused(const Item_args &old_args);
 public:
   Item_bool_func(THD *thd): Item_int_func(thd) {}
   Item_bool_func(THD *thd, Item *a): Item_int_func(thd, a) {}
@@ -2976,7 +2977,11 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= 1;
-    return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+    Item_args old_predicant(args[0]);
+    if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+      return true;
+    raise_note_if_key_become_unused(old_predicant);
+    return false;
   }
   void cleanup() override;
 

@@ -3320,6 +3320,23 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           goto err;
       thd->free_items();
     }
+    if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_WARNINGS) &&
+        thd->get_stmt_da()->unsafe_statement_warn_count())
+    {
+      Diagnostics_area::Sql_condition_iterator it=
+        thd->get_stmt_da()->sql_conditions();
+      ulong idx, max_warnings= thd->variables.log_slow_max_warnings;
+      const Sql_condition *err;
+      my_b_printf(&log_file, "# Warnings\n");
+      for (idx= 0; (err= it++) && idx < max_warnings; idx++)
+      {
+        my_b_printf(&log_file, "# %-15s %4u %.*s",
+                    warning_level_names[err->get_level()].str,
+                    (uint) err->get_sql_errno(),
+                    (int) err->get_message_octet_length(),
+                    err->get_message_text());
+      }
+    }
     if (thd->db.str && strcmp(thd->db.str, db))
     {						// Database changed
       if (my_b_printf(&log_file,"use %s;\n",thd->db.str))
@@ -3344,7 +3361,6 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                               end, -10);
       }
     }
-
     /*
       This info used to show up randomly, depending on whether the query
       checked the query start time or not. now we always write current

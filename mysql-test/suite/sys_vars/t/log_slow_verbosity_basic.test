@@ -37,6 +37,12 @@ set session log_slow_verbosity=6;
 select @@session.log_slow_verbosity;
 set session log_slow_verbosity=7;
 select @@session.log_slow_verbosity;
+set session log_slow_verbosity=8;
+select @@session.log_slow_verbosity;
+set session log_slow_verbosity=16;
+select @@session.log_slow_verbosity;
+set session log_slow_verbosity=32;
+select @@session.log_slow_verbosity;
 
 
 set session log_slow_verbosity='innodb';
@@ -47,7 +53,7 @@ set session log_slow_verbosity='innodb,query_plan';
 select @@session.log_slow_verbosity;
 set session log_slow_verbosity='explain';
 select @@session.log_slow_verbosity;
-set session log_slow_verbosity='innodb,query_plan,explain,engine,full';
+set session log_slow_verbosity='innodb,query_plan,explain,engine,warnings,full';
 select @@session.log_slow_verbosity;
 set session log_slow_verbosity='';
 select @@session.log_slow_verbosity;
@@ -62,6 +68,6 @@ set session log_slow_verbosity=1e1;
 --error ER_WRONG_VALUE_FOR_VAR
 set session log_slow_verbosity="foo";
 --error ER_WRONG_VALUE_FOR_VAR
-set session log_slow_verbosity=32;
+set session log_slow_verbosity=64;
 
 SET @@global.log_slow_verbosity = @start_global_value;
