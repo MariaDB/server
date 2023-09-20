@@ -1,0 +1,2 @@
+--log_bin=1
+--binlog_do_db=foo

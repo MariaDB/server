@@ -1,0 +1,10 @@
+#
+#  MDEV-29989  binlog_do_db option breaks importing sql dumps
+#
+set unique_checks=0, foreign_key_checks=0;
+create table t1 (c int(11) not null auto_increment primary key) engine=innodb;
+insert into t1 values (1);
+select count(*) from t1;
+count(*)
+1
+drop table t1;
