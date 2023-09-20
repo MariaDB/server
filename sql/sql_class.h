@@ -3524,7 +3524,7 @@ private:
     number of rows we actually sent to the client, including "synthetic"
     rows in ROLLUP etc.
   */
-  ha_rows    m_sent_row_count;
+  ulonglong    m_sent_row_count;
 
   /**
     Number of rows read and/or evaluated for a statement. Used for
@@ -3536,13 +3536,13 @@ private:
     statement including ORDER BY could possibly evaluate the row in
     filesort() before reading it for e.g. update.
   */
-  ha_rows    m_examined_row_count;
+  ulonglong    m_examined_row_count;
 
 public:
-  ha_rows get_sent_row_count() const
+  ulonglong get_sent_row_count() const
   { return m_sent_row_count; }
 
-  ha_rows get_examined_row_count() const
+  ulonglong get_examined_row_count() const
   { return m_examined_row_count; }
 
   ulonglong get_affected_rows() const

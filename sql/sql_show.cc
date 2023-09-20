@@ -3425,8 +3425,8 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
                                FALSE);
   arg->table->field[13]->store((longlong) tmp->status_var.max_local_memory_used,
                                FALSE);
-  arg->table->field[14]->store((longlong) tmp->get_examined_row_count(), TRUE);
-  arg->table->field[15]->store((longlong) tmp->get_sent_row_count(), TRUE);
+  arg->table->field[14]->store(tmp->get_examined_row_count(), TRUE);
+  arg->table->field[15]->store(tmp->get_sent_row_count(), TRUE);
 
   /* QUERY_ID */
   arg->table->field[16]->store(tmp->query_id, TRUE);
@@ -9986,8 +9986,8 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("PROGRESS",       Decimal(703),              NOT_NULL, "Progress"),
   Column("MEMORY_USED",    SLonglong(10),             NOT_NULL, "Memory_used"),
   Column("MAX_MEMORY_USED",SLonglong(10),             NOT_NULL, "Max_memory_used"),
-  Column("EXAMINED_ROWS",  SLong(10),                 NOT_NULL, "Examined_rows"),
-  Column("SENT_ROWS",      SLong(10),                 NOT_NULL, "Sent_rows"),
+  Column("EXAMINED_ROWS",  SLonglong(10),             NOT_NULL, "Examined_rows"),
+  Column("SENT_ROWS",      SLonglong(10),             NOT_NULL, "Sent_rows"),
   Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
   Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),

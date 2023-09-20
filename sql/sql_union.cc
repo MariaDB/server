@@ -2564,7 +2564,7 @@ bool st_select_lex_unit::exec_recursive()
   bool is_unrestricted= with_element->is_unrestricted();
   List_iterator_fast<TABLE_LIST> li(with_element->rec_result->rec_table_refs);
   TMP_TABLE_PARAM *tmp_table_param= &with_element->rec_result->tmp_table_param;
-  ha_rows examined_rows= 0;
+  ulonglong examined_rows= 0;
   bool was_executed= executed;
   TABLE_LIST *rec_tbl;
 

@@ -4,7 +4,7 @@
 --source include/log_grep.inc
 --let grep_pattern = ^# Query_time: \d+\.\d+  Lock_time: \d+\.\d+  Rows_sent: \d+  Rows_examined: \d+\$
 --source include/log_grep.inc
- --let grep_pattern = ^# Rows_affected: \d+  Bytes_sent: \d+\$
+--let grep_pattern = ^# Rows_affected: \d+  Bytes_sent: \d+\$
 --source include/log_grep.inc
 
 # Query plan
