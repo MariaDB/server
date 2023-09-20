@@ -4121,6 +4121,39 @@ lock_grant_and_move_on_rec(
 	}
 }
 
+/** Rebuild waiting queue after first_lock for heap_no. The queue is rebuilt
+close to the way lock_rec_dequeue_from_page() does it.
+@param trx        transaction that has set a lock, which caused the queue
+                  rebuild
+@param first_lock the lock after which waiting queue will be rebuilt
+@param heap_no    heap no of the record for which waiting queue to rebuild */
+static void lock_rec_rebuild_waiting_queue(trx_t *trx, lock_t *first_lock,
+                                           ulint heap_no)
+{
+  ut_ad(lock_mutex_own());
+  ut_ad(trx_mutex_own(trx));
+  if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
+      thd_is_replication_slave_thread(trx->mysql_thd))
+  {
+    /* Check if we can now grant waiting lock requests */
+    for (lock_t *lock= first_lock; lock != NULL;
+         lock= lock_rec_get_next(heap_no, lock))
+    {
+      if (!lock_get_wait(lock))
+        continue;
+      const lock_t *c= lock_rec_has_to_wait_in_queue(lock);
+      if (!c)
+      {
+        /* Grant the lock */
+        ut_ad(trx != lock->trx);
+        lock_grant(lock);
+      }
+    }
+  }
+  else
+    lock_grant_and_move_on_rec(first_lock, heap_no);
+}
+
 /*************************************************************//**
 Removes a granted record lock of a transaction from the queue and grants
 locks to other transactions waiting in the queue if they now are entitled
@@ -4181,28 +4214,7 @@ lock_rec_unlock(
 released:
 	ut_a(!lock_get_wait(lock));
 	lock_rec_reset_nth_bit(lock, heap_no);
-
-	if (innodb_lock_schedule_algorithm
-		== INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
-		thd_is_replication_slave_thread(lock->trx->mysql_thd)) {
-
-		/* Check if we can now grant waiting lock requests */
-
-		for (lock = first_lock; lock != NULL;
-			 lock = lock_rec_get_next(heap_no, lock)) {
-			if (!lock_get_wait(lock)) {
-				continue;
-			}
-			const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
-			if (!c) {
-				/* Grant the lock */
-				ut_ad(trx != lock->trx);
-				lock_grant(lock);
-			}
-		}
-	} else {
-		lock_grant_and_move_on_rec(first_lock, heap_no);
-	}
+	lock_rec_rebuild_waiting_queue(trx, first_lock, heap_no);
 
 	lock_mutex_exit();
 	trx_mutex_exit(trx);
@@ -4334,10 +4346,28 @@ void lock_release(trx_t* trx)
 #endif
 }
 
+/** Reset lock bit for supremum and rebuild waiting queue.
+@param lock the lock with supemum bit set */
+static void lock_rec_unlock_supremum(lock_t *lock)
+{
+  ut_ad(lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
+  ut_ad(lock_mutex_own());
+  ut_ad(lock_get_type_low(lock) == LOCK_REC);
+  trx_mutex_enter(lock->trx);
+  lock_t *first_lock=
+      lock_rec_get_first(&lock_sys.rec_hash, lock->un_member.rec_lock.page_id,
+                         PAGE_HEAP_NO_SUPREMUM);
+  lock_rec_reset_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
+  lock_rec_rebuild_waiting_queue(lock->trx, first_lock, PAGE_HEAP_NO_SUPREMUM);
+  trx_mutex_exit(lock->trx);
+}
+
 /** Release non-exclusive locks on XA PREPARE,
 and release possible other transactions waiting because of these locks. */
 void lock_release_on_prepare(trx_t *trx)
 {
+  trx->set_skip_lock_inheritance();
+
   ulint count= 0;
   lock_mutex_enter();
   ut_ad(!trx_mutex_own(trx));
@@ -4349,8 +4379,10 @@ void lock_release_on_prepare(trx_t *trx)
     if (lock_get_type_low(lock) == LOCK_REC)
     {
       ut_ad(!lock->index->table->is_temporary());
-      if (lock_rec_get_gap(lock) || lock_get_mode(lock) != LOCK_X)
+      if ((lock->type_mode & (LOCK_MODE_MASK | LOCK_GAP)) != LOCK_X)
         lock_rec_dequeue_from_page(lock);
+      else if (lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM))
+        lock_rec_unlock_supremum(lock);
       else
       {
         ut_ad(trx->dict_operation ||
@@ -4397,7 +4429,6 @@ retain_lock:
 
   lock_mutex_exit();
 
-  trx->set_skip_lock_inheritance();
 }
 
 /* True if a lock mode is S or X */

@@ -560,6 +560,15 @@ lock_rec_get_next_const(
 	ulint		heap_no,/*!< in: heap number of the record */
 	const lock_t*	lock);	/*!< in: lock */
 
+/** Gets the first explicit lock request on a record.
+@param hash    hash chain the lock on
+@param page_id page id containing the record
+@param heap_no heap number of the record
+@return	first lock, NULL if none exists */
+UNIV_INLINE
+lock_t *lock_rec_get_first(hash_table_t *hash, const page_id_t page_id,
+                           ulint heap_no);
+
 /*********************************************************************//**
 Gets the first explicit lock request on a record.
 @return first lock, NULL if none exists */
