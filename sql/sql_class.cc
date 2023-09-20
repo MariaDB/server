@@ -68,8 +68,6 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
-#else
-static inline bool wsrep_is_bf_aborted(THD* thd) { return false; }
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
 
