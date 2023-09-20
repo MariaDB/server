@@ -14,6 +14,7 @@ create or replace table t2 (id int primary key, s timestamp(6), e timestamp(6),
 
 show columns from t1;
 
+--sorted_result
 select * from information_schema.periods where table_schema = 'test';
 
 create user periods_hidden@localhost;
@@ -21,14 +22,17 @@ create user periods_hidden@localhost;
 grant create on test.nonexist to periods_hidden@localhost;
 
 --connect (chopped,localhost,periods_hidden,,test)
+--sorted_result
 select * from information_schema.periods where table_schema = 'test';
 --connection default
 grant select(id) on test.t1 to periods_hidden@localhost;
 --connection chopped
+--sorted_result
 select * from information_schema.periods where table_schema = 'test';
 --connection default
 grant select(s) on test.t1 to periods_hidden@localhost;
 --connection chopped
+--sorted_result
 select * from information_schema.periods where table_schema = 'test';
 --connection default
 grant select(e) on test.t2 to periods_hidden@localhost;

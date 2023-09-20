@@ -158,17 +158,6 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
   Field **ptr, *field;
   DBUG_ENTER("get_geometry_column_record");
 
-  if (res)
-  {
-    /*
-      open_table() failed with an error.
-      Convert the error to a warning and let the caller
-      continue with the next table.
-    */
-    convert_error_to_warning(thd);
-    DBUG_RETURN(0);
-  }
-
   // Skip INFORMATION_SCHEMA tables. They don't have geometry columns.
   if (tables->schema_table)
     DBUG_RETURN(0);

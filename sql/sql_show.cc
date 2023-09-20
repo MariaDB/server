@@ -4683,7 +4683,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   LEX *old_lex= thd->lex, temp_lex, *lex;
   LEX_CSTRING db_name, table_name;
   TABLE_LIST *table_list;
-  bool result= true;
+  bool result= true, open_result, run, ext_error_handling;
   DBUG_ENTER("fill_schema_table_by_open");
 
   /*
@@ -4760,7 +4760,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   }
 
   DBUG_ASSERT(thd->lex == lex);
-  result= open_tables_only_view_structure(thd, table_list, can_deadlock);
+  open_result= open_tables_only_view_structure(thd, table_list, can_deadlock);
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
@@ -4775,28 +4775,41 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result && thd->is_error() &&
-      (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-       thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-       thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
+  result= open_result;
+  run= true;
+  ext_error_handling= schema_table->i_s_requested_object
+                                                  & I_S_EXTENDED_ERROR_HANDLING;
+  if (result && thd->is_error())
   {
-    /*
-      Hide error for a non-existing table.
-      For example, this error can occur when we use a where condition
-      with a db name and table, but the table does not exist or
-      there is a view with the same name.
-    */
-    result= false;
-    thd->clear_error();
+    if (!is_show_fields_or_keys)
+    {
+      /*
+        Hide error for a non-existing table and skip processing.
+        For example, this error can occur when we use a where condition
+        with a db name and table, but the table does not exist or
+        there is a view with the same name.
+        Some errors, like ER_UNKNOWN_STORAGE_ENGINE, can still allow table
+        processing, if the information schema table supports that.
+      */
+      run= run && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE
+               && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
+               && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
+      if (!run)
+        thd->clear_error();
+      else if (!ext_error_handling)
+        convert_error_to_warning(thd);
+      result= false;
+    }
   }
-  else
+
+  if (run && (!open_result || ext_error_handling))
   {
     char buf[NAME_CHAR_LEN + 1];
     if (unlikely(thd->is_error()))
       get_table_engine_for_i_s(thd, buf, table_list, &db_name, &table_name);
 
     result= schema_table->process_table(thd, table_list,
-                                        table, result,
+                                        table, open_result,
                                         orig_db_name,
                                         orig_table_name);
   }
@@ -5111,13 +5124,18 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
     {
       res= 0;
     }
-    else
+    else if (schema_table->i_s_requested_object & I_S_EXTENDED_ERROR_HANDLING)
     {
       char buf[NAME_CHAR_LEN + 1];
       get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
 
       res= schema_table->process_table(thd, &table_list, table,
                                        true, db_name, table_name);
+    }
+    else
+    {
+      if (thd->is_error())
+        convert_error_to_warning(thd);
     }
     goto end;
   }
@@ -5307,6 +5325,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   */
   if (lsel && lsel->table_list.first)
   {
+    DBUG_ASSERT(thd->sql_command_flags() & CF_STATUS_COMMAND);
     error= fill_schema_table_by_open(thd, thd->mem_root, TRUE,
                                      table, schema_table,
                                      &lsel->table_list.first->db,
@@ -6267,20 +6286,6 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   bool quoted_defaults= lex->sql_command != SQLCOM_SHOW_FIELDS;
   DBUG_ENTER("get_schema_column_record");
 
-  if (res)
-  {
-    if (lex->sql_command != SQLCOM_SHOW_FIELDS)
-    {
-      /*
-        I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
-        rather than in SHOW COLUMNS
-      */
-      if (thd->is_error())
-        convert_error_to_warning(thd);
-      res= 0;
-    }
-    DBUG_RETURN(res);
-  }
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;
@@ -7092,24 +7097,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
 {
   CHARSET_INFO *cs= system_charset_info;
   DBUG_ENTER("get_schema_stat_record");
-  if (res)
-  {
-    if (thd->lex->sql_command != SQLCOM_SHOW_KEYS)
-    {
-      /*
-        I.e. we are in SELECT FROM INFORMATION_SCHEMA.STATISTICS
-        rather than in SHOW KEYS
-      */
-      if (unlikely(thd->is_error()))
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     thd->get_stmt_da()->sql_errno(),
-                     thd->get_stmt_da()->message());
-      thd->clear_error();
-      res= 0;
-    }
-    DBUG_RETURN(res);
-  }
-  else if (!tables->view)
+  if (!tables->view)
   {
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
@@ -7379,15 +7367,6 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
                                         const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_check_constraints_record");
-  if (res)
-  {
-    if (thd->is_error())
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   if (!tables->view)
   {
     StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
@@ -7431,16 +7410,7 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 					 const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_constraints_record");
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
-  else if (!tables->view)
+  if (!tables->view)
   {
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
@@ -7558,19 +7528,6 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
 				      const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_triggers_record");
-  /*
-    res can be non zero value when processed table is a view or
-    error happened during opening of processed table.
-  */
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   if (!tables->view && tables->table->triggers)
   {
     Table_triggers_list *triggers= tables->table->triggers;
@@ -7636,16 +7593,7 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
                                    const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_key_column_usage_record");
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
-  else if (!tables->view)
+  if (!tables->view)
   {
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
@@ -7729,8 +7677,6 @@ int get_schema_key_period_usage_record(THD *thd, TABLE_LIST *tables,
 {
   const uint keys_total= tables->table->s->keys;
   const KEY *keys= tables->table->s->key_info;
-  if (!tables->table)
-    return 0;
   const Lex_ident &period_name= tables->table->s->period.name;
   if (!period_name)
     return 0;
@@ -7882,15 +7828,6 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
 #endif
   DBUG_ENTER("get_schema_partitions_record");
 
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   file= show_table->file;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   part_info= show_table->part_info;
@@ -8475,15 +8412,6 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
   LEX_CSTRING *s;
   DBUG_ENTER("get_referential_constraints_record");
 
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   if (!tables->view)
   {
     List<FOREIGN_KEY_INFO> f_key_list;
@@ -10314,7 +10242,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"PERIODS", Show::periods_fields_info, 0,
    get_all_tables, 0, get_schema_period_records, 1, 2, 0,
-   OPTIMIZE_I_S_TABLE | OPEN_FRM_FILE_ONLY},
+   OPTIMIZE_I_S_TABLE | OPEN_TABLE_ONLY},
   {"PLUGINS", Show::plugin_fields_info, 0,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
   {"PROCESSLIST", Show::processlist_fields_info, 0,
@@ -10344,7 +10272,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", Show::tables_fields_info, 0,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
-   OPTIMIZE_I_S_TABLE},
+   OPTIMIZE_I_S_TABLE|I_S_EXTENDED_ERROR_HANDLING},
   {"TABLESPACES", Show::tablespaces_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"TABLE_CONSTRAINTS", Show::table_constraints_fields_info, 0,
@@ -10361,7 +10289,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
   {"VIEWS", Show::view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
-   OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
+   OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE|I_S_EXTENDED_ERROR_HANDLING},
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
