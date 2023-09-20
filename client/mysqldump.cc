@@ -814,7 +814,7 @@ static void write_header(FILE *sql_file, const char *db_name)
     }
     fprintf(sql_file,
             "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
-            "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
+            "/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;\n",
             path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
             compatible_mode_normal_str);
     check_io(sql_file);
@@ -851,7 +851,7 @@ static void write_footer(FILE *sql_file)
 "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
 "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
     fprintf(sql_file,
-            "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
+            "/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;\n");
     fputs("\n", sql_file);
 
     if (opt_dump_date)

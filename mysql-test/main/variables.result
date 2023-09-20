@@ -892,6 +892,8 @@ VARIABLE_NAME	VARIABLE_VALUE
 SQL_BIG_SELECTS	ON
 set @@sql_big_selects = @old_sql_big_selects;
 set @@sql_notes = 0, @@sql_warnings = 0;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 show variables like 'sql_notes';
 Variable_name	Value
 sql_notes	OFF
@@ -905,6 +907,8 @@ select * from information_schema.session_variables where variable_name like 'sql
 VARIABLE_NAME	VARIABLE_VALUE
 SQL_WARNINGS	OFF
 set @@sql_notes = 1, @@sql_warnings = 1;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 show variables like 'sql_notes';
 Variable_name	Value
 sql_notes	ON
@@ -1561,6 +1565,8 @@ End of 5.1 tests
 SET @sql_notes_saved = @@sql_notes;
 
 SET @@sql_notes = ON;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 SELECT @@sql_notes;
 @@sql_notes
 1
@@ -1572,11 +1578,15 @@ SELECT @@sql_notes;
 1
 
 SET @@sql_notes = OFF;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 SELECT @@sql_notes;
 @@sql_notes
 0
 
 SET @@sql_notes = @sql_notes_saved;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 
 # Checking delay_key_write...
 SET @delay_key_write_saved = @@delay_key_write;
