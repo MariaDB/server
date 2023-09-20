@@ -393,6 +393,12 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
   }
   else
   {
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    fil_space_t *stop_space=
+		fil_space_t::check_pending_operations(space.id);
+    ut_ad(stop_space);
+    ut_ad(stop_space == &space);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
     /* Remove any additional files. */
     if (char *cfg_name= fil_make_filepath(old_name,
 					  fil_space_t::name_type{}, CFG,
@@ -402,8 +408,8 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
       ut_free(cfg_name);
     }
 
-    if (FSP_FLAGS_HAS_DATA_DIR(space.flags))
-      RemoteDatafile::delete_link_file(space.name());
+    if (FSP_FLAGS_HAS_DATA_DIR(stop_space->flags))
+      RemoteDatafile::delete_link_file(stop_space->name());
 
     /* Remove the directory entry. The file will actually be deleted
     when our caller closes the handle. */
@@ -411,11 +417,11 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
 
     mysql_mutex_lock(&fil_system.mutex);
     /* Sanity checks after reacquiring fil_system.mutex */
-    ut_ad(&space == fil_space_get_by_id(space.id));
-    ut_ad(!space.referenced());
-    ut_ad(space.is_stopping());
+    ut_ad(stop_space == fil_space_get_by_id(stop_space->id));
+    ut_ad(!stop_space->referenced());
+    ut_ad(stop_space->is_stopping());
 
-    pfs_os_file_t handle = fil_system.detach(&space, true);
+    pfs_os_file_t handle = fil_system.detach(stop_space, true);
     if (detached_handle)
       *detached_handle = handle;
     mysql_mutex_unlock(&fil_system.mutex);

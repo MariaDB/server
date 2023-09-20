@@ -1639,7 +1639,7 @@ being_deleted:
     if ((count & 511) == 128)
       sql_print_warning("InnoDB: Trying to delete tablespace '%s' "
                         "but there are %u pending operations",
-                        space->chain.start->name, id);
+                        space->chain.start->name, pending);
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 }
@@ -1691,7 +1691,7 @@ pfs_os_file_t fil_delete_tablespace(ulint id)
 {
   ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
-  if (fil_space_t *space= fil_space_t::check_pending_operations(id))
+  if (fil_space_t *space= fil_space_get(id))
   {
     /* Before deleting the file(s), persistently write a log record. */
     mtr_t mtr;
