@@ -13,12 +13,14 @@ create or replace table t(id int, s date, e date,
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t;
 
+--sorted_result
 select * from information_schema.key_period_usage;
 create or replace table t_multi(id int, id2 int, s date, e date,
                                 period for very_interesting_period(s,e),
                                 primary key(id, very_interesting_period without overlaps),
                                 unique(id2, very_interesting_period without overlaps)
 );
+--sorted_result
 select * from information_schema.key_period_usage;
 drop table t_multi;
 
