@@ -3016,6 +3016,20 @@ sp_handler:
         ;
 
 
+drop_routine:
+          DROP sp_handler opt_if_exists ident '.' ident
+          {
+            if (Lex->stmt_drop_routine($2, $3, $4, $6))
+              MYSQL_YYABORT;
+          }
+        | DROP sp_handler opt_if_exists ident
+          {
+            if (Lex->stmt_drop_routine($2, $3, Lex_ident_sys(), $4))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
 sp_name:
           ident '.' ident
           {
@@ -18441,25 +18455,6 @@ sp_tail_standalone:
           }
         ;
 
-drop_routine:
-          DROP FUNCTION_SYM opt_if_exists ident '.' ident
-          {
-            if (Lex->stmt_drop_function($3, $4, $6))
-              MYSQL_YYABORT;
-          }
-        | DROP FUNCTION_SYM opt_if_exists ident
-          {
-            if (Lex->stmt_drop_function($3, $4))
-              MYSQL_YYABORT;
-          }
-        | DROP PROCEDURE_SYM opt_if_exists sp_name
-          {
-            if (Lex->stmt_drop_procedure($3, $4))
-              MYSQL_YYABORT;
-          }
-        ;
-
-
 create_routine:
           create_or_replace definer_opt PROCEDURE_SYM opt_if_not_exists
           {
@@ -19343,40 +19338,6 @@ sp_tail_standalone:
           {
             if (unlikely(Lex->sp_body_finalize_procedure_standalone(thd, $8)))
               MYSQL_YYABORT;
-          }
-        ;
-
-drop_routine:
-          DROP FUNCTION_SYM opt_if_exists ident '.' ident
-          {
-            if (Lex->stmt_drop_function($3, $4, $6))
-              MYSQL_YYABORT;
-          }
-        | DROP FUNCTION_SYM opt_if_exists ident
-          {
-            if (Lex->stmt_drop_function($3, $4))
-              MYSQL_YYABORT;
-          }
-        | DROP PROCEDURE_SYM opt_if_exists sp_name
-          {
-            if (Lex->stmt_drop_procedure($3, $4))
-              MYSQL_YYABORT;
-          }
-        | DROP PACKAGE_ORACLE_SYM opt_if_exists sp_name
-          {
-            LEX *lex= Lex;
-            lex->set_command(SQLCOM_DROP_PACKAGE, $3);
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PACKAGE"));
-            lex->spname= $4;
-          }
-        | DROP PACKAGE_ORACLE_SYM BODY_ORACLE_SYM opt_if_exists sp_name
-          {
-            LEX *lex= Lex;
-            lex->set_command(SQLCOM_DROP_PACKAGE_BODY, $4);
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PACKAGE BODY"));
-            lex->spname= $5;
           }
         ;
 

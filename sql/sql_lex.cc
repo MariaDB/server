@@ -11487,54 +11487,68 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
 }
 
 
-bool LEX::stmt_drop_function(const DDL_options_st &options,
-                             const Lex_ident_sys_st &db,
-                             const Lex_ident_sys_st &name)
+/*
+  Process a drop routine statement:
+    DROP {FUNCTION|PROCEDURE|PACKAGE|PACKAGE BODY}
+    [IF NOT EXISTS ] [db.]name;
+
+  @param sph     - The stored routine
+  @param options - The IF EXISTS clause
+  @param db      - The database name.
+                   It can be {NULL,0}, which means the routine name
+                   is not qualified with the database name.
+  @param name    - The routine name
+  @returns       - false ok success, true on error.
+*/
+bool LEX::stmt_drop_routine(const Sp_handler *sph,
+                            const DDL_options_st &options,
+                            const Lex_ident_sys_st &db,
+                            const Lex_ident_sys_st &name)
 {
-  DBUG_ASSERT(db.str);
   DBUG_ASSERT(name.str);
-  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(db);
-  if (unlikely(!db_int.str))
-    return true;
-
   if (unlikely(sphead))
   {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    my_error(ER_SP_NO_DROP_SP, MYF(0), sph->type_lex_cstring().str);
     return true;
   }
-  set_command(SQLCOM_DROP_FUNCTION, options);
-  spname= new (thd->mem_root) sp_name(&db_int, &name, true);
-  return spname == NULL;
-}
-
-
-bool LEX::stmt_drop_function(const DDL_options_st &options,
-                             const Lex_ident_sys_st &name)
-{
-  LEX_CSTRING db= {0, 0};
-  if (unlikely(sphead))
+  if (check_routine_name(&name))
+    return true;
+  enum_sql_command sqlcom= sph->sqlcom_drop();
+  LEX_CSTRING db_int= {0, 0};
+  if (db.str)
   {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
-    return true;
+    // An explicit database name is given
+    if (!(db_int= thd->to_ident_db_internal_with_error(db)).str)
+      return true;
   }
-  if (thd->db.str && unlikely(copy_db_to(&db)))
-    return true;
-  set_command(SQLCOM_DROP_FUNCTION, options);
-  spname= new (thd->mem_root) sp_name(&db, &name, false);
-  return spname == NULL;
-}
-
-
-bool LEX::stmt_drop_procedure(const DDL_options_st &options,
-                              sp_name *name)
-{
-  if (unlikely(sphead))
+  else if (thd->db.str || sqlcom != SQLCOM_DROP_FUNCTION)
   {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
-    return true;
+    /*
+      There is no an explicit database name in the DROP statement.
+      Two cases are possible:
+      a. The current database is not NULL.
+         copy_db_to() copies the current database to db_int.
+      b. The current database is NULL and the command is either of these:
+         - DROP PACKAGE
+         - DROP PACKAGE BODY
+         - DROP PROCEDURE
+         copy_db_to() raises ER_NO_DB_ERROR.
+    */
+    if (copy_db_to(&db_int))
+      return true;
   }
-  set_command(SQLCOM_DROP_PROCEDURE, options);
-  spname= name;
+  else
+  {
+    /*
+      This is a "DROP FUNCTION name" statement.
+      There is no an explicit database name given.
+      The current database is not set.
+      It can still be a valid DROP FUNCTION - for an UDF.
+      Keep db_int=={NULL,0}.
+    */
+  }
+  set_command(sqlcom, options);
+  spname= new (thd->mem_root) sp_name(&db_int, &name, db.str != NULL);
   return false;
 }
 

@@ -4852,15 +4852,10 @@ public:
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
 
-  bool stmt_drop_function(const DDL_options_st &options,
-                          const Lex_ident_sys_st &db,
-                          const Lex_ident_sys_st &name);
-
-  bool stmt_drop_function(const DDL_options_st &options,
-                          const Lex_ident_sys_st &name);
-
-  bool stmt_drop_procedure(const DDL_options_st &options,
-                           sp_name *name);
+  bool stmt_drop_routine(const Sp_handler *sph,
+                         const DDL_options_st &options,
+                         const Lex_ident_sys_st &db,
+                         const Lex_ident_sys_st &name);
 
   bool stmt_alter_function_start(sp_name *name);
   bool stmt_alter_procedure_start(sp_name *name);

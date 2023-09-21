@@ -157,6 +157,7 @@ public:
   }
   virtual enum_sp_type type() const= 0;
   virtual LEX_CSTRING type_lex_cstring() const= 0;
+  virtual enum_sql_command sqlcom_drop() const= 0;
   virtual LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("???")};
@@ -256,6 +257,7 @@ public:
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("PROCEDURE")};
     return m_type_str;
   }
+  enum_sql_command sqlcom_drop() const { return SQLCOM_DROP_PROCEDURE; }
   LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
   const char *show_create_routine_col1_caption() const
   {
@@ -306,6 +308,7 @@ public:
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("FUNCTION")};
     return m_type_str;
   }
+  enum_sql_command sqlcom_drop() const { return SQLCOM_DROP_FUNCTION; }
   LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
   const char *show_create_routine_col1_caption() const
   {
@@ -375,6 +378,7 @@ public:
     static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE")};
     return m_type_str;
   }
+  enum_sql_command sqlcom_drop() const { return SQLCOM_DROP_PACKAGE; }
   LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("BEGIN END")};
@@ -408,6 +412,7 @@ public:
     static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE BODY")};
     return m_type_str;
   }
+  enum_sql_command sqlcom_drop() const { return SQLCOM_DROP_PACKAGE_BODY; }
   LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("BEGIN END")};
@@ -441,6 +446,7 @@ public:
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("TRIGGER")};
     return m_type_str;
   }
+  enum_sql_command sqlcom_drop() const { return SQLCOM_DROP_TRIGGER; }
   MDL_key::enum_mdl_namespace get_mdl_type() const
   {
     DBUG_ASSERT(0);
