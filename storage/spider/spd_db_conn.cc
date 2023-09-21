@@ -7288,6 +7288,7 @@ int spider_db_open_item_field(
   spider_fields *fields
 ) {
   int error_num;
+  DBUG_ASSERT(!str || !use_fields || fields->table_holder->spider == spider);
   Field *field = item_field->field;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_db_open_item_field");

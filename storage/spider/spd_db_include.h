@@ -576,6 +576,7 @@ typedef struct spider_field_chain
 
 class spider_fields
 {
+public:
   uint dbton_count;
   uint current_dbton_num;
   uint dbton_ids[SPIDER_DBTON_SIZE];
@@ -597,7 +598,6 @@ class spider_fields
   SPIDER_FIELD_CHAIN *current_field_chain;
   Field **first_field_ptr;
   Field **current_field_ptr;
-public:
   spider_fields();
   virtual ~spider_fields();
   void add_dbton_id(
