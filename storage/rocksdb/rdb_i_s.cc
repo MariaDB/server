@@ -76,6 +76,7 @@ using SLong = Show::SLong;
 using SLonglong = Show::SLonglong;
 using ULonglong = Show::ULonglong;
 using Double = Show::Double;
+using STiny = Show::STiny;
 
 
 static ST_FIELD_INFO rdb_i_s_cfstats_fields_info[] = {
