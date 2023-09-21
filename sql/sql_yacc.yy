@@ -346,9 +346,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 64
+%expect 62
 %else
-%expect 65
+%expect 63
 %endif
 
 /*
@@ -1283,6 +1283,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
 %left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM
+
+%left   PREC_BELOW_SP_OBJECT_TYPE
+%left   FUNCTION_SYM
 
 
 /*
@@ -17358,7 +17361,7 @@ role_name: ident_or_text
 grant_role: role_name | current_role ;
 
 opt_table:
-          /* Empty */
+          /* Empty */        %prec PREC_BELOW_SP_OBJECT_TYPE
         | TABLE_SYM
         ;
 
