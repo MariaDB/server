@@ -1597,6 +1597,7 @@ group_by_handler *spider_create_group_by_handler(
   uint table_idx, dbton_id;
   long tgt_link_status;
   DBUG_ENTER("spider_create_group_by_handler");
+  DBUG_RETURN(NULL);
 
   switch (thd_sql_command(thd))
   {
