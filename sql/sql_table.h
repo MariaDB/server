@@ -133,24 +133,16 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
 int mysql_create_table_no_lock(THD *thd,
                                DDL_LOG_STATE *ddl_log_state,
                                DDL_LOG_STATE *ddl_log_state_rm,
-                               const LEX_CSTRING *db,
-                               const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
                                int create_table_mode, TABLE_LIST *table);
 
-handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING &db,
-                                const LEX_CSTRING &table_name,
-                                HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                int create_table_mode,
-                                KEY **key_info,
-                                uint *key_count,
+handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
+                                Alter_info *alter_info, int create_table_mode,
+                                KEY **key_info, uint *key_count,
                                 LEX_CUSTRING *frm);
 
-int mysql_discard_or_import_tablespace(THD *thd,
-                                       TABLE_LIST *table_list,
+int mysql_discard_or_import_tablespace(THD *thd, TABLE_LIST *table_list,
                                        bool discard);
 
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
@@ -223,5 +215,9 @@ uint explain_filename(THD* thd, const char *from, char *to, uint to_length,
 extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING primary_key_name;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
+
+#ifdef WITH_WSREP
+bool wsrep_check_sequence(THD* thd, const class sequence_definition *seq);
+#endif
 
 #endif /* SQL_TABLE_INCLUDED */

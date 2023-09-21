@@ -391,12 +391,28 @@ int spider_free_trx_alter_table(
   DBUG_RETURN(0);
 }
 
+/** Copy a string from one array to another */
+static inline void spider_maybe_memcpy_indexed_string(
+  char **dests,
+  char **srcs,
+  const uint* lengths,
+  const int idx,
+  char *&ptr)
+{
+  if (size_t len= sizeof(char) * lengths[idx])
+  {
+    dests[idx]= ptr;
+    memcpy(ptr, srcs[idx], len);
+    ptr+= len + 1;
+  }
+}
+
 int spider_create_trx_alter_table(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
   bool now_create
 ) {
-  int error_num, roop_count;
+  int error_num, link_idx;
   SPIDER_ALTER_TABLE *alter_table, *share_alter;
   char *tmp_name;
   char **tmp_server_names;
@@ -625,163 +641,82 @@ int spider_create_trx_alter_table(
   alter_table->tmp_tgt_drivers_lengths = tmp_tgt_drivers_lengths;
   alter_table->tmp_static_link_ids_lengths = tmp_static_link_ids_lengths;
 
-  size_t len;
-  for(roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
+  for(link_idx = 0; link_idx < (int) share->all_link_count; link_idx++)
   {
-    if ((len=
-             sizeof(char) * share_alter->tmp_server_names_lengths[roop_count]))
-    {
-      tmp_server_names[roop_count]= tmp_server_names_char;
-      memcpy(tmp_server_names_char, share_alter->tmp_server_names[roop_count],
-             len);
-      tmp_server_names_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_server_names, share_alter->tmp_server_names,
+      share_alter->tmp_server_names_lengths, link_idx, tmp_server_names_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_table_names_lengths[roop_count]))
-    {
-      tmp_tgt_table_names[roop_count]= tmp_tgt_table_names_char;
-      memcpy(tmp_tgt_table_names_char,
-             share_alter->tmp_tgt_table_names[roop_count], len);
-      tmp_tgt_table_names_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_table_names, share_alter->tmp_tgt_table_names,
+      share_alter->tmp_tgt_table_names_lengths, link_idx, tmp_tgt_table_names_char);
 
-    if ((len= sizeof(char) * share_alter->tmp_tgt_dbs_lengths[roop_count]))
-    {
-      tmp_tgt_dbs[roop_count]= tmp_tgt_dbs_char;
-      memcpy(tmp_tgt_dbs_char, share_alter->tmp_tgt_dbs[roop_count], len);
-      tmp_tgt_dbs_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_dbs, share_alter->tmp_tgt_dbs,
+      share_alter->tmp_tgt_dbs_lengths, link_idx, tmp_tgt_dbs_char);
 
-    if ((len= sizeof(char) * share_alter->tmp_tgt_hosts_lengths[roop_count]))
-    {
-      tmp_tgt_hosts[roop_count]= tmp_tgt_hosts_char;
-      memcpy(tmp_tgt_hosts_char, share_alter->tmp_tgt_hosts[roop_count], len);
-      tmp_tgt_hosts_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_hosts, share_alter->tmp_tgt_hosts,
+      share_alter->tmp_tgt_hosts_lengths, link_idx, tmp_tgt_hosts_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_usernames_lengths[roop_count]))
-    {
-      tmp_tgt_usernames[roop_count]= tmp_tgt_usernames_char;
-      memcpy(tmp_tgt_usernames_char,
-             share_alter->tmp_tgt_usernames[roop_count], len);
-      tmp_tgt_usernames_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_usernames, share_alter->tmp_tgt_usernames,
+      share_alter->tmp_tgt_usernames_lengths, link_idx, tmp_tgt_usernames_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_passwords_lengths[roop_count]))
-    {
-      tmp_tgt_passwords[roop_count]= tmp_tgt_passwords_char;
-      memcpy(tmp_tgt_passwords_char,
-             share_alter->tmp_tgt_passwords[roop_count], len);
-      tmp_tgt_passwords_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_passwords, share_alter->tmp_tgt_passwords,
+      share_alter->tmp_tgt_passwords_lengths, link_idx, tmp_tgt_passwords_char);
 
-    if ((len= sizeof(char) * share_alter->tmp_tgt_sockets_lengths[roop_count]))
-    {
-      tmp_tgt_sockets[roop_count]= tmp_tgt_sockets_char;
-      memcpy(tmp_tgt_sockets_char, share_alter->tmp_tgt_sockets[roop_count],
-             len);
-      tmp_tgt_sockets_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_sockets, share_alter->tmp_tgt_sockets,
+      share_alter->tmp_tgt_sockets_lengths, link_idx, tmp_tgt_sockets_char);
 
-    if ((len=
-             sizeof(char) * share_alter->tmp_tgt_wrappers_lengths[roop_count]))
-    {
-      tmp_tgt_wrappers[roop_count]= tmp_tgt_wrappers_char;
-      memcpy(tmp_tgt_wrappers_char, share_alter->tmp_tgt_wrappers[roop_count],
-             len);
-      tmp_tgt_wrappers_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_wrappers, share_alter->tmp_tgt_wrappers,
+      share_alter->tmp_tgt_wrappers_lengths, link_idx, tmp_tgt_wrappers_char);
 
-    if ((len= sizeof(char) * share_alter->tmp_tgt_ssl_cas_lengths[roop_count]))
-    {
-      tmp_tgt_ssl_cas[roop_count]= tmp_tgt_ssl_cas_char;
-      memcpy(tmp_tgt_ssl_cas_char, share_alter->tmp_tgt_ssl_cas[roop_count],
-             len);
-      tmp_tgt_ssl_cas_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_ssl_cas, share_alter->tmp_tgt_ssl_cas,
+      share_alter->tmp_tgt_ssl_cas_lengths, link_idx, tmp_tgt_ssl_cas_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_ssl_capaths_lengths[roop_count]))
-    {
-      tmp_tgt_ssl_capaths[roop_count]= tmp_tgt_ssl_capaths_char;
-      memcpy(tmp_tgt_ssl_capaths_char,
-             share_alter->tmp_tgt_ssl_capaths[roop_count], len);
-      tmp_tgt_ssl_capaths_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_ssl_capaths, share_alter->tmp_tgt_ssl_capaths,
+      share_alter->tmp_tgt_ssl_capaths_lengths, link_idx, tmp_tgt_ssl_capaths_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_ssl_certs_lengths[roop_count]))
-    {
-      tmp_tgt_ssl_certs[roop_count]= tmp_tgt_ssl_certs_char;
-      memcpy(tmp_tgt_ssl_certs_char,
-             share_alter->tmp_tgt_ssl_certs[roop_count], len);
-      tmp_tgt_ssl_certs_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_ssl_certs, share_alter->tmp_tgt_ssl_certs,
+      share_alter->tmp_tgt_ssl_certs_lengths, link_idx, tmp_tgt_ssl_certs_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_ssl_ciphers_lengths[roop_count]))
-    {
-      tmp_tgt_ssl_ciphers[roop_count]= tmp_tgt_ssl_ciphers_char;
-      memcpy(tmp_tgt_ssl_ciphers_char,
-             share_alter->tmp_tgt_ssl_ciphers[roop_count], len);
-      tmp_tgt_ssl_ciphers_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_ssl_ciphers, share_alter->tmp_tgt_ssl_ciphers,
+      share_alter->tmp_tgt_ssl_ciphers_lengths, link_idx, tmp_tgt_ssl_ciphers_char);
 
-    if ((len= sizeof(char) * share_alter->tmp_tgt_ssl_keys_lengths[roop_count]))
-    {
-      tmp_tgt_ssl_keys[roop_count]= tmp_tgt_ssl_keys_char;
-      memcpy(tmp_tgt_ssl_keys_char, share_alter->tmp_tgt_ssl_keys[roop_count],
-             len);
-      tmp_tgt_ssl_keys_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_ssl_keys, share_alter->tmp_tgt_ssl_keys,
+      share_alter->tmp_tgt_ssl_keys_lengths, link_idx, tmp_tgt_ssl_keys_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_default_files_lengths[roop_count]))
-    {
-      tmp_tgt_default_files[roop_count]= tmp_tgt_default_files_char;
-      memcpy(tmp_tgt_default_files_char,
-             share_alter->tmp_tgt_default_files[roop_count], len);
-      tmp_tgt_default_files_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_default_files, share_alter->tmp_tgt_default_files,
+      share_alter->tmp_tgt_default_files_lengths, link_idx, tmp_tgt_default_files_char);
 
-    if ((len= sizeof(char) *
-              share_alter->tmp_tgt_default_groups_lengths[roop_count]))
-    {
-      tmp_tgt_default_groups[roop_count]= tmp_tgt_default_groups_char;
-      memcpy(tmp_tgt_default_groups_char,
-             share_alter->tmp_tgt_default_groups[roop_count], len);
-      tmp_tgt_default_groups_char+= len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_default_groups, share_alter->tmp_tgt_default_groups,
+      share_alter->tmp_tgt_default_groups_lengths, link_idx, tmp_tgt_default_groups_char);
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_dsns, share_alter->tmp_tgt_dsns,
+      share_alter->tmp_tgt_dsns_lengths, link_idx, tmp_tgt_dsns_char);
 
-    tmp_tgt_dsns[roop_count] = tmp_tgt_dsns_char;
-    memcpy(tmp_tgt_dsns_char, share_alter->tmp_tgt_dsns[roop_count],
-      sizeof(char) * share_alter->tmp_tgt_dsns_lengths[roop_count]);
-    tmp_tgt_dsns_char +=
-      share_alter->tmp_tgt_dsns_lengths[roop_count] + 1;
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_filedsns, share_alter->tmp_tgt_filedsns,
+      share_alter->tmp_tgt_filedsns_lengths, link_idx, tmp_tgt_filedsns_char);
 
-    tmp_tgt_filedsns[roop_count] = tmp_tgt_filedsns_char;
-    memcpy(tmp_tgt_filedsns_char, share_alter->tmp_tgt_filedsns[roop_count],
-      sizeof(char) * share_alter->tmp_tgt_filedsns_lengths[roop_count]);
-    tmp_tgt_filedsns_char +=
-      share_alter->tmp_tgt_filedsns_lengths[roop_count] + 1;
+    spider_maybe_memcpy_indexed_string(
+      tmp_tgt_drivers, share_alter->tmp_tgt_drivers,
+      share_alter->tmp_tgt_drivers_lengths, link_idx, tmp_tgt_drivers_char);
 
-    tmp_tgt_drivers[roop_count] = tmp_tgt_drivers_char;
-    memcpy(tmp_tgt_drivers_char, share_alter->tmp_tgt_drivers[roop_count],
-      sizeof(char) * share_alter->tmp_tgt_drivers_lengths[roop_count]);
-    tmp_tgt_drivers_char +=
-      share_alter->tmp_tgt_drivers_lengths[roop_count] + 1;
-
-    if ((len= sizeof(char) *
-              share_alter->tmp_static_link_ids_lengths[roop_count]))
-    {
-      tmp_static_link_ids[roop_count] = tmp_static_link_ids_char;
-      memcpy(tmp_static_link_ids_char,
-             share_alter->tmp_static_link_ids[roop_count], len);
-      tmp_static_link_ids_char += len + 1;
-    }
+    spider_maybe_memcpy_indexed_string(
+      tmp_static_link_ids, share_alter->tmp_static_link_ids,
+      share_alter->tmp_static_link_ids_lengths, link_idx, tmp_static_link_ids_char);
   }
 
   memcpy(tmp_tgt_ports, share_alter->tmp_tgt_ports,

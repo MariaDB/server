@@ -1,0 +1,22 @@
+--echo #
+--echo # MDEV-31338 UBSAN: runtime error: member access within null pointer of type 'struct SPIDER_FIELD_CHAIN' and SIGSEGV in spider_db_open_item_ident on SELECT
+--echo #
+--source include/have_innodb.inc
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (c BLOB) ENGINE=InnoDB;
+CREATE TABLE ts (c BLOB) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+SELECT TRIM(BOTH ' ' FROM c) FROM ts ORDER BY c;
+drop table t, ts;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

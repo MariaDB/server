@@ -29,7 +29,9 @@ FLUSH STATUS;
 let $initial= `SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Select_range'`;
 
 # Causes Select_range to increment (+1)
+--disable_ps2_protocol
 SELECT * from test.t_range where (a >= 3) AND (a <= 5);
+--enable_ps2_protocol
 
 SELECT * from performance_schema.session_status
   WHERE VARIABLE_NAME = 'Select_range';
@@ -40,7 +42,9 @@ eval SELECT VARIABLE_NAME, (VARIABLE_VALUE - $initial) AS DELTA from performance
 
 connect(con1, localhost, user1,,);
 # Causes Select_range to increment (+1)
+--disable_ps2_protocol
 SELECT * from test.t_range where (a >= 3) AND (a <= 5);
+--enable_ps2_protocol
 
 SELECT * from performance_schema.session_status
   WHERE VARIABLE_NAME = 'Select_range';
@@ -51,8 +55,10 @@ eval SELECT VARIABLE_NAME, (VARIABLE_VALUE - $initial) AS DELTA from performance
 
 connect(con2, localhost, user2,,);
 # Causes Select_range to increment (+2)
+--disable_ps2_protocol
 SELECT * from test.t_range where (a >= 3) AND (a <= 5);
 SELECT * from test.t_range where (a >= 4) AND (a <= 6);
+--enable_ps2_protocol
 
 SELECT * from performance_schema.session_status
   WHERE VARIABLE_NAME = 'Select_range';
@@ -63,9 +69,11 @@ eval SELECT VARIABLE_NAME, (VARIABLE_VALUE - $initial) AS DELTA from performance
 
 connect(con3, localhost, user3,,);
 # Causes Select_range to increment (+3)
+--disable_ps2_protocol
 SELECT * from test.t_range where (a >= 3) AND (a <= 5);
 SELECT * from test.t_range where (a >= 4) AND (a <= 6);
 SELECT * from test.t_range where (a >= 5) AND (a <= 7);
+--enable_ps2_protocol
 
 SELECT * from performance_schema.session_status
   WHERE VARIABLE_NAME = 'Select_range';

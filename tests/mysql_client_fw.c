@@ -1366,7 +1366,7 @@ static void get_options(int *argc, char ***argv)
     exit(ho_error);
 
   if (tty_password)
-    opt_password= get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
   return;
 }
 

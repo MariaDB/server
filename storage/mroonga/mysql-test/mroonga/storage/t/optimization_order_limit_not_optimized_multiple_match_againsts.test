@@ -44,11 +44,13 @@ INSERT INTO memos VALUES(8,  "title 1-a", "content b-1");
 INSERT INTO memos VALUES(9,  "title 2-b", "content b-2");
 INSERT INTO memos VALUES(7,  "title 2-c", "content b-3");
 
+--disable_ps2_protocol
 SELECT * FROM memos
          WHERE MATCH(title) AGAINST("+1" IN BOOLEAN MODE) AND
                MATCH(content) AGAINST("+a" IN BOOLEAN MODE)
          ORDER BY id
          LIMIT 1,3;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 

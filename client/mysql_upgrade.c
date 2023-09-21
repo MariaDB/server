@@ -1458,7 +1458,7 @@ int main(int argc, char **argv)
 
   if (tty_password)
   {
-    opt_password= get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
     /* add password to defaults file */
     add_one_option_cnf_file(&ds_args, "password", opt_password);
   }

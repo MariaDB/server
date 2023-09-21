@@ -27,8 +27,6 @@ IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 ENDIF()
 
-PROJECT(MariaDB)
-
 # Remove the following comment if you don't want to have striped binaries
 # in RPM's:
 
@@ -38,6 +36,8 @@ FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0075 CMP0069 CMP0135)
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
 ENDFOREACH()
+
+PROJECT(MariaDB)
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 

@@ -33,7 +33,7 @@ CHANGE MASTER TO MASTER_USE_GTID=NO;
 
 --source include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,pause_sql_thread_on_fde";
+SET @@global.debug_dbug="+d,pause_sql_thread_on_fde,negate_clock_diff_with_master";
 --source include/start_slave.inc
 
 --let $sleep_time=2
@@ -99,11 +99,93 @@ SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
 # Reset last sql_thread_continue signal
 SET DEBUG_SYNC='RESET';
 
-# Cleanup
---connection master
-DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29639
+--echo # When receiving an event after the SQL Thread idles,
+--echo # Seconds_Behind_Master should not update before it updates
+--echo # last_master_timestamp
 
 --connection slave
+--source include/stop_slave.inc
+set @@global.debug_dbug="+d,pause_sql_thread_on_next_event";
+--source include/start_slave.inc
+
+--connection master
+insert into t1 values(2);
+--source include/save_master_gtid.inc
+
+# Each event after starting will trigger a pause, so continually send signal
+# sql_thread_continue until caught up
+--connection slave
+--let $caught_up=0
+--let $tries= 0
+set debug_sync='now wait_for paused_on_event';
+--disable_query_log
+while (!$caught_up)
+{
+    set debug_sync='now signal sql_thread_continue';
+    --let $slave_gtid= `SELECT @@global.gtid_slave_pos`
+    if (`SELECT strcmp("$master_pos","$slave_gtid") = 0`)
+    {
+        --inc $caught_up
+    }
+    --inc $tries
+    # Wait 30s
+    if (`SELECT $tries > 300`)
+    {
+        --die Replica failed to sync with primary
+    }
+    sleep 0.1;
+}
+--enable_query_log
+
+--connection master
+--echo # Sleeping 1s to create a visible SBM gap between events
+sleep 1;
+insert into t1 values(3);
+--source include/save_master_gtid.inc
+
+--connection slave
+set debug_sync='now wait_for paused_on_event';
+--let $sbm= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+
+if ($sbm)
+{
+    --echo # Expected Seconds_Behind_Master to be 0 but was $sbm
+    --die Seconds_Behind_Master should not show updates before last_master_timestamp is updated
+}
+
+# Continually send signal sql_thread_continue until caught up
+--let $caught_up=0
+--let $tries= 0
+--disable_query_log
+while (!$caught_up)
+{
+    set debug_sync='now signal sql_thread_continue';
+    --let $slave_gtid= `SELECT @@global.gtid_slave_pos`
+    if (`SELECT strcmp("$master_pos","$slave_gtid") = 0`)
+    {
+        --inc $caught_up
+    }
+    --inc $tries
+    # Wait 30s
+    if (`SELECT $tries > 300`)
+    {
+        --die Replica failed to sync with primary
+    }
+    sleep 0.1;
+}
+--enable_query_log
+
+# Cleanup
+--source include/stop_slave.inc
+set debug_sync='RESET';
 SET @@global.debug_dbug=$save_dbug;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--connection master
+DROP TABLE t1;
 
 --source include/rpl_end.inc

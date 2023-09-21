@@ -489,6 +489,7 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
 
+--disable_ps2_protocol
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
 FROM t1, t2 AS alias2, t2 AS alias3 
@@ -506,6 +507,7 @@ GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 124;
 SHOW STATUS LIKE 'Handler_read%';
 SHOW STATUS LIKE 'Handler_tmp%';
+--enable_ps2_protocol
 
 drop table t1, t2;
 
@@ -550,10 +552,12 @@ INSERT INTO t2 VALUES
   (5, 0),(3, 4),(6, 1),
   (5, 8),(4, 9),(8, 1);
 
+--disable_ps2_protocol
 SELECT (SELECT MAX(c) FROM t1, t2)
 FROM t2
 WHERE c = (SELECT MAX(b) FROM t2)
 LIMIT ROWS EXAMINED 3;
+--enable_ps2_protocol
 
 drop table t1, t2;
 

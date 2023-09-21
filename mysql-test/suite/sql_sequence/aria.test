@@ -8,6 +8,7 @@
 
 set @@default_storage_engine="aria";
 
+--disable_ps2_protocol
 CREATE SEQUENCE t1 cache=10;
 show create sequence t1;
 select NEXT VALUE for t1,seq from seq_1_to_20;
@@ -41,3 +42,4 @@ select next value for t2;
 alter table t2 rename to t1;
 select next value for t1;
 drop table t1;
+--enable_ps2_protocol

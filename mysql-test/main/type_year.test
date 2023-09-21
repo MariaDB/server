@@ -187,7 +187,10 @@ insert t1 values (0,2000);
 select a from t1 where a=2000;  # constant.
 select a from t1 where a=1000+1000; # still a constant.
 # select a from t1 where a=(select 2000); # even this is a constant
+#Check after fix MDEV-31277
+--disable_ps2_protocol
 select a from t1 where a=(select 2000 from dual where 1); # constant, but "expensive"
+--enable_ps2_protocol
 select a from t1 where a=y2k(); # constant, but "expensive"
 select a from t1 where a=b; # not a constant
 drop table t1;

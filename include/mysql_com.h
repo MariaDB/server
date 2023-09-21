@@ -260,7 +260,7 @@ enum enum_indicator_type
 #define CLIENT_DEPRECATE_EOF (1ULL << 24)
 
 #define CLIENT_PROGRESS_OBSOLETE  (1ULL << 29)
-#define CLIENT_SSL_VERIFY_SERVER_CERT (1ULL << 30)
+#define CLIENT_SSL_VERIFY_SERVER_CERT_OBSOLETE (1ULL << 30)
 /*
   It used to be that if mysql_real_connect() failed, it would delete any
   options set by the client, unless the CLIENT_REMEMBER_OPTIONS flag was
@@ -318,7 +318,6 @@ enum enum_indicator_type
                            CLIENT_MULTI_STATEMENTS | \
                            CLIENT_MULTI_RESULTS | \
                            CLIENT_PS_MULTI_RESULTS | \
-                           CLIENT_SSL_VERIFY_SERVER_CERT | \
                            CLIENT_REMEMBER_OPTIONS | \
                            MARIADB_CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
@@ -335,9 +334,8 @@ enum enum_indicator_type
   If any of the optional flags is supported by the build it will be switched
   on before sending to the client during the connection handshake.
 */
-#define CLIENT_BASIC_FLAGS (((CLIENT_ALL_FLAGS & ~CLIENT_SSL) \
-                                               & ~CLIENT_COMPRESS) \
-                                               & ~CLIENT_SSL_VERIFY_SERVER_CERT)
+#define CLIENT_BASIC_FLAGS ((CLIENT_ALL_FLAGS & ~CLIENT_SSL) \
+                                               & ~CLIENT_COMPRESS)
 
 enum mariadb_field_attr_t
 {

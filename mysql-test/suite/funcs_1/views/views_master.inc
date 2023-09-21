@@ -2912,6 +2912,7 @@ while ($run)
 #           be wrong, please edit the while loop above and set $debug to 1.
 #--------------------------------------------------------------------------
 # 1.1 Check of top level VIEW
+--disable_ps2_protocol
 let $toplevel= `SELECT @max_level`;
 eval SHOW CREATE VIEW test3.v$toplevel;
 eval SELECT * FROM test3.v$toplevel;
@@ -2924,7 +2925,7 @@ eval SHOW CREATE VIEW test3.v$toplevel;
 eval SELECT * FROM test3.v$toplevel;
 --error ER_VIEW_INVALID
 eval EXPLAIN SELECT * FROM test3.v$toplevel;
-
+--enable_ps2_protocol
 
 # 2. Complicated nested VIEWs
 #       parameter @max_level = nesting level
@@ -3054,8 +3055,10 @@ let $toplevel= `SELECT @max_level`;
 # Show should be easy
 eval SHOW CREATE VIEW test1.v$toplevel;
 # SELECT is much more complicated
+--disable_ps2_protocol
 eval SELECT CAST(f1 AS SIGNED INTEGER) AS f1,
             CAST(f2 AS CHAR) AS f2 FROM test1.v$toplevel;
+--enable_ps2_protocol
 let $message= The output of following EXPLAIN is deactivated, because the result
               differs on some platforms
               FIXME Is this a bug ? ;

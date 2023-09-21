@@ -7,7 +7,7 @@
 call mtr.add_suppression("file_key_management");
 call mtr.add_suppression("System key id 1 is missing");
 call mtr.add_suppression("Unknown key id 1");
-call mtr.add_suppression("Failed to decrypt");
+call mtr.add_suppression("Initialization of encryption failed.*");
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server
@@ -36,8 +36,11 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+--replace_result \\ /
 repair table t1;
 
+--replace_result \\ /
+--error HA_ERR_NO_ENCRYPTION
 INSERT INTO t1 VALUES (2);
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -48,8 +51,6 @@ INSERT INTO t1 VALUES (2);
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---replace_result \\ /
---error 192
 select * from t1;
 drop table t1;
 --remove_file $MYSQLTEST_VARDIR/keys1.txt

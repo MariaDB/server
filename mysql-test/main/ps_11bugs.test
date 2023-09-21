@@ -203,7 +203,9 @@ END|
 
 DELIMITER ;|
 
+--disable_ps2_protocol
 SELECT * FROM t2 WHERE a = @@sort_buffer_size AND p1(@@sort_buffer_size + 1) > a - 1;
+--enable_ps2_protocol
 
 DROP TABLE t2;
 DROP FUNCTION p1;

@@ -3689,7 +3689,7 @@ in_string::~in_string()
   }
 }
 
-void in_string::set(uint pos,Item *item)
+bool in_string::set(uint pos, Item *item)
 {
   String *str=((String*) base)+pos;
   String *res=item->val_str(str);
@@ -3709,6 +3709,7 @@ void in_string::set(uint pos,Item *item)
       cs= &my_charset_bin;		// Should never happen for STR items
     str->set_charset(cs);
   }
+  return res == NULL;
 }
 
 
@@ -3750,12 +3751,12 @@ uchar *in_row::get_value(Item *item)
   return (uchar *)&tmp;
 }
 
-void in_row::set(uint pos, Item *item)
+bool in_row::set(uint pos, Item *item)
 {
   DBUG_ENTER("in_row::set");
   DBUG_PRINT("enter", ("pos: %u  item: %p", pos,item));
-  ((cmp_item_row*) base)[pos].store_value_by_template(current_thd, &tmp, item);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(((cmp_item_row*) base)[pos].store_value_by_template(current_thd,
+                                                                  &tmp, item));
 }
 
 in_longlong::in_longlong(THD *thd, uint elements)
@@ -3763,12 +3764,13 @@ in_longlong::in_longlong(THD *thd, uint elements)
              (qsort2_cmp) cmp_longlong, 0)
 {}
 
-void in_longlong::set(uint pos,Item *item)
+bool in_longlong::set(uint pos, Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
   
   buff->val= item->val_int();
   buff->unsigned_flag= item->unsigned_flag;
+  return item->null_value;
 }
 
 uchar *in_longlong::get_value(Item *item)
@@ -3803,14 +3805,17 @@ in_timestamp::in_timestamp(THD *thd, uint elements)
 {}
 
 
-void in_timestamp::set(uint pos, Item *item)
+bool in_timestamp::set(uint pos, Item *item)
 {
   Timestamp_or_zero_datetime *buff= &((Timestamp_or_zero_datetime *) base)[pos];
   Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
   if (native.is_null())
+  {
     *buff= Timestamp_or_zero_datetime();
-  else
-    *buff= Timestamp_or_zero_datetime(native);
+    return true;
+  }
+  *buff= Timestamp_or_zero_datetime(native);
+  return false;
 }
 
 
@@ -3837,20 +3842,22 @@ void in_timestamp::value_to_item(uint pos, Item *item)
 }
 
 
-void in_datetime::set(uint pos,Item *item)
+bool in_datetime::set(uint pos, Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
   buff->val= item->val_datetime_packed(current_thd);
   buff->unsigned_flag= 1L;
+  return item->null_value;
 }
 
-void in_time::set(uint pos,Item *item)
+bool in_time::set(uint pos, Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
   buff->val= item->val_time_packed(current_thd);
   buff->unsigned_flag= 1L;
+  return item->null_value;
 }
 
 uchar *in_datetime::get_value(Item *item)
@@ -3881,9 +3888,10 @@ in_double::in_double(THD *thd, uint elements)
   :in_vector(thd, elements, sizeof(double), (qsort2_cmp) cmp_double, 0)
 {}
 
-void in_double::set(uint pos,Item *item)
+bool in_double::set(uint pos, Item *item)
 {
   ((double*) base)[pos]= item->val_real();
+  return item->null_value;
 }
 
 uchar *in_double::get_value(Item *item)
@@ -3905,7 +3913,7 @@ in_decimal::in_decimal(THD *thd, uint elements)
 {}
 
 
-void in_decimal::set(uint pos, Item *item)
+bool in_decimal::set(uint pos, Item *item)
 {
   /* as far as 'item' is constant, we can store reference on my_decimal */
   my_decimal *dec= ((my_decimal *)base) + pos;
@@ -3915,6 +3923,7 @@ void in_decimal::set(uint pos, Item *item)
   /* if item->val_decimal() is evaluated to NULL then res == 0 */ 
   if (!item->null_value && res != dec)
     my_decimal2decimal(res, dec);
+  return item->null_value;
 }
 
 
@@ -4091,15 +4100,16 @@ void cmp_item_row::store_value(Item *item)
 }
 
 
-void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
+bool cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
 {
   cmp_item_row *tmpl= (cmp_item_row*) t;
   if (tmpl->n != item->cols())
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), tmpl->n);
-    return;
+    return 1;
   }
   n= tmpl->n;
+  bool rc= false;
   if ((comparators= (cmp_item **) thd->alloc(sizeof(cmp_item *)*n)))
   {
     item->bring_value();
@@ -4108,11 +4118,11 @@ void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
     {
       if (!(comparators[i]= tmpl->comparators[i]->make_same(thd)))
 	break;					// new failed
-      comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
-					      item->element_index(i));
-      item->null_value|= item->element_index(i)->null_value;
+      rc|= comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
+                                                   item->element_index(i));
     }
   }
+  return rc;
 }
 
 
@@ -4506,8 +4516,7 @@ void Item_func_in::fix_in_vector()
   uint j=0;
   for (uint i=1 ; i < arg_count ; i++)
   {
-    array->set(j,args[i]);
-    if (!args[i]->null_value)
+    if (!array->set(j,args[i]))
       j++; // include this cell in the array.
     else
     {
@@ -6184,7 +6193,9 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
                                       Item *subject_arg,
                                       Item *pattern_arg)
 {
-  if (!is_compiled() && pattern_arg->const_item())
+  if (!is_compiled() &&
+      pattern_arg->const_item() &&
+      !pattern_arg->is_expensive())
   {
     if (compile(pattern_arg, true))
     {

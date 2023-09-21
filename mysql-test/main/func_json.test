@@ -665,11 +665,6 @@ SELECT 1 + JSON_VALUE('{"nulltest": null}', '$.nulltest');
 SELECT NULL;
 SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
 
-
---echo #
---echo # End of 10.3 tests
---echo #
-
 --echo #
 --echo # Start of 10.4 tests
 --echo #
@@ -926,6 +921,16 @@ SELECT JSON_LENGTH('{"a":"b"}','$','$', 'foo');
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT JSON_LENGTH();
 
+--echo # MDEV-23187: Assorted assertion failures in json_find_path with certain collations
+
+
+SET @old_collation_connection= @@COLLATION_CONNECTION;
+
+SET COLLATION_CONNECTION= ucs2_unicode_ci;
+SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
+
+SET @@COLLATION_CONNECTION= @old_collation_connection;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #
@@ -1012,8 +1017,11 @@ DROP TABLE t1;
 set group_concat_max_len=64;
 create table t1 (a varchar(254));
 insert into t1 values (concat('x64-', repeat('a', 60)));
-insert into t1 values (concat('x64-', repeat('b', 60)));                                            insert into t1 values (concat('x64-', repeat('c', 60)));
-select json_arrayagg(a) from t1; 
+insert into t1 values (concat('x64-', repeat('b', 60)));
+insert into t1 values (concat('x64-', repeat('c', 60)));
+--disable_ps2_protocol
+select json_arrayagg(a) from t1;
+--enable_ps2_protocol
 drop table t1;
 SET group_concat_max_len= default;
 

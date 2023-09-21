@@ -1,12 +1,13 @@
 --source suite/versioning/engines.inc
 --source include/have_partition.inc
---source include/master-slave.inc
 --source suite/versioning/common.inc
+--source include/master-slave.inc
 
 #BUG#12662190 - COM_COMMIT IS NOT INCREMENTED FROM THE BINARY LOGS ON SLAVE, COM_BEGIN IS
 #Testing command counters -BEFORE.
 #Storing the before counts of Slave
 connection slave;
+--source suite/versioning/common.inc
 let $slave_com_commit_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_commit', Value, 1);
 let $slave_com_insert_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_insert', Value, 1);
 let $slave_com_delete_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_delete', Value, 1);
@@ -170,6 +171,57 @@ connection master;
 drop table t1;
 
 --echo #
+--echo # MDEV-31313 SYSTEM VERSIONING and FOREIGN KEY CASCADE create orphan rows on replica
+--echo #
+create table parent (
+  id int(11) not null auto_increment,
+  processdate datetime default null,
+  primary key (id)
+) engine=innodb with system versioning;
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into parent values (1, now());
+
+create table child (
+  id int(11) not null auto_increment,
+  ch_name varchar(30),
+  andreid int(11) default null,
+  primary key (id),
+  key andreid (andreid),
+  constraint fk_andreid foreign key (andreid) references parent (id) on delete cascade
+) engine=innodb  with system versioning;
+
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+insert into child values (null, 'vimtomar', 1);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+delete from parent where id = 1;
+
+select check_row(row_start, row_end) from parent for system_time all;
+select check_row(row_start, row_end) from child for system_time all;
+select * from child;
+select * from parent;
+
+sync_slave_with_master;
+
+# Annoying tweaking of microseconds in slave row_end, so row_end can be <= row_start
+select check_row_slave(row_start, row_end) from parent for system_time all;
+select check_row_slave(row_start, row_end) from child for system_time all;
+select * from child;
+select * from parent;
+
+# Cleanup
+--source suite/versioning/common_finish.inc
+--connection master
+set timestamp= default;
+drop table child;
+drop table parent;
+
+sync_slave_with_master;
+connection master;
+
+--source suite/versioning/common_finish.inc
+--echo #
 --echo # MDEV-17554 Auto-create new partition for system versioned tables
 --echo #            with history partitioned by INTERVAL/LIMIT
 --echo #
@@ -332,6 +384,8 @@ alter table t drop partition p0;
 drop tables t, t2;
 set timestamp= default;
 
+
+--source suite/versioning/common.inc
 --echo #
 --echo # MDEV-16546 System versioning setting to allow history modification
 --echo #
@@ -360,7 +414,9 @@ select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t
 connection master;
 --let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
 --replace_result $DATAFILE DATAFILE
+--disable_ps2_protocol
 eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
+--enable_ps2_protocol
 create or replace table t3 like t1;
 set @@system_versioning_insert_history= 1;
 --replace_result $DATAFILE DATAFILE

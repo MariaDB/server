@@ -976,7 +976,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   SplM_plan_info *spl_plan= 0;
   uint best_key= 0;
   uint best_key_parts= 0;
-  table_map best_param_tables;
+  table_map best_param_tables= 0L;
   bool chosen, already_printed;
   Json_writer_object trace_obj(thd, "choose_best_splitting");
   Json_writer_array  trace_arr(thd, "considered_keys");

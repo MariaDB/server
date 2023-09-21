@@ -3352,6 +3352,40 @@ DROP FUNCTION f1;
 # End of 10.3 tests
 #
 #
+# Start of 10.4 tests
+#
+#
+# MDEV-28384 UBSAN: null pointer passed as argument 1, which is declared to never be null in my_strnncoll_binary on SELECT ... COUNT or GROUP_CONCAT
+#
+CREATE TABLE t (c BLOB NOT NULL);
+INSERT IGNORE INTO t VALUES (0);
+SELECT COUNT(*) FROM t WHERE EXTRACTVALUE(c,'a')='a';
+COUNT(*)
+0
+DROP TABLE t;
+SET sql_mode='';
+CREATE TABLE t (c TEXT NOT NULL);
+INSERT INTO t VALUES();
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+INSERT IGNORE INTO t VALUES (NULL);
+Warnings:
+Warning	1048	Column 'c' cannot be null
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM t GROUP BY c;
+GROUP_CONCAT(c ORDER BY BINARY c)
+,
+DROP TABLE t;
+#
+# MDEV-30982 UBSAN: runtime error: null pointer passed as argument 2, which is declared to never be null in my_strnncoll_binary on DELETE
+#
+CREATE TABLE t (c1 SET('1','2','3'),c2 BINARY);
+INSERT INTO t VALUES (0,0);
+DELETE FROM t WHERE c2<c1;
+DROP TABLE t;
+#
+# End of 10.4 tests
+#
+#
 # Start of 10.5 tests
 #
 #

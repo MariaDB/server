@@ -156,7 +156,7 @@ bool CMgoConn::Connect(PGLOBAL g)
 {
 	if (!Pcg->Db_name || !Pcg->Coll_name) {
 		// This would crash in mongoc_client_get_collection
-		strcpy(g->Message, "Missing DB or collection name");
+		snprintf(g->Message, sizeof(g->Message), "Missing DB or collection name");
 		return true;
 	}	// endif name
 
@@ -165,7 +165,7 @@ bool CMgoConn::Connect(PGLOBAL g)
 		__try {
 		  mongo_init(true);
 	  } __except (EXCEPTION_EXECUTE_HANDLER) {
-		  strcpy(g->Message, "Cannot load MongoDB C driver");
+		  snprintf(g->Message, sizeof(g->Message), "Cannot load MongoDB C driver");
 		  return true;
 	  }	// end try/except
 #else   // !_WIN32
@@ -379,7 +379,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 		p = strrchr(options, ']');
 
 		if (!p) {
-			strcpy(g->Message, "Missing ] in pipeline");
+			snprintf(g->Message, sizeof(g->Message), "Missing ] in pipeline");
 			return true;
 		} else
 			*(char*)p = 0;
@@ -390,7 +390,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 			s->Append(",{\"$match\":");
 
 			if (MakeSelector(g, filp, s)) {
-				strcpy(g->Message, "Failed making selector");
+				snprintf(g->Message, sizeof(g->Message), "Failed making selector");
 				return true;
 			} else
 				s->Append('}');
@@ -454,7 +454,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 					s->Append(',');
 
 				if (MakeSelector(g, filp, s)) {
-					strcpy(g->Message, "Failed making selector");
+					snprintf(g->Message, sizeof(g->Message), "Failed making selector");
 					return true;
 				}	// endif Selector
 
@@ -771,7 +771,7 @@ int CMgoConn::Write(PGLOBAL g)
 			} // endif remove
 
 		} else {
-			strcpy(g->Message, "Mongo update: cannot find _id");
+			snprintf(g->Message, sizeof(g->Message), "Mongo update: cannot find _id");
 			rc = RC_FX;
 		}	// endif b
 
@@ -1066,7 +1066,7 @@ bool CMgoConn::AddValue(PGLOBAL g, PCOL colp, bson_t *doc, char *key, bool upd)
 	} // endswitch Buf_Type
 
 	if (!rc) {
-		strcpy(g->Message, "Adding value failed");
+		snprintf(g->Message, sizeof(g->Message), "Adding value failed");
 		return true;
 	} else
 		return false;

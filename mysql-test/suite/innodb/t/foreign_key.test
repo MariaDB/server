@@ -237,9 +237,12 @@ DROP TABLE t3,t1;
 CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
+--error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
 ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 CHANGE COLUMN a b TIME;
+ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY t1_ibfk_1;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
@@ -434,7 +437,9 @@ end|
 delimiter ;|
 flush tables;
 flush status;
+--disable_ps2_protocol
 select foo();
+--enable_ps2_protocol
 show status like '%opened_tab%';
 drop function foo;
 drop table t2, t1;

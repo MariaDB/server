@@ -91,6 +91,7 @@ begin
 end|
 delimiter ;|
 
+--disable_ps2_protocol
 # Establish an alternative connection.
 --connect (connection_aux,localhost,root,,test,,)
 --connect (connection_update,localhost,root,,test,,)
@@ -122,6 +123,8 @@ connection connection_aux;
 select release_lock("lock_bug26141_wait");
 connection default;
 reap;
+--enable_ps2_protocol
+
 select * from t1;
 select * from t2;
 select * from t3;

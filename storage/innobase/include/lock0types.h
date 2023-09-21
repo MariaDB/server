@@ -145,6 +145,25 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 #endif
 /* @} */
 
+/**
+Checks if the `mode` is LOCK_S or LOCK_X (possibly ORed with LOCK_WAIT or
+LOCK_REC) which means the lock is a
+Next Key Lock, a.k.a. LOCK_ORDINARY, as opposed to Predicate Lock,
+GAP lock, Insert Intention or Record Lock.
+@param  mode  A mode and flags, of a lock.
+@return true if the only bits set in `mode` are LOCK_S or LOCK_X and optionally
+LOCK_WAIT or LOCK_REC */
+static inline bool lock_mode_is_next_key_lock(ulint mode)
+{
+  static_assert(LOCK_ORDINARY == 0, "LOCK_ORDINARY must be 0 (no flags)");
+  ut_ad((mode & LOCK_TABLE) == 0);
+  mode&= ~LOCK_WAIT;
+  ut_ad((mode & LOCK_WAIT) == 0);
+  ut_ad(((mode & ~(LOCK_MODE_MASK)) == LOCK_ORDINARY) ==
+        (mode == LOCK_S || mode == LOCK_X));
+  return (mode & ~(LOCK_MODE_MASK)) == LOCK_ORDINARY;
+}
+
 /** Lock struct; protected by lock_sys.latch */
 struct ib_lock_t
 {
@@ -192,6 +211,13 @@ struct ib_lock_t
 	bool is_record_not_gap() const
 	{
 		return(type_mode & LOCK_REC_NOT_GAP);
+	}
+
+	/** @return true if the lock is a Next Key Lock */
+	bool is_next_key_lock() const
+	{
+		return !(type_mode & LOCK_TABLE) &&
+		       lock_mode_is_next_key_lock(type_mode);
 	}
 
 	bool is_insert_intention() const

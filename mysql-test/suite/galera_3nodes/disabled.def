@@ -16,10 +16,6 @@ galera_ipv6_mariabackup : MDEV-24097
 galera_ipv6_mariabackup_section :  MDEV-24097, MDEV-22195
 galera_vote_rejoin_mysqldump : MDEV-24481: galera_3nodes.galera_vote_rejoin_mysqldump MTR failed: mysql_shutdown failed
 galera_ssl_reload : MDEV-30172 At line 50: mysql_shutdown failed
-GCF-354 : mysqltest: At line 39: query 'DROP TABLE test.t1' failed: 1047: WSREP has not yet prepared node for application use
-GCF-354 : mysqltest: At line 30: query 'INSERT INTO test.t1 values (1)' failed: 1180: Got error 6 "No such device or address"
-galera_ipv6_mysqldump : mysql_shutdown failed
 # Opensuse/suse/rocky9/rocky84/rhel9/rhel8-ppc64le .. - all same IPv6 isn't configured right or skipping or galera
-galera_ipv6_mysqldump : Can't connect to server on '::1' (115)
 galera_ipv6_rsync : Can't connect to server on '::1' (115)
 galera_ipv6_rsync_section : Can't connect to server on '::1' (115)

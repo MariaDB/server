@@ -3,7 +3,6 @@
 [mysqld]
 wsrep_sst_method=rsync
 
-
 [mysqld.1]
 wsrep-cluster-address=gcomm://
 wsrep_node_address=[::1]

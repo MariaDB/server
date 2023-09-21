@@ -334,6 +334,28 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop database mysql_TEST;
+# MDEV-30765 SHOW TABLES not working properly with
+# lower_case_table_names=2
+#
+create database db1;
+use db1;
+# lowercase table name
+create table `a` (a int);
+# uppercase table name
+create table `B` (a int);
+create user 'mysqltest_1'@'localhost' identified by 'password';
+grant select, show view on db1.`a` to 'mysqltest_1'@'localhost';
+grant select, show view on db1.`B` to 'mysqltest_1'@'localhost';
+connect  conn1, localhost, mysqltest_1, password, db1;
+show tables;
+Tables_in_db1
+B
+a
+connection default;
+disconnect conn1;
+drop user 'mysqltest_1'@'localhost';
+drop tables a, B;
+drop database db1;
 #
 # MDEV-32026 lowercase_table2.test failures in 11.3
 #

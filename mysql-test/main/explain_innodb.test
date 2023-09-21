@@ -19,21 +19,6 @@ SELECT * FROM (SELECT id FROM t1 GROUP BY id) dt WHERE 1=0;
 SET GLOBAL slow_query_log = @sql_tmp;
 drop table t1;
 
-
---echo #
---echo # MDEV-31181: Server crash in subselect_uniquesubquery_engine::print
---echo # upon EXPLAIN EXTENDED DELETE
---echo #
-
-CREATE TABLE t1 (a INT);
-INSERT INTO t1 VALUES (1),(2);
-CREATE TABLE t2 (pk INT PRIMARY KEY);
-INSERT INTO t2 VALUES (1),(2);
- 
-EXPLAIN EXTENDED DELETE FROM t1 WHERE a IN (SELECT pk FROM t2);
-
-drop table t1, t2;
-
 --echo #
 --echo # End of 10.4 tests
 --echo #

@@ -895,12 +895,18 @@ public:
   Gap_time_tracker extra_time_tracker;
 
   /*
-    Note: This pointer is only valid until notify_tables_are_closed() is
-    called. After that, the tables may be freed or reused, together with their
-    handler_stats objects.
+    Handler object to get the handler_stats from.
 
+    Notes:
+    This pointer is only valid until notify_tables_are_closed() is called.
+    After that, the tables may be freed or reused, together with their
+    handler_stats objects.
     notify_tables_are_closed() disables printing of FORMAT=JSON output.
     r_engine_stats is only printed in FORMAT=JSON output, so we're fine.
+
+    We do not store pointers to temporary (aka "work") tables here.
+    Temporary tables may be freed (e.g. by JOIN::cleanup()) or re-created
+    during query execution (when HEAP table is converted into Aria).
   */
   handler *handler_for_stats;
 

@@ -66,7 +66,9 @@ grant show view  on db1.v1 to 'bar'@'%';
 --change_user foo
 select current_user();
 set optimizer_trace="enabled=on";
+--disable_ps2_protocol
 select * from db1.v1;
+--enable_ps2_protocol
 select * from information_schema.OPTIMIZER_TRACE;
 set optimizer_trace="enabled=off";
 

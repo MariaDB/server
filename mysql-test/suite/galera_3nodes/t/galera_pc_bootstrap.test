@@ -1,17 +1,35 @@
 #
 # Test the operation of pc.bootstrap 
 #
-
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
 call mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\).*");
 
+#
+# Create connection node_3 and save auto increment variables.
+#
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--let $node_1 = node_1
+--let $node_2 = node_2
+--let $node_3 = node_3
+
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+
 CREATE TABLE t1 (f1 INTEGER);
 
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
 # Force all nodes to become non-primary
---connection node_1
+
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 
 --connection node_2
@@ -21,7 +39,6 @@ SET SESSION wsrep_sync_wait=0;
 
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
 SET SESSION wsrep_sync_wait=0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
@@ -29,13 +46,16 @@ SET SESSION wsrep_sync_wait=0;
 
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 
+# Node #3 should be non-primary
+--let $wait_condition = SELECT variable_value = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_2
 # Node #2 should be non-primary
-SET SESSION wsrep_sync_wait = 0;
 --let $wait_condition = SELECT variable_value = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 
 # Signal node #2 to bootstrap
---connection node_2
 SET GLOBAL wsrep_provider_options = 'pc.bootstrap=1';
 
 # Wait until node becomes available for queries again
@@ -97,3 +117,8 @@ SELECT COUNT(*) FROM t1;
 
 # Test cleanup
 DROP TABLE t1;
+
+#
+# Restore auto increment variables.
+#
+--source ../galera/include/auto_increment_offset_restore.inc

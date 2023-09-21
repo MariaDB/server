@@ -345,9 +345,9 @@ SELECT * from t1 WHERE a > 10 ORDER BY a;
 eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
 --enable_query_log
 
---echo # Wait 30 seconds for SQL thread to catch up with IO thread
+--echo # Wait 60 seconds for SQL thread to catch up with IO thread
 --connection server_2
---let $wait_timeout= 300
+--let $wait_timeout= 600
 while ($wait_timeout != 0)
 {
   --let $read_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
@@ -442,9 +442,9 @@ eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT(
 eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCAT("Unexpected current pos: ", @@gtid_current_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
 --enable_query_log
 
---echo # Wait 30 seconds for SQL thread to catch up with IO thread
+--echo # Wait 60 seconds for SQL thread to catch up with IO thread
 --connection server_2
---let $wait_timeout= 300
+--let $wait_timeout= 600
 while ($wait_timeout != 0)
 {
   --let $read_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
@@ -533,9 +533,9 @@ EOF
 --source include/wait_until_connected_again.inc
 
 --connection server_2
---echo # Wait 30 seconds for IO thread to connect and SQL thread to catch up
+--echo # Wait 60 seconds for IO thread to connect and SQL thread to catch up
 --echo # with IO thread.
---let $wait_timeout= 300
+--let $wait_timeout= 600
 while ($wait_timeout != 0)
 {
   --let $connected=`SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE State = 'Waiting for master to send event'`

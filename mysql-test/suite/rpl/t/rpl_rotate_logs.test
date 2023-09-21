@@ -20,6 +20,9 @@
 connect (master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connect (slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK);
 
+# Reset the GTID position explicitly (since we're not using rpl_init.inc).
+SET GLOBAL gtid_slave_pos= "";
+
 # Create empty file
 let $MYSQLD_SLAVE_DATADIR= `select @@datadir`;
 write_file $MYSQLD_SLAVE_DATADIR/master.info;

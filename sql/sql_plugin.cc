@@ -1435,6 +1435,50 @@ void plugin_unlock_list(THD *thd, plugin_ref *list, size_t count)
   DBUG_VOID_RETURN;
 }
 
+static void print_init_failed_error(st_plugin_int *p)
+{
+  sql_print_error("Plugin '%s' registration as a %s failed.",
+                  p->name.str,
+                  plugin_type_names[p->plugin->type].str);
+}
+
+static int plugin_do_initialize(struct st_plugin_int *plugin, uint &state)
+{
+  DBUG_ENTER("plugin_do_initialize");
+  mysql_mutex_assert_not_owner(&LOCK_plugin);
+  plugin_type_init init= plugin_type_initialize[plugin->plugin->type];
+  if (!init)
+    init= (plugin_type_init) plugin->plugin->init;
+  if (init)
+    if (int ret= init(plugin))
+    {
+      /* Plugin init failed and did not requested a retry */
+      if (ret != HA_ERR_RETRY_INIT)
+        print_init_failed_error(plugin);
+      DBUG_RETURN(ret);
+    }
+  state= PLUGIN_IS_READY; // plugin->init() succeeded
+
+  if (plugin->plugin->status_vars)
+  {
+    /*
+      historical ndb behavior caused MySQL plugins to specify
+      status var names in full, with the plugin name prefix.
+      this was never fixed in MySQL.
+      MariaDB fixes that but supports MySQL style too.
+    */
+    SHOW_VAR *show_vars= plugin->plugin->status_vars;
+    SHOW_VAR tmp_array[2]= {{plugin->plugin->name,
+                             (char *) plugin->plugin->status_vars, SHOW_ARRAY},
+                            {0, 0, SHOW_UNDEF}};
+    if (strncasecmp(show_vars->name, plugin->name.str, plugin->name.length))
+      show_vars= tmp_array;
+
+    if (add_status_vars(show_vars))
+      DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
 
 static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
                              int *argc, char **argv, bool options_only)
@@ -1457,52 +1501,10 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
   {
     ret= !options_only && plugin_is_forced(plugin);
     state= PLUGIN_IS_DISABLED;
-    goto err;
   }
+  else
+    ret= plugin_do_initialize(plugin, state);
 
-  if (plugin_type_initialize[plugin->plugin->type])
-  {
-    if ((*plugin_type_initialize[plugin->plugin->type])(plugin))
-    {
-      sql_print_error("Plugin '%s' registration as a %s failed.",
-                      plugin->name.str, plugin_type_names[plugin->plugin->type].str);
-      goto err;
-    }
-  }
-  else if (plugin->plugin->init)
-  {
-    if (plugin->plugin->init(plugin))
-    {
-      sql_print_error("Plugin '%s' init function returned error.",
-                      plugin->name.str);
-      goto err;
-    }
-  }
-  state= PLUGIN_IS_READY; // plugin->init() succeeded
-
-  if (plugin->plugin->status_vars)
-  {
-    /*
-      historical ndb behavior caused MySQL plugins to specify
-      status var names in full, with the plugin name prefix.
-      this was never fixed in MySQL.
-      MariaDB fixes that but supports MySQL style too.
-    */
-    SHOW_VAR *show_vars= plugin->plugin->status_vars;
-    SHOW_VAR tmp_array[2]= {
-      {plugin->plugin->name, (char*)plugin->plugin->status_vars, SHOW_ARRAY},
-      {0, 0, SHOW_UNDEF}
-    };
-    if (strncasecmp(show_vars->name, plugin->name.str, plugin->name.length))
-      show_vars= tmp_array;
-
-    if (add_status_vars(show_vars))
-      goto err;
-  }
-
-  ret= 0;
-
-err:
   if (ret)
     plugin_variables_deinit(plugin);
 
@@ -1595,7 +1597,7 @@ int plugin_init(int *argc, char **argv, int flags)
   size_t i;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
-  struct st_plugin_int tmp, *plugin_ptr, **reap;
+  struct st_plugin_int tmp, *plugin_ptr, **reap, **retry_end, **retry_start;
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
   bool mandatory= true;
@@ -1737,11 +1739,16 @@ int plugin_init(int *argc, char **argv, int flags)
   */
 
   mysql_mutex_lock(&LOCK_plugin);
+  /* List of plugins to reap */
   reap= (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
   *(reap++)= NULL;
+  /* List of plugins to retry */
+  retry_start= retry_end=
+    (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
 
   for(;;)
   {
+    int error;
     for (i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
     {
       HASH *hash= plugin_hash + plugin_type_initialization_order[i];
@@ -1755,13 +1762,50 @@ int plugin_init(int *argc, char **argv, int flags)
           bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&
                          (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
                           !plugin_table_engine);
-          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, opts_only))
+          error= plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
+                                   opts_only);
+          if (error)
           {
             plugin_ptr->state= PLUGIN_IS_DYING;
-            *(reap++)= plugin_ptr;
+            /* The plugin wants a retry of the initialisation,
+               possibly due to dependency on other plugins */
+            if (unlikely(error == HA_ERR_RETRY_INIT))
+              *(retry_end++)= plugin_ptr;
+            else
+              *(reap++)= plugin_ptr;
           }
         }
       }
+    }
+    /* Retry plugins that asked for it */
+    while (retry_start < retry_end)
+    {
+      st_plugin_int **to_re_retry, **retrying;
+      for (to_re_retry= retrying= retry_start; retrying < retry_end; retrying++)
+      {
+        plugin_ptr= *retrying;
+        uint state= plugin_ptr->state;
+        mysql_mutex_unlock(&LOCK_plugin);
+        error= plugin_do_initialize(plugin_ptr, state);
+        mysql_mutex_lock(&LOCK_plugin);
+        plugin_ptr->state= state;
+        if (error == HA_ERR_RETRY_INIT)
+          *(to_re_retry++)= plugin_ptr;
+        else if (error)
+          *(reap++)= plugin_ptr;
+      }
+      /* If the retry list has not changed, i.e. if all retry attempts
+      result in another retry request, empty the retry list */
+      if (to_re_retry == retry_end)
+        while (to_re_retry > retry_start)
+        {
+          plugin_ptr= *(--to_re_retry);
+          *(reap++)= plugin_ptr;
+          /** `plugin_do_initialize()' did not print any error in this
+          case, so we do it here. */
+          print_init_failed_error(plugin_ptr);
+        }
+      retry_end= to_re_retry;
     }
 
     /* load and init plugins from the plugin table (unless done already) */
@@ -1788,6 +1832,7 @@ int plugin_init(int *argc, char **argv, int flags)
   }
 
   mysql_mutex_unlock(&LOCK_plugin);
+  my_afree(retry_start);
   my_afree(reap);
   if (reaped_mandatory_plugin && !opt_help)
     goto err;

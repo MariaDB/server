@@ -41,7 +41,9 @@ INSERT INTO diaries VALUES(4, 2011, 11, 11, "帰り道", "今日は天気がよ�
 INSERT INTO diaries VALUES(5, 2011, 12, 1, "久しぶり", "天気が悪いからずっと留守番。");
 INSERT INTO diaries VALUES(6, 2011, 12, 2, "初雪", "今日の天気は雪！");
 
+--disable_ps2_protocol
 SELECT * FROM diaries WHERE MATCH(content) AGAINST("今日 天気" IN BOOLEAN MODE) ORDER BY day LIMIT 0,5;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 

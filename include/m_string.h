@@ -250,11 +250,30 @@ static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
 static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
 {
   DBUG_ASSERT(dst_size > 0);
-  /* Note, strncpy will zerofill end of dst if src shorter than dst_size */
+
+  /* 1) IF there is a 0 byte in the first dst_size bytes of src, strncpy will
+   *    0-terminate dst, and pad dst with additional 0 bytes out to dst_size.
+   *
+   * 2) IF there is no 0 byte in the first dst_size bytes of src, strncpy will
+   *    copy dst_size bytes, and the final byte won't be 0.
+   *
+   * In GCC 8+, the `-Wstringop-truncation` warning will object to strncpy()
+   * being used in this way, so we need to disable this warning for this
+   * single statement.
+   */
+
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
   strncpy(dst, src, dst_size);
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
+
   if (dst[dst_size-1])
   {
-    /* Ensure string is zero terminated */
+    /* Only possible in case (2), meaning src was truncated. */
     dst[dst_size-1]= 0;
     return 1;
   }

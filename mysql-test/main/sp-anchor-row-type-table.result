@@ -808,3 +808,47 @@ t2	CREATE TABLE `t2` (
   `text0` text DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-31250 ROW variables do not get assigned from subselects
+#
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1');
+BEGIN NOT ATOMIC
+DECLARE r ROW TYPE OF t1;
+SELECT * INTO r FROM t1 WHERE a=1;
+SELECT r.a, r.b;
+END;
+$$
+r.a	r.b
+1	b1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1');
+BEGIN NOT ATOMIC
+DECLARE r ROW TYPE OF t1;
+SET r=(SELECT * FROM t1 WHERE a=1);
+SELECT r.a, r.b;
+END;
+$$
+r.a	r.b
+1	b1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1');
+BEGIN NOT ATOMIC
+DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1 WHERE a=1);
+SELECT r.a, r.b;
+END;
+$$
+r.a	r.b
+1	b1
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

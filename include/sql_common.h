@@ -41,6 +41,7 @@ struct st_mysql_options_extention {
                           uint proc_info_length);
   HASH connection_attributes;
   size_t connection_attributes_length;
+  my_bool tls_verify_server_cert;
 };
 
 typedef struct st_mysql_methods

@@ -269,6 +269,50 @@ bool Alter_info::algorithm_is_nocopy(const THD *thd) const
 }
 
 
+uint Alter_info::check_vcol_field(Item_field *item) const
+{
+  /*
+    vcol->flags are modified in-place, so we'll need to reset them
+    if ALTER fails for any reason
+  */
+  if (item->field && !item->field->table->needs_reopen())
+    item->field->table->mark_table_for_reopen();
+
+  if (!item->field &&
+      ((item->db_name.length && !db.streq(item->db_name)) ||
+       (item->table_name.length && !table_name.streq(item->table_name))))
+  {
+    char *ptr= (char*)current_thd->alloc(item->db_name.length +
+                                         item->table_name.length +
+                                         item->field_name.length + 3);
+    strxmov(ptr, safe_str(item->db_name.str), item->db_name.length ? "." : "",
+            item->table_name.str, ".", item->field_name.str, NullS);
+    item->field_name.str= ptr;
+    return VCOL_IMPOSSIBLE;
+  }
+  for (Key &k: key_list)
+  {
+    if (k.type != Key::FOREIGN_KEY)
+      continue;
+    Foreign_key *fk= (Foreign_key*) &k;
+    if (fk->update_opt < FK_OPTION_CASCADE &&
+        fk->delete_opt < FK_OPTION_SET_NULL)
+      continue;
+    for (Key_part_spec& kp: fk->columns)
+    {
+      if (item->field_name.streq(kp.field_name))
+        return VCOL_NON_DETERMINISTIC;
+    }
+  }
+  for (Create_field &cf: create_list)
+  {
+    if (item->field_name.streq(cf.field_name))
+      return cf.vcol_info ? cf.vcol_info->flags : 0;
+  }
+  return 0;
+}
+
+
 Alter_table_ctx::Alter_table_ctx()
   : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str)

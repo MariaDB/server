@@ -573,7 +573,9 @@ END|
 
 RESET MASTER;
 CALL proc_insert_delayed();
+--disable_ps2_protocol
 SELECT func_limit();
+--enable_ps2_protocol
 source include/show_binlog_events.inc;
 
 SET @@session.binlog_format = @old_binlog_format;

@@ -1021,7 +1021,7 @@ CREATE TABLE `ibstd_16` (
 )  ENGINE=INNODB;
 
 # Block when FK constraint on base column of stored column.
-#--error ER_CANNOT_ADD_FOREIGN
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE `ibstd_16_fk` (
   `a` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
@@ -1040,7 +1040,6 @@ CREATE TABLE `ibstd_16_fk` (
   KEY `vbidxcol_2` (`vbidxcol`,`d`),
   CONSTRAINT `fk_16` FOREIGN KEY (`a`) REFERENCES `ibstd_16` (`a`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
-DROP TABLE ibstd_16_fk;
 
 # Take out "KEY `a_2` (`a`,`vbidxcol`)", this should then be successful
 CREATE TABLE `ibstd_16_fk` (

@@ -1879,7 +1879,7 @@ drop table t1;
 --echo #
 --echo # MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
 --echo #
---error ER_ILLEGAL_HA_CREATE_OPTION
+--error ER_UNKNOWN_OPTION
 create table t1 (c int(10) unsigned) engine=memory transactional=0;
 
 --echo #

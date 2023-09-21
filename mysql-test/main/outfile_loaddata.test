@@ -6,8 +6,7 @@ DROP TABLE IF EXISTS t1, t2;
 -- source include/no_view_protocol.inc
 
 --enable_prepare_warnings
-
-
+--disable_ps2_protocol
 --echo #
 --echo # Bug#31663 FIELDS TERMINATED BY special character
 --echo #
@@ -296,5 +295,7 @@ SELECT LENGTH(a) FROM t2;
 DROP TABLE t1, t2;
 
 --disable_prepare_warnings
+--enable_ps2_protocol
+
 ###########################################################################
 --echo # End of 5.1 tests.
