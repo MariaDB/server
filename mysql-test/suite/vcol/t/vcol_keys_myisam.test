@@ -342,3 +342,15 @@ insert into t1 select 'qux';
 drop table t1;
 set sql_mode= @old_mode;
 set myisam_repair_threads= @old_myisam_repair_threads;
+
+--echo #
+--echo # MDEV-30926 Segfault after MyISAM repair of vcol-indexed table
+--echo #
+set sql_mode='';
+create table t (a int generated always as (1) virtual, key(a)) engine=myisam;
+insert into t select 1;
+--error ER_NO_SUCH_TABLE
+select * from non_existing_tbl;
+select * from t;
+show open tables like '';
+drop table t;

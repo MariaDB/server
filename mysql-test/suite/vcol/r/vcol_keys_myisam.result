@@ -455,3 +455,19 @@ ERROR 21S01: Column count doesn't match value count at row 1
 drop table t1;
 set sql_mode= @old_mode;
 set myisam_repair_threads= @old_myisam_repair_threads;
+#
+# MDEV-30926 Segfault after MyISAM repair of vcol-indexed table
+#
+set sql_mode='';
+create table t (a int generated always as (1) virtual, key(a)) engine=myisam;
+insert into t select 1;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't' has been ignored
+select * from non_existing_tbl;
+ERROR 42S02: Table 'test.non_existing_tbl' doesn't exist
+select * from t;
+a
+1
+show open tables like '';
+Database	Table	In_use	Name_locked
+drop table t;
