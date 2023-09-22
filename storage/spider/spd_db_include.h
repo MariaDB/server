@@ -589,12 +589,6 @@ class spider_fields
   SPIDER_CONN_HOLDER *first_conn_holder;
   SPIDER_CONN_HOLDER *last_conn_holder;
   SPIDER_CONN_HOLDER *current_conn_holder;
-  SPIDER_FIELD_HOLDER *first_field_holder;
-  SPIDER_FIELD_HOLDER *last_field_holder;
-  SPIDER_FIELD_HOLDER *current_field_holder;
-  SPIDER_FIELD_CHAIN *first_field_chain;
-  SPIDER_FIELD_CHAIN *last_field_chain;
-  SPIDER_FIELD_CHAIN *current_field_chain;
   Field **first_field_ptr;
   Field **current_field_ptr;
 public:
@@ -654,7 +648,7 @@ public:
   SPIDER_TABLE_HOLDER *add_table(
     ha_spider *spider_arg
   );
-  bool all_query_fields_are_query_table_members();
+  SPIDER_TABLE_HOLDER *find_table(Field *field);
   int create_table_holder(
     uint table_count_arg
   );
@@ -662,13 +656,6 @@ public:
   SPIDER_TABLE_HOLDER *get_next_table_holder();
   SPIDER_TABLE_HOLDER *get_table_holder(TABLE *table);
   uint get_table_count();
-  int add_field(Field *field_arg);
-  SPIDER_FIELD_HOLDER *create_field_holder();
-  void set_pos_to_first_field_holder();
-  SPIDER_FIELD_HOLDER *get_next_field_holder();
-  SPIDER_FIELD_CHAIN *create_field_chain();
-  void set_pos_to_first_field_chain();
-  SPIDER_FIELD_CHAIN *get_next_field_chain();
   void set_field_ptr(Field **field_arg);
   Field **get_next_field_ptr();
   int ping_table_mon_from_table(
