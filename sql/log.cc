@@ -322,7 +322,7 @@ public:
     incident= TRUE;
   }
   
-  bool has_incident(void)
+  bool has_incident(void) const
   {
     return(incident);
   }
@@ -349,7 +349,7 @@ public:
     return my_b_tell(&cache_log);
   }
 
-  my_off_t get_prev_position()
+  my_off_t get_prev_position() const
   {
      return(before_stmt_pos);
   }
