@@ -1343,15 +1343,13 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
-int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
-                                const uchar *after_record, Log_func *log_func);
-online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table);
+int online_alter_log_row(TABLE* table, const uchar *before_record,
+                         const uchar *after_record, Log_func *log_func);
 binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern handlerton *binlog_hton;
-extern handlerton *online_alter_hton;
 extern LOGGER logger;
 
 extern const char *log_bin_index;

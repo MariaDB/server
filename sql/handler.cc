@@ -7304,8 +7304,8 @@ int handler::binlog_log_row(const uchar *before_record,
 
 #ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog && is_root_handler()))
-    error= binlog_log_row_online_alter(table, before_record, after_record,
-                                       log_func);
+    error= online_alter_log_row(table, before_record, after_record,
+                                log_func);
 #endif // HAVE_REPLICATION
 
   DBUG_RETURN(error);

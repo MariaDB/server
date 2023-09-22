@@ -1098,8 +1098,6 @@ extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
 struct handlerton;
 
-extern handlerton *online_alter_hton;
-
 #define view_pseudo_hton ((handlerton *)1)
 
 /*
@@ -1972,9 +1970,7 @@ public:
   bool is_trx_read_write() const
   {
     DBUG_ASSERT(is_started());
-    bool result= m_flags & (int) TRX_READ_WRITE;
-    DBUG_ASSERT(!result || m_ht != online_alter_hton);
-    return result;
+    return m_flags & (int) TRX_READ_WRITE;
   }
   bool is_started() const { return m_ht != NULL; }
   /** Mark this transaction read-write if the argument is read-write. */
