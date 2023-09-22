@@ -1740,8 +1740,13 @@ group_by_handler *spider_create_group_by_handler(
       }
       if (keep_going)
       {
-        if (spider_dbton[roop_count].db_util->append_from_and_tables(
-          spider, fields_arg, NULL, query->from, table_idx))
+        if (spider->dbton_handler[dbton_id]->append_join(
+              spider->wide_handler->trx->thd, fields_arg,
+              query->from->select_lex->join_list, NULL))
+        /*
+          if (spider_dbton[roop_count].db_util->append_from_and_tables(
+            spider, fields_arg, NULL, query->from, table_idx))
+         */
         {
           DBUG_PRINT("info",("spider dbton_id=%d can't create from", roop_count));
           spider_clear_bit(dbton_bitmap, roop_count);
