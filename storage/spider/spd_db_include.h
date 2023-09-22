@@ -638,8 +638,6 @@ public:
     long access_balance
   );
   SPIDER_CONN_HOLDER *create_conn_holder();
-  void set_pos_to_first_conn_holder();
-  SPIDER_CONN_HOLDER *get_next_conn_holder();
   bool has_conn_holder();
   void clear_conn_holder_from_conn();
   bool check_conn_same_conn(
