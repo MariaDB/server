@@ -725,3 +725,15 @@ drop table t1;
 --exec $MYSQL --show-query-costs --port=$MASTER_MYPORT -e "show tables in mysql like 'foo'"
 --enable_result_log
 --enable_query_log
+
+--echo #
+--echo # show whether server cert was verified
+--echo #
+create user ser@localhost identified by "ass";
+--echo MYSQL --disable-ssl-verify-server-cert -e "\\s"
+--replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
+--exec $MYSQL -user -pass --disable-ssl-verify-server-cert -e "\\s"
+--echo MYSQL --ssl-verify-server-cert -e "\\s"
+--replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
+--exec $MYSQL -user -pass --ssl-verify-server-cert -e "\\s"
+drop user ser@localhost;

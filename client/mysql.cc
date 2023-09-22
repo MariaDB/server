@@ -5049,8 +5049,8 @@ com_status(String *buffer __attribute__((unused)),
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   if ((status_str= mysql_get_ssl_cipher(&mysql)))
-    tee_fprintf(stdout, "SSL:\t\t\tCipher in use is %s\n",
-                status_str);
+    tee_fprintf(stdout, "SSL:\t\t\tCipher in use is %s, cert is %s\n",
+                status_str, opt_ssl_verify_server_cert ? "OK" : "UNKNOWN");
   else
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
     tee_puts("SSL:\t\t\tNot in use", stdout);

@@ -640,3 +640,18 @@ WARNING: option --enable-cleartext-plugin is obsolete.
 #
 # MDEV-30327 Client crashes in print_last_query_cost
 #
+#
+# show whether server cert was verified
+#
+create user ser@localhost identified by "ass";
+MYSQL --disable-ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is UNKNOWN
+
+
+MYSQL --ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is OK
+
+
+drop user ser@localhost;
