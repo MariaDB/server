@@ -24,7 +24,19 @@
 
 static handlerton *online_alter_hton;
 
-typedef ilist<online_alter_cache_data> Online_alter_cache_list;
+typedef void *sv_id_t;
+
+struct Online_alter_cache_list: ilist<online_alter_cache_data>
+{
+  sv_id_t savepoint_id= 0;
+};
+
+struct table_savepoint: ilist_node<>
+{
+  sv_id_t id;
+  my_off_t log_prev_pos;
+  table_savepoint(sv_id_t id, my_off_t pos): id(id), log_prev_pos(pos){}
+};
 
 class online_alter_cache_data: public Sql_alloc, public ilist_node<>,
                                public binlog_cache_data
@@ -37,7 +49,32 @@ public:
 
   handlerton *hton;
   Cache_flip_event_log *sink_log;
-  SAVEPOINT *sv_list;
+  ilist<table_savepoint> sv_list;
+  /**
+    Finds savepoint with specified id and returns its associated data.
+    Cleans up all the savepoints up to the found one.
+  */
+  my_off_t pop_sv_until(sv_id_t id)
+  {
+    my_off_t pos= 0;
+    auto it= sv_list.begin();
+    auto sentinel= it->prev;
+    while (pos == 0 && it != sv_list.end())
+    {
+      table_savepoint &sv= *it;
+      ++it;
+      if (sv.id == id)
+        pos= sv.log_prev_pos;
+      delete &sv;
+    }
+    sentinel->next= &*it; // drop the range from the list
+    it->prev= sentinel;
+    return pos;
+  }
+  void cleanup_sv()
+  {
+    pop_sv_until((sv_id_t)1); // Erase the whole list
+  }
 };
 
 
@@ -155,6 +192,7 @@ cleanup_cache_list(ilist<online_alter_cache_data> &list, bool ending_trans)
       auto &cache= *it++;
       cache.sink_log->release();
       cache.reset();
+      cache.cleanup_sv();
       delete &cache;
     }
     list.clear();
@@ -230,52 +268,41 @@ int online_alter_end_trans(handlerton *hton, THD *thd, bool all, bool commit)
   DBUG_RETURN(error);
 }
 
-SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
-                                   SAVEPOINT ** const list);
 
-SAVEPOINT* savepoint_add(THD *thd, LEX_CSTRING name, SAVEPOINT **list,
-                         int (*release_old)(THD*, SAVEPOINT*));
-
-int online_alter_savepoint_set(THD *thd, LEX_CSTRING name)
+int online_alter_savepoint_set(handlerton *hton, THD *thd, sv_id_t sv_id)
 {
   DBUG_ENTER("binlog_online_alter_savepoint");
-  auto &cache_list= get_cache_list(online_alter_hton, thd);
+  auto &cache_list= get_cache_list(hton, thd);
   if (cache_list.empty())
     DBUG_RETURN(0);
-
-  if (savepoint_alloc_size < sizeof (SAVEPOINT) + sizeof(my_off_t))
-    savepoint_alloc_size= sizeof (SAVEPOINT) + sizeof(my_off_t);
 
   for (auto &cache: cache_list)
   {
     if (cache.hton->savepoint_set == NULL)
       continue;
 
-    SAVEPOINT *sv= savepoint_add(thd, name, &cache.sv_list, NULL);
+    auto *sv= new table_savepoint(sv_id, cache.get_byte_position());
     if(unlikely(sv == NULL))
       DBUG_RETURN(1);
-    my_off_t *pos= (my_off_t*)(sv+1);
-    *pos= cache.get_byte_position();
-
-    sv->prev= cache.sv_list;
-    cache.sv_list= sv;
+    cache.sv_list.push_front(*sv);
   }
   DBUG_RETURN(0);
 }
 
-int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name)
+
+int online_alter_savepoint_rollback(handlerton *hton, THD *thd, sv_id_t sv_id)
 {
   DBUG_ENTER("online_alter_savepoint_rollback");
 
-  auto &cache_list= get_cache_list(online_alter_hton, thd);
+  auto &cache_list= get_cache_list(hton, thd);
   for (auto &cache: cache_list)
   {
     if (cache.hton->savepoint_set == NULL)
       continue;
 
-    SAVEPOINT **sv= find_savepoint_in_list(thd, name, &cache.sv_list);
-    // sv is null if savepoint was set up before online table was modified
-    my_off_t pos= *sv ? *(my_off_t*)(*sv+1) : 0;
+    // There's no savepoint if it was set up before online table was modified.
+    // In that case, restore to 0.
+    my_off_t pos= cache.pop_sv_until(sv_id);
 
     cache.restore_savepoint(pos);
   }
@@ -299,13 +326,11 @@ static int online_alter_log_init(void *p)
 {
   online_alter_hton= (handlerton *)p;
   online_alter_hton->db_type= DB_TYPE_ONLINE_ALTER;
-  online_alter_hton->savepoint_offset= sizeof(my_off_t);
+  online_alter_hton->savepoint_offset= 0;
   online_alter_hton->close_connection= online_alter_close_connection;
 
-  online_alter_hton->savepoint_set= // Done by online_alter_savepoint_set
-          [](handlerton *, THD *, void *){ return 0; };
-  online_alter_hton->savepoint_rollback= // Done by online_alter_savepoint_rollback
-          [](handlerton *, THD *, void *){ return 0; };
+  online_alter_hton->savepoint_set= online_alter_savepoint_set;
+  online_alter_hton->savepoint_rollback= online_alter_savepoint_rollback;
   online_alter_hton->savepoint_rollback_can_release_mdl=
           [](handlerton *hton, THD *thd){ return true; };
 
