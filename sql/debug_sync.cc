@@ -87,7 +87,9 @@ struct st_debug_sync_globals
   ulonglong             dsp_executed;           /* statistics */
   ulonglong             dsp_max_active;         /* statistics */
 
-  st_debug_sync_globals() : ds_signal_set(PSI_NOT_INSTRUMENTED, signal_key) {};
+  st_debug_sync_globals() :
+    ds_signal_set(PSI_NOT_INSTRUMENTED, signal_key),
+    dsp_hits (0), dsp_executed(0), dsp_max_active(0) {};
   ~st_debug_sync_globals()
   {
     clear_set();
@@ -422,12 +424,24 @@ void debug_sync_end_thread(THD *thd)
     }
 
     /* Statistics. */
-    mysql_mutex_lock(&debug_sync_global->ds_mutex);
+    /*
+      Protect access with debug_sync_global->ds_mutex only if
+      it had been initialized.
+    */
+    if (debug_sync_C_callback_ptr)
+      mysql_mutex_lock(&debug_sync_global->ds_mutex);
+
     debug_sync_global->dsp_hits+=           ds_control->dsp_hits;
     debug_sync_global->dsp_executed+=       ds_control->dsp_executed;
     if (debug_sync_global->dsp_max_active < ds_control->dsp_max_active)
       debug_sync_global->dsp_max_active=    ds_control->dsp_max_active;
-    mysql_mutex_unlock(&debug_sync_global->ds_mutex);
+
+    /*
+      Protect access with debug_sync_global->ds_mutex only if
+      it had been initialized.
+    */
+    if (debug_sync_C_callback_ptr)
+      mysql_mutex_unlock(&debug_sync_global->ds_mutex);
 
     my_free(ds_control);
     thd->debug_sync_control= NULL;

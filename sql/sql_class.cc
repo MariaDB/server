@@ -1748,7 +1748,9 @@ THD::~THD()
     lf_hash_put_pins(tdc_hash_pins);
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
+#if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
+#endif
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 
