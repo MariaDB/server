@@ -3,6 +3,58 @@
 
 # Test provisioning a slave from an existing server, using mariabackup --no-lock
 # and the binlog position recovered from InnoDB redo log.
+
+# Update the InnoDB system tablespace to simulate a pre-10.3.5
+# position in TRX_SYS. There was a bug that the wrong position could
+# be recovered if the old filename in TRX_SYS compares newer than the
+# newer filenames stored in rseg headers.
+let MYSQLD_DATADIR=`select @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+--source include/shutdown_mysqld.inc
+
+--perl
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/ibdata1", O_RDWR
+  or die "Cannot open ibdata1: $!\n";
+
+# Read the TRX_SYS page.
+my $page;
+sysseek(IBD_FILE, $ps * 5, SEEK_SET)
+  or die "Cannot seek ibdata1: $!\n";
+sysread(IBD_FILE, $page, $ps)
+  or die "Cannot read ibdata1: $!\n";
+
+# Put in an old binlog position that will compare larger than master-bin.000001
+my $old_name= '~~~-bin.999999' . chr(0);
+my $old_off= 0xffff0000;
+my $old_magic= 873422344;
+my $binlog_offset= $ps - 1000 + 38;
+substr($page, $binlog_offset, 4)= pack('N', $old_magic);
+substr($page, $binlog_offset + 4, 4)= pack('N', ($old_off >> 32));
+substr($page, $binlog_offset + 8, 4)= pack('N', ($old_off & 0xffffffff));
+substr($page, $binlog_offset + 12, length($old_name))= $old_name;
+
+# Write back the modified page.
+my $full_crc32= get_full_crc32(\*IBD_FILE);
+my $page= fix_page_crc($page, $full_crc32);
+sysseek(IBD_FILE, $ps * 5, SEEK_SET)
+  or die "Cannot seek ibdata1: $!\n";
+syswrite(IBD_FILE, $page, $ps) == $ps
+  or die "Cannot write ibdata1: $!\n";
+close IBD_FILE;
+EOF
+
+--source include/start_mysqld.inc
+
+
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 
 RESET MASTER;
