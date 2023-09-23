@@ -29,6 +29,10 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h" // wsrep_thd_is_local
+#include "wsrep_trans_observer.h" // wsrep_start_trx_if_not_started
+#endif
 
 const LEX_CSTRING rpl_gtid_slave_state_table_name=
   { STRING_WITH_LEN("gtid_slave_pos") };
@@ -711,10 +715,18 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
 #ifdef WITH_WSREP
   /*
-    Updates in slave state table should not be appended to galera transaction
-    writeset.
+    We should replicate local gtid_slave_pos updates to other nodes.
+    In applier we should not append them to galera writeset.
   */
-  thd->wsrep_ignore_table= true;
+  if (WSREP_ON_ && wsrep_thd_is_local(thd))
+  {
+    thd->wsrep_ignore_table= false;
+    wsrep_start_trx_if_not_started(thd);
+  }
+  else
+  {
+    thd->wsrep_ignore_table= true;
+  }
 #endif
 
   if (!in_transaction)
@@ -891,9 +903,20 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
 
 #ifdef WITH_WSREP
   /*
-    Updates in slave state table should not be appended to galera transaction
-    writeset.
+    We should replicate local gtid_slave_pos updates to other nodes.
+    In applier we should not append them to galera writeset.
   */
+  if (WSREP_ON_ && wsrep_thd_is_local(thd) &&
+      thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    if (thd->wsrep_trx().active() == false)
+    {
+      if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+        thd->set_query_id(next_query_id());
+      wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+    }
+    thd->wsrep_ignore_table= false;
+  }
   thd->wsrep_ignore_table= true;
 #endif
 

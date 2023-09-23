@@ -2258,6 +2258,32 @@ a	m
 DROP VIEW v1;
 DROP TABLE t1, t2;
 #
+# MDEV-27207 Assertion `!m_null_value' failed in int FixedBinTypeBundle<FbtImpl>::cmp_item_fbt::compare or in cmp_item_inet6::compare
+#
+CREATE TABLE t1 (a CHAR,b INET6);
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+a	b
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+a	b
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+#
+# MDEV-31719 Wrong result of: WHERE inet6_column IN ('','::1')
+#
+CREATE OR REPLACE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::');
+SELECT * FROM t1 WHERE a IN ('','::1');
+a
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+#
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #
 SET sql_mode='';
