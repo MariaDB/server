@@ -1772,6 +1772,10 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
   */
   uint *create_count= (table_list->vers_skip_create == thd->query_id) ?
     NULL : &ot_ctx->vers_create_count;
+#ifdef DBUG_TRACE
+  if (!create_count)
+    DBUG_PRINT("auto-create", ("Skipping by query_id: %ld", thd->query_id));
+#endif
   table_list->vers_skip_create= thd->query_id;
   if (table->part_info->vers_set_hist_part(thd, create_count))
     return true;
@@ -1782,12 +1786,16 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
     mysql_mutex_lock(&table->s->LOCK_share);
     if (!table->s->vers_skip_auto_create)
     {
+      DBUG_PRINT("auto-create", ("Initiating for %u partitions; query_id: %ld",
+                                 ot_ctx->vers_create_count, thd->query_id));
       table->s->vers_skip_auto_create= true;
       action= Open_table_context::OT_ADD_HISTORY_PARTITION;
       table_arg= table_list;
     }
     else
     {
+      DBUG_PRINT("auto-create", ("Skipping for %u partitions; query_id: %ld",
+                                 ot_ctx->vers_create_count, thd->query_id));
       /*
           NOTE: this may repeat multiple times until creating thread acquires
           MDL_EXCLUSIVE. Since auto-creation is rare operation this is acceptable.
@@ -3434,6 +3442,8 @@ Open_table_context::recover_from_failed_open()
             share->vers_skip_auto_create= false;
             tdc_release_share(share);
           }
+          DBUG_PRINT("auto-create", ("Lock error: %u",
+                                     m_thd->get_stmt_da()->sql_errno()));
           if (m_thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
           {
             // MDEV-23642 Locking timeout caused by auto-creation affects original DML
@@ -3493,6 +3503,15 @@ Open_table_context::recover_from_failed_open()
 
           DBUG_ASSERT(vers_create_count);
           result= vers_create_partitions(m_thd, m_failed_table, vers_create_count);
+#ifdef DBUG_TRACE
+          if (result)
+            DBUG_PRINT("auto-create", ("Create %u partitions failed: %u",
+                                       vers_create_count,
+                                       m_thd->get_stmt_da()->sql_errno()));
+          else
+            DBUG_PRINT("auto-create", ("Create %u partitions succeeded",
+                                       vers_create_count));
+#endif
           vers_create_count= 0;
           if (!m_thd->transaction->stmt.is_empty())
             trans_commit_stmt(m_thd);

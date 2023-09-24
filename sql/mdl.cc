@@ -253,6 +253,11 @@ private:
 const char *dbug_print_mdl(MDL_ticket *mdl_ticket)
 {
   thread_local char buffer[256];
+  if (!mdl_ticket)
+  {
+    strcpy(buffer, "NULL");
+    return buffer;
+  }
   MDL_key *mdl_key= mdl_ticket->get_key();
   my_snprintf(buffer, sizeof(buffer) - 1, "%.*s/%.*s (%s)",
               (int) mdl_key->db_name_length(), mdl_key->db_name(),
@@ -3111,6 +3116,12 @@ void MDL_context::rollback_to_savepoint(const MDL_savepoint &mdl_savepoint)
   /* If savepoint is NULL, it is from the start of the transaction. */
   release_locks_stored_before(MDL_STATEMENT, mdl_savepoint.m_stmt_ticket);
   release_locks_stored_before(MDL_TRANSACTION, mdl_savepoint.m_trans_ticket);
+#ifdef DBUG_TRACE
+  DBUG_PRINT("mdl", ("Rolled-back to: (%s; %s)",
+                     dbug_print_mdl(mdl_savepoint.m_stmt_ticket),
+                     dbug_print_mdl(mdl_savepoint.m_trans_ticket)));
+  DBUG_PRINT("mdl_locks", ("Existing locks:%s", mdl_dbug_print_locks()));
+#endif
 
   DBUG_VOID_RETURN;
 }
