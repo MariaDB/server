@@ -6,7 +6,22 @@ static int pmull_supported;
 
 #if defined(HAVE_ARMV8_CRC)
 
-#if defined(__APPLE__)
+#ifdef _WIN32
+#include <windows.h>
+int crc32_aarch64_available(void)
+{
+  return IsProcessorFeaturePresent(PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE);
+}
+
+const char *crc32c_aarch64_available(void)
+{
+  if (crc32_aarch64_available() == 0)
+    return NULL;
+  /* TODO : pmull seems supported, but does not compile*/
+  return "Using ARMv8 crc32 instructions";
+}
+
+#elif defined(__APPLE__)
 #include <sys/sysctl.h>
 
 int crc32_aarch64_available(void)
@@ -103,7 +118,10 @@ asm(".arch_extension crypto");
 #else /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS  */
 
 /* Intrinsics header*/
+#ifndef _WIN32
 #include <arm_acle.h>
+#endif
+
 #include <arm_neon.h>
 
 #define CRC32CX(crc, value) (crc) = __crc32cd((crc), (value))
@@ -159,11 +177,11 @@ asm(".arch_extension crypto");
 
 uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len)
 {
-  uint32_t crc0, crc1, crc2;
   int64_t length= (int64_t)len;
 
   crc^= 0xffffffff;
 
+#ifdef HAVE_ARMV8_CRYPTO
   /* Pmull runtime check here.
    * Raspberry Pi 4 supports crc32 but doesn't support pmull (MDEV-23030).
    *
@@ -174,8 +192,8 @@ uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len)
    */
   if (pmull_supported)
   {
+    uint32_t crc0, crc1, crc2;
 /* The following Macro (HAVE_ARMV8_CRYPTO) is used for compiling check */
-#ifdef HAVE_ARMV8_CRYPTO
 
 /* Crypto extension Support
  * Parallel computation with 1024 Bytes (per block)
@@ -277,10 +295,8 @@ uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len)
     /* Done if Input data size is aligned with 1024  */
     if (!(length+= 1024))
       return ~crc;
-
-#endif /* HAVE_ARMV8_CRYPTO */
-
   }  // end if pmull_supported
+#endif /* HAVE_ARMV8_CRYPTO */
 
   while ((length-= sizeof(uint64_t)) >= 0)
   {
