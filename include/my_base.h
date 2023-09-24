@@ -218,9 +218,7 @@ enum ha_extra_function {
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY,
-  /** IGNORE is being used for the insert statement */
-  HA_EXTRA_IGNORE_INSERT
+  HA_EXTRA_END_ALTER_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */
