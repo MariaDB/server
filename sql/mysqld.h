@@ -920,12 +920,8 @@ enum enum_query_type
   // Remove wrappers added for TVC when creating or showing view
   QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12),
 
-  // The temporary tables used by the query might be freed by the time
-  // this print() call is made.
-  QT_DONT_ACCESS_TMP_TABLES= (1 << 13),
-
   // Print only the SELECT part, even for INSERT...SELECT
-  QT_SELECT_ONLY = (1 << 14)
+  QT_SELECT_ONLY = (1 << 13)
 };
 
 

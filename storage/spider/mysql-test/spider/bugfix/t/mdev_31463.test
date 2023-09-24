@@ -1,6 +1,13 @@
+--source include/have_debug.inc
 --echo #
 --echo # MDEV-31463 SIGSEGV in server_mysql_send_query | server_mysql_real_query
 --echo #
+
+# The original test in the report of MDEV-31463 is contrived and
+# nondeterministic, causing MDEV-31586. This test more directly
+# addresses the underlying issue causing MDEV-31463, namely errors
+# from queries sent to the data node not consumed when trying to set
+# lock wait timeout.
 
 --disable_query_log
 --disable_result_log
@@ -8,40 +15,51 @@
 --enable_result_log
 --enable_query_log
 
---let $srv=srv_mdev_31463
---disable_warnings
-evalp CREATE SERVER IF NOT EXISTS $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
---enable_warnings
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE t1 (a INT) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
 
-SET @old_wait_timeout = @@global.wait_timeout;
-SET GLOBAL wait_timeout=1;
-eval CREATE TABLE t (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "$srv"';
-XA START 'a';
---error ER_WRONG_VALUE_COUNT_ON_ROW
-INSERT INTO t VALUES (0,0,0,0);
-SELECT SLEEP (1);
-# MDEV-31586: The error code is non-deterministic, presumably due to
-# some race condition from the SLEEP statement above. The correct
-# error should be 12701 ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM as it is
-# the last failure. Nevertheless, this contrived test is needed to
-# cover the error reporting when setting lock wait timeout, until we
-# find a better one and/or fixing the non-deterministic error
-# reporting
---error 12701,ER_NET_READ_ERROR,ER_NET_ERROR_ON_WRITE,ER_XAER_DUPID
-INSERT INTO t VALUES (1,2,3),(4,5,6),(7,8,9);
---disable_result_log
---error 0,12701,ER_XAER_DUPID
-SELECT * FROM information_schema.key_column_usage;
---enable_result_log
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE t2 (a INT) $MASTER_1_ENGINE COMMENT='table "t1", srv "s_2_1"';
 
-XA END 'a';
-XA PREPARE 'a';
-XA COMMIT 'a';
-SET GLOBAL wait_timeout=@old_wait_timeout;
-drop table t;
+# Create a new thread on the spider node server, send an insert query
+# to the spider node. Shutdown the data node server when the query
+# reaches and waits at set lockwait timeout so it fails there. Check
+# the error code is correct.
+connect (master_1_another, localhost, root, , auto_test_local, $MASTER_1_MYPORT, $MASTER_1_MYSOCK);
+SET DEBUG_SYNC='spider_set_lock_wait_timeout_before_query SIGNAL ready WAIT_FOR go';
+send insert into t2 values (42);
+connection master_1;
+SET DEBUG_SYNC='now WAIT_FOR ready';
+
+connection child2_1;
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+
+connection master_1;
+SET DEBUG_SYNC='now SIGNAL go';
+connection master_1_another;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+reap;
+
+# Cleanup
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+
+connection child2_1;
+--source include/start_mysqld.inc
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
 
 --disable_query_log
 --disable_result_log
---source ../../t/test_deinit.inc
---enable_result_log
+--source ../t/test_deinit.inc
 --enable_query_log
+--enable_result_log
+
+--echo #
+--echo # end test
+--echo #
