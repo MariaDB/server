@@ -284,6 +284,10 @@ static int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
   @details
   This is used by DDLs. When a column or index is dropped or renamed,
   stat tables need to be adjusted accordingly.
+
+  This function should not generate any errors as the callers are not checking
+  the result of delete_statistics_for_table()
+
 */
 static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
                                           const LEX_CSTRING *stat_tab_name)
@@ -293,6 +297,14 @@ static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
   thd->push_internal_handler(&nst_handler);
   int res= open_system_tables_for_read(thd, table);
   thd->pop_internal_handler();
+  if (res && nst_handler.any_error())
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CHECK_NO_SUCH_TABLE,
+                        "Got error %d when trying to open statistics "
+                        "table %`s for updating statistics",
+                        nst_handler.got_error(), stat_table_name->str);
+  }
   return res;
 }
 

@@ -73,6 +73,8 @@ No_such_table_error_handler::handle_condition(THD *,
                                               Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
+  if (!first_error)
+    first_error= sql_errno;
   if (sql_errno == ER_NO_SUCH_TABLE || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE)
   {
     m_handled_errors++;
@@ -94,7 +96,6 @@ bool No_such_table_error_handler::safely_trapped_errors()
   */
   return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
 }
-
 
 /**
   This internal handler is used to trap ER_NO_SUCH_TABLE and

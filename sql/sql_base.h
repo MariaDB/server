@@ -643,7 +643,7 @@ class No_such_table_error_handler : public Internal_error_handler
 {
 public:
   No_such_table_error_handler()
-    : m_handled_errors(0), m_unhandled_errors(0)
+    : m_handled_errors(0), m_unhandled_errors(0), first_error(0)
   {}
 
   bool handle_condition(THD *thd,
@@ -658,11 +658,12 @@ public:
     trapped and no other errors have been seen. FALSE otherwise.
   */
   bool safely_trapped_errors();
+  bool any_error() { return m_handled_errors == 0 || m_unhandled_errors == 0; }
+  uint got_error() { return first_error; }
 
 private:
   int m_handled_errors;
   int m_unhandled_errors;
+  uint first_error;
 };
-
-
 #endif /* SQL_BASE_INCLUDED */
