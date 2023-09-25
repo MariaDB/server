@@ -1311,9 +1311,13 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   - VERSIONING: changes SYSTEM from identifier to SYSTEM VERSIONING
       SELECT system FROM t1;
       ALTER TABLE t1 ADD SYSTEM VERSIONING;
+  - OF: changes TYPE from a pluggable data type name to TYPE OF anchor
+      CREATE FUNCTION f1() RETURNS TYPE RETURN 1; -- pluggable data type 'TYPE'
+      CREATE FUNCTION f1() RETURNS TYPE OF t1.col; -- the data type of t1.col1
+
 */
 %left   PREC_BELOW_CONTRACTION_TOKEN2
-%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM
+%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM OF_SYM
 %left EMPTY_FROM_CLAUSE
 %right INTO
 
@@ -16288,7 +16292,7 @@ keyword_sp_var_and_label:
         | TIMESTAMP_ADD
         | TIMESTAMP_DIFF
         | TYPES_SYM
-        | TYPE_SYM
+        | TYPE_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | UDF_RETURNS_SYM
         | UNCOMMITTED_SYM
         | UNDEFINED_SYM
@@ -18133,22 +18137,6 @@ trigger_tail:
 
 **************************************************************************/
 
-
-sf_return_type:
-          {
-            LEX *lex= Lex;
-            lex->init_last_field(&lex->sphead->m_return_field_def,
-                                 &empty_clex_str);
-          }
-          field_type
-          {
-            if (unlikely(Lex->sf_return_fill_definition($2)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-/*************************************************************************/
-
 xa:
           XA_SYM begin_or_start xid opt_join_or_resume
           {
@@ -18305,6 +18293,53 @@ sp_if_then_statements:
 
 sp_case_then_statements:
           sp_proc_stmts1
+        ;
+
+sf_returned_type_clause:
+          RETURNS_SYM
+          {
+            LEX *lex= Lex;
+            lex->init_last_field(&lex->sphead->m_return_field_def,
+                                 &empty_clex_str);
+          }
+          sf_return_type
+        ;
+
+sf_return_type:
+          field_type
+          {
+            if (unlikely(Lex->sf_return_fill_definition($1)))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM row_type_body
+          {
+            if (Lex->sf_return_fill_definition_row($2))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM TYPE_SYM OF_SYM ident
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$4)))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$4, &$6)))
+              MYSQL_YYABORT;
+          }
+        | TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(&$3, &$5)))
+              MYSQL_YYABORT;
+          }
+        | TYPE_SYM OF_SYM ident '.' ident '.' ident
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(thd, &$3, &$5, &$7)))
+              MYSQL_YYABORT;
+          }
         ;
 
 reserved_keyword_udt_param_type:
@@ -18543,7 +18578,7 @@ create_routine:
               MYSQL_YYABORT;
           }
           sp_parenthesized_fdparam_list
-          RETURNS_SYM sf_return_type
+          sf_returned_type_clause
           sf_c_chistics_and_body_standalone
           {
             Lex->stmt_create_routine_finalize();
@@ -18555,7 +18590,7 @@ create_routine:
               MYSQL_YYABORT;
           }
           sp_parenthesized_fdparam_list
-          RETURNS_SYM sf_return_type
+          sf_returned_type_clause
           sf_c_chistics_and_body_standalone
           {
             Lex->stmt_create_routine_finalize();
@@ -18758,6 +18793,53 @@ sp_if_then_statements:
 
 sp_case_then_statements:
           sp_proc_stmts1_implicit_block { }
+        ;
+
+sf_returned_type_clause:
+          RETURN_ORACLE_SYM
+          {
+            LEX *lex= Lex;
+            lex->init_last_field(&lex->sphead->m_return_field_def,
+                                 &empty_clex_str);
+          }
+          sf_return_type
+        ;
+
+sf_return_type:
+          field_type
+          {
+            if (unlikely(Lex->sf_return_fill_definition($1)))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM row_type_body
+          {
+            if (Lex->sf_return_fill_definition_row($2))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$1)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$1, &$3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(&$1, &$3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(thd, &$1, &$3, &$5)))
+              MYSQL_YYABORT;
+          }
         ;
 
 reserved_keyword_udt:
@@ -19179,7 +19261,7 @@ package_specification_function:
             (void) is_native_function_with_warn(thd, &$3);
           }
           opt_sp_parenthesized_fdparam_list
-          RETURN_ORACLE_SYM sf_return_type
+          sf_returned_type_clause
           sp_c_chistics
           {
             sp_head *sp= thd->lex->sphead;
@@ -19430,11 +19512,11 @@ create_routine:
               MYSQL_YYABORT;
           }
           opt_sp_parenthesized_fdparam_list
-          RETURN_ORACLE_SYM sf_return_type
+          sf_returned_type_clause
           sf_c_chistics_and_body_standalone
           opt_sp_name
           {
-            if (Lex->stmt_create_stored_function_finalize_standalone($12))
+            if (Lex->stmt_create_stored_function_finalize_standalone($11))
               MYSQL_YYABORT;
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
@@ -19444,11 +19526,11 @@ create_routine:
               MYSQL_YYABORT;
           }
           opt_sp_parenthesized_fdparam_list
-          RETURN_ORACLE_SYM sf_return_type
+          sf_returned_type_clause
           sf_c_chistics_and_body_standalone
           opt_sp_name
           {
-            if (Lex->stmt_create_stored_function_finalize_standalone($12))
+            if (Lex->stmt_create_stored_function_finalize_standalone($11))
               MYSQL_YYABORT;
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists

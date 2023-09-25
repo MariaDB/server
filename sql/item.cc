@@ -2723,7 +2723,8 @@ Item* Item_func_or_sum::build_clone(THD *thd)
 Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
                  sp_name *name_arg) :
   context(context_arg), m_name(name_arg), m_sp(NULL), func_ctx(NULL),
-  sp_result_field(NULL)
+  sp_result_field(NULL),
+  sp_result_item_field_row(NULL)
 {
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
@@ -2734,7 +2735,8 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
 
 Item_sp::Item_sp(THD *thd, Item_sp *item):
          context(item->context), m_name(item->m_name),
-         m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL)
+         m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL),
+         sp_result_item_field_row(NULL)
 {
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
@@ -2973,9 +2975,30 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= empty_clex_str;
   dummy_table->maybe_null= maybe_null;
 
+  if (m_sp->m_return_field_def.is_column_type_ref() &&
+      m_sp->m_return_field_def.column_type_ref()->
+        resolve_type_ref(thd, &m_sp->m_return_field_def))
+    DBUG_RETURN(TRUE);
+
   if (!(sp_result_field= m_sp->create_result_field(max_length, name,
                                                    dummy_table)))
    DBUG_RETURN(TRUE);
+
+  /*
+    In case of a ROW return type we need to create Item_field_row
+    on top of Field_row, and remember it in sp_result_item_field_row.
+    ROW members are later accessed using sp_result_item_field_row->addr(i),
+    e.g. when copying the function return value to a local variable.
+    For scalar return types no Item_field is needed around sp_result_field,
+    as the value is fetched directly from sp_result_field,
+    inside Item_func_sp::val_xxx() methods.
+  */
+  if (Field_row *field_row= dynamic_cast<Field_row*>(sp_result_field))
+  {
+    if (!(sp_result_item_field_row=
+        m_sp->m_return_field_def.make_item_field_row(thd, field_row)))
+      DBUG_RETURN(true);
+  }
 
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {

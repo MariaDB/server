@@ -2608,7 +2608,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 
   if (sp->m_handler->type() == SP_TYPE_FUNCTION)
   {
-    sp_returns_type(thd, retstr, sp);
+    sp->sp_returns_type(thd, retstr);
     retstr.get_value(&returns);
   }
   if (sp->m_handler->

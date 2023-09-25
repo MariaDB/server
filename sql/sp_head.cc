@@ -511,7 +511,8 @@ check_routine_name(const LEX_CSTRING *ident)
  */
  
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type, MEM_ROOT *sp_mem_root)
+                         enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
+                         MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -520,7 +521,8 @@ sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
                    MEM_ROOT_PREALLOC, MYF(0));
     sp_mem_root= &own_root;
   }
-  return new (sp_mem_root) sp_head(sp_mem_root, parent, handler, agg_type);
+  return new (sp_mem_root) sp_head(sp_mem_root, parent, handler,
+                                   agg_type, sql_mode);
 }
 
 
@@ -546,7 +548,8 @@ void sp_head::destroy(sp_head *sp)
  */
 
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
-                 const Sp_handler *sph, enum_sp_aggregate_type agg_type)
+                 const Sp_handler *sph, enum_sp_aggregate_type agg_type,
+                 sql_mode_t sql_mode)
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
    main_mem_root(*mem_root_arg),
@@ -557,6 +560,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_handler(sph),
    m_flags(0),
    m_tmp_query(NULL),
+   m_sql_mode(sql_mode),
    m_explicit_name(false),
    /*
      FIXME: the only use case when name is NULL is events, and it should
@@ -612,7 +616,8 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
 
 
 sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
-                               const Sp_handler *sph, MEM_ROOT *sp_mem_root)
+                               const Sp_handler *sph, sql_mode_t sql_mode,
+                               MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -622,7 +627,8 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
     sp_mem_root= &own_root;
   }
   sp_package *sp;
-  if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex, name, sph)))
+  if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex,
+                                         name, sph, sql_mode)))
     free_root(sp_mem_root, MYF(0));
 
   return sp;
@@ -632,8 +638,9 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
 sp_package::sp_package(MEM_ROOT *mem_root_arg,
                        LEX *top_level_lex,
                        const sp_name *name,
-                       const Sp_handler *sph)
- :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE),
+                       const Sp_handler *sph,
+                       sql_mode_t sql_mode)
+ :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE, sql_mode),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
