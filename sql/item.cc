@@ -2863,6 +2863,7 @@ Item_sp::cleanup()
 {
   delete sp_result_field;
   sp_result_field= NULL;
+  sp_result_field_items= Item_args();
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
@@ -3048,9 +3049,40 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= Lex_ident_table(empty_clex_str);
   dummy_table->maybe_null= maybe_null;
 
-  if (!(sp_result_field= m_sp->create_result_field(max_length, name,
-                                                   dummy_table)))
-   DBUG_RETURN(TRUE);
+  if (m_sp->m_return_field_def.is_column_type_ref())
+  {
+    // RETURNS TYPE OF t1.col1
+    Column_definition def;
+    if (m_sp->m_return_field_def.column_type_ref()->
+        resolve_type_ref(thd, &def) ||
+        !(sp_result_field= m_sp->create_result_field(max_length, name,
+                                                     def, dummy_table)))
+    DBUG_RETURN(TRUE);
+  }
+  else
+  {
+    // An explicit data type
+    if (!(sp_result_field= m_sp->create_result_field(max_length, name,
+                                                     m_sp->m_return_field_def,
+                                                     dummy_table)))
+      DBUG_RETURN(TRUE);
+  }
+
+  if (Field_row *field_row= dynamic_cast<Field_row*>(sp_result_field))
+  {
+    /*
+      In case of the ROW return type we need to create Items for ROW members.
+      ROW member Items are later accessed using
+      Item_func_sp::addr(i) and Item_func_sp::element_index(i).
+    */
+    if (field_row->row_create_fields(thd, m_sp->m_return_field_def))
+      DBUG_RETURN(true);
+
+    DBUG_ASSERT(field_row->virtual_tmp_table());
+    if (sp_result_field_items.add_array_of_item_field(thd,
+                                             *field_row->virtual_tmp_table()))
+      DBUG_RETURN(true);
+  }
 
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
@@ -9698,6 +9730,28 @@ bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
       return false;
   }
   return true;
+}
+
+
+/*
+  Create an Item_field instance for every Field in the virtual table.
+*/
+bool
+Item_args::add_array_of_item_field(THD *thd, const Virtual_tmp_table &vtable)
+{
+  DBUG_ASSERT(vtable.s->fields);
+  DBUG_ASSERT(!arg_count);
+
+  if (alloc_arguments(thd, vtable.s->fields))
+    return true;
+
+  for (arg_count= 0; arg_count < vtable.s->fields; arg_count++)
+  {
+    if (!(args[arg_count]= new (thd->mem_root)
+                             Item_field(thd, vtable.field[arg_count])))
+      return true;
+  }
+  return false;
 }
 
 

@@ -2953,6 +2953,7 @@ public:
   {
     args[arg_count++]= item;
   }
+  bool add_array_of_item_field(THD *thd, const Virtual_tmp_table &vtable);
   /**
     Extract row elements from the given position.
     For example, for this input:  (1,2),(3,4),(5,6)
@@ -3931,8 +3932,18 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_row; }
   uint cols() const override { return arg_count; }
-  Item* element_index(uint i) override { return arg_count ? args[i] : this; }
-  Item** addr(uint i) override { return arg_count ? args + i : NULL; }
+  Item* element_index(uint i) override
+  {
+    DBUG_ASSERT(arg_count);
+    DBUG_ASSERT(i < arg_count);
+    return args[i];
+  }
+  Item** addr(uint i) override
+  {
+    DBUG_ASSERT(arg_count);
+    DBUG_ASSERT(i < arg_count);
+    return &args[i];
+  }
   bool check_cols(uint c) override
   {
     if (cols() != c)
@@ -3942,7 +3953,6 @@ public:
     }
     return false;
   }
-  bool row_create_items(THD *thd, List<Spvar_definition> *list);
 };
 
 
@@ -5775,6 +5785,8 @@ public:
      The result field of the stored function.
   */
   Field *sp_result_field;
+  Item_args sp_result_field_items;
+
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;

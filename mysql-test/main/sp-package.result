@@ -121,3 +121,79 @@ DROP PACKAGE test2;
 #
 # End of 11.4 tests
 #
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+#
+# Testing fixed ROW type with package routines
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(32));
+PROCEDURE p1(r ROW(a INT, b VARCHAR(32)));
+PROCEDURE p2();
+END;
+$$
+CREATE PACKAGE BODY pkg
+FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(32))
+BEGIN
+RETURN ROW(1,'b1');
+END;
+PROCEDURE p1(r ROW(a INT, b VARCHAR(32)))
+BEGIN
+SELECT r.a, r.b;
+END;
+PROCEDURE p2()
+BEGIN
+CALL p1(f1());
+END; 
+END;
+$$
+CALL pkg.p1(pkg.f1());
+r.a	r.b
+1	b1
+CALL pkg.p2;
+r.a	r.b
+1	b1
+DROP PACKAGE pkg;
+#
+# Testing "ROW TYPE OF table" with package routines
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS ROW TYPE OF t1;
+PROCEDURE p1(r ROW TYPE OF t1);
+PROCEDURE p2();
+END;
+/
+CREATE PACKAGE BODY pkg
+FUNCTION f1() RETURNS ROW TYPE OF t1
+BEGIN
+DECLARE r ROW TYPE OF t1;
+SELECT * INTO r FROM t1;
+RETURN r;
+END;
+PROCEDURE p1(r ROW TYPE OF t1)
+BEGIN
+SELECT CONCAT(r.a, ' ', r.b);
+END;
+PROCEDURE p2()
+BEGIN
+CALL p1(f1());
+END;
+END;
+/
+CALL pkg.p1(pkg.f1());
+CONCAT(r.a, ' ', r.b)
+1 b1
+CALL pkg.p2;
+CONCAT(r.a, ' ', r.b)
+1 b1
+DROP PACKAGE pkg;
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

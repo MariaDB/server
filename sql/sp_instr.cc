@@ -2048,6 +2048,8 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   int ret= 0;
   Item_field_row *row= (Item_field_row*) thd->spcont->get_variable(m_var);
   DBUG_ASSERT(row->type_handler() == &type_handler_row);
+  DBUG_ASSERT(row->field);
+  DBUG_ASSERT(dynamic_cast<Field_row*>(row->field));
 
   /*
     Copy structure only once. If the cursor%ROWTYPE variable is declared
@@ -2070,13 +2072,17 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
         where explicit ROW elements and table%ROWTYPE reside:
         - tmp.export_structure() allocates new Spvar_definition instances
           and their components (such as TYPELIBs).
-        - row->row_create_items() creates new Item_field instances.
+        - field->row_create_fields() creates a new Virtual_tmp_table instance
+          with Field instances, one Field instance per a ROW member.
+        - row->add_array_of_item_field() creates Item_field instances
+          corresponding to Field instances.
         They all are created on the same mem_root.
       */
       Query_arena current_arena;
       thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
-      if (!(ret= tmp.export_structure(thd, &defs)))
-        row->row_create_items(thd, &defs);
+      ret= tmp.export_structure(thd, &defs) ||
+           static_cast<Field_row*>(row->field)->row_create_fields(thd, &defs) ||
+           row->add_array_of_item_field(thd, *row->field->virtual_tmp_table());
       thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
       tmp.close(thd);
     }
