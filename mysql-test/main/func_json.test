@@ -1809,3 +1809,26 @@ SET @@collation_connection= @save_collation_connection;
 --echo #
 --echo # End of 10.9 Test
 --echo #
+
+--echo #
+--echo # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
+--echo #             as first character in key
+--echo #
+
+CREATE TEMPORARY TABLE IF NOT EXISTS jsonTest AS
+       SELECT '{ "-1234" : "something",
+                 "12-34" : "else",
+                 "1234-" : "and",
+                 "1234" : "match" }' AS 'message';
+ 
+SELECT JSON_SEARCH(message, 'one', 'something') AS t1_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'something'))) AS t1_result,
+       JSON_SEARCH(message, 'one', 'else') AS t2_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'else'))) AS t2_result,
+       JSON_SEARCH(message, 'one', 'and') AS t3_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'and'))) AS t3_result,
+       JSON_SEARCH(message, 'one', 'match') AS t4_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'match'))) AS t4_result
+FROM jsonTest;
+
+--echo # End of 11.0 test
