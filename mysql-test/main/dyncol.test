@@ -986,3 +986,13 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-32140: Valgrind/MSAN warnings in dynamic_column_update_move_left
+--echo #
+SELECT COLUMN_GET(COLUMN_ADD(COLUMN_CREATE(1,10),2,NULL,1,NULL),3 AS INTEGER);
+SELECT HEX(COLUMN_ADD(COLUMN_CREATE(1,10),2,NULL,1,NULL));
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
