@@ -1199,7 +1199,7 @@ With_element::process_columns_of_derived_unit(THD *thd,
     /* Rename the columns of the first select in the unit */
     while ((item= it++, name= nm++))
     {
-      item->set_name(thd, *name);
+      lex_string_set(&item->name, name->str);
       item->common_flags&= ~IS_AUTO_GENERATED_NAME;
     }
 

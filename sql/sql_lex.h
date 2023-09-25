@@ -1410,6 +1410,9 @@ public:
                               bool straight_fl);
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
+  bool save_item_list_names(THD *thd);
+  void restore_item_list_names();
+
   ulong get_table_join_options();
   void set_lock_for_tables(thr_lock_type lock_type, bool for_update);
   /*
@@ -1604,6 +1607,11 @@ private:
   index_clause_map current_index_hint_clause;
   /* a list of USE/FORCE/IGNORE INDEX */
   List<Index_hint> *index_hints;
+  /*
+    This list is used to restore the names of items
+    from item_list after each execution of the statement.
+  */
+  List<Lex_ident_sys> *orig_names_of_item_list_elems;
 
 public:
   inline void add_where_field(st_select_lex *sel)
