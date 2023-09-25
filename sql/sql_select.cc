@@ -22015,10 +22015,10 @@ void Virtual_tmp_table::setup_field_pointers()
         null_bit= 1;
       }
     }
-    if (cur_field->type() == MYSQL_TYPE_BIT &&
-        cur_field->key_type() == HA_KEYTYPE_BIT)
+    if (cur_field->key_type() == HA_KEYTYPE_BIT)
     {
       /* This is a Field_bit since key_type is HA_KEYTYPE_BIT */
+      DBUG_ASSERT(cur_field->type() == MYSQL_TYPE_BIT);
       static_cast<Field_bit*>(cur_field)->set_bit_ptr(null_pos, null_bit);
       null_bit+= cur_field->field_length & 7;
       if (null_bit > 7)

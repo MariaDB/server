@@ -1121,6 +1121,40 @@ end:
 void
 sp_returns_type(THD *thd, String &result, const sp_head *sp)
 {
+  if (sp->m_return_field_def.is_column_type_ref())
+  {
+    Sql_mode_instant_set sms(thd, sp->m_sql_mode);
+    if (!(sp->m_sql_mode & MODE_ORACLE))
+      result.append(STRING_WITH_LEN("TYPE OF "));
+    const Qualified_column_ident *ref= sp->m_return_field_def.column_type_ref();
+    const LEX_CSTRING db= ref->db.str ? ref->db : sp->m_db;
+    DBUG_ASSERT(db.str);
+    append_identifier(thd, &result, &db);
+    result.append('.');
+    append_identifier(thd, &result, &ref->table);
+    result.append('.');
+    append_identifier(thd, &result, &ref->m_column);
+    if (sp->m_sql_mode & MODE_ORACLE)
+      result.append(STRING_WITH_LEN("%TYPE"));
+    return;
+  }
+
+  if (sp->m_return_field_def.is_table_rowtype_ref())
+  {
+    Sql_mode_instant_set sms(thd, sp->m_sql_mode);
+    if (!(sp->m_sql_mode & MODE_ORACLE))
+      result.append(STRING_WITH_LEN("ROW TYPE OF "));
+    const Table_ident *t= sp->m_return_field_def.table_rowtype_ref();
+    const LEX_CSTRING db= t->db.str ? t->db : sp->m_db;
+    DBUG_ASSERT(db.str);
+    append_identifier(thd, &result, &db);
+    result.append('.');
+    append_identifier(thd, &result, &t->table);
+    if (sp->m_sql_mode & MODE_ORACLE)
+      result.append(STRING_WITH_LEN("%ROWTYPE"));
+    return;
+  }
+
   TABLE table;
   TABLE_SHARE share;
   Field *field;
@@ -1129,7 +1163,19 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   table.in_use= thd;
   table.s = &share;
   field= sp->create_result_field(0, 0, &table);
-  field->sql_type(result);
+
+  if (sp->m_return_field_def.is_row())
+  {
+    Field_row *field_row= dynamic_cast<Field_row*>(field);
+    if (!field_row->row_create_fields(
+           thd, sp->m_return_field_def.row_field_definitions()))
+      field->sql_type(result);
+  }
+  else
+  {
+    DBUG_ASSERT(sp->m_return_field_def.type_handler()->is_scalar_type());
+    field->sql_type(result);
+  }
 
   if (field->has_charset())
   {

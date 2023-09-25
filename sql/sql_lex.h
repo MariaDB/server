@@ -3873,6 +3873,9 @@ public:
   bool sp_param_fill_definition(sp_variable *spvar,
                                 const Lex_field_type_st &def);
   bool sf_return_fill_definition(const Lex_field_type_st &def);
+  bool sf_return_fill_definition_row(Row_definition_list *def);
+  bool sf_return_fill_definition_rowtype_of(const Qualified_column_ident &col);
+  bool sf_return_fill_definition_type_of(const Qualified_column_ident &col);
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
@@ -3972,9 +3975,9 @@ public:
                                                        Item *def,
                                                        const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
-                                                     Qualified_column_ident *ref,
-                                                     Item *def,
-                                                     const LEX_CSTRING &expr_str);
+                                              const Qualified_column_ident *ref,
+                                              Item *def,
+                                              const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
                                                  const LEX_CSTRING &name,
                                                  Item *def,

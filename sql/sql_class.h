@@ -7140,7 +7140,7 @@ public:
    :Table_ident(thd, db, table, false),
     m_column(*column)
   { }
-  bool resolve_type_ref(THD *thd, Column_definition *def);
+  bool resolve_type_ref(THD *thd, Column_definition *def) const;
   bool append_to(THD *thd, String *to) const;
 };
 

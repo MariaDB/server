@@ -226,7 +226,8 @@ check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
 /**
   This method implementation is very close to fill_schema_table_by_open().
 */
-bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
+bool Qualified_column_ident::resolve_type_ref(THD *thd,
+                                              Column_definition *def) const
 {
   Open_tables_backup open_tables_state_backup;
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
@@ -355,6 +356,43 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
+Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
+                                                      Field_row *field)
+{
+  if (is_table_rowtype_ref()) // e.g. ROW TYPE OF test.t1
+  {
+    Row_definition_list defs;
+    Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+    if (!item ||
+        table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
+        item->row_create_items(thd, &defs))
+      return NULL;
+    return item;
+  }
+
+  if (is_cursor_rowtype_ref()) // e.g. ROW TYPE OF cursor
+  {
+    /*
+      The structure is resolved later,
+      in sp_instr_cursor_copy_struct::exec_core()
+    */
+    return new (thd->mem_root) Item_field_row(thd, field);
+  }
+
+  if (is_row()) // e.g. ROW(a INT, b VARCHAR(32))
+  {
+    Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+    if (!item ||
+        item->row_create_items(thd, row_field_definitions()))
+      return NULL;
+    return item;
+  }
+
+  DBUG_ASSERT(0); // Unknown ROW declaration style
+  return NULL;
+}
+
+
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -375,36 +413,20 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    if (def->is_table_rowtype_ref())
-    {
-      Row_definition_list defs;
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item) ||
-          def->table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
-          item->row_create_items(thd, &defs))
-        return true;
-    }
-    else if (def->is_cursor_rowtype_ref())
-    {
-      Row_definition_list defs;
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item))
-        return true;
-    }
-    else if (def->is_row())
-    {
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item) ||
-          item->row_create_items(thd, def->row_field_definitions()))
-        return true;
-    }
-    else
-    {
-      if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, field)))
-        return true;
-    }
+    Field_row *field_row= dynamic_cast<Field_row*>(field);
+    if (!(m_var_items[idx]= field_row ?
+                            def->make_item_field_row(thd, field_row) :
+                            new (thd->mem_root) Item_field(thd, field)))
+      return true;
   }
   return false;
+}
+
+
+bool Field_row::row_create_fields(THD *thd, List<Spvar_definition> *list)
+{
+  DBUG_ASSERT(!m_table);
+  return !(m_table= create_virtual_tmp_table(thd, *list));
 }
 
 
@@ -414,15 +436,15 @@ bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
   DBUG_ASSERT(field);
   Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
   DBUG_ASSERT(ptable);
+  DBUG_ASSERT(!ptable[0]);
   if (!(ptable[0]= create_virtual_tmp_table(thd, *list)))
     return true;
 
+  DBUG_ASSERT(ptable[0]->s->fields == list->elements);
   if (alloc_arguments(thd, list->elements))
     return true;
 
-  List_iterator<Spvar_definition> it(*list);
-  Spvar_definition *def;
-  for (arg_count= 0; (def= it++); arg_count++)
+  for (arg_count= 0; arg_count < list->elements; arg_count++)
   {
     if (!(args[arg_count]= new (thd->mem_root)
                            Item_field(thd, ptable[0]->field[arg_count])))

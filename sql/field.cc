@@ -2737,6 +2737,32 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
 }
 
 
+uint Field_row::cols() const
+{
+  // The table with ROW members must be already instantiated
+  DBUG_ASSERT(m_table);
+  return m_table->s->fields;
+}
+
+
+void Field_row::sql_type(String &res) const
+{
+  res.set_ascii(STRING_WITH_LEN("row("));
+  for (uint i= 0; i < m_table->s->fields; i++)
+  {
+    if (i > 0)
+      res.append(',');
+    Field *field= m_table->field[i];
+    res.append(field->field_name);
+    res.append(' ');
+    StringBuffer<64> col;
+    field->sql_type(col);
+    res.append(col.to_lex_cstring());
+  }
+  res.append(')');
+}
+
+
 /****************************************************************************
   Functions for the Field_decimal class
   This is an number stored as a pre-space (or pre-zero) string

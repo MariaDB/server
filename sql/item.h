@@ -5513,6 +5513,7 @@ public:
      The result field of the stored function.
   */
   Field *sp_result_field;
+  Item_field_row *sp_result_item_field_row;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;

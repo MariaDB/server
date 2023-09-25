@@ -1223,6 +1223,7 @@ public:
   virtual uint16 key_part_flag() const { return 0; }
   virtual uint16 key_part_length_bytes() const { return 0; }
   virtual uint32 key_length() const { return pack_length(); }
+  virtual uint cols() const { return 1; }
   virtual const Type_handler *type_handler() const = 0;
   virtual enum_field_types type() const
   {
@@ -3017,7 +3018,7 @@ public:
   int cmp(const uchar *a, const uchar *b) const override final { return 0;}
   void sort_string(uchar *buff, uint length) override final {}
   uint32 pack_length() const override final { return 0; }
-  void sql_type(String &str) const override final;
+  void sql_type(String &str) const override;
   uint size_of() const override final { return sizeof *this; }
   uint32 max_display_length() const override final { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) override final {}
@@ -5136,6 +5137,12 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
+  uint cols() const override;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_row;
+  }
+  void sql_type(String &str) const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
   {
     DBUG_ASSERT(0);
@@ -5149,6 +5156,7 @@ public:
     return CONV_TYPE_IMPOSSIBLE;
   }
   Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
+  bool row_create_fields(THD *thd, List<Spvar_definition> *list);
   bool sp_prepare_and_store_item(THD *thd, Item **value);
 };
 
@@ -5585,8 +5593,8 @@ public:
 */
 class Spvar_definition: public Column_definition
 {
-  Qualified_column_ident *m_column_type_ref; // for %TYPE
-  Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
+  const Qualified_column_ident *m_column_type_ref; // for %TYPE
+  Table_ident *m_table_rowtype_ref;                // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
@@ -5619,11 +5627,11 @@ public:
            !is_table_rowtype_ref() &&
            !is_cursor_rowtype_ref();
   }
-  Qualified_column_ident *column_type_ref() const
+  const Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;
   }
-  void set_column_type_ref(Qualified_column_ident *ref)
+  void set_column_type_ref(const Qualified_column_ident *ref)
   {
     m_column_type_ref= ref;
   }
@@ -5680,6 +5688,7 @@ public:
     m_row_field_definitions= list;
   }
 
+  class Item_field_row *make_item_field_row(THD *thd, Field_row *field);
 };
 
 
@@ -5773,9 +5782,14 @@ public:
 private:
   void normalize()
   {
-    /* limit number of decimals for float and double */
-    if (type_handler()->field_type() == MYSQL_TYPE_FLOAT ||
-        type_handler()->field_type() == MYSQL_TYPE_DOUBLE)
+    /*
+      limit number of decimals for float and double.
+      The test for cmp_type() is needed to avoid the field_type()
+      calls for the ROW data type.
+    */
+    if (type_handler()->cmp_type() == REAL_RESULT &&
+        (type_handler()->field_type() == MYSQL_TYPE_FLOAT ||
+         type_handler()->field_type() == MYSQL_TYPE_DOUBLE))
       set_if_smaller(decimals, FLOATING_POINT_DECIMALS);
   }
 public:
