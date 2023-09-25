@@ -2354,7 +2354,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
 static MYSQL_THDVAR_BOOL(
   suppress_comment_ignored_warning,
   PLUGIN_VAR_RQCMDARG,
-  "Whether to suppress warnings that table COMMENT or CONNECTION strings"
+  "Whether to suppress warnings that table COMMENT or CONNECTION strings "
   "are ignored due to specified table options",
   NULL,
   NULL,
@@ -2366,7 +2366,7 @@ SPIDER_THDVAR_VALUE_FUNC(bool, suppress_comment_ignored_warning)
 static MYSQL_THDVAR_BOOL(
   ignore_comments,
   PLUGIN_VAR_RQCMDARG,
-  "Whether to unconditionally ignore COMMENT and CONNECTION strings"
+  "Whether to unconditionally ignore COMMENT and CONNECTION strings "
   "without checking whether table options are specified",
   NULL,
   NULL,
