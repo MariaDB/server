@@ -83,18 +83,6 @@ a.a	a.b
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 #
-# ROW as an SP return value is not supported yet
-#
-CREATE FUNCTION p1() RETURNS ROW(a INT)
-BEGIN
-RETURN NULL;
-END;
-$$
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT)
-BEGIN
-RETURN NULL;
-END' at line 1
-#
 # Diplicate row field
 #
 CREATE PROCEDURE p1()
@@ -2307,3 +2295,91 @@ SELECT 1 LIKE 2 ESCAPE a;
 END;
 $$
 ERROR 21000: Operand should contain 1 column(s)
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+CREATE FUNCTION p1() RETURNS ROW(a INT)
+BEGIN
+RETURN NULL;
+END;
+$$
+SHOW CREATE FUNCTION p1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `p1`() RETURNS row(a int(11))
+BEGIN
+RETURN NULL;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP FUNCTION p1;
+CREATE FUNCTION f1(a INT, b VARCHAR(32)) RETURNS ROW(a INT, b VARCHAR(32))
+BEGIN
+RETURN ROW(a,b);
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(a INT, b VARCHAR(32)) RETURNS row(a int(11),b varchar(32) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci)
+BEGIN
+RETURN ROW(a,b);
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME='f1';
+DATA_TYPE	DTD_IDENTIFIER
+ROW	ROW
+SELECT DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1' AND PARAMETER_NAME IS NULL;
+DATA_TYPE	DTD_IDENTIFIER
+ROW	ROW
+SELECT f1(1,'b1') = ROW(1,'b1');
+f1(1,'b1') = ROW(1,'b1')
+1
+SELECT f1(1,'b1') = ROW(2,'b1');
+f1(1,'b1') = ROW(2,'b1')
+0
+SELECT f1(1,'b1') = ROW(1,'b2');
+f1(1,'b1') = ROW(1,'b2')
+0
+SELECT f1(1,'b1') = ROW(1,NULL);
+f1(1,'b1') = ROW(1,NULL)
+NULL
+SELECT f1(1,NULL) = ROW(1,'b2');
+f1(1,NULL) = ROW(1,'b2')
+NULL
+SELECT f1(1,NULL) = ROW(1,NULL);
+f1(1,NULL) = ROW(1,NULL)
+NULL
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT, b VARCHAR(32), c TEXT) RETURNS ROW(a INT, b VARCHAR(32), c TEXT)
+BEGIN
+RETURN ROW(a+1,CONCAT(b,'xb'),CONCAT(c,'xc'));
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT, b VARCHAR(32), c TEXT) DEFAULT f1(1,'b1','c1');
+SELECT r.a, r.b, r.c;
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(a INT, b VARCHAR(32), c TEXT) RETURNS row(a int(11),b varchar(32) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci,c text CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci)
+BEGIN
+RETURN ROW(a+1,CONCAT(b,'xb'),CONCAT(c,'xc'));
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+BEGIN
+DECLARE r ROW(a INT, b VARCHAR(32), c TEXT) DEFAULT f1(1,'b1','c1');
+SELECT r.a, r.b, r.c;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CALL p1;
+r.a	r.b	r.c
+2	b1xb	c1xc
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+#
+# End of 11.7 tests
+#

@@ -6251,16 +6251,19 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   Information_schema_numeric_attributes num=
     field->information_schema_numeric_attributes();
 
-  switch (field->type()) {
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_DATETIME:
-    /* DATETIME_PRECISION column */
-    table->field[offset + 5]->store((longlong) field->decimals(), TRUE);
-    table->field[offset + 5]->set_notnull();
-    break;
-  default:
-    break;
+  if (field->cmp_type() == TIME_RESULT)
+  {
+    switch (field->type()) {
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_DATETIME:
+      /* DATETIME_PRECISION column */
+      table->field[offset + 5]->store((longlong) field->decimals(), TRUE);
+      table->field[offset + 5]->set_notnull();
+      break;
+    default:
+      break;
+    }
   }
 
   /* NUMERIC_PRECISION column */
@@ -6341,15 +6344,17 @@ static bool print_anchor_dtd_identifier(THD *thd, const Spvar_definition *def,
 /*
   Set columns DATA_TYPE and DTD_IDENTIFIER from an SP variable definition
 */
-static void store_variable_type(THD *thd, const sp_variable *spvar,
+static void store_variable_type(THD *thd,
+                                const Spvar_definition &def,
+                                const Lex_ident_column &name,
                                 TABLE *tmptbl,
                                 TABLE_SHARE *tmpshare,
                                 CHARSET_INFO *cs,
                                 TABLE *table, uint offset)
 {
-  if (spvar->field_def.is_explicit_data_type())
+  if (def.is_explicit_data_type())
   {
-    if (spvar->field_def.is_row())
+    if (def.is_row())
     {
       // Explicit ROW
       table->field[offset]->store(STRING_WITH_LEN("ROW"), cs);
@@ -6361,8 +6366,7 @@ static void store_variable_type(THD *thd, const sp_variable *spvar,
     else
     {
       // Explicit scalar data type
-      Field *field= spvar->field_def.make_field(tmpshare, thd->mem_root,
-                                                &spvar->name);
+      Field *field= def.make_field(tmpshare, thd->mem_root, &name);
       field->table= tmptbl;
       tmptbl->in_use= thd;
       store_column_type(table, field, cs, offset);
@@ -6372,7 +6376,7 @@ static void store_variable_type(THD *thd, const sp_variable *spvar,
   {
     StringBuffer<128> data_type(cs), dtd_identifier(cs);
 
-    if (print_anchor_data_type(&spvar->field_def, &data_type))
+    if (print_anchor_data_type(&def, &data_type))
     {
       table->field[offset]->store(STRING_WITH_LEN("ERROR"), cs); // EOM?
       table->field[offset]->set_notnull();
@@ -6384,7 +6388,7 @@ static void store_variable_type(THD *thd, const sp_variable *spvar,
       table->field[offset]->set_notnull();
     }
 
-    if (print_anchor_dtd_identifier(thd, &spvar->field_def, &dtd_identifier))
+    if (print_anchor_dtd_identifier(thd, &def, &dtd_identifier))
     {
       table->field[offset + 8]->store(STRING_WITH_LEN("ERROR"), cs); // EOM?
       table->field[offset + 8]->set_notnull();
@@ -6990,7 +6994,6 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                                           &free_sp_head);
   if (sp)
   {
-    Field *field;
     LEX_CSTRING tmp_string;
     Sql_mode_save sql_mode_backup(thd);
     thd->variables.sql_mode= sql_mode;
@@ -7005,11 +7008,9 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_str_nopad(thd->mem_root,
                                                               &tmp_string);
       table->field[15]->store(tmp_string, cs);
-      field= sp->m_return_field_def.make_field(&share, thd->mem_root,
-                                               &empty_clex_str);
-      field->table= &tbl;
-      tbl.in_use= thd;
-      store_column_type(table, field, cs, 6);
+      store_variable_type(thd, sp->m_return_field_def,
+                          ""_Lex_ident_column,
+                          &tbl, &share, cs, table, 6);
       if (schema_table_store_record(thd, table))
       {
         free_table_share(&share);
@@ -7053,7 +7054,8 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                                                               &tmp_string);
       table->field[15]->store(tmp_string, cs);
 
-      store_variable_type(thd, spvar, &tbl, &share, cs, table, 6);
+      store_variable_type(thd, spvar->field_def, spvar->name,
+                          &tbl, &share, cs, table, 6);
       if (schema_table_store_record(thd, table))
       {
         error= 1;
@@ -7137,16 +7139,12 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           char path[FN_REFLEN];
           TABLE_SHARE share;
           TABLE tbl;
-          Field *field;
 
           bzero((char*) &tbl, sizeof(TABLE));
           (void) build_table_filename(path, sizeof(path), "", "", "", 0);
           init_tmp_table_share(thd, &share, "", 0, "", path);
-          field= sp->m_return_field_def.make_field(&share, thd->mem_root,
-                                                   &empty_clex_str);
-          field->table= &tbl;
-          tbl.in_use= thd;
-          store_column_type(table, field, cs, 5);
+          store_variable_type(thd, sp->m_return_field_def,
+                              ""_Lex_ident_column, &tbl, &share, cs, table, 5);
           free_table_share(&share);
           if (free_sp_head)
             sp_head::destroy(sp);
