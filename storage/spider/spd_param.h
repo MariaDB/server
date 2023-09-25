@@ -365,3 +365,4 @@ int spider_param_strict_group_by(
   THD *thd,
   int strict_group_by
 );
+bool spider_param_disable_group_by_handler(THD *thd);
