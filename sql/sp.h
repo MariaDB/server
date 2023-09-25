@@ -705,8 +705,4 @@ bool load_collation(THD *thd,MEM_ROOT *mem_root,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl);
 
-void sp_returns_type(THD *thd,
-                     String &result,
-                     const sp_head *sp);
-
 #endif /* _SP_H_ */

@@ -354,6 +354,25 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
+Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
+                                                      Field_row *field)
+{
+  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+  if (!item)
+    return nullptr;
+
+  if (field->row_create_fields(thd, *this))
+    return nullptr;
+
+  // field->virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
+  if (field->virtual_tmp_table() &&
+      item->add_array_of_item_field(thd, *field->virtual_tmp_table()))
+    return nullptr;
+
+  return item;
+}
+
+
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -374,57 +393,10 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    if (def->is_table_rowtype_ref())
-    {
-      Row_definition_list defs;
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item) ||
-          def->table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
-          item->row_create_items(thd, &defs))
-        return true;
-    }
-    else if (def->is_cursor_rowtype_ref())
-    {
-      Row_definition_list defs;
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item))
-        return true;
-    }
-    else if (def->is_row())
-    {
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item) ||
-          item->row_create_items(thd, def->row_field_definitions()))
-        return true;
-    }
-    else
-    {
-      if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, field)))
-        return true;
-    }
-  }
-  return false;
-}
-
-
-bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
-{
-  DBUG_ASSERT(list);
-  DBUG_ASSERT(field);
-  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
-  DBUG_ASSERT(ptable);
-  if (!(ptable[0]= create_virtual_tmp_table(thd, *list)))
-    return true;
-
-  if (alloc_arguments(thd, list->elements))
-    return true;
-
-  List_iterator<Spvar_definition> it(*list);
-  Spvar_definition *def;
-  for (arg_count= 0; (def= it++); arg_count++)
-  {
-    if (!(args[arg_count]= new (thd->mem_root)
-                           Item_field(thd, ptable[0]->field[arg_count])))
+    Field_row *field_row= dynamic_cast<Field_row*>(field);
+    if (!(m_var_items[idx]= field_row ?
+                            def->make_item_field_row(thd, field_row) :
+                            new (thd->mem_root) Item_field(thd, field)))
       return true;
   }
   return false;
@@ -678,10 +650,8 @@ Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
   DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
   DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ROW_RESULT);
   Field *field= m_var_table->field[var_idx];
-  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
-  DBUG_ASSERT(ptable);
-  DBUG_ASSERT(ptable[0]);
-  return ptable[0];
+  DBUG_ASSERT(field->virtual_tmp_table());
+  return field->virtual_tmp_table();
 }
 
 
