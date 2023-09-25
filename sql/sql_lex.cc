@@ -2445,6 +2445,7 @@ void st_select_lex::init_query()
   in_tvc= false;
   versioned_tables= 0;
   pushdown_select= 0;
+  orig_names_of_item_list_elems= 0;
 }
 
 void st_select_lex::init_select()
@@ -2491,6 +2492,7 @@ void st_select_lex::init_select()
   in_tvc= false;
   versioned_tables= 0;
   is_tvc_wrapper= false;
+  orig_names_of_item_list_elems= 0;
 }
 
 /*
@@ -10418,6 +10420,71 @@ exit:
   return having;
 }
 
+
+/**
+  @brief
+  Save the original names of items from the item list.
+
+  @retval
+    true  - if an error occurs
+    false - otherwise
+*/
+
+bool st_select_lex::save_item_list_names(THD *thd)
+{
+  if (orig_names_of_item_list_elems)
+    return false;
+
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  if (unlikely(!(orig_names_of_item_list_elems= new(thd->mem_root)
+                                       List<Lex_ident_sys>)))
+    return true;
+
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++))
+  {
+    if (unlikely(orig_names_of_item_list_elems->push_back(
+                        new Lex_ident_sys(item->name.str, item->name.length))))
+    {
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      orig_names_of_item_list_elems= 0;
+      return true;
+    }
+  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  return false;
+}
+
+
+/**
+  @brief
+    Restore the name of each item in the item_list of this st_select_lex
+    from orig_names_of_item_list_elems.
+*/
+
+void st_select_lex::restore_item_list_names()
+{
+  if (!orig_names_of_item_list_elems)
+    return;
+
+  DBUG_ASSERT(item_list.elements == orig_names_of_item_list_elems->elements);
+
+  List_iterator_fast<Lex_ident_sys> it(*orig_names_of_item_list_elems);
+  Lex_ident_sys *new_name;
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++) && (new_name= it++))
+    lex_string_set( &item->name, new_name->str);
+}
 
 bool LEX::stmt_install_plugin(const DDL_options_st &opt,
                               const Lex_ident_sys_st &name,
