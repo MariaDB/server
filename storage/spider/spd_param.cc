@@ -2351,6 +2351,17 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
 
+static MYSQL_THDVAR_BOOL(
+  disable_group_by_handler, /* name */
+  PLUGIN_VAR_OPCMDARG, /* opt */
+  "Disables the group by handler", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  FALSE /* def */
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, disable_group_by_handler)
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2465,6 +2476,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
   MYSQL_SYSVAR(strict_group_by),
+  MYSQL_SYSVAR(disable_group_by_handler),
   NULL
 };
 
