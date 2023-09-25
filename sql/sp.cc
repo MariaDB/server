@@ -1081,9 +1081,54 @@ end:
 }
 
 
-void
-sp_returns_type(THD *thd, String &result, const sp_head *sp)
+void sp_head::sp_returns_type_of(THD *thd, String &result,
+                                 const Qualified_column_ident &ref) const
 {
+  Sql_mode_instant_set sms(thd, m_sql_mode);
+  if (!(m_sql_mode & MODE_ORACLE))
+    result.append(STRING_WITH_LEN("TYPE OF "));
+  const LEX_CSTRING db= ref.db.str ? ref.db : m_db;
+  DBUG_ASSERT(db.str);
+  append_identifier(thd, &result, &db);
+  result.append('.');
+  append_identifier(thd, &result, &ref.table);
+  result.append('.');
+  append_identifier(thd, &result, &ref.m_column);
+  if (m_sql_mode & MODE_ORACLE)
+    result.append(STRING_WITH_LEN("%TYPE"));
+}
+
+
+void sp_head::sp_returns_rowtype_of(THD *thd, String &result,
+                                    const Table_ident &ref) const
+{
+  Sql_mode_instant_set sms(thd, m_sql_mode);
+  if (!(m_sql_mode & MODE_ORACLE))
+    result.append(STRING_WITH_LEN("ROW TYPE OF "));
+  const LEX_CSTRING db= ref.db.str ? ref.db : m_db;
+  DBUG_ASSERT(db.str);
+  append_identifier(thd, &result, &db);
+  result.append('.');
+  append_identifier(thd, &result, &ref.table);
+  if (m_sql_mode & MODE_ORACLE)
+    result.append(STRING_WITH_LEN("%ROWTYPE"));
+}
+
+
+void sp_head::sp_returns_type(THD *thd, String &result) const
+{
+  if (m_return_field_def.is_column_type_ref())
+  {
+    sp_returns_type_of(thd, result, *m_return_field_def.column_type_ref());
+    return;
+  }
+
+  if (m_return_field_def.is_table_rowtype_ref())
+  {
+    sp_returns_rowtype_of(thd, result, *m_return_field_def.table_rowtype_ref());
+    return;
+  }
+
   TABLE table;
   TABLE_SHARE share;
   Field *field;
@@ -1091,19 +1136,22 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   bzero((char*) &share, sizeof(share));
   table.in_use= thd;
   table.s = &share;
-  field= sp->create_result_field(0, 0, &table);
-  field->sql_type(result);
+  field= create_result_field(0, 0, m_return_field_def, &table);
 
-  if (field->has_charset())
+  if (m_return_field_def.is_row())
   {
-    result.append(STRING_WITH_LEN(" CHARSET "));
-    result.append(field->charset()->cs_name);
-    if (Charset(field->charset()).can_have_collate_clause())
-    {
-      result.append(STRING_WITH_LEN(" COLLATE "));
-      result.append(field->charset()->coll_name);
-    }
+    DBUG_ASSERT(dynamic_cast<Field_row*>(field));
+    Field_row *field_row= static_cast<Field_row*>(field);
+    if (field_row->row_create_fields(
+           thd, m_return_field_def.row_field_definitions()))
+      return;
   }
+  else
+  {
+    DBUG_ASSERT(m_return_field_def.type_handler()->is_scalar_type());
+  }
+
+  field->sql_type_for_sp_returns(result);
 
   delete field;
 }
@@ -1304,7 +1352,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         // Setting retstr as it is used for logging.
         if (type() == SP_TYPE_FUNCTION)
         {
-          sp_returns_type(thd, retstr, sp);
+          sp->sp_returns_type(thd, retstr);
           retstr.get_value(&returns);
         }
         goto log;
@@ -1387,7 +1435,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
     if (type() == SP_TYPE_FUNCTION)
     {
-      sp_returns_type(thd, retstr, sp);
+      sp->sp_returns_type(thd, retstr);
       retstr.get_value(&returns);
 
       store_failed= store_failed ||
@@ -2081,7 +2129,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
 
   if (type() == SP_TYPE_FUNCTION)
   {
-    sp_returns_type(thd, retstr, sp);
+    sp->sp_returns_type(thd, retstr);
     retstr.get_value(&returns);
   }
 
