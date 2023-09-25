@@ -1612,6 +1612,9 @@ group_by_handler *spider_create_group_by_handler(
   long tgt_link_status;
   DBUG_ENTER("spider_create_group_by_handler");
 
+  if (spider_param_disable_group_by_handler(thd))
+    DBUG_RETURN(NULL);
+
   switch (thd_sql_command(thd))
   {
     case SQLCOM_UPDATE:
