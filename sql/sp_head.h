@@ -196,7 +196,7 @@ public:
   */
   PSI_sp_share *m_sp_share;
 
-  Column_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
+  Spvar_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
 
   const char *m_tmp_query;	///< Temporary pointer to sub query string
 private:
@@ -342,12 +342,12 @@ public:
 
 protected:
   sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler,
-          enum_sp_aggregate_type agg_type);
+          enum_sp_aggregate_type agg_type, sql_mode_t sql_mode);
   virtual ~sp_head();
 public:
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type,
+                         enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
                          MEM_ROOT *sp_mem_root);
 
   /// Initialize after we have reset mem_root
@@ -447,6 +447,14 @@ public:
   bool check_group_aggregate_instructions_function() const;
   bool check_group_aggregate_instructions_forbid() const;
   bool check_group_aggregate_instructions_require() const;
+
+  void sp_returns_type(THD *thd, String &result) const;
+
+protected:
+  void sp_returns_type_of(THD *thd, String &result,
+                          const Qualified_column_ident &ref) const;
+  void sp_returns_rowtype_of(THD *thd, String &result,
+                             const Table_ident &ref) const;
 private:
   /**
     Generate a code to set a single cursor parameter variable.
@@ -1082,11 +1090,13 @@ private:
   sp_package(MEM_ROOT *mem_root,
              LEX *top_level_lex,
              const sp_name *name,
-             const Sp_handler *sph);
+             const Sp_handler *sph,
+             sql_mode_t sql_mode);
   ~sp_package();
 public:
   static sp_package *create(LEX *top_level_lex, const sp_name *name,
-                            const Sp_handler *sph, MEM_ROOT *sp_mem_root);
+                            const Sp_handler *sph, sql_mode_t sql_mode,
+                            MEM_ROOT *sp_mem_root);
 
   bool add_routine_declaration(LEX *lex)
   {

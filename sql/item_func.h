@@ -3945,6 +3945,48 @@ public:
 
   const Type_handler *type_handler() const override;
 
+  uint cols() const override
+  {
+    return sp_result_field->cols();
+  }
+
+  Item* element_index(uint i) override
+  {
+    return sp_result_item_field_row ?
+           sp_result_item_field_row->arguments()[i] :
+           this;
+  }
+  Item** addr(uint i) override
+  {
+    return sp_result_item_field_row ?
+           &sp_result_item_field_row->arguments()[i] :
+           NULL;
+  }
+
+  bool check_cols(uint c) override
+  {
+    if (cmp_type() != ROW_RESULT)
+      return Item_func::check_cols(c);
+    /*
+      We don't support ROWs with a single member yet, e.g. ROW(a INT).
+      Neither in stored function RETURNS, nor in SP variables.
+      There must be at least two members.
+      So raise an error in case of c==1, like Item_splocal does.
+      See comments in Item_splocal::check_cols() for more details.
+    */
+    if (cols() != c || c == 1)
+    {
+      my_error(ER_OPERAND_COLUMNS, MYF(0), c);
+      return true;
+    }
+    return false;
+  }
+
+  void bring_value() override
+  {
+    execute();
+  }
+
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override

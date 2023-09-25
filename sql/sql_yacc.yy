@@ -1306,9 +1306,13 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   - VERSIONING: changes SYSTEM from identifier to SYSTEM VERSIONING
       SELECT system FROM t1;
       ALTER TABLE t1 ADD SYSTEM VERSIONING;
+  - OF: changes TYPE from a pluggable data type name to TYPE OF anchor
+      CREATE FUNCTION f1() RETURNS TYPE RETURN 1; -- pluggable data type 'TYPE'
+      CREATE FUNCTION f1() RETURNS TYPE OF t1.col; -- the data type of t1.col1
+
 */
 %left   PREC_BELOW_CONTRACTION_TOKEN2
-%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM BODY_MARIADB_SYM
+%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM BODY_MARIADB_SYM OF_SYM
 %left EMPTY_FROM_CLAUSE
 %right INTO
 
@@ -16238,7 +16242,7 @@ keyword_func_sp_var_and_label:
         | TRANSACTIONAL_SYM
         | THREADS_SYM
         | TRIGGERS_SYM
-        | TYPE_SYM
+        | TYPE_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | UDF_RETURNS_SYM
         | UNCOMMITTED_SYM
         | UNDEFINED_SYM
@@ -18122,19 +18126,6 @@ trigger_tail:
 **************************************************************************/
 
 
-sf_return_type:
-          {
-            LEX *lex= Lex;
-            lex->init_last_field(&lex->sphead->m_return_field_def,
-                                 &empty_clex_str);
-          }
-          field_type
-          {
-            if (unlikely(Lex->sf_return_fill_definition($2)))
-              MYSQL_YYABORT;
-          }
-        ;
-
 create_package_chistic:
           COMMENT_SYM TEXT_STRING_sys
           { Lex->sp_chistics.comment= $2; }
@@ -18347,7 +18338,50 @@ sp_parameters:
         ;
 
 sf_returned_type_clause:
-          RETURNS_SYM sf_return_type
+          RETURNS_SYM
+          {
+            LEX *lex= Lex;
+            lex->init_last_field(&lex->sphead->m_return_field_def,
+                                 &empty_clex_str);
+          }
+          sf_return_type
+        ;
+
+sf_return_type:
+          field_type
+          {
+            if (unlikely(Lex->sf_return_fill_definition($1)))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM row_type_body
+          {
+            if (Lex->sf_return_fill_definition_row($2))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM TYPE_SYM OF_SYM ident
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$4)))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$4, &$6)))
+              MYSQL_YYABORT;
+          }
+        | TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(&$3, &$5)))
+              MYSQL_YYABORT;
+          }
+        | TYPE_SYM OF_SYM ident '.' ident '.' ident
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(thd, &$3, &$5, &$7)))
+              MYSQL_YYABORT;
+          }
         ;
 
 package_implementation_item_declaration:
@@ -18796,8 +18830,52 @@ sf_parameters:
         ;
 
 sf_returned_type_clause:
-           RETURN_ORACLE_SYM sf_return_type
+          RETURN_ORACLE_SYM
+          {
+            LEX *lex= Lex;
+            lex->init_last_field(&lex->sphead->m_return_field_def,
+                                 &empty_clex_str);
+          }
+          sf_return_type
         ;
+
+sf_return_type:
+          field_type
+          {
+            if (unlikely(Lex->sf_return_fill_definition($1)))
+              MYSQL_YYABORT;
+          }
+        | ROW_SYM row_type_body
+          {
+            if (Lex->sf_return_fill_definition_row($2))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$1)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (Lex->sf_return_fill_definition_rowtype_of(
+                       Qualified_column_ident(&$1, &$3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(&$1, &$3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (Lex->sf_return_fill_definition_type_of(
+                       Qualified_column_ident(thd, &$1, &$3, &$5)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 
 package_implementation_item_declaration:
           sp_decl_variable_list ';'

@@ -2140,15 +2140,19 @@ f1(20)
 DROP FUNCTION f1;
 DROP TABLE t1;
 #
-# %TYPE in function RETURN clause is not supported yet
+# var%TYPE in function RETURN clause is not supported yet
 #
-CREATE FUNCTION f1 RETURN t1.a%TYPE
+CREATE FUNCTION f1 RETURN a%TYPE
 AS
 BEGIN
 RETURN 0;
 END;
 $$
-ERROR HY000: Unknown data type: 't1'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TYPE
+AS
+BEGIN
+RETURN 0;
+END' at line 2
 #
 # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
 #

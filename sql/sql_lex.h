@@ -3903,6 +3903,9 @@ public:
   bool sp_param_fill_definition(sp_variable *spvar,
                                 const Lex_field_type_st &def);
   bool sf_return_fill_definition(const Lex_field_type_st &def);
+  bool sf_return_fill_definition_row(Row_definition_list *def);
+  bool sf_return_fill_definition_rowtype_of(const Qualified_column_ident &col);
+  bool sf_return_fill_definition_type_of(const Qualified_column_ident &col);
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
