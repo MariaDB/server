@@ -88,7 +88,13 @@ DROP TABLE IF EXISTS mysql.spider_link_failed_log;
 DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
 DROP TABLE IF EXISTS mysql.spider_table_sts;
 DROP TABLE IF EXISTS mysql.spider_table_crd;
-DROP SERVER s_1;
+DROP SERVER IF EXISTS s_1;
+DROP SERVER IF EXISTS s_2_1;
+DROP SERVER IF EXISTS s_2_2;
+DROP SERVER IF EXISTS s_2_3;
+DROP SERVER IF EXISTS s_3_1;
+DROP SERVER IF EXISTS s_3_2;
+DROP SERVER IF EXISTS s_3_3;
 disconnect master_1;
 for child2
 for child3
