@@ -117,7 +117,7 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_UNLOCK_TABLE_STR "unlock tables"
 #define SPIDER_SQL_UNLOCK_TABLE_LEN (sizeof(SPIDER_SQL_UNLOCK_TABLE_STR) - 1)
 
-#define SPIDER_SQL_SELECT_1_STR " (select 1) "
+#define SPIDER_SQL_SELECT_1_STR "(select 1)"
 #define SPIDER_SQL_SELECT_1_LEN (sizeof(SPIDER_SQL_SELECT_1_STR) - 1)
 #define SPIDER_SQL_LEFT_JOIN_STR " left join "
 #define SPIDER_SQL_LEFT_JOIN_LEN (sizeof(SPIDER_SQL_LEFT_JOIN_STR) - 1)
@@ -14968,6 +14968,8 @@ void spider_mbase_handler::append_table_list(THD *thd,
                                              TABLE_LIST *table,
                                              spider_string *str)
 {
+  if (!str)
+    return;
   if (table->nested_join)
   {
     str->append("(");
@@ -14981,8 +14983,11 @@ void spider_mbase_handler::append_table_list(THD *thd,
       (spider_mbase_share *) spd->share->dbton_share[dbton_id];
     spider_mbase_handler *dbton_hdl =
       (spider_mbase_handler *) spd->dbton_handler[dbton_id];
-    db_share->append_table_name(
-      str, spd->conn_link_idx[dbton_hdl->first_link_idx]);
+    if (table->table->const_table)
+      str->append(STRING_WITH_LEN(SPIDER_SQL_SELECT_1_STR));
+    else
+      db_share->append_table_name(
+        str, spd->conn_link_idx[dbton_hdl->first_link_idx]);
     str->append(" ");
     str->append(table_holder->alias->ptr(),
                 /* Don't append the trailing dot */
@@ -15002,24 +15007,28 @@ void spider_mbase_handler::append_table_array(THD *thd,
   {
     TABLE_LIST *curr= *tbl;
 
-    /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
-    if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
+    if (str)
     {
-      /* MySQL converts right to left joins */
-      str->append(STRING_WITH_LEN(" left join "));
+      /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
+      if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
+      {
+        /* MySQL converts right to left joins */
+        str->append(STRING_WITH_LEN(" left join "));
+      }
+      else if (curr->straight)
+        str->append(STRING_WITH_LEN(" straight_join "));
+      else if (curr->sj_inner_tables)
+        str->append(STRING_WITH_LEN(" semi join "));
+      else
+        str->append(STRING_WITH_LEN(" join "));
     }
-    else if (curr->straight)
-      str->append(STRING_WITH_LEN(" straight_join "));
-    else if (curr->sj_inner_tables)
-      str->append(STRING_WITH_LEN(" semi join "));
-    else
-      str->append(STRING_WITH_LEN(" join "));
 
     append_table_list(thd, fields, curr, str);
     // /* fixme: print on_expr */
     if (curr->on_expr)
     {
-      str->append(STRING_WITH_LEN(" on "));
+      if (str)
+        str->append(STRING_WITH_LEN(" on "));
       spider_db_print_item_type(curr->on_expr, NULL, spider, str, NULL, 0,
                                 dbton_id, TRUE, fields);
       /*
