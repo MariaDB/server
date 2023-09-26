@@ -55,9 +55,24 @@ Gtid_index_writer::Gtid_index_writer(const char *filename, uint32 offset,
   lock_gtid_index();
 
   build_index_filename(filename);
+  int create_flags= O_WRONLY|O_TRUNC|O_BINARY|O_EXCL;
   index_file= mysql_file_create(key_file_gtid_index, index_file_name,
-                                CREATE_MODE, O_RDWR|O_TRUNC|O_BINARY,
-                                MYF(MY_WME));
+                                CREATE_MODE, create_flags, MYF(0));
+  if (index_file < 0 && my_errno == EEXIST)
+  {
+    /*
+      It shouldn't happen that an old GTID index file remains, as we remove
+      them as part of RESET MASTER and PURGE BINARY LOGS. But if it happens
+      due to some external file copy of the user or something, delete any old
+      GTID index file first.
+    */
+    sql_print_information("Old GTID index file found '%s', deleting",
+                          index_file_name);
+    my_errno= 0;
+    mysql_file_delete(key_file_gtid_index, index_file_name, MYF(0));
+    index_file= mysql_file_create(key_file_gtid_index, index_file_name,
+                                  CREATE_MODE, create_flags, MYF(0));
+  }
   if (index_file < 0)
   {
     give_error("Failed to open new index file for writing");
@@ -256,7 +271,7 @@ Gtid_index_writer::close()
 
   if (!error_state)
   {
-    if (mysql_file_sync(index_file, MYF(MY_WME)))
+    if (mysql_file_sync(index_file, MYF(0)))
       give_error("Error syncing index file to disk");
     else
     {
@@ -318,11 +333,19 @@ Gtid_index_base::~Gtid_index_base()
 
 
 void
+Gtid_index_base::make_gtid_index_file_name(char *out_name, size_t bufsize,
+                                           const char *base_filename)
+{
+  char *p= strmake(out_name, base_filename, bufsize-1);
+  size_t remain= bufsize - (p - out_name);
+  strmake(p, ".idx", remain-1);
+}
+
+
+void
 Gtid_index_base::build_index_filename(const char *filename)
 {
-  char *p= strmake(index_file_name, filename, sizeof(index_file_name)-1);
-  size_t remain= sizeof(index_file_name) - (p - index_file_name);
-  strmake(p, ".idx", remain-1);
+  make_gtid_index_file_name(index_file_name, sizeof(index_file_name), filename);
 }
 
 
@@ -371,7 +394,7 @@ Gtid_index_writer::write_current_node(uint32 level, bool is_root)
       *(p->flag_ptr) |= PAGE_FLAG_ROOT;
     if (likely(!p->next))
       *(p->flag_ptr) |= PAGE_FLAG_LAST;
-    if (mysql_file_write(index_file, p->page, page_size, MYF(MY_WME|MY_NABP)))
+    if (mysql_file_write(index_file, p->page, page_size, MYF(MY_NABP)))
     {
       give_error("Error writing index page");
       return 0;
@@ -680,7 +703,7 @@ Gtid_index_base::Node_page *Gtid_index_base::alloc_page()
   Node_page *new_node= (Node_page *)
     my_malloc(PSI_INSTRUMENT_ME,
               sizeof(Node_page) + page_size,
-              MYF(MY_ZEROFILL|MY_WME));
+              MYF(MY_ZEROFILL));
   if (!new_node)
     give_error("Out of memory for allocating index page");
   return new_node;
