@@ -1176,6 +1176,8 @@ public:
     and all inner subselects.
   */
   uint select_n_where_fields;
+  /* Total number of elements in group by and order by lists */
+  uint order_group_num;
   /* reserved for exists 2 in */
   uint select_n_reserved;
   /*
@@ -1416,6 +1418,7 @@ public:
     init_select();
   }
   bool setup_ref_array(THD *thd, uint order_group_num);
+  uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
   void print_set_clause(THD *thd, String *str, enum_query_type query_type);

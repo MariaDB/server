@@ -2413,6 +2413,7 @@ void st_select_lex::init_query()
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
+  order_group_num= 0;
   select_n_reserved= 0;
   select_n_having_items= 0;
   n_sum_items= 0;
@@ -2978,46 +2979,40 @@ ulong st_select_lex::get_table_join_options()
 }
 
 
-bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
+uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
 {
-
   if (!((options & SELECT_DISTINCT) && !group_list.elements))
     hidden_bit_fields= 0;
 
-  // find_order_in_list() may need some extra space, so multiply by two.
-  order_group_num*= 2;
+  if (!order_group_num)
+    order_group_num= order_group_num_arg;
 
   /*
-    We have to create array in prepared statement memory if it is a
-    prepared statement
+    find_order_in_list() may need some extra space,
+    so multiply order_group_num by 2
   */
-  Query_arena *arena= thd->stmt_arena;
-  const size_t n_elems= (n_sum_items +
-                       n_child_sum_items +
-                       item_list.elements +
-                       select_n_reserved +
-                       select_n_having_items +
-                       select_n_where_fields +
-                       order_group_num +
-                       hidden_bit_fields +
-                       fields_in_window_functions) * (size_t) 5;
-  DBUG_ASSERT(n_elems % 5 == 0);
+  uint n= n_sum_items +
+          n_child_sum_items +
+          item_list.elements +
+          select_n_reserved +
+          select_n_having_items +
+          select_n_where_fields +
+          order_group_num * 2 +
+          hidden_bit_fields +
+          fields_in_window_functions;
+  return n;
+}
+
+
+bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
+{
+  uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num) * 5;
   if (!ref_pointer_array.is_null())
-  {
-    /*
-      We need to take 'n_sum_items' into account when allocating the array,
-      and this may actually increase during the optimization phase due to
-      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
-      In the usual case we can reuse the array from the prepare phase.
-      If we need a bigger array, we must allocate a new one.
-     */
-    if (ref_pointer_array.size() >= n_elems)
-      return false;
-   }
-  Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
+    return false;
+  Item **array= static_cast<Item**>(thd->stmt_arena->alloc(sizeof(Item*) *
+                                                           n_elems));
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
-
   return array == NULL;
 }
 
