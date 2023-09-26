@@ -716,6 +716,10 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
+ --optimizer-max-sel-args=# 
+ The maximum number of SEL_ARG objects created when
+ optimizing a range. If more objects would be needed, the
+ range will not be used by the optimizer.
  --optimizer-prune-level=# 
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
@@ -1682,6 +1686,7 @@ old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-max-sel-arg-weight 32000
+optimizer-max-sel-args 16000
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100

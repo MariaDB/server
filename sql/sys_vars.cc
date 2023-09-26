@@ -6835,7 +6835,15 @@ static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
        "optimizer_max_sel_arg_weight",
        "The maximum weight of the SEL_ARG graph. Set to 0 for no limit",
        SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_optimizer_max_sel_args(
+       "optimizer_max_sel_args",
+       "The maximum number of SEL_ARG objects created when optimizing a range. "
+       "If more objects would be needed, the range will not be used by the "
+       "optimizer.",
+       SESSION_VAR(optimizer_max_sel_args), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(SEL_ARG::DEFAULT_MAX_SEL_ARGS), BLOCK_SIZE(1));
 
 static Sys_var_enum Sys_secure_timestamp(
        "secure_timestamp", "Restricts direct setting of a session "

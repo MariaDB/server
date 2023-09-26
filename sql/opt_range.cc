@@ -725,7 +725,8 @@ int SEL_IMERGE::or_sel_tree_with_checks(RANGE_OPT_PARAM *param,
             
             result_keys.set_bit(key_no);
 #ifdef EXTRA_DEBUG
-            if (param->alloced_sel_args < SEL_ARG::MAX_SEL_ARGS)
+            if (param->alloced_sel_args <
+                param->thd->variables.optimizer_max_sel_args)
 	    {
               key1= result->keys[key_no]; 
               (key1)->test_use_count(key1);
@@ -2054,7 +2055,7 @@ SEL_ARG *SEL_ARG::clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent,
   SEL_ARG *tmp;
 
   /* Bail out if we have already generated too many SEL_ARGs */
-  if (++param->alloced_sel_args > MAX_SEL_ARGS)
+  if (++param->alloced_sel_args > param->thd->variables.optimizer_max_sel_args)
     return 0;
 
   if (type != KEY_RANGE)
@@ -2897,7 +2898,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         if (notnull_cond_tree)
           tree= tree_and(&param, tree, notnull_cond_tree);
         if (thd->trace_started() && 
-            param.alloced_sel_args >= SEL_ARG::MAX_SEL_ARGS)
+            param.alloced_sel_args >= thd->variables.optimizer_max_sel_args)
         {
           Json_writer_object wrapper(thd);
           Json_writer_object obj(thd, "sel_arg_alloc_limit_hit");
@@ -9286,7 +9287,8 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
       }
       result_keys.set_bit(key_no);
 #ifdef EXTRA_DEBUG
-      if (param->alloced_sel_args < SEL_ARG::MAX_SEL_ARGS) 
+      if (param->alloced_sel_args <
+          param->thd->variables.optimizer_max_sel_args)
         key->test_use_count(key);
 #endif
     }
@@ -9939,7 +9941,8 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
       key1->weight+= (tmp? tmp->weight: 0) - old_weight;
       if (use_count)
 	next->increment_use_count(use_count);
-      if (param->alloced_sel_args > SEL_ARG::MAX_SEL_ARGS)
+      if (param->alloced_sel_args >
+          param->thd->variables.optimizer_max_sel_args)
         break;
     }
     else

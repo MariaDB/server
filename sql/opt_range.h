@@ -322,7 +322,7 @@ public:
 #endif
 
   /* See RANGE_OPT_PARAM::alloced_sel_args */
-  enum { MAX_SEL_ARGS = 16000 };
+  enum { DEFAULT_MAX_SEL_ARGS = 16000 };
 
   SEL_ARG() = default;
   SEL_ARG(SEL_ARG &);
@@ -740,7 +740,7 @@ public:
       thd->killed ||
       thd->is_fatal_error ||
       thd->is_error() ||
-      alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
+      alloced_sel_args > thd->variables.optimizer_max_sel_args;
   }
 };
 
