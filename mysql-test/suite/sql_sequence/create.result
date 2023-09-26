@@ -716,4 +716,12 @@ CREATE SEQUENCE seq1 START WITH 2;
 CREATE TRIGGER s1 BEFORE UPDATE ON seq1 FOR EACH ROW SET @a= 5;
 ERROR HY000: Trigger's 'seq1' is view, temporary table or sequence
 DROP SEQUENCE seq1;
+#
+# MDEV-29771: Server crashes in check_sequence_fields upon
+# CREATE TABLE .. SEQUENCE=1 AS SELECT ..
+#
+create table s sequence=1 as select 1;
+ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of columns)
+#
 # End of 10.4 test
+#
