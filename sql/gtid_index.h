@@ -161,6 +161,8 @@ public:
   static constexpr uchar GTID_INDEX_VERSION_MINOR= 0;
   static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 16;
   static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 8;
+  /* +4 for ".idx" prefix. */
+  static constexpr size_t GTID_INDEX_FILENAME_MAX_SIZE= FN_REFLEN+4;
 
 #ifdef _MSC_VER
 /*
@@ -190,6 +192,8 @@ public:
     void reset();
   };
 
+  static void make_gtid_index_file_name(char *out_name, size_t bufsize,
+                                        const char *base_filename);
   int update_gtid_state(rpl_binlog_state *state,
                         const rpl_gtid *gtid_list, uint32 gtid_count);
   Node_page *alloc_page();
@@ -204,7 +208,7 @@ public:
   rpl_gtid *gtid_buffer;
   uint32 gtid_buffer_alloc;
   size_t page_size;
-  char index_file_name[FN_REFLEN+4];  // +4 for ".idx" prefix
+  char index_file_name[GTID_INDEX_FILENAME_MAX_SIZE];
 
 protected:
   Gtid_index_base();

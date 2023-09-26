@@ -43,4 +43,26 @@ while ($i < 2) {
   }
 }
 
+--echo *** Test that purge deletes the gtid index files. ***
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (200);
+--let $file2= query_get_value(SHOW MASTER STATUS, File, 1)
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (201);
+--let $file3= query_get_value(SHOW MASTER STATUS, File, 1)
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (202);
+--let $file4= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--replace_result $file3 FILE
+eval PURGE BINARY LOGS TO '$file3';
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--error 1
+--file_exists $MYSQLD_DATADIR/$file.idx
+--error 1
+--file_exists $MYSQLD_DATADIR/$file2.idx
+--file_exists $MYSQLD_DATADIR/$file3.idx
+--file_exists $MYSQLD_DATADIR/$file4.idx
+
 DROP TABLE t1;

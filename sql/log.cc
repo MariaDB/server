@@ -4640,6 +4640,28 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 
   for (;;)
   {
+    /* Delete any GTID index file. */
+    char buf[Gtid_index_base::GTID_INDEX_FILENAME_MAX_SIZE];
+    Gtid_index_base::make_gtid_index_file_name(buf, sizeof(buf),
+                                               linfo.log_file_name);
+    if (my_delete(buf, MYF(0)))
+    {
+      /* If ENOENT, the GTID index file is already deleted or never existed. */
+      if (my_errno != ENOENT)
+      {
+        if (thd)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_CANT_DELETE_FILE, ER_THD(thd, ER_CANT_DELETE_FILE),
+                              buf, my_errno);
+        }
+        sql_print_information("Failed to delete file '%s' (errno=%d)",
+                              buf, my_errno);
+      }
+      my_errno= 0;
+    }
+
+    /* Delete the binlog file. */
     if (unlikely((error= my_delete(linfo.log_file_name, MYF(0)))))
     {
       if (my_errno == ENOENT) 
@@ -5150,6 +5172,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
   int error= 0;
   LOG_INFO log_info;
   LOG_INFO check_log_info;
+  char buf[Gtid_index_base::GTID_INDEX_FILENAME_MAX_SIZE];
 
   DBUG_ASSERT(my_b_inited(&purge_index_file));
 
@@ -5182,6 +5205,24 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
 
     /* Get rid of the trailing '\n' */
     log_info.log_file_name[length-1]= 0;
+
+    Gtid_index_base::make_gtid_index_file_name(buf, sizeof(buf),
+                                               log_info.log_file_name);
+    if (my_delete(buf, MYF(0)))
+    {
+      /* If ENOENT, the GTID index file is already deleted or never existed. */
+      if (my_errno != ENOENT)
+      {
+        if (thd)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_CANT_DELETE_FILE, ER_THD(thd, ER_CANT_DELETE_FILE),
+                              buf, my_errno);
+        }
+        sql_print_information("Failed to delete file '%s'", buf);
+      }
+      my_errno= 0;
+    }
 
     if (unlikely(!mysql_file_stat(m_key_file_log, log_info.log_file_name, &s,
                                   MYF(0))))
