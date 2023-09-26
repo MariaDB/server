@@ -894,4 +894,20 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1`,`test`.`t2`.`c2` AS `c2` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`c2` = `test`.`t1`.`c1`
 drop table t1,t2;
+#
+# MDEV-29289: uncleaned LIMIT ROWS EXAMINED
+#
+CREATE TABLE t (c INT);
+SET @save_general_log=@@general_log;
+SET @save_log_output=@@log_output;
+SET GLOBAL general_log=ON,log_output='TABLE';
+EXPLAIN SELECT * FROM t LIMIT ROWS EXAMINED 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	system	NULL	NULL	NULL	NULL	0	Const row not found
+INSERT INTO dummy SET a=0;
+ERROR 42S02: Table 'test.dummy' doesn't exist
+DROP TABLE t;
+SET GLOBAL general_log=@save_general_log, log_output=@save_log_output;
+#
 # End of 10.4 tests
+#

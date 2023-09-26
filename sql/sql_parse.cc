@@ -2499,6 +2499,12 @@ dispatch_end:
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
   thd->lex->restore_set_statement_var();
+  /*
+    Disable limit of examined rows to avoid triggering it by
+    unrelated actions (for example writing next command to the
+    general log)
+  */
+  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   DBUG_RETURN(error);
 }
 
