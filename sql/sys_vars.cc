@@ -6895,8 +6895,12 @@ static Sys_var_ulonglong Sys_max_session_mem_used(
  @retval false  The string is valid
  @retval true   The string is invalid
 */
-static bool sysvar_validate_redirect_url(sys_var *, THD *, set_var *var)
+static bool sysvar_validate_redirect_url(sys_var *self, THD *thd,
+                                         set_var *var)
 {
+  /* NULL is invalid. */
+  if (check_not_null(self, thd, var))
+    return true;
   char *str= var->save_result.string_value.str;
   size_t len= var->save_result.string_value.length;
   LEX_CSTRING mysql_prefix= {STRING_WITH_LEN("mysql://")};

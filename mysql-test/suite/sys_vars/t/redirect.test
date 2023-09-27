@@ -1,7 +1,7 @@
 --echo #
 --echo # MDEV-15935 Connection Redirection Mechanism in MariaDB Client/Server Protocol
 --echo #
-# session_track_system_variables is undefined in embedded.
+# redirect_url is undefined in embedded.
 --source include/not_embedded.inc
 
 # We need to connect as a non super user for the init-connect to take
