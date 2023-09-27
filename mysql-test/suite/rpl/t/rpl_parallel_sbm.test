@@ -36,10 +36,6 @@ create table t2 (a int);
 --echo #
 --echo # Pt 1) Ensure SBM is updated immediately upon arrival of the next event
 
---echo # Lock t1 on slave so the first received transaction does not complete/commit
---connection slave
-LOCK TABLES t1 WRITE;
-
 --connection master
 --echo # Sleep 2 to allow a buffer between events for SBM check
 sleep 2;
@@ -65,8 +61,29 @@ if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
 }
 --echo # ..done
 
+--echo # MDEV-32265. If a replica is actively delaying a transaction when
+--echo # restarted, when the sql thread is back up, Seconds_Behind_Master
+--echo # should pick back up where it it left-off.
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
 --connection slave
-UNLOCK TABLES;
+--echo # Waiting for replica to resume the delay for the transaction
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting until MASTER_DELAY seconds after master executed event';
+--source include/wait_condition.inc
+
+--echo # Sleeping 1s to increment SBM
+sleep 1;
+
+--echo # Ensuring Seconds_Behind_Master increases after sleeping..
+--let $sbm_trx1_after_1s_sleep= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+if (`SELECT $sbm_trx1_after_1s_sleep <= $sbm_trx1_arrive`)
+{
+    --echo # ..failed
+    --die Seconds_Behind_Master did not increase after sleeping, but should have
+}
+--echo # ..done
+
 --source include/sync_with_master_gtid.inc
 
 --echo #
