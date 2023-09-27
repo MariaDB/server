@@ -503,7 +503,7 @@ int append_query_string(CHARSET_INFO *csinfo, String *to,
   beg= (char*) to->ptr() + to->length();
   ptr= beg;
   if (csinfo->escape_with_backslash_is_dangerous)
-    ptr= str_to_hex(ptr, str, len);
+    ptr= str_to_hex(ptr, (uchar*)str, len);
   else
   {
     *ptr++= '\'';
@@ -3885,7 +3885,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
                         MY_CS_COLLATION_NAME_SIZE))
           return;
         beg= const_cast<char *>(buf.ptr()) + old_len;
-        end= str_to_hex(beg, val, val_len);
+        end= str_to_hex(beg, (uchar*)val, val_len);
         buf.length(old_len + (end - beg));
         if (buf.append(STRING_WITH_LEN(" COLLATE ")) ||
             buf.append(cs->coll_name))

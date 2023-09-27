@@ -952,7 +952,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     *buf++= '0';
     *buf++= 'x';
-    buf= octet2hex(buf, (char*) ptr, len);
+    buf= octet2hex(buf, ptr, len);
     if (to->append((char*) buff, (uint)(buf - buff)))
       DBUG_RETURN(1);
   }

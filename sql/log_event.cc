@@ -259,7 +259,7 @@ static inline bool read_str(const uchar **buf, const uchar *buf_end,
   Transforms a string into "" or its expression in X'HHHH' form.
 */
 
-char *str_to_hex(char *to, const char *from, size_t len)
+char *str_to_hex(char *to, const uchar *from, size_t len)
 {
   if (len)
   {

@@ -6547,7 +6547,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
     char hexbuf[7];
     uint diff= str->length() - wlen;
     set_if_smaller(diff, 3);
-    octet2hex(hexbuf, str->ptr() + wlen, diff);
+    octet2hex(hexbuf, (uchar*)str->ptr() + wlen, diff);
     if (send_error)
     {
       my_error(ER_INVALID_CHARACTER_STRING, MYF(0),
@@ -6599,7 +6599,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
     char buf[16];
     int mblen= srccs->charlen(pos, src + src_length);
     DBUG_ASSERT(mblen > 0 && mblen * 2 + 1 <= (int) sizeof(buf));
-    octet2hex(buf, pos, mblen);
+    octet2hex(buf, (uchar*)pos, mblen);
     push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_CANNOT_CONVERT_CHARACTER,
                         ER_THD(m_thd, ER_CANNOT_CONVERT_CHARACTER),

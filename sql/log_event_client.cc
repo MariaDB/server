@@ -1541,7 +1541,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
       */
       const int buff_len= 2 + (256 * 2) + 1;
       char buff[buff_len];
-      str_to_hex(buff, (const char*) &m_extra_row_data[EXTRA_ROW_INFO_HDR_BYTES],
+      str_to_hex(buff, &m_extra_row_data[EXTRA_ROW_INFO_HDR_BYTES],
                  extra_payload_len);
       if (my_b_printf(file, "%s", buff))
         goto err;
@@ -2540,7 +2540,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       hex_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, 2 * val_len + 1 + 3, MYF(MY_WME));
       if (!hex_str)
         goto err;
-      str_to_hex(hex_str, val, val_len);
+      str_to_hex(hex_str, (uchar*)val, val_len);
       /*
         For proper behaviour when mysqlbinlog|mysql, we need to explicitly
         specify the variable's collation. It will however cause problems when

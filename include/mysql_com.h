@@ -717,7 +717,7 @@ void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-char *octet2hex(char *to, const char *str, size_t len);
+char *octet2hex(char *to, const unsigned char *str, size_t len);
 
 /* end of password.c */
 

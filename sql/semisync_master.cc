@@ -603,7 +603,7 @@ l_end:
   if (result == -1)
   {
     char buf[256];
-    octet2hex(buf, (const char*) packet, std::min(static_cast<ulong>(sizeof(buf)-1),
+    octet2hex(buf, packet, std::min(static_cast<ulong>(sizeof(buf)-1),
                                                   packet_len));
     sql_print_information("First bytes of the packet from semisync slave "
                           "server-id %d: %s", server_id, buf);
