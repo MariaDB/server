@@ -141,6 +141,7 @@ CREATE TABLE `tab_MDEV_30820` (
 );
 
 --disable_ps2_protocol
+--disable_view_protocol
 
 --delimiter //
 CREATE FUNCTION `get_zero`() RETURNS int(11)
@@ -181,6 +182,7 @@ SET SESSION slow_query_log=default;
 drop table tab_MDEV_30820, tab2;
 drop function get_zero;
 
+--enable_view_protocol
 --enable_ps2_protocol
 
 --echo #
