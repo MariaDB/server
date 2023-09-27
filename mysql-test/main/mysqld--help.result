@@ -511,9 +511,8 @@ The following specify which files/extra groups are read (specified before remain
  when binary log is disabled).
  --log-tc-size=#     Size of transaction coordinator log.
  -W, --log-warnings[=#] 
- Log some not critical warnings to the general log
- file.Value can be between 0 and 11. Higher values mean
- more verbosity
+ Log some non critical warnings to the error log.Value can
+ be between 0 and 11. Higher values mean more verbosity
  --long-query-time=# Log all queries that have taken more than long_query_time
  seconds to execute to the slow query log file. The
  argument will be treated as a decimal value with

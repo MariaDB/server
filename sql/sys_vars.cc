@@ -1384,7 +1384,7 @@ static Sys_var_bit Sys_log_slow_slave_statements(
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
-       "Log some not critical warnings to the general log file."
+       "Log some non critical warnings to the error log."
        "Value can be between 0 and 11. Higher values mean more verbosity",
        SESSION_VAR(log_warnings),
        CMD_LINE(OPT_ARG, 'W'),
