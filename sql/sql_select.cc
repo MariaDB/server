@@ -2530,7 +2530,7 @@ JOIN::optimize_inner()
   result->prepare_to_read_rows();
   if (unlikely(make_join_statistics(this, select_lex->leaf_tables,
                                     &keyuse)) ||
-      unlikely(thd->is_fatal_error))
+      unlikely(thd->is_error()))
   {
     DBUG_PRINT("error",("Error: make_join_statistics() failed"));
     DBUG_RETURN(1);
@@ -2763,7 +2763,7 @@ int JOIN::optimize_stage2()
       {
         ref_item= substitute_for_best_equal_field(thd, tab, ref_item,
                                                   equals, map2table, true);
-        if (unlikely(thd->is_fatal_error))
+        if (unlikely(thd->is_error()))
           DBUG_RETURN(1);
 
         if (first_inner)
@@ -2998,7 +2998,7 @@ int JOIN::optimize_stage2()
       else
 	group_list= 0;
     }
-    else if (thd->is_fatal_error)			// End of memory
+    else if (thd->is_error())			// End of memory
       DBUG_RETURN(1);
   }
   simple_group= rollup.state == ROLLUP::STATE_NONE;
@@ -3629,7 +3629,7 @@ bool JOIN::make_aggr_tables_info()
         curr_tab->all_fields= &tmp_all_fields1;
         curr_tab->fields= &tmp_fields_list1;
 
-        DBUG_RETURN(thd->is_fatal_error);
+        DBUG_RETURN(thd->is_error());
       }
     }
   }
@@ -3950,7 +3950,7 @@ bool JOIN::make_aggr_tables_info()
                                 !join_tab ||
                                 !join_tab-> is_using_agg_loose_index_scan()))
       DBUG_RETURN(true);
-    if (unlikely(setup_sum_funcs(thd, sum_funcs) || thd->is_fatal_error))
+    if (unlikely(setup_sum_funcs(thd, sum_funcs) || thd->is_error()))
       DBUG_RETURN(true);
   }
   if (group_list || order)
@@ -5861,7 +5861,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             goto error;
           records= get_quick_record_count(join->thd, select, s->table,
                                           &s->const_keys, join->row_limit);
-
+          if (join->thd->is_error())
+          {
+            /* get_quick_record_count generated an error */
+            delete select;
+            goto error;
+          }
           /*
             Range analyzer might have modified the condition. Put it the new
             condition to where we got it from.
@@ -11194,6 +11199,8 @@ bool JOIN::get_best_combination()
   table_map used_tables;
   JOIN_TAB *j;
   KEYUSE *keyuse;
+  JOIN_TAB *sjm_nest_end= NULL;
+  JOIN_TAB *sjm_nest_root= NULL;
   DBUG_ENTER("get_best_combination");
 
    /*
@@ -11248,20 +11255,17 @@ bool JOIN::get_best_combination()
     DBUG_RETURN(TRUE);
 
   if (inject_splitting_cond_for_all_tables_with_split_opt())
-    DBUG_RETURN(TRUE);
+    goto error;
 
   JOIN_TAB_RANGE *root_range;
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
-    DBUG_RETURN(TRUE);
+    goto error;
    root_range->start= join_tab;
   /* root_range->end will be set later */
   join_tab_ranges.empty();
 
   if (join_tab_ranges.push_back(root_range, thd->mem_root))
-    DBUG_RETURN(TRUE);
-
-  JOIN_TAB *sjm_nest_end= NULL;
-  JOIN_TAB *sjm_nest_root= NULL;
+    goto error;
 
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
@@ -11295,7 +11299,7 @@ bool JOIN::get_best_combination()
       JOIN_TAB_RANGE *jt_range;
       if (!(jt= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*sjm->tables)) ||
           !(jt_range= new JOIN_TAB_RANGE))
-        DBUG_RETURN(TRUE);
+        goto error;
       jt_range->start= jt;
       jt_range->end= jt + sjm->tables;
       join_tab_ranges.push_back(jt_range, thd->mem_root);
@@ -11375,7 +11379,7 @@ bool JOIN::get_best_combination()
     {
       if ((keyuse= best_positions[tablenr].key) &&
           create_ref_for_key(this, j, keyuse, TRUE, used_tables))
-        DBUG_RETURN(TRUE);              // Something went wrong
+        goto error;                            // Something went wrong
     }
     if (j->last_leaf_in_bush)
       j= j->bush_root_tab;
@@ -11389,6 +11393,11 @@ bool JOIN::get_best_combination()
 
   update_depend_map(this);
   DBUG_RETURN(0);
+
+error:
+  /* join_tab was not correctly setup. Don't use it */
+  join_tab= 0;
+  DBUG_RETURN(1);
 }
 
 /**
@@ -11708,7 +11717,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            keyinfo->key_part[i].length,
                            keyuse->val,
                            FALSE);
-        if (unlikely(thd->is_fatal_error))
+        if (unlikely(thd->is_error()))
           DBUG_RETURN(TRUE);
         tmp.copy(thd);
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
@@ -25077,7 +25086,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
       DBUG_ASSERT(tab->type == JT_REF || tab->type == JT_EQ_REF);
       // Update ref value
       if (unlikely(cp_buffer_from_ref(thd, table, &tab->ref) &&
-                   thd->is_fatal_error))
+                   thd->is_error()))
         goto err;                                   // out of memory
     }
   }
@@ -26938,7 +26947,7 @@ change_refs_to_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     itr++;
   itr.sublist(res_selected_fields, elements);
 
-  return thd->is_fatal_error;
+  return thd->is_error();
 }
 
 
@@ -27116,7 +27125,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
                               value),
               thd->mem_root);
   }
-  if (unlikely(thd->is_fatal_error))
+  if (unlikely(thd->is_error()))
     DBUG_RETURN(TRUE);
   if (!cond->fixed())
   {
@@ -27727,7 +27736,7 @@ int print_explain_message_line(select_result_sink *result,
   else
     item_list.push_back(item_null, mem_root);
 
-  if (unlikely(thd->is_fatal_error) || unlikely(result->send_data(item_list)))
+  if (unlikely(thd->is_error()) || unlikely(result->send_data(item_list)))
     return 1;
   return 0;
 }
