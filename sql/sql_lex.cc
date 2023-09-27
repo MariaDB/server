@@ -2441,6 +2441,7 @@ void st_select_lex::init_query()
   m_custom_agg_func_used= false;
   window_specs.empty();
   window_funcs.empty();
+  is_win_spec_list_built= false;
   tvc= 0;
   in_tvc= false;
   versioned_tables= 0;

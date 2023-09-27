@@ -1530,6 +1530,7 @@ public:
                                        bool no_to_clones);
   
   List<Window_spec> window_specs;
+  bool is_win_spec_list_built;
   void prepare_add_window_spec(THD *thd);
   bool add_window_def(THD *thd, LEX_CSTRING *win_name, LEX_CSTRING *win_ref,
                       SQL_I_List<ORDER> win_partition_list,
