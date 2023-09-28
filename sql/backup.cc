@@ -268,6 +268,7 @@ static bool backup_block_ddl(THD *thd)
     if (server_state.desync_and_pause().is_undefined()) {
       DBUG_RETURN(1);
     }
+    DEBUG_SYNC(thd, "wsrep_backup_stage_after_desync_and_pause");
     thd->wsrep_desynced_backup_stage= true;
   }
 #endif /* WITH_WSREP */
@@ -341,6 +342,7 @@ bool backup_end(THD *thd)
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
       server_state.resume_and_resync();
       thd->wsrep_desynced_backup_stage= false;
+      DEBUG_SYNC(thd, "wsrep_backup_stage_after_resume_and_resync");
     }
 #endif /* WITH_WSREP */
   }
