@@ -470,22 +470,12 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   if (check_grant(thd, priv_needed, first_table, FALSE, UINT_MAX, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
-    wsrep::key_array keys;
-    wsrep_append_fk_parent_table(thd, first_table, &keys);
-
-    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
-                                   (lex->name.str ? lex->name.str : NULL),
-                                   first_table, &alter_info, &keys)
-    {
-      WSREP_WARN("ALTER TABLE isolation failure");
-      DBUG_RETURN(TRUE);
-    }
-
     /*
       It makes sense to set auto_increment_* to defaults in TOI operations.
       Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
@@ -498,6 +488,19 @@ bool Sql_cmd_alter_table::execute(THD *thd)
       thd->variables.auto_increment_offset = 1;
       thd->variables.auto_increment_increment = 1;
     }
+
+    wsrep::key_array keys;
+    wsrep_append_fk_parent_table(thd, first_table, &keys);
+
+    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
+                                   (lex->name.str ? lex->name.str : NULL),
+                                   first_table, &alter_info, &keys)
+    {
+      WSREP_WARN("ALTER TABLE isolation failure");
+      DBUG_RETURN(TRUE);
+    }
+
+    DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
   }
 #endif
 
