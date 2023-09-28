@@ -16,6 +16,7 @@ RUN apt-get update \
         liblzo2-dev \
         libsnappy-dev \
         libzstd-dev \
+        mariadb-client \
         ninja-build \
         sccache \
         vim-tiny \

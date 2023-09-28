@@ -7,9 +7,8 @@ echo starting internal build
 # export CMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib
 # export CMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib
 # export CMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin
-build_dir=/obj/build-mariadb
-mkdir -p "$build_dir"
-cd "$build_dir"
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 
 git config --global --add safe.directory '*'
 
@@ -17,7 +16,7 @@ git config --global --add safe.directory '*'
 # touch the source directory.
 cmake \
     -S/checkout\
-    -B/obj/build-mariadb \
+    -B${BUILD_DIR} \
     -DCMAKE_C_COMPILER_LAUNCHER=sccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
     -DCMAKE_BUILD_TYPE=Debug \
@@ -28,12 +27,12 @@ cmake \
     -DPLUGIN_TOKUDB=NO \
     -G Ninja
 
-export CMD_CCMAKE="ccmake -S/checkout -B${build_dir}"
+export CMD_CCMAKE="ccmake -S/checkout -B${BUILD_DIR}"
 
 # -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib \
 # -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib \
 # -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin \
 
 # ninja automatically uses all the cores
-cmake --build "$build_dir"
+cmake --build "$BUILD_DIR"
 # cmake --install "$build_dir"

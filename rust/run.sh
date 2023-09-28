@@ -26,6 +26,7 @@ args=("${args[@]}" "--rm")
 
 build_cmd="/checkout/rust/scripts/launch/build_maria.sh"
 test_cmd="/checkout/rust/scripts/launch/run_mtr.sh"
+start_cmd="/checkout/rust/scripts/launch/install_run_maria.sh"
 
 help="USAGE: ./run.sh build|test|shell"
 
@@ -42,6 +43,9 @@ elif [ "$1" = "build" ]; then
 elif [ "$1" = "test" ]; then
     echo testing mariadb
     command="$build_cmd && $test_cmd"
+elif [ "$1" = "start" ]; then
+    echo starting mariadb
+    command="$build_cmd && $start_cmd"
 else
     echo invalid command
     exit 1
