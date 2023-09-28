@@ -27,7 +27,7 @@ args=("${args[@]}" "--rm")
 build_cmd="/checkout/rust/scripts/launch/build_maria.sh"
 test_cmd="/checkout/rust/scripts/launch/run_mtr.sh"
 
-help="USAGE: ./run_docker.sh build|test|shell"
+help="USAGE: ./run.sh build|test|shell"
 
 if [ -z "${1:-""}" ]; then
     echo "$help"

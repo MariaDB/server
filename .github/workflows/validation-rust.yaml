@@ -91,6 +91,7 @@ jobs:
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       - name: Start docker
         run: >
+          mkdir docker_obj &&
           docker run --rm
           --volume $(pwd):/checkout:ro
           --volume $(pwd)/docker_obj:/obj
