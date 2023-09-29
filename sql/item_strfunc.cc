@@ -1407,11 +1407,24 @@ namespace fmt {
 */
 String *Item_func_sformat::val_str(String *res)
 {
+  /*
+    A union that stores a numeric format arg value.
+    fmt::detail::make_arg does not accept temporaries, so all of its numeric
+    args are temporarily stored in the fmt_args array.
+    See: https://github.com/fmtlib/fmt/issues/3596
+  */
+  union Format_arg_store {
+    longlong val_int;
+    float    val_float;
+    double   val_double;
+  };
+
   DBUG_ASSERT(fixed());
-  using                         ctx=     fmt::format_context;
-  String                       *fmt_arg= NULL;
-  String                       *parg=    NULL;
-  fmt::format_args::format_arg *vargs=   NULL;
+  using                         ctx=      fmt::format_context;
+  String                       *fmt_arg=  NULL;
+  String                       *parg=     NULL;
+  fmt::format_args::format_arg *vargs=    NULL;
+  Format_arg_store             *fmt_args= NULL;
 
   null_value= true;
   if (!(fmt_arg= args[0]->val_str(res)))
@@ -1420,25 +1433,39 @@ String *Item_func_sformat::val_str(String *res)
   if (!(vargs= new fmt::format_args::format_arg[arg_count - 1]))
     return NULL;
 
+  if (!(fmt_args= new Format_arg_store[arg_count - 1]))
+  {
+    delete [] vargs;
+    return NULL;
+  }
+
   /* Creates the array of arguments for vformat */
   for (uint carg= 1; carg < arg_count; carg++)
   {
     switch (args[carg]->result_type())
     {
     case INT_RESULT:
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_int());
+      fmt_args[carg-1].val_int= args[carg]->val_int();
+      vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_int);
       break;
     case DECIMAL_RESULT: // TODO
     case REAL_RESULT:
       if (args[carg]->field_type() == MYSQL_TYPE_FLOAT)
-        vargs[carg-1]= fmt::detail::make_arg<ctx>((float)args[carg]->val_real());
+      {
+        fmt_args[carg-1].val_float= (float)args[carg]->val_real();
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_float);
+      }
       else
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
+      {
+        fmt_args[carg-1].val_double= args[carg]->val_real();
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_double);
+      }
       break;
     case STRING_RESULT:
       if (!(parg= args[carg]->val_str(&val_arg[carg-1])))
       {
         delete [] vargs;
+        delete [] fmt_args;
         return NULL;
       }
       vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
@@ -1448,6 +1475,7 @@ String *Item_func_sformat::val_str(String *res)
     default:
       DBUG_ASSERT(0);
       delete [] vargs;
+      delete [] fmt_args;
       return NULL;
     }
   }
@@ -1471,6 +1499,7 @@ String *Item_func_sformat::val_str(String *res)
     null_value= true;
   }
   delete [] vargs;
+  delete [] fmt_args;
   return null_value ? NULL : res;
 }
 
