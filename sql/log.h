@@ -242,6 +242,7 @@ extern TC_LOG_DUMMY tc_log_dummy;
 #define LOG_CLOSE_TO_BE_OPENED	2
 #define LOG_CLOSE_STOP_EVENT	4
 #define LOG_CLOSE_DELAYED_CLOSE 8
+#define LOG_CLOSE_SYNC_GTID_INDEX 16
 
 /* 
   Maximum unique log filename extension.
