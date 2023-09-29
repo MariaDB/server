@@ -586,6 +586,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
+  void update_gtid_index(uint32 offset, rpl_gtid gtid);
+
 public:
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
@@ -605,11 +607,8 @@ public:
     ulong binlog_id;
     /* Total prepared XIDs and pending checkpoint requests in this binlog. */
     long xid_count;
-    long notify_count;
-    /* For linking in requests to the binlog background thread. */
-    xid_count_per_binlog *next_in_queue;
     xid_count_per_binlog(char *log_file_name, uint log_file_name_len)
-      :binlog_id(0), xid_count(0), notify_count(0)
+      :binlog_id(0), xid_count(0)
     {
       binlog_name_len= log_file_name_len;
       binlog_name= (char *) my_malloc(PSI_INSTRUMENT_ME, binlog_name_len, MYF(MY_ZEROFILL));
