@@ -194,16 +194,34 @@ Gtid_index_writer::remove_from_hot_index()
 void
 Gtid_index_writer::process_gtid(uint32 offset, const rpl_gtid *gtid)
 {
+  rpl_gtid *gtid_list;
+  uint32 gtid_count;
+
+  if (process_gtid_check_batch(offset, gtid, &gtid_list, &gtid_count))
+    return;    // Error
+
+  if (gtid_list)
+    async_update(offset, gtid_list, gtid_count);
+}
+
+
+int
+Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
+                                            rpl_gtid **out_gtid_list,
+                                            uint32 *out_gtid_count)
+{
   uint32 count;
   rpl_gtid *gtid_list;
 
-  lock_gtid_index();
+  mysql_mutex_assert_not_owner(&gtid_index_mutex);
 
   ++pending_gtid_count;
   if (unlikely(pending_state.update_nolock(gtid, false)))
   {
+    lock_gtid_index();
     give_error("Out of memory processing GTID for binlog GTID index");
-    goto err;
+    unlock_gtid_index();
+    return 1;
   }
   /*
     Sparse index; we record only selected GTIDs, and scan the binlog forward
@@ -212,7 +230,11 @@ Gtid_index_writer::process_gtid(uint32 offset, const rpl_gtid *gtid)
   if (offset - previous_offset < offset_max_threshold &&
       (offset - previous_offset < offset_min_threshold ||
        pending_gtid_count < gtid_threshold))
-    goto err;
+  {
+    *out_gtid_list= nullptr;
+    *out_gtid_count= 0;
+    return 0;
+  }
 
   count= pending_state.count();
   DBUG_ASSERT(count > 0 /* Since we just updated with a GTID. */);
@@ -221,34 +243,41 @@ Gtid_index_writer::process_gtid(uint32 offset, const rpl_gtid *gtid)
   if (unlikely(!gtid_list))
   {
     give_error("Out of memory allocating GTID list for binlog GTID index");
-    goto err;
+    return 1;
   }
   if (unlikely(pending_state.get_gtid_list(gtid_list, count)))
   {
     /* Shouldn't happen as we allocated the list with the correct length. */
     DBUG_ASSERT(false);
     give_error("Internal error allocating GTID list for binlog GTID index");
-    goto err;
+    my_free(gtid_list);
+    return 1;
   }
   pending_state.reset();
   previous_offset= offset;
   pending_gtid_count= 0;
-  // ToDo: Enter the async path, send a requenst to the binlog background thread.
-  // For now, direct call.
-  // Also, for recovery, we would still have direct call.
-  write_record(offset, gtid_list, count);
-  my_free(gtid_list);
+  *out_gtid_list= gtid_list;
+  *out_gtid_count= count;
+  return 0;
+}
 
-err:
+
+int
+Gtid_index_writer::async_update(uint32 event_offset,
+                                rpl_gtid *gtid_list,
+                                uint32 gtid_count)
+{
+  lock_gtid_index();
+  int res= write_record(event_offset, gtid_list, gtid_count);
   unlock_gtid_index();
+  my_free(gtid_list);
+  return res;
 }
 
 
 void
 Gtid_index_writer::close()
 {
-  // ToDo: Enter the async path, send a requenst to the binlog background thread.
-
   lock_gtid_index();
   if (!error_state)
   {
@@ -281,9 +310,6 @@ Gtid_index_writer::close()
 
   mysql_file_close(index_file, MYF(0));
   index_file= (File)-1;
-
-  // ToDo: Do this from outside instead in the async path.
-  delete this;
 }
 
 
@@ -935,7 +961,7 @@ Gtid_index_reader::do_index_search(uint32 *out_offset,
 
 int
 Gtid_index_reader::do_index_search_root(uint32 *out_offset,
-                                            uint32 *out_gtid_count)
+                                        uint32 *out_gtid_count)
 {
   /* ToDo: if hot index, take the mutex. */
 

@@ -137,7 +137,7 @@ class Gtid_index_base
 {
 public:
   enum enum_page_flags {
-    /* Cleared for a leaf node page, set for an interior node page. */
+    /* Set for a leaf node page, cleared for an interior node page. */
     PAGE_FLAG_IS_LEAF= 1,
     /* This is a continuation page. */
     PAGE_FLAG_IS_CONT= 2,
@@ -248,6 +248,10 @@ public:
   void insert_in_hot_index();
   void remove_from_hot_index();
   void process_gtid(uint32 offset, const rpl_gtid *gtid);
+  int process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
+                               rpl_gtid **out_gtid_list,
+                               uint32 *out_gtid_count);
+  int async_update(uint32 event_offset, rpl_gtid *gtid_list, uint32 gtid_count);
   void close();
   uint32 write_current_node(uint32 level, bool is_root);
   int reserve_space(Index_node *n, size_t bytes);
