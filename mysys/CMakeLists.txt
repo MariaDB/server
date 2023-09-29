@@ -45,7 +45,8 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
-                                file_logger.c my_dlerror.c   crc32/crc32c.cc)
+                                file_logger.c my_dlerror.c   crc32/crc32c.cc
+                                my_timezone.cc)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -170,7 +171,9 @@ MAYBE_DISABLE_IPO(mysys)
 TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARY}
  ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO})
 DTRACE_INSTRUMENT(mysys)
-
+IF(WIN32)
+  TARGET_LINK_LIBRARIES(mysys icuuc icuin)
+ENDIF()
 IF (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
   TARGET_LINK_LIBRARIES(mysys atomic)
 ENDIF()

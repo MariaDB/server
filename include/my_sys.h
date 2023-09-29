@@ -1076,6 +1076,18 @@ static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
 
 const char *my_dlerror(const char *dlpath);
 
+
+/* System timezone handling*/
+void my_tzset();
+void my_tzname(char *sys_timezone, size_t size);
+
+struct my_tz
+{
+  long seconds_offset;
+  char abbreviation[64];
+};
+void my_tzinfo(time_t t, struct my_tz*);
+
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
 extern uint get_charset_number(const char *cs_name, uint cs_flags, myf flags);

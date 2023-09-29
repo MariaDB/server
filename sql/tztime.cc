@@ -1007,7 +1007,7 @@ public:
   virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
   virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
-  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
 };
 
 
@@ -1074,48 +1074,13 @@ Time_zone_system::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
   adjust_leap_second(tmp);
 }
 
+
 void
-Time_zone_system::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+Time_zone_system::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
 {
-#ifndef _WIN32
   uint error;
-  struct tm tm_local_time;
-  time_t time_sec= TIME_to_gmt_sec(local_TIME,  &error);
-  localtime_r(&time_sec, &tm_local_time);
-  strmake_buf(curr_tz->abbrevation, tm_local_time.tm_zone);
-  curr_tz->seconds_offset= tm_local_time.tm_gmtoff;
-#else
-#define mdHMS(mon,day,h,m,s) (((((mon)*100+(day))*100+(h))*100+(m))*100+(s))
-  TIME_ZONE_INFORMATION tzi;
-  bool use_dst= false;
-  GetTimeZoneInformationForYear(local_TIME->year, NULL, &tzi);
-  if (tzi.StandardDate.wMonth)
-  {
-    ulonglong std= mdHMS(tzi.StandardDate.wMonth, tzi.StandardDate.wDay,
-                         tzi.StandardDate.wHour, tzi.StandardDate.wMinute,
-                         tzi.StandardDate.wSecond);
-    ulonglong dst= mdHMS(tzi.DaylightDate.wMonth, tzi.DaylightDate.wDay,
-                         tzi.DaylightDate.wHour, tzi.DaylightDate.wMinute,
-                         tzi.DaylightDate.wSecond);
-    ulonglong cur= mdHMS(local_TIME->month, local_TIME->day, local_TIME->hour,
-                        local_TIME->minute, local_TIME->second);
-    use_dst= std < dst ? cur < std || cur >= dst : cur >= dst && cur < std;
-  }
-  if (use_dst)
-  {
-    size_t len;
-    curr_tz->seconds_offset= -60 * (tzi.Bias + tzi.DaylightBias);
-    wcstombs_s(&len, curr_tz->abbrevation, sizeof(curr_tz->abbrevation),
-               tzi.DaylightName, _TRUNCATE);
-  }
-  else
-  {
-    size_t len;
-    curr_tz->seconds_offset= -60 * (tzi.Bias + tzi.StandardBias);
-    wcstombs_s(&len, curr_tz->abbrevation, sizeof(curr_tz->abbrevation),
-               tzi.StandardName, _TRUNCATE);
-  }
-#endif
+  time_t time_sec= TIME_to_gmt_sec(local_TIME, &error);
+  my_tzinfo(time_sec, curr_tz);
 }
 
 
@@ -1149,7 +1114,7 @@ public:
                                     uint *error_code) const;
   virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
-  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
 };
 
 
@@ -1198,9 +1163,9 @@ Time_zone_utc::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
 }
 
 void
-Time_zone_utc::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+Time_zone_utc::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
 {
-  strmake_buf(curr_tz->abbrevation, "UTC");
+  strmake_buf(curr_tz->abbreviation, "UTC");
   curr_tz->seconds_offset= 0;
 }
 
@@ -1239,7 +1204,7 @@ public:
   virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
   virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
-  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
 private:
   TIME_ZONE_INFO *tz_info;
   const String *tz_name;
@@ -1311,7 +1276,7 @@ Time_zone_db::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
 }
 
 void
-Time_zone_db::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+Time_zone_db::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
 {
   uint error;
   my_time_t sec_in_utc;
@@ -1323,7 +1288,7 @@ Time_zone_db::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *loc
   ttisp= find_transition_type(sec_in_utc, tz_info);
 
   curr_tz->seconds_offset= ttisp->tt_gmtoff;
-  strmake_buf(curr_tz->abbrevation, &(tz_info->chars[ttisp->tt_abbrind]));
+  strmake_buf(curr_tz->abbreviation, &(tz_info->chars[ttisp->tt_abbrind]));
 }
 
 
@@ -1355,7 +1320,7 @@ public:
                                     uint *error_code) const;
   virtual void   gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
-  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
   /*
     This have to be public because we want to be able to access it from
     my_offset_tzs_get_key() function
@@ -1482,11 +1447,11 @@ Time_zone_offset::get_name() const
 }
 
 void
-Time_zone_offset::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+Time_zone_offset::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
 {
   curr_tz->seconds_offset= offset;
   const char *name= get_name()->ptr();
-  strmake_buf(curr_tz->abbrevation, name);
+  strmake_buf(curr_tz->abbreviation, name);
 }
 
 

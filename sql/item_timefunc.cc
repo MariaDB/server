@@ -482,7 +482,7 @@ static bool make_date_time(THD *thd, const String *format,
   uint weekday;
   ulong length;
   const char *ptr, *end;
-  struct tz curr_tz;
+  struct my_tz curr_tz;
   Time_zone* curr_timezone= 0;
 
   str->length(0);
@@ -725,7 +725,7 @@ static bool make_date_time(THD *thd, const String *format,
           curr_timezone= thd->variables.time_zone;
           curr_timezone->get_timezone_information(&curr_tz, l_time);
         }
-        str->append(curr_tz.abbrevation, strlen(curr_tz.abbrevation));
+        str->append(curr_tz.abbreviation, strlen(curr_tz.abbreviation));
         break;
       default:
 	str->append(*ptr);

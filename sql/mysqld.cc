@@ -3867,40 +3867,6 @@ static int init_early_variables()
   return 0;
 }
 
-#ifdef _WIN32
-static void get_win_tzname(char* buf, size_t size)
-{
-  static struct
-  {
-    const wchar_t* windows_name;
-    const char*  tzdb_name;
-  }
-  tz_data[] =
-  {
-#include "win_tzname_data.h"
-    {0,0}
-  };
-  DYNAMIC_TIME_ZONE_INFORMATION  tzinfo;
-  if (GetDynamicTimeZoneInformation(&tzinfo) == TIME_ZONE_ID_INVALID)
-  {
-    strncpy(buf, "unknown", size);
-    return;
-  }
-
-  for (size_t i= 0; tz_data[i].windows_name; i++)
-  {
-    if (wcscmp(tzinfo.TimeZoneKeyName, tz_data[i].windows_name) == 0)
-    {
-      strncpy(buf, tz_data[i].tzdb_name, size);
-      return;
-    }
-  }
-  wcstombs(buf, tzinfo.TimeZoneKeyName, size);
-  buf[size-1]= 0;
-  return;
-}
-#endif
-
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -3958,21 +3924,8 @@ static int init_common_variables()
   struct tm tm_tmp;
   localtime_r(&server_start_time, &tm_tmp);
 
-#ifdef HAVE_TZNAME
-#ifdef _WIN32
-  /*
-   If env.variable TZ is set, derive timezone name from it.
-   Otherwise, use IANA tz name from get_win_tzname.
-  */
-  if (!getenv("TZ"))
-    get_win_tzname(system_time_zone, sizeof(system_time_zone));
-  else
-#endif
-  {
-    const char *tz_name= tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-    strmake_buf(system_time_zone, tz_name);
-  }
-#endif
+  my_tzset();
+  my_tzname(system_time_zone, sizeof(system_time_zone));
 
   /*
     We set SYSTEM time zone as reasonable default and
