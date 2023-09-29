@@ -186,6 +186,7 @@ sql-bench/innotest1b.pl
 sql-bench/innotest2.pl
 sql-bench/innotest2a.pl
 sql-bench/innotest2b.pl
+sql-bench/output
 sql-bench/run-all-tests.pl
 sql-bench/server-cfg.pl
 sql-bench/test-ATIS.pl

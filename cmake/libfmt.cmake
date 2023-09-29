@@ -33,8 +33,9 @@ MACRO (CHECK_LIBFMT)
      #include <fmt/format-inl.h>
      #include <iostream>
      int main() {
+       int answer= 42;
        fmt::format_args::format_arg arg=
-         fmt::detail::make_arg<fmt::format_context>(42);
+         fmt::detail::make_arg<fmt::format_context>(answer);
          std::cout << fmt::vformat(\"The answer is {}.\",
                                    fmt::format_args(&arg, 1));
      }" HAVE_SYSTEM_LIBFMT)

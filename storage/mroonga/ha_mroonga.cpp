@@ -596,9 +596,6 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
     inspected = "HA_EXTRA_NO_AUTOINC_LOCKING";
     break;
 #endif
-  case HA_EXTRA_IGNORE_INSERT:
-    inspected = "HA_EXTRA_IGNORE_INSERT";
-    break;
   }
   return inspected;
 }

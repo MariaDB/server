@@ -3187,3 +3187,18 @@ SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
 d
 00000000-0000-0000-0000-111111111111
 DROP TABLE t1;
+#
+# MDEV-31719 Wrong result of: WHERE inet6_column IN ('','::1')
+#
+CREATE TABLE t1 (a UUID);
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000');
+SELECT * FROM t1 WHERE a IN ('','00000000-0000-0000-0000-000000000001');
+a
+Warnings:
+Warning	1292	Incorrect uuid value: ''
+SELECT * FROM t1 WHERE a='';
+a
+Warnings:
+Warning	1292	Incorrect uuid value: ''
+Warning	1292	Incorrect uuid value: ''
+DROP TABLE t1;

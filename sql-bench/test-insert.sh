@@ -39,6 +39,7 @@ $small_loop_count=10;		# Loop for full table retrieval
 $range_loop_count=$small_loop_count*50;
 $many_keys_loop_count=$opt_loop_count;
 $opt_read_key_loop_count=$opt_loop_count;
+$many_key_update=10000;
 
 $pwd = cwd(); $pwd = "." if ($pwd eq '');
 require "$pwd/bench-init.pl" || die "Can't read Configuration file: $!\n";
@@ -49,16 +50,19 @@ if ($opt_small_test)
   $many_keys_loop_count=$opt_loop_count/10;
   $range_loop_count=10;
   $opt_read_key_loop_count=10;
+  $many_key_update=10;
 }
 elsif ($opt_small_tables)
 {
   $opt_loop_count=10000;		# number of rows/3
   $many_keys_loop_count=$opt_loop_count;
   $opt_read_key_loop_count=10;
+  $many_key_update=10;
 }
 elsif ($opt_small_key_tables)
 {
   $many_keys_loop_count/=10;
+  $many_key_update/=10;
 }
 
 if ($opt_loop_count < 100)
@@ -101,13 +105,16 @@ $dbh = $server->connect();
 #### Create needed tables
 ####
 
-goto keys_test if ($opt_stage == 2);
 goto select_test if ($opt_skip_create);
 
-print "Creating tables\n";
 $dbh->do("drop table bench1" . $server->{'drop_attr'});
 $dbh->do("drop table bench2" . $server->{'drop_attr'});
 $dbh->do("drop table bench3" . $server->{'drop_attr'});
+
+goto keys_test if ($opt_stage == 2);
+goto keys_test2 if ($opt_stage == 3);
+
+print "Creating tables\n";
 do_many($dbh,$server->create("bench1",
 			     ["id int NOT NULL",
 			      "id2 int NOT NULL",
@@ -1589,6 +1596,181 @@ if ($limits->{'insert_multi_value'})
   print "Time for drop table(1): " .
     timestr(timediff($end_time, $loop_time),"all") . "\n\n";
 }
+
+#
+# Test insert and update on a table with a lot of different keys
+#
+
+keys_test2:
+
+$keys=min($limits->{'max_index'},8);		  # 8 is more than enough
+print "Insert into table with $many_keys_loop_count rows, $keys keys and with simple primary key\n";
+
+@fields=();
+@keys=();
+
+# Make keys on the most important types
+@types=(0,0,1,1,0,0,1,1,1,1,1,1,1,1,1,1);	# A 1 for each char field
+push(@fields,"field1 integer not null");
+push(@fields,"field2 integer not null");
+push(@fields,"field3 char(16) not null");
+push(@fields,"field4 varchar(64) not null");
+push(@fields,"field5 float not null");
+push(@fields,"field6 double not null");
+push(@fields,"field7 integer not null");
+for ($i=8 ; $i <= 16 ; $i++)
+{
+  push(@fields,"field$i varchar(16) not null");
+}
+
+$query="primary key (field1) ";
+push (@keys,$query);
+# Create other keys
+for ($i=2 ; $i <= $keys ; $i++)
+{
+  push(@keys,"index index$i (field$i)");
+}
+
+do_many($dbh,$server->create("bench1",\@fields,\@keys));
+if ($opt_lock_tables)
+{
+  $dbh->do("LOCK TABLES bench1 WRITE") || die $DBI::errstr;
+}
+
+$loop_time=new Benchmark;
+if ($opt_fast && $server->{transactions})
+{
+  $dbh->{AutoCommit} = 0;
+}
+
+$fields=$#fields+1;
+if (($opt_fast || $opt_fast_insert) && $server->{'limits'}->{'insert_multi_value'})
+{
+  $query_size=$server->{'limits'}->{'query_size'};
+  $query="insert into bench1 values ";
+  $res=$query;
+  for ($i=1; $i <= $many_keys_loop_count; $i++)
+  {
+    $id= $i;
+    $rand=$random[$i];
+    $tmp="($id,$id,'test$rand','ABCDEF$rand',$rand.0,$rand.0,$rand,";
+
+    for ($j=8; $j <= $fields ; $j++)
+    {
+      $tmp.= ($types[$j] == 0) ? "$rand," : "'$rand',";
+    }
+    substr($tmp,-1)=")";
+    if (length($tmp)+length($res) < $query_size)
+    {
+      $res.= $tmp . ",";
+    }
+    else
+    {
+      $sth = $dbh->do(substr($res,0,length($res)-1)) or die "$DBI::errstr";
+      $res=$query . $tmp . ",";
+    }
+  }
+  $sth = $dbh->do(substr($res,0,length($res)-1)) or die $DBI::errstr;
+}
+else
+{
+  for ($i=1; $i <= $many_keys_loop_count; $i++)
+  {
+    $id= $i;
+    $rand=$random[$i];
+
+
+    $query="insert into bench1 values ($id,$id,'test$rand','ABCDEF$rand',$rand.0,$rand.0,$rand,";
+
+    for ($j=8; $j <= $fields ; $j++)
+    {
+      $query.= ($types[$j] == 0) ? "$rand," : "'$rand',";
+    }
+    substr($query,-1)=")";
+    print "query1: $query\n" if ($opt_debug);
+    $dbh->do($query) or die "Got error $DBI::errstr with query: $query\n";
+  }
+}
+
+if ($opt_fast && $server->{transactions})
+{
+  $dbh->commit;
+  $dbh->{AutoCommit} = 1;
+}
+
+$end_time=new Benchmark;
+print "Time for insert_many_keys ($many_keys_loop_count): " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
+if ($opt_fast && defined($server->{vacuum}))
+{
+  if ($opt_lock_tables)
+  {
+    do_query($dbh,"UNLOCK TABLES");
+  }
+
+  $server->vacuum(1,\$dbh,"bench1");
+  if ($opt_lock_tables)
+  {
+    $sth = $dbh->do("LOCK TABLES bench1 WRITE") || die $DBI::errstr;
+  }
+}
+
+#
+# Testing of update of table with many keys
+#
+
+$loop_time=new Benchmark;
+for ($i=0 ; $i< $many_key_update; $i++)
+{
+    $tmp= ($i*11 % $many_keys_loop_count)+1;
+    $query="update bench1 set field7=$i where field1=$tmp";
+    $dbh->do($query) or die "Got error $DBI::errstr with query $query\n";
+}
+$end_time=new Benchmark;
+print "Time for many_key_update_of_key_with_primary ($many_key_update): " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
+$loop_time=new Benchmark;
+for ($i=0 ; $i< $many_key_update; $i++)
+{
+    $tmp= ($i*11 % $many_keys_loop_count)+1;
+    $query="update bench1 set field7=$i+1 where field2=$tmp";
+    $dbh->do($query) or die "Got error $DBI::errstr with query $query\n";
+}
+$end_time=new Benchmark;
+print "Time for many_key_update_of_key_with_secondary ($many_key_update): " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
+$loop_time=new Benchmark;
+for ($i=0 ; $i< $many_key_update; $i++)
+{
+    $tmp= ($i*11 % $many_keys_loop_count)+2;
+    $query="update bench1 set field8='hello', field9='world' where field1=$tmp";
+    $dbh->do($query) or die "Got error $DBI::errstr with query $query\n";
+}
+$end_time=new Benchmark;
+print "Time for many_key_update_of_field_with_primary ($many_key_update): " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
+$loop_time=new Benchmark;
+for ($i=0 ; $i< $many_key_update; $i++)
+{
+    $tmp= ($i*11 % $many_keys_loop_count)+3;
+    $query="update bench1 set field8='world', field9='hello' where field2=$tmp";
+    $dbh->do($query) or die "Got error $DBI::errstr with query $query\n";
+}
+$end_time=new Benchmark;
+print "Time for many_key_update_of_field_with_secondary ($many_key_update): " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
+
+$loop_time=new Benchmark;
+$sth = $dbh->do("drop table bench1" . $server->{'drop_attr'}) or die $DBI::errstr;
+$end_time=new Benchmark;
+print "Time for drop table(1): " .
+    timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
 
 ####
 #### End of benchmark
