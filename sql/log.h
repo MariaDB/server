@@ -450,7 +450,7 @@ class Cache_flip_event_log: public Event_log {
 public:
   Cache_flip_event_log() : Event_log(),
                            current(&log_file), alt(&alt_buf), ref_count(1)
-  { my_b_clear(&alt_buf); }
+  { bzero(&alt_buf, sizeof(alt_buf)); }
 
   bool open(enum cache_type io_cache_type_arg)
   {
