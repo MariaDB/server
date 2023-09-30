@@ -221,7 +221,7 @@ macro(CONFIGURE_RUST_PLUGINS)
       # endif()
 
       # mysql_install_targets(${target_name} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
-      install(FILES ${dylib_path} DESTINATION ${INSTALL_PLUGINDIR}/${dylib_name_final} COMPONENT ${ARG_COMPONENT})
+      install(FILES ${dylib_path} DESTINATION ${INSTALL_PLUGINDIR} RENAME ${dylib_name_final} COMPONENT ${ARG_COMPONENT})
       
       if(ARG_CONFIG AND INSTALL_SYSCONF2DIR)
         install(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})

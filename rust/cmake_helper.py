@@ -36,18 +36,20 @@ def main():
         
         cargo_name = re.search(r"name\s+=\s+\"(\S+)\"", data, re.MULTILINE).group(1)
         name_var = cargo_name.upper().replace("-","_")
-        ex = "EXAMPLE_" if path.startswith("example") else ""
+        is_example = path.startswith("example")
+        ex_pfx_upper = "EXAMPLE_" if is_example else ""
+        ex_pfx_lower = ex_pfx_upper.lower()
 
         # Cmake config name
-        cache_name = f"PLUGIN_{ex}{name_var}"
+        cache_name = f"PLUGIN_{ex_pfx_upper}{name_var}"
         # Name of the target
         target_name = cache_name.lower()
         # Name of the staticlib
         static_name = f"lib{name_var.lower()}.a"
         # Name we want in the plugins dir, no lib prefix
-        dyn_name_final = f"{name_var.lower()}.so"
+        dyn_name_final = f"{ex_pfx_lower}{name_var.lower()}.so"
         # Name that is output by rust
-        dyn_name_out = f"lib{dyn_name_final}"
+        dyn_name_out = f"lib{name_var.lower()}.so"
 
         ret.append(f"{cache_name}|{target_name}|{cargo_name}|{static_name}|{dyn_name_out}|{dyn_name_final}")
 

@@ -1,4 +1,4 @@
-INSTALL PLUGIN encryption_example SONAME 'libencryption_example.so';
+INSTALL PLUGIN encryption_example SONAME 'example_encryption_rs.so';
 
 SET GLOBAL innodb_encryption_threads=1;
 SET GLOBAL innodb_encrypt_tables=ON;

@@ -10,4 +10,4 @@ useradd mysql
 chown -R mysql /usr/local/mysql/
 cd /usr/local/mysql/
 scripts/mariadb-install-db --user=mysql
-/usr/local/mysql/bin/mariadbd-safe --user=mysql
+/usr/local/mysql/bin/mariadbd-safe --user=mysql --plugin-maturity=experimental

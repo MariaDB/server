@@ -23,6 +23,7 @@ docker_args=()
 docker_args=("${docker_args[@]}" "--volume" "$maria_root:/checkout:ro")
 docker_args=("${docker_args[@]}" "--volume" "$obj_dir:/obj")
 docker_args=("${docker_args[@]}" "--rm")
+docker_args=("${docker_args[@]}" "--name" "mdb-plugin-test")
 
 build_cmd="/checkout/rust/scripts/launch/build_maria.sh"
 test_cmd="/checkout/rust/scripts/launch/run_mtr.sh"
@@ -62,7 +63,7 @@ fi
     
 echo cmd
 echo "command: $command"
-echo "docker args:" "${docker_args[@]}"
+echo "run args:" "${docker_args[@]}"
     
 "$launch" build --file "$dockerfile" --tag mdb-rust .
 
