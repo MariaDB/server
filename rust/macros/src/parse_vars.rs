@@ -187,6 +187,7 @@ impl VariableInfo {
         let max = process_default_override(&self.max, "max_val")?;
         let interval = process_default_override(&self.interval, "blk_sz")?;
 
+        // check to verify our vars are of the right type for our idents
         let st_ident = Ident::new(&format!("_sysvar_st_{}", name.value()), Span::call_site());
         let st_tycheck = Ident::new(
             &format!("_sysvar_tychk_{}", name.value()),
@@ -194,8 +195,10 @@ impl VariableInfo {
         );
         // https://github.com/rust-lang/rust/issues/86935#issuecomment-1146670057
         let ty_wrap = Ident::new(&format!("_sysvar_Type{}", name.value()), Span::call_site());
-        // check to verify our vars are of the right type for our idents
-        let ty_check = quote! { static #st_tycheck: &#vtype = &#ident; };
+        let ty_check = quote! {
+            #[allow(non_camel_case_types)]
+            static #st_tycheck: &#vtype = &#ident;
+        };
 
         let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
 
@@ -204,6 +207,7 @@ impl VariableInfo {
 
             #ty_check
 
+            #[allow(non_upper_case_globals)]
             static #st_ident: #usynccell<#ty_wrap::<#ty_as_svwrap::CStructType>> = unsafe {
                 #usynccell::new(
                     #ty_wrap::<#ty_as_svwrap::CStructType> {

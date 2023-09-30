@@ -169,6 +169,7 @@ impl PluginInfo {
         ret.sysvar_body = quote! {
             #( #sysvar_bodies )*
 
+            #[allow(non_upper_case_globals)]
             pub static #sysvar_arr_ident:
                 [#usynccell<*mut ::mariadb::bindings::sysvar_common_t>; #len]
                 =
@@ -193,17 +194,23 @@ impl PluginInfo {
     fn into_encryption_struct(self) -> syn::Result<PluginDef> {
         self.validate_as_encryption()?;
 
-        let type_ = &self.main_ty;
+        let main_ty = &self.main_ty;
         let name = expect_litstr(&self.name)?;
         let plugin_st_name = Ident::new(&format!("_ST_PLUGIN_{}", name.value()), Span::call_site());
 
-        let ty_as_wkeymgt = quote! { <#type_ as ::mariadb::plugin::internals::WrapKeyMgr> };
-        let ty_as_wenc = quote! { <#type_ as ::mariadb::plugin::internals::WrapEncryption> };
+        let ty_as_wkeymgt = quote! { <#main_ty as ::mariadb::plugin::internals::WrapKeyMgr> };
+        let ty_as_wenc = quote! { <#main_ty as ::mariadb::plugin::internals::WrapEncryption> };
         let interface_version = quote! { ::mariadb::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as ::std::ffi::c_int };
         let get_key_vers = quote! { Some(#ty_as_wkeymgt::wrap_get_latest_key_version) };
         let get_key = quote! { Some(#ty_as_wkeymgt::wrap_get_key) };
         let variables = self.make_variables()?;
-        let variables_body = variables.sysvar_body;
+        let variable_body = variables.sysvar_body;
+
+        let meta_impl = quote! {
+            impl ::mariadb::plugin::internals::PluginMeta for #main_ty {
+                const NAME: &'static str = #name;
+            }
+        };
 
         let (crypt_size, crypt_init, crypt_update, crypt_finish, crypt_len);
 
@@ -227,6 +234,7 @@ impl PluginInfo {
         }
 
         let info_struct = quote! {
+            #[allow(non_upper_case_globals)]
             static #plugin_st_name: ::mariadb::internals::UnsafeSyncCell<
                 ::mariadb::bindings::st_mariadb_encryption,
             > = unsafe {
@@ -258,12 +266,15 @@ impl PluginInfo {
         // We always initialize the logger, maybe do init/deinit if struct requires
         let (fn_deinit, fn_init);
         if let Some(init_ty) = self.init {
-            let ty_as_init = quote! { <#init_ty as ::mariadb::plugin::internals::WrapInit> };
-            fn_init = quote! { Some(#ty_as_init::wrap_init) };
-            fn_deinit = quote! { Some(#ty_as_init::wrap_deinit) };
+            fn_init =
+                quote! { Some(::mariadb::plugin::internals::wrap_init_fn::<#main_ty, #init_ty>) };
+            fn_deinit =
+                quote! { Some(::mariadb::plugin::internals::wrap_deinit_fn::<#main_ty, #init_ty>) };
         } else {
-            fn_init = quote! { Some(::mariadb::plugin::internals::wrap_init_notype) };
-            fn_deinit = quote! { None };
+            fn_init =
+                quote! { Some(::mariadb::plugin::internals::default_init_notype::<#main_ty>) };
+            fn_deinit =
+                quote! { Some(::mariadb::plugin::internals::default_deinit_notype::<#main_ty>) };
         }
 
         let plugin_struct = quote! {
@@ -286,9 +297,10 @@ impl PluginInfo {
 
         Ok(PluginDef {
             name: name.value(),
+            meta_impl,
             info_struct,
             plugin_struct,
-            variable_body: variables_body,
+            variable_body,
         })
     }
 }
@@ -304,6 +316,7 @@ struct VariableBodies {
 /// applicable, plus the struct of `st_maria_plugin` that references it
 struct PluginDef {
     name: String,
+    meta_impl: TokenStream,
     info_struct: TokenStream,
     plugin_struct: TokenStream,
     variable_body: TokenStream,
@@ -328,6 +341,7 @@ impl PluginDef {
         let null_ps = quote! { ::mariadb::plugin::internals::new_null_plugin_st() };
 
         let info_st = self.info_struct;
+        let meta_impl = self.meta_impl;
         let plugin_st = self.plugin_struct;
         let variable_body = self.variable_body;
 
@@ -335,27 +349,33 @@ impl PluginDef {
 
         let ret: TokenStream = quote! {
             #info_st
+            #meta_impl
             #variable_body
 
             // Different config based on statically or dynamically lynked
             #[no_mangle]
             #[cfg(make_static_lib)]
+            #[allow(non_upper_case_globals)]
             static #vers_ident_stc: ::std::ffi::c_int = #version_val;
 
             #[no_mangle]
             #[cfg(not(make_static_lib))]
+            #[allow(non_upper_case_globals)]
             static #vers_ident_dyn: ::std::ffi::c_int = #version_val;
 
             #[no_mangle]
             #[cfg(make_static_lib)]
+            #[allow(non_upper_case_globals)]
             static #size_ident_stc: ::std::ffi::c_int = #size_val;
 
             #[no_mangle]
             #[cfg(not(make_static_lib))]
+            #[allow(non_upper_case_globals)]
             static #size_ident_dyn: ::std::ffi::c_int = #size_val;
 
             #[no_mangle]
             #[cfg(make_static_lib)]
+            #[allow(non_upper_case_globals)]
             static #decl_ident_stc: [#usynccell<#plugin_ty>; 2] = unsafe { [
                 #usynccell::new(#plugin_st),
                 #usynccell::new(#null_ps),
@@ -363,6 +383,7 @@ impl PluginDef {
 
             #[no_mangle]
             #[cfg(not(make_static_lib))]
+            #[allow(non_upper_case_globals)]
             static #decl_ident_dyn: [#usynccell<#plugin_ty>; 2] = unsafe { [
                 #usynccell::new(#plugin_st),
                 #usynccell::new(#null_ps),

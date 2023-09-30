@@ -1,5 +1,3 @@
-
-
 # TODO: just parse any needed configuration from cargo.toml
 # CMAKE_PARSE_ARGUMENTS(ARG
 # "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;NOT_EMBEDDED;RECOMPILE_FOR_EMBEDDED;CLIENT"
@@ -7,6 +5,8 @@
 # "LINK_LIBRARIES;DEPENDS"
 # ${ARGN}
 # )
+
+# BUG: for some reason this doesn't always invoke cargo to recompile
 
 macro(CONFIGURE_RUST_PLUGINS)
   set(rust_dir "${CMAKE_SOURCE_DIR}/rust")
@@ -177,6 +177,7 @@ macro(CONFIGURE_RUST_PLUGINS)
         DEPENDS ${dylib_path}
       )
 
+      target_link_libraries(${target_name} mysqlservices ${ARG_LINK_LIBRARIES})
       add_dependencies(${target_name} GenError)
       set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${target_name}")
 

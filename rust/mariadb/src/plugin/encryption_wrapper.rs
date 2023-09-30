@@ -35,9 +35,8 @@ pub trait WrapKeyMgr: KeyManager {
         dstbuf: *mut c_uchar,
         buflen: *mut c_uint,
     ) -> c_uint {
-        dbg!(key_id, version, dstbuf, *buflen);
         if dstbuf.is_null() {
-            match dbg!(Self::key_length(key_id, version)) {
+            match Self::key_length(key_id, version) {
                 // FIXME: don't unwrap
                 Ok(v) => *buflen = v.try_into().unwrap(),
                 Err(e) => {
@@ -51,23 +50,9 @@ pub trait WrapKeyMgr: KeyManager {
         let buf = slice::from_raw_parts_mut(dstbuf, (*buflen).try_into().unwrap());
 
         // If successful, return 0. If an error occurs, return it
-        match dbg!(Self::get_key(key_id, version, buf)) {
+        match Self::get_key(key_id, version, buf) {
             Ok(()) => 0,
-            Err(e) => {
-                dbg!(e);
-
-                // match e {
-                //     // Set the desired buffer size if available
-                //     KeyError::BufferTooSmall => {
-                //         *buflen = dbg!(Self::key_length(key_id, version)
-                //             .unwrap_or(0)
-                //             .try_into()
-                //             .unwrap())
-                //     }
-                //     _ => (),
-                // }
-                dbg!(e as c_uint)
-            }
+            Err(e) => e as c_uint,
         }
     }
 }
@@ -153,7 +138,6 @@ pub trait WrapEncryption: Encryption {
         dst: *mut c_uchar,
         dlen: *mut c_uint,
     ) -> c_int {
-        dbg!(*dlen);
         let dbuf = slice::from_raw_parts_mut(dst, (*dlen).try_into().unwrap());
 
         let this: &mut Self = &mut *ctx.cast();
@@ -165,7 +149,6 @@ pub trait WrapEncryption: Encryption {
             Err(e) => (e as c_int, 0),
         };
         *dlen = written;
-        dbg!(*dlen);
         ctx.drop_in_place();
         ret
     }

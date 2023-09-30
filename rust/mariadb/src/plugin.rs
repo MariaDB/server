@@ -84,7 +84,10 @@ pub mod prelude {
 pub mod internals {
     pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
     pub use super::variables::SysVarInterface;
-    pub use super::wrapper::{new_null_plugin_st, wrap_init_notype, WrapInit};
+    pub use super::wrapper::{
+        default_deinit_notype, default_init_notype, new_null_plugin_st, wrap_deinit_fn,
+        wrap_init_fn, PluginMeta,
+    };
 }
 
 /// Defines possible licenses for plugins

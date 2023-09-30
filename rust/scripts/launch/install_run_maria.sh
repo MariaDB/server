@@ -7,7 +7,11 @@ cmake --install "$BUILD_DIR"
 
 useradd mysql
 
-chown -R mysql /usr/local/mysql/
+touch /log.txt
+chown -R mysql /usr/local/mysql/ /log.txt
 cd /usr/local/mysql/
 scripts/mariadb-install-db --user=mysql
-/usr/local/mysql/bin/mariadbd-safe --user=mysql --plugin-maturity=experimental
+/usr/local/mysql/bin/mariadbd-safe --user=mysql \
+    --plugin-maturity=experimental \
+    --log-error=/log.txt &
+tail -f /log.txt

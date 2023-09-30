@@ -9,6 +9,6 @@ mariadb-sys = { path = "../bindings" }
 mariadb-macros = { path = "../macros" }
 cstr = "0.2.11"
 concat-idents = "1.1.5"
-time = { version = "0.3.28", features = ["formatting"]}
+time = { version = "0.3.29", features = ["formatting"]}
 log = "0.4.20"
 env_logger = "0.10.0"

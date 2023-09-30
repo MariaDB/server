@@ -4,32 +4,46 @@ use std::{env, ptr};
 use super::{Init, InitError, License, Maturity, PluginType};
 use crate::{bindings, configure_logger};
 
-/// Trait for easily wrapping init/deinit functions
-pub trait WrapInit: Init {
-    #[must_use]
-    unsafe extern "C" fn wrap_init(_: *mut c_void) -> c_int {
-        init_common();
-        match Self::init() {
-            Ok(()) => 0,
-            Err(InitError) => 1,
-        }
-    }
-
-    #[must_use]
-    unsafe extern "C" fn wrap_deinit(_: *mut c_void) -> c_int {
-        match Self::deinit() {
-            Ok(()) => 0,
-            Err(InitError) => 1,
-        }
-    }
+/// Meta that we generate in the proc macro, which we can use to get information about our type in
+/// wrappers
+pub trait PluginMeta {
+    const NAME: &'static str;
 }
 
-impl<T> WrapInit for T where T: Init {}
+/// Wrap the init call
+#[must_use]
+pub unsafe extern "C" fn wrap_init_fn<P: PluginMeta, I: Init>(_: *mut c_void) -> c_int {
+    init_common();
+    let ret = match I::init() {
+        Ok(()) => 0,
+        Err(InitError) => 1,
+    };
+    log::info!("loaded plugin {}", P::NAME);
+    ret
+}
+
+/// Wrap the deinit call
+#[must_use]
+pub unsafe extern "C" fn wrap_deinit_fn<P: PluginMeta, I: Init>(_: *mut c_void) -> c_int {
+    let ret = match I::deinit() {
+        Ok(()) => 0,
+        Err(InitError) => 1,
+    };
+    log::info!("unloaded plugin {}", P::NAME);
+    ret
+}
 
 /// Init call for plugins that don't provide a custom init function
-#[inline]
-pub unsafe extern "C" fn wrap_init_notype(_: *mut c_void) -> c_int {
+#[must_use]
+pub unsafe extern "C" fn default_init_notype<P: PluginMeta>(_: *mut c_void) -> c_int {
     init_common();
+    log::info!("loaded plugin {}", P::NAME);
+    0
+}
+
+#[must_use]
+pub unsafe extern "C" fn default_deinit_notype<P: PluginMeta>(_: *mut c_void) -> c_int {
+    log::info!("unloaded plugin {}", P::NAME);
     0
 }
 

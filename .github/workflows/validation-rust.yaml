@@ -38,8 +38,9 @@ jobs:
           include:
             - os: ubuntu-latest
               name: linux
-            - os: windows-latest
-              name: windows
+              
+            # - os: windows-latest
+            #   name: windows
             # - os: macos-latest
             #   name: mac
 

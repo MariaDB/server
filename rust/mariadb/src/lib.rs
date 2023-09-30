@@ -87,7 +87,7 @@ impl log::Log for MariaLogger {
 #[macro_export]
 macro_rules! configure_logger {
     () => {
-        $crate::configure_logger!($crate::log::LevelFilter::Warn)
+        $crate::configure_logger!($crate::log::LevelFilter::Info)
     };
     ($level:expr) => {{
         static LOGGER: $crate::MariaLogger = $crate::MariaLogger::new();

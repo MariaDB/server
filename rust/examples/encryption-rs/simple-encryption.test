@@ -1,3 +1,5 @@
+-- Running without crashing is a success
+
 INSTALL PLUGIN encryption_example SONAME 'example_encryption_rs.so';
 
 SET GLOBAL innodb_encryption_threads=1;
@@ -21,3 +23,6 @@ INSERT INTO t1(id, str) VALUES
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
 FLUSH TABLES t1 WITH READ LOCK;
+
+-- Output should be the same as inserted
+SELECT * from t1;

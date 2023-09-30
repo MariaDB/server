@@ -1,6 +1,10 @@
 //! Basic encryption plugin using:
 //!
-//! - SHA256 as the hasher
+//! - SHA256 as the hasher to create a key
+//! - Randomized key update times
+//! - No encryption, just copies from src to dst
+//!
+//! This is noisy, prints a ton so it is easy to see what is going on
 
 #![allow(unused)]
 
@@ -12,16 +16,16 @@ use aes_gcm::{
     Aes256Gcm,
     Nonce, // Or `Aes128Gcm`
 };
+use mariadb::log::info;
 use mariadb::plugin::encryption::{Encryption, EncryptionError, Flags, KeyError, KeyManager};
 use mariadb::plugin::*;
 use rand::Rng;
-use sha2::{Digest, Sha256 as Hasher};
+use sha2::{Digest, Sha256};
 
 /// Range of key rotations, as seconds
 const KEY_ROTATION_MIN: f32 = 45.0;
 const KEY_ROTATION_MAX: f32 = 90.0;
 const KEY_ROTATION_INTERVAL: f32 = KEY_ROTATION_MAX - KEY_ROTATION_MIN;
-const SHA256_SIZE: usize = 32;
 // const KEY_ROTATION_INTERVAL: Duration =
 //     KEY_ROTATION_MAX - KEY_ROTATION_MIN;
 
@@ -51,7 +55,6 @@ impl KeyVersions {
             next: now,
         };
         ret.update_next();
-        dbg!(&ret);
         ret
     }
 
@@ -69,7 +72,7 @@ impl KeyVersions {
         if now > self.next {
             self.current = now;
             self.update_next();
-            eprintln!("updating to {:?}", self);
+            info!("updating to {:?}", self);
         }
         (self.next - self.start).as_secs().try_into().unwrap()
     }
@@ -81,51 +84,47 @@ struct EncryptionExampleRs(usize);
 impl Init for EncryptionExampleRs {
     /// Initialize function:
     fn init() -> Result<(), InitError> {
-        eprintln!("init called for EncryptionExampleRs");
         let mut guard = KEY_VERSIONS.lock().unwrap();
         *guard = Some(KeyVersions::new_now());
         Ok(())
     }
 
     fn deinit() -> Result<(), InitError> {
-        eprintln!("deinit called for EncryptionExampleRs");
         Ok(())
     }
 }
 
 impl KeyManager for EncryptionExampleRs {
-    fn get_latest_key_version(_key_id: u32) -> Result<u32, KeyError> {
-        eprintln!("get_latest_key_version");
-        dbg!(_key_id);
+    fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
+        info!("get_latest_key_version id {key_id}");
         let mut guard = KEY_VERSIONS.lock().unwrap();
         let mut vers = guard.as_mut().unwrap();
         Ok(vers.update_returning_version())
     }
 
-    /// Given a key ID and a version, create its hash
+    /// Given a key ID and a version, hash them together to create the key
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
-        eprintln!("get_key");
-        dbg!(key_id, key_version, dst.len());
-
-        let output_size = Hasher::output_size();
+        info!(
+            "get_key id {key_id} version {key_version} dst len {}",
+            dst.len()
+        );
+        let output_size = Sha256::output_size();
         if dst.len() < output_size {
             return Err(KeyError::BufferTooSmall);
         }
-        let mut hasher = Hasher::new();
-        hasher.update(key_id.to_ne_bytes());
-        hasher.update(key_version.to_ne_bytes());
+        let mut hasher = Sha256::new();
         dst[..output_size].copy_from_slice(&hasher.finalize());
         Ok(())
     }
 
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError> {
-        eprintln!("key_length");
-        dbg!(key_id, key_version);
+        info!("KEY_LENGTH id {key_id} version {key_version}");
         // All keys have the same length
-        Ok(Hasher::output_size())
+        Ok(Sha256::output_size())
     }
 }
 
+/// Our encryption does nothing! Just copies
 impl Encryption for EncryptionExampleRs {
     fn init(
         key_id: u32,
@@ -134,35 +133,31 @@ impl Encryption for EncryptionExampleRs {
         iv: &[u8],
         flags: Flags,
     ) -> Result<Self, EncryptionError> {
-        eprintln!("encryption init");
-        dbg!(&key_id, &key_version);
-        eprintln!("key: {:x?}", &key);
-        eprintln!("iv: {:x?}", &iv);
-        dbg!(flags, flags.should_encrypt());
+        info!("encryption_init, id {key_id}, version {key_version}");
+        info!("key: {:x?}", &key);
+        info!("iv: {:x?}", &iv);
         Ok(Self(0))
     }
 
     fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError> {
-        eprintln!("encryption update");
-        dbg!(src.len(), dst.len());
+        info!(
+            "encryption_update, src_len {}, dst_len {}",
+            src.len(),
+            dst.len()
+        );
         dst[..src.len()].copy_from_slice(src);
         self.0 += src.len();
-        dbg!(self);
         Ok(src.len())
     }
 
     fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
-        eprintln!("encryption finish");
-        dbg!(dst.len());
-        // self.0 += dst.len();
-        dbg!(&self);
-        // Ok(self.0)
+        info!("encryption_finish, dst_len {}", dst.len());
         Ok(0)
     }
 
+    /// Always same input and output length
     fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize {
-        eprintln!("encryption length");
-        dbg!(key_id, key_version, src_len);
+        info!("encryption_length, id {key_id}, version {key_version}, src_len {src_len}");
         src_len
     }
 }
