@@ -11,10 +11,9 @@
 macro(CONFIGURE_RUST_PLUGINS)
   set(rust_dir "${CMAKE_SOURCE_DIR}/rust")
   set(cargo_target_dir "${CMAKE_CURRENT_BINARY_DIR}/rust_target")
-  message("rust dir ${rust_dir}")
+  message(STATUS "rust dir ${rust_dir}")
 
   execute_process(COMMAND python3 "${rust_dir}/cmake_helper.py" OUTPUT_VARIABLE plugins)
-  message("plugins: ${plugins}")
 
   # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
@@ -27,11 +26,12 @@ macro(CONFIGURE_RUST_PLUGINS)
   # plugin
   foreach(entry IN LISTS plugins)
     string(REPLACE "|" ";" entry "${entry}")
-    list(GET entry 0 env_name)
+    list(GET entry 0 cache_name)
     list(GET entry 1 target_name)
     list(GET entry 2 cargo_name)
     list(GET entry 3 staticlib_name)
-    list(GET entry 4 dylib_name)
+    list(GET entry 4 dylib_name_out)
+    list(GET entry 5 dylib_name_final)
     set(output_path "${cargo_target_dir}/release")
 
     # Copied from plugin.cmake, set default `howtobuild`
@@ -59,11 +59,11 @@ macro(CONFIGURE_RUST_PLUGINS)
     # AUTO - static if possible, otherwise dynamic, if possible
     # STATIC - static if possible, otherwise not at all
     # DYNAMIC - dynamic if possible, otherwise not at all
-    set(${env_name} ${howtobuild} CACHE STRING
+    set(${cache_name} ${howtobuild} CACHE STRING
       "How to build plugin ${cargo_name}. Options are: NO STATIC DYNAMIC YES AUTO.")
 
-    if(NOT ${${env_name}} MATCHES "^(NO|YES|AUTO|STATIC|DYNAMIC)$")
-      message(FATAL_ERROR "Invalid value ${env_name} for ${env_name}")
+    if(NOT ${${cache_name}} MATCHES "^(NO|YES|AUTO|STATIC|DYNAMIC)$")
+      message(FATAL_ERROR "Invalid value ${cache_name} for ${cache_name}")
     endif()
 
     set(cargo_cmd 
@@ -87,7 +87,7 @@ macro(CONFIGURE_RUST_PLUGINS)
       set(rustc_extra_args ${rustc_extra_args} -C strip=debuginfo)
     endif()
 
-    set(dylib_path "${output_path}/${dylib_name}")
+    set(dylib_path "${output_path}/${dylib_name_out}")
 
     # Used by build.rs
     set(env_args -E env CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -127,12 +127,12 @@ macro(CONFIGURE_RUST_PLUGINS)
     endif()
 
     if(
-      ${${env_name}} MATCHES "(STATIC|AUTO|YES)" AND NOT ARG_MODULE_ONLY
+      ${${cache_name}} MATCHES "(STATIC|AUTO|YES)" AND NOT ARG_MODULE_ONLY
       AND NOT ARG_CLIENT
     )
-      # Build a staticlib
-      message("building rust static ${target_name}")
+    message(STATUS "building rust plugin ${target_name} as static")
 
+      # Build a staticlib
       if(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
         # If there is a shared library from previous shared build,
         # remove it. This is done just for mysql-test-run.pl 
@@ -154,11 +154,11 @@ macro(CONFIGURE_RUST_PLUGINS)
       message("more to do here...")
 
     elseif(
-      ${${env_name}} MATCHES "(DYNAMIC|AUTO|YES)"
+      ${${cache_name}} MATCHES "(DYNAMIC|AUTO|YES)"
       AND NOT ARG_STATIC_ONLY AND NOT WITHOUT_DYNAMIC_PLUGINS
     )
       # Build a dynamiclib
-      message("building rust dynamic ${target_name}")
+      message(STATUS "building rust plugin ${target_name} as dynamic")
 
       add_version_info(${target_name} MODULE SOURCES)
 
@@ -221,11 +221,13 @@ macro(CONFIGURE_RUST_PLUGINS)
       # endif()
 
       # mysql_install_targets(${target_name} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
-      install(FILES ${dylib_path} DESTINATION ${INSTALL_PLUGINDIR}/${ARG_MODULE_OUTPUT_NAME} COMPONENT ${ARG_COMPONENT})
+      install(FILES ${dylib_path} DESTINATION ${INSTALL_PLUGINDIR}/${dylib_name_final} COMPONENT ${ARG_COMPONENT})
       
       if(ARG_CONFIG AND INSTALL_SYSCONF2DIR)
         install(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
       endif()
+    else()
+      message(STATUS "skipping rust plugin ${target_name}")
     endif()
 
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
