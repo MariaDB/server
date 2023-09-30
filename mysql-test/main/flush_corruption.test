@@ -66,8 +66,10 @@ let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
 --echo # Unlock and close table and wait for con1 to close too.
 FLUSH TABLES;
 #SELECT NOW();
+--disable_service_connection
 --echo # This should give no result.
 SELECT * FROM t1;
+--enable_service_connection
 #SELECT NOW();
 UNLOCK TABLES;
     connection con1;

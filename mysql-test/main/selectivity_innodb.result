@@ -2091,6 +2091,35 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
 1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	2	
 drop table t1,t2;
+#
+# MDEV-31864 Assertion `d >= 0' failed in COST_ADD with join_cache_level
+# > 2 and partitions
+#
+SET join_cache_level= 3;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT);
+INSERT INTO t2 VALUES (3,4),(5,6);
+CREATE TABLE t3 (d INT, e INT) PARTITION BY RANGE COLUMNS (d) (p1 VALUES LESS THAN (1000), pn VALUES LESS THAN (MAXVALUE));
+ANALYZE TABLE t1, t2, t3 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+a	b	c	d	e
+1	NULL	NULL	NULL	NULL
+2	NULL	NULL	NULL	NULL
+set join_cache_level= default;
+DROP TABLE t1, t2, t3;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 set @tmp_ust= @@use_stat_tables;
 set @tmp_oucs= @@optimizer_use_condition_selectivity;

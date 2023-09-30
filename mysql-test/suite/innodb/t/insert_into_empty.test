@@ -435,6 +435,14 @@ CREATE TABLE t1 (pk int primary key, c01 text, c02 text, c03 text,
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= COMPACT;
 --replace_result 1982 8126 4030 8126
 ALTER TABLE t1 FORCE;
+let $page_size= `SELECT @@innodb_page_size`;
+let $error_code = 0;
+
+if ($page_size == 4096) {
+ let $error_code = ER_TOO_BIG_ROWSIZE;
+}
+
+--error $error_code
 INSERT IGNORE INTO t1 VALUES
 (1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
 (2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));

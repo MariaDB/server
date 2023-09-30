@@ -675,6 +675,17 @@ ATTRIBUTE_COLD static dberr_t ibuf_move_to_next(btr_cur_t *cur, mtr_t *mtr)
   return page_cur_move_to_next(&cur->page_cur) ? DB_SUCCESS : DB_CORRUPTION;
 }
 
+/** @return if buffered changes exist for the page */
+ATTRIBUTE_COLD
+static bool ibuf_bitmap_buffered(const buf_block_t *bitmap, uint32_t offset)
+{
+  if (!bitmap)
+    return false;
+  offset&= uint32_t(bitmap->physical_size() - 1);
+  byte *map_byte= &bitmap->page.frame[PAGE_DATA + offset / 2];
+  return *map_byte & (byte{4} << ((offset & 1) << 4));
+}
+
 /** Apply changes to a block. */
 ATTRIBUTE_COLD
 static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
@@ -697,12 +708,15 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
                        block->zip_size(), RW_X_LATCH, nullptr,
                        BUF_GET_POSSIBLY_FREED, mtr)
     : nullptr;
+  bool buffered= false;
 
   if (!block);
   else if (fil_page_get_type(block->page.frame) != FIL_PAGE_INDEX ||
            !page_is_leaf(block->page.frame) ||
            DB_SUCCESS == fseg_page_is_allocated(space, page_no))
     block= nullptr;
+  else
+    buffered= ibuf_bitmap_buffered(bitmap, block->page.id().page_no());
 
   do
   {
@@ -764,7 +778,7 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
       the server is killed before the completion of ibuf_upgrade(). */
       btr_rec_set_deleted<true>(cur->page_cur.block, rec, mtr);
 
-      if (block)
+      if (buffered)
       {
         page_header_reset_last_insert(block, mtr);
         page_update_max_trx_id(block, buf_block_get_page_zip(block),

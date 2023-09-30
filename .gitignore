@@ -123,6 +123,7 @@ scripts/mysql_find_rows
 scripts/mysql_fix_extensions
 scripts/mariadb_fix_privilege_tables.sql
 scripts/mariadb_fix_privilege_tables_sql.c
+scripts/mariadb_sys_schema.sql
 scripts/mysql_install_db
 scripts/mysql_secure_installation
 scripts/mysql_setpermission
@@ -186,6 +187,7 @@ sql-bench/innotest1b.pl
 sql-bench/innotest2.pl
 sql-bench/innotest2a.pl
 sql-bench/innotest2b.pl
+sql-bench/output
 sql-bench/run-all-tests.pl
 sql-bench/server-cfg.pl
 sql-bench/test-ATIS.pl
