@@ -41,6 +41,9 @@ bool wsrep_prepare_key(const uchar*, size_t, const uchar*, size_t, struct wsrep_
 struct wsrep *get_wsrep()
 { return 0; }
 
+my_bool wsrep_on_global()
+{ return 0; }
+
 my_bool get_wsrep_recovery()
 { return 0; }
 
