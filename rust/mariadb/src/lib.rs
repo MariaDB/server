@@ -97,6 +97,32 @@ macro_rules! configure_logger {
     }};
 }
 
+/// Print a warning a maximum of once
+#[macro_export]
+macro_rules! warn_once {
+    ($($tt:tt)*) => {
+        static WARNED: ::std::sync::atomic::AtomicBool =
+            ::std::sync::atomic::AtomicBool::new(false);
+        let warned = WARNED.swap(true, ::std::sync::atomic::Ordering::Relaxed);
+        if !warned {
+            $crate::log::warn!($($tt)*)
+        }
+    }
+}
+
+/// Print an error a maximum of once
+#[macro_export]
+macro_rules! error_once {
+    ($($tt:tt)*) => {
+        static ERRORED: ::std::sync::atomic::AtomicBool =
+            ::std::sync::atomic::AtomicBool::new(false);
+        let errored = ERRORED.swap(true, ::std::sync::atomic::Ordering::Relaxed);
+        if !errored {
+            $crate::log::error!($($tt)*)
+        }
+    }
+}
+
 /// Provide the name of the calling function (full path)
 macro_rules! function_name {
     () => {{

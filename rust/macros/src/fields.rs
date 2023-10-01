@@ -10,11 +10,12 @@ pub mod plugin {
         "version",
         "init",
         "encryption",
+        "decryption",
         "variables",
     ];
 
     /// Always required
-    pub const REQ_FIELDS: &[&str] = &[
+    pub const ALWAYS_REQ_FIELDS: &[&str] = &[
         "ptype",
         "name",
         "author",
@@ -26,7 +27,7 @@ pub mod plugin {
 
     pub const ENCR_REQ_FIELDS: &[&str] = &["encryption"];
 
-    pub const ENCR_OPT_FIELDS: &[&str] = &["init", "sysvars"];
+    pub const ENCR_OPT_FIELDS: &[&str] = &["encryption", "init", "sysvars"];
 }
 
 pub mod sysvar {

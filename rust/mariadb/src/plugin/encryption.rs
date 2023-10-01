@@ -39,6 +39,7 @@ pub enum KeyError {
 pub enum EncryptionError {
     BadData = bindings::MY_AES_BAD_DATA,
     BadKeySize = bindings::MY_AES_BAD_KEYSIZE,
+    /// Generic error; return this for e.g. insufficient data length
     Other = bindings::MY_AES_OPENSSL_ERROR,
 }
 
@@ -75,6 +76,8 @@ pub trait KeyManager: Send + Sized {
     // type Context: Send;
 
     /// Get the latest version of a key ID. Return `VersionInvalid` if not found.
+    ///
+    /// This cannot return key version of 0 or the server will think something is wrong.
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError>;
 
     /// Return a key for a key version and ID.
@@ -90,7 +93,7 @@ pub trait KeyManager: Send + Sized {
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError>;
 }
 
-// TODO: Split into `Encrypt` and `Decrypt` traits
+/// Implement this on a type that can encrypt data
 pub trait Encryption: Sized {
     /// Initialize the encryption context object
     fn init(
@@ -119,6 +122,23 @@ pub trait Encryption: Sized {
     fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize;
 }
 
-// get_latest_key_version: #type::get_latest_key_version
-// crypt_ctx_size: std::mem::size_of<#type::Context>()
-// crypt_ctx_init: #type:init()
+/// Implement this on a type that decrypts data
+pub trait Decryption: Sized {
+    /// Initialize the decryption context object
+    fn init(
+        key_id: u32,
+        key_version: u32,
+        key: &[u8],
+        iv: &[u8],
+        flags: Flags,
+    ) -> Result<Self, EncryptionError>;
+
+    /// Update the encryption context with new data, return the number of bytes
+    /// written.
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError>;
+
+    /// Write the remaining bytes to the buffer. This usually can't write anything.
+    fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
+        Ok(0)
+    }
+}

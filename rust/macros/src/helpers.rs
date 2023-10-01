@@ -1,9 +1,9 @@
 use proc_macro2::Span;
-use syn::{parse_quote, Error, Expr, Ident, Lit, LitStr};
+use syn::{parse_quote, Error, Expr, ExprPath, Ident, Lit, LitStr};
 
 /// Get the field as a boolean
-pub fn expect_bool(field_opt: &Option<Expr>) -> syn::Result<bool> {
-    let field = field_opt.as_ref().unwrap();
+pub fn expect_bool(field_opt: Option<&Expr>) -> syn::Result<bool> {
+    let field = field_opt.unwrap();
 
     if field == &parse_quote! {true} {
         Ok(true)
@@ -16,8 +16,8 @@ pub fn expect_bool(field_opt: &Option<Expr>) -> syn::Result<bool> {
 }
 
 /// Expect a literal string, error if that's not the case
-pub fn expect_litstr(field_opt: &Option<Expr>) -> syn::Result<&LitStr> {
-    let field = field_opt.as_ref().unwrap();
+pub fn expect_litstr(field_opt: Option<&Expr>) -> syn::Result<&LitStr> {
+    let field = field_opt.expect("missing required fields should have been checked");
     let Expr::Lit(lit) = field else {
         // got non-literal
         let msg = "expected literal expression for this field";
@@ -30,6 +30,14 @@ pub fn expect_litstr(field_opt: &Option<Expr>) -> syn::Result<&LitStr> {
     };
 
     Ok(litstr)
+}
+
+pub fn expect_ty(field: &Expr) -> syn::Result<&ExprPath> {
+    let Expr::Path(expath) = field else {
+        let msg = "expected type in this position";
+        return Err(Error::new_spanned(field, msg));
+    };
+    Ok(expath)
 }
 
 /// Create an identifier from a string with span at the macro call site

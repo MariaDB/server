@@ -176,11 +176,11 @@ impl VariableInfo {
         self.validate_correct_fields(REQ_FIELDS, OPT_FIELDS)?;
 
         let ty_as_svwrap = quote! { <#vtype as ::mariadb::plugin::internals::SysVarInterface> };
-        let name = expect_litstr(&self.name)?;
+        let name = expect_litstr(self.name.as_ref())?;
         let ident = self.ident.as_ref().unwrap();
         let opts = self.make_option_fields()?;
         let flags = quote! { #ty_as_svwrap::DEFAULT_OPTS #opts };
-        let description = expect_litstr(&self.description)?;
+        let description = expect_litstr(self.description.as_ref())?;
 
         let default = process_default_override(&self.default, "def_val")?;
         let min = process_default_override(&self.min, "min_val")?;

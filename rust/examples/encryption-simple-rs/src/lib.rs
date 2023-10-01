@@ -11,13 +11,10 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm,
-    Nonce, // Or `Aes128Gcm`
-};
 use mariadb::log::info;
-use mariadb::plugin::encryption::{Encryption, EncryptionError, Flags, KeyError, KeyManager};
+use mariadb::plugin::encryption::{
+    Decryption, Encryption, EncryptionError, Flags, KeyError, KeyManager,
+};
 use mariadb::plugin::*;
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -159,6 +156,32 @@ impl Encryption for EncryptionExampleRs {
     fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize {
         info!("encryption_length, id {key_id}, version {key_version}, src_len {src_len}");
         src_len
+    }
+}
+
+impl Decryption for EncryptionExampleRs {
+    fn init(
+        key_id: u32,
+        key_version: u32,
+        key: &[u8],
+        iv: &[u8],
+        flags: Flags,
+    ) -> Result<Self, EncryptionError> {
+        info!("decryption_init, id {key_id}, version {key_version}");
+        info!("key: {:x?}", &key);
+        info!("iv: {:x?}", &iv);
+        Ok(Self(0))
+    }
+
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError> {
+        info!(
+            "decryption_update, src_len {}, dst_len {}",
+            src.len(),
+            dst.len()
+        );
+        dst[..src.len()].copy_from_slice(src);
+        self.0 += src.len();
+        Ok(src.len())
     }
 }
 

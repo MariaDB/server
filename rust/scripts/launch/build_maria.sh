@@ -12,6 +12,11 @@ cd "$BUILD_DIR"
 
 git config --global --add safe.directory '*'
 
+# Cmake won't automatically regenerate .so files for some reason, we force it to
+# by removing
+rm -f "${BUILD_DIR}/rust_target/debug/"*.so
+rm -f "${BUILD_DIR}/rust_target/release/"*.so
+
 # We disable submodule updates and mroonga because they are two targets that
 # touch the source directory.
 cmake \

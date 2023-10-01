@@ -37,7 +37,11 @@
 //!     version: "0.1",                              // provide an "a.b" version
 //!     init: ExampleKeyManager,                     // optional: struct implementing Init if needed
 //!     encryption: false,                           // false to use default encryption, true if your
-//!                                                  // struct implements 'Encryption'
+//!                                                  // struct implements 'Encryption`, and another type
+//!                                                  // if a different type should be used for encryption
+//!     decryption: DecryptionContext,               // optional field: if `encryption` is specified as a type
+//!                                                  // but the type that implements `Decryption` is different,
+//!                                                  // it can be specified here
 //!     variables: [                                 // variables should be a list of typed identifiers
 //!         SysVar {
 //!             ident: SYSVAR_STR,
@@ -82,7 +86,10 @@ pub mod prelude {
 /// Reexports for use in proc macros
 #[doc(hidden)]
 pub mod internals {
-    pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
+    pub use super::encryption_wrapper::{
+        wrap_crypt_ctx_finish, wrap_crypt_ctx_init, wrap_crypt_ctx_size, wrap_crypt_ctx_update,
+        wrap_encrypted_length, WrapKeyMgr,
+    };
     pub use super::variables::SysVarInterface;
     pub use super::wrapper::{
         default_deinit_notype, default_init_notype, new_null_plugin_st, wrap_deinit_fn,

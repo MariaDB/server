@@ -6,8 +6,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{parse_macro_input, Error, Expr, FieldValue, Ident, Token};
 
-use crate::fields::plugin::{ALL_FIELDS, ENCR_OPT_FIELDS, ENCR_REQ_FIELDS, REQ_FIELDS};
-use crate::helpers::{expect_bool, expect_litstr, make_ident};
+use crate::fields::plugin::{ALL_FIELDS, ALWAYS_REQ_FIELDS, ENCR_OPT_FIELDS, ENCR_REQ_FIELDS};
+use crate::helpers::{expect_bool, expect_litstr, expect_ty, make_ident};
 use crate::parse_vars::Variables;
 
 /// Entrypoint for this proc macro
@@ -35,6 +35,7 @@ struct PluginInfo {
     version: Option<Expr>,
     init: Option<Expr>,
     encryption: Option<Expr>,
+    decryption: Option<Expr>,
     variables: Option<Expr>,
 }
 
@@ -64,6 +65,7 @@ impl Parse for PluginInfo {
                 "version" => ret.version = Some(expr),
                 "init" => ret.init = Some(expr),
                 "encryption" => ret.encryption = Some(expr),
+                "decryption" => ret.decryption = Some(expr),
                 "variables" => ret.variables = Some(expr),
                 _ => {
                     return Err(Error::new_spanned(
@@ -95,6 +97,7 @@ impl PluginInfo {
             version: None,
             init: None,
             encryption: None,
+            decryption: None,
             variables: None,
         }
     }
@@ -117,10 +120,11 @@ impl PluginInfo {
             (&self.version, "version"),
             (&self.init, "init"),
             (&self.encryption, "encryption"),
+            (&self.decryption, "decryption"),
             (&self.variables, "sysvars"),
         ];
 
-        let mut req = REQ_FIELDS.to_vec();
+        let mut req = ALWAYS_REQ_FIELDS.to_vec();
         req.extend_from_slice(required);
 
         for req_field in &req {
@@ -152,7 +156,7 @@ impl PluginInfo {
             return Ok(ret);
         };
         let vars: Variables = syn::parse(vars_decl.to_token_stream().into())?;
-        let name = expect_litstr(&self.name)?.value();
+        let name = expect_litstr(self.name.as_ref())?.value();
         let sysvar_arr_ident = Ident::new(&format!("_plugin_{name}_sysvars"), Span::call_site());
 
         let sysvar_bodies = &vars.sys;
@@ -191,15 +195,15 @@ impl PluginInfo {
 
     /// Turn `self` into a tokenstream of a single `st_maria_plugin` for an
     /// encryption struct. Uses `idx` to mangle the name and avoid conflicts
+    #[allow(clippy::too_many_lines)]
     fn into_encryption_struct(self) -> syn::Result<PluginDef> {
         self.validate_as_encryption()?;
 
         let main_ty = &self.main_ty;
-        let name = expect_litstr(&self.name)?;
+        let name = expect_litstr(self.name.as_ref())?;
         let plugin_st_name = Ident::new(&format!("_ST_PLUGIN_{}", name.value()), Span::call_site());
 
         let ty_as_wkeymgt = quote! { <#main_ty as ::mariadb::plugin::internals::WrapKeyMgr> };
-        let ty_as_wenc = quote! { <#main_ty as ::mariadb::plugin::internals::WrapEncryption> };
         let interface_version = quote! { ::mariadb::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as ::std::ffi::c_int };
         let get_key_vers = quote! { Some(#ty_as_wkeymgt::wrap_get_latest_key_version) };
         let get_key = quote! { Some(#ty_as_wkeymgt::wrap_get_key) };
@@ -212,25 +216,48 @@ impl PluginInfo {
             }
         };
 
-        let (crypt_size, crypt_init, crypt_update, crypt_finish, crypt_len);
+        let mut enc_dec_types = None;
 
-        if expect_bool(&self.encryption)? {
-            // Use encryption if given
-            crypt_size = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_size) };
-            crypt_init = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_init) };
-            crypt_update = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_update) };
-            crypt_finish = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_finish) };
-            crypt_len = quote! { Some(#ty_as_wenc::wrap_encrypted_length) };
+        if let Some(encr_value) = self.encryption {
+            // expect_bool(&self.encryption)? {
+            let encr_bool_res = expect_bool(Some(&encr_value));
+            if encr_bool_res.is_ok() {
+                assert!(
+                    self.decryption.is_none(),
+                    "cannot specify decryption type but not encryption"
+                );
+            };
+
+            if matches!(encr_bool_res, Ok(true)) {
+                // Use encryption on the main type if specified
+                let main_tokens = main_ty.to_token_stream();
+                enc_dec_types = Some((main_tokens.clone(), main_tokens));
+            } else if encr_bool_res.is_err() {
+                let enc_ty = expect_ty(&encr_value)?;
+                let dec_ty = match self.decryption {
+                    Some(ref v) => expect_ty(v)?,
+                    None => enc_ty,
+                };
+                enc_dec_types = Some((enc_ty.to_token_stream(), dec_ty.to_token_stream()));
+            }
+        }
+
+        let (crypt_size, crypt_init, crypt_update, crypt_finish, crypt_len);
+        if let Some((enc_ty, dec_ty)) = enc_dec_types {
+            crypt_size = quote! { Some(::mariadb::plugin::internals::wrap_crypt_ctx_size::<#enc_ty, #dec_ty>) };
+            crypt_init = quote! { Some(::mariadb::plugin::internals::wrap_crypt_ctx_init::<#enc_ty, #dec_ty>) };
+            crypt_update = quote! { Some(::mariadb::plugin::internals::wrap_crypt_ctx_update::<#enc_ty, #dec_ty>) };
+            crypt_finish = quote! { Some(::mariadb::plugin::internals::wrap_crypt_ctx_finish::<#enc_ty, #dec_ty>) };
+            crypt_len =
+                quote! { Some(::mariadb::plugin::internals::wrap_encrypted_length::<#enc_ty>) };
         } else {
             // Default to builtin encryption
             let none = quote! { None };
-            (
-                crypt_size,
-                crypt_init,
-                crypt_update,
-                crypt_finish,
-                crypt_len,
-            ) = (none.clone(), none.clone(), none.clone(), none.clone(), none);
+            crypt_size = none.clone();
+            crypt_init = none.clone();
+            crypt_update = none.clone();
+            crypt_finish = none.clone();
+            crypt_len = none;
         }
 
         let info_struct = quote! {
@@ -253,11 +280,11 @@ impl PluginInfo {
             };
         };
 
-        let version_str = &expect_litstr(&self.version)?.value();
+        let version_str = &expect_litstr(self.version.as_ref())?.value();
         let version_int =
             version_int(version_str).map_err(|e| Error::new_spanned(&self.version, e))?;
-        let author = expect_litstr(&self.author)?;
-        let description = expect_litstr(&self.description)?;
+        let author = expect_litstr(self.author.as_ref())?;
+        let description = expect_litstr(self.description.as_ref())?;
         let license = self.license.unwrap();
         let maturity = self.maturity.unwrap();
         let ptype = self.ptype.unwrap();
