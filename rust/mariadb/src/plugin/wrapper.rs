@@ -14,23 +14,31 @@ pub trait PluginMeta {
 #[must_use]
 pub unsafe extern "C" fn wrap_init_fn<P: PluginMeta, I: Init>(_: *mut c_void) -> c_int {
     init_common();
-    let ret = match I::init() {
-        Ok(()) => 0,
-        Err(InitError) => 1,
-    };
-    log::info!("loaded plugin {}", P::NAME);
-    ret
+    match I::init() {
+        Ok(()) => {
+            log::info!("loaded plugin {}", P::NAME);
+            0
+        }
+        Err(InitError) => {
+            log::error!("failed to load plugin {}", P::NAME);
+            1
+        }
+    }
 }
 
 /// Wrap the deinit call
 #[must_use]
 pub unsafe extern "C" fn wrap_deinit_fn<P: PluginMeta, I: Init>(_: *mut c_void) -> c_int {
-    let ret = match I::deinit() {
-        Ok(()) => 0,
-        Err(InitError) => 1,
-    };
-    log::info!("unloaded plugin {}", P::NAME);
-    ret
+    match I::deinit() {
+        Ok(()) => {
+            log::info!("unloaded plugin {}", P::NAME);
+            0
+        }
+        Err(InitError) => {
+            log::error!("failed to unload plugin {}", P::NAME);
+            1
+        }
+    }
 }
 
 /// Init call for plugins that don't provide a custom init function

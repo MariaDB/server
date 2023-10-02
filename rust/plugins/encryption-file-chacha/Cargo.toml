@@ -6,3 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+mariadb = { path = "../../mariadb" }
+encryption-common = { path = "../../common/encryption-common" }
+chacha20 = { version = "0.9.1", features = ["std"] }
+chacha20poly1305 = { version = "0.10.1", default-features = false, features = ["std"] }

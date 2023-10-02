@@ -27,7 +27,7 @@ use mariadb_sys as bindings;
 pub enum KeyError {
     // Values must be nonzero
     /// A key ID is invalid or not found. Maps to `ENCRYPTION_KEY_VERSION_INVALID` in C.
-    VersionInvalid = bindings::ENCRYPTION_KEY_VERSION_INVALID,
+    InvalidVersion = bindings::ENCRYPTION_KEY_VERSION_INVALID,
     /// A key buffer is too small. Maps to `ENCRYPTION_KEY_BUFFER_TOO_SMALL` in C.
     BufferTooSmall = bindings::ENCRYPTION_KEY_BUFFER_TOO_SMALL,
     Other = 3,

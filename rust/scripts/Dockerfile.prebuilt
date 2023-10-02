@@ -1,0 +1,11 @@
+# Use prebuilt mdb to test plugins quicker
+
+FROM ubuntu:latest
+
+WORKDIR /checkout
+RUN apt-get update && apt-get install -y \
+    mariadb
+
+ENV RUST_BACKTRACE=1
+ENV RUST_LOG=debug
+ENV BUILD_DIR=/obj/build-mariadb

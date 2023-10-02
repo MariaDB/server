@@ -23,13 +23,11 @@ RUN apt-get update \
         wget \
         xxd \
         clang
+# ^ clang has to go last because it doesn't play well with other installs
 
 ENV RUST_BACKTRACE=1
+ENV RUST_LOG=debug
 ENV CARGO_TARGET_DIR=/obj/build-cargo
 ENV BUILD_DIR=/obj/build-mariadb
 ENV SCCACHE_DIR=/obj/sccache
 ENV SCCACHE_CACHE_SIZE="1G"
-
-# ^ clang has to go last because it doesn't play well with other installs
-
-# RUN apt-get install -y \

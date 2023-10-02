@@ -23,7 +23,7 @@ pub trait WrapKeyMgr: KeyManager {
                 }
                 v
             }
-            Err(_) => KeyError::VersionInvalid as c_uint,
+            Err(_) => KeyError::InvalidVersion as c_uint,
         }
     }
 
@@ -31,7 +31,8 @@ pub trait WrapKeyMgr: KeyManager {
     ///
     /// # Safety
     ///
-    /// `dstbuf` must be valid for `buflen`
+    /// - `dstbuf` must be valid for `buflen`
+    /// - `buflen` must be valid
     unsafe extern "C" fn wrap_get_key(
         key_id: c_uint,
         version: c_uint,
@@ -39,8 +40,8 @@ pub trait WrapKeyMgr: KeyManager {
         buflen: *mut c_uint,
     ) -> c_uint {
         if dstbuf.is_null() {
+            // Passing a null for `dstbuf` indicates that the key length is being queried
             match Self::key_length(key_id, version) {
-                // FIXME: don't unwrap
                 Ok(v) => *buflen = v.try_into().unwrap(),
                 Err(e) => {
                     return e as c_uint;

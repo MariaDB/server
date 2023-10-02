@@ -26,15 +26,15 @@ pub enum SysVarOpt {
     /// Variable is read only
     ReadOnly = bindings::PLUGIN_VAR_READONLY as i32,
     /// Variable is not a server variable
-    NoSysVar = bindings::PLUGIN_VAR_NOSYSVAR as i32,
+    NoServerVariable = bindings::PLUGIN_VAR_NOSYSVAR as i32,
     /// No command line option
-    NoCmdOpt = bindings::PLUGIN_VAR_NOCMDOPT as i32,
+    NoCliOption = bindings::PLUGIN_VAR_NOCMDOPT as i32,
     /// No argument for the command line
-    NoCmdArg = bindings::PLUGIN_VAR_NOCMDARG as i32,
+    NoCliArg = bindings::PLUGIN_VAR_NOCMDARG as i32,
     /// Required CLI argument
-    ReqCmdArg = bindings::PLUGIN_VAR_RQCMDARG as i32,
+    RequiredCliArg = bindings::PLUGIN_VAR_RQCMDARG as i32,
     /// Optional CLI argument
-    OptCmdArg = bindings::PLUGIN_VAR_OPCMDARG as i32,
+    OptionalCliArg = bindings::PLUGIN_VAR_OPCMDARG as i32,
     /// Variable is deprecated
     Deprecated = bindings::PLUGIN_VAR_DEPRECATED as i32,
     // String needs memory allocation - don't expose this

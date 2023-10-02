@@ -53,7 +53,7 @@ impl KeyManager for DebugKeyMgmt {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
         debug!("DebugKeyMgmt get_latest_key_version");
         if key_id != 1 {
-            Err(KeyError::VersionInvalid)
+            Err(KeyError::InvalidVersion)
         } else {
             Ok(KEY_VERSION.load(Ordering::Relaxed))
         }
@@ -62,7 +62,7 @@ impl KeyManager for DebugKeyMgmt {
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
         debug!("DebugKeyMgmt get_key");
         if key_id != 1 {
-            return Err(KeyError::VersionInvalid);
+            return Err(KeyError::InvalidVersion);
         }
 
         // Convert our integer to a native endian byte array
@@ -106,7 +106,7 @@ register_plugin! {
             vtype: SysVarConstString,
             name: "test_sysvar_const_string",
             description: "this is a description",
-            options: [SysVarOpt::OptCmdArg],
+            options: [SysVarOpt::OptionalCliArg],
             default: "default value"
         },
         SysVar {
@@ -114,7 +114,7 @@ register_plugin! {
             vtype: SysVarString,
             name: "test_sysvar_string",
             description: "this is a description",
-            options: [SysVarOpt::OptCmdArg],
+            options: [SysVarOpt::OptionalCliArg],
             default: "other default value"
         },
         SysVar {
@@ -122,7 +122,7 @@ register_plugin! {
             vtype: AtomicI32,
             name: "test_sysvar_i32",
             description: "this is a description",
-            options: [SysVarOpt::OptCmdArg],
+            options: [SysVarOpt::OptionalCliArg],
             default: 67
         }
     ]

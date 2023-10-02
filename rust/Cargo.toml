@@ -6,6 +6,7 @@ members = [
     "bindings",
     "mariadb",
     "macros",
+    "common/encryption-common",
     "examples/keymgt-basic-rs",
     "examples/keymgt-debug-rs",
     "examples/encryption-simple-rs",

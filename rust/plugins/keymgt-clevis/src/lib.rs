@@ -41,7 +41,7 @@ register_plugin! {
             vtype: SysVarConstString,
             name: "tang_server",
             description: "the tang server for key exchange",
-            options: [SysVarOpt::OptCmdArg],
+            options: [SysVarOpt::OptionalCliArg],
             default: "localhost"
         }
     ]
@@ -87,7 +87,7 @@ impl Init for KeyMgtClevis {
                 key_id INT UNSIGNED NOT NULL,
                 key_version INT UNSIGNED NOT NULL,
                 key_server VARBINARY(64) NOT NULL,
-                key VARBINARY((16) NOT NULL,
+                key VARBINARY(16) NOT NULL,
                 PRIMARY KEY (key_id, key_version)
             ) ENGINE=InnoDB"
         ))
