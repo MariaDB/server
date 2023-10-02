@@ -6417,7 +6417,7 @@ Item *Item_func_not::neg_transformer(THD *thd)	/* NOT(x)  ->  x */
 bool Item_func_not::fix_fields(THD *thd, Item **ref)
 {
   args[0]->under_not(this);
-  if (args[0]->type() == FIELD_ITEM)
+  if (args[0]->type() == FIELD_ITEM && ref)
   {
     /* replace  "NOT <field>" with "<field> == 0" */
     Query_arena backup, *arena;

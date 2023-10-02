@@ -6611,6 +6611,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       thd->restore_active_arena(arena, &backup);
     if (!item_sp)
       DBUG_RETURN(TRUE);
+    DBUG_ASSERT(ref);
     *ref= item_sp;
     item_sp->name= name;
     bool err= item_sp->fix_fields(thd, ref);
