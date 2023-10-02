@@ -1804,6 +1804,7 @@ int ha_commit_trans(THD *thd, bool all)
         (void) trans_rollback_stmt(thd);
         goto err;
       }
+      trt.table->file->extra(HA_EXTRA_RESET_STATE);
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
