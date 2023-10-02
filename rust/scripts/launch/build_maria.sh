@@ -4,9 +4,6 @@ set -eaux
 
 echo starting internal build
 
-# export CMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib
-# export CMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib
-# export CMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
@@ -25,6 +22,7 @@ cmake \
     -DCMAKE_C_COMPILER_LAUNCHER=sccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
     -DCMAKE_BUILD_TYPE=Debug \
+    -DRUN_ABI_CHECK=NO \
     -DUPDATE_SUBMODULES=OFF \
     -DPLUGIN_MROONGA=NO \
     -DPLUGIN_ROCKSDB=NO \
@@ -34,10 +32,5 @@ cmake \
 
 export CMD_CCMAKE="ccmake -S/checkout -B${BUILD_DIR}"
 
-# -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib \
-# -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib \
-# -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin \
-
 # ninja automatically uses all the cores
 cmake --build "$BUILD_DIR"
-# cmake --install "$build_dir"

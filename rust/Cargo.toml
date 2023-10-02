@@ -11,6 +11,6 @@ members = [
     "examples/encryption-simple-rs",
     "examples/encryption-aes-rs",
     "plugins/keymgt-clevis",
-    "plugins/encryption-chacha",
+    "plugins/encryption-file-chacha",
     "test-runner",
 ]

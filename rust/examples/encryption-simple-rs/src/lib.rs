@@ -12,9 +12,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use mariadb::log::info;
-use mariadb::plugin::encryption::{
-    Decryption, Encryption, EncryptionError, Flags, KeyError, KeyManager,
-};
+use mariadb::plugin::encryption::{Decryption, Encryption, EncryptionError, KeyError, KeyManager};
 use mariadb::plugin::*;
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -128,11 +126,10 @@ impl Encryption for EncryptionExampleRs {
         key_version: u32,
         key: &[u8],
         iv: &[u8],
-        flags: Flags,
+        same_size: bool,
     ) -> Result<Self, EncryptionError> {
         info!("encryption_init, id {key_id}, version {key_version}");
-        info!("key: {:x?}", &key);
-        info!("iv: {:x?}", &iv);
+        info!("key: {key:x?}, iv: {iv:x?}, same_size: {same_size}");
         Ok(Self(0))
     }
 
@@ -165,11 +162,10 @@ impl Decryption for EncryptionExampleRs {
         key_version: u32,
         key: &[u8],
         iv: &[u8],
-        flags: Flags,
+        same_size: bool,
     ) -> Result<Self, EncryptionError> {
         info!("decryption_init, id {key_id}, version {key_version}");
-        info!("key: {:x?}", &key);
-        info!("iv: {:x?}", &iv);
+        info!("key: {key:x?}, iv: {iv:x?}, same_size: {same_size}");
         Ok(Self(0))
     }
 

@@ -196,13 +196,14 @@ impl VariableInfo {
         // https://github.com/rust-lang/rust/issues/86935#issuecomment-1146670057
         let ty_wrap = Ident::new(&format!("_sysvar_Type{}", name.value()), Span::call_site());
         let ty_check = quote! {
-            #[allow(non_camel_case_types)]
+            #[allow(non_upper_case_globals)]
             static #st_tycheck: &#vtype = &#ident;
         };
 
         let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
 
         let res = quote! {
+            #[allow(non_camel_case_types)]
             type #ty_wrap<T> = T;
 
             #ty_check

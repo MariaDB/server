@@ -7,7 +7,7 @@ use std::{mem, slice};
 use log::{error, warn};
 use mariadb_sys as bindings;
 
-use super::encryption::{Decryption, Encryption, Flags, KeyError, KeyManager};
+use super::encryption::{Action, Decryption, Encryption, Flags, KeyError, KeyManager};
 
 pub trait WrapKeyMgr: KeyManager {
     /// Get the key version, simple wrapper
@@ -105,12 +105,15 @@ pub unsafe extern "C" fn wrap_crypt_ctx_init<En: Encryption, De: Decryption>(
     let keybuf = slice::from_raw_parts(key, klen.try_into().unwrap());
     let ivbuf = slice::from_raw_parts(iv, ivlen.try_into().unwrap());
     let flags = Flags::new(flags);
+    let same_size = flags.nopad();
 
-    let init_res = if flags.should_encrypt() {
-        En::init(key_id, key_version, keybuf, ivbuf, flags).map(CryptCtxWrapper::Encrypt)
-    } else {
-        De::init(key_id, key_version, keybuf, ivbuf, flags).map(CryptCtxWrapper::Decrypt)
-    };
+    let init_res =
+        match flags.action() {
+            Action::Encrypt => En::init(key_id, key_version, keybuf, ivbuf, same_size)
+                .map(CryptCtxWrapper::Encrypt),
+            Action::Decrypt => De::init(key_id, key_version, keybuf, ivbuf, same_size)
+                .map(CryptCtxWrapper::Decrypt),
+        };
 
     let newctx = match init_res {
         Ok(c) => c,

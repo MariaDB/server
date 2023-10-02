@@ -19,9 +19,7 @@ use aes_gcm::{
     Nonce, // Or `Aes128Gcm`
 };
 use mariadb::log::{error, info};
-use mariadb::plugin::encryption::{
-    Decryption, Encryption, EncryptionError, Flags, KeyError, KeyManager,
-};
+use mariadb::plugin::encryption::{Decryption, Encryption, EncryptionError, KeyError, KeyManager};
 use mariadb::plugin::*;
 use mariadb::warn_once;
 use rand::Rng;
@@ -37,7 +35,7 @@ const AES256_KEY_LEN: usize = 32;
 struct EncryptionExampleAes;
 
 impl KeyManager for EncryptionExampleAes {
-    /// Key version is always 0
+    /// Key version is always 1
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
         Ok(1)
     }
@@ -67,7 +65,7 @@ impl Encryption for TestAes {
         key_version: u32,
         key: &[u8],
         iv: &[u8],
-        flags: Flags,
+        same_size: bool,
     ) -> Result<Self, EncryptionError> {
         info!("encrypt init");
         let (cipher, nonce) = init_cipher(key, iv)?;
@@ -90,15 +88,15 @@ impl Encryption for TestAes {
             "AES cannot call update more than once!"
         );
 
-        // Shrink dst to only used size
-        let use_dst = &mut dst[..src.len()];
-
-        // let to_write = min(dst.len() - AES256_TAG_LEN, src.len());
+        // Save enough room for the tag
+        let data_len = min(dst.len() - AES256_TAG_LEN, src.len());
+        let src = &src[..data_len];
+        let data_dst = &mut dst[..data_len];
         // Copy data and then encrypt in place
-        use_dst.copy_from_slice(&src);
+        data_dst.copy_from_slice(&src);
         let tag = self
             .cipher
-            .encrypt_in_place_detached(&self.nonce.into(), b"", use_dst)
+            .encrypt_in_place_detached(&self.nonce.into(), b"", data_dst)
             .map_err(|e| {
                 error!("AES encryption error: {e}");
                 EncryptionError::Other
@@ -107,7 +105,7 @@ impl Encryption for TestAes {
         self.update_called_times += 1;
         self.tag = tag.into();
 
-        Ok(use_dst.len())
+        Ok(data_dst.len())
     }
 
     /// BUG: I don't know what to do with the tagl we get a dst length of 0
@@ -139,7 +137,7 @@ impl Decryption for TestAes {
         key_version: u32,
         key: &[u8],
         iv: &[u8],
-        flags: Flags,
+        same_size: bool,
     ) -> Result<Self, EncryptionError> {
         info!("decrypt init");
         let (cipher, nonce) = init_cipher(key, iv)?;
@@ -179,7 +177,7 @@ impl Decryption for TestAes {
                 EncryptionError::Other
             })?;
         self.update_called_times += 1;
-        Ok(src.len() - 16)
+        dbg!(Ok(src_data.len()))
     }
 
     fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {

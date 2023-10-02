@@ -1,10 +1,10 @@
 -- Running without crashing is a success
 
+SET SESSION innodb_default_encryption_key_id=1;
 INSTALL PLUGIN encryption_example_aes SONAME 'example_encryption_aes_rs.so';
 
 SET GLOBAL innodb_encryption_threads=1;
 SET GLOBAL innodb_encrypt_tables=ON;
-SET SESSION innodb_default_encryption_key_id=100;
 
 CREATE DATABASE db;
 USE db;
@@ -12,7 +12,8 @@ USE db;
 CREATE TABLE t1 (
    id int PRIMARY KEY,
    str varchar(50)
-);
+) ENGINE=InnoDB
+  ENCRYPTED=Yes;
 
 INSERT INTO t1(id, str) VALUES
     (1, 'abc'),

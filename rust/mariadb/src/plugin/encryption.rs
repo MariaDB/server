@@ -45,22 +45,30 @@ pub enum EncryptionError {
 
 /// Representation of the flags integer
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Flags(i32);
+pub(crate) struct Flags(i32);
+
+/// The possible action from
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Action {
+    Encrypt,
+    Decrypt,
+}
 
 impl Flags {
     pub(crate) const fn new(value: i32) -> Self {
         Self(value)
     }
 
-    pub const fn should_encrypt(self) -> bool {
-        (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
+    /// Return whether or not
+    pub const fn action(self) -> Action {
+        if (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) == 0 {
+            Action::Decrypt
+        } else {
+            Action::Encrypt
+        }
     }
 
-    pub(crate) const fn should_decrypt(self) -> bool {
-        // (self.0 & bindings::ENCRYPTION_FLAG_DECRYPT as i32) != 0
-        !self.should_encrypt()
-    }
-
+    /// True if encryption is disallowed from appending extra data (no AEADs)
     pub const fn nopad(&self) -> bool {
         (self.0 & bindings::ENCRYPTION_FLAG_NOPAD as i32) != 0
     }
@@ -95,49 +103,76 @@ pub trait KeyManager: Send + Sized {
 
 /// Implement this on a type that can encrypt data
 pub trait Encryption: Sized {
-    /// Initialize the encryption context object
+    /// Initialize the encryption context object.
+    ///
+    /// Parameters:
+    ///
+    /// - `key`: the key to use for encryption
+    /// - `iv`: the initialization vector (nonce) to be used for encryption
+    /// - `same_size`: if `true`, the `src` and `dst` length will always be the same. That is,
+    ///    ciphers cannot add additional data. The default implementation uses this to select
+    ///    between an AEAD (AES-256-GCM) if additional data is allowed, and a streaming cipher
+    ///    (AES-CBC) when the
+    /// -  `key_id` and `key_version`: these can be used if encryption depends on key information.
+    ///    Note that `key` may not be exactly the same as the result of `KeyManager::get_key`.
     fn init(
         key_id: u32,
         key_version: u32,
         key: &[u8],
         iv: &[u8],
-        flags: Flags,
+        same_size: bool,
     ) -> Result<Self, EncryptionError>;
 
     /// Update the encryption context with new data, return the number of bytes
-    /// written. Do not append the iv to the ciphertext, MariaDB keeps track of
-    /// it separately.
+    /// written.
+    ///
+    /// Do not append the iv to the ciphertext, MariaDB keeps track of it separately.
     fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError>;
 
-    /// Write the remaining bytes to the buffer. This usually can't write anything.
+    /// Finish encryption. Usually this performs validation and, in some cases, can be used to
+    /// write additional data.
+    ///
+    /// If init was called with `same_size = true`, `dst` will likely be empty.
     fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
         Ok(0)
     }
 
-    /// Return the exact length of the encrypted data based on the source length
+    /// Return the exact length of the encrypted data based on the source length. Defaults to
+    /// the same value.
     ///
     /// As this function must have a definitive answer, this API only supports
     /// encryption algorithms where this is possible to compute (i.e.,
     /// compression is not supported).
-    fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize;
+    ///
+    /// Note that if initialization was called with `same_size = true`, this will be ignored. In
+    /// that case.
+    fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize {
+        src_len
+    }
 }
 
-/// Implement this on a type that decrypts data
+/// Implement this on a type that decrypts data.
+///
+/// This can be the same type as [`Encryption`] but does not have to be.
 pub trait Decryption: Sized {
-    /// Initialize the decryption context object
+    /// Initialize the decryption context object. See [`Encryption::init`] for information on
+    /// parameters.
     fn init(
         key_id: u32,
         key_version: u32,
         key: &[u8],
         iv: &[u8],
-        flags: Flags,
+        same_size: bool,
     ) -> Result<Self, EncryptionError>;
 
     /// Update the encryption context with new data, return the number of bytes
     /// written.
     fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError>;
 
-    /// Write the remaining bytes to the buffer. This usually can't write anything.
+    /// Finish decryption. Usually this performs validation and, in some cases, can be used to
+    /// write additional data.
+    ///
+    /// If init was called with `same_size = true`, `dst` will likely be empty.
     fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
         Ok(0)
     }

@@ -34,7 +34,7 @@ pub enum SysVarOpt {
     /// Required CLI argument
     ReqCmdArg = bindings::PLUGIN_VAR_RQCMDARG as i32,
     /// Optional CLI argument
-    OptCmdArd = bindings::PLUGIN_VAR_OPCMDARG as i32,
+    OptCmdArg = bindings::PLUGIN_VAR_OPCMDARG as i32,
     /// Variable is deprecated
     Deprecated = bindings::PLUGIN_VAR_DEPRECATED as i32,
     // String needs memory allocation - don't expose this
@@ -122,12 +122,13 @@ pub unsafe trait SysVarInterface: Sized {
 /// Consider this very unstable because I don't 100% understand what the SQL
 /// side of things does with the malloc / const options
 ///
-/// Bug: it seems like after updating, the SQL server cannot read the
+/// BUG: it seems like after updating, the SQL server cannot read the
 /// variable... but we can? Do we need to do more in our `update` function?
 #[repr(transparent)]
 pub struct SysVarConstString(AtomicPtr<c_char>);
 
 impl SysVarConstString {
+    /// Create a new string variable
     pub const fn new() -> Self {
         Self(AtomicPtr::new(std::ptr::null_mut()))
     }

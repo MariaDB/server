@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use mariadb::log::{self, debug, trace};
-use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
+use mariadb::plugin::encryption::{Encryption, KeyError, KeyManager};
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, SysVarConstString, SysVarOpt,
     SysVarString,
@@ -106,7 +106,7 @@ register_plugin! {
             vtype: SysVarConstString,
             name: "test_sysvar_const_string",
             description: "this is a description",
-            options: [SysVarOpt::OptCmdArd],
+            options: [SysVarOpt::OptCmdArg],
             default: "default value"
         },
         SysVar {
@@ -114,7 +114,7 @@ register_plugin! {
             vtype: SysVarString,
             name: "test_sysvar_string",
             description: "this is a description",
-            options: [SysVarOpt::OptCmdArd],
+            options: [SysVarOpt::OptCmdArg],
             default: "other default value"
         },
         SysVar {
@@ -122,7 +122,7 @@ register_plugin! {
             vtype: AtomicI32,
             name: "test_sysvar_i32",
             description: "this is a description",
-            options: [SysVarOpt::OptCmdArd],
+            options: [SysVarOpt::OptCmdArg],
             default: 67
         }
     ]

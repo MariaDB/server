@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 use josekit::jws;
 use mariadb::log::{debug, error, info};
-use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
+use mariadb::plugin::encryption::{Encryption, KeyError, KeyManager};
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, SysVarConstString, SysVarOpt,
 };
@@ -23,6 +23,29 @@ const KEY_MAX_BYTES: usize = 16;
 
 /// String system variable to set server address
 static TANG_SERVER: SysVarConstString = SysVarConstString::new();
+
+register_plugin! {
+    KeyMgtClevis,
+    ptype: PluginType::MariaEncryption,
+    name: "clevis_key_management",
+    author: "Daniel Black & Trevor Gross",
+    description: "Clevis key management plugin",
+    license: License::Gpl,
+    maturity: Maturity::Experimental,
+    version: "0.1",
+    init: KeyMgtClevis,
+    encryption: false,
+    variables: [
+        SysVar {
+            ident: TANG_SERVER,
+            vtype: SysVarConstString,
+            name: "tang_server",
+            description: "the tang server for key exchange",
+            options: [SysVarOpt::OptCmdArg],
+            default: "localhost"
+        }
+    ]
+}
 
 struct KeyMgtClevis;
 
@@ -159,27 +182,4 @@ impl KeyManager for KeyMgtClevis {
     fn key_length(_key_id: u32, _key_version: u32) -> Result<usize, KeyError> {
         Ok(KEY_MAX_BYTES)
     }
-}
-
-register_plugin! {
-    KeyMgtClevis,
-    ptype: PluginType::MariaEncryption,
-    name: "clevis_key_management",
-    author: "Daniel Black & Trevor Gross",
-    description: "Clevis key management plugin",
-    license: License::Gpl,
-    maturity: Maturity::Experimental,
-    version: "0.1",
-    init: KeyMgtClevis,
-    encryption: false,
-    variables: [
-        SysVar {
-            ident: TANG_SERVER,
-            vtype: SysVarConstString,
-            name: "tang_server",
-            description: "the tang server for key exchange",
-            options: [SysVarOpt::OptCmdArd],
-            default: "localhost"
-        }
-    ]
 }

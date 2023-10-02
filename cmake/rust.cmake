@@ -93,31 +93,6 @@ macro(CONFIGURE_RUST_PLUGINS)
     set(env_args -E env CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
         CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR})
 
-    # Commands for dynamic and static; these don't get invoked until our
-    # target calls them
-    add_custom_command(
-      OUTPUT ${staticlib_name}
-      # We set make_static_lib to generate the correct symbols
-      # equivalent of `COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN$...` for C plugins
-      # Todos:
-      # TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
-      COMMAND ${CMAKE_COMMAND} ${env_args}
-        ${cargo_cmd} --crate-type=staticlib
-        -- ${rustc_extra_args} --cfg=make_static_lib
-      WORKING_DIRECTORY ${rust_dir}
-      COMMENT "start cargo for ${target_name} with '${cargo_cmd}' static"
-      VERBATIM
-    )
-    add_custom_command(
-      OUTPUT ${dylib_path}
-      COMMAND ${CMAKE_COMMAND} ${env_args}
-        ${cargo_cmd} --crate-type=cdylib
-        -- ${rustc_extra_args}
-      WORKING_DIRECTORY ${rust_dir}
-      COMMENT "start cargo for ${target_name} with '${cargo_cmd}' dynamic"
-      VERBATIM
-    )
-
     if(NOT ARG_MODULE_OUTPUT_NAME)
       if(ARG_STORAGE_ENGINE)
         set(ARG_MODULE_OUTPUT_NAME "ha_${target_name}")
@@ -130,7 +105,7 @@ macro(CONFIGURE_RUST_PLUGINS)
       ${${cache_name}} MATCHES "(STATIC|AUTO|YES)" AND NOT ARG_MODULE_ONLY
       AND NOT ARG_CLIENT
     )
-    message(STATUS "building rust plugin ${target_name} as static")
+    message(STATUS "configuring rust plugin ${target_name} as static")
 
       # Build a staticlib
       if(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
@@ -142,10 +117,24 @@ macro(CONFIGURE_RUST_PLUGINS)
           ${CMAKE_CURRENT_BINARY_DIR}/${ARG_MODULE_OUTPUT_NAME}${CMAKE_SHARED_MODULE_SUFFIX})
       endif()
 
-      add_custom_target(${target_name} ALL
-        COMMAND echo "invoking cargo for ${target_name}"
-        DEPENDS ${staticlib_name}
+
+      add_custom_target(${target_name}
+        # We set make_static_lib to generate the correct symbols
+        # equivalent of `COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN$...` for C plugins
+        # Todos:
+        # TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
+        COMMAND ${CMAKE_COMMAND} ${env_args}
+          ${cargo_cmd} --crate-type=staticlib
+          -- ${rustc_extra_args} --cfg=make_static_lib
+        WORKING_DIRECTORY ${rust_dir}
+        COMMENT "start cargo for ${target_name} with '${cargo_cmd}' static"
+        VERBATIM
       )
+
+      # add_custom_target(${target_name} ALL
+      #   COMMAND echo "invoking cargo for ${target_name}"
+      #   DEPENDS ${staticlib_name}
+      # )
 
       # Update mysqld dependencies
       SET (MYSQLD_STATIC_PLUGIN_LIBS ${MYSQLD_STATIC_PLUGIN_LIBS} 
@@ -158,7 +147,7 @@ macro(CONFIGURE_RUST_PLUGINS)
       AND NOT ARG_STATIC_ONLY AND NOT WITHOUT_DYNAMIC_PLUGINS
     )
       # Build a dynamiclib
-      message(STATUS "building rust plugin ${target_name} as dynamic")
+      message(STATUS "configuring rust plugin ${target_name} as dynamic")
 
       add_version_info(${target_name} MODULE SOURCES)
 
@@ -173,55 +162,32 @@ macro(CONFIGURE_RUST_PLUGINS)
       # endif()
   
       add_custom_target(${target_name} ALL
-        COMMAND echo "invoking cargo for ${target_name}"
-        DEPENDS ${dylib_path}
+        COMMAND ${CMAKE_COMMAND}
+          ${env_args}
+          ${cargo_cmd}
+          --crate-type=cdylib
+          --
+          ${rustc_extra_args}
+        WORKING_DIRECTORY ${rust_dir}
+        COMMENT "start cargo for ${target_name} with '${cargo_cmd}' dynamic"
+        VERBATIM
       )
 
-      target_link_libraries(${target_name} mysqlservices ${ARG_LINK_LIBRARIES})
+      set_target_properties(${target} PROPERTIES PREFIX "")
+      if(NOT ARG_CLIENT)
+        set_target_properties(${target} PROPERTIES
+          COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN${version_string}")
+      endif()
+
+      # add_custom_target(${target_name} ALL
+      #   COMMAND echo "invoking cargo for ${target_name}"
+      #   DEPENDS ${dylib_path}
+      # )
+
       add_dependencies(${target_name} GenError)
+      # add_dependencies(mariadb-plugin ${target_name})
       set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${target_name}")
-
-
-          # Install dynamic library
-      # if(ARG_COMPONENT)
-      #   if(CPACK_COMPONENTS_ALL AND
-      #     not CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT}
-      #     and INSTALL_SYSCONF2DIR)
-      #     if (ARG_STORAGE_ENGINE)
-      #       string(REPLACE "-" "_" ver ${SERVER_VERSION})
-      #       set(ver " = ${ver}-%{release}")
-      #     else()
-      #       set(ver "")
-      #     endif()
-      #     string(TOUPPER ${ARG_COMPONENT} ARG_COMPONENT_UPPER)
-      #     set(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}SYMLINKS_GROUP ${ARG_COMPONENT} PARENT_SCOPE)
-      #     set(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}_GROUP ${ARG_COMPONENT} PARENT_SCOPE)
-      #     set(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} ${ARG_COMPONENT}Symlinks)
-      #     set(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} PARENT_SCOPE)
-
-      #     if (NOT ARG_CLIENT)
-      #       set(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server${ver}" PARENT_SCOPE)
-      #     endif()
-      #     set(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} PARENT_SCOPE)
-      #     if (ARG_VERSION)
-      #       set(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_VERSION ${SERVER_VERSION}_${ARG_VERSION} PARENT_SCOPE)
-      #       set_plugin_deb_version(${target_name} ${SERVER_VERSION}-${ARG_VERSION})
-      #     endif()
-      #     if(NOT ARG_CLIENT AND UNIX)
-      #       if (NOT ARG_CONFIG)
-      #         set(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target_name}.cnf")
-      #         file(WRITE ${ARG_CONFIG} "[mariadb]\nplugin-load-add=${ARG_MODULE_OUTPUT_NAME}.so\n")
-      #       endif()
-      #       set(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)
-      #       set(CPACK_RPM_${ARG_COMPONENT}_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/plugin-postin.sh PARENT_SCOPE)
-      #       set(CPACK_RPM_${ARG_COMPONENT}_POST_TRANS_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-posttrans.sh PARENT_SCOPE)
-      #     endif()
-      #   endif()
-      # else()
-      #   set(ARG_COMPONENT Server)
-      # endif()
-
-      # mysql_install_targets(${target_name} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
+        # mysql_install_targets(${target_name} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
       install(FILES ${dylib_path} DESTINATION ${INSTALL_PLUGINDIR} RENAME ${dylib_name_final} COMPONENT ${ARG_COMPONENT})
       
       if(ARG_CONFIG AND INSTALL_SYSCONF2DIR)
