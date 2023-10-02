@@ -1485,4 +1485,18 @@ SELECT a,b FROM t1 GROUP BY a,b HAVING a = (b IS NULL);
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-28506: Possible item replacement during fix_fields() is not taken
+--echo #             into account when pushing conditions from HAVING to WHERE
+--echo #
+SELECT x FROM (SELECT 1 AS x) AS x WHERE x = 1 GROUP BY x HAVING NOT x;
+
+SELECT x FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x) GROUP BY x HAVING NOT x;
+
+SELECT x FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT x IN (1) AS x) GROUP BY x HAVING NOT x;
+
+SELECT x FROM (SELECT * FROM (SELECT 1 AS x) AS x1) AS x2 WHERE x IN (SELECT x IN (1) AS x) AND NOT x GROUP BY x;
+
+
+
 --echo End of 10.4 tests

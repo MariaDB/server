@@ -10342,7 +10342,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
        list of all its conjuncts saved in attach_to_conds. Otherwise,
        the condition is put into attach_to_conds as the only its element.
   */
-  List_iterator_fast<Item> it(attach_to_conds);
+  List_iterator<Item> it(attach_to_conds);
   Item *item;
   check_cond_extraction_for_grouping_fields(thd, having);
   if (build_pushable_cond_for_having_pushdown(thd, having))
@@ -10407,7 +10407,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           (uchar *)this);
 
     if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
-        || item->fix_fields(thd, NULL))
+        || item->fix_fields(thd, it.ref()))
     {
       attach_to_conds.empty();
       goto exit;
