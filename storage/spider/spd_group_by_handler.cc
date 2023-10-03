@@ -651,24 +651,6 @@ SPIDER_CONN_HOLDER *spider_fields::create_conn_holder(
   DBUG_RETURN(return_conn_holder);
 }
 
-void spider_fields::set_pos_to_first_conn_holder(
-) {
-  DBUG_ENTER("spider_fields::set_pos_to_first_conn_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  current_conn_holder = first_conn_holder;
-  DBUG_VOID_RETURN;
-}
-
-SPIDER_CONN_HOLDER *spider_fields::get_next_conn_holder(
-) {
-  SPIDER_CONN_HOLDER *return_conn_holder = current_conn_holder;
-  DBUG_ENTER("spider_fields::get_next_conn_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (current_conn_holder)
-    current_conn_holder = current_conn_holder->next;
-  DBUG_RETURN(return_conn_holder);
-}
-
 bool spider_fields::has_conn_holder(
 ) {
   DBUG_ENTER("spider_fields::has_conn_holder");

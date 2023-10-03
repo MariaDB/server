@@ -7505,45 +7505,6 @@ int spider_db_mbase_util::append_from_and_tables(
   DBUG_RETURN(0);
 }
 
-int spider_db_mbase_util::reappend_tables(
-  spider_fields *fields,
-  SPIDER_LINK_IDX_CHAIN *link_idx_chain,
-  spider_string *str
-) {
-  int error_num;
-  uint32 length;
-  ha_spider *spider;
-  spider_mbase_share *db_share;
-  spider_mbase_handler *dbton_hdl;
-  SPIDER_TABLE_HOLDER *table_holder;
-  SPIDER_LINK_IDX_HOLDER *link_idx_holder;
-  DBUG_ENTER("spider_db_mbase_util::reappend_tables");
-  DBUG_PRINT("info",("spider this=%p", this));
-  length = str->length();
-  fields->set_pos_to_first_table_on_link_idx_chain(link_idx_chain);
-  fields->set_pos_to_first_table_holder();
-  while ((table_holder = fields->get_next_table_holder()))
-  {
-    link_idx_holder =
-      fields->get_next_table_on_link_idx_chain(link_idx_chain);
-    spider = table_holder->spider;
-    db_share = (spider_mbase_share *)
-      spider->share->dbton_share[dbton_id];
-    if (!db_share->same_db_table_name)
-    {
-      dbton_hdl = (spider_mbase_handler *) spider->dbton_handler[dbton_id];
-      str->length(dbton_hdl->table_name_pos);
-      if ((error_num = db_share->append_table_name_with_adjusting(str,
-        spider->conn_link_idx[link_idx_holder->link_idx])))
-      {
-        DBUG_RETURN(error_num);
-      }
-    }
-  }
-  str->length(length);
-  DBUG_RETURN(0);
-}
-
 int spider_db_mbase_util::append_where(
   spider_string *str
 ) {
@@ -13985,14 +13946,10 @@ int spider_mbase_handler::set_sql_for_exec(
   int link_idx,
   SPIDER_LINK_IDX_CHAIN *link_idx_chain
 ) {
-  int error_num;
   DBUG_ENTER("spider_mbase_handler::set_sql_for_exec");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type & SPIDER_SQL_TYPE_SELECT_SQL)
   {
-    if ((error_num = spider_db_mbase_utility->reappend_tables(
-      spider->fields, link_idx_chain, &sql)))
-      DBUG_RETURN(error_num);
     exec_sql = &sql;
   }
   DBUG_RETURN(0);
@@ -16155,27 +16112,6 @@ int spider_mbase_handler::append_from_and_tables_part(
   error_num = spider_db_mbase_utility->append_from_and_tables(
     table_holder->spider, fields, str,
     table_list, fields->get_table_count());
-  DBUG_RETURN(error_num);
-}
-
-int spider_mbase_handler::reappend_tables_part(
-  spider_fields *fields,
-  ulong sql_type
-) {
-  int error_num;
-  spider_string *str;
-  DBUG_ENTER("spider_mbase_handler::reappend_tables_part");
-  DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_SELECT_SQL:
-      str = &sql;
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
-  error_num = spider_db_mbase_utility->reappend_tables(fields,
-    link_idx_chain, str);
   DBUG_RETURN(error_num);
 }
 
