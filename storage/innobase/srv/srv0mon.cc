@@ -137,7 +137,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of row locks currently being waited for"
 	 " (innodb_row_lock_current_waits)",
 	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ROW_LOCK_CURRENT_WAIT},
 
 	{"lock_row_lock_time", "lock",
