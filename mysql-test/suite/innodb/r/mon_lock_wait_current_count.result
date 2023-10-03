@@ -1,0 +1,54 @@
+connect  prevent_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET GLOBAL innodb_monitor_disable='all';
+SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+CREATE TABLE `t` (a INT PRIMARY KEY) engine=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES (5);
+SELECT name, count FROM information_schema.innodb_metrics
+WHERE name ='lock_row_lock_current_waits';
+name	count
+lock_row_lock_current_waits	0
+connect  con1,localhost,root,,;
+BEGIN;
+SELECT * FROM t FOR UPDATE;
+a
+5
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL blocked WAIT_FOR cont";
+BEGIN;
+SELECT * FROM t FOR UPDATE;
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR blocked";
+SELECT name, count FROM information_schema.innodb_metrics
+WHERE name ='lock_row_lock_current_waits';
+name	count
+lock_row_lock_current_waits	1
+SET GLOBAL innodb_monitor_disable='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+SELECT name, count FROM information_schema.innodb_metrics
+WHERE name ='lock_row_lock_current_waits';
+name	count
+lock_row_lock_current_waits	1
+SET DEBUG_SYNC="now SIGNAL cont";
+disconnect con1;
+connection con2;
+a
+5
+COMMIT;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC="reset";
+SELECT name, count FROM information_schema.innodb_metrics
+WHERE name ='lock_row_lock_current_waits';
+name	count
+lock_row_lock_current_waits	0
+DROP TABLE `t`;
+SET GLOBAL innodb_monitor_disable='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;
+SET GLOBAL innodb_monitor_enable=default;
+disconnect prevent_purge;
