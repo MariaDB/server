@@ -199,11 +199,6 @@ public:
     TABLE_LIST *table_list,
     uint table_count
   ) override;
-  int reappend_tables(
-    spider_fields *fields,
-    SPIDER_LINK_IDX_CHAIN *link_idx_chain,
-    spider_string *str
-  ) override;
   int append_where(
     spider_string *str
   ) override;
@@ -1482,10 +1477,6 @@ public:
     ulong sql_type
   );
   int append_from_and_tables_part(
-    spider_fields *fields,
-    ulong sql_type
-  );
-  int reappend_tables_part(
     spider_fields *fields,
     ulong sql_type
   );
