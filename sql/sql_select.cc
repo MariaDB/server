@@ -3531,7 +3531,7 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
   return 0;
 }
 
-
+const char *dbug_print_select(SELECT_LEX *sl);
 /**
   Set info for aggregation tables
 
@@ -3625,6 +3625,7 @@ bool JOIN::make_aggr_tables_info()
 
       if (gbh)
       {
+        dbug_print_select(select_lex);
         if (!(pushdown_query= new (thd->mem_root) Pushdown_query(select_lex,
                                                                  gbh)))
           DBUG_RETURN(1);
@@ -30435,6 +30436,7 @@ static void print_join(THD *thd,
 
   for (TABLE_LIST *t= ti++; t ; t= ti++)
   {
+    DBUG_ASSERT(!t->optimized_away || t->table->const_table);
     /* See comment in print_table_array() about the second condition */
     if (print_const_tables || !t->optimized_away)
       if (!is_eliminated_table(eliminated_tables, t))
