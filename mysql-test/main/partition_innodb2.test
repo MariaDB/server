@@ -23,6 +23,7 @@ create table t2 (
 insert into t2 select
   mod(seq, 10), seq from seq_1_to_50;
 
+--replace_column 9 #
 explain
 delete t1, t2 from t1, t2 where t1.a=t2.a;
 delete t1, t2 from t1, t2 where t1.a=t2.a;
