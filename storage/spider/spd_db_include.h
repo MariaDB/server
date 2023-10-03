@@ -698,8 +698,6 @@ public:
     long access_balance
   );
   SPIDER_CONN_HOLDER *create_conn_holder();
-  void set_pos_to_first_conn_holder();
-  SPIDER_CONN_HOLDER *get_next_conn_holder();
   bool has_conn_holder();
   void clear_conn_holder_from_conn();
   bool check_conn_same_conn(
@@ -935,11 +933,6 @@ public:
     spider_string *str,
     TABLE_LIST *table_list,
     uint table_count
-  ) = 0;
-  virtual int reappend_tables(
-    spider_fields *fields,
-    SPIDER_LINK_IDX_CHAIN *link_idx_chain,
-    spider_string *str
   ) = 0;
   virtual int append_where(
     spider_string *str
@@ -1781,10 +1774,6 @@ public:
   ) = 0;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables_part(
-    spider_fields *fields,
-    ulong sql_type
-  ) = 0;
-  virtual int reappend_tables_part(
     spider_fields *fields,
     ulong sql_type
   ) = 0;
