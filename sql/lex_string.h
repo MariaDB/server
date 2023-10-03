@@ -29,6 +29,20 @@ static inline bool lex_string_cmp(CHARSET_INFO *charset, const LEX_CSTRING *a,
 }
 
 /*
+  This should be replaced by C++20 "spaceship" operator (<=>)
+*/
+template <typename T>
+inline int
+cmp_any(T a, T b)
+{
+  if (a < b)
+    return -1;
+  if (b < a)
+    return 1;
+  return 0;
+}
+
+/*
   Compare to LEX_CSTRING's and return 0 if equal
 */
 
@@ -41,6 +55,19 @@ static inline bool cmp(const LEX_CSTRING a, const LEX_CSTRING b)
 {
   return a.length != b.length || (a.length && memcmp(a.str, b.str, a.length));
 }
+static inline int cmp_table(const LEX_CSTRING a, const LEX_CSTRING b)
+{
+  /*
+    NB: no my_strncasecmp() and therefore the below assertions must pass.
+  */
+  DBUG_ASSERT(strlen(a.str) == a.length);
+  DBUG_ASSERT(strlen(b.str) == b.length);
+  int ret= cmp_any(a.length, b.length);
+  if (ret)
+    return ret;
+  return my_strcasecmp(table_alias_charset, a.str, b.str);
+}
+
 
 /*
   Compare if two LEX_CSTRING are equal. Assumption is that
