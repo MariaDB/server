@@ -1,0 +1,90 @@
+#
+# MDEV-26247 Spider: Valid LEFT JOIN results in ERROR 1064
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE t1 (
+a11 int,
+primary key (a11)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE t2 (
+a21 int,
+a22 int,
+primary key (a21, a22)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE t3 (
+a31 int,
+a32 int,
+primary key (a31, a32)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (1, 11), (2, 22), (3, 33);
+INSERT INTO t3 VALUES (1, 111), (2, 222), (3, 333);
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE t1 (
+a11 int,
+primary key (a11)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t1"';
+CREATE TABLE t2 (
+a21 int,
+a22 int,
+primary key (a21, a22)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t2"';
+CREATE TABLE t3 (
+a31 int,
+a32 int,
+primary key (a31, a32)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t3"';
+SELECT a22 FROM t1 LEFT JOIN t2 ON a11 = a21 WHERE a11 IN (1);
+a22
+11
+SELECT a22 FROM t1 LEFT JOIN t2 ON a11 = a21 - a21 WHERE a11 IN (1);
+a22
+NULL
+SELECT a22 FROM t2 RIGHT JOIN t1 ON a21 = a11 WHERE a11 IN (1);
+a22
+11
+SELECT a22 FROM t2 RIGHT JOIN t1 ON a21 = a11 WHERE a11 IN (1,2);
+a22
+11
+22
+SELECT a22, a32 FROM t1 LEFT JOIN t2 ON a11 = a21 RIGHT JOIN t3 on a21 = a31 WHERE a11 IN (1);
+a22	a32
+11	111
+SELECT a22, a32 FROM t1 LEFT JOIN t2 ON a11 = a21 - a21 RIGHT JOIN t3 on a21 = a31 - a31 WHERE a11 IN (1);
+a22	a32
+SELECT a22, a32 FROM t1 LEFT JOIN t2 ON a11 = a21 RIGHT JOIN t3 on a21 = a31 WHERE a11 IN (1,2);
+a22	a32
+11	111
+22	222
+SELECT a22 FROM t2 LEFT JOIN t1 ON a11 = a21 WHERE a11 IN (1);
+a22
+11
+SELECT a22 FROM t2 LEFT JOIN t1 ON a11 = a21 - a21 WHERE a11 IN (1);
+a22
+SELECT a22 FROM t1 RIGHT JOIN t2 ON a21 = a11 WHERE a11 IN (1);
+a22
+11
+SELECT a22 FROM t1 RIGHT JOIN t2 ON a21 = a11 WHERE a11 IN (1,2);
+a22
+11
+22
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
