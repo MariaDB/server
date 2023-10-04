@@ -1277,7 +1277,7 @@ static int parse_one_or_all(const Item_func *f, Item *ooa_arg,
 {
   if (!*ooa_parsed)
   {
-    char buff[20];
+    char buff[20]; /* enough to hold "one" or "all" words in any charset. */
     String *res, tmp(buff, sizeof(buff), &my_charset_bin);
     if ((res= ooa_arg->val_str(&tmp)) == NULL)
       return TRUE;
