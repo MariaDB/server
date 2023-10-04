@@ -4158,7 +4158,7 @@ public:
                                         const LEX_CSTRING *index,
                                         const Lex_for_loop_bounds_st &bounds);
   bool sp_for_loop_intrange_condition_test(THD *thd, const Lex_for_loop_st &loop);
-  bool sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_intrange_iterate(THD *thd, const Lex_for_loop_st &loop);
 
   /* Cursor FOR LOOP methods */
   bool sp_for_loop_cursor_declarations(THD *thd, Lex_for_loop_st *loop,
@@ -4174,7 +4174,7 @@ public:
                                              Lex_for_loop_bounds_st *bounds,
                                              sp_lex_cursor *cur);
   bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
-  bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
+  bool sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &);
 
   /* Generic FOR LOOP methods*/
 
@@ -4232,9 +4232,12 @@ public:
   */
   bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
   {
-    return loop.is_for_loop_cursor() ?
-           sp_for_loop_cursor_finalize(thd, loop) :
-           sp_for_loop_intrange_finalize(thd, loop);
+    if (loop.is_for_loop_cursor() ?
+        sp_for_loop_cursor_iterate(thd, loop) :
+        sp_for_loop_intrange_iterate(thd, loop))
+      return true;
+    // Generate a jump to the beginning of the loop
+    return sp_while_loop_finalize(thd);
   }
   bool sp_for_loop_outer_block_finalize(THD *thd, const Lex_for_loop_st &loop);
 

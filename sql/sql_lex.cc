@@ -6362,7 +6362,7 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
 }
 
 
-bool LEX::sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop)
+bool LEX::sp_for_loop_intrange_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
   sphead->reset_lex(thd);
 
@@ -6372,13 +6372,12 @@ bool LEX::sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop)
                thd->lex->sphead->restore_lex(thd)))
     return true;
 
-  // Generate a jump to the beginning of the loop
   DBUG_ASSERT(this == thd->lex);
-  return sp_while_loop_finalize(thd);
+  return false;
 }
 
 
-bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
+bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
@@ -6386,9 +6385,9 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
   if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
   instr->add_to_varlist(loop.m_index);
-  // Generate a jump to the beginning of the loop
-  return sp_while_loop_finalize(thd);
+  return false;
 }
+
 
 bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
                                            const Lex_for_loop_st &loop)
@@ -6970,13 +6969,22 @@ bool LEX::sp_iterate_statement(THD *thd, const LEX_CSTRING *label_name)
 
 bool LEX::sp_continue_loop(THD *thd, sp_label *lab)
 {
-  if (lab->ctx->for_loop().m_index)
+  const sp_pcontext::Lex_for_loop &for_loop= lab->ctx->for_loop();
+  /*
+    FOR loops need some additional instructions (e.g. an integer increment or
+    a cursor fetch) before the "jump to the start of the body" instruction.
+    We need to check two things here:
+    - If we're in a FOR loop at all.
+    - If the label pointed by "lab" belongs exactly to the nearest FOR loop,
+      rather than to a nested LOOP/WHILE/REPEAT inside the FOR.
+  */
+  if (for_loop.m_index /* we're in some FOR loop */ &&
+      for_loop.m_start_label == lab /* lab belongs to the FOR loop */)
   {
-    // We're in a FOR loop, increment the index variable before backward jump
-    sphead->reset_lex(thd);
-    DBUG_ASSERT(this != thd->lex);
-    if (thd->lex->sp_for_loop_increment(thd, lab->ctx->for_loop()) ||
-        thd->lex->sphead->restore_lex(thd))
+    // We're in a FOR loop, and "ITERATE loop_label" belongs to this FOR loop.
+    if (for_loop.is_for_loop_cursor() ?
+        sp_for_loop_cursor_iterate(thd, for_loop) :
+        sp_for_loop_intrange_iterate(thd, for_loop))
       return true;
   }
   return sp_change_context(thd, lab->ctx, false) ||
