@@ -42,11 +42,9 @@ extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 
 spider_fields::spider_fields() :
   dbton_count(0), current_dbton_num(0),
-  table_count(0), current_table_num(0), table_holder(NULL),
+  table_count(0), table_holder(NULL),
   first_link_idx_chain(NULL), last_link_idx_chain(NULL), current_link_idx_chain(NULL),
-  first_conn_holder(NULL), last_conn_holder(NULL), current_conn_holder(NULL),
-  first_field_holder(NULL), last_field_holder(NULL), current_field_holder(NULL),
-  first_field_chain(NULL), last_field_chain(NULL), current_field_chain(NULL)
+  first_conn_holder(NULL), last_conn_holder(NULL), current_conn_holder(NULL)
 {
   DBUG_ENTER("spider_fields::spider_fields");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -65,24 +63,6 @@ spider_fields::~spider_fields()
       spider_free(spider_current_trx, current_link_idx_chain, MYF(0));
     }
   }
-  if (first_field_chain)
-  {
-    while ((current_field_chain = first_field_chain))
-    {
-      first_field_chain = current_field_chain->next;
-      spider_free(spider_current_trx, current_field_chain, MYF(0));
-    }
-  }
-  if (first_field_holder)
-  {
-    while ((current_field_holder = first_field_holder))
-    {
-      first_field_holder = current_field_holder->next;
-      spider_free(spider_current_trx, current_field_holder, MYF(0));
-    }
-  }
-  if (table_holder)
-    spider_free(spider_current_trx, table_holder, MYF(0));
   if (first_conn_holder)
   {
     while ((current_conn_holder = first_conn_holder))
@@ -471,7 +451,6 @@ int spider_fields::get_ok_link_idx(
 
 void spider_fields::set_first_link_idx(
 ) {
-  SPIDER_TABLE_HOLDER *table_holder;
   SPIDER_LINK_IDX_HOLDER *link_idx_holder;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
   uint dbton_id;
@@ -493,11 +472,10 @@ void spider_fields::set_first_link_idx(
     DBUG_ASSERT(link_idx_chain);
     set_pos_to_first_table_on_link_idx_chain(link_idx_chain);
 
-    set_pos_to_first_table_holder();
-    while ((table_holder = get_next_table_holder()))
+    for (uint i= 0; i < table_count; i++)
     {
       link_idx_holder = get_next_table_on_link_idx_chain(link_idx_chain);
-      spider = table_holder->spider;
+      spider = table_holder[i].spider;
       dbton_hdl = spider->dbton_handler[dbton_id];
       dbton_hdl->first_link_idx = link_idx_holder->link_idx;
     }
@@ -844,19 +822,17 @@ void spider_fields::free_conn_holder(
   DBUG_VOID_RETURN;
 }
 
-SPIDER_TABLE_HOLDER *spider_fields::add_table(
-  ha_spider *spider_arg
+/* Add the table associated with an ha_spider to a table_holder.
+Return the table_holder. */
+static SPIDER_TABLE_HOLDER *spider_add_table_holder(
+  ha_spider *spider_arg,
+  SPIDER_TABLE_HOLDER *table_holder
 ) {
   spider_string *str;
   uint length;
   char tmp_buf[SPIDER_SQL_INT_LEN + 2];
   SPIDER_TABLE_HOLDER *return_table_holder;
-  SPIDER_FIELD_HOLDER *field_holder;
-  TABLE *table = spider_arg->get_table();
-  Field *field;
   DBUG_ENTER("spider_fields::add_table");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider table_count=%u", table_count));
   DBUG_PRINT("info",("spider idx_for_direct_join=%u",
     spider_arg->idx_for_direct_join));
   length = my_sprintf(tmp_buf, (tmp_buf, "t%u",
@@ -875,90 +851,49 @@ SPIDER_TABLE_HOLDER *spider_fields::add_table(
   return_table_holder->spider = spider_arg;
   return_table_holder->alias = str;
 
-  set_pos_to_first_field_holder();
-  while ((field_holder = get_next_field_holder()))
-  {
-    if (!field_holder->spider)
-    {
-      field = field_holder->field;
-      if (
-        field->field_index < table->s->fields &&
-        field == table->field[field->field_index]
-      ) {
-        field_holder->spider = spider_arg;
-        field_holder->alias = str;
-      }
-    }
-  }
   DBUG_RETURN(return_table_holder);
 }
 
-/**
-  Verify that all fields in the query are members of tables that are in the
-  query.
-
-  @return TRUE              All fields in the query are members of tables
-                            that are in the query.
-          FALSE             At least one field in the query is not a
-                            member of a table that is in the query.
-*/
-
-bool spider_fields::all_query_fields_are_query_table_members()
+/* Return the table that field belongs to, or NULL if none exists. */
+SPIDER_TABLE_HOLDER *spider_fields::find_table(Field *field)
 {
-  SPIDER_FIELD_HOLDER *field_holder;
-  DBUG_ENTER("spider_fields::all_query_fields_are_query_table_members");
-  DBUG_PRINT("info",("spider this=%p", this));
-
-  set_pos_to_first_field_holder();
-  while ((field_holder = get_next_field_holder()))
-  {
-    if (!field_holder->spider)
-    {
-      DBUG_PRINT("info", ("spider field is not a member of a query table"));
-      DBUG_RETURN(FALSE);
-    }
-  }
-
-  DBUG_RETURN(TRUE);
+  for (uint i = 0; i < table_count; i++)
+    if (field->table == table_holder[i].table)
+      return &table_holder[i];
+  return NULL;
 }
 
-int spider_fields::create_table_holder(
+void spider_fields::set_table_holder(SPIDER_TABLE_HOLDER *table_holder_arg,
+                                     uint table_count_arg)
+{
+  table_holder= table_holder_arg;
+  table_count= table_count_arg;
+}
+
+/* Allocate space for table_count_arg table holders. */
+static SPIDER_TABLE_HOLDER *spider_create_table_holder(
   uint table_count_arg
 ) {
-  DBUG_ENTER("spider_fields::create_table_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(!table_holder);
+  SPIDER_TABLE_HOLDER* table_holder;
+  DBUG_ENTER("spider_create_table_holder");
+  if (table_count_arg == 0)
+    DBUG_RETURN(0);
   table_holder = (SPIDER_TABLE_HOLDER *)
     spider_malloc(spider_current_trx, 249,
     table_count_arg * sizeof(SPIDER_TABLE_HOLDER),
     MYF(MY_WME | MY_ZEROFILL));
-  if (!table_holder)
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  table_count = table_count_arg;
-  current_table_num = 0;
-  DBUG_RETURN(0);
+  DBUG_RETURN(table_holder);
 }
 
-void spider_fields::set_pos_to_first_table_holder(
-) {
-  DBUG_ENTER("spider_fields::set_pos_to_first_table_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  current_table_num = 0;
-  DBUG_VOID_RETURN;
+/* Return pointer to the first table holder. */
+SPIDER_TABLE_HOLDER *spider_fields::get_first_table_holder()
+{
+  DBUG_ENTER("spider_fields::get_first_spider");
+  DBUG_RETURN(table_holder);
 }
 
-SPIDER_TABLE_HOLDER *spider_fields::get_next_table_holder(
-) {
-  SPIDER_TABLE_HOLDER *return_table_holder;
-  DBUG_ENTER("spider_fields::get_next_table_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (current_table_num >= table_count)
-    DBUG_RETURN(NULL);
-  return_table_holder = &table_holder[current_table_num];
-  ++current_table_num;
-  DBUG_RETURN(return_table_holder);
-}
-
+/* Return the first table holder associated with a given table, or
+NULL if not found. */
 SPIDER_TABLE_HOLDER *spider_fields::get_table_holder(TABLE *table)
 {
   uint table_num;
@@ -978,117 +913,12 @@ uint spider_fields::get_table_count()
   DBUG_RETURN(table_count);
 }
 
-int spider_fields::add_field(
-  Field *field_arg
-) {
-  SPIDER_FIELD_HOLDER *field_holder;
-  SPIDER_FIELD_CHAIN *field_chain;
-  DBUG_ENTER("spider_fields::add_field");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider field=%p", field_arg));
-  if (!first_field_holder)
-  {
-    field_holder = create_field_holder();
-    DBUG_PRINT("info",("spider field_holder=%p", field_holder));
-    if (!field_holder)
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    field_holder->field = field_arg;
-    first_field_holder = field_holder;
-    last_field_holder = field_holder;
-  } else {
-    field_holder = first_field_holder;
-    do {
-      if (field_holder->field == field_arg)
-        break;
-    } while ((field_holder = field_holder->next));
-    if (!field_holder)
-    {
-      field_holder = create_field_holder();
-      DBUG_PRINT("info",("spider field_holder=%p", field_holder));
-      if (!field_holder)
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      field_holder->field = field_arg;
-      last_field_holder->next = field_holder;
-      last_field_holder = field_holder;
-    }
-  }
-  field_chain = create_field_chain();
-  DBUG_PRINT("info",("spider field_chain=%p", field_chain));
-  if (!field_chain)
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  field_chain->field_holder = field_holder;
-  if (!first_field_chain)
-  {
-    first_field_chain = field_chain;
-    last_field_chain = field_chain;
-  } else {
-    last_field_chain->next = field_chain;
-    last_field_chain = field_chain;
-  }
-  DBUG_RETURN(0);
-}
-
-SPIDER_FIELD_HOLDER *spider_fields::create_field_holder(
-) {
-  DBUG_ENTER("spider_fields::create_field_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN((SPIDER_FIELD_HOLDER *)
-    spider_malloc(spider_current_trx, 250, sizeof(SPIDER_FIELD_HOLDER),
-    MYF(MY_WME | MY_ZEROFILL)));
-}
-
-void spider_fields::set_pos_to_first_field_holder(
-) {
-  DBUG_ENTER("spider_fields::set_pos_to_first_field_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  current_field_holder = first_field_holder;
-  DBUG_VOID_RETURN;
-}
-
-SPIDER_FIELD_HOLDER *spider_fields::get_next_field_holder(
-) {
-  SPIDER_FIELD_HOLDER *return_field_holder = current_field_holder;
-  DBUG_ENTER("spider_fields::get_next_field_holder");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (current_field_holder)
-    current_field_holder = current_field_holder->next;
-  DBUG_RETURN(return_field_holder);
-}
-
-SPIDER_FIELD_CHAIN *spider_fields::create_field_chain(
-) {
-  DBUG_ENTER("spider_fields::create_field_chain");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN((SPIDER_FIELD_CHAIN *)
-    spider_malloc(spider_current_trx, 251, sizeof(SPIDER_FIELD_CHAIN),
-    MYF(MY_WME | MY_ZEROFILL)));
-}
-
-void spider_fields::set_pos_to_first_field_chain(
-) {
-  DBUG_ENTER("spider_fields::set_pos_to_first_field_chain");
-  DBUG_PRINT("info",("spider this=%p", this));
-  current_field_chain = first_field_chain;
-  DBUG_VOID_RETURN;
-}
-
-SPIDER_FIELD_CHAIN *spider_fields::get_next_field_chain(
-) {
-  SPIDER_FIELD_CHAIN *return_field_chain = current_field_chain;
-  DBUG_ENTER("spider_fields::get_next_field_chain");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (current_field_chain)
-    current_field_chain = current_field_chain->next;
-  DBUG_RETURN(return_field_chain);
-}
-
 void spider_fields::set_field_ptr(
   Field **field_arg
 ) {
   DBUG_ENTER("spider_fields::set_field_ptr");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider field_ptr=%p", field_arg));
-  first_field_ptr = field_arg;
   current_field_ptr = field_arg;
   DBUG_VOID_RETURN;
 }
@@ -1111,15 +941,13 @@ int spider_fields::ping_table_mon_from_table(
   ha_spider *tmp_spider;
   SPIDER_SHARE *tmp_share;
   int tmp_link_idx;
-  SPIDER_TABLE_HOLDER *table_holder;
   SPIDER_LINK_IDX_HOLDER *link_idx_holder;
   DBUG_ENTER("spider_fields::ping_table_mon_from_table");
   set_pos_to_first_table_on_link_idx_chain(link_idx_chain);
-  set_pos_to_first_table_holder();
-  while ((table_holder = get_next_table_holder()))
+  for (uint i= 0; i < table_count; i++)
   {
     link_idx_holder = get_next_table_on_link_idx_chain(link_idx_chain);
-    tmp_spider = table_holder->spider;
+    tmp_spider = table_holder[i].spider;
     tmp_link_idx = link_idx_holder->link_idx;
     tmp_share = tmp_spider->share;
     if (tmp_share->monitoring_kind[tmp_link_idx])
@@ -1155,9 +983,7 @@ spider_group_by_handler::spider_group_by_handler(
   query(*query_arg), fields(fields_arg)
 {
   DBUG_ENTER("spider_group_by_handler::spider_group_by_handler");
-  fields->set_pos_to_first_table_holder();
-  SPIDER_TABLE_HOLDER *table_holder = fields->get_next_table_holder();
-  spider = table_holder->spider;
+  spider = fields->get_first_table_holder()->spider;
   trx = spider->wide_handler->trx;
   DBUG_VOID_RETURN;
 }
@@ -1165,6 +991,7 @@ spider_group_by_handler::spider_group_by_handler(
 spider_group_by_handler::~spider_group_by_handler()
 {
   DBUG_ENTER("spider_group_by_handler::~spider_group_by_handler");
+  spider_free(spider_current_trx, fields->get_first_table_holder(), MYF(0));
   delete fields;
   DBUG_VOID_RETURN;
 }
@@ -1273,7 +1100,6 @@ int spider_group_by_handler::init_scan()
   {
     dbton_hdl = spider->dbton_handler[dbton_id];
     result_list->direct_distinct = query.distinct;
-    fields->set_pos_to_first_field_chain();
     if ((error_num = dbton_hdl->reset_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
     {
       DBUG_RETURN(error_num);
@@ -1577,7 +1403,8 @@ group_by_handler *spider_create_group_by_handler(
   bool keep_going;
   bool find_dbton = FALSE;
   spider_fields *fields = NULL, *fields_arg = NULL;
-  uint table_idx, dbton_id;
+  SPIDER_TABLE_HOLDER *table_holder;
+  uint table_idx, dbton_id, table_count= 0;
   long tgt_link_status;
   DBUG_ENTER("spider_create_group_by_handler");
 
@@ -1598,6 +1425,7 @@ group_by_handler *spider_create_group_by_handler(
     DBUG_PRINT("info",("spider from=%p", from));
     if (from->table->const_table)
       continue;
+    ++table_count;
     if (from->table->part_info)
     {
       DBUG_PRINT("info",("spider partition handler"));
@@ -1612,6 +1440,9 @@ group_by_handler *spider_create_group_by_handler(
     }
   } while ((from = from->next_local));
 
+  if (!(table_holder= spider_create_table_holder(table_count)))
+    DBUG_RETURN(NULL);
+
   table_idx = 0;
   from = query->from;
   while (from && from->table->const_table)
@@ -1621,7 +1452,7 @@ group_by_handler *spider_create_group_by_handler(
   if (!from)
   {
     /* all tables are const_table */
-    DBUG_RETURN(NULL);
+    goto skip_free_table_holder;
   }
   if (from->table->part_info)
   {
@@ -1636,6 +1467,11 @@ group_by_handler *spider_create_group_by_handler(
   share = spider->share;
   spider->idx_for_direct_join = table_idx;
   ++table_idx;
+  if (!spider_add_table_holder(spider, table_holder))
+  {
+    DBUG_PRINT("info",("spider can not add a table"));
+    goto skip_free_table_holder;
+  }
   memset(dbton_bitmap, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
   for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
   {
@@ -1664,6 +1500,11 @@ group_by_handler *spider_create_group_by_handler(
     share = spider->share;
     spider->idx_for_direct_join = table_idx;
     ++table_idx;
+    if (!spider_add_table_holder(spider, table_holder))
+    {
+      DBUG_PRINT("info",("spider can not add a table"));
+      goto skip_free_table_holder;
+    }
     memset(dbton_bitmap_tmp, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
     for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
     {
@@ -1713,10 +1554,9 @@ group_by_handler *spider_create_group_by_handler(
       {
         fields_arg = new spider_fields();
         if (!fields_arg)
-        {
-          DBUG_RETURN(NULL);
-        }
+          goto skip_free_table_holder;
       }
+      fields_arg->set_table_holder(table_holder, table_count);
       keep_going = TRUE;
       it.init(*query->select);
       while ((item = it++))
@@ -1823,15 +1663,7 @@ group_by_handler *spider_create_group_by_handler(
     }
   }
   if (!find_dbton)
-  {
-    DBUG_RETURN(NULL);
-  }
-
-  if (fields->create_table_holder(table_idx))
-  {
-    delete fields;
-    DBUG_RETURN(NULL);
-  }
+    goto skip_free_table_holder;
 
   from = query->from;
   while (from->table->const_table)
@@ -1858,17 +1690,10 @@ group_by_handler *spider_create_group_by_handler(
   }
   DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
   DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
-  if (!fields->add_table(spider))
-  {
-    DBUG_PRINT("info",("spider can not add a table"));
-    delete fields;
-    DBUG_RETURN(NULL);
-  }
   if (spider->dml_init())
   {
     DBUG_PRINT("info",("spider can not init for dml"));
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
@@ -1888,8 +1713,7 @@ group_by_handler *spider_create_group_by_handler(
       DBUG_PRINT("info",("spider direct_join does not support with lock tables yet"));
       if (lock_mode)
       {
-        delete fields;
-        DBUG_RETURN(NULL);
+        goto skip_free_fields;
       }
       continue;
     }
@@ -1897,20 +1721,17 @@ group_by_handler *spider_create_group_by_handler(
       share->access_balances[spider->conn_link_idx[roop_count]]))
     {
       DBUG_PRINT("info",("spider can not create conn_holder"));
-      delete fields;
-      DBUG_RETURN(NULL);
+      goto skip_free_fields;
     }
     if (fields->add_link_idx(conn->conn_holder_for_direct_join, spider, roop_count))
     {
       DBUG_PRINT("info",("spider can not create link_idx_holder"));
-      delete fields;
-      DBUG_RETURN(NULL);
+      goto skip_free_fields;
     }
   }
   if (!fields->has_conn_holder())
   {
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
 
   while ((from = from->next_local))
@@ -1930,19 +1751,12 @@ group_by_handler *spider_create_group_by_handler(
       spider = (ha_spider *) from->table->file;
     }
     share = spider->share;
-    if (!fields->add_table(spider))
-    {
-      DBUG_PRINT("info",("spider can not add a table"));
-      delete fields;
-      DBUG_RETURN(NULL);
-    }
     DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
     DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
     if (spider->dml_init())
     {
       DBUG_PRINT("info",("spider can not init for dml"));
-      delete fields;
-      DBUG_RETURN(NULL);
+      goto skip_free_fields;
     }
     for (
       roop_count = spider_conn_link_idx_next(share->link_statuses,
@@ -1962,16 +1776,14 @@ group_by_handler *spider_create_group_by_handler(
           conn));
         if (lock_mode)
         {
-          delete fields;
-          DBUG_RETURN(NULL);
+          goto skip_free_fields;
         }
         continue;
       }
       if (fields->add_link_idx(conn->conn_holder_for_direct_join, spider, roop_count))
       {
         DBUG_PRINT("info",("spider can not create link_idx_holder"));
-        delete fields;
-        DBUG_RETURN(NULL);
+        goto skip_free_fields;
       }
     }
 
@@ -1980,30 +1792,20 @@ group_by_handler *spider_create_group_by_handler(
       if (lock_mode)
       {
         DBUG_PRINT("info",("spider some connections can not be used for this query with locking"));
-        delete fields;
-        DBUG_RETURN(NULL);
+        goto skip_free_fields;
       }
     }
     if (!fields->has_conn_holder())
     {
-      delete fields;
-      DBUG_RETURN(NULL);
+      goto skip_free_fields;
     }
-  }
-
-  if (!fields->all_query_fields_are_query_table_members())
-  {
-    DBUG_PRINT("info", ("spider found a query field that is not a query table member"));
-    delete fields;
-    DBUG_RETURN(NULL);
   }
 
   fields->check_support_dbton(dbton_bitmap);
   if (!fields->has_conn_holder())
   {
     DBUG_PRINT("info",("spider all chosen connections can't match dbton_id"));
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
 
   /* choose a connection */
@@ -2015,16 +1817,14 @@ group_by_handler *spider_create_group_by_handler(
   if (fields->make_link_idx_chain(tgt_link_status))
   {
     DBUG_PRINT("info",("spider can not create link_idx_chain"));
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
 
   /* choose link_id */
   if (fields->check_link_ok_chain())
   {
     DBUG_PRINT("info",("spider do not have link ok status"));
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
 
   fields->set_first_link_idx();
@@ -2032,8 +1832,7 @@ group_by_handler *spider_create_group_by_handler(
   if (!(group_by_handler = new spider_group_by_handler(thd, query, fields)))
   {
     DBUG_PRINT("info",("spider can't create group_by_handler"));
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
   query->distinct = FALSE;
   query->where = NULL;
@@ -2041,4 +1840,10 @@ group_by_handler *spider_create_group_by_handler(
   query->having = NULL;
   query->order_by = NULL;
   DBUG_RETURN(group_by_handler);
+
+skip_free_fields:
+  delete fields;
+skip_free_table_holder:
+  spider_free(spider_current_trx, table_holder, MYF(0));
+  DBUG_RETURN(NULL);
 }
