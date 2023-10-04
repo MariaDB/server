@@ -102,7 +102,7 @@ if (!$ssu_before_gtids)
 --source include/wait_for_slave_param.inc
 --let $slave_param_comparison= =
 
---source include/wait_for_slave_sql_to_stop.inc
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
@@ -164,7 +164,7 @@ set session gtid_domain_id=0;
 --source include/wait_for_slave_param.inc
 --let $slave_param_comparison= =
 
---source include/wait_for_slave_sql_to_stop.inc
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
@@ -241,7 +241,7 @@ set session gtid_domain_id=0;
 --source include/wait_for_slave_param.inc
 --let $slave_param_comparison= =
 
---source include/wait_for_slave_sql_to_stop.inc
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
@@ -313,7 +313,7 @@ if (!$ssu_before_gtids)
 --source include/wait_for_slave_param.inc
 --let $slave_param_comparison= =
 
---source include/wait_for_slave_sql_to_stop.inc
+--source include/wait_for_slave_to_stop.inc
 --let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
 
 if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
