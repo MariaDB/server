@@ -648,56 +648,52 @@ static LEX_STRING spider_init_queries[] = {
     "alter table mysql.spider_xa_member"
     "  add column if not exists driver char(64) default null after filedsn;"
   )},
-/*
-  Install UDFs
-*/
   {C_STRING_WITH_LEN(
     "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
   )},
+  /* Install UDFs. If udf is not initialised, then install by
+  inserting into mysql.func */
   {C_STRING_WITH_LEN(
     "if @win_plugin = 0 then"
-    "  create function if not exists spider_direct_sql returns int"
-    "    soname 'ha_spider.so';"
+    "  begin not atomic"
+    "    declare exit handler for 1041, 1123"
+    "      insert into mysql.func values"
+    "        ('spider_direct_sql', 2, 'ha_spider.so', 'function'),"
+    "        ('spider_bg_direct_sql', 2, 'ha_spider.so', 'aggregate'),"
+    "        ('spider_ping_table', 2, 'ha_spider.so', 'function'),"
+    "        ('spider_copy_tables', 2, 'ha_spider.so', 'function'),"
+    "        ('spider_flush_table_mon_cache', 2, 'ha_spider.so', 'function');"
+    "    create function if not exists spider_direct_sql returns int"
+    "      soname 'ha_spider.so';"
+    "    create aggregate function if not exists spider_bg_direct_sql returns int"
+    "      soname 'ha_spider.so';"
+    "    create function if not exists spider_ping_table returns int"
+    "      soname 'ha_spider.so';"
+    "    create function if not exists spider_copy_tables returns int"
+    "      soname 'ha_spider.so';"
+    "    create function if not exists spider_flush_table_mon_cache returns int"
+    "      soname 'ha_spider.so';"
+    "  end;"
     "else"
-    "  create function if not exists spider_direct_sql returns int"
-    "    soname 'ha_spider.dll';"
+    "  begin not atomic"
+    "    declare exit handler for 1041, 1123"
+    "      insert into mysql.func values"
+    "        ('spider_direct_sql', 2, 'ha_spider.dll', 'function'),"
+    "        ('spider_bg_direct_sql', 2, 'ha_spider.dll', 'aggregate'),"
+    "        ('spider_ping_table', 2, 'ha_spider.dll', 'function'),"
+    "        ('spider_copy_tables', 2, 'ha_spider.dll', 'function'),"
+    "        ('spider_flush_table_mon_cache', 2, 'ha_spider.dll', 'function');"
+    "    create function if not exists spider_direct_sql returns int"
+    "      soname 'ha_spider.dll';"
+    "    create aggregate function if not exists spider_bg_direct_sql returns int"
+    "      soname 'ha_spider.dll';"
+    "    create function if not exists spider_ping_table returns int"
+    "      soname 'ha_spider.dll';"
+    "    create function if not exists spider_copy_tables returns int"
+    "      soname 'ha_spider.dll';"
+    "    create function if not exists spider_flush_table_mon_cache returns int"
+    "      soname 'ha_spider.dll';"
+    "  end;"
     "end if;"
-  )},
-  {C_STRING_WITH_LEN(
-    "if @win_plugin = 0 then"
-    "  create aggregate function if not exists spider_bg_direct_sql returns int"
-    "    soname 'ha_spider.so';"
-    "else"
-    "  create aggregate function if not exists spider_bg_direct_sql returns int"
-    "    soname 'ha_spider.dll';"
-    "end if;"
-  )},
-  {C_STRING_WITH_LEN(
-    "if @win_plugin = 0 then"
-    "  create function if not exists spider_ping_table returns int"
-    "    soname 'ha_spider.so';"
-    "else"
-    "  create function if not exists spider_ping_table returns int"
-    "    soname 'ha_spider.dll';"
-    "end if;"
-  )},
-  {C_STRING_WITH_LEN(
-    "if @win_plugin = 0 then"
-    "  create function if not exists spider_copy_tables returns int"
-    "    soname 'ha_spider.so';"
-    "else"
-    "  create function if not exists spider_copy_tables returns int"
-    "    soname 'ha_spider.dll';"
-    "end if;"
-  )},
-  {C_STRING_WITH_LEN(
-    "if @win_plugin = 0 then"
-    "  create function if not exists spider_flush_table_mon_cache returns int"
-    "    soname 'ha_spider.so';"
-    "else"
-    "  create function if not exists spider_flush_table_mon_cache returns int"
-    "    soname 'ha_spider.dll';"
-    "end if;"
-  )},
-  {C_STRING_WITH_LEN("")}
+   )}
 };
