@@ -7,6 +7,7 @@
 --source ../../t/test_init.inc
 --enable_result_log
 --enable_query_log
+
 --connection child2_1
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
@@ -33,10 +34,6 @@ INSERT INTO t2 VALUES (1, 11), (2, 22), (3, 33);
 INSERT INTO t3 VALUES (1, 111), (2, 222), (3, 333);
 
 --connection master_1
-#FIXME: this is a workaround.
-set @old_spider_disable_group_by_handler=@@spider_disable_group_by_handler;
-set spider_disable_group_by_handler=1;
-
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 
@@ -71,7 +68,6 @@ SELECT a22 FROM t1 RIGHT JOIN t2 ON a21 = a11 WHERE a11 IN (1,2);
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-set spider_disable_group_by_handler=@old_spider_disable_group_by_handler;
 --connection child2_1
 DROP DATABASE IF EXISTS auto_test_remote;
 
