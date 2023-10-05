@@ -1230,7 +1230,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(1);
 START SLAVE ;
 # slave SQL Thread error expected - waiting for errno 1950
-# Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 Warnings:
@@ -1284,7 +1283,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
 START SLAVE ;
 # slave SQL Thread error expected - waiting for errno 1950
-# Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 Warnings:
