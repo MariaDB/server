@@ -8,11 +8,7 @@ CREATE DATABASE auto_test_local;
 USE auto_test_local;
 CREATE TABLE tbl_a (a INT) ENGINE=SPIDER;
 FLUSH TABLE tbl_a WITH READ LOCK;
-Warnings:
-Error	1429	Unable to connect to foreign data source: localhost
-Error	1429	Unable to connect to foreign data source: localhost
-Error	1429	Unable to connect to foreign data source: localhost
-Error	1429	Unable to connect to foreign data source: localhost
+ERROR HY000: Unable to connect to foreign data source: localhost
 BEGIN;
 DROP DATABASE auto_test_local;
 for master_1

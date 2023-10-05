@@ -4948,17 +4948,12 @@ SPIDER_SHARE *spider_get_share(
           sts_sync,
           1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
       ) {
-        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
-        {
-          thd->clear_error();
-        } else {
           pthread_mutex_unlock(&share->crd_mutex);
           pthread_mutex_unlock(&share->sts_mutex);
           share->init_error = TRUE;
           share->init_error_time = (time_t) time((time_t*) 0);
           share->init = TRUE;
           goto error_after_alloc_dbton_handler;
-        }
       }
       if (
         (
