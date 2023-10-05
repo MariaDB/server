@@ -40,16 +40,19 @@ SELECT * FROM t1;
 SELECT * FROM t1;
 
 # restart replication for the next testcase
-stop slave;
---let $rpl_only_running_threads= 1
---source include/stop_slave.inc
-reset slave;
+# SQL thread is already stopped
+--source include/stop_slave_io.inc
+--source include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;
 connection slave;
+# ER_MASTER_FATAL_ERROR_READING_BINLOG
+# This ends with timeout error:
+# --let rpl_allow_error=1
+#--source include/wait_for_slave_io_to_start.inc
+#--source include/start_slave.inc
 start slave;
---source include/wait_for_slave_to_start.inc
 
 --echo # Case 2: UNSAFE
 --connection master
@@ -160,10 +163,8 @@ SELECT * FROM t1;
 SELECT * FROM t1;
 
 # restart replication for the next testcase
-stop slave;
---let $rpl_only_running_threads= 1
---source include/stop_slave.inc
-reset slave;
+--source include/stop_slave_io.inc
+--source include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;

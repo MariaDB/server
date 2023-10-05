@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection slave;
-include/stop_slave.inc
+stop slave;
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 include/start_slave.inc
 connection master;

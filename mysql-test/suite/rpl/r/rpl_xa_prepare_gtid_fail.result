@@ -43,7 +43,6 @@ drop table t1;
 connection slave;
 # TODO: Remove after fixing MDEV-21777
 include/wait_for_slave_sql_error.inc [errno=1942]
-STOP SLAVE;
 set @@global.gtid_slave_pos= "0-1-100";
 set @@global.slave_parallel_threads= @save_par_thds;
 set @@global.gtid_strict_mode= @save_strict_mode;

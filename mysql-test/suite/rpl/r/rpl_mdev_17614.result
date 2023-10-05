@@ -29,15 +29,13 @@ SELECT * FROM t1;
 a	b	c
 1	1	1
 2	2	3
-stop slave;
-include/stop_slave.inc
-reset slave;
+include/stop_slave_io.inc
+include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;
 connection slave;
 start slave;
-include/wait_for_slave_to_start.inc
 # Case 2: UNSAFE
 connection master;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
@@ -189,9 +187,8 @@ SELECT * FROM t1;
 a	b	c
 1	1	1
 2	2	3
-stop slave;
-include/stop_slave.inc
-reset slave;
+include/stop_slave_io.inc
+include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;
