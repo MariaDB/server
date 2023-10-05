@@ -147,7 +147,9 @@ ROLLBACK;
 connection backup_slave;
 BACKUP STAGE END;
 connection slave;
-include/stop_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1213]
+stop slave io_thread;
+include/wait_for_slave_io_to_stop.inc
 SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
 SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 connection slave;
@@ -190,7 +192,9 @@ ROLLBACK;
 connection backup_slave;
 BACKUP STAGE END;
 connection slave;
-include/stop_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1213]
+stop slave io_thread;
+include/wait_for_slave_io_to_stop.inc
 SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
 SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 connection slave;

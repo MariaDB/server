@@ -70,10 +70,15 @@ XA RECOVER;
 if (!$slave_ooo_error)
 {
   --source include/sync_with_master_gtid.inc
-}  
---source include/stop_slave.inc
+  --source include/stop_slave.inc
+}
 if ($slave_ooo_error)
 {
+  # ER_LOCK_DEADLOCK
+  --let $slave_sql_errno=1213
+  --source include/wait_for_slave_sql_error.inc
+  stop slave io_thread;
+  --source include/wait_for_slave_io_to_stop.inc
   SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
   SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 }
