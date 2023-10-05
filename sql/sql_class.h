@@ -1989,11 +1989,17 @@ private:
 /**
   Implements the trivial error handler which cancels all error states
   and prevents an SQLSTATE to be set.
+  Remembers the first error
 */
 
 class Dummy_error_handler : public Internal_error_handler
 {
+  uint m_unhandled_errors;
+  uint first_error;
 public:
+  Dummy_error_handler()
+    : m_unhandled_errors(0), first_error(0)
+  {}
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
@@ -2001,12 +2007,14 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
-    /* Ignore error */
-    return TRUE;
+    m_unhandled_errors++;
+    if (!first_error)
+      first_error= sql_errno;
+    return TRUE;                                // Ignore error
   }
-  Dummy_error_handler() = default;                    /* Remove gcc warning */
+  bool any_error() { return m_unhandled_errors != 0; }
+  uint got_error() { return first_error; }
 };
-
 
 /**
   Implements the trivial error handler which counts errors as they happen.

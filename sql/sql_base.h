@@ -658,7 +658,6 @@ public:
     trapped and no other errors have been seen. FALSE otherwise.
   */
   bool safely_trapped_errors();
-  bool any_error() { return m_handled_errors == 0 || m_unhandled_errors == 0; }
   uint got_error() { return first_error; }
 
 private:
