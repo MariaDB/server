@@ -105,6 +105,7 @@ if ($slave_sql_errno)
 {
     --echo # $con2 SQL Thread error expected - waiting for errno $slave_sql_errno
     --source include/wait_for_slave_sql_error.inc
+    --source include/stop_slave_io.inc
 }
 
 # If we are not expecting an error, wait for con2 to catch up
@@ -125,11 +126,9 @@ if (!$slave_sql_errno)
         --echo # and $con2 to automatically stop
         --source include/wait_for_slave_to_stop.inc
     }
+    --echo # Stop $con2 so it stops receiving $con1 events.
+    --source include/stop_slave.inc
 }
-
---echo # Stop $con2 so it stops receiving $con1 events.
-# ER_GTID_STRICT_OUT_OF_ORDER obtained
---source include/stop_slave.inc
 
 --connection $con1
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
