@@ -149,15 +149,7 @@ struct Table_cache_instance
   }
 
   static void *operator new[](size_t size)
-  {
-    void *res= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-    if (res)
-    {
-      tc_allocated_size= size;
-      update_malloc_size(size, 0);
-    }
-    return res;
-  }
+  { return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE); }
   static void operator delete[](void *ptr) { aligned_free(ptr); }
   static void mark_memory_freed()
   {
@@ -614,6 +606,8 @@ bool tdc_init(void)
   /* Extra instance is allocated to avoid false sharing */
   if (!(tc= new Table_cache_instance[tc_instances + 1]))
     DBUG_RETURN(true);
+  tc_allocated_size= (tc_instances + 1) * sizeof *tc;
+  update_malloc_size(tc_allocated_size, 0);
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
