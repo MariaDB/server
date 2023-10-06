@@ -6398,7 +6398,8 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_CONTEXT);
         LEX_CSTRING full_collation_name=
           tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_FULL);
-        bool is_context= cmp(context_collation_name, full_collation_name);
+        bool is_context= cmp(context_collation_name, full_collation_name) &&
+            !(thd->variables.old_behavior & OLD_MODE_NO_NULL_COLLATION_IDS);
         /*
           Some collations are applicable to multiple character sets.
           Display them only once, with the short name (without the

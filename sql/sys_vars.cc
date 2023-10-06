@@ -3886,6 +3886,7 @@ static const char *old_mode_names[]=
   "UTF8_IS_UTF8MB3",
   "IGNORE_INDEX_ONLY_FOR_JOIN",
   "COMPAT_5_1_CHECKSUM",
+  "NO_NULL_COLLATION_IDS",
   0
 };
 
