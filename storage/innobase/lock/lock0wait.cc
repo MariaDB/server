@@ -340,6 +340,7 @@ lock_wait_suspend_thread(
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
 	}
 
+	DEBUG_SYNC_C("lock_wait_before_suspend");
 	os_event_wait(slot->event);
 	DBUG_EXECUTE_IF("small_sleep_after_lock_wait",
 		{

@@ -242,5 +242,30 @@ DELETE FROM t WHERE c2<c1;
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-28835 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on INSERT
+--echo #
+
+SET NAMES latin1,character_set_connection=binary;
+
+--echo # Binary format, binary result
+SELECT DATE_FORMAT('2004-02-02','%W');
+SELECT HEX(DATE_FORMAT('2004-02-02','%W'));
+SELECT DATE_FORMAT(TIME'-01:01:01','%h');
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
+
+--echo # latin1 format, binary result
+SELECT DATE_FORMAT('2004-02-02',_latin1'%W');
+SELECT HEX(DATE_FORMAT('2004-02-02',_latin1'%W'));
+SELECT DATE_FORMAT(TIME'-01:01:01',_latin1'%h');
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_latin1'%h'));
+
+--echo # Binary format, latin1 result
+SET NAMES latin1;
+SELECT DATE_FORMAT('2004-02-02',_binary'%W');
+SELECT HEX(DATE_FORMAT('2004-02-02',_binary'%W'));
+SELECT DATE_FORMAT(TIME'-01:01:01',_binary'%h');
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_binary'%h'));
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

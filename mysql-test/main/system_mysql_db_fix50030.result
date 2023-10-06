@@ -246,15 +246,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
 show create table table_stats;
 Table	Create Table

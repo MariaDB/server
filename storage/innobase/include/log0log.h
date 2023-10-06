@@ -209,8 +209,9 @@ void
 logs_empty_and_mark_files_at_shutdown(void);
 /*=======================================*/
 /** Read a log group header page to log_sys.checkpoint_buf.
-@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
-void log_header_read(ulint header);
+@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2
+@return error code (from fil_io) or DB_SUCCESS */
+dberr_t log_header_read(ulint header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	sync	whether to wait for the write to complete
 @param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */

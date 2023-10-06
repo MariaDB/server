@@ -614,7 +614,7 @@ sub make_combinations($$@)
 {
   my ($test, $test_combs, @combinations) = @_;
 
-  return ($test) if $test->{'skip'} or not @combinations;
+  return ($test) unless @combinations;
   if ($combinations[0]->{skip}) {
     $test->{skip} = 1;
     $test->{comment} = $combinations[0]->{skip} unless $test->{comment};
@@ -646,6 +646,8 @@ sub make_combinations($$@)
       last;
     }
   }
+
+  return ($test) if $test->{'skip'};
 
   my @cases;
   foreach my $comb (@combinations)

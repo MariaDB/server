@@ -193,6 +193,11 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
                        wsrep_is_active(thd), wsrep_is_real(thd, all),
                        wsrep_has_changes(thd), wsrep_thd_is_applying(thd),
                        wsrep_is_ordered(thd)));
+
+  /* skipping non-wsrep threads */
+  if (!WSREP(thd))
+    DBUG_RETURN(false);
+
   /* Is MST commit or autocommit? */
   bool ret= wsrep_is_active(thd) && wsrep_is_real(thd, all);
   /* Do not commit if we are aborting */

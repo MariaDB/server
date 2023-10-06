@@ -1070,11 +1070,21 @@ public:
     Prepared statement: STMT_INITIALIZED -> STMT_PREPARED -> STMT_EXECUTED.
     Stored procedure:   STMT_INITIALIZED_FOR_SP -> STMT_EXECUTED.
     Other statements:   STMT_CONVENTIONAL_EXECUTION never changes.
+
+    Special case for stored procedure arguments: STMT_SP_QUERY_ARGUMENTS
+                        This state never changes and used for objects
+                        whose lifetime is whole duration of function call
+                        (sp_rcontext, it's tables and items. etc). Such objects
+                        should be deallocated after every execution of a stored
+                        routine. Caller's arena/memroot can't be used for
+                        placing such objects since memory allocated on caller's
+                        arena not freed until termination of user's session.
   */
   enum enum_state
   {
     STMT_INITIALIZED= 0, STMT_INITIALIZED_FOR_SP= 1, STMT_PREPARED= 2,
-    STMT_CONVENTIONAL_EXECUTION= 3, STMT_EXECUTED= 4, STMT_ERROR= -1
+    STMT_CONVENTIONAL_EXECUTION= 3, STMT_EXECUTED= 4,
+    STMT_SP_QUERY_ARGUMENTS= 5, STMT_ERROR= -1
   };
 
   enum_state state;
@@ -4046,6 +4056,17 @@ public:
 
   inline Query_arena *activate_stmt_arena_if_needed(Query_arena *backup)
   {
+    if (state == Query_arena::STMT_SP_QUERY_ARGUMENTS)
+      /*
+        Caller uses the arena with state STMT_SP_QUERY_ARGUMENTS for stored
+        routine's parameters. Lifetime of these objects spans a lifetime of
+        stored routine call and freed every time the stored routine execution
+        has been completed. That is the reason why switching to statement's
+        arena is not performed for arguments, else we would observe increasing
+        of memory usage while a stored routine be called over and over again.
+      */
+      return NULL;
+
     /*
       Use the persistent arena if we are in a prepared statement or a stored
       procedure statement and we have not already changed to use this arena.
@@ -4234,7 +4255,7 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((wsrep_binlog_format() == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
+    if ((wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
@@ -4290,7 +4311,7 @@ public:
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
+      if (wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (!has_temporary_tables())
         set_current_stmt_binlog_format_stmt();
@@ -4937,9 +4958,18 @@ public:
   */
   bool is_awaiting_semisync_ack;
 
-  inline ulong wsrep_binlog_format() const
+  inline ulong wsrep_binlog_format(ulong binlog_format) const
   {
-    return WSREP_BINLOG_FORMAT(variables.binlog_format);
+#ifdef WITH_WSREP
+    // During CTAS we force ROW format
+    if (wsrep_ctas)
+      return BINLOG_FORMAT_ROW;
+    else
+      return ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?
+               wsrep_forced_binlog_format : binlog_format);
+#else
+    return (binlog_format);
+#endif
   }
 
 #ifdef WITH_WSREP
@@ -4982,11 +5012,9 @@ public:
   void                      *wsrep_apply_format;
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
-  //  wsrep_gtid_t              wsrep_last_written_gtid;
   ulong                     wsrep_affected_rows;
   bool                      wsrep_has_ignored_error;
   bool                      wsrep_replicate_GTID;
-
   /*
     When enabled, do not replicate/binlog updates from the current table that's
     being processed. At the moment, it is used to keep mysql.gtid_slave_pos
@@ -5006,7 +5034,8 @@ public:
   /* true if BF abort is observed in do_command() right after reading
   client's packet, and if the client has sent PS execute command. */
   bool                      wsrep_delayed_BF_abort;
-
+  // true if this transaction is CREATE TABLE AS SELECT (CTAS)
+  bool                      wsrep_ctas;
   /*
     Transaction id:
     * m_wsrep_next_trx_id is assigned on the first query after

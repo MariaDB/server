@@ -975,3 +975,227 @@ drop function f1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-32275 getting error 'Illegal parameter data types row and bigint for operation '+' ' when using ITERATE in a FOR..DO
+--echo #
+
+--echo #
+--echo # Unlabeled FOR/cursor with a nested labeled LOOP inside
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE loopDone TINYINT DEFAULT FALSE;
+  FOR _row IN (SELECT '' AS a) DO
+    SELECT 'start of outerLoop';
+    innerLoop: LOOP
+      SELECT 'start of innerLoop';
+      IF loopDone THEN
+        LEAVE innerLoop;
+      END IF;
+      SET loopDone = TRUE;
+      IF _row.a = 'v1'
+      THEN
+        SELECT 'start of THEN block';
+        ITERATE innerLoop;
+      END IF;
+      SELECT 'end of innerLoop';
+    END LOOP;
+    SELECT 'end of outerLoop';
+  END FOR;
+END
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Labeled FOR/cursor with a nested labeled LOOP
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE loopDone TINYINT DEFAULT FALSE;
+outerLoop:
+  FOR _row IN (SELECT '' AS a) DO
+    SELECT 'start of outerLoop';
+    innerLoop: LOOP
+      SELECT 'start of innerLoop';
+      IF loopDone THEN
+        LEAVE innerLoop;
+      END IF;
+      SET loopDone = TRUE;
+      IF _row.a = 'v1'
+      THEN
+        SELECT 'start of IF/v1/THEN block';
+        ITERATE innerLoop;
+      END IF;
+      IF _row.a = 'v2'
+      THEN
+        SELECT 'start of IF/v2/THEN block';
+        ITERATE outerLoop;
+      END IF;
+      SELECT 'end of innerLoop';
+    END LOOP;
+    SELECT 'end of outerLoop';
+  END FOR;
+END
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Unlabeled FOR/integer with a labeled LOOP inside
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE loopDone TINYINT DEFAULT FALSE;
+  FOR _index IN 1..10 DO
+    SELECT 'start of outerLoop';
+    innerLoop: LOOP
+      SELECT 'start of innerLoop';
+      IF loopDone THEN
+        LEAVE innerLoop;
+      END IF;
+      SET loopDone = TRUE;
+      IF _index = 1
+      THEN
+        SELECT 'start of THEN block';
+        ITERATE innerLoop;
+      END IF;
+      SELECT 'end of innerLoop';
+    END LOOP;
+    SELECT 'end of outerLoop';
+  END FOR;
+END
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Labeled FOR/integer with a labeled LOOP inside
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE loopDone TINYINT DEFAULT FALSE;
+outerLoop:
+  FOR _index IN 1..10 DO
+    SELECT 'start of outerLoop';
+    innerLoop: LOOP
+      SELECT 'start of innerLoop';
+      IF loopDone THEN
+        LEAVE innerLoop;
+      END IF;
+      SET loopDone = TRUE;
+      IF _index = 1
+      THEN
+        SELECT 'start of IF/1/THEN block';
+        ITERATE innerLoop;
+      END IF;
+      IF _index = 2
+      THEN
+        SELECT 'start of IF/2/THEN block';
+        ITERATE outerLoop;
+      END IF;
+      SELECT 'end of innerLoop';
+    END LOOP;
+    SELECT 'end of outerLoop';
+  END FOR;
+END
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Unlabeled FOR/integer with a labeled FOR inside
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE loopDone TINYINT DEFAULT FALSE;
+  FOR _index_outer IN 1..10 DO
+    SELECT 'start of outerLoop';
+    innerLoop:
+    FOR _index_inner IN 1..10 DO
+      SELECT 'start of innerLoop';
+      IF loopDone THEN
+        LEAVE innerLoop;
+      END IF;
+      SET loopDone = TRUE;
+      IF _index_inner = 1
+      THEN
+        SELECT 'start of IF/1/THEN block';
+        ITERATE innerLoop;
+      END IF;
+      SELECT 'end of innerLoop';
+    END FOR;
+    SELECT 'end of outerLoop';
+  END FOR;
+END
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+
+--echo #
+--echo # Labeled FOR/integer with a labeled FOR inside
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE loopDone TINYINT DEFAULT FALSE;
+outerLoop:
+  FOR _index_outer IN 1..10 DO
+    SELECT 'start of outerLoop';
+    innerLoop:
+    FOR _index_inner IN 1..10 DO
+      SELECT 'start of innerLoop';
+      IF loopDone THEN
+        LEAVE innerLoop;
+      END IF;
+      SET loopDone = TRUE;
+      IF _index_inner = 1
+      THEN
+        SELECT 'start of IF/1/THEN block';
+        ITERATE innerLoop;
+      END IF;
+      IF _index_inner = 2
+      THEN
+        SELECT 'start of IF/2/THEN block';
+        ITERATE outerLoop;
+      END IF;
+      SELECT 'end of innerLoop';
+    END FOR;
+    SELECT 'end of outerLoop';
+  END FOR;
+END
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

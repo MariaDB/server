@@ -1355,20 +1355,21 @@ log_group_checkpoint(lsn_t end_lsn)
 }
 
 /** Read a log group header page to log_sys.checkpoint_buf.
-@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
-void log_header_read(ulint header)
+@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2
+@return         DB_SUCCESS or error. */
+dberr_t log_header_read(ulint header)
 {
-	ut_ad(log_mutex_own());
+  ut_ad(log_mutex_own());
 
-	log_sys.n_log_ios++;
+  log_sys.n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
+  MONITOR_INC(MONITOR_LOG_IO);
 
-	fil_io(IORequestLogRead, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
-			 header >> srv_page_size_shift),
-	       0, header & (srv_page_size - 1),
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys.checkpoint_buf, NULL);
+  return fil_io(IORequestLogRead, true,
+                page_id_t(SRV_LOG_SPACE_FIRST_ID,
+                          header >> srv_page_size_shift),
+                0, header & (srv_page_size - 1),
+                OS_FILE_LOG_BLOCK_SIZE, log_sys.checkpoint_buf, NULL);
 }
 
 /** Write checkpoint info to the log header and invoke log_mutex_exit().

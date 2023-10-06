@@ -14,6 +14,7 @@ create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", "srv" "srv",TABL
 ERROR HY000: The connect info '"srv" "srv",TABLE "t2"' is invalid
 create table t1 (c int) ENGINE=Spider CONNECTION='WRAPPER "mysql", srv \'srv\',TABLE "t2", password "say \\"hello\\ world!\\""';
 drop table t1, t2;
+drop server srv;
 for master_1
 for child2
 for child3

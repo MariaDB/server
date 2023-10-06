@@ -33,6 +33,7 @@ select
 from 
   t1;
 
+analyze table t2 persistent for all;
 select pk1, count(*) from t2 group by pk1;
 
 --echo # The following should use range(ux_pk1_fd5), two key parts (key_len=5+8=13)

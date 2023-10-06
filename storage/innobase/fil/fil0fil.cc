@@ -557,7 +557,9 @@ fail:
 			&success);
 	}
 
-	ut_a(success);
+	if (!success)
+		return false;
+
 	ut_a(node->is_open());
 
 	fil_system.n_open++;
@@ -4062,8 +4064,10 @@ inline void IORequest::set_fil_node(fil_node_t* node)
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
 @param[in] ignore_missing_space true=ignore missing space duging read
-@return DB_SUCCESS, or DB_TABLESPACE_DELETED
-	if we are trying to do i/o on a tablespace which does not exist */
+@retval DB_SUCCESS, if successful; or
+@retval DB_IO_ERROR, if unable to open file or the purpose==FIL_TYPE_IMPORT; or
+@retval DB_TABLESPACE_DELETED, if we are trying to do i/o on a tablespace which
+        does not exist */
 dberr_t
 fil_io(
 	const IORequest&	type,
@@ -4232,11 +4236,13 @@ fil_io(
 			return(DB_TABLESPACE_DELETED);
 		}
 
-		/* The tablespace is for log. Currently, we just assert here
+		/* The tablespace is for log. We used to asssert here
 		to prevent handling errors along the way fil_io returns.
 		Also, if the log files are missing, it would be hard to
-		promise the server can continue running. */
-		ut_a(0);
+		promise the server can continue running. However this
+		is also used by MariaDB-backup, so we need to handle it. */
+		mutex_exit(&fil_system.mutex);
+		return(DB_IO_ERROR);
 	}
 
 	/* Check that at least the start offset is within the bounds of a

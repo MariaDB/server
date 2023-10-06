@@ -537,6 +537,18 @@ bool Warning_info::has_sql_condition(const char *message_str, size_t message_len
   return false;
 }
 
+bool Warning_info::has_sql_condition(uint sql_errno) const
+{
+  Diagnostics_area::Sql_condition_iterator it(m_warn_list);
+  const Sql_condition *err;
+
+  while ((err = it++))
+  {
+    if (err->get_sql_errno() == sql_errno)
+      return true;
+  }
+  return false;
+}
 
 void Warning_info::clear(ulonglong new_id)
 {
