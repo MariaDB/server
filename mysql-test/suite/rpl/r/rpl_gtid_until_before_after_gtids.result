@@ -224,6 +224,12 @@ connection master;
 DROP TABLE t1, t2;
 connection slave;
 #
+# Error Case 2: Providing both SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS
+# should result in a syntax error
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-1" SQL_BEFORE_GTIDS="0-1-1";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SQL_BEFORE_GTIDS="0-1-1"' at line 1
+#
 # Cleanup
 include/save_master_gtid.inc
 connection slave;

@@ -28,6 +28,13 @@
 --source include/rpl_gtid_until_before_after_gtids.test
 
 --echo #
+--echo # Error Case 2: Providing both SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS
+--echo # should result in a syntax error
+--connection slave
+--error ER_PARSE_ERROR
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-1" SQL_BEFORE_GTIDS="0-1-1";
+
+--echo #
 --echo # Cleanup
 --source include/save_master_gtid.inc
 
