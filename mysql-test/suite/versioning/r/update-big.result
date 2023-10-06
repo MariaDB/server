@@ -39,15 +39,13 @@ set lock_wait_timeout= 1;
 set innodb_lock_wait_timeout= 1;
 set timestamp= unix_timestamp('2000-01-01 01:00:01');
 update t1 set x= x + 122 where x = 1;
-Warnings:
-Error	1205	Lock wait timeout exceeded; try restarting transaction
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 select * from t1;
 x
+1
 2
-123
 drop table t1;
 set timestamp= default;
 #
@@ -83,17 +81,42 @@ connect  con1,localhost,root,,;
 set lock_wait_timeout= 1;
 set @@timestamp= @@timestamp+3601;
 update t set a= 40 where pk = 4;
-Warnings:
-Error	1205	Lock wait timeout exceeded; try restarting transaction
-Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 update t set a= 400 where pk = 4;
-Warnings:
-Error	1205	Lock wait timeout exceeded; try restarting transaction
-Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 select * from t where pk = 4;
 pk	a
-4	400
+4	4
 rollback;
 drop tables t;
+#
+# MDEV-25547 Auto-create: Undetected deadlock lasts longer than the configured timeout
+#
+call mtr.add_suppression("is out of LIMIT, need more HISTORY partitions");
+create table t (pk int primary key, a int) engine=InnoDB
+with system versioning partition by system_time limit 100 auto;
+insert into t select seq, seq from seq_1_to_90;
+replace into t select seq, seq from seq_1_to_90;
+connect  con1,localhost,root,,;
+set lock_wait_timeout= 1;
+begin;
+UPDATE t set a = a + 100 where pk < 20;
+connect  con2,localhost,root,,;
+set lock_wait_timeout= 1;
+begin;
+update t set a = a + 10 where pk = 30;
+connect  con3,localhost,root,,;
+set lock_wait_timeout= 1;
+begin;
+update t set a = a + 10 where pk = 40;
+connection con1;
+update t set a = a + 100 where pk < 20;
+connection con2;
+commit;
+connection con3;
+commit;
+connection con1;
+commit;
+drop table t;

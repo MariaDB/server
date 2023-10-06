@@ -733,7 +733,7 @@ typedef struct system_variables
 #endif /* WITH_WSREP */
   uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
-  ulong lock_wait_timeout;
+  ulong lock_wait_timeout; /* in seconds */
   ulong join_cache_level;
   ulong max_allowed_packet;
   ulong max_error_count;

@@ -101,6 +101,7 @@ send update t set a= a + 3;
 reap;
 --disconnect con1
 --connection default
+--error ER_LOCK_WAIT_TIMEOUT
 reap;
 commit;
 drop table t;

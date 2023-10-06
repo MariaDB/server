@@ -1767,8 +1767,10 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
   TABLE *table= this;
 
   /*
-      NOTE: The semantics of vers_set_hist_part() is twofold: even when we
-      don't need auto-create, we need to update part_info->hist_part.
+    After successfully created partitions we returned back here with
+    table_list->vers_skip_create. We need to switch hist_part, but we don't
+    need to create more partitions. That is indicated by create_count == NULL
+    in vers_set_hist_part().
   */
   uint *create_count= (table_list->vers_skip_create == thd->query_id) ?
     NULL : &ot_ctx->vers_create_count;
@@ -1784,11 +1786,13 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
     Open_table_context::enum_open_table_action action;
     TABLE_LIST *table_arg;
     mysql_mutex_lock(&table->s->LOCK_share);
-    if (!table->s->vers_skip_auto_create)
+    if (!table->s->vers_auto_create_signal)
     {
       DBUG_PRINT("auto-create", ("Initiating for %u partitions; query_id: %ld",
                                  ot_ctx->vers_create_count, thd->query_id));
-      table->s->vers_skip_auto_create= true;
+      table->s->vers_auto_create_signal= new Cond;
+      /* Thread signals to vers_create_signal after it creates partitions.  */
+      ot_ctx->vers_create_signal= table->s->vers_auto_create_signal;
       action= Open_table_context::OT_ADD_HISTORY_PARTITION;
       table_arg= table_list;
     }
@@ -1796,16 +1800,10 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
     {
       DBUG_PRINT("auto-create", ("Skipping for %u partitions; query_id: %ld",
                                  ot_ctx->vers_create_count, thd->query_id));
-      /*
-          NOTE: this may repeat multiple times until creating thread acquires
-          MDL_EXCLUSIVE. Since auto-creation is rare operation this is acceptable.
-          We could suspend this thread on cond-var but we must first exit
-          MDL_SHARED_WRITE and we cannot store cond-var into TABLE_SHARE
-          because it is already released and there is no guarantee that it will
-          be same instance if we acquire it again.
-      */
       table_list->vers_skip_create= 0;
       ot_ctx->vers_create_count= 0;
+      /* Thread waits on vers_create_signal after it releases share. */
+      ot_ctx->vers_create_signal= table->s->vers_auto_create_signal->going_wait();
       action= Open_table_context::OT_REOPEN_TABLES;
       table_arg= NULL;
       DEBUG_SYNC(thd, "reopen_history_partition");
@@ -3267,7 +3265,8 @@ Open_table_context::Open_table_context(THD *thd, uint flags)
    m_action(OT_NO_ACTION),
    m_has_locks(thd->mdl_context.has_locks()),
    m_has_protection_against_grl(0),
-   vers_create_count(0)
+   vers_create_count(0),
+   vers_create_signal(NULL)
 {}
 
 
@@ -3435,22 +3434,28 @@ Open_table_context::recover_from_failed_open()
       {
         if (m_action == OT_ADD_HISTORY_PARTITION)
         {
+          DBUG_PRINT("auto-create", ("Lock error: %u",
+                                     m_thd->get_stmt_da()->sql_errno()));
+          vers_create_count= 0;
+          /*
+            Before we delete vers_create_signal we must protect other threads
+            from accessing it.
+          */
           TABLE_SHARE *share= tdc_acquire_share(m_thd, m_failed_table,
                                                 GTS_TABLE, NULL);
           if (share)
           {
-            share->vers_skip_auto_create= false;
+            if (share->vers_auto_create_signal == vers_create_signal)
+            {
+              mysql_mutex_lock(&share->LOCK_share);
+              share->vers_auto_create_signal= NULL;
+              mysql_mutex_unlock(&share->LOCK_share);
+            }
             tdc_release_share(share);
           }
-          DBUG_PRINT("auto-create", ("Lock error: %u",
-                                     m_thd->get_stmt_da()->sql_errno()));
-          if (m_thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
-          {
-            // MDEV-23642 Locking timeout caused by auto-creation affects original DML
-            m_thd->clear_error();
-            vers_create_count= 0;
-            result= false;
-          }
+          vers_create_signal->signal();
+          delete vers_create_signal;
+          vers_create_signal= 0;
         }
         break;
       }
@@ -3513,6 +3518,9 @@ Open_table_context::recover_from_failed_open()
                                        vers_create_count));
 #endif
           vers_create_count= 0;
+          vers_create_signal->signal();
+          delete vers_create_signal;
+          vers_create_signal= 0;
           if (!m_thd->transaction->stmt.is_empty())
             trans_commit_stmt(m_thd);
           DBUG_ASSERT(!result ||
@@ -4662,6 +4670,14 @@ restart:
           /* Re-open temporary tables after close_tables_for_reopen(). */
           if (thd->open_temporary_tables(*start))
             goto error;
+
+          if (ot_ctx.vers_create_signal)
+          {
+            bool err= ot_ctx.vers_create_signal->wait(thd);
+            ot_ctx.vers_create_signal= 0;
+            if (err)
+              goto error;
+          }
 
           error= FALSE;
           goto restart;

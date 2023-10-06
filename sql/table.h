@@ -79,6 +79,7 @@ class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
+class Cond;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -938,7 +939,7 @@ struct TABLE_SHARE
 
       TODO: remove it when partitioning metadata will be in TABLE_SHARE.
   */
-  bool          vers_skip_auto_create;
+  Cond *vers_auto_create_signal;
 
   bool init_period_from_extra2(period_info_t *period, const uchar *data,
                                const uchar *end);

@@ -2257,26 +2257,34 @@ set timestamp= unix_timestamp('2000-01-01 02:00:00');
 send update t1 set x= x + 70;
 --connection con8
 set timestamp= unix_timestamp('2000-01-01 02:00:00');
+--error 0, ER_LOCK_WAIT_TIMEOUT
 update t1 set x= x + 80;
 --connection con1
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con1
 --connection con2
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con2
 --connection con3
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con3
 --connection con4
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con4
 --connection con5
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con5
 --connection con6
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con6
 --connection con7
+--error 0, ER_LOCK_WAIT_TIMEOUT
 reap;
 --disconnect con7
 --disconnect con8

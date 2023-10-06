@@ -615,6 +615,7 @@ private:
 
 public:
   uint vers_create_count;
+  Cond *vers_create_signal;
 };
 
 
@@ -669,6 +670,102 @@ public:
 private:
   int m_handled_errors;
   int m_unhandled_errors;
+};
+
+
+/**
+  mysql_cond_t with waiters count and feedback
+
+  One-to-many signal router. Signalling thread is blocked until all
+  the waiting threads receive signal.
+*/
+
+class Cond
+{
+  std::atomic<uint> waiters;
+  std::atomic<bool> signalled;
+  mysql_mutex_t mutex;
+  mysql_cond_t cond;
+  mysql_cond_t feedback;
+
+  bool timedwait(THD *thd, mysql_cond_t *c)
+  {
+    time_t timeout= thd->variables.lock_wait_timeout - (my_time(0) - thd->start_time);
+    if (timeout <= 0)
+    {
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      return true;
+    }
+    timespec abstime;
+    set_timespec(abstime, timeout);
+    int err= mysql_cond_timedwait(c, &mutex, &abstime);
+    if (err)
+    {
+      if (err == ETIMEDOUT)
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      else
+      {
+        my_error(ER_GET_ERRNO, MYF(0), err, "Cond::wait()");
+        DBUG_ASSERT(0);
+      }
+      return true;
+    }
+    return false;
+  }
+
+public:
+  Cond() : waiters(0), signalled(false)
+  {
+    mysql_mutex_init(PSI_NOT_INSTRUMENTED, &mutex, 0);
+    mysql_cond_init(PSI_NOT_INSTRUMENTED, &cond, 0);
+    mysql_cond_init(PSI_NOT_INSTRUMENTED, &feedback, 0);
+  }
+
+  ~Cond()
+  {
+    DBUG_ASSERT(!waiters);
+    mysql_cond_destroy(&feedback);
+    mysql_cond_destroy(&cond);
+    mysql_mutex_destroy(&mutex);
+  }
+
+  void signal()
+  {
+    DBUG_PRINT("cond", ("0x%lx: Signalling for %u waiters", this, waiters.load()));
+    mysql_mutex_lock(&mutex);
+    signalled= true;
+    mysql_cond_broadcast(&cond);
+    while (waiters)
+    {
+      DBUG_PRINT("cond", ("0x%lx: Waiting for %u waiters", this, waiters.load()));
+      mysql_cond_wait(&feedback, &mutex);
+    }
+    mysql_mutex_unlock(&mutex);
+  }
+
+  Cond *going_wait()
+  {
+    ++waiters;
+    DBUG_PRINT("cond", ("0x%lx: Going wait, now %u waiters", this, waiters.load()));
+    return this;
+  }
+
+  bool wait(THD *thd)
+  {
+    bool err= false;
+    mysql_mutex_lock(&mutex);
+    while (!signalled)
+    {
+      DBUG_PRINT("cond", ("0x%lx: Waiting, now %u waiters", this, waiters.load()));
+      if ((err= timedwait(thd, &cond)))
+        break;
+    }
+    --waiters;
+    DBUG_PRINT("cond", ("0x%lx: Waited, now %u waiters", this, waiters.load()));
+    mysql_cond_signal(&feedback);
+    mysql_mutex_unlock(&mutex);
+    return err;
+  }
 };
 
 
