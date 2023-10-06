@@ -1939,8 +1939,10 @@ copy_back()
 		snprintf(filename, sizeof filename, "%s/%s101", dst_dir,
 			 LOG_FILE_NAME_PREFIX);
 		unlink(filename);
-	} else if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
-					     dst_dir, 1))) {
+	}
+
+	if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
+				      dst_dir, 1))) {
 		goto cleanup;
 	}
 	ds_destroy(ds_tmp);
