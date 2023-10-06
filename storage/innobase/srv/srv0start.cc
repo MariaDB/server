@@ -99,6 +99,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "os0event.h"
 #include "zlib.h"
 #include "ut0crc32.h"
+#include "log.h"
 
 /** We are prepared for a situation that we have this many threads waiting for
 a semaphore inside InnoDB. srv_start() sets the value. */
@@ -1248,7 +1249,12 @@ dberr_t srv_start(bool create_new_db)
 	}
 #endif /* UNIV_DEBUG */
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		sql_print_error("InnoDB: Cannot allocate memory;"
+				" too large innodb_log_buffer_size?");
+		return srv_init_abort(DB_ERROR);
+	}
+
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 

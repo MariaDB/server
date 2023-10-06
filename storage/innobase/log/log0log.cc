@@ -171,11 +171,10 @@ log_set_capacity(ulonglong file_size)
 }
 
 /** Initialize the redo log subsystem. */
-void log_t::create()
+bool log_t::create()
 {
   ut_ad(this == &log_sys);
   ut_ad(!is_initialised());
-  m_initialised= true;
 
   mysql_mutex_init(log_sys_mutex_key, &mutex, nullptr);
   mysql_mutex_init(log_flush_order_mutex_key, &flush_order_mutex, nullptr);
@@ -191,9 +190,18 @@ void log_t::create()
 
   buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size,
                                              PSI_INSTRUMENT_ME));
-  TRASH_ALLOC(buf, srv_log_buffer_size);
+  if (!buf)
+    return false;
   flush_buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size,
                                                    PSI_INSTRUMENT_ME));
+  if (!flush_buf)
+  {
+    ut_free_dodump(buf, srv_log_buffer_size);
+    buf= nullptr;
+    return false;
+  }
+
+  TRASH_ALLOC(buf, srv_log_buffer_size);
   TRASH_ALLOC(flush_buf, srv_log_buffer_size);
 
   max_buf_free= srv_log_buffer_size / LOG_BUF_FLUSH_RATIO -
@@ -220,6 +228,8 @@ void log_t::create()
   buf_free= LOG_BLOCK_HDR_SIZE;
   checkpoint_buf= static_cast<byte*>
     (aligned_malloc(OS_FILE_LOG_BLOCK_SIZE, OS_FILE_LOG_BLOCK_SIZE));
+  m_initialised= true;
+  return true;
 }
 
 file_os_io::file_os_io(file_os_io &&rhs) : m_fd(rhs.m_fd)

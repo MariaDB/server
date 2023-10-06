@@ -681,8 +681,9 @@ public:
     return flushes.load(std::memory_order_relaxed);
   }
 
-  /** Initialise the redo log subsystem. */
-  void create();
+  /** Initialise the redo log subsystem.
+  @return whether the initialisation succeeded */
+  bool create();
 
   /** Shut down the redo log subsystem. */
   void close();

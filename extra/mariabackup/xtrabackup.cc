@@ -4613,7 +4613,10 @@ fail:
 		goto fail;
 	}
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		msg("Error: cannot initialize log subsystem");
+		goto fail;
+	}
 	log_sys.log.create();
 	log_sys.log.open_file(get_log_file_path());
 
@@ -6053,8 +6056,10 @@ static bool xtrabackup_prepare_func(char** argv)
 		}
 
 		sync_check_init();
+		if (!log_sys.create()) {
+			goto error_cleanup;
+		}
 		recv_sys.create();
-		log_sys.create();
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();
