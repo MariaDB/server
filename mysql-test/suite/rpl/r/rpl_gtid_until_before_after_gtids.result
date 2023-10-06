@@ -53,8 +53,8 @@ connection slave;
 #
 #  Test Case 3 (SQL_BEFORE_GTIDS): For a multi-dimensional binlog state and a
 # STOP SLAVE UNTIL gtid position with one GTID, the replica should
-# execute events from all domains (including unspecified ones) until the
-# provided GTID is encountered, and immediately stop
+# execute events from only the specified domain until the provided GTID
+# is encountered, and immediately stop
 connection slave;
 connection master;
 set session gtid_domain_id=0;
@@ -76,13 +76,14 @@ connection slave;
 #
 #  Test Case 4 (SQL_BEFORE_GTIDS): For a multi-dimensional binlog state and a
 # STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
-# execute events up until the first GTID in the provided UNTIL list is
-# seen, and then immediately stop
+# for each domain, execute events only up until its provided GTID, and
+# once all domains have hit their end point, immediately stop.
 connection slave;
 connection master;
 SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (108);
-SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (203);
+# Tagging domain 0 stop: 0-1-12
 SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (109);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (203);
 SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (204);
 SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (110);
 SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (205);
@@ -193,8 +194,8 @@ connection slave;
 connection slave;
 connection master;
 SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (119);
-SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (209);
 SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (120);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (209);
 SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (210);
 SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (121);
 SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (211);

@@ -182,14 +182,13 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
 --echo #
 --echo #  Test Case 3 ($ssu_opt): For a multi-dimensional binlog state and a
 --echo # STOP SLAVE UNTIL gtid position with one GTID, the replica should
+--echo # execute events from only the specified domain until the provided GTID
 if ($ssu_before_gtids)
 {
---echo # execute events from all domains (including unspecified ones) until the
---echo # provided GTID is encountered, and immediately stop
+--echo # is encountered, and immediately stop
 }
 if (!$ssu_before_gtids)
 {
---echo # execute events from only the specified domain until the provided GTID
 --echo # is encountered, finish replicating that event group, and then stop
 }
 
@@ -211,13 +210,16 @@ set session gtid_domain_id=1;
 if ($ssu_before_gtids)
 {
     # Will have GTIDs for both domains 0 and 1
-    --let $expected_stop_gtid= `SELECT @@gtid_binlog_pos`
+    --let $binlog_pos= `SELECT @@gtid_binlog_pos`
+    --let $expected_stop_gtid= `SELECT REGEXP_SUBSTR('$binlog_pos','0-[0-9]+-[0-9]+')`
 }
+
 set session gtid_domain_id=0;
 --eval INSERT INTO t1 VALUES ($t1_ctr)
 --inc $t1_ctr
 
 --let $binlog_pos= `SELECT @@gtid_binlog_pos`
+
 # Just the GTID for domain 0
 --let $until_gtid=  `SELECT REGEXP_SUBSTR('$binlog_pos','0-[0-9]+-[0-9]+')`
 
@@ -261,8 +263,8 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
 --echo # STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
 if ($ssu_before_gtids)
 {
---echo # execute events up until the first GTID in the provided UNTIL list is
---echo # seen, and then immediately stop
+--echo # for each domain, execute events only up until its provided GTID, and
+--echo # once all domains have hit their end point, immediately stop.
 }
 if (!$ssu_before_gtids)
 {
@@ -277,17 +279,27 @@ if (!$ssu_before_gtids)
 --connection master
 --eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
 --inc $t1_ctr
+
+if ($ssu_before_gtids)
+{
+    # Save binlog pos for domain 0
+    --let $expected_stop_gtid_d0= `SELECT REGEXP_SUBSTR(@@global.gtid_binlog_pos,'0-[0-9]+-[0-9]+')`
+    --echo # Tagging domain 0 stop: $expected_stop_gtid_d0
+}
+
+--eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
 --eval SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES ($t2_ctr)
 --inc $t2_ctr
 
 if ($ssu_before_gtids)
 {
-    # Will have GTIDs for both domains 0 and 1
-    --let $expected_stop_gtid= `SELECT @@gtid_binlog_pos`
+    # Save binlog pos for domain 1
+    --let $expected_stop_gtid_d1= `SELECT REGEXP_SUBSTR(@@global.gtid_binlog_pos,'1-[0-9]+-[0-9]+')`
+    --let $expected_stop_gtid= $expected_stop_gtid_d0,$expected_stop_gtid_d1
 }
 
---eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
---inc $t1_ctr
 --eval SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES ($t2_ctr)
 --inc $t2_ctr
 
@@ -301,7 +313,6 @@ if (!$ssu_before_gtids)
 --inc $t1_ctr
 --eval SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES ($t2_ctr)
 --inc $t2_ctr
-
 
 --connection slave
 --eval START SLAVE UNTIL $ssu_opt="$until_gtid"

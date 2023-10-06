@@ -1876,16 +1876,13 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
         gtid= until_gtid_state->find(event_gtid.domain_id);
         if (gtid == NULL)
         {
-          if (!info->is_until_before_gtids)
-          {
-            /*
-              This domain already reached the START SLAVE UNTIL stop condition,
-              so skip this event group.
-            */
-            info->gtid_skip_group= (flags2 & Gtid_log_event::FL_STANDALONE
-                                        ? GTID_SKIP_STANDALONE
-                                        : GTID_SKIP_TRANSACTION);
-          }
+          /*
+            This domain already reached the START SLAVE UNTIL stop condition,
+            so skip this event group.
+          */
+          info->gtid_skip_group= (flags2 & Gtid_log_event::FL_STANDALONE
+                                      ? GTID_SKIP_STANDALONE
+                                      : GTID_SKIP_TRANSACTION);
         }
         else if (event_gtid.server_id == gtid->server_id &&
                  event_gtid.seq_no >= gtid->seq_no)
@@ -1897,17 +1894,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
             done.
           */
           uint64 until_seq_no= gtid->seq_no;
-
-          if (info->is_until_before_gtids)
-          {
-            until_gtid_state->reset();
-            DBUG_ASSERT(!until_gtid_state->count());
-          }
-          else
-          {
-            until_gtid_state->remove(gtid);
-          }
-
+          until_gtid_state->remove(gtid);
           if (until_gtid_state->count() == 0)
             info->gtid_until_group= (flags2 & Gtid_log_event::FL_STANDALONE ?
                                      GTID_UNTIL_STOP_AFTER_STANDALONE :
