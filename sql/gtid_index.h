@@ -166,7 +166,10 @@ public:
 
 #ifdef _MSC_VER
 /*
-  M$ compiler warns about flexible array member being non-standard (it's C99).
+  Flexible array member is part of C99, but it is not standard in C++.
+  All the compilers and platforms we support do support it, though.
+  Just we need to disable on Windows a warning about using a non-standard
+  C++ extension.
 */
 #pragma warning(disable : 4200)
 #endif
@@ -175,7 +178,7 @@ public:
     Node_page *next;
     /* Pointer to allow to update the "flags" byte at page writeout. */
     uchar *flag_ptr;
-    /* Will be allocated to size opt_gtid_index_page_size. */
+    /* Flexible array member; will be allocated to opt_gtid_index_page_size. */
     uchar page[];
   };
 
