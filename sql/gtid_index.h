@@ -197,7 +197,7 @@ public:
 
   static void make_gtid_index_file_name(char *out_name, size_t bufsize,
                                         const char *base_filename);
-  int update_gtid_state(rpl_binlog_state *state,
+  int update_gtid_state(rpl_binlog_state_base *state,
                         const rpl_gtid *gtid_list, uint32 gtid_count);
   Node_page *alloc_page();
   rpl_gtid *gtid_list_buffer(uint32 count);
@@ -229,7 +229,7 @@ public:
 
   struct Index_node : public Index_node_base
   {
-    rpl_binlog_state state;
+    rpl_binlog_state_base state;
     uint32 num_records;
     uint32 level;
     bool force_spill_page;
@@ -246,7 +246,7 @@ public:
   static const Gtid_index_writer *find_hot_index(const char *file_name);
 
   Gtid_index_writer(const char *filename, uint32 offset,
-                    rpl_binlog_state *binlog_state);
+                    rpl_binlog_state_base *binlog_state);
   virtual ~Gtid_index_writer();
   void insert_in_hot_index();
   void remove_from_hot_index();
@@ -271,7 +271,7 @@ public:
   static mysql_mutex_t gtid_index_mutex;
   static Gtid_index_writer *hot_index_list;
 
-  rpl_binlog_state pending_state;
+  rpl_binlog_state_base pending_state;
   /* Next pointer for the hot_index_list linked list. */
   Gtid_index_writer *next_hot_index;
   /* The currently being built index nodes, from leaf[0] to root[max_level]. */
@@ -324,8 +324,8 @@ public:
                       uint32 *out_gtid_count);
   rpl_gtid *search_gtid_list();
 
-  int search_cmp_offset(uint32 offset, rpl_binlog_state *state);
-  int search_cmp_gtid_pos(uint32 offset, rpl_binlog_state *state);
+  int search_cmp_offset(uint32 offset, rpl_binlog_state_base *state);
+  int search_cmp_gtid_pos(uint32 offset, rpl_binlog_state_base *state);
   int do_index_search(uint32 *out_offset, uint32 *out_gtid_count);
   int do_index_search_root(uint32 *out_offset, uint32 *out_gtid_count);
   int do_index_search_leaf(bool current_state_updated,
@@ -346,14 +346,14 @@ public:
   int read_node_cold(uint32 page_ptr);
   int give_error(const char *msg) override;
 
-  rpl_binlog_state current_state;
-  rpl_binlog_state compare_state;
+  rpl_binlog_state_base current_state;
+  rpl_binlog_state_base compare_state;
   Index_node_base cold_node;
   /* n points to either cold node or hot node in writer. */
   Index_node_base *n;
   /* Pointer to the writer object, if we're reading a hot index. */
   const Gtid_index_writer *hot_writer;
-  int (Gtid_index_reader::* search_cmp_function)(uint32, rpl_binlog_state *);
+  int (Gtid_index_reader::* search_cmp_function)(uint32, rpl_binlog_state_base *);
   slave_connection_state *in_search_gtid_pos;
   Node_page *read_page;
   uchar *read_ptr;

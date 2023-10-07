@@ -30,7 +30,7 @@ mysql_mutex_t Gtid_index_writer::gtid_index_mutex;
 
 
 Gtid_index_writer::Gtid_index_writer(const char *filename, uint32 offset,
-                                     rpl_binlog_state *binlog_state)
+                                     rpl_binlog_state_base *binlog_state)
   : nodes(nullptr), previous_offset(0),
     max_level(0), pending_gtid_count(0), index_file(-1),
     error_state(false), file_header_written(false), in_hot_index_list(false)
@@ -83,13 +83,13 @@ Gtid_index_writer::Gtid_index_writer(const char *filename, uint32 offset,
     Write out an initial index record, i.e. corresponding to the GTID_LIST
     event / binlog state at the start of the binlog file.
   */
-  count= binlog_state->count();
+  count= binlog_state->count_nolock();
   gtid_list= gtid_list_buffer(count);
   if (count > 0)
   {
     if (!gtid_list)
       goto err;
-    binlog_state->get_gtid_list(gtid_list, count);
+    binlog_state->get_gtid_list_nolock(gtid_list, count);
   }
   write_record(offset, gtid_list, count);
 
@@ -126,7 +126,7 @@ Gtid_index_writer::~Gtid_index_writer()
   }
 
   /*
-    state.free() is not needed here, will be called from rpl_binlog_state
+    state.free() is not needed here, will be called from rpl_binlog_state_base
     destructor.
   */
 }
@@ -236,7 +236,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
     return 0;
   }
 
-  count= pending_state.count();
+  count= pending_state.count_nolock();
   DBUG_ASSERT(count > 0 /* Since we just updated with a GTID. */);
   gtid_list= (rpl_gtid *)
     my_malloc(PSI_INSTRUMENT_ME, count*sizeof(*gtid_list), MYF(0));
@@ -245,7 +245,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
     give_error("Out of memory allocating GTID list for binlog GTID index");
     return 1;
   }
-  if (unlikely(pending_state.get_gtid_list(gtid_list, count)))
+  if (unlikely(pending_state.get_gtid_list_nolock(gtid_list, count)))
   {
     /* Shouldn't happen as we allocated the list with the correct length. */
     DBUG_ASSERT(false);
@@ -253,7 +253,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
     my_free(gtid_list);
     return 1;
   }
-  pending_state.reset();
+  pending_state.reset_nolock();
   previous_offset= offset;
   pending_gtid_count= 0;
   *out_gtid_list= gtid_list;
@@ -437,7 +437,7 @@ void
 Gtid_index_writer::Index_node::reset()
 {
   Index_node_base::reset();
-  state.reset();
+  state.reset_nolock();
   num_records= 0;
   force_spill_page= false;
 }
@@ -579,11 +579,11 @@ Gtid_index_writer::write_record(uint32 event_offset,
     if (alloc_level_if_missing(level+1) ||
         add_child_ptr(level+1, node_ptr))
       return 1;
-    uint32 new_count= n->state.count();  /* ToDo faster count op? */
+    uint32 new_count= n->state.count_nolock();  /* ToDo faster count op? */
     rpl_gtid *new_gtid_list= gtid_list_buffer(new_count);
     if (new_count > 0 && !new_gtid_list)
       return 1;
-    if (n->state.get_gtid_list(new_gtid_list, new_count))
+    if (n->state.get_gtid_list_nolock(new_gtid_list, new_count))
       return give_error("Internal error processing GTID state");
     n->reset();
     if (level == 0)
@@ -714,7 +714,7 @@ Gtid_index_writer::init_header(Node_page *page, bool is_leaf, bool is_first)
 
 
 int
-Gtid_index_base::update_gtid_state(rpl_binlog_state *state,
+Gtid_index_base::update_gtid_state(rpl_binlog_state_base *state,
                                    const rpl_gtid *gtid_list, uint32 gtid_count)
 {
   for (uint32 i= 0; i < gtid_count; ++i)
@@ -798,7 +798,8 @@ Gtid_index_reader::search_gtid_list()
 
 
 int
-Gtid_index_reader::search_cmp_offset(uint32 offset, rpl_binlog_state *state)
+Gtid_index_reader::search_cmp_offset(uint32 offset,
+                                     rpl_binlog_state_base *state)
 {
   if (offset <= in_search_offset)
     return 0;
@@ -808,7 +809,8 @@ Gtid_index_reader::search_cmp_offset(uint32 offset, rpl_binlog_state *state)
 
 
 int
-Gtid_index_reader::search_cmp_gtid_pos(uint32 offset, rpl_binlog_state *state)
+Gtid_index_reader::search_cmp_gtid_pos(uint32 offset,
+                                       rpl_binlog_state_base *state)
 {
   if (state->is_before_pos(in_search_gtid_pos))
     return 0;
@@ -965,8 +967,8 @@ Gtid_index_reader::do_index_search_root(uint32 *out_offset,
 {
   /* ToDo: if hot index, take the mutex. */
 
-  current_state.reset();
-  compare_state.reset();
+  current_state.reset_nolock();
+  compare_state.reset_nolock();
   /*
     These states will be initialized to the full state stored at the start of
     the root node and then incrementally updated.
@@ -980,7 +982,7 @@ Gtid_index_reader::do_index_search_root(uint32 *out_offset,
     if (*n->first_page->flag_ptr & PAGE_FLAG_IS_LEAF)
       break;
 
-    if (compare_state.load(&current_state))
+    if (compare_state.load_nolock(&current_state))
       return -1;
     uint32 child_ptr;
     if (get_child_ptr(&child_ptr))
@@ -1050,7 +1052,7 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
   if (!current_state_updated)
     update_gtid_state(&current_state, gtid_list, gtid_count);
   current_offset= offset;
-  if (compare_state.load(&current_state))
+  if (compare_state.load_nolock(&current_state))
     return -1;
   int cmp= (this->*search_cmp_function)(offset, &compare_state);
   if (cmp < 0)
@@ -1085,10 +1087,10 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
   }
 
   *out_offset= current_offset;
-  *out_gtid_count= current_state.count();
+  *out_gtid_count= current_state.count_nolock();
   /* Save the result in the shared gtid list buffer. */
   if ((!(gtid_list= gtid_list_buffer(*out_gtid_count)) && *out_gtid_count > 0) ||
-      current_state.get_gtid_list(gtid_list, *out_gtid_count))
+      current_state.get_gtid_list_nolock(gtid_list, *out_gtid_count))
     return -1;
 
   return 1;
