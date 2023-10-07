@@ -1581,7 +1581,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   String packet;
   Format_description_log_event *fdev= NULL;
   bool found_in_index;
-  uint32 start_seek;
+  uint32 UNINIT_VAR(start_seek);
   bool seek_done= false;
 
   /*
