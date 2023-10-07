@@ -348,8 +348,15 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
   Spvar_definition *def;
   while ((def= it++))
   {
+    // e.g. DECLARE a TYPE OF t1.col1
     if (def->is_column_type_ref() &&
         def->column_type_ref()->resolve_type_ref(thd, def))
+      return true;
+    // e.g.: DECLARE a TYPE OF t1.col1 ARRAY[2]
+    if (def->is_array() &&
+        def->array_definition()->is_column_type_ref() &&
+        def->array_definition()->column_type_ref()->
+          resolve_type_ref(thd, def->array_definition()))
       return true;
   }
   return false;
@@ -393,6 +400,18 @@ Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
 }
 
 
+Item_field_array *Spvar_definition::make_item_field_array(THD *thd,
+                                                          Field_array *field)
+{
+  DBUG_ASSERT(is_array());
+  Item_field_array *item= new (thd->mem_root) Item_field_array(thd, field);
+  if (!item ||
+      item->array_create_items(thd, *array_definition()))
+    return NULL;
+  return item;
+}
+
+
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -414,8 +433,11 @@ bool sp_rcontext::init_var_items(THD *thd,
   {
     Field *field= m_var_table->field[idx];
     Field_row *field_row= dynamic_cast<Field_row*>(field);
+    Field_array *field_array= dynamic_cast<Field_array*>(field);
     if (!(m_var_items[idx]= field_row ?
                             def->make_item_field_row(thd, field_row) :
+                            field_array ?
+                            def->make_item_field_array(thd, field_array) :
                             new (thd->mem_root) Item_field(thd, field)))
       return true;
   }
@@ -427,6 +449,14 @@ bool Field_row::row_create_fields(THD *thd, List<Spvar_definition> *list)
 {
   DBUG_ASSERT(!m_table);
   return !(m_table= create_virtual_tmp_table(thd, *list));
+}
+
+
+bool Field_array::array_create_fields(THD *thd,
+                                      const Spvar_definition_array &def)
+{
+  DBUG_ASSERT(!m_table);
+  return !(m_table= create_virtual_tmp_table_for_array(thd, def));
 }
 
 
@@ -445,6 +475,31 @@ bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
     return true;
 
   for (arg_count= 0; arg_count < list->elements; arg_count++)
+  {
+    if (!(args[arg_count]= new (thd->mem_root)
+                           Item_field(thd, ptable[0]->field[arg_count])))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_field_array::array_create_items(THD *thd,
+                                          const Spvar_definition_array &array)
+{
+  DBUG_ASSERT(array.cardinality());
+  DBUG_ASSERT(field);
+  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  DBUG_ASSERT(!ptable[0]);
+  if (!(ptable[0]= create_virtual_tmp_table_for_array(thd, array)))
+    return true;
+
+  DBUG_ASSERT(ptable[0]->s->fields == array.cardinality());
+  if (alloc_arguments(thd, array.cardinality()))
+    return true;
+
+  for (arg_count= 0; arg_count < array.cardinality(); arg_count++)
   {
     if (!(args[arg_count]= new (thd->mem_root)
                            Item_field(thd, ptable[0]->field[arg_count])))
@@ -664,13 +719,14 @@ int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
 }
 
 
-int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
-                                        Item **value)
+int sp_rcontext::set_variable_container_element(THD *thd,
+                                                uint var_idx, uint element_idx,
+                                                Item **value)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row_field");
   DBUG_ASSERT(value);
   Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
-  DBUG_RETURN(thd->sp_eval_expr(vtable->field[field_idx], value));
+  DBUG_RETURN(thd->sp_eval_expr(vtable->field[element_idx], value));
 }
 
 
@@ -682,7 +738,7 @@ int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
   uint field_idx;
   if (find_row_field_by_name_or_error(&field_idx, var_idx, field_name))
     DBUG_RETURN(1);
-  DBUG_RETURN(set_variable_row_field(thd, var_idx, field_idx, value));
+  DBUG_RETURN(set_variable_container_element(thd, var_idx, field_idx, value));
 }
 
 

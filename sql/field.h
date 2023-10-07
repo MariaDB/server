@@ -51,6 +51,7 @@ class Qualified_column_ident;
 class Table_ident;
 class SEL_ARG;
 class RANGE_OPT_PARAM;
+class Spvar_definition_array;
 struct KEY_PART;
 struct SORT_FIELD;
 struct SORT_FIELD_ATTR;
@@ -5171,21 +5172,17 @@ public:
 };
 
 
-class Field_row final :public Field_null
+class Field_container: public Field_null
 {
+protected:
   class Virtual_tmp_table *m_table;
 public:
-  Field_row(uchar *ptr_arg, const LEX_CSTRING *field_name_arg)
-    :Field_null(ptr_arg, 0, Field::NONE, field_name_arg, &my_charset_bin),
-     m_table(NULL)
-    {}
-  ~Field_row();
+  Field_container(uchar *ptr_arg, const LEX_CSTRING *field_name_arg)
+   :Field_null(ptr_arg, 0, Field::NONE, field_name_arg, &my_charset_bin),
+    m_table(NULL)
+   {}
+  ~Field_container();
   uint cols() const override;
-  const Type_handler *type_handler() const override
-  {
-    return &type_handler_row;
-  }
-  void sql_type(String &str) const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
   {
     DBUG_ASSERT(0);
@@ -5199,8 +5196,37 @@ public:
     return CONV_TYPE_IMPOSSIBLE;
   }
   Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
-  bool row_create_fields(THD *thd, List<Spvar_definition> *list);
   bool sp_prepare_and_store_item(THD *thd, Item **value);
+};
+
+
+class Field_row final :public Field_container
+{
+public:
+  Field_row(uchar *ptr_arg, const LEX_CSTRING *field_name_arg)
+   :Field_container(ptr_arg, field_name_arg)
+  {}
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_row;
+  }
+  void sql_type(String &str) const override;
+  bool row_create_fields(THD *thd, List<Spvar_definition> *list);
+};
+
+
+class Field_array final :public Field_container
+{
+public:
+  Field_array(uchar *ptr_arg, const LEX_CSTRING *field_name_arg)
+   :Field_container(ptr_arg, field_name_arg)
+  {}
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_array;
+  }
+  void sql_type(String &str) const override;
+  bool array_create_fields(THD *thd, const Spvar_definition_array &def);
 };
 
 
@@ -5641,13 +5667,15 @@ class Spvar_definition: public Column_definition
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
+  Spvar_definition_array *m_array_definition;      // for ARRAY
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    m_array_definition(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
    :Column_definition(thd, field, NULL),
@@ -5655,7 +5683,26 @@ public:
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    m_array_definition(NULL)
+  { }
+  Spvar_definition(const Column_definition &cdef)
+   :Column_definition(cdef),
+    m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
+    m_row_field_definitions(NULL),
+    m_array_definition(NULL)
+  { }
+  Spvar_definition(const Qualified_column_ident *type_ref)
+   :Column_definition(),
+    m_column_type_ref(type_ref),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
+    m_row_field_definitions(NULL),
+    m_array_definition(NULL)
   { }
   const Type_handler *type_handler() const
   {
@@ -5701,6 +5748,21 @@ public:
     m_cursor_rowtype_offset= offset;
   }
 
+  bool is_array() const
+  {
+    return m_array_definition != NULL;
+  }
+  Spvar_definition_array *array_definition() const
+  {
+    return m_array_definition;
+  }
+  void set_array_definition(Spvar_definition_array *def)
+  {
+    DBUG_ASSERT(def);
+    set_handler(&type_handler_array);
+    m_array_definition= def;
+  }
+
   /*
     Find a ROW field by name.
     See Row_field_list::find_row_field_by_name() for details.
@@ -5732,6 +5794,67 @@ public:
   }
 
   class Item_field_row *make_item_field_row(THD *thd, Field_row *field);
+  class Item_field_array *make_item_field_array(THD *thd, Field_array *field);
+};
+
+
+/*
+  The number of elements in an ARRAY.
+*/
+class Cardinality
+{
+protected:
+  uint m_cardinality;
+public:
+  Cardinality()
+   :m_cardinality(0)
+  { }
+  Cardinality(uint nr)
+   :m_cardinality(nr)
+  { }
+  uint cardinality() const
+  {
+    return m_cardinality;
+  }
+  void print_array_type_suffix(String &result) const
+  {
+    result.append(STRING_WITH_LEN(" ARRAY ["));
+    result.append_longlong(m_cardinality);
+    result.append(']');
+  }
+  /*
+    Convert an index value:
+    - from the SQL format [1..m_cardinality]
+    - to the C language format [0..(m_cardinality-1)]
+    with NULL check and the range check.
+
+    @param name      - The name of the variable/field, for errors.
+    @param nr        - The SQL-format index to convert to.
+    @param [OUT] idx - The C-format index is returned here.
+
+    @returns false   - The conversion went fine.
+                       idx[0] was set to the C-format index.
+    @returns true    - The conversion failed because the value
+                       was either SQL NULL or was out of the valid
+                       range [1..m_cardinality].
+                       idx[0] was set to 0, and an error was riased in DA.
+  */
+  bool to_c_index_with_error(const LEX_CSTRING &name,
+                             const Longlong_hybrid_null &nr,
+                             uint *idx) const;
+};
+
+
+class Spvar_definition_array: public Spvar_definition,
+                              public Cardinality
+{
+public:
+  Spvar_definition_array(const Column_definition &def, uint cardinality)
+   :Spvar_definition(def), Cardinality(cardinality)
+  { }
+  Spvar_definition_array(const Qualified_column_ident *ref, uint cardinality)
+   :Spvar_definition(ref), Cardinality(cardinality)
+  { }
 };
 
 

@@ -1,0 +1,1665 @@
+#
+# MDEV-32380 Array data type for stored routnes
+#
+#
+# ARRAY of ARRAYs is not supported yet
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2] ARRAY[2];
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ARRAY[2];
+END' at line 3
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE b TYPE OF a ARRAY[2];
+END;
+$$
+ERROR HY000: Illegal parameter data type 'TYPE OF <array-variable>' for operation 'ARRAY []'
+#
+# ARRAY of ROWs is not supported yet
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a ROW(a INT,b INT) ARRAY[2];
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ARRAY[2];
+END' at line 3
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c;
+BEGIN
+DECLARE a ROW TYPE OF c ARRAY[2];
+END;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ARRAY[2];
+END;
+END' at line 5
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c;
+BEGIN
+DECLARE a ROW TYPE OF cur;
+DECLARE b TYPE OF a ARRAY[2];
+END;
+END;
+$$
+ERROR HY000: Illegal parameter data type 'TYPE OF <cursor-row-variable>' for operation 'ARRAY []'
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a ROW TYPE OF t1 ARRAY[2];
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ARRAY[2];
+END' at line 3
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a ROW TYPE OF t1;
+DECLARE b TYPE OF a ARRAY[2];
+END;
+$$
+ERROR HY000: Illegal parameter data type 'TYPE OF <table-row-variable>' for operation 'ARRAY []'
+DROP TABLE t1;
+#
+# ROW with ARRAYs is not supported yet
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a ROW(a INT,b INT ARRAY[2]);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ARRAY[2]);
+END' at line 3
+#
+# Out of range basic constant index
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT a[0];
+END;
+$$
+ERROR 2202E: ARRAY index a[0] out of bounds [1..2]
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT a[3];
+END;
+$$
+ERROR 2202E: ARRAY index a[3] out of bounds [1..2]
+#
+# Out of range expression index
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE idx INT DEFAULT 0;
+SELECT a[idx];
+END;
+$$
+CALL p1;
+ERROR 2202E: ARRAY index a[0] out of bounds [1..2]
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE idx INT DEFAULT 3;
+SELECT a[idx];
+END;
+$$
+CALL p1;
+ERROR 2202E: ARRAY index a[3] out of bounds [1..2]
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE idx INT DEFAULT 3;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '2202E' BEGIN SET @error= TRUE; END;
+SET @error= FALSE;
+SELECT a[idx];
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
+#
+# Bad combinations of subscript subject and index
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE b INT;
+SELECT b[a];
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation '[]'
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT a[ROW(1,1)];
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '[]'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE b INT;
+SELECT a[b][b];
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '[b];
+END' at line 5
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+DECLARE b INT;
+SELECT (a[b])[b];
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a ROW(a INT, b INT);
+SELECT a.b[1];
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a ROW TYPE OF t1;
+SELECT a.b[1];
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a;
+SELECT a.b[1];
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+SELECT rec[a] FROM t1;
+END;
+$$
+ERROR HY000: '`a`' is not allowed in this context
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+SELECT rec[MAX(1)] FROM t1;
+END;
+$$
+ERROR HY000: 'max(1)' is not allowed in this context
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+SELECT rec[(SELECT 1 FROM t1)];
+END;
+$$
+ERROR HY000: '(select 1 from `test`.`t1`)' is not allowed in this context
+DROP TABLE t1;
+#
+# Variable index
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+DECLARE idx INT DEFAULT 0;
+SET a[idx]= 11;
+END;
+$$
+CALL p1;
+ERROR 2202E: ARRAY index a[0] out of bounds [1..3]
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+DECLARE idx INT DEFAULT 4;
+SET a[idx]= 11;
+END;
+$$
+CALL p1;
+ERROR 2202E: ARRAY index a[4] out of bounds [1..3]
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+FOR idx IN 1..3 DO
+SELECT a[idx];
+END FOR;
+END;
+$$
+CALL p1;
+a[idx]
+10
+a[idx]
+20
+a[idx]
+30
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2];
+DECLARE idx INT DEFAULT 1;
+SET var[idx]= 1;
+SELECT idx, var[idx];
+SET idx=2;
+SET var[idx]= 1;
+SELECT idx, var[idx];
+END;
+$$
+CALL p1;
+idx	var[idx]
+1	1
+idx	var[idx]
+2	1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+FOR idx IN 1..3 DO
+SET a[idx]= a[idx]+idx;
+END FOR;
+FOR idx IN 1..3 DO
+SELECT a[idx];
+END FOR;
+END;
+$$
+CALL p1;
+a[idx]
+11
+a[idx]
+22
+a[idx]
+33
+DROP PROCEDURE p1;
+#
+# Nested index
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a1 INT ARRAY [2] DEFAULT ARRAY[10,20];
+DECLARE a2 INT ARRAY [2] DEFAULT ARRAY[1,2];
+DECLARE a3 INT ARRAY [2] DEFAULT ARRAY[1,2];
+SELECT a1[a2[1]], a1[a2[2]];
+SELECT a1[a2[a3[1]]], a1[a2[a3[2]]];
+EXPLAIN EXTENDED SELECT a1[a2[a3[1]]], a1[a2[a3[2]]];
+SHOW WARNINGS;
+SELECT a1[a2[a3[COALESCE(1,1)]]], a1[a2[a3[COALESCE(2,2)]]];
+EXPLAIN EXTENDED SELECT a1[a2[a3[COALESCE(1,1)]]], a1[a2[a3[COALESCE(2,2)]]];
+END;
+$$
+CALL p1;
+a1[a2[1]]	a1[a2[2]]
+10	20
+a1[a2[a3[1]]]	a1[a2[a3[2]]]
+10	20
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select a1@0[a2@1[a3@2[1]]] AS `a1[a2[a3[1]]]`,a1@0[a2@1[a3@2[2]]] AS `a1[a2[a3[2]]]`
+a1[a2[a3[COALESCE(1,1)]]]	a1[a2[a3[COALESCE(2,2)]]]
+10	20
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select a1@0[a2@1[a3@2[coalesce(1,1)]]] AS `a1[a2[a3[COALESCE(1,1)]]]`,a1@0[a2@1[a3@2[coalesce(2,2)]]] AS `a1[a2[a3[COALESCE(2,2)]]]`
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a1 INT ARRAY [2] DEFAULT ARRAY[10,20];
+DECLARE a2 INT ARRAY [2] DEFAULT ARRAY[1,2];
+DECLARE a3 INT ARRAY [2] DEFAULT ARRAY[1,2];
+DECLARE i1 INT DEFAULT 1;
+DECLARE i2 INT DEFAULT 2;
+SELECT a1[a2[i1]], a1[a2[i2]];
+SELECT a1[a2[a3[i1]]], a1[a2[a3[i2]]];
+EXPLAIN EXTENDED SELECT a1[a2[a3[i1]]], a1[a2[a3[i2]]];
+SHOW WARNINGS;
+SELECT a1[a2[a3[COALESCE(i1,1)]]], a1[a2[a3[COALESCE(i2,1)]]];
+EXPLAIN EXTENDED SELECT a1[a2[a3[COALESCE(i1,1)]]], a1[a2[a3[COALESCE(i2,2)]]];
+END;
+$$
+CALL p1;
+a1[a2[i1]]	a1[a2[i2]]
+10	20
+a1[a2[a3[i1]]]	a1[a2[a3[i2]]]
+10	20
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select a1@0[a2@1[a3@2[i1@3]]] AS `a1[a2[a3[i1]]]`,a1@0[a2@1[a3@2[i2@4]]] AS `a1[a2[a3[i2]]]`
+a1[a2[a3[COALESCE(i1,1)]]]	a1[a2[a3[COALESCE(i2,1)]]]
+10	20
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select a1@0[a2@1[a3@2[coalesce(i1@3,1)]]] AS `a1[a2[a3[COALESCE(i1,1)]]]`,a1@0[a2@1[a3@2[coalesce(i2@4,2)]]] AS `a1[a2[a3[COALESCE(i2,2)]]]`
+DROP PROCEDURE p1;
+#
+# PS parameter index
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a1 INT ARRAY [2] DEFAULT ARRAY[10,20];
+EXECUTE IMMEDIATE 'SELECT a1[?]' USING 1;
+END;
+$$
+CALL p1;
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+DROP PROCEDURE p1;
+#
+# User variables in index
+# 
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[6] DEFAULT ARRAY[1,2,3,4,5,6];
+SET @a= 0;
+SELECT rec[@a:=@a+1];
+SELECT @a;
+END;
+$$
+CALL p1;
+rec[@a:=@a+1]
+1
+@a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Stored functions index
+#
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+BEGIN NOT ATOMIC
+DECLARE a INT ARRAY[2];
+SET a[f1(1)]= 100;
+SET a[f1(2)]= 200;
+SELECT a[1], a[2];
+END;
+$$
+a[1]	a[2]
+100	200
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS INT RETURN 2;
+BEGIN NOT ATOMIC
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[100,200];
+SELECT a[f1()];
+END;
+$$
+a[f1()]
+200
+DROP FUNCTION f1;
+#
+# Subquery index in SET target
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+SET rec[(SELECT MIN(a) FROM t1)]= 100;
+SET rec[(SELECT MAX(a) FROM t1)]= 200;
+SELECT rec[1], rec[2];
+END;
+$$
+CALL p1;
+rec[1]	rec[2]
+100	200
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Stored function as an assignment source
+#
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+BEGIN NOT ATOMIC
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[0,0];
+SET a[1]= f1(100);
+SET a[2]= f1(200);
+SELECT a[1], a[2];
+END;
+$$
+a[1]	a[2]
+100	200
+DROP FUNCTION f1;
+#
+# Subquery as an assignment source
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (100),(200);
+BEGIN NOT ATOMIC
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[0,0];
+SET rec[1]= (SELECT MIN(a) FROM t1);
+SET rec[2]= (SELECT MAX(a) FROM t1);
+SELECT rec[1], rec[2];
+END;
+$$
+rec[1]	rec[2]
+100	200
+DROP TABLE t1;
+#
+# Truncation
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a VARCHAR(10) ARRAY[2];
+SET a[1]= '01234567890';
+END;
+$$
+CALL p1;
+ERROR 22001: Data too long for column 'a' at row 0
+SET sql_mode='';
+CALL p1;
+ERROR 22001: Data too long for column 'a' at row 0
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a VARCHAR(10) ARRAY[2] DEFAULT ARRAY['','01234567890'];
+SET a[1]= '01234567890';
+END;
+$$
+CALL p1;
+ERROR 22001: Data too long for column 'a' at row 0
+SET sql_mode='';
+CALL p1;
+ERROR 22001: Data too long for column 'a' at row 0
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+#
+# Returning the entire ARRAY parameter from a scalar function
+#
+CREATE FUNCTION f1(a INT ARRAY[2]) RETURNS INT
+BEGIN
+RETURN a;
+END;
+$$
+SELECT f1(ROW(10,20));
+ERROR HY000: Cannot cast 'row' as 'array' in assignment of `a`
+DROP FUNCTION f1;
+#
+# Returning a scalar value from an ARRAY type function
+#
+CREATE FUNCTION f1(a INT) RETURNS INT ARRAY[2]
+BEGIN
+RETURN a;
+END;
+$$
+SELECT f1(10);
+ERROR 21000: Operand should contain 1 column(s)
+DROP FUNCTION f1;
+#
+# ARRAY as an SP parameter
+#
+CREATE FUNCTION f1(a INT ARRAY[2]) RETURNS INT
+BEGIN
+RETURN a[1];
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[11,21];
+SELECT f1(a);
+END;
+$$
+SELECT f1(ARRAY[10,20]);
+f1(ARRAY[10,20])
+10
+SELECT f1(10);
+ERROR HY000: Cannot cast 'int' as 'array' in assignment of `a`
+SELECT f1(ARRAY[10,20,30]);
+ERROR 21000: Operand should contain 2 column(s)
+CALL p1();
+f1(a)
+11
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(a INT ARRAY[2])
+BEGIN
+SELECT a[1], a[2];
+END;
+$$
+CALL p1(ARRAY[10,20]);
+a[1]	a[2]
+10	20
+CALL p1(10);
+ERROR HY000: Cannot cast 'int' as 'array' in assignment of `a`
+CALL p1(ARRAY[10,20,30]);
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# ARRAY as an SP OUT parameter
+#
+CREATE PROCEDURE p1(OUT a INT ARRAY[2])
+BEGIN
+SET a[1]=10;
+SET a[2]=20;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[11,21];
+CALL p1(a);
+SELECT a[1], a[2];
+END;
+$$
+CALL p2();
+a[1]	a[2]
+10	20
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# ARRAY elements as SP out parameters
+#
+CREATE PROCEDURE p1(OUT a INT, OUT b VARCHAR(32))
+BEGIN
+SET a= 10;
+SET b= 'test';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE a1 INT ARRAY[2];
+DECLARE a2 VARCHAR(10) ARRAY[2];
+CALL p1(a1[1], a2[1]);
+SELECT a1[1], a2[1];
+END;
+$$
+CALL p2;
+a1[1]	a2[1]
+10	test
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
+# ARRAY elements as dynamic SQL out parameters
+#
+CREATE PROCEDURE p1(OUT a INT, OUT b VARCHAR(32))
+BEGIN
+SET a= 20;
+SET b= 'test-dynamic-sql';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE a1 INT ARRAY[2];
+DECLARE a2 VARCHAR(30) ARRAY[2];
+EXECUTE IMMEDIATE 'CALL p1(?,?)' USING a1[1], a2[1];
+SELECT a1[1], a2[1];
+END;
+$$
+CALL p2;
+a1[1]	a2[1]
+20	test-dynamic-sql
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
+# Bad scalar default value
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2] DEFAULT 1;
+SELECT a.a;
+END;
+$$
+CALL p1();
+ERROR HY000: Cannot cast 'int' as 'array' in assignment of `a`
+DROP PROCEDURE p1;
+#
+# Bad ARRAY default value with a wrong number of fields
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[1,2,3];
+SELECT a[1];
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# Using the entire ARRAY variable in select list
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT a;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+#
+# Using the entire ARRAY variable in functions
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT COALESCE(a);
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[1];
+SELECT a+1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types array and int for operation '+'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT a+1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types array and int for operation '+'
+DROP PROCEDURE p1;
+BEGIN NOT ATOMIC
+DECLARE a INT ARRAY[1];
+SELECT 1 LIKE 2 ESCAPE a;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+BEGIN NOT ATOMIC
+DECLARE a INT ARRAY[2];
+SELECT 1 LIKE 2 ESCAPE a;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Comparing the entire ARRAY to a scalar value
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[1];
+SELECT a=1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types array and int for operation '='
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT a=1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types array and int for operation '='
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT 1=a;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types int and array for operation '='
+DROP PROCEDURE p1;
+#
+# Passing the entire ARRAY to a stored function
+#
+CREATE FUNCTION f1(a INT) RETURNS INT
+BEGIN
+RETURN a;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT f1(a);
+END;
+$$
+CALL p1();
+ERROR HY000: Cannot cast 'array' as 'int' in assignment of `a`
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURNS INT
+BEGIN
+RETURN a;
+END;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2];
+SELECT f1(a);
+END;
+$$
+CALL p1();
+ERROR HY000: Cannot cast 'array' as 'int' in assignment of `a`
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+#
+# Assigning a scalar value to a ARRAY variable with 1 column
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[1];
+SET rec=1;
+END;
+$$
+CALL p1();
+ERROR HY000: Cannot cast 'int' as 'array' in assignment of `rec`
+DROP PROCEDURE p1;
+#
+# Assigning a scalar value to a ARRAY variable with 2 columns
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+SET rec=1;
+END;
+$$
+CALL p1();
+ERROR HY000: Cannot cast 'int' as 'array' in assignment of `rec`
+DROP PROCEDURE p1;
+#
+# Assigning an ARRAY value to an ARRAY variable with different number of columns
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+SET rec=ARRAY[1,2,3];
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# Returning the entire ARRAY from a function
+#
+CREATE FUNCTION f1(a INT) RETURNS INT ARRAY[2]
+BEGIN
+DECLARE res INT ARRAY[2] DEFAULT ARRAY[a,a];
+RETURN res;
+END;
+$$
+SELECT f1(10)[1];
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+SELECT f1(10)=f1(10);
+f1(10)=f1(10)
+1
+SELECT f1(10)=ARRAY[10,10];
+f1(10)=ARRAY[10,10]
+1
+DROP FUNCTION f1;
+CREATE FUNCTION p1() RETURNS INT ARRAY[2]
+BEGIN
+RETURN NULL;
+END;
+$$
+SHOW CREATE FUNCTION p1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `p1`() RETURNS int(11) ARRAY [2]
+BEGIN
+RETURN NULL;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT p1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT p1()=ARRAY[NULL,NULL];
+p1()=ARRAY[NULL,NULL]
+NULL
+SELECT p1()<=>ARRAY[NULL,NULL];
+p1()<=>ARRAY[NULL,NULL]
+1
+DROP FUNCTION p1;
+CREATE FUNCTION f1(a INT, b INT) RETURNS INT ARRAY[2]
+BEGIN
+RETURN ARRAY[a,b];
+END;
+$$
+SELECT f1(1,1) = ARRAY[1,1];
+f1(1,1) = ARRAY[1,1]
+1
+SELECT f1(1,1) = ARRAY[2,1];
+f1(1,1) = ARRAY[2,1]
+0
+SELECT f1(1,1) = ARRAY[1,2];
+f1(1,1) = ARRAY[1,2]
+0
+SELECT f1(1,1) = ARRAY[1,NULL];
+f1(1,1) = ARRAY[1,NULL]
+NULL
+SELECT f1(1,NULL) = ARRAY[1,2];
+f1(1,NULL) = ARRAY[1,2]
+NULL
+SELECT f1(1,NULL) = ARRAY[1,NULL];
+f1(1,NULL) = ARRAY[1,NULL]
+NULL
+SELECT f1(1,NULL) <=> ARRAY[1,NULL];
+f1(1,NULL) <=> ARRAY[1,NULL]
+1
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a TEXT ARRAY[3]) RETURNS TEXT ARRAY[3]
+BEGIN
+RETURN ARRAY[CONCAT(a[1],'xa'),CONCAT(a[2],'xb'),CONCAT(a[3],'xc')];
+END;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TEXT ARRAY[3] DEFAULT f1(ARRAY['a1','b1','c1']);
+SELECT a[1], a[2], a[3];
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(a TEXT ARRAY[3]) RETURNS text CHARSET latin1 COLLATE latin1_swedish_ci ARRAY [3]
+BEGIN
+RETURN ARRAY[CONCAT(a[1],'xa'),CONCAT(a[2],'xb'),CONCAT(a[3],'xc')];
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+CALL p1;
+a[1]	a[2]	a[3]
+a1xa	b1xb	c1xc
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+CREATE FUNCTION f1(a TEXT CHARACTER SET latin1 COLLATE latin1_bin ARRAY[3])
+RETURNS TEXT CHARACTER SET latin1 COLLATE latin1_bin ARRAY[3]
+RETURN ARRAY[CONCAT(a[1],'xa'),CONCAT(a[2],'xb'),CONCAT(a[3],'xc')];
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(a TEXT CHARACTER SET latin1 COLLATE latin1_bin ARRAY[3]) RETURNS text CHARSET latin1 COLLATE latin1_bin ARRAY [3]
+RETURN ARRAY[CONCAT(a[1],'xa'),CONCAT(a[2],'xb'),CONCAT(a[3],'xc')]	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_NAME='f1';
+DATA_TYPE	DTD_IDENTIFIER
+ARRAY	ARRAY
+SELECT returns FROM mysql.proc WHERE name='f1';
+returns
+text CHARSET latin1 COLLATE latin1_bin ARRAY [3]
+DROP FUNCTION f1;
+#
+# Using the entire ARRAY in CREATE..SELECT
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+CREATE TABLE t1 AS SELECT rec;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+#
+# Using the entire ARRAY in INSERT..SELECT
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[100,200];
+INSERT INTO t1 SELECT rec FROM DUAL;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Using the entire ARRAY in LIMIT
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[1];
+SET rec[1]= '10';
+SELECT * FROM t1 LIMIT rec;
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[10,20];
+SELECT * FROM t1 LIMIT rec;
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+#
+# The entire ARRAY in HAVING
+#
+CREATE TABLE t1 (a INT);
+BEGIN NOT ATOMIC
+DECLARE a INT ARRAY[2];
+SELECT * FROM t1 HAVING a;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+DROP TABLE t1;
+#
+# Setting ARRAY elements using a SET command
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[3];
+DECLARE a INT;
+SET @a= 1, rec[1]=10, rec[2]=20, rec[3]= 30, a= 5;
+SELECT @a, rec[1], rec[2], rec[3], a;
+END;
+$$
+CALL p1();
+@a	rec[1]	rec[2]	rec[3]	a
+1	10	20	30	5
+DROP PROCEDURE p1;
+#
+# Assigning an ARRAY variable from an ARRAY value
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+SET rec=ARRAY[10,20];
+SELECT rec[1], rec[2];
+END;
+$$
+CALL p1();
+rec[1]	rec[2]
+10	20
+DROP PROCEDURE p1;
+#
+# Assigning an ARRAY variable from another ARRAY variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var1 INT ARRAY[2];
+DECLARE var2 INT ARRAY[2];
+SET var1=ARRAY[1,2];
+SET var2=var1;
+SELECT var2[1], var2[2];
+END;
+$$
+CALL p1();
+var2[1]	var2[2]
+1	2
+DROP PROCEDURE p1;
+#
+# Comparing an ARRAY variable to a ARRAY constructor
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2];
+SET var[1]= 1;
+SET var[2]= 2;
+SELECT var=ARRAY[0,0], ARRAY[0,0]=var;
+SELECT var=ARRAY[1,2], ARRAY[1,2]=var;
+#TODO
+#  SELECT var=(NULL,0), var=ARRAY[NULL,0);
+#  SELECT var=(NULL,2), var=ARRAY[NULL,2);
+#  SELECT var<>(0,0), var<>ARRAY[0,0);
+#  SELECT var<>(1,2), var<>ARRAY[1,2);
+#  SELECT var<>(NULL,0), var<>ARRAY[NULL,0);
+#  SELECT var<>(NULL,2), var<>ARRAY[NULL,2);
+#  SELECT var IN ((0,0)), var IN (ARRAY[0,0));
+#  SELECT var IN ((1,2)), var IN (ARRAY[1,2));
+#  SELECT var IN ((0,NULL),(1,2));
+#  SELECT var NOT IN ((0,NULL),(1,1));
+#  SELECT var NOT IN ((1,NULL),(1,1));
+END;
+$$
+CALL p1();
+var=ARRAY[0,0]	ARRAY[0,0]=var
+0	0
+var=ARRAY[1,2]	ARRAY[1,2]=var
+1	1
+DROP PROCEDURE p1;
+#
+# Comparing an ARRAY variable to another ARRAY variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var1,var2,var3 INT ARRAY[2];
+SET var1[1]= 1;
+SET var1[2]= 2;
+SET var2[1]= 11;
+SET var2[2]= 12;
+SET var3[1]= 11;
+SET var3[2]= 12;
+SELECT var1=var2, var2=var1, var2=var3, var3=var2;
+END;
+$$
+CALL p1();
+var1=var2	var2=var1	var2=var3	var3=var2
+0	0	1	1
+DROP PROCEDURE p1;
+#
+# Referencing a non-existing array variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+SET a[1]=1;
+END;
+$$
+ERROR 42000: Undeclared variable: a
+#
+# ARRAY and scalar variables with the same name shadowing each other
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[100,200];
+SELECT a[1], a[2];
+BEGIN
+DECLARE a INT DEFAULT 200;
+SELECT a;
+BEGIN
+DECLARE a INT ARRAY[2];
+SET a[1]=110, a[2]=210;
+SELECT a[1], a[2];
+END;
+SELECT a;
+END;
+SELECT a[1];
+END;
+$$
+CALL p1();
+a[1]	a[2]
+100	200
+a
+200
+a[1]	a[2]
+110	210
+a
+200
+a[1]
+100
+DROP PROCEDURE p1;
+#
+# Arrays with good default values
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[2] DEFAULT ARRAY[10,20];
+DECLARE b INT ARRAY[2] DEFAULT ARRAY[11,21];
+DECLARE c INT ARRAY[2] DEFAULT a;
+SELECT a[1], a[2], b[1], b[2], c[1], c[2];
+END;
+$$
+CALL p1;
+a[1]	a[2]	b[1]	b[2]	c[1]	c[2]
+10	20	11	21	10	20
+DROP PROCEDURE p1;
+#
+# ARRAY in WHERE clause
+#
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2] DEFAULT ARRAY[10,20];
+SELECT * FROM t1 WHERE var=ARRAY[a,b];
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE var=ARRAY[a,b];
+SHOW WARNINGS;
+SELECT * FROM t1 WHERE ARRAY[a,b]=var;
+SELECT * FROM t1 WHERE var=ARRAY[10,20];
+SELECT * FROM t1 WHERE ARRAY[10,20]=var;
+END;
+$$
+CALL p1();
+a	b
+10	20
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Level	Code	Message
+Note	1003	select 10 AS `a`,20 AS `b` from dual where 1
+a	b
+10	20
+a	b
+10	20
+a	b
+10	20
+INSERT INTO t1 VALUES (10,20);
+CALL p1();
+a	b
+10	20
+10	20
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Level	Code	Message
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from dual where <cache>(var@0) = ARRAY[`test`.`t1`.`a`,`test`.`t1`.`b`]
+a	b
+10	20
+10	20
+a	b
+10	20
+10	20
+a	b
+10	20
+10	20
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ARRAY elements in WHERE clause
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2];
+SET var[1]= 10;
+SELECT * FROM t1 WHERE a=var[1];
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=var[1];
+END;
+$$
+CALL p1();
+a
+10
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(var@0[1])
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ARRAY elements in HAVING clause
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2];
+SET var[1]= 10;
+SELECT * FROM t1 HAVING a=var[1];
+SELECT * FROM t1 HAVING MIN(a)=var[1];
+END;
+$$
+CALL p1();
+a
+10
+a
+10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ARRAY elements in LIMIT clause
+#
+CREATE TABLE t1 (a INT);
+SELECT 1 FROM t1 LIMIT t1[1];
+ERROR 42000: Undeclared variable: t1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[1];
+SET var[1]= 1;
+SELECT * FROM t1 LIMIT var[1];
+END;
+$$
+CALL p1;
+a
+10
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2];
+DECLARE idx INT DEFAULT 1;
+SET var[idx]= 1;
+SELECT idx, var[idx];
+SELECT * FROM t1 LIMIT var[idx];
+SET idx= 2;
+SET var[idx]= 2;
+SELECT idx, var[idx];
+SELECT * FROM t1 LIMIT var[idx];
+END;
+$$
+CALL p1;
+idx	var[idx]
+1	1
+a
+10
+idx	var[idx]
+2	2
+a
+10
+20
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var VARCHAR(10) ARRAY[2];
+SET var[1]= '10';
+SELECT * FROM t1 LIMIT var[1];
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE var INT ARRAY[2] DEFAULT ARRAY[1,2];
+SELECT * FROM t1 LIMIT var[1];
+SELECT * FROM t1 LIMIT var[2];
+END;
+$$
+CALL p1;
+a
+10
+a
+10
+20
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# ARRAY elements in select list
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE t1 INT ARRAY[1];
+SET t1[1]= 10;
+SELECT t1[1] AS col1 FROM t1;
+SELECT t1[1] FROM t1;
+END;
+$$
+CALL p1();
+col1
+10
+10
+t1[1]
+10
+10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ARRAY fields as insert values
+#
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec VARCHAR(10) ARRAY[2];
+SET rec[1]= 'testA';
+SET rec[2]= 'testB';
+INSERT INTO t1 VALUES (rec[1], rec[1]);
+END;
+$$
+CALL p1();
+SELECT * FROM t1;
+a	b
+testA	testA
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Array elements in CREATE..SELECT
+#
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+CREATE PROCEDURE p1(offs INT)
+BEGIN
+DECLARE rec INT ARRAY[3] DEFAULT ARRAY[100,200,300];
+CREATE TABLE t1 AS SELECT rec[1], rec[2] FROM DUAL;
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT rec[1+offs], rec[2+offs] FROM DUAL;
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT rec[1+f1(offs)], rec[2+f1(offs)] FROM DUAL;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1(0);
+rec[1]	rec[2]
+100	200
+rec[1+offs]	rec[2+offs]
+100	200
+rec[1+f1(offs)]	rec[2+f1(offs)]
+100	200
+CALL p1(1);
+rec[1]	rec[2]
+100	200
+rec[1+offs]	rec[2+offs]
+200	300
+rec[1+f1(offs)]	rec[2+f1(offs)]
+200	300
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+#
+# Array elements in INSERT..SELECT
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+CREATE PROCEDURE p1(offs INT)
+BEGIN
+DECLARE rec INT ARRAY[3] DEFAULT ARRAY[100,200,300];
+INSERT INTO t1 SELECT rec[1], rec[2] FROM DUAL;
+INSERT INTO t1 SELECT rec[1+offs], rec[2+offs] FROM DUAL;
+INSERT INTO t1 SELECT rec[1+f1(offs)], rec[2+f1(offs)] FROM DUAL;
+END;
+$$
+CALL p1(0);
+SELECT * FROM t1;
+a	b
+100	200
+100	200
+100	200
+CALL p1(1);
+SELECT * FROM t1;
+a	b
+100	200
+100	200
+100	200
+100	200
+200	300
+200	300
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# ARRAY and ARRAY elements as SELECT..INTO targets
+#
+# A working example: INT
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+SELECT 10,20 INTO rec[1],rec[2];
+SELECT rec[1], rec[2];
+END;
+$$
+CALL p1;
+rec[1]	rec[2]
+10	20
+DROP PROCEDURE p1;
+# A working example: VARCHAR
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec VARCHAR(10) ARRAY[2];
+SELECT 't10','t20' INTO rec[1],rec[2];
+SELECT rec[1], rec[2];
+END;
+$$
+CALL p1;
+rec[1]	rec[2]
+t10	t20
+DROP PROCEDURE p1;
+# Array subscript references to undeclared variables
+CREATE PROCEDURE p1()
+BEGIN
+SELECT 10,20 INTO rec[1], rec[2];
+END;
+$$
+ERROR 42000: Undeclared variable: rec
+# Array substrict references to a variable of a non-ARRAY data type
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT;
+SELECT 10,20 INTO rec[1], rec[2];
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+# Non-basic expressions inside []
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+SELECT 10,20 INTO rec[1+1], rec[2];
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'ARRAY reference for this expression type'
+# The entire ARRAY variable in INTO
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec INT ARRAY[2];
+SELECT 10,20 INTO rec;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+# Multiple ARRAY variables in INTO
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a1 INT ARRAY[2];
+DECLARE a2 INT ARRAY[2];
+SELECT 10, 20 INTO a1, a2;
+SELECT a1[1], a1[2], a2[1], a2[2];
+END;
+$$
+CALL p1();
+ERROR HY000: Cannot cast 'int' as 'array' in assignment of `a1`
+DROP PROCEDURE p1;
+#
+# Implicit default NULL
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[1];
+DECLARE b VARCHAR(10) ARRAY[1];
+DECLARE c DOUBLE ARRAY[1];
+DECLARE d DECIMAL(10,0) ARRAY[1];
+DECLARE e TIME ARRAY[1];
+DECLARE f DATETIME ARRAY[1];
+DECLARE g TIMESTAMP ARRAY[1];
+SELECT a[1], b[1], c[1], d[1], e[1], f[1], g[1];
+CREATE TABLE t1 AS SELECT a[1], b[1], c[1], d[1], e[1], f[1], g[1];
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1();
+a[1]	b[1]	c[1]	d[1]	e[1]	f[1]	g[1]
+NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a[1]` int(11) DEFAULT NULL,
+  `b[1]` varchar(10) DEFAULT NULL,
+  `c[1]` double DEFAULT NULL,
+  `d[1]` decimal(10,0) DEFAULT NULL,
+  `e[1]` time DEFAULT NULL,
+  `f[1]` datetime DEFAULT NULL,
+  `g[1]` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+a[1]	b[1]	c[1]	d[1]	e[1]	f[1]	g[1]
+NULL	NULL	NULL	NULL	NULL	NULL	NULL
+DROP PROCEDURE p1;
+#
+# NULL handling
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec1 INT ARRAY[2] DEFAULT ARRAY[NULL,NULL];
+DECLARE rec2 INT ARRAY[2] DEFAULT rec1;
+SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+SET rec1= ARRAY[10,20];
+SET rec2= rec1;
+SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+SET rec1= ARRAY[NULL,20];
+SET rec2= rec1;
+SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+SET rec1= ARRAY[10,NULL];
+SET rec2= rec1;
+SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+SET rec1= ARRAY[NULL,NULL];
+SET rec2= rec1;
+SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+END;
+$$
+CALL p1;
+rec1[1]	rec1[2]	rec2[1]	rec2[2]
+NULL	NULL	NULL	NULL
+rec1[1]	rec1[2]	rec2[1]	rec2[2]
+10	20	10	20
+rec1[1]	rec1[2]	rec2[1]	rec2[2]
+NULL	20	NULL	20
+rec1[1]	rec1[2]	rec2[1]	rec2[2]
+10	NULL	10	NULL
+rec1[1]	rec1[2]	rec2[1]	rec2[2]
+NULL	NULL	NULL	NULL
+DROP PROCEDURE p1;
+#
+# Testing multiple ROW variable declarations
+# This makes sure that fill_field_definitions() is called only once
+# per an ARRAY field, so create length is not converted to internal length
+# multiple times.
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec1, rec2, rec3 VARCHAR(10) CHARACTER SET utf8 ARRAY[2];
+CREATE TABLE t1 AS SELECT
+rec1[1], rec2[1], rec3[1], rec1[2], rec2[2], rec3[2];
+END;
+$$
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `rec1[1]` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `rec2[1]` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `rec3[1]` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `rec1[2]` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `rec2[2]` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `rec3[2]` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ARRAY of anchored data types
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a VARCHAR(32) CHARACTER SET latin1 COLLATE latin1_bin;
+DECLARE b TYPE OF a ARRAY[2] DEFAULT ARRAY['element1','element2'];
+SELECT b[1], b[2];
+CREATE TABLE t1 AS SELECT b[1], b[2];
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+b[1]	b[2]
+element1	element2
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b[1]` varchar(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+  `b[2]` varchar(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+b[1]	b[2]
+element1	element2
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a VARCHAR(32) CHARACTER SET utf8mb3 DEFAULT 'x', b TIME DEFAULT '20:20:20');
+INSERT INTO t1 VALUES ();
+BEGIN NOT ATOMIC
+DECLARE a TYPE OF t1.a ARRAY[2];
+DECLARE b TYPE OF t1.b ARRAY[2];
+CREATE TABLE t2 AS SELECT a[1], a[2], b[1], b[2];
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a[1]` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `a[2]` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `b[1]` time DEFAULT NULL,
+  `b[2]` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE PROCEDURE p1(a TYPE OF t1.a ARRAY[2], b TYPE OF t1.b ARRAY[2])
+BEGIN
+SELECT a[1], a[2], b[1], b[2];
+CREATE TABLE t2 AS SELECT a[1], a[2], b[1], b[2];
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1(ARRAY[(SELECT DEFAULT(a) FROM t1), (SELECT DEFAULT(a) FROM t1)],
+ARRAY[(SELECT DEFAULT(b) FROM t1), (SELECT DEFAULT(b) FROM t1)]);
+a[1]	a[2]	b[1]	b[2]
+x	x	20:20:20	20:20:20
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a[1]` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `a[2]` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `b[1]` time DEFAULT NULL,
+  `b[2]` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+a[1]	a[2]	b[1]	b[2]
+x	x	20:20:20	20:20:20
+SELECT PARAMETER_NAME, DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='p1';
+PARAMETER_NAME	DATA_TYPE	DTD_IDENTIFIER
+a	ARRAY	ARRAY
+b	ARRAY	ARRAY
+DROP PROCEDURE p1;
+CREATE FUNCTION f1(a TYPE OF t1.a ARRAY[2], b TYPE OF t1.b ARRAY[2])
+RETURNS TYPE OF t1.a ARRAY[2] RETURN a;
+SELECT f1(ARRAY['test1','test2'],ARRAY['10:20:30','10:20:30']) = ARRAY['test1','test2'];
+f1(ARRAY['test1','test2'],ARRAY['10:20:30','10:20:30']) = ARRAY['test1','test2']
+1
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(a TYPE OF t1.a ARRAY[2], b TYPE OF t1.b ARRAY[2]) RETURNS TYPE OF `test`.`t1`.`a` ARRAY [2]
+RETURN a	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT returns FROM mysql.proc WHERE name='f1';
+returns
+TYPE OF `test`.`t1`.`a` ARRAY [2]
+SELECT PARAMETER_NAME, DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
+PARAMETER_NAME	DATA_TYPE	DTD_IDENTIFIER
+NULL	ARRAY	ARRAY
+a	ARRAY	ARRAY
+b	ARRAY	ARRAY
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Anchors to ARRAY variables
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE a INT UNSIGNED ARRAY[2] DEFAULT ARRAY[1,2];
+DECLARE b TYPE OF a DEFAULT a;
+SELECT b[1], b[2];
+CREATE TABLE t1 AS SELECT b[1], b[2];
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+b[1]	b[2]
+1	2
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b[1]` int(10) unsigned DEFAULT NULL,
+  `b[2]` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP PROCEDURE p1;
+BEGIN NOT ATOMIC
+DECLARE arr1 VARCHAR(32) CHARACTER SET latin1 COLLATE latin1_bin ARRAY[2]
+DEFAULT ARRAY['element1','element2'];
+DECLARE a_arr1 TYPE OF arr1 DEFAULT arr1;
+DECLARE aa_arr1 TYPE OF a_arr1 DEFAULT a_arr1;
+CREATE TABLE t1 AS SELECT a_arr1[1], a_arr1[2];
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT aa_arr1[1], aa_arr1[2];
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a_arr1[1]` varchar(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+  `a_arr1[2]` varchar(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+a_arr1[1]	a_arr1[2]
+element1	element2
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `aa_arr1[1]` varchar(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+  `aa_arr1[2]` varchar(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+aa_arr1[1]	aa_arr1[2]
+element1	element2

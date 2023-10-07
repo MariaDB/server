@@ -33,9 +33,9 @@
    Item which stores (x,y,...) and ROW(x,y,...).
    Note that this can be recursive: ((x,y),(z,t)) is a ROW of ROWs.
 */
-class Item_row: public Item_fixed_hybrid,
-                private Item_args,
-                private Used_tables_and_const_cache
+class Item_container: public Item_fixed_hybrid,
+                      public Item_args,
+                      private Used_tables_and_const_cache
 {
   table_map not_null_tables_cache;
   /**
@@ -44,18 +44,17 @@ class Item_row: public Item_fixed_hybrid,
   */
   bool with_null;
 public:
-  Item_row(THD *thd, List<Item> &list)
+  Item_container(THD *thd, List<Item> &list)
    :Item_fixed_hybrid(thd), Item_args(thd, list),
     not_null_tables_cache(0), with_null(0)
   { }
-  Item_row(THD *thd, Item_row *row)
-   :Item_fixed_hybrid(thd), Item_args(thd, static_cast<Item_args*>(row)),
+  Item_container(THD *thd, Item_container *container)
+   :Item_fixed_hybrid(thd), Item_args(thd, static_cast<Item_args*>(container)),
     Used_tables_and_const_cache(),
     not_null_tables_cache(0), with_null(0)
   { }
 
   enum Type type() const override { return ROW_ITEM; };
-  const Type_handler *type_handler() const override { return &type_handler_row; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
   {
@@ -106,7 +105,6 @@ public:
     used_tables_and_const_cache_update_and_join(arg_count, args);
   }
   table_map not_null_tables() const override { return not_null_tables_cache; }
-  void print(String *str, enum_query_type query_type) override;
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
@@ -148,9 +146,44 @@ public:
   }
 
   bool check_vcol_func_processor(void *arg) override {return FALSE; }
+  Item *build_clone(THD *thd) override;
+};
+
+
+class Item_row: public Item_container
+{
+public:
+  using Item_container::Item_container;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_row;
+  }
+  const Type_handler *fixed_type_handler() const override
+  {
+    return &type_handler_row;
+  }
+  void print(String *str, enum_query_type query_type) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_row>(thd, this); }
-  Item *build_clone(THD *thd) override;
+};
+
+
+class Item_array: public Item_container
+{
+public:
+  using Item_container::Item_container;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_array;
+  }
+  const Type_handler *fixed_type_handler() const override
+  {
+    return &type_handler_array;
+  }
+  // TODO: fix_fields() -- aggregate column types
+  void print(String *str, enum_query_type query_type) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_array>(thd, this); }
 };
 
 #endif /* ITEM_ROW_INCLUDED */

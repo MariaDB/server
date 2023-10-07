@@ -125,6 +125,28 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 }
 
 
+Item *Item::create_item_array_element(THD *thd, Item *index,
+                                      const Query_fragment &index_fragment)
+{
+  /*
+    Some expresions can return ARRAY results,
+    but they don't support [] yet:
+    - Array constructor: ARRAY[1,2,3][idx]
+    - Stored functions with RETURNS..ARRAY: f1()[idx]
+  */
+  if (fixed_type_handler() && fixed_type_handler() != &type_handler_array)
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             fixed_type_handler()->name().ptr(), "[]");
+  else if (!fixed() || type_handler() == &type_handler_array)
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "ARRAY reference for this expression type");
+  else
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             type_handler()->name().ptr(), "[]");
+  return NULL;
+}
+
+
 longlong Item::val_datetime_packed_result(THD *thd)
 {
   MYSQL_TIME ltime, tmp;
@@ -1123,6 +1145,17 @@ bool Item::check_type_scalar(const LEX_CSTRING &opname) const
 }
 
 
+bool Item::check_type_for_array_index() const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_int())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), "[]");
+  return true;
+}
+
+
 extern "C" {
 
 /*
@@ -1739,15 +1772,21 @@ bool Item_sp_variable::is_null()
   return this_item()->is_null();
 }
 
-void Item_sp_variable::make_send_field(THD *thd, Send_field *field)
-{
-  Item *it= this_item();
 
+void Item_sp_variable::make_send_field_from_item(THD *thd, Item *it,
+                                                 Send_field *field)
+{
   it->make_send_field(thd, field);
   if (name.str)
     field->col_name= name;
   else
     field->col_name= m_name;
+}
+
+
+void Item_sp_variable::make_send_field(THD *thd, Send_field *field)
+{
+  make_send_field_from_item(thd, this_item(), field);
 }
 
 /*****************************************************************************
@@ -1759,9 +1798,9 @@ Item_splocal::Item_splocal(THD *thd,
                            const LEX_CSTRING *sp_var_name,
                            uint sp_var_idx,
                            const Type_handler *handler,
-                           uint pos_in_q, uint len_in_q):
+                           const Query_fragment &pos):
   Item_sp_variable(thd, sp_var_name),
-  Rewritable_query_parameter(pos_in_q, len_in_q),
+  Rewritable_query_parameter(pos.pos(), pos.length()),
   Type_handler_hybrid_field_type(handler),
   m_rcontext_handler(rh),
   m_var_idx(sp_var_idx),
@@ -1818,14 +1857,17 @@ Item_splocal::this_item_addr(THD *thd, Item **)
 }
 
 
-void Item_splocal::print(String *str, enum_query_type)
+void Item_splocal::print(String *str, enum_query_type query_type)
 {
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
-  str->reserve(m_name.length + 8 + prefix->length);
-  str->append(prefix);
-  str->append(&m_name);
-  str->append('@');
-  str->qs_append(m_var_idx);
+  str->reserve(prefix->length + m_name.length + 11/*@idx*/);
+  str->qs_append(prefix);
+  str->qs_append(&m_name);
+  if (!(query_type & QT_PARSABLE))
+  {
+    str->qs_append('@');
+    str->qs_append(m_var_idx);
+  }
 }
 
 
@@ -1911,38 +1953,230 @@ bool Item_splocal::check_cols(uint n)
 }
 
 
+Item *
+Item_splocal::create_item_array_element(THD *thd, Item *index,
+                                        const Query_fragment &idx_pos)
+{
+  DBUG_ASSERT(thd->lex->sphead);
+  DBUG_ASSERT(thd->lex->spcont);
+  // As "this" was created, variables must be allowed:
+  DBUG_ASSERT(thd->lex->parsing_options.allows_variable);
+
+  if (bool(index->with_flags & (item_with_t::WINDOW_FUNC |
+                                item_with_t::FIELD |
+                                item_with_t::SUM_FUNC |
+                                item_with_t::SUBQUERY |
+                                item_with_t::ROWNUM_FUNC)))
+  {
+    Item::Print tmp(index, QT_ORDINARY);
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    return NULL;
+  }
+
+  Query_fragment pos((uint) pos_in_query, len_in_query);
+  if (pos.length())
+  {
+    /*
+       Posible syntax variants:
+       var[idx];  -- without a gap between the name and the index
+       var [idx]; -- with a gap between the name and the index
+       (var)[idx] -- with parentheses around the array
+    */
+    DBUG_ASSERT(pos.end() <= idx_pos.pos());
+    DBUG_ASSERT(idx_pos.length());
+    /*
+      Mark both "this" and "index" should not be rewritten any more.
+      The Item_splocal_array_element* created below will rewrite
+      the whole expression 'var[idx]'.
+    */
+    unset_rewritable_query_parameter();
+    index->walk(&Item::unset_rewritable_query_parameter_processor, FALSE, NULL);
+  }
+
+  // TODO: package variables!!!
+  sp_variable *spvar= thd->lex->spcont->find_variable(m_var_idx);
+
+  Item_splocal *res=
+    spvar->create_item_splocal_array_element(thd, m_rcontext_handler,
+                                             pos, index, idx_pos);
+  if (!res)
+    return nullptr;
+
+#ifdef DBUG_ASSERT_EXISTS
+   res->m_sp= thd->lex->sphead;
+#endif
+  thd->lex->safe_to_cache_query=0;
+  return res;
+}
+
+
+bool Item_splocal_array_element::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+  Item *item= get_variable(thd->spcont)->element_index(0);
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, ref, item);
+}
+
+
+bool Item_splocal_array_element_by_expr::set_resolved_index(THD *thd,
+                                                const Longlong_hybrid_null &nr)
+{
+  DBUG_ASSERT(m_index_expr->fixed());
+  DBUG_ASSERT(m_index_expr->type_handler()->can_return_int());
+  Item_field *var= get_variable(thd->spcont);
+  uint idx;
+  if (Cardinality(var->cols()).to_c_index_with_error(var->field_name,
+                                                     nr, &idx))
+    return true;
+  set_resolved_index(idx);
+  return false;
+}
+
+
+bool Item_splocal_array_element_by_expr::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+  Item *item= get_variable(thd->spcont)->element_index(0);
+  set_handler(item->type_handler());
+    // TODO: cleanup!!!
+  if (!(m_null= new (thd->mem_root) Item_null(thd)))
+    return true;
+  return fix_fields_from_item(thd, ref, item) ||
+         m_index_expr->fix_fields_if_needed(thd, &m_index_expr);
+}
+
+
+void Item_splocal_array_element_by_expr::make_send_field(THD *thd,
+                                                         Send_field *field)
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  /*
+    Data type is equal for all array elements, so let's use element_index(0)
+    to avoid the exact index evalution at this point.
+    The index should be evaluated only once, during send_result_set_row(),
+    to prevent multiple side-effects, e.g. increment in this example:
+      SELECT array_var[@idx:=@idx+1] FROM t1;
+  */
+  Item *it= get_variable(m_thd->spcont)->element_index(0);
+  make_send_field_from_item(thd, it, field);
+}
+
+
+void Item_splocal_array_element_by_expr::print(String *str,
+                                               enum_query_type query_type)
+{
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->reserve(prefix->length + m_name.length + 64);
+  Item_splocal::print(str, query_type);
+  str->append('[');
+  m_index_expr->print(str, query_type);
+  str->append(']');
+}
+
+
+Item *
+Item_splocal_array_element_by_expr::this_item()
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  Item_field *field= get_variable(m_thd->spcont);
+  if (is_resolved())
+    return field->element_index(index_resolved());
+  if (m_index_expr->check_type_for_array_index())
+   return m_null;
+  Longlong_hybrid_null nr= m_index_expr->to_longlong_hybrid_null();
+  uint idx;
+  if (Cardinality(field->cols()).to_c_index_with_error(field->field_name,
+                                                       nr, &idx))
+    return m_null;
+  return field->element_index(idx);
+}
+
+
+const Item *
+Item_splocal_array_element_by_expr::this_item() const
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  Item_field *field= get_variable(m_thd->spcont);
+  if (is_resolved())
+    return field->element_index(index_resolved());
+  if (m_index_expr->check_type_for_array_index())
+   return m_null;
+  Longlong_hybrid_null nr= m_index_expr->to_longlong_hybrid_null();
+  uint idx;
+  if (Cardinality(field->cols()).to_c_index_with_error(field->field_name,
+                                                       nr, &idx))
+    return m_null;
+  return field->element_index(idx);
+}
+
+
+Item **
+Item_splocal_array_element_by_expr::this_item_addr(THD *thd, Item **)
+{
+  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  Item_field *field= get_variable(m_thd->spcont);
+  if (is_resolved())
+    return field->addr(index_resolved());
+  // TODO: should be resolved earlier
+  if (m_index_expr->check_type_for_array_index())
+   return &m_null;
+  Longlong_hybrid_null nr= m_index_expr->to_longlong_hybrid_null();
+  uint idx;
+  if (Cardinality(field->cols()).to_c_index_with_error(field->field_name,
+                                                       nr, &idx))
+    return &m_null;
+  return field->addr(idx);
+}
+
+
+void Item_splocal_array_element::print(String *str, enum_query_type query_type)
+{
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->reserve(prefix->length + m_name.length + 64);
+  Item_splocal::print(str, query_type);
+  str->append('[');
+  str->append_longlong(m_element_index + 1);
+  str->append(']');
+}
+
+
 bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
-  Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
+  Item *item= get_variable(thd->spcont)->element_index(m_element_index);
   return fix_fields_from_item(thd, ref, item);
 }
 
 
 Item *
-Item_splocal_row_field::this_item()
+Item_splocal_container_element_by_const_index::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
-  return get_variable(m_thd->spcont)->element_index(m_field_idx);
+  return get_variable(m_thd->spcont)->element_index(m_element_index);
 }
 
 
 const Item *
-Item_splocal_row_field::this_item() const
+Item_splocal_container_element_by_const_index::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
-  return get_variable(m_thd->spcont)->element_index(m_field_idx);
+  return get_variable(m_thd->spcont)->element_index(m_element_index);
 }
 
 
 Item **
-Item_splocal_row_field::this_item_addr(THD *thd, Item **)
+Item_splocal_container_element_by_const_index::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
-  return get_variable(thd->spcont)->addr(m_field_idx);
+  return get_variable(thd->spcont)->addr(m_element_index);
 }
 
 
@@ -1957,15 +2191,17 @@ void Item_splocal_row_field::print(String *str, enum_query_type)
   str->append('@');
   str->qs_append(m_var_idx);
   str->append('[');
-  str->qs_append(m_field_idx);
+  str->qs_append(m_element_index);
   str->append(']');
 }
 
 
-bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+bool Item_splocal_container_element_by_const_index::set_value(THD *thd,
+                                                              sp_rcontext *ctx,
+                                                              Item **it)
 {
-  return get_rcontext(ctx)->set_variable_row_field(thd, m_var_idx, m_field_idx,
-                                                   it);
+  return get_rcontext(ctx)->set_variable_container_element(thd, m_var_idx,
+                                                           m_element_index, it);
 }
 
 
@@ -1973,11 +2209,12 @@ bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
   DBUG_ASSERT(fixed() == 0);
   m_thd= thd;
-  if (get_rcontext(thd->spcont)->find_row_field_by_name_or_error(&m_field_idx,
-                                                                 m_var_idx,
-                                                                 m_field_name))
+  if (get_rcontext(thd->spcont)->find_row_field_by_name_or_error(
+                                                              &m_element_index,
+                                                              m_var_idx,
+                                                              m_field_name))
     return true;
-  Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
+  Item *item= get_variable(thd->spcont)->element_index(m_element_index);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -2673,6 +2910,19 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 }
 
 
+bool Item_args::clone_arguments(THD *thd, const Item_args &rhs)
+{
+  if (alloc_arguments(thd, rhs.arg_count))
+    return true;
+  for (arg_count= 0; arg_count < rhs.arg_count; arg_count++)
+  {
+    if (unlikely(!(args[arg_count]= rhs.args[arg_count]->build_clone(thd))))
+      return true;
+  }
+  return false;
+}
+
+
 /**
   @brief
     Building clone for Item_func_or_sum
@@ -2691,32 +2941,13 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 
 Item* Item_func_or_sum::build_clone(THD *thd)
 {
-  Item *copy_tmp_args[2]= {0,0};
-  Item **copy_args= copy_tmp_args;
-  if (arg_count > 2)
-  {
-    copy_args= static_cast<Item**>
-      (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
-    if (unlikely(!copy_args))
-      return 0;
-  }
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg_clone= args[i]->build_clone(thd);
-    if (unlikely(!arg_clone))
-      return 0;
-    copy_args[i]= arg_clone;
-  }
+  Item_args new_args;
+  if (new_args.clone_arguments(thd, *this))
+    return 0;
   Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(get_copy(thd));
   if (unlikely(!copy))
     return 0;
-  if (arg_count > 2)
-    copy->args= copy_args;
-  else if (arg_count > 0)
-  {
-    copy->args= copy->tmp_arg;
-    memcpy(copy->args, copy_args, sizeof(Item *) * arg_count);
-  }
+  copy->Item_args::operator=(new_args);
   return copy;
 }
 
@@ -2724,7 +2955,7 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
                  sp_name *name_arg) :
   context(context_arg), m_name(name_arg), m_sp(NULL), func_ctx(NULL),
   sp_result_field(NULL),
-  sp_result_item_field_row(NULL)
+  sp_result_item_field_container(NULL)
 {
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
@@ -2736,7 +2967,7 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
 Item_sp::Item_sp(THD *thd, Item_sp *item):
          context(item->context), m_name(item->m_name),
          m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL),
-         sp_result_item_field_row(NULL)
+         sp_result_item_field_container(NULL)
 {
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
@@ -2975,9 +3206,17 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= empty_clex_str;
   dummy_table->maybe_null= maybe_null;
 
+  // e.g. RETURNS TYPE OF t1.col1
   if (m_sp->m_return_field_def.is_column_type_ref() &&
       m_sp->m_return_field_def.column_type_ref()->
         resolve_type_ref(thd, &m_sp->m_return_field_def))
+    DBUG_RETURN(TRUE);
+
+  // e.g.: RETURNS TYPE OF t1.col1 ARRAY[2]
+  if (m_sp->m_return_field_def.is_array() &&
+      m_sp->m_return_field_def.array_definition()->is_column_type_ref() &&
+      m_sp->m_return_field_def.array_definition()->column_type_ref()->
+        resolve_type_ref(thd, m_sp->m_return_field_def.array_definition()))
     DBUG_RETURN(TRUE);
 
   if (!(sp_result_field= m_sp->create_result_field(max_length, name,
@@ -2985,9 +3224,10 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
    DBUG_RETURN(TRUE);
 
   /*
-    In case of a ROW return type we need to create Item_field_row
-    on top of Field_row, and remember it in sp_result_item_field_row.
-    ROW members are later accessed using sp_result_item_field_row->addr(i),
+    In case of a ROW/ARRAY return type we need to create Item_field_container
+    on top of Field_row/Field_array, and remember it in
+    sp_result_item_field_container. ROW/ARRAY members are later accessed using
+      sp_result_item_field_container->addr(i),
     e.g. when copying the function return value to a local variable.
     For scalar return types no Item_field is needed around sp_result_field,
     as the value is fetched directly from sp_result_field,
@@ -2995,8 +3235,14 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   */
   if (Field_row *field_row= dynamic_cast<Field_row*>(sp_result_field))
   {
-    if (!(sp_result_item_field_row=
+    if (!(sp_result_item_field_container=
         m_sp->m_return_field_def.make_item_field_row(thd, field_row)))
+      DBUG_RETURN(true);
+  }
+  else if (Field_array *field_arr= dynamic_cast<Field_array*>(sp_result_field))
+  {
+    if (!(sp_result_item_field_container=
+        m_sp->m_return_field_def.make_item_field_array(thd, field_arr)))
       DBUG_RETURN(true);
   }
 

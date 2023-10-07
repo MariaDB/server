@@ -57,6 +57,30 @@ const char field_separator=',';
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
+
+/*
+  In SQL array indexes start from 1.
+  Convert the index value to C-style index starting with 0.
+  Check the index value for NULL and for the valid range.
+*/
+bool Cardinality::to_c_index_with_error(const LEX_CSTRING &name,
+                                        const Longlong_hybrid_null &nr,
+                                        uint *idx) const
+{
+  if (nr.is_null() || nr.neg() || !nr.value() || nr.value() > m_cardinality)
+  {
+    my_error(ER_ARRAY_INDEX_OUT_OF_BOUNDS, MYF(0),
+             (int) name.length, name.str,
+             nr.is_null() ? "NULL" : ErrConvInteger(nr).ptr(),
+             m_cardinality);
+    *idx= 0; // Safety
+    return true;
+  }
+  *idx= (uint) nr.abs() - 1;
+  return false;
+}
+
+
 // Column marked for read or the field set to read out of record[0]
 bool Field::marked_for_read() const
 {
@@ -2721,16 +2745,16 @@ bool Field_null::is_equal(const Column_definition &new_field) const
 
 
 /****************************************************************************
-  Field_row, e.g. for ROW-type SP variables
+  Field_container, e.g. for ROW-type and ARRAY-type SP variables
 ****************************************************************************/
 
-Field_row::~Field_row()
+Field_container::~Field_container()
 {
   delete m_table;
 }
 
 
-bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
+bool Field_container::sp_prepare_and_store_item(THD *thd, Item **value)
 {
   DBUG_ENTER("Field_row::sp_prepare_and_store_item");
 
@@ -2754,9 +2778,12 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
       point to the same Item_singlerow_subselect.
   */
   Item *src;
-  if (!(src= thd->sp_fix_func_item(value)) ||
-      src->cmp_type() != ROW_RESULT ||
-      src->cols() != m_table->s->fields)
+  if (!(src= thd->sp_fix_func_item_for_assignment(this, value)))
+  {
+    m_table->set_all_fields_to_null();
+    DBUG_RETURN(true);
+  }
+  if (src->cols() != m_table->s->fields)
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), m_table->s->fields);
     m_table->set_all_fields_to_null();
@@ -2768,7 +2795,7 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
 }
 
 
-uint Field_row::cols() const
+uint Field_container::cols() const
 {
   // The table with ROW members must be already instantiated
   DBUG_ASSERT(m_table);
@@ -2791,6 +2818,17 @@ void Field_row::sql_type(String &res) const
     res.append(col.to_lex_cstring());
   }
   res.append(')');
+}
+
+
+void Field_array::sql_type(String &res) const
+{
+  DBUG_ASSERT(m_table);
+  DBUG_ASSERT(m_table->s->fields);
+  m_table->field[0]->sql_type_for_sp_returns(res);
+  res.append(STRING_WITH_LEN(" ARRAY ["));
+  res.append_longlong(m_table->s->fields);
+  res.append(STRING_WITH_LEN("]"));
 }
 
 

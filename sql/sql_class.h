@@ -5719,6 +5719,7 @@ public:
 
   Item *sp_fix_func_item(Item **it_addr);
   Item *sp_fix_func_item_for_assignment(const Field *to, Item **it_addr);
+  Item *sp_fix_func_item_for_array_index(Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
@@ -7392,19 +7393,20 @@ public:
 };
 
 /*
-  This class handles fields of a ROW SP variable when it's used as a OUT
-  parameter in a stored procedure.
+  This class handles SELECT INTO targets of these kinds:
+  - fields of a ROW SP variable
+  - elements of an ARRAY SP variable
 */
-class my_var_sp_row_field: public my_var_sp
+class my_var_sp_container_element: public my_var_sp
 {
-  uint m_field_offset;
+  uint m_element_offset;
 public:
-  my_var_sp_row_field(const Sp_rcontext_handler *rcontext_handler,
-                      const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
-                      uint var_idx, uint field_idx, sp_head *s)
+  my_var_sp_container_element(const Sp_rcontext_handler *rcontext_handler,
+                              const LEX_CSTRING *varname,
+                              uint var_idx, uint element_idx, sp_head *s)
    :my_var_sp(rcontext_handler, varname, var_idx,
               &type_handler_double/*Not really used*/, s),
-    m_field_offset(field_idx)
+    m_element_offset(element_idx)
   { }
   bool set(THD *thd, Item *val);
 };

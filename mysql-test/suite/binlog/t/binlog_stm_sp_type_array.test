@@ -1,0 +1,221 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+
+--echo #
+--echo # MDEV-32380 Array data type for stored routnes
+--echo #
+
+--echo #
+--echo # Testing ARRAY elements in LIMIT
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(10);
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT 1;
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[10, a];
+  DECLARE i1 INT ARRAY[2] DEFAULT ARRAY[1,2];
+  DECLARE i2 INT ARRAY[2] DEFAULT ARRAY[1,2];
+  INSERT INTO t2 SELECT 1 FROM t1 LIMIT a;
+  INSERT INTO t2 SELECT 2 FROM t1 LIMIT rec[2];
+  INSERT INTO t2 SELECT 3 FROM t1 LIMIT rec[a];
+  INSERT INTO t2 SELECT 3 FROM t1 LIMIT rec[COALESCE(a)];
+  INSERT INTO t2 SELECT 3 FROM t1 LIMIT rec[i1[i2[COALESCE(a)]]];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1,t2;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # Array elements in VALUES, constant index
+--echo #
+
+FLUSH LOGS;
+
+CREATE TABLE t1 (a1 INT, a2 INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[10,20];
+  INSERT INTO t1 VALUES (a[1], a[2]);
+  INSERT INTO t1 VALUES ((a)[1], (a)[2]);
+  INSERT INTO t1 VALUES (((a))[1], ((a))[2]);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # Array elements in VALUES, expression index
+--echo #
+
+FLUSH LOGS;
+
+CREATE TABLE t1 (a1 INT, a2 INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[10,20];
+  INSERT INTO t1 VALUES (a[1+0], a[2+0]);
+  INSERT INTO t1 VALUES ((a)[1+0], (a)[2+0]);
+  INSERT INTO t1 VALUES (((a))[1+0], ((a))[2+0]);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # Array elements in VALUES, nested index
+--echo #
+
+FLUSH LOGS;
+
+CREATE TABLE t1 (a1 INT, a2 INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[10,20];
+  DECLARE b INT ARRAY[2] DEFAULT ARRAY[2,1];
+  INSERT INTO t1 VALUES (a[b[1]], a[b[2]]);
+  INSERT INTO t1 VALUES ((a)[b[1]], (a)[b[2]]);
+  INSERT INTO t1 VALUES (((a))[b[1]], ((a))[b[2]]);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # Comparison operators for arrays
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[100,200];
+  DECLARE i1 INT ARRAY[2] DEFAULT ARRAY[1,2];
+  DECLARE i2 INT ARRAY[2] DEFAULT ARRAY[1,2];
+
+  INSERT INTO t1 VALUES (rec[1],rec[2]);
+  INSERT INTO t1 VALUES (10, rec=ARRAY[100,200]);
+  INSERT INTO t1 VALUES (10, ARRAY[100,200]=rec);
+  INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE rec=ARRAY[100,200];
+  INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ARRAY[100,200]=rec;
+  SET rec[1]=NULL;
+  INSERT INTO t1 VALUES (11, rec=ARRAY[100,200]);
+  INSERT INTO t1 VALUES (11, rec=ARRAY[100,201]);
+  INSERT INTO t1 VALUES (11, ARRAY[100,200]=rec);
+  INSERT INTO t1 VALUES (11, ARRAY[100,201]=rec);
+  INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE rec=ARRAY[100,200];
+  INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ARRAY[100,200]=rec;
+  SET rec[2]=NULL;
+  INSERT INTO t1 VALUES (12, rec=ARRAY[100,200]);
+  INSERT INTO t1 VALUES (12, ARRAY[100,200]=rec);
+  INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE rec=ARRAY[100,200];
+  INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ARRAY[100,200]=rec;
+
+  -- Testing expressions with SP variables inside the index
+  -- Covers Item::unset_rewritable_query_parameter
+  SET rec=ARRAY[101,201];
+  FOR i IN 1..2 DO
+    INSERT INTO t1 VALUES (rec[COALESCE(i)], rec[i]);
+  END FOR;
+
+  SET rec=ARRAY[102,202];
+  FOR i IN 1..2 DO
+    INSERT INTO t1 VALUES (rec[i1[i2[COALESCE(i)]]], rec[i1[i2[i]]]);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # Stored function in an array index
+--echo #
+
+FLUSH LOGS;
+
+CREATE OR REPLACE TABLE t1 (a INT);
+CREATE OR REPLACE FUNCTION f1(a INT) RETURNS INT RETURN a;
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURNS INT
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[100,200];
+  RETURN rec[f1(a)];
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1 SELECT f2(1);
+INSERT INTO t1 SELECT f2(2);
+SELECT * FROM t1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+#
+# TODO
+#
+#FLUSH LOGS;
+#SET sql_mode=DEFAULT;
+#CREATE TABLE t1 (a INT, b VARCHAR(32));
+#INSERT INTO t1 VALUES (10, 'b10');
+#CREATE TABLE t2 LIKE t1;
+#DELIMITER $$;
+#CREATE PROCEDURE p1()
+#BEGIN
+#  DECLARE rec1 ROW(a INT, b VARCHAR(32));
+#  SELECT * INTO rec1 FROM t1;
+#  INSERT INTO t2 VALUES (rec1.a, rec1.b);
+#END;
+#$$
+#DELIMITER ;$$
+#CALL p1();
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#DROP TABLE t2;
+#DROP PROCEDURE p1;
+#--let $binlog_file = LAST
+#source include/show_binlog_events.inc;
+
+--echo #
+--echo # End of MDEV-32380 Array data type for stored routnes
+--echo #

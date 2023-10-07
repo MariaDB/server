@@ -72,6 +72,7 @@ SYMBOL symbols[] = {
   { "ANALYZE",		SYM(ANALYZE_SYM)},
   { "AND",		SYM(AND_SYM)},
   { "ANY",              SYM(ANY_SYM)},
+  { "ARRAY",            SYM(ARRAY_SYM)},
   { "AS",		SYM(AS)},
   { "ASC",		SYM(ASC)},
   { "ASCII",		SYM(ASCII_SYM)},

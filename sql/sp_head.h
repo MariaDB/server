@@ -431,6 +431,13 @@ public:
                           sp_variable *spv, Item *val, LEX *lex,
                           bool responsible_to_free_lex,
                           const LEX_CSTRING &value_query);
+  bool set_local_variable_array_element(THD *thd, sp_pcontext *spcont,
+                                        const Sp_rcontext_handler *rh,
+                                        sp_variable *spv,
+                                        Item *index,
+                                        Item *val, LEX *lex,
+                                        bool responsible_to_free_lex,
+                                        const LEX_CSTRING &value_query);
   bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                     const Sp_rcontext_handler *rh,
                                     sp_variable *spv, uint field_idx,
@@ -762,6 +769,16 @@ public:
     }
     return false;
   }
+  bool fill_spvar_definition_array(THD *thd, Spvar_definition *def,
+                                   const Lex_field_type_st &elem,
+                                   uint cardinality,
+                                   column_definition_type_t type);
+
+  bool fill_spvar_definition_array(THD *thd, Spvar_definition *def,
+                                   const Qualified_column_ident *ref,
+                                   uint cardinality,
+                                   column_definition_type_t type);
+
   /**
     Check and prepare a Column_definition for a variable or a parameter.
   */
@@ -773,23 +790,29 @@ public:
     return false;
   }
   bool fill_spvar_definition(THD *thd, Column_definition *def,
-                             LEX_CSTRING *name)
+                             const LEX_CSTRING *name)
   {
     def->field_name= *name;
     return fill_spvar_definition(thd, def);
   }
+  bool fill_spvar_definition(THD *thd, Column_definition *def,
+                             const Lex_field_type_st &lexdef,
+                             column_definition_type_t type)
+  {
+    return def->set_attributes(thd, lexdef, type) ||
+           fill_spvar_definition(thd, def);
+  }
+  bool fill_spvar_definition(THD *thd, Column_definition *def,
+                             const Lex_field_type_st &lexdef,
+                             column_definition_type_t type,
+                             const LEX_CSTRING &name)
+  {
+    def->field_name= name;
+    return def->set_attributes(thd, lexdef, type) ||
+           fill_spvar_definition(thd, def);
+  }
 
 private:
-  /**
-    Set a column type reference for a parameter definition
-  */
-  void fill_spvar_using_type_reference(sp_variable *spvar,
-                                       Qualified_column_ident *ref)
-  {
-    spvar->field_def.set_column_type_ref(ref);
-    spvar->field_def.field_name= spvar->name;
-    m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
-  }
 
   void fill_spvar_using_table_rowtype_reference(THD *thd,
                                                 sp_variable *spvar,
@@ -803,13 +826,6 @@ private:
 
 public:
   bool spvar_fill_row(THD *thd, sp_variable *spvar, Row_definition_list *def);
-  bool spvar_fill_type_reference(THD *thd, sp_variable *spvar,
-                                 const LEX_CSTRING &table,
-                                 const LEX_CSTRING &column);
-  bool spvar_fill_type_reference(THD *thd, sp_variable *spvar,
-                                 const LEX_CSTRING &db,
-                                 const LEX_CSTRING &table,
-                                 const LEX_CSTRING &column);
   bool spvar_fill_table_rowtype_reference(THD *thd, sp_variable *spvar,
                                           const LEX_CSTRING &table);
   bool spvar_fill_table_rowtype_reference(THD *thd, sp_variable *spvar,

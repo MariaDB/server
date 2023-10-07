@@ -268,9 +268,6 @@ LEX::create_item_for_sp_var(const Lex_ident_cli_st *cname, sp_variable *spvar)
 {
   const Sp_rcontext_handler *rh;
   Item_splocal *item;
-  const char *start_in_q= cname->pos();
-  const char *end_in_q= cname->end();
-  uint pos_in_q, len_in_q;
   Lex_ident_sys name(thd, cname);
 
   if (name.is_null())
@@ -289,12 +286,11 @@ LEX::create_item_for_sp_var(const Lex_ident_cli_st *cname, sp_variable *spvar)
   DBUG_ASSERT(spcont && spvar);
 
   /* Position and length of the SP variable name in the query. */
-  pos_in_q= (uint)(start_in_q - sphead->m_tmp_query);
-  len_in_q= (uint)(end_in_q - start_in_q);
+  Query_fragment pos((uint)(cname->pos() - sphead->m_tmp_query),
+                     (uint) cname->length);
 
   item= new (thd->mem_root)
-    Item_splocal(thd, rh, &name, spvar->offset, spvar->type_handler(),
-                 pos_in_q, len_in_q);
+    Item_splocal(thd, rh, &name, spvar->offset, spvar->type_handler(), pos);
 
 #ifdef DBUG_ASSERT_EXISTS
   if (item)
@@ -492,11 +488,11 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
       static const LEX_CSTRING setgl= { STRING_WITH_LEN("SET GLOBAL ") };
       const char *qend= no_lookahead ? lip->get_ptr() : lip->get_tok_end();
       Lex_cstring qbuf(lex->sphead->m_tmp_query, qend);
-      if (lex->new_sp_instr_stmt(thd,
+      if (lex->add_new_sp_instr_stmt (thd,
                                  lex->option_type == OPT_GLOBAL ? setgl :
                                  need_set_keyword ?               setlc :
                                                                   null_clex_str,
-                                 qbuf))
+                                 qbuf) == nullptr)
         return true;
     }
     lex->pop_select();
@@ -516,7 +512,7 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
       /*
         No needs for "delete lex" here: "lex" is already linked
         to the sp_instr_stmt (using sp_lex_keeper) instance created by
-        the call for new_sp_instr_stmt() above. It will be freed
+        the call for add_new_sp_instr_stmt () above. It will be freed
         by ~sp_head/~sp_instr/~sp_lex_keeper during THD::end_statement().
       */
       DBUG_ASSERT(lex->sp_lex_in_use); // used by sp_instr_stmt
@@ -6373,19 +6369,58 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 
 
 bool LEX::sp_param_fill_definition(sp_variable *spvar,
-                                   const Lex_field_type_st &def)
+                                   const Lex_field_type_st &def,
+                                   uint cardinality)
 {
-  return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM) ||
-    sphead->fill_spvar_definition(thd, last_field, &spvar->name);
+  DBUG_ASSERT(&spvar->field_def == last_field);
+  if (cardinality)
+  {
+    spvar->field_def.field_name= spvar->name;
+    return sphead->fill_spvar_definition_array(thd, &spvar->field_def,
+                                               def, cardinality,
+                                               COLUMN_DEFINITION_ROUTINE_PARAM);
+  }
+  return sphead->fill_spvar_definition(thd, &spvar->field_def, def,
+                                       COLUMN_DEFINITION_ROUTINE_PARAM,
+                                       spvar->name);
 }
 
 
-bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
+bool LEX::sp_param_fill_definition_type_of(sp_variable *spvar,
+                                           const Qualified_column_ident &col,
+                                           uint cardinality)
 {
-  return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
-    sphead->fill_field_definition(thd, last_field);
+  // Make sure sp_rcontext is created using the invoker security context:
+  sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+  Qualified_column_ident *ref2;
+  if (unlikely(!(ref2= new (thd->mem_root) Qualified_column_ident(col))))
+    return true;
+
+  if (cardinality)
+  {
+    if (sphead->fill_spvar_definition_array(thd, &spvar->field_def,
+                                            ref2, cardinality,
+                                            COLUMN_DEFINITION_ROUTINE_PARAM))
+      return true;
+    spvar->field_def.field_name= spvar->name;
+    return false;
+  }
+
+  spvar->field_def.set_column_type_ref(ref2);
+  spvar->field_def.field_name= spvar->name;
+  return false;
+}
+
+
+bool LEX::sf_return_fill_definition(const Lex_field_type_st &def,
+                                    uint cardinality)
+{
+  return cardinality ?
+    sphead->fill_spvar_definition_array(thd, &sphead->m_return_field_def,
+                                        def, cardinality,
+                                        COLUMN_DEFINITION_FUNCTION_RETURN):
+    sphead->fill_spvar_definition(thd, &sphead->m_return_field_def, def,
+                                  COLUMN_DEFINITION_FUNCTION_RETURN);
 }
 
 
@@ -6415,7 +6450,8 @@ LEX::sf_return_fill_definition_rowtype_of(const Qualified_column_ident &ref)
 }
 
 
-bool LEX::sf_return_fill_definition_type_of(const Qualified_column_ident &ref)
+bool LEX::sf_return_fill_definition_type_of(const Qualified_column_ident &ref,
+                                            uint cardinality)
 {
   DBUG_ASSERT(ref.table.str);
   DBUG_ASSERT(ref.m_column.str);
@@ -6424,6 +6460,11 @@ bool LEX::sf_return_fill_definition_type_of(const Qualified_column_ident &ref)
   Qualified_column_ident *ref2;
   if (unlikely(!(ref2= new (thd->mem_root)  Qualified_column_ident(ref))))
     return true;
+
+  if (cardinality)
+    return sphead->fill_spvar_definition_array(thd, &sphead->m_return_field_def,
+                                           ref2, cardinality,
+                                           COLUMN_DEFINITION_FUNCTION_RETURN);
   sphead->m_return_field_def.set_column_type_ref(ref2);
   return false;
 }
@@ -6530,7 +6571,8 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
               new (thd->mem_root)
                       Item_splocal(thd, &sp_rcontext_handler_local,
                                    &first_spvar->name, first_spvar->offset,
-                                   first_spvar->type_handler(), 0, 0);
+                                   first_spvar->type_handler(),
+                                   Query_fragment(0, 0));
       if (item == NULL)
         return true; // OOM
 #ifndef DBUG_OFF
@@ -6557,6 +6599,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
 bool
 LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
                                                  const Column_definition &ref,
+                                                 Spvar_definition_array *array,
                                                  Row_definition_list *fields,
                                                  Item *default_value,
                                                  const LEX_CSTRING &expr_str)
@@ -6570,6 +6613,11 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
       DBUG_ASSERT(ref.type_handler() == &type_handler_row);
       spvar->field_def.set_row_field_definitions(fields);
     }
+    else if (array)
+    {
+      DBUG_ASSERT(ref.type_handler() == &type_handler_array);
+      spvar->field_def.set_array_definition(array);
+    }
     spvar->field_def.field_name= spvar->name;
   }
   if (unlikely(sp_variable_declarations_set_default(thd, nvars,
@@ -6581,15 +6629,35 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
 
 
 bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
-                                            const Column_definition *cdef,
+                                            const Lex_field_type_st &lexdef,
+                                            uint cardinality,
+                                            column_definition_type_t type,
                                             Item *dflt_value_item,
                                             const LEX_CSTRING &expr_str)
 {
-  DBUG_ASSERT(cdef);
-  Column_definition tmp(*cdef);
-  if (sphead->fill_spvar_definition(thd, &tmp))
+  if (cardinality)
+  {
+    /*
+      Allocate the array description, it's reused for all variables
+      in the current DECLARE list:
+        DECLARE a,b,c,d INT ARRAY[10];
+    */
+    Spvar_definition adef(*last_field);
+    if (sphead->fill_spvar_definition_array(thd, &adef, lexdef, cardinality,
+                                            type))
+      return true;
+    return sp_variable_declarations_copy_type_finalize(thd, nvars, adef,
+                                                       adef.array_definition(),
+                                                       NULL/*Row fields*/,
+                                                       dflt_value_item,
+                                                       expr_str);
+  }
+
+  if (sphead->fill_spvar_definition(thd, last_field, lexdef, type))
     return true;
-  return sp_variable_declarations_copy_type_finalize(thd, nvars, tmp, NULL,
+  return sp_variable_declarations_copy_type_finalize(thd, nvars, *last_field,
+                                                     NULL/*ARRAY*/,
+                                                     NULL/*ROW*/,
                                                      dflt_value_item, expr_str);
 }
 
@@ -6742,27 +6810,41 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
 bool
 LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                 Qualified_column_ident *ref,
+                                                uint cardinality,
                                                 Item *def,
                                                 const LEX_CSTRING &expr_str)
 {
   return ref->db.length == 0 && ref->table.length == 0 ?
-    sp_variable_declarations_vartype_finalize(thd, nvars, ref->m_column, def,
-                                              expr_str) :
-    sp_variable_declarations_column_type_finalize(thd, nvars, ref, def,
-                                                  expr_str);
+    sp_variable_declarations_vartype_finalize(thd, nvars, ref->m_column,
+                                              cardinality, def, expr_str) :
+    sp_variable_declarations_column_type_finalize(thd, nvars, ref,
+                                                  cardinality, def, expr_str);
 }
 
 
 bool
 LEX::sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
                                               const Qualified_column_ident *ref,
+                                              uint cardinality,
                                               Item *def,
                                               const LEX_CSTRING &expr_str)
 {
+  Spvar_definition array_buf;
+
+  if (cardinality)
+  {
+    if (sphead->fill_spvar_definition_array(thd, &array_buf, ref, cardinality,
+                                            COLUMN_DEFINITION_ROUTINE_LOCAL))
+      return true;
+  }
+
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-    spvar->field_def.set_column_type_ref(ref);
+    if (cardinality)
+      spvar->field_def= array_buf;
+    else
+      spvar->field_def.set_column_type_ref(ref);
     spvar->field_def.field_name= spvar->name;
   }
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
@@ -6776,6 +6858,7 @@ LEX::sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
 bool
 LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
                                                const LEX_CSTRING &ref,
+                                               uint cardinality,
                                                Item *default_value,
                                                const LEX_CSTRING &expr_str)
 {
@@ -6788,6 +6871,12 @@ LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
 
   if (t->field_def.is_cursor_rowtype_ref())
   {
+    if (cardinality)
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               "'TYPE OF <cursor-row-variable>'", "ARRAY []");
+      return true;
+    }
     uint offset= t->field_def.cursor_rowtype_offset();
     return sp_variable_declarations_cursor_rowtype_finalize(thd, nvars,
                                                             offset,
@@ -6799,12 +6888,19 @@ LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
   {
     const Qualified_column_ident *tmp= t->field_def.column_type_ref();
     return sp_variable_declarations_column_type_finalize(thd, nvars, tmp,
+                                                         cardinality,
                                                          default_value,
                                                          expr_str);
   }
 
   if (t->field_def.is_table_rowtype_ref())
   {
+    if (cardinality)
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               "'TYPE OF <table-row-variable>'", "ARRAY []");
+      return true;
+    }
     const Table_ident *tmp= t->field_def.table_rowtype_ref();
     return sp_variable_declarations_table_rowtype_finalize(thd, nvars,
                                                            tmp->db,
@@ -6813,9 +6909,43 @@ LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
                                                            expr_str);
   }
 
+  if (cardinality && t->field_def.is_array())
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             "'TYPE OF <array-variable>'", "ARRAY []");
+    return true;
+  }
+
+  if (cardinality)
+  {
+    // TODO: move to a function ???
+    // Allocate the array description
+    Spvar_definition_array *elem;
+    if (!(elem= new (thd->mem_root) Spvar_definition_array(t->field_def,
+                                                           cardinality)))
+      return true;
+
+    // Initialize the array data type: TODO: move to a constructor???
+    Spvar_definition def;
+    Lex_field_type_st array_type_def;
+    array_type_def.set(&type_handler_array);
+    if (sphead->fill_spvar_definition(thd, &def, array_type_def,
+                                      COLUMN_DEFINITION_ROUTINE_LOCAL))
+      return true;
+    def.set_array_definition(elem);
+    // A reference to a scalar variable with an ARRAY
+    return sp_variable_declarations_copy_type_finalize(thd, nvars,
+                                                       def, elem,
+                                                       NULL/*ROW*/,
+                                                       default_value,
+                                                       expr_str);
+  }
+
   // A reference to a scalar or a row variable with an explicit data type
   return sp_variable_declarations_copy_type_finalize(thd, nvars,
                                                      t->field_def,
+                                                     t->field_def.
+                                                       array_definition(),
                                                      t->field_def.
                                                        row_field_definitions(),
                                                      default_value,
@@ -6952,7 +7082,8 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
     sp_variable *src= i == 0 ? loop.m_index : loop.m_target_bound;
     args[i]= new (thd->mem_root)
               Item_splocal(thd, &sp_rcontext_handler_local,
-                           &src->name, src->offset, src->type_handler());
+                           &src->name, src->offset, src->type_handler(),
+                           Query_fragment(0, 0));
     if (unlikely(args[i] == NULL))
       return true;
 #ifdef DBUG_ASSERT_EXISTS
@@ -7112,7 +7243,8 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
   Item_splocal *splocal= new (thd->mem_root)
     Item_splocal(thd, &sp_rcontext_handler_local,
                       &loop.m_index->name, loop.m_index->offset,
-                      loop.m_index->type_handler());
+                      loop.m_index->type_handler(),
+                      Query_fragment(0, 0));
   if (unlikely(splocal == NULL))
     return true;
 #ifdef DBUG_ASSERT_EXISTS
@@ -8174,8 +8306,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
   {
     if (unlikely(!(item= new (thd->mem_root)
                    Item_splocal_row_field_by_name(thd, rh, a, b, spv->offset,
-                                                  &type_handler_null,
-                                                  pos.pos(), pos.length()))))
+                                                  &type_handler_null, pos))))
       return NULL;
   }
   else
@@ -8188,8 +8319,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
     if (unlikely(!(item= new (thd->mem_root)
                    Item_splocal_row_field(thd, rh, a, b,
                                           spv->offset, row_field_offset,
-                                          def->type_handler(),
-                                          pos.pos(), pos.length()))))
+                                          def->type_handler(), pos))))
       return NULL;
   }
 #ifdef DBUG_ASSERT_EXISTS
@@ -8214,6 +8344,42 @@ my_var *LEX::create_outvar(THD *thd, const LEX_CSTRING *name)
 }
 
 
+my_var *LEX::create_outvar_array_element(THD *thd,
+                                         const LEX_CSTRING *a,
+                                         Item *index)
+{
+  const Sp_rcontext_handler *rh;
+  sp_variable *t;
+  if (unlikely(!(t= find_variable(a, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    return NULL;
+  }
+  if (!t->field_def.is_array())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "ARRAY reference for this expression type");
+    return NULL;
+  }
+  if (!index->basic_const_item() || !index->type_handler()->can_return_int())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "ARRAY reference for this expression type");
+    return NULL;
+  }
+
+  uint idx;
+  if (t->field_def.array_definition()->
+        to_c_index_with_error(t->name, index->to_longlong_hybrid_null(), &idx))
+    return NULL;
+
+  return result ?
+    new (thd->mem_root) my_var_sp_container_element(rh, a, t->offset,
+                                                    idx, sphead) :
+    NULL /* EXPLAIN */;
+}
+
+
 my_var *LEX::create_outvar(THD *thd,
                            const LEX_CSTRING *a,
                            const LEX_CSTRING *b)
@@ -8229,8 +8395,8 @@ my_var *LEX::create_outvar(THD *thd,
   if (!t->find_row_field(a, b, &row_field_offset))
     return NULL;
   return result ?
-    new (thd->mem_root) my_var_sp_row_field(rh, a, b, t->offset,
-                                            row_field_offset, sphead) :
+    new (thd->mem_root) my_var_sp_container_element(rh, a, t->offset,
+                                                    row_field_offset, sphead) :
     NULL /* EXPLAIN */;
 }
 
@@ -8368,11 +8534,16 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
-Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
+Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca,
+                             Item *index, const Query_fragment &idx_fragment)
 {
   DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
   DBUG_ASSERT(ca->pos() <= ca->end());
   DBUG_ASSERT(ca->end() <= thd->m_parser_state->m_lip.get_end_of_query());
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() + idx_fragment.pos() <=
+              thd->m_parser_state->m_lip.get_end_of_query());
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() + idx_fragment.end() <=
+              thd->m_parser_state->m_lip.get_end_of_query());
 
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
@@ -8385,14 +8556,34 @@ Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
     return NULL;
   }
 
-  Query_fragment pos(thd, sphead, ca->pos(), ca->end());
+  const Query_fragment pos= clone_spec_offset ?
+                            Query_fragment(0, 0) :
+                            Query_fragment(thd, sphead, ca->pos(), ca->end());
+
   Item_splocal *item;
-  if (unlikely(!(item= new (thd->mem_root)
-                 Item_splocal(thd, rh, &sa,
-                              spv->offset, spv->type_handler(),
-                              clone_spec_offset ? 0 : pos.pos(),
-                              clone_spec_offset ? 0 : pos.length()))))
-    return NULL;
+
+  if (index)
+  {
+    /*
+      Mark that index should not be rewritten any more.
+      The Item_splocal_array_element created below will rewrite
+      the whole expression `var[idx]`.
+    */
+    index->walk(&Item::unset_rewritable_query_parameter_processor, FALSE, NULL);
+    if (!(item= spv->create_item_splocal_array_element(thd, rh,
+                                                       pos, index,
+                                                       clone_spec_offset ?
+                                                       Query_fragment(0, 0) :
+                                                       idx_fragment)))
+      return NULL;
+  }
+  else
+  {
+    if (!(item= new (thd->mem_root) Item_splocal(thd, rh, &sa, spv->offset,
+                                                 spv->type_handler(), pos)))
+      return NULL;
+  }
+
 #ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
 #endif
@@ -8491,16 +8682,15 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return NULL;
     }
 
-    Query_fragment pos(thd, sphead, start, end);
-    uint f_pos= clone_spec_offset ? 0 : pos.pos();
-    uint f_length= clone_spec_offset ? 0 : pos.length();
+    Query_fragment pos= clone_spec_offset ?
+                        Query_fragment(0, 0) :
+                        Query_fragment(thd, sphead, start, end);
     Item_splocal *splocal= spv->field_def.is_column_type_ref() ?
       new (thd->mem_root) Item_splocal_with_delayed_data_type(thd, rh, name,
                                                               spv->offset,
-                                                              f_pos, f_length) :
-      new (thd->mem_root) Item_splocal(thd, rh, name,
-                                       spv->offset, spv->type_handler(),
-                                       f_pos, f_length);
+                                                              pos) :
+      new (thd->mem_root) Item_splocal(thd, rh, name, spv->offset,
+                                       spv->type_handler(), pos);
     if (unlikely(splocal == NULL))
       return NULL;
 #ifdef DBUG_ASSERT_EXISTS
@@ -8545,6 +8735,23 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
   return spv ? sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
                                           expr_str) :
                set_system_variable(option_type, name, item);
+}
+
+
+bool LEX::set_variable_array_element(const Lex_ident_sys_st *name,
+                                     Item *index, Item *value,
+                                     const LEX_CSTRING &expr_str)
+{
+  sp_pcontext *ctx;
+  const Sp_rcontext_handler *rh;
+  sp_variable *spv= find_variable(name, &ctx, &rh);
+  if (!spv)
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return true;
+  }
+  return sphead->set_local_variable_array_element(thd, ctx, rh, spv, index,
+                                                  value, this, true, expr_str);
 }
 
 
@@ -10563,16 +10770,16 @@ bool SELECT_LEX::make_unique_derived_name(THD *thd, LEX_CSTRING *alias)
   @return false on success, else return true
 */
 
-bool LEX::new_sp_instr_stmt(THD *thd,
-                            const LEX_CSTRING &prefix,
-                            const LEX_CSTRING &suffix)
+sp_instr_stmt *LEX::add_new_sp_instr_stmt(THD *thd,
+                                          const LEX_CSTRING &prefix,
+                                          const LEX_CSTRING &suffix)
 {
   LEX_STRING qbuff;
   sp_instr_stmt *i;
 
   qbuff.length= prefix.length + suffix.length;
   if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
-    return true;
+    return nullptr;
   if (prefix.length)
     memcpy(qbuff.str, prefix.str, prefix.length);
   strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
@@ -10596,14 +10803,15 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   qbuff.str[prefix.length + suffix.length]= 0;
 
   if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
-                                             spcont, this, qbuff)))
-    return true;
-
-  return sphead->add_instr(i);
+                                             spcont, this, qbuff)) ||
+      sphead->add_instr(i))
+    return nullptr;
+  return i;
 }
 
 
-bool LEX::sp_proc_stmt_statement_finalize_buf(THD *thd, const LEX_CSTRING &qbuf)
+bool sp_lex_stmt::sp_proc_stmt_statement_finalize_buf(THD *thd,
+                                                      const LEX_CSTRING &qbuf)
 {
   sphead->m_flags|= sp_get_flags_for_command(this);
   /* "USE db" doesn't work in a procedure */
@@ -10619,20 +10827,30 @@ bool LEX::sp_proc_stmt_statement_finalize_buf(THD *thd, const LEX_CSTRING &qbuf)
   */
   DBUG_ASSERT(sql_command != SQLCOM_SET_OPTION || var_list.is_empty());
   if (sql_command != SQLCOM_SET_OPTION)
-    return new_sp_instr_stmt(thd, empty_clex_str, qbuf);
+  {
+    if (!(m_instr_stmt= add_new_sp_instr_stmt(thd, empty_clex_str, qbuf)))
+      return true;
+  }
   return false;
 }
 
 
-bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
+bool sp_lex_stmt::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
 {
   // Extract the query statement from the tokenizer
   Lex_input_stream *lip= &thd->m_parser_state->m_lip;
   Lex_cstring qbuf(sphead->m_tmp_query, no_lookahead ? lip->get_ptr() :
                                                        lip->get_tok_start());
-  return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
+  return sp_proc_stmt_statement_finalize_buf(thd, qbuf);
 }
 
+
+bool sp_lex_stmt::resolve_array_element_indexes2(THD *thd)
+{
+  if (!m_instr_stmt)
+    return false;
+  return m_instr_stmt->resolve_array_element_indexes2(thd);
+}
 
 /**
   @brief

@@ -25,7 +25,7 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
 
-void Item_row::illegal_method_call(const char *method)
+void Item_container::illegal_method_call(const char *method)
 {
   DBUG_ENTER("Item_row::illegal_method_call");
   DBUG_PRINT("error", ("!!! %s method was called for row item", method));
@@ -34,7 +34,7 @@ void Item_row::illegal_method_call(const char *method)
   DBUG_VOID_RETURN;
 }
 
-bool Item_row::fix_fields(THD *thd, Item **ref)
+bool Item_container::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
   null_value= 0;
@@ -70,7 +70,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_row::eval_not_null_tables(void *opt_arg)
+Item_container::eval_not_null_tables(void *opt_arg)
 {
   Item **arg,**arg_end;
   not_null_tables_cache= 0;
@@ -86,7 +86,7 @@ Item_row::eval_not_null_tables(void *opt_arg)
 
 
 bool
-Item_row::find_not_null_fields(table_map allowed)
+Item_container::find_not_null_fields(table_map allowed)
 {
   if (~allowed & used_tables())
     return false;
@@ -104,9 +104,9 @@ Item_row::find_not_null_fields(table_map allowed)
 }
 
 
-void Item_row::cleanup()
+void Item_container::cleanup()
 {
-  DBUG_ENTER("Item_row::cleanup");
+  DBUG_ENTER("Item_container::cleanup");
 
   Item_fixed_hybrid::cleanup();
   /* Reset to the original values */
@@ -117,7 +117,7 @@ void Item_row::cleanup()
 }
 
 
-void Item_row::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
+void Item_container::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;
@@ -127,7 +127,7 @@ void Item_row::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 }
 
 
-void Item_row::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+void Item_container::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                  bool merge)
 {
   used_tables_and_const_cache_init();
@@ -141,7 +141,7 @@ void Item_row::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 }
 
 
-bool Item_row::check_cols(uint c)
+bool Item_container::check_cols(uint c)
 {
   if (c != arg_count)
   {
@@ -164,7 +164,20 @@ void Item_row::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_row::transform(THD *thd, Item_transformer transformer, uchar *arg)
+void Item_array::print(String *str, enum_query_type query_type)
+{
+  str->append(STRING_WITH_LEN("ARRAY["));
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (i)
+      str->append(',');
+    args[i]->print(str, query_type);
+  }
+  str->append(']');
+}
+
+
+Item *Item_container::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -173,29 +186,24 @@ Item *Item_row::transform(THD *thd, Item_transformer transformer, uchar *arg)
   return (this->*transformer)(thd, arg);
 }
 
-void Item_row::bring_value()
+void Item_container::bring_value()
 {
   for (uint i= 0; i < arg_count; i++)
     args[i]->bring_value();
 }
 
 
-Item* Item_row::build_clone(THD *thd)
+/*
+  See comments in Item_func_or_sum::build_clone()
+*/
+Item* Item_container::build_clone(THD *thd)
 {
-  Item **copy_args= static_cast<Item**>
-    (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
-  if (unlikely(!copy_args))
+  Item_args new_args;
+  if (new_args.clone_arguments(thd, *this))
     return 0;
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg_clone= args[i]->build_clone(thd);
-    if (!arg_clone)
-      return 0;
-    copy_args[i]= arg_clone;
-  }
-  Item_row *copy= (Item_row *) get_copy(thd);
+  Item_container *copy= static_cast<Item_container *>(get_copy(thd));
   if (unlikely(!copy))
     return 0;
-  copy->args= copy_args;
+  copy->Item_args::operator=(new_args);
   return copy;
 }

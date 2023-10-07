@@ -1,0 +1,1113 @@
+#
+# MDEV-32380 Array data type for stored routnes
+#
+#
+# INT
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var INT; DECLARE rec INT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(1); DECLARE rec INT(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(2); DECLARE rec INT(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(3); DECLARE rec INT(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(4); DECLARE rec INT(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(5); DECLARE rec INT(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(6); DECLARE rec INT(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(7); DECLARE rec INT(7) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(8); DECLARE rec INT(8) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(9); DECLARE rec INT(9) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(10); DECLARE rec INT(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(11); DECLARE rec INT(11) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(11)	NULL
+rec[1]	int(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(12); DECLARE rec INT(12) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(12)	NULL
+rec[1]	int(12)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(13); DECLARE rec INT(13) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(13)	NULL
+rec[1]	int(13)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(14); DECLARE rec INT(14) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(14)	NULL
+rec[1]	int(14)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(20); DECLARE rec INT(20) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(20)	NULL
+rec[1]	int(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var INT(21); DECLARE rec INT(21) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	int(21)	NULL
+rec[1]	int(21)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TINYINT
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT; DECLARE rec TINYINT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(4)	NULL
+rec[1]	tinyint(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(1); DECLARE rec TINYINT(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(4)	NULL
+rec[1]	tinyint(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(2); DECLARE rec TINYINT(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(4)	NULL
+rec[1]	tinyint(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(3); DECLARE rec TINYINT(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(4)	NULL
+rec[1]	tinyint(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(4); DECLARE rec TINYINT(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(4)	NULL
+rec[1]	tinyint(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(5); DECLARE rec TINYINT(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(5)	NULL
+rec[1]	tinyint(5)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(6); DECLARE rec TINYINT(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(6)	NULL
+rec[1]	tinyint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(7); DECLARE rec TINYINT(7) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(7)	NULL
+rec[1]	tinyint(7)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(8); DECLARE rec TINYINT(8) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(8)	NULL
+rec[1]	tinyint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(9); DECLARE rec TINYINT(9) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(9)	NULL
+rec[1]	tinyint(9)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(10); DECLARE rec TINYINT(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(10)	NULL
+rec[1]	tinyint(10)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(11); DECLARE rec TINYINT(11) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(11)	NULL
+rec[1]	tinyint(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(12); DECLARE rec TINYINT(12) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(12)	NULL
+rec[1]	tinyint(12)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(13); DECLARE rec TINYINT(13) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(13)	NULL
+rec[1]	tinyint(13)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(14); DECLARE rec TINYINT(14) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(14)	NULL
+rec[1]	tinyint(14)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(20); DECLARE rec TINYINT(20) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(20)	NULL
+rec[1]	tinyint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYINT(21); DECLARE rec TINYINT(21) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinyint(21)	NULL
+rec[1]	tinyint(21)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# SMALLINT
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT; DECLARE rec SMALLINT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(1); DECLARE rec SMALLINT(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(2); DECLARE rec SMALLINT(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(3); DECLARE rec SMALLINT(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(4); DECLARE rec SMALLINT(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(5); DECLARE rec SMALLINT(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(6); DECLARE rec SMALLINT(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(6)	NULL
+rec[1]	smallint(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(7); DECLARE rec SMALLINT(7) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(7)	NULL
+rec[1]	smallint(7)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(8); DECLARE rec SMALLINT(8) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(8)	NULL
+rec[1]	smallint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(9); DECLARE rec SMALLINT(9) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(9)	NULL
+rec[1]	smallint(9)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(10); DECLARE rec SMALLINT(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(10)	NULL
+rec[1]	smallint(10)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(11); DECLARE rec SMALLINT(11) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(11)	NULL
+rec[1]	smallint(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(12); DECLARE rec SMALLINT(12) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(12)	NULL
+rec[1]	smallint(12)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(13); DECLARE rec SMALLINT(13) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(13)	NULL
+rec[1]	smallint(13)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(14); DECLARE rec SMALLINT(14) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(14)	NULL
+rec[1]	smallint(14)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(20); DECLARE rec SMALLINT(20) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(20)	NULL
+rec[1]	smallint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var SMALLINT(21); DECLARE rec SMALLINT(21) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	smallint(21)	NULL
+rec[1]	smallint(21)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MEDIUMINT
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT; DECLARE rec MEDIUMINT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(9)	NULL
+rec[1]	mediumint(9)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(1); DECLARE rec MEDIUMINT(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(2); DECLARE rec MEDIUMINT(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(3); DECLARE rec MEDIUMINT(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(4); DECLARE rec MEDIUMINT(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(5); DECLARE rec MEDIUMINT(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(6); DECLARE rec MEDIUMINT(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(7); DECLARE rec MEDIUMINT(7) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(8); DECLARE rec MEDIUMINT(8) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(8)	NULL
+rec[1]	mediumint(8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(9); DECLARE rec MEDIUMINT(9) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(9)	NULL
+rec[1]	mediumint(9)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(10); DECLARE rec MEDIUMINT(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(10)	NULL
+rec[1]	mediumint(10)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(11); DECLARE rec MEDIUMINT(11) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(11)	NULL
+rec[1]	mediumint(11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(12); DECLARE rec MEDIUMINT(12) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(12)	NULL
+rec[1]	mediumint(12)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(13); DECLARE rec MEDIUMINT(13) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(13)	NULL
+rec[1]	mediumint(13)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(14); DECLARE rec MEDIUMINT(14) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(14)	NULL
+rec[1]	mediumint(14)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(20); DECLARE rec MEDIUMINT(20) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(20)	NULL
+rec[1]	mediumint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMINT(21); DECLARE rec MEDIUMINT(21) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumint(21)	NULL
+rec[1]	mediumint(21)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# BIGINT
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT; DECLARE rec BIGINT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(1); DECLARE rec BIGINT(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(2); DECLARE rec BIGINT(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(3); DECLARE rec BIGINT(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(4); DECLARE rec BIGINT(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(5); DECLARE rec BIGINT(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(6); DECLARE rec BIGINT(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(7); DECLARE rec BIGINT(7) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(8); DECLARE rec BIGINT(8) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(9); DECLARE rec BIGINT(9) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(10); DECLARE rec BIGINT(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(11); DECLARE rec BIGINT(11) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(12); DECLARE rec BIGINT(12) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(13); DECLARE rec BIGINT(13) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(14); DECLARE rec BIGINT(14) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(20); DECLARE rec BIGINT(20) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(20)	NULL
+rec[1]	bigint(20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BIGINT(21); DECLARE rec BIGINT(21) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	bigint(21)	NULL
+rec[1]	bigint(21)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# DOUBLE
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE; DECLARE rec DOUBLE ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double	NULL
+rec[1]	double	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,1); DECLARE rec DOUBLE(30,1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,1)	NULL
+rec[1]	double(30,1)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,2); DECLARE rec DOUBLE(30,2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,2)	NULL
+rec[1]	double(30,2)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,3); DECLARE rec DOUBLE(30,3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,3)	NULL
+rec[1]	double(30,3)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,4); DECLARE rec DOUBLE(30,4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,4)	NULL
+rec[1]	double(30,4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,5); DECLARE rec DOUBLE(30,5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,5)	NULL
+rec[1]	double(30,5)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,6); DECLARE rec DOUBLE(30,6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,6)	NULL
+rec[1]	double(30,6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,7); DECLARE rec DOUBLE(30,7) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,7)	NULL
+rec[1]	double(30,7)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,8); DECLARE rec DOUBLE(30,8) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,8)	NULL
+rec[1]	double(30,8)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,9); DECLARE rec DOUBLE(30,9) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,9)	NULL
+rec[1]	double(30,9)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,10); DECLARE rec DOUBLE(30,10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,10)	NULL
+rec[1]	double(30,10)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,11); DECLARE rec DOUBLE(30,11) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,11)	NULL
+rec[1]	double(30,11)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,12); DECLARE rec DOUBLE(30,12) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,12)	NULL
+rec[1]	double(30,12)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,13); DECLARE rec DOUBLE(30,13) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,13)	NULL
+rec[1]	double(30,13)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,14); DECLARE rec DOUBLE(30,14) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,14)	NULL
+rec[1]	double(30,14)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,20); DECLARE rec DOUBLE(30,20) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,20)	NULL
+rec[1]	double(30,20)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DOUBLE(30,21); DECLARE rec DOUBLE(30,21) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	double(30,21)	NULL
+rec[1]	double(30,21)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# VARCHAR
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var CHAR; DECLARE rec CHAR ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	char(1)	latin1_swedish_ci
+rec[1]	char(1)	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BINARY; DECLARE rec BINARY ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	binary(1)	NULL
+rec[1]	binary(1)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var CHAR(1); DECLARE rec CHAR(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	char(1)	latin1_swedish_ci
+rec[1]	char(1)	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var CHAR(10); DECLARE rec CHAR(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	char(10)	latin1_swedish_ci
+rec[1]	char(10)	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var NCHAR(10); DECLARE rec NCHAR(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	char(10)	utf8mb3_general_ci
+rec[1]	char(10)	utf8mb3_general_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var BINARY(10); DECLARE rec BINARY(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	binary(10)	NULL
+rec[1]	binary(10)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var VARBINARY(10); DECLARE rec VARBINARY(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	varbinary(10)	NULL
+rec[1]	varbinary(10)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var VARCHAR(10); DECLARE rec VARCHAR(10) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	varchar(10)	latin1_swedish_ci
+rec[1]	varchar(10)	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var VARCHAR(10) CHARACTER SET utf8; DECLARE rec VARCHAR(10) CHARACTER SET utf8 ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	varchar(10)	utf8mb3_general_ci
+rec[1]	varchar(10)	utf8mb3_general_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin; DECLARE rec VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	varchar(10)	utf8mb3_bin
+rec[1]	varchar(10)	utf8mb3_bin
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TIME
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME; DECLARE rec TIME ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time	NULL
+rec[1]	time	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME(1); DECLARE rec TIME(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time(1)	NULL
+rec[1]	time(1)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME(2); DECLARE rec TIME(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time(2)	NULL
+rec[1]	time(2)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME(3); DECLARE rec TIME(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time(3)	NULL
+rec[1]	time(3)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME(4); DECLARE rec TIME(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time(4)	NULL
+rec[1]	time(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME(5); DECLARE rec TIME(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time(5)	NULL
+rec[1]	time(5)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TIME(6); DECLARE rec TIME(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	time(6)	NULL
+rec[1]	time(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# DATETIME
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME; DECLARE rec DATETIME ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime	NULL
+rec[1]	datetime	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME(1); DECLARE rec DATETIME(1) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime(1)	NULL
+rec[1]	datetime(1)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME(2); DECLARE rec DATETIME(2) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime(2)	NULL
+rec[1]	datetime(2)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME(3); DECLARE rec DATETIME(3) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime(3)	NULL
+rec[1]	datetime(3)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME(4); DECLARE rec DATETIME(4) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime(4)	NULL
+rec[1]	datetime(4)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME(5); DECLARE rec DATETIME(5) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime(5)	NULL
+rec[1]	datetime(5)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var DATETIME(6); DECLARE rec DATETIME(6) ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	datetime(6)	NULL
+rec[1]	datetime(6)	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# LOB
+#
+CREATE PROCEDURE p1() BEGIN DECLARE var TEXT; DECLARE rec TEXT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	text	latin1_swedish_ci
+rec[1]	text	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYTEXT; DECLARE rec TINYTEXT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinytext	latin1_swedish_ci
+rec[1]	tinytext	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMTEXT; DECLARE rec MEDIUMTEXT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumtext	latin1_swedish_ci
+rec[1]	mediumtext	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var LONGTEXT; DECLARE rec LONGTEXT ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	longtext	latin1_swedish_ci
+rec[1]	longtext	latin1_swedish_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TEXT CHARACTER SET utf8; DECLARE rec TEXT CHARACTER SET utf8 ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	text	utf8mb3_general_ci
+rec[1]	text	utf8mb3_general_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var TINYTEXT CHARACTER SET utf8; DECLARE rec TINYTEXT CHARACTER SET utf8 ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	tinytext	utf8mb3_general_ci
+rec[1]	tinytext	utf8mb3_general_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var MEDIUMTEXT CHARACTER SET utf8; DECLARE rec MEDIUMTEXT CHARACTER SET utf8 ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	mediumtext	utf8mb3_general_ci
+rec[1]	mediumtext	utf8mb3_general_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var LONGTEXT CHARACTER SET utf8; DECLARE rec LONGTEXT CHARACTER SET utf8 ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	longtext	utf8mb3_general_ci
+rec[1]	longtext	utf8mb3_general_ci
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() BEGIN DECLARE var LONGTEXT CHARACTER SET utf8 COLLATE utf8_bin; DECLARE rec LONGTEXT CHARACTER SET utf8 COLLATE utf8_bin ARRAY[1]; CREATE TABLE t1 AS SELECT var,rec[1] FROM DUAL;END;
+CALL p1();
+SELECT column_name, column_type, collation_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+column_name	column_type	collation_name
+var	longtext	utf8mb3_bin
+rec[1]	longtext	utf8mb3_bin
+DROP TABLE t1;
+DROP PROCEDURE p1;

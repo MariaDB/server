@@ -2350,6 +2350,8 @@ public:
   */
   bool add(List<Spvar_definition> &field_list);
 
+  bool add(const Spvar_definition_array &def);
+
   /**
     Open a virtual table for read/write:
     - Setup end markers in TABLE::field and TABLE_SHARE::blob_fields,
@@ -2446,6 +2448,27 @@ create_virtual_tmp_table(THD *thd, List<Spvar_definition> &field_list)
 
   if (table->init(field_list.elements) ||
       table->add(field_list) ||
+      table->open())
+  {
+    delete table;
+    return NULL;
+  }
+  return table;
+}
+
+
+inline Virtual_tmp_table *
+create_virtual_tmp_table_for_array(THD *thd, const Spvar_definition_array &def)
+{
+  Virtual_tmp_table *table;
+  if (!(table= new(thd) Virtual_tmp_table(thd)))
+    return NULL;
+
+  DBUG_EXECUTE_IF("simulate_create_virtual_tmp_table_out_of_memory",
+                  DBUG_SET("+d,simulate_out_of_memory"););
+
+  if (table->init(def.cardinality()) ||
+      table->add(def) ||
       table->open())
   {
     delete table;

@@ -1129,24 +1129,43 @@ void sp_head::sp_returns_type(THD *thd, String &result) const
     return;
   }
 
+  if (m_return_field_def.is_array() &&
+      m_return_field_def.array_definition()->is_column_type_ref())
+  {
+    const Spvar_definition_array *def= m_return_field_def.array_definition();
+    sp_returns_type_of(thd, result, *def->column_type_ref());
+    def->print_array_type_suffix(result);
+    return;
+  }
+
   TABLE table;
   TABLE_SHARE share;
-  Field *field;
+  Field *field= NULL;
   bzero((char*) &table, sizeof(table));
   bzero((char*) &share, sizeof(share));
   table.in_use= thd;
   table.s = &share;
-  field= create_result_field(0, 0, &table);
 
   if (m_return_field_def.is_row())
   {
+    field= create_result_field(0, 0, &table);
     Field_row *field_row= dynamic_cast<Field_row*>(field);
     if (!field_row->row_create_fields(
            thd, m_return_field_def.row_field_definitions()))
       field->sql_type(result);
   }
+  else if (m_return_field_def.is_array())
+  {
+    const Spvar_definition_array *def= m_return_field_def.array_definition();
+    DBUG_ASSERT(!def->is_column_type_ref());
+    const LEX_CSTRING name={STRING_WITH_LEN("[array-element]")};
+    field= def->make_field(&share, thd->mem_root, &name);
+    field->sql_type_for_sp_returns(result);
+    def->print_array_type_suffix(result);
+  }
   else
   {
+    field= create_result_field(0, 0, &table);
     DBUG_ASSERT(m_return_field_def.type_handler()->is_scalar_type());
     field->sql_type_for_sp_returns(result);
   }

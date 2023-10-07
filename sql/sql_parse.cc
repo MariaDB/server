@@ -3206,7 +3206,7 @@ bool Sql_cmd_call::execute(THD *thd)
   */
   if (check_table_access(thd, SELECT_ACL, all_tables, FALSE,
                          UINT_MAX, FALSE) ||
-      open_and_lock_tables(thd, all_tables, TRUE, 0))
+      open_and_lock_tables2(thd, all_tables, TRUE, 0))
    return true;
 
   /*
@@ -3947,7 +3947,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_DO:
     if (check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE)
-        || open_and_lock_tables(thd, all_tables, TRUE, 0))
+        || open_and_lock_tables2(thd, all_tables, TRUE, 0))
       goto error;
 
     res= mysql_do(thd, *lex->insert_list);
@@ -4514,7 +4514,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     unit->set_limit(select_lex);
 
-    if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
+    if (!(res=open_and_lock_tables2(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
       /*
@@ -4781,7 +4781,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     List<set_var_base> *lex_var_list= &lex->var_list;
 
     if ((check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE)
-         || open_and_lock_tables(thd, all_tables, TRUE, 0)))
+         || open_and_lock_tables2(thd, all_tables, TRUE, 0)))
       goto error;
     if (likely(!(res= sql_set_variables(thd, lex_var_list, true))))
     {
@@ -5947,7 +5947,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
                                      (ulonglong) thd->variables.select_limit);
   }
 
-  if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
+  if (!(res= open_and_lock_tables2(thd, all_tables, TRUE, 0)))
   {
     if (lex->describe)
     {

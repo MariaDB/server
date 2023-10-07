@@ -3889,14 +3889,14 @@ public:
 
   Item* element_index(uint i) override
   {
-    return sp_result_item_field_row ?
-           sp_result_item_field_row->arguments()[i] :
+    return sp_result_item_field_container ?
+           sp_result_item_field_container->arguments()[i] :
            this;
   }
   Item** addr(uint i) override
   {
-    return sp_result_item_field_row ?
-           &sp_result_item_field_row->arguments()[i] :
+    return sp_result_item_field_container ?
+           &sp_result_item_field_container->arguments()[i] :
            NULL;
   }
 

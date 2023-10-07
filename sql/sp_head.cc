@@ -152,6 +152,46 @@ bool Item_splocal::append_value_for_log(THD *thd, String *str)
 }
 
 
+bool Item_splocal_array_element::append_for_log(THD *thd, String *str)
+{
+  if (fix_fields_if_needed(thd, NULL))
+    return true;
+
+  if (limit_clause_param)
+    return str->append_ulonglong(val_uint());
+
+  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
+      str->append(&m_name) ||
+      str->append('[') ||
+      str->append_longlong(m_element_index + 1) ||
+      str->append(STRING_WITH_LEN("]',")))
+    return true;
+  return append_value_for_log(thd, str) || str->append(')');
+}
+
+
+// TODO: Item_splocal_array_element_by_expr::cleanup() ???
+bool Item_splocal_array_element_by_expr::append_for_log(THD *thd, String *str)
+{
+  if (fix_fields_if_needed(thd, NULL))
+    return true;
+
+  if (limit_clause_param)
+    return str->append_ulonglong(val_uint());
+
+  StringBuffer<64> index_expr;
+  m_index_expr->print(&index_expr,
+     enum_query_type(QT_ORDINARY | QT_PARSABLE | QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
+      str->append(&m_name) ||
+      str->append('[') ||
+      str->append(index_expr) ||
+      str->append(STRING_WITH_LEN("]',")))
+    return true;
+  return append_value_for_log(thd, str) || str->append(')');
+}
+
+
 bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 {
   if (fix_fields_if_needed(thd, NULL))
@@ -424,6 +464,15 @@ Item *THD::sp_fix_func_item_for_assignment(const Field *to, Item **it_addr)
   if (res && (!res->check_assignability_to(to, false)))
     DBUG_RETURN(res);
   DBUG_RETURN(NULL);
+}
+
+
+Item *THD::sp_fix_func_item_for_array_index(Item **it_addr)
+{
+  Item *item= sp_fix_func_item(it_addr);
+  if (!item || item->check_type_for_array_index())
+    return NULL;
+  return item;
 }
 
 
@@ -3765,6 +3814,46 @@ sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
 }
 
 
+bool
+sp_head::set_local_variable_array_element(THD *thd, sp_pcontext *spcont,
+                                          const Sp_rcontext_handler *rh,
+                                          sp_variable *spvar, Item *index,
+                                          Item *val, LEX *lex,
+                                          bool responsible_to_free_lex,
+                                          const LEX_CSTRING &value_query)
+{
+  if (!(val= adjust_assignment_source(thd, val, NULL)))
+    return true;
+
+  sp_instr *sp_set;
+
+  if (index->basic_const_item())
+  {
+    uint idx;
+    if (spvar->field_def.array_definition()->to_c_index_with_error(
+                                            spvar->name,
+                                            index->to_longlong_hybrid_null(),
+                                            &idx))
+      return true;
+    sp_set= new (thd->mem_root) sp_instr_set_row_field(instructions(),
+                                                       spcont, rh,
+                                                       spvar->offset,
+                                                       idx,
+                                                       val, lex, true,
+                                                       value_query);
+  }
+  else
+  {
+    sp_set= new (thd->mem_root) sp_instr_set_array_element_by_expr(
+                                                 instructions(), spcont, rh,
+                                                 spvar->offset,
+                                                 index, val, lex, true,
+                                                 value_query);
+  }
+  return sp_set == NULL || add_instr(sp_set);
+}
+
+
 /**
   Similar to set_local_variable(), but for ROW variable fields.
 */
@@ -3908,29 +3997,54 @@ bool sp_head::spvar_fill_row(THD *thd,
 }
 
 
-bool sp_head::spvar_fill_type_reference(THD *thd,
-                                        sp_variable *spvar,
-                                        const LEX_CSTRING &table,
-                                        const LEX_CSTRING &col)
+bool sp_head::fill_spvar_definition_array(THD *thd, Spvar_definition *def,
+                                          const Lex_field_type_st &elem,
+                                          uint cardinality,
+                                          column_definition_type_t type)
 {
-  Qualified_column_ident *ref;
-  if (!(ref= new (thd->mem_root) Qualified_column_ident(&table, &col)))
+  // Initialize the element data type
+  if (fill_spvar_definition(thd, def, elem, type))
     return true;
-  fill_spvar_using_type_reference(spvar, ref);
+
+  // Allocate the array description
+  Spvar_definition_array *elements;
+  if (!(elements= new (thd->mem_root) Spvar_definition_array(*def, cardinality)))
+    return true;
+
+  // Initialize the array data type
+  const LEX_CSTRING name= def->field_name;
+  *def= Spvar_definition();
+  def->field_name= name;
+  Lex_field_type_st array_type_def;
+  array_type_def.set(&type_handler_array);
+
+  if (fill_spvar_definition(thd, def, array_type_def, type))
+    return true;
+
+  def->set_array_definition(elements);
   return false;
 }
 
 
-bool sp_head::spvar_fill_type_reference(THD *thd,
-                                        sp_variable *spvar,
-                                        const LEX_CSTRING &db,
-                                        const LEX_CSTRING &table,
-                                        const LEX_CSTRING &col)
+bool sp_head::fill_spvar_definition_array(THD *thd, Spvar_definition *def,
+                                          const Qualified_column_ident *ref,
+                                          uint cardinality,
+                                          column_definition_type_t type)
 {
-  Qualified_column_ident *ref;
-  if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table, &col)))
+  DBUG_ASSERT(cardinality > 0);
+  const LEX_CSTRING name= def->field_name;
+  *def= Spvar_definition();
+  def->field_name= name;
+  // Allocate the array description
+  Spvar_definition_array *elem;
+  if (!(elem= new (thd->mem_root) Spvar_definition_array(ref, cardinality)))
     return true;
-  fill_spvar_using_type_reference(spvar, ref);
+  // Initialize the array data type
+  Lex_field_type_st array_type_def;
+  array_type_def.set(&type_handler_array);
+  if (fill_spvar_definition(thd, def, array_type_def, type))
+    return true;
+  def->set_array_definition(elem);
   return false;
 }
 

@@ -8544,7 +8544,7 @@ CLOSE cur;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `rec1`
 DROP PROCEDURE p1;
 # A complete working example
 CREATE TABLE t1 (a INT, b VARCHAR(32));

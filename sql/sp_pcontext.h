@@ -25,7 +25,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
-
+#include "query_fragment.h"
 
 /// This class represents a stored program variable or a parameter
 /// (also referenced as 'SP-variable').
@@ -85,6 +85,12 @@ public:
   const Spvar_definition *find_row_field(const LEX_CSTRING *var_name,
                                          const LEX_CSTRING *field_name,
                                          uint *row_field_offset);
+
+  class Item_splocal *create_item_splocal_array_element(THD *thd,
+                                        const class Sp_rcontext_handler *rh,
+                                        const Query_fragment &prefix_fragment,
+                                        Item *index,
+                                        const Query_fragment &index_fragment);
 };
 
 ///////////////////////////////////////////////////////////////////////////

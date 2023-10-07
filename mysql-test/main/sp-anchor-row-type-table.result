@@ -569,7 +569,7 @@ SELECT rec.A, rec.B;
 END;
 $$
 CALL p1();
-ERROR HY000: Row variable 'rec' does not have a field 'A'
+ERROR HY000: Row variable 'rec' does not have a field 'B'
 DROP TEMPORARY TABLE t1;
 CALL p1();
 rec.A	rec.B
@@ -623,7 +623,7 @@ SELECT rec1.a, rec1.b;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `rec1`
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #

@@ -40,7 +40,7 @@ SELECT f1(ROW(10,20));
 f1(ROW(10,20))
 20
 SELECT f1(10);
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `a`
 SELECT f1(ROW(10,20,30));
 ERROR 21000: Operand should contain 2 column(s)
 CALL p1();
@@ -57,7 +57,7 @@ CALL p1(ROW(10,20));
 a.a	a.b
 10	20
 CALL p1(10);
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `a`
 CALL p1(ROW(10,20,30));
 ERROR 21000: Operand should contain 2 column(s)
 DROP PROCEDURE p1;
@@ -102,7 +102,7 @@ SELECT a.a;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `a`
 DROP PROCEDURE p1;
 #
 # Bad ROW default value with a wrong number of fields
@@ -237,7 +237,7 @@ SET rec=1;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `rec`
 DROP PROCEDURE p1;
 #
 # Assigning a scalar value to a ROW variable with 2 columns
@@ -249,7 +249,7 @@ SET rec=1;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `rec`
 DROP PROCEDURE p1;
 #
 # Assigning a ROW value to a ROW variable with different number of columns
@@ -2139,7 +2139,7 @@ SELECT rec1.a, rec1.b;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `rec1`
 DROP TABLE t1;
 DROP PROCEDURE p1;
 # ROW variables working example

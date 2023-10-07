@@ -591,8 +591,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
       Open tables used for sub-selects or in stored functions, will also
       cache these functions.
     */
-    if (open_and_lock_tables(thd, table_list->next_global, TRUE,
-                             MYSQL_OPEN_IGNORE_ENGINE_STATS))
+    if (open_and_lock_tables2(thd, table_list->next_global, TRUE,
+                              MYSQL_OPEN_IGNORE_ENGINE_STATS))
     {
       end_delayed_insert(thd);
       error= TRUE;
@@ -636,7 +636,7 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
     Use a normal insert.
   */
   table_list->lock_type= TL_WRITE;
-  DBUG_RETURN(open_and_lock_tables(thd, table_list, TRUE, 0));
+  DBUG_RETURN(open_and_lock_tables2(thd, table_list, TRUE, 0));
 }
 
 
@@ -766,7 +766,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   }
   else
   {
-    if (open_and_lock_tables(thd, table_list, TRUE, 0))
+    if (open_and_lock_tables2(thd, table_list, TRUE, 0))
       DBUG_RETURN(TRUE);
   }
 

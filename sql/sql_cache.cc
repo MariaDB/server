@@ -1405,7 +1405,8 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
 
   /* The following assert fails if we haven't called send_result_to_client */
   DBUG_ASSERT(thd->base_query.is_alloced() ||
-              thd->base_query.ptr() == thd->query());
+              thd->base_query.ptr() == thd->query() ||
+              !thd->lex->safe_to_cache_query);
 
   tables_type= 0;
   if ((local_tables= is_cacheable(thd, thd->lex, tables_used,

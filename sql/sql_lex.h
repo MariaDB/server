@@ -290,6 +290,7 @@ class LEX_COLUMN;
 class sp_head;
 class sp_name;
 class sp_instr;
+class sp_instr_stmt;
 class sp_pcontext;
 class sp_variable;
 class sp_expr_lex;
@@ -3866,18 +3867,22 @@ public:
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
 
-  bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
-                         const LEX_CSTRING &suffix);
-  bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);
-  bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
+  sp_instr_stmt *add_new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
+                                       const LEX_CSTRING &suffix);
 
   sp_variable *sp_param_init(LEX_CSTRING *name);
   bool sp_param_fill_definition(sp_variable *spvar,
-                                const Lex_field_type_st &def);
-  bool sf_return_fill_definition(const Lex_field_type_st &def);
+                                const Lex_field_type_st &def,
+                                uint cardinality);
+  bool sp_param_fill_definition_type_of(sp_variable *spvar,
+                                        const Qualified_column_ident &col,
+                                        uint cardinality);
+  bool sf_return_fill_definition(const Lex_field_type_st &def,
+                                 uint cardinality);
   bool sf_return_fill_definition_row(Row_definition_list *def);
   bool sf_return_fill_definition_rowtype_of(const Qualified_column_ident &col);
-  bool sf_return_fill_definition_type_of(const Qualified_column_ident &col);
+  bool sf_return_fill_definition_type_of(const Qualified_column_ident &col,
+                                         uint cardinality);
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
@@ -3945,12 +3950,17 @@ public:
   }
   bool set_variable(const Lex_ident_sys_st *name, Item *item,
                     const LEX_CSTRING &expr_str);
+  bool set_variable_array_element(const Lex_ident_sys_st *name,
+                                  Item *index, Item *value,
+                                  const LEX_CSTRING &expr_str);
   bool set_variable(const Lex_ident_sys_st *name1,
                     const Lex_ident_sys_st *name2, Item *item,
                     const LEX_CSTRING &expr_str);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
-                                         const Column_definition *cdef,
+                                         const Lex_field_type_st &lexdef,
+                                         uint cardinality,
+                                         column_definition_type_t type,
                                          Item *def,
                                          const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def,
@@ -3961,6 +3971,7 @@ public:
                                              const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                   Qualified_column_ident *col,
+                                                  uint cardinality,
                                                   Item *def,
                                                   const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
@@ -3978,14 +3989,17 @@ public:
                                                        const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
                                               const Qualified_column_ident *ref,
+                                              uint cardinality,
                                               Item *def,
                                               const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
                                                  const LEX_CSTRING &name,
+                                                 uint vardinality,
                                                  Item *def,
                                                  const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
                                                    const Column_definition &ref,
+                                                   Spvar_definition_array *arr,
                                                    Row_definition_list *fields,
                                                    Item *def,
                                                    const LEX_CSTRING &expr_str);
@@ -4164,7 +4178,8 @@ public:
                            or NULL on error
                            (non in SP, unknown variable, wrong data type).
   */
-  Item *create_item_limit(THD *thd, const Lex_ident_cli_st *var_name);
+  Item *create_item_limit(THD *thd, const Lex_ident_cli_st *var_name,
+                          Item *index, const Query_fragment &idx_fragment);
 
   /*
     Create an item for a qualified name in LIMIT clause: LIMIT var.field
@@ -4196,6 +4211,8 @@ public:
                                                   Lex_ident_cli_st &name,
                                                   List<Item> *args);
   my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
+  my_var *create_outvar_array_element(THD *thd, const LEX_CSTRING *name,
+                                      Item *index);
 
   /*
     Create a my_var instance for a ROW field variable that was used
@@ -5111,13 +5128,34 @@ public:
   {
     /* Reset most stuff. */
     start(thd);
-    /* Keep the parent SP stuff */
-    sphead= oldlex->sphead;
-    spcont= oldlex->spcont;
-    /* Keep the parent trigger stuff too */
-    trg_chistics= oldlex->trg_chistics;
+    if (oldlex)
+    {
+      /* Keep the parent SP stuff */
+      sphead= oldlex->sphead;
+      spcont= oldlex->spcont;
+      /* Keep the parent trigger stuff too */
+      trg_chistics= oldlex->trg_chistics;
+    }
     sp_lex_in_use= false;
   }
+};
+
+
+class sp_lex_stmt: public sp_lex_local
+{
+  sp_instr_stmt *m_instr_stmt;
+public:
+  sp_lex_stmt(THD *thd, const LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    m_instr_stmt(nullptr)
+  { }
+  void set_instr_stmt(sp_instr_stmt *instr)
+  {
+    m_instr_stmt= instr;
+  }
+  bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);
+  bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
+  bool resolve_array_element_indexes2(THD *thd);
 };
 
 

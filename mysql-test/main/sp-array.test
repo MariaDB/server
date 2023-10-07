@@ -1,0 +1,1869 @@
+--echo #
+--echo # MDEV-32380 Array data type for stored routnes
+--echo #
+
+# TODO
+#--echo #
+#--echo # Testing maximum array size
+#--echo #
+#
+#DELIMITER $$;
+#CREATE PROCEDURE p1()
+#BEGIN
+#  DECLARE a INT ARRAY[5000000];
+#  SET a[5000000]=10;
+#  SELECT a[5000000];
+#END;
+#$$
+#DELIMITER ;$$
+#CALL p1;
+#DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY of ARRAYs is not supported yet
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] ARRAY[2];
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE b TYPE OF a ARRAY[2];
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # ARRAY of ROWs is not supported yet
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW(a INT,b INT) ARRAY[2];
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE cur CURSOR FOR SELECT 1 AS c;
+  BEGIN
+    DECLARE a ROW TYPE OF c ARRAY[2];
+  END;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE cur CURSOR FOR SELECT 1 AS c;
+  BEGIN
+    DECLARE a ROW TYPE OF cur;
+    DECLARE b TYPE OF a ARRAY[2];
+  END;
+END;
+$$
+DELIMITER ;$$
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW TYPE OF t1 ARRAY[2];
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW TYPE OF t1;
+  DECLARE b TYPE OF a ARRAY[2];
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # ROW with ARRAYs is not supported yet
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW(a INT,b INT ARRAY[2]);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Out of range basic constant index
+--echo #
+
+DELIMITER $$;
+--error ER_ARRAY_INDEX_OUT_OF_BOUNDS
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT a[0];
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ARRAY_INDEX_OUT_OF_BOUNDS
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT a[3];
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Out of range expression index
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE idx INT DEFAULT 0;
+  SELECT a[idx];
+END;
+$$
+DELIMITER ;$$
+--error ER_ARRAY_INDEX_OUT_OF_BOUNDS
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE idx INT DEFAULT 3;
+  SELECT a[idx];
+END;
+$$
+DELIMITER ;$$
+--error ER_ARRAY_INDEX_OUT_OF_BOUNDS
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE idx INT DEFAULT 3;
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '2202E' BEGIN SET @error= TRUE; END;
+  SET @error= FALSE;
+  SELECT a[idx];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Bad combinations of subscript subject and index
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE b INT;
+  SELECT b[a];
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+# TODO: perhaps should fail during compilation
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT a[ROW(1,1)];
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE b INT;
+  SELECT a[b][b];
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  DECLARE b INT;
+  SELECT (a[b])[b];
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW(a INT, b INT);
+  SELECT a.b[1];
+END;
+$$
+DELIMITER ;$$
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW TYPE OF t1;
+  SELECT a.b[1];
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a;
+  SELECT a.b[1];
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+  SELECT rec[a] FROM t1;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+  SELECT rec[MAX(1)] FROM t1;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+  SELECT rec[(SELECT 1 FROM t1)];
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # Variable index
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+  DECLARE idx INT DEFAULT 0;
+  SET a[idx]= 11;
+END;
+$$
+DELIMITER ;$$
+--error ER_ARRAY_INDEX_OUT_OF_BOUNDS
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+  DECLARE idx INT DEFAULT 4;
+  SET a[idx]= 11;
+END;
+$$
+DELIMITER ;$$
+--error ER_ARRAY_INDEX_OUT_OF_BOUNDS
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+  FOR idx IN 1..3 DO
+    SELECT a[idx];
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2];
+  DECLARE idx INT DEFAULT 1;
+  SET var[idx]= 1;
+  SELECT idx, var[idx];
+  SET idx=2;
+  SET var[idx]= 1;
+  SELECT idx, var[idx];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[3] DEFAULT ARRAY[10,20,30];
+  FOR idx IN 1..3 DO
+    SET a[idx]= a[idx]+idx;
+  END FOR;
+  FOR idx IN 1..3 DO
+    SELECT a[idx];
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Nested index
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a1 INT ARRAY [2] DEFAULT ARRAY[10,20];
+  DECLARE a2 INT ARRAY [2] DEFAULT ARRAY[1,2];
+  DECLARE a3 INT ARRAY [2] DEFAULT ARRAY[1,2];
+  SELECT a1[a2[1]], a1[a2[2]];
+  SELECT a1[a2[a3[1]]], a1[a2[a3[2]]];
+  EXPLAIN EXTENDED SELECT a1[a2[a3[1]]], a1[a2[a3[2]]];
+  SHOW WARNINGS;
+  SELECT a1[a2[a3[COALESCE(1,1)]]], a1[a2[a3[COALESCE(2,2)]]];
+  EXPLAIN EXTENDED SELECT a1[a2[a3[COALESCE(1,1)]]], a1[a2[a3[COALESCE(2,2)]]];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a1 INT ARRAY [2] DEFAULT ARRAY[10,20];
+  DECLARE a2 INT ARRAY [2] DEFAULT ARRAY[1,2];
+  DECLARE a3 INT ARRAY [2] DEFAULT ARRAY[1,2];
+  DECLARE i1 INT DEFAULT 1;
+  DECLARE i2 INT DEFAULT 2;
+  SELECT a1[a2[i1]], a1[a2[i2]];
+  SELECT a1[a2[a3[i1]]], a1[a2[a3[i2]]];
+  EXPLAIN EXTENDED SELECT a1[a2[a3[i1]]], a1[a2[a3[i2]]];
+  SHOW WARNINGS;
+  SELECT a1[a2[a3[COALESCE(i1,1)]]], a1[a2[a3[COALESCE(i2,1)]]];
+  EXPLAIN EXTENDED SELECT a1[a2[a3[COALESCE(i1,1)]]], a1[a2[a3[COALESCE(i2,2)]]];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # PS parameter index
+--echo #
+
+# SP variables are not seen inside EXECUTE IMMEDIATE.
+# Moreover, the statement inside EXECUTE IMMEDIATE is not even
+# parsed during CREATE PROCEDURE.
+# The error is generated during CALL time:
+# It considers `a1` as a table column.
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a1 INT ARRAY [2] DEFAULT ARRAY[10,20];
+  EXECUTE IMMEDIATE 'SELECT a1[?]' USING 1;
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_SUPPORTED_YET
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # User variables in index
+--echo # 
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[6] DEFAULT ARRAY[1,2,3,4,5,6];
+  SET @a= 0;
+  SELECT rec[@a:=@a+1];
+  SELECT @a;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # Stored functions index
+--echo #
+
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT ARRAY[2];
+  SET a[f1(1)]= 100;
+  SET a[f1(2)]= 200;
+  SELECT a[1], a[2];
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+
+CREATE FUNCTION f1() RETURNS INT RETURN 2;
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[100,200];
+  SELECT a[f1()];
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Subquery index in SET target
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  SET rec[(SELECT MIN(a) FROM t1)]= 100;
+  SET rec[(SELECT MAX(a) FROM t1)]= 200;
+  SELECT rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Stored function as an assignment source
+--echo #
+
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[0,0];
+  SET a[1]= f1(100);
+  SET a[2]= f1(200);
+  SELECT a[1], a[2];
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+--echo #
+--echo # Subquery as an assignment source
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (100),(200);
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[0,0];
+  SET rec[1]= (SELECT MIN(a) FROM t1);
+  SET rec[2]= (SELECT MAX(a) FROM t1);
+  SELECT rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # Truncation
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a VARCHAR(10) ARRAY[2];
+  SET a[1]= '01234567890';
+END;
+$$
+DELIMITER ;$$
+--error ER_DATA_TOO_LONG
+CALL p1;
+SET sql_mode='';
+--error ER_DATA_TOO_LONG
+CALL p1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a VARCHAR(10) ARRAY[2] DEFAULT ARRAY['','01234567890'];
+  SET a[1]= '01234567890';
+END;
+$$
+DELIMITER ;$$
+--error ER_DATA_TOO_LONG
+CALL p1;
+SET sql_mode='';
+--error ER_DATA_TOO_LONG
+CALL p1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Returning the entire ARRAY parameter from a scalar function
+--echo #
+
+# TODO: this should probably return an error at compile time
+DELIMITER $$;
+CREATE FUNCTION f1(a INT ARRAY[2]) RETURNS INT
+BEGIN
+  RETURN a;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1(ROW(10,20));
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Returning a scalar value from an ARRAY type function
+--echo #
+
+# TODO: this should probably return an error at compile time
+# TODO: a better error message
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURNS INT ARRAY[2]
+BEGIN
+  RETURN a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+SELECT f1(10);
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # ARRAY as an SP parameter
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT ARRAY[2]) RETURNS INT
+BEGIN
+  RETURN a[1];
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[11,21];
+  SELECT f1(a);
+END;
+$$
+DELIMITER ;$$
+SELECT f1(ARRAY[10,20]);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1(10);
+# TODO: better error
+--error ER_OPERAND_COLUMNS
+SELECT f1(ARRAY[10,20,30]);
+CALL p1();
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a INT ARRAY[2])
+BEGIN
+  SELECT a[1], a[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1(ARRAY[10,20]);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1(10);
+# TODO: better error
+--error ER_OPERAND_COLUMNS
+CALL p1(ARRAY[10,20,30]);
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY as an SP OUT parameter
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT a INT ARRAY[2])
+BEGIN
+  SET a[1]=10;
+  SET a[2]=20;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[11,21];
+  CALL p1(a);
+  SELECT a[1], a[2];
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY elements as SP out parameters
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT a INT, OUT b VARCHAR(32))
+BEGIN
+  SET a= 10;
+  SET b= 'test';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE a1 INT ARRAY[2];
+  DECLARE a2 VARCHAR(10) ARRAY[2];
+  CALL p1(a1[1], a2[1]);
+  SELECT a1[1], a2[1];
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # ARRAY elements as dynamic SQL out parameters
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT a INT, OUT b VARCHAR(32))
+BEGIN
+  SET a= 20;
+  SET b= 'test-dynamic-sql';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE a1 INT ARRAY[2];
+  DECLARE a2 VARCHAR(30) ARRAY[2];
+  EXECUTE IMMEDIATE 'CALL p1(?,?)' USING a1[1], a2[1];
+  SELECT a1[1], a2[1];
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # Bad scalar default value
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT 1;
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Bad ARRAY default value with a wrong number of fields
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[1,2,3];
+  SELECT a[1];
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using the entire ARRAY variable in select list
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using the entire ARRAY variable in functions
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT COALESCE(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[1];
+  SELECT a+1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT a+1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+BEGIN NOT ATOMIC
+  DECLARE a INT ARRAY[1];
+  SELECT 1 LIKE 2 ESCAPE a;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+BEGIN NOT ATOMIC
+  DECLARE a INT ARRAY[2];
+  SELECT 1 LIKE 2 ESCAPE a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Comparing the entire ARRAY to a scalar value
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[1];
+  SELECT a=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT a=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT 1=a;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Passing the entire ARRAY to a stored function
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURNS INT
+BEGIN
+  RETURN a;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT f1(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURNS INT
+BEGIN
+  RETURN a;
+END;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2];
+  SELECT f1(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Assigning a scalar value to a ARRAY variable with 1 column
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[1];
+  SET rec=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning a scalar value to a ARRAY variable with 2 columns
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  SET rec=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning an ARRAY value to an ARRAY variable with different number of columns
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  SET rec=ARRAY[1,2,3];
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Returning the entire ARRAY from a function
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURNS INT ARRAY[2]
+BEGIN
+  DECLARE res INT ARRAY[2] DEFAULT ARRAY[a,a];
+  RETURN res;
+END;
+$$
+DELIMITER ;$$
+# TODO: (also binlog and replication)
+--error ER_NOT_SUPPORTED_YET
+SELECT f1(10)[1];
+SELECT f1(10)=f1(10);
+SELECT f1(10)=ARRAY[10,10];
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE FUNCTION p1() RETURNS INT ARRAY[2]
+BEGIN
+  RETURN NULL;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION p1;
+--error ER_OPERAND_COLUMNS
+SELECT p1();
+SELECT p1()=ARRAY[NULL,NULL];
+SELECT p1()<=>ARRAY[NULL,NULL];
+DROP FUNCTION p1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT, b INT) RETURNS INT ARRAY[2]
+BEGIN
+  RETURN ARRAY[a,b];
+END;
+$$
+DELIMITER ;$$
+SELECT f1(1,1) = ARRAY[1,1];
+SELECT f1(1,1) = ARRAY[2,1];
+SELECT f1(1,1) = ARRAY[1,2];
+SELECT f1(1,1) = ARRAY[1,NULL];
+SELECT f1(1,NULL) = ARRAY[1,2];
+SELECT f1(1,NULL) = ARRAY[1,NULL];
+SELECT f1(1,NULL) <=> ARRAY[1,NULL];
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE FUNCTION f1(a TEXT ARRAY[3]) RETURNS TEXT ARRAY[3]
+BEGIN
+  RETURN ARRAY[CONCAT(a[1],'xa'),CONCAT(a[2],'xb'),CONCAT(a[3],'xc')];
+END;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TEXT ARRAY[3] DEFAULT f1(ARRAY['a1','b1','c1']);
+  SELECT a[1], a[2], a[3];
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+CALL p1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+
+CREATE FUNCTION f1(a TEXT CHARACTER SET latin1 COLLATE latin1_bin ARRAY[3])
+  RETURNS TEXT CHARACTER SET latin1 COLLATE latin1_bin ARRAY[3]
+  RETURN ARRAY[CONCAT(a[1],'xa'),CONCAT(a[2],'xb'),CONCAT(a[3],'xc')];
+SHOW CREATE FUNCTION f1;
+SELECT DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_NAME='f1';
+SELECT returns FROM mysql.proc WHERE name='f1';
+DROP FUNCTION f1;
+
+--echo #
+--echo # Using the entire ARRAY in CREATE..SELECT
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  CREATE TABLE t1 AS SELECT rec;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using the entire ARRAY in INSERT..SELECT
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[100,200];
+  INSERT INTO t1 SELECT rec FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Using the entire ARRAY in LIMIT
+--echo #
+
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[1];
+  SET rec[1]= '10';
+  SELECT * FROM t1 LIMIT rec;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[10,20];
+  SELECT * FROM t1 LIMIT rec;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # The entire ARRAY in HAVING
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+BEGIN NOT ATOMIC
+  DECLARE a INT ARRAY[2];
+  SELECT * FROM t1 HAVING a;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # Setting ARRAY elements using a SET command
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[3];
+  DECLARE a INT;
+  SET @a= 1, rec[1]=10, rec[2]=20, rec[3]= 30, a= 5;
+  SELECT @a, rec[1], rec[2], rec[3], a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning an ARRAY variable from an ARRAY value
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2] DEFAULT ARRAY[1,2];
+  SET rec=ARRAY[10,20];
+  SELECT rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning an ARRAY variable from another ARRAY variable
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var1 INT ARRAY[2];
+  DECLARE var2 INT ARRAY[2];
+  SET var1=ARRAY[1,2];
+  SET var2=var1;
+  SELECT var2[1], var2[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Comparing an ARRAY variable to a ARRAY constructor
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2];
+  SET var[1]= 1;
+  SET var[2]= 2;
+  SELECT var=ARRAY[0,0], ARRAY[0,0]=var;
+  SELECT var=ARRAY[1,2], ARRAY[1,2]=var;
+#TODO
+#  SELECT var=(NULL,0), var=ARRAY[NULL,0);
+#  SELECT var=(NULL,2), var=ARRAY[NULL,2);
+#  SELECT var<>(0,0), var<>ARRAY[0,0);
+#  SELECT var<>(1,2), var<>ARRAY[1,2);
+#  SELECT var<>(NULL,0), var<>ARRAY[NULL,0);
+#  SELECT var<>(NULL,2), var<>ARRAY[NULL,2);
+#  SELECT var IN ((0,0)), var IN (ARRAY[0,0));
+#  SELECT var IN ((1,2)), var IN (ARRAY[1,2));
+#  SELECT var IN ((0,NULL),(1,2));
+#  SELECT var NOT IN ((0,NULL),(1,1));
+#  SELECT var NOT IN ((1,NULL),(1,1));
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Comparing an ARRAY variable to another ARRAY variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var1,var2,var3 INT ARRAY[2];
+  SET var1[1]= 1;
+  SET var1[2]= 2;
+  SET var2[1]= 11;
+  SET var2[2]= 12;
+  SET var3[1]= 11;
+  SET var3[2]= 12;
+  SELECT var1=var2, var2=var1, var2=var3, var3=var2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referencing a non-existing array variable
+--echo #
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1()
+BEGIN
+  SET a[1]=1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # ARRAY and scalar variables with the same name shadowing each other
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[100,200];
+  SELECT a[1], a[2];
+  BEGIN
+    DECLARE a INT DEFAULT 200;
+    SELECT a;
+    BEGIN
+      DECLARE a INT ARRAY[2];
+      SET a[1]=110, a[2]=210;
+      SELECT a[1], a[2];
+    END;
+    SELECT a;
+  END;
+  SELECT a[1];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Arrays with good default values
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[2] DEFAULT ARRAY[10,20];
+  DECLARE b INT ARRAY[2] DEFAULT ARRAY[11,21];
+  DECLARE c INT ARRAY[2] DEFAULT a;
+  SELECT a[1], a[2], b[1], b[2], c[1], c[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY in WHERE clause
+--echo #
+
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2] DEFAULT ARRAY[10,20];
+  SELECT * FROM t1 WHERE var=ARRAY[a,b];
+  EXPLAIN EXTENDED SELECT * FROM t1 WHERE var=ARRAY[a,b];
+  SHOW WARNINGS;
+  SELECT * FROM t1 WHERE ARRAY[a,b]=var;
+  SELECT * FROM t1 WHERE var=ARRAY[10,20];
+  SELECT * FROM t1 WHERE ARRAY[10,20]=var;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+INSERT INTO t1 VALUES (10,20);
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY elements in WHERE clause
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2];
+  SET var[1]= 10;
+  SELECT * FROM t1 WHERE a=var[1];
+  EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=var[1];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+
+--echo #
+--echo # ARRAY elements in HAVING clause
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2];
+  SET var[1]= 10;
+  SELECT * FROM t1 HAVING a=var[1];
+  SELECT * FROM t1 HAVING MIN(a)=var[1];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY elements in LIMIT clause
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_SP_UNDECLARED_VAR
+SELECT 1 FROM t1 LIMIT t1[1];
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[1];
+  SET var[1]= 1;
+  SELECT * FROM t1 LIMIT var[1];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2];
+  DECLARE idx INT DEFAULT 1;
+  SET var[idx]= 1;
+  SELECT idx, var[idx];
+  SELECT * FROM t1 LIMIT var[idx];
+  SET idx= 2;
+  SET var[idx]= 2;
+  SELECT idx, var[idx];
+  SELECT * FROM t1 LIMIT var[idx];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var VARCHAR(10) ARRAY[2];
+  SET var[1]= '10';
+  SELECT * FROM t1 LIMIT var[1];
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE var INT ARRAY[2] DEFAULT ARRAY[1,2];
+  SELECT * FROM t1 LIMIT var[1];
+  SELECT * FROM t1 LIMIT var[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # ARRAY elements in select list
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE t1 INT ARRAY[1];
+  SET t1[1]= 10;
+  SELECT t1[1] AS col1 FROM t1;
+  SELECT t1[1] FROM t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ARRAY fields as insert values
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec VARCHAR(10) ARRAY[2];
+  SET rec[1]= 'testA';
+  SET rec[2]= 'testB';
+  INSERT INTO t1 VALUES (rec[1], rec[1]);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Array elements in CREATE..SELECT
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+CREATE PROCEDURE p1(offs INT)
+BEGIN
+  DECLARE rec INT ARRAY[3] DEFAULT ARRAY[100,200,300];
+  CREATE TABLE t1 AS SELECT rec[1], rec[2] FROM DUAL;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+  CREATE TABLE t1 AS SELECT rec[1+offs], rec[2+offs] FROM DUAL;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+  CREATE TABLE t1 AS SELECT rec[1+f1(offs)], rec[2+f1(offs)] FROM DUAL;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1(0);
+CALL p1(1);
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Array elements in INSERT..SELECT
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+CREATE PROCEDURE p1(offs INT)
+BEGIN
+  DECLARE rec INT ARRAY[3] DEFAULT ARRAY[100,200,300];
+  INSERT INTO t1 SELECT rec[1], rec[2] FROM DUAL;
+  INSERT INTO t1 SELECT rec[1+offs], rec[2+offs] FROM DUAL;
+  INSERT INTO t1 SELECT rec[1+f1(offs)], rec[2+f1(offs)] FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+CALL p1(0);
+SELECT * FROM t1;
+CALL p1(1);
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # ARRAY and ARRAY elements as SELECT..INTO targets
+--echo #
+
+--echo # A working example: INT
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  SELECT 10,20 INTO rec[1],rec[2];
+  SELECT rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A working example: VARCHAR
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec VARCHAR(10) ARRAY[2];
+  SELECT 't10','t20' INTO rec[1],rec[2];
+  SELECT rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # Array subscript references to undeclared variables
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT 10,20 INTO rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+
+--echo # Array substrict references to a variable of a non-ARRAY data type
+
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT;
+  SELECT 10,20 INTO rec[1], rec[2];
+END;
+$$
+DELIMITER ;$$
+
+--echo # Non-basic expressions inside []
+
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  SELECT 10,20 INTO rec[1+1], rec[2];
+END;
+$$
+DELIMITER ;$$
+
+--echo # The entire ARRAY variable in INTO
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec INT ARRAY[2];
+  SELECT 10,20 INTO rec;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple ARRAY variables in INTO
+--enable_prepare_warnings
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a1 INT ARRAY[2];
+  DECLARE a2 INT ARRAY[2];
+  SELECT 10, 20 INTO a1, a2;
+  SELECT a1[1], a1[2], a2[1], a2[2];
+END;
+$$
+DELIMITER ;$$
+--disable_prepare_warnings
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1();
+DROP PROCEDURE p1;
+
+
+
+
+--echo #
+--echo # Implicit default NULL
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT ARRAY[1];
+  DECLARE b VARCHAR(10) ARRAY[1];
+  DECLARE c DOUBLE ARRAY[1];
+  DECLARE d DECIMAL(10,0) ARRAY[1];
+  DECLARE e TIME ARRAY[1];
+  DECLARE f DATETIME ARRAY[1];
+  DECLARE g TIMESTAMP ARRAY[1];
+  SELECT a[1], b[1], c[1], d[1], e[1], f[1], g[1];
+  CREATE TABLE t1 AS SELECT a[1], b[1], c[1], d[1], e[1], f[1], g[1];
+  SHOW CREATE TABLE t1;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # NULL handling
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec1 INT ARRAY[2] DEFAULT ARRAY[NULL,NULL];
+  DECLARE rec2 INT ARRAY[2] DEFAULT rec1;
+  SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+
+  SET rec1= ARRAY[10,20];
+  SET rec2= rec1;
+  SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+
+  SET rec1= ARRAY[NULL,20];
+  SET rec2= rec1;
+  SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+
+  SET rec1= ARRAY[10,NULL];
+  SET rec2= rec1;
+  SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+
+  SET rec1= ARRAY[NULL,NULL];
+  SET rec2= rec1;
+  SELECT rec1[1], rec1[2], rec2[1], rec2[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing multiple ROW variable declarations
+--echo # This makes sure that fill_field_definitions() is called only once
+--echo # per an ARRAY field, so create length is not converted to internal length
+--echo # multiple times.
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec1, rec2, rec3 VARCHAR(10) CHARACTER SET utf8 ARRAY[2];
+  CREATE TABLE t1 AS SELECT
+    rec1[1], rec2[1], rec3[1], rec1[2], rec2[2], rec3[2];
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+#--echo # ROW variables working example
+#CREATE TABLE t1 (a INT, b VARCHAR(32));
+#INSERT INTO t1 VALUES (10,'b10');
+#--enable_prepare_warnings
+#DELIMITER $$;
+#CREATE PROCEDURE p1()
+#BEGIN
+#  DECLARE rec1 ROW(a INT, b VARCHAR(32));
+#  SELECT * FROM t1 INTO rec1;
+#  SELECT rec1.a, rec1.b;
+#END;
+#$$
+#DELIMITER ;$$
+#--disable_prepare_warnings
+#CALL p1();
+#DROP TABLE t1;
+#DROP PROCEDURE p1;
+#
+#
+
+
+#--echo #
+#--echo # MDEV-13527 Crash when EXPLAIN SELECT .. INTO row_sp_variable.field
+#--echo #
+#
+#DELIMITER $$;
+#BEGIN NOT ATOMIC
+#  DECLARE a ROW(a INT);
+#  EXPLAIN SELECT 1 INTO a.a;
+#END;
+#$$
+#DELIMITER ;$$
+
+
+--echo #
+--echo # ARRAY of anchored data types
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a VARCHAR(32) CHARACTER SET latin1 COLLATE latin1_bin;
+  DECLARE b TYPE OF a ARRAY[2] DEFAULT ARRAY['element1','element2'];
+  SELECT b[1], b[2];
+  CREATE TABLE t1 AS SELECT b[1], b[2];
+  SHOW CREATE TABLE t1;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a VARCHAR(32) CHARACTER SET utf8mb3 DEFAULT 'x', b TIME DEFAULT '20:20:20');
+INSERT INTO t1 VALUES ();
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a TYPE OF t1.a ARRAY[2];
+  DECLARE b TYPE OF t1.b ARRAY[2];
+  CREATE TABLE t2 AS SELECT a[1], a[2], b[1], b[2];
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a TYPE OF t1.a ARRAY[2], b TYPE OF t1.b ARRAY[2])
+BEGIN
+  SELECT a[1], a[2], b[1], b[2];
+  CREATE TABLE t2 AS SELECT a[1], a[2], b[1], b[2];
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1(ARRAY[(SELECT DEFAULT(a) FROM t1), (SELECT DEFAULT(a) FROM t1)],
+        ARRAY[(SELECT DEFAULT(b) FROM t1), (SELECT DEFAULT(b) FROM t1)]);
+SELECT PARAMETER_NAME, DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='p1';
+DROP PROCEDURE p1;
+
+
+CREATE FUNCTION f1(a TYPE OF t1.a ARRAY[2], b TYPE OF t1.b ARRAY[2])
+  RETURNS TYPE OF t1.a ARRAY[2] RETURN a;
+SELECT f1(ARRAY['test1','test2'],ARRAY['10:20:30','10:20:30']) = ARRAY['test1','test2'];
+SHOW CREATE FUNCTION f1;
+SELECT returns FROM mysql.proc WHERE name='f1';
+SELECT PARAMETER_NAME, DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
+DROP FUNCTION f1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Anchors to ARRAY variables
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE a INT UNSIGNED ARRAY[2] DEFAULT ARRAY[1,2];
+  DECLARE b TYPE OF a DEFAULT a;
+  SELECT b[1], b[2];
+  CREATE TABLE t1 AS SELECT b[1], b[2];
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE arr1 VARCHAR(32) CHARACTER SET latin1 COLLATE latin1_bin ARRAY[2]
+               DEFAULT ARRAY['element1','element2'];
+  DECLARE a_arr1 TYPE OF arr1 DEFAULT arr1;
+  DECLARE aa_arr1 TYPE OF a_arr1 DEFAULT a_arr1;
+  CREATE TABLE t1 AS SELECT a_arr1[1], a_arr1[2];
+  SHOW CREATE TABLE t1;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+  CREATE TABLE t1 AS SELECT aa_arr1[1], aa_arr1[2];
+  SHOW CREATE TABLE t1;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$

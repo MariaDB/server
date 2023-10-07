@@ -334,6 +334,8 @@ public:
     m_lex->safe_to_cache_query= 0;
   }
 
+  LEX *lex() { return m_lex; }
+
 private:
   /**
     Clean up and destroy owned LEX object.
@@ -504,6 +506,8 @@ class sp_instr_stmt : public sp_lex_instr
 
   LEX_STRING m_query;		///< For thd->query
 
+  int execute_not_cached_query(THD *thd, uint *nextp);
+
 public:
   sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex, const LEX_STRING& query)
     : sp_lex_instr(ip, ctx, lex, true),
@@ -547,6 +551,7 @@ protected:
   }
 
 public:
+  bool resolve_array_element_indexes2(THD *thd);
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_stmt : public sp_lex_instr
@@ -698,6 +703,32 @@ public:
 
   void print(String *str) override;
 }; // class sp_instr_set_field_by_name : public sp_instr_set
+
+
+class sp_instr_set_array_element_by_expr : public sp_instr_set
+{
+  // Prevent use of this
+  sp_instr_set_array_element_by_expr(const sp_instr_set_row_field &);
+  void operator=(sp_instr_set_array_element_by_expr &);
+  Item *m_index;
+public:
+
+  sp_instr_set_array_element_by_expr(uint ip, sp_pcontext *ctx,
+                                     const Sp_rcontext_handler *rh,
+                                     uint offset, Item *index,
+                                     Item *val,
+                                     LEX *lex, bool lex_resp,
+                                     const LEX_CSTRING &value_query)
+   :sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
+    m_index(index)
+  {}
+
+  virtual ~sp_instr_set_array_element_by_expr() = default;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+}; // class sp_instr_set_array_element_by_expr
 
 
 /**

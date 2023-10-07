@@ -29,6 +29,7 @@
 #include "sql_type.h"
 #include "sql_time.h"
 #include "mem_root_array.h"
+#include "query_fragment.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -529,30 +530,6 @@ public:
 };
 
 
-/*
-  A helper class to calculate offset and length of a query fragment
-  - outside of SP
-  - inside an SP
-  - inside a compound block
-*/
-class Query_fragment
-{
-  uint m_pos;
-  uint m_length;
-  void set(size_t pos, size_t length)
-  {
-    DBUG_ASSERT(pos < UINT_MAX32);
-    DBUG_ASSERT(length < UINT_MAX32);
-    m_pos= (uint) pos;
-    m_length= (uint) length;
-  }
-public:
-  Query_fragment(THD *thd, sp_head *sphead, const char *start, const char *end);
-  uint pos() const { return m_pos; }
-  uint length() const { return m_length; }
-};
-
-
 /**
   This is used for items in the query that needs to be rewritten
   before binlogging
@@ -578,10 +555,21 @@ class Rewritable_query_parameter
 
   bool limit_clause_param;
 
-  Rewritable_query_parameter(uint pos_in_q= 0, uint len_in_q= 0)
+  Rewritable_query_parameter(uint pos_in_q= 0, uint len_in_q= 0, uint empty= 0)
     : pos_in_query(pos_in_q), len_in_query(len_in_q),
       limit_clause_param(false)
   { }
+
+  void unset_rewritable_query_parameter()
+  {
+    pos_in_query= 0;
+    len_in_query= 0;
+  }
+
+  virtual Query_fragment postfix_expression_query_fragment() const
+  {
+    return Query_fragment(0, 0);
+  }
 
   virtual ~Rewritable_query_parameter() = default;
 
@@ -611,6 +599,26 @@ public:
     if (copy_up_to(p->pos_in_query) || p->append_for_log(thd, dst))
       return true;
     from= p->pos_in_query + p->len_in_query;
+    Query_fragment postfix= p->postfix_expression_query_fragment();
+    if (postfix.pos())
+    {
+      /*
+        This is a postfix expression, e.g. an array element:
+           INSERT INTO t1 VALUES(   (((a)))[2]  )
+        "a" was just replaced to e.g. NAME_CONST('a[2]',123)
+        by the code above, so now:
+        - the rewritten buffer contains:
+           INSERT INTO t1 VALUES(   (((NAME_CONST('a[2]',123)
+        - the remaining source buffer contains:
+           )))[2]  )
+        Now we need to:
+        - append the gap between "a" and "[2]", which in this example is: )))
+        - but then skip the index: "[2]"
+      */
+      if (copy_up_to(postfix.pos())) // append the gap
+        return true;
+      from= postfix.end(); // skip the index together with square brackets
+    }
     return false;
   }
 
@@ -2213,11 +2221,17 @@ public:
     is_expensive_cache= (int8)(-1);
     return 0;
   }
-
   virtual bool set_extraction_flag_processor(void *arg)
   {
     set_extraction_flag(*(int16*)arg);
     return 0;
+  }
+  virtual bool unset_rewritable_query_parameter_processor(void *arg)
+  {
+    Rewritable_query_parameter *rqp= get_rewritable_query_parameter();
+    if (rqp)
+      rqp->unset_rewritable_query_parameter();
+    return false;
   }
 
   /* 
@@ -2450,6 +2464,7 @@ public:
   bool check_type_can_return_text(const LEX_CSTRING &opname) const;
   bool check_type_can_return_date(const LEX_CSTRING &opname) const;
   bool check_type_can_return_time(const LEX_CSTRING &opname) const;
+  bool check_type_for_array_index() const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
   // used in row subselects to get value of elements
@@ -2721,6 +2736,9 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+
+  virtual Item *create_item_array_element(THD *thd, Item *index,
+                                          const Query_fragment &index_fragment);
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -2863,11 +2881,28 @@ public:
     set_arguments(thd, list);
   }
   Item_args(THD *thd, const Item_args *other);
+  Item_args(const Item_args &rhs)
+  {
+    operator=(rhs); // See below
+  }
+  Item_args & operator=(const Item_args &rhs)
+  {
+    arg_count= rhs.arg_count;
+    memcpy(&tmp_arg, &rhs.tmp_arg, sizeof(tmp_arg));
+    /*
+      If rhs.args is not alloced (points to rhs.tmp_arg)
+      then do the same in "this": point args to tmp_arg.
+      Otherwise just copy args, it must be alloced.
+    */
+    args= (rhs.args == rhs.tmp_arg) ? tmp_arg : rhs.args;
+    return *this;
+  }
   bool alloc_arguments(THD *thd, uint count);
   void add_argument(Item *item)
   {
     args[arg_count++]= item;
   }
+  bool clone_arguments(THD *thd, const Item_args &rhs);
   /**
     Extract row elements from the given position.
     For example, for this input:  (1,2),(3,4),(5,6)
@@ -3061,6 +3096,8 @@ protected:
   THD *m_thd;
 
   bool fix_fields_from_item(THD *thd, Item **, const Item *);
+
+  void make_send_field_from_item(THD *thd, Item *item, Send_field *field);
 public:
   LEX_CSTRING m_name;
 
@@ -3114,7 +3151,10 @@ inline int Item_sp_variable::save_in_field(Field *field, bool no_conversions)
 
 inline bool Item_sp_variable::send(Protocol *protocol, st_value *buffer)
 {
-  return this_item()->send(protocol, buffer);
+  Item *item= this_item();
+  if (!item)
+    return true;
+  return item->send(protocol, buffer);
 }
 
 
@@ -3144,7 +3184,7 @@ public:
   Item_splocal(THD *thd, const Sp_rcontext_handler *rh,
                const LEX_CSTRING *sp_var_name, uint sp_var_idx,
                const Type_handler *handler,
-               uint pos_in_q= 0, uint len_in_q= 0);
+               const Query_fragment &pos);
 
   bool fix_fields(THD *, Item **) override;
   Item *this_item() override;
@@ -3158,6 +3198,10 @@ public:
 
   inline uint get_var_idx() const;
 
+  const Sp_rcontext_handler *rcontext_handler() const
+  {
+    return m_rcontext_handler;
+  }
   Type type() const override { return m_type; }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
@@ -3208,6 +3252,10 @@ public:
     my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
     return false;
   }
+
+  Item *create_item_array_element(THD *thd, Item *index,
+                                  const Query_fragment &index_fragment)
+                                  override;
 };
 
 
@@ -3222,10 +3270,158 @@ public:
                                       const Sp_rcontext_handler *rh,
                                       const LEX_CSTRING *sp_var_name,
                                       uint sp_var_idx,
-                                      uint pos_in_q, uint len_in_q)
-   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null,
-                 pos_in_q, len_in_q)
+                                      const Query_fragment &pos)
+   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null, pos)
   { }
+  // TODO: create_item_array_element
+};
+
+
+/*
+  A common class for:
+  - ROW field members:                      SET var= var_row.col;
+  - ARRAY elements with a constant index:   SET var= var_array[10];
+  whose element index is known at the constructor call time.
+*/
+class Item_splocal_container_element_by_const_index: public Item_splocal
+{
+protected:
+  uint m_element_index;
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
+  Item_splocal_container_element_by_const_index(THD *thd,
+                                                const Sp_rcontext_handler *rh,
+                                                const LEX_CSTRING *sp_var_name,
+                                                uint sp_var_idx,
+                                                uint sp_element_idx,
+                                                const Type_handler *handler,
+                                                const Query_fragment &pos)
+   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, handler, pos),
+    m_element_index(sp_element_idx)
+  { }
+  Item *this_item() override;
+  const Item *this_item() const override;
+  Item **this_item_addr(THD *thd, Item **) override;
+  Item *create_item_array_element(THD *thd, Item *index,
+                                  const Query_fragment &index_fragment)
+                                  override
+  {
+    return Item::create_item_array_element(thd, index, index_fragment);
+  }
+};
+
+
+/**
+  Array element of an SP variable with a constant index:
+    DELCARE r INT ARRAY [2];
+    SELECT r[1]; -- This is handled by Item_splocal_array_element
+*/
+class Item_splocal_array_element :
+  public Item_splocal_container_element_by_const_index
+{
+  Query_fragment m_index_fragment;
+public:
+  Item_splocal_array_element(THD *thd,
+                             const Sp_rcontext_handler *rh,
+                             const LEX_CSTRING *sp_var_name,
+                             uint sp_var_idx, uint sp_element_idx,
+                             const Type_handler *handler,
+                             const Query_fragment &pos,
+                             const Query_fragment &index_pos)
+   :Item_splocal_container_element_by_const_index(thd, rh, sp_var_name,
+                                                  sp_var_idx, sp_element_idx,
+                                                  handler, pos),
+    m_index_fragment(index_pos)
+  { }
+  bool fix_fields(THD *thd, Item **) override;
+  bool append_for_log(THD *thd, String *str) override;
+  void print(String *str, enum_query_type query_type) override;
+  Item *create_item_array_element(THD *thd, Item *index,
+                                  const Query_fragment &index_fragment)
+                                  override
+  {
+    return Item::create_item_array_element(thd, index, index_fragment);
+  }
+  Query_fragment postfix_expression_query_fragment() const override
+  {
+    return m_index_fragment;
+  }
+};
+
+
+/**
+  Array element of an SP variable with a non-constant index:
+    DECLARE r INT ARRAY[2];
+    SELECT r[var_index]; -- Handled by Item_splocal_array_element_by_expr
+  If the index expression "var_index" evaluates as NULL or out of the range,
+  then the value of r[var_index] evaluates as SQL NULL.
+*/
+class Item_splocal_array_element_by_expr :public Item_splocal
+{
+  Query_fragment m_index_fragment;
+protected:
+  Item *m_null;
+  Item *m_index_expr;
+  uint m_index_resolved;
+  bool m_is_resolved;
+public:
+  Item_splocal_array_element_by_expr(THD *thd,
+                                     const Sp_rcontext_handler *rh,
+                                     const LEX_CSTRING *sp_var_name,
+                                     uint sp_var_idx, Item *index,
+                                     const Type_handler *handler,
+                                     const Query_fragment &pos,
+                                     const Query_fragment &idx_pos)
+   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, handler, pos),
+    m_index_fragment(idx_pos),
+    m_null(NULL),
+    m_index_expr(index),
+    m_index_resolved(0),
+    m_is_resolved(false)
+  { }
+  Item **index_expr_addr() { return &m_index_expr; }
+  uint index_resolved() const
+  {
+    DBUG_ASSERT(m_is_resolved);
+    return m_index_resolved;
+  }
+  bool is_resolved() const
+  {
+    return m_is_resolved;
+  }
+  bool set_resolved_index(THD *thd, const Longlong_hybrid_null &nr);
+  void set_resolved_index(uint idx)
+  {
+    m_index_resolved= idx;
+    m_is_resolved= true;
+  }
+  void unresolve()
+  {
+    m_index_resolved= 0;
+    m_is_resolved= false;
+  }
+
+  bool fix_fields(THD *thd, Item **) override;
+  void cleanup() override
+  {
+    Item_splocal::cleanup();
+    unresolve();
+  }
+  bool append_for_log(THD *thd, String *str) override;
+  void print(String *str, enum_query_type query_type) override;
+  void make_send_field(THD *thd, Send_field *field) override;
+  Item *this_item() override;
+  const Item *this_item() const override;
+  Item **this_item_addr(THD *thd, Item **) override;
+  Item *create_item_array_element(THD *thd, Item *index,
+                                  const Query_fragment &index_fragment)
+                                  override
+  {
+    return Item::create_item_array_element(thd, index, index_fragment);
+  }
+  Query_fragment postfix_expression_query_fragment() const override
+  {
+    return m_index_fragment;
+  }
 };
 
 
@@ -3234,12 +3430,11 @@ public:
   DELCARE r ROW(a INT,b INT);
   SELECT r.a; -- This is handled by Item_splocal_row_field
 */
-class Item_splocal_row_field :public Item_splocal
+class Item_splocal_row_field
+  :public Item_splocal_container_element_by_const_index
 {
 protected:
   LEX_CSTRING m_field_name;
-  uint m_field_idx;
-  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 public:
   Item_splocal_row_field(THD *thd,
                          const Sp_rcontext_handler *rh,
@@ -3247,17 +3442,21 @@ public:
                          const LEX_CSTRING *sp_field_name,
                          uint sp_var_idx, uint sp_field_idx,
                          const Type_handler *handler,
-                         uint pos_in_q= 0, uint len_in_q= 0)
-   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, handler, pos_in_q, len_in_q),
-    m_field_name(*sp_field_name),
-    m_field_idx(sp_field_idx)
+                         const Query_fragment &pos)
+   :Item_splocal_container_element_by_const_index(thd, rh, sp_var_name,
+                                                  sp_var_idx, sp_field_idx,
+                                                  handler, pos),
+    m_field_name(*sp_field_name)
   { }
   bool fix_fields(THD *thd, Item **) override;
-  Item *this_item() override;
-  const Item *this_item() const override;
-  Item **this_item_addr(THD *thd, Item **) override;
   bool append_for_log(THD *thd, String *str) override;
   void print(String *str, enum_query_type query_type) override;
+  Item *create_item_array_element(THD *thd, Item *index,
+                                  const Query_fragment &index_fragment)
+                                  override
+  {
+    return Item::create_item_array_element(thd, index, index_fragment);
+  }
 };
 
 
@@ -3271,10 +3470,10 @@ public:
                                  const LEX_CSTRING *sp_field_name,
                                  uint sp_var_idx,
                                  const Type_handler *handler,
-                                 uint pos_in_q= 0, uint len_in_q= 0)
+                                 const Query_fragment &pos)
    :Item_splocal_row_field(thd, rh, sp_var_name, sp_field_name,
                            sp_var_idx, 0 /* field index will be set later */,
-                           handler, pos_in_q, len_in_q)
+                           handler, pos)
   { }
   bool fix_fields(THD *thd, Item **it) override;
   void print(String *str, enum_query_type query_type) override;
@@ -3809,21 +4008,19 @@ public:
 
 
 /**
-  Item_field for the ROW data type
+  Item_field for the ROW and ARRAY data types
 */
-class Item_field_row: public Item_field,
-                      public Item_args
+class Item_field_container: public Item_field,
+                            public Item_args
 {
 public:
-  Item_field_row(THD *thd, Field *field)
+  Item_field_container(THD *thd, Field *field)
    :Item_field(thd, field),
     Item_args()
   { }
   Item *get_copy(THD *thd) override
-  { return get_item_copy<Item_field_row>(thd, this); }
+  { return get_item_copy<Item_field_container>(thd, this); }
 
-  const Type_handler *type_handler() const override
-  { return &type_handler_row; }
   uint cols() const override { return arg_count; }
   Item* element_index(uint i) override { return arg_count ? args[i] : this; }
   Item** addr(uint i) override { return arg_count ? args + i : NULL; }
@@ -3836,7 +4033,22 @@ public:
     }
     return false;
   }
+};
+
+
+class Item_field_row: public Item_field_container
+{
+public:
+  using Item_field_container::Item_field_container;
   bool row_create_items(THD *thd, List<Spvar_definition> *list);
+};
+
+
+class Item_field_array: public Item_field_container
+{
+public:
+  using Item_field_container::Item_field_container;
+  bool array_create_items(THD *thd, const Spvar_definition_array &array);
 };
 
 
@@ -5507,7 +5719,7 @@ public:
      The result field of the stored function.
   */
   Field *sp_result_field;
-  Item_field_row *sp_result_item_field_row;
+  Item_field_container *sp_result_item_field_container;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;

@@ -22050,6 +22050,30 @@ bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
 }
 
 
+bool Virtual_tmp_table::add(const Spvar_definition_array &def)
+{
+  /* Create all fields and calculate the total length of record */
+  DBUG_ENTER("Virtual_tmp_table::add");
+  for (uint i= 0; i < def.cardinality(); i++)
+  {
+    Field *tmp;
+    Record_addr addr(f_maybe_null(def.pack_flag));
+    /*
+      We could pass the variable followed by a subscript as the name,
+      e.g. "var[10]" instead of just "var".
+      This would return better error messages on an array element truncation:
+        ERROR 22001: Data too long for column 'var[10]' at row 0
+      But this would need much more memory to store its own name copy
+      for every array element. Let's go with just the array name.
+    */
+    if (!(tmp= def.make_field(s, in_use->mem_root, &addr, &def.field_name)))
+      DBUG_RETURN(true);
+    add(tmp);
+  }
+  DBUG_RETURN(false);
+}
+
+
 void Virtual_tmp_table::setup_field_pointers()
 {
   uchar *null_pos= record[0];
@@ -33406,6 +33430,11 @@ bool Sql_cmd_dml::execute(THD *thd)
   if (!is_empty_query())
   {
     if (lock_tables(thd, lex->query_tables, table_count, 0))
+      goto err;
+    // TODO: add MTR tests with all Sql_cmd_dml descendants
+    sp_lex_stmt *lex_stmt;
+    if ((lex_stmt= dynamic_cast<sp_lex_stmt*>(thd->lex)) &&
+        lex_stmt->resolve_array_element_indexes2(thd))
       goto err;
   }
 

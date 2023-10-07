@@ -181,8 +181,8 @@ public:
   }
 
   int set_variable(THD *thd, uint var_idx, Item **value);
-  int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
-                             Item **value);
+  int set_variable_container_element(THD *thd, uint var_idx, uint element_idx,
+                                     Item **value);
   int set_variable_row_field_by_name(THD *thd, uint var_idx,
                                      const LEX_CSTRING &field_name,
                                      Item **value);

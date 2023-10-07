@@ -12801,6 +12801,14 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       goto end_with_restore_list;
     }
 
+    sp_lex_stmt *lex_stmt;
+    if ((lex_stmt= dynamic_cast<sp_lex_stmt*>(thd->lex)) &&
+        lex_stmt->resolve_array_element_indexes2(thd))
+    {
+      res= 1;
+      goto end_with_restore_list;
+    }
+
     /* Ensure we don't try to create something from which we select from */
     if (create_info.or_replace() && !create_info.tmp_table())
     {

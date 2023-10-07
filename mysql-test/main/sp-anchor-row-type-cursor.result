@@ -770,7 +770,7 @@ END;
 END;
 $$
 CALL p1();
-ERROR HY000: Row variable 'rec' does not have a field 'A'
+ERROR HY000: Row variable 'rec' does not have a field 'B'
 DROP TEMPORARY TABLE t1;
 ALTER PROCEDURE p1 COMMENT 'test';
 CALL p1();
@@ -956,7 +956,7 @@ END;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Cannot cast 'int' as 'row' in assignment of `rec1`
 DROP TABLE t1;
 DROP PROCEDURE p1;
 # SELECT INTO + cursor ROW TYPE working example

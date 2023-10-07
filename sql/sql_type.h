@@ -4387,12 +4387,12 @@ public:
 
 
 /*
-  Special handler for ROW
+  A common base class for composite data types, e.g. ROW, ARRAY
 */
-class Type_handler_row: public Type_handler
+class Type_handler_container: public Type_handler
 {
 public:
-  virtual ~Type_handler_row() = default;
+  virtual ~Type_handler_container() = default;
   const Name &default_value() const override;
   bool validate_implicit_default_value(THD *, const Column_definition &)
     const override
@@ -4400,7 +4400,6 @@ public:
     MY_ASSERT_UNREACHABLE();
     return true;
   }
-  const Type_collection *type_collection() const override;
   bool is_scalar_type() const override { return false; }
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
@@ -4433,7 +4432,6 @@ public:
     MY_ASSERT_UNREACHABLE();
     return DYN_COL_NULL;
   }
-  const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *, Field *, Item *) const override
   {
     MY_ASSERT_UNREACHABLE();
@@ -4493,13 +4491,6 @@ public:
     MY_ASSERT_UNREACHABLE();
     return nullptr;
   }
-  Field *make_table_field_from_def(TABLE_SHARE *share,
-                                   MEM_ROOT *mem_root,
-                                   const LEX_CSTRING *name,
-                                   const Record_addr &addr,
-                                   const Bit_addr &bit,
-                                   const Column_definition_attributes *attr,
-                                   uint32 flags) const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
                           String *tmp) const override
@@ -4556,7 +4547,6 @@ public:
     MY_ASSERT_UNREACHABLE();
     return 1;
   }
-  String *print_item_value(THD *thd, Item *item, String *str) const override;
   bool can_change_cond_ref_to_const(Item_bool_func2 *, Item *, Item *,
                                    Item_bool_func2 *, Item *, Item *)
     const override
@@ -4564,15 +4554,11 @@ public:
     MY_ASSERT_UNREACHABLE();
     return false;
   }
-  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
-    override;
-  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   Item_copy *create_item_copy(THD *, Item *) const override
   {
     MY_ASSERT_UNREACHABLE();
     return nullptr;
   }
-  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
@@ -4698,12 +4684,6 @@ public:
     return true;
   }
   longlong Item_func_between_val_int(Item_func_between *func) const override;
-  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
-  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const
-    override;
-  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
-                                                    Item_func_in *) const
-    override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const
     override;
@@ -4769,6 +4749,64 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+};
+
+
+/*
+  Special handler for ROW
+*/
+class Type_handler_row: public Type_handler_container
+{
+public:
+  virtual ~Type_handler_row() = default;
+  const Type_collection *type_collection() const override;
+  const Type_handler *type_handler_for_comparison() const override;
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
+    override;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const
+    override;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const
+    override;
+
+};
+
+
+class Type_handler_array: public Type_handler_container
+{
+public:
+  virtual ~Type_handler_array() = default;
+  const Type_collection *type_collection() const override;
+  const Type_handler *type_handler_for_comparison() const override;
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
+    override;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const
+    override;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const
+    override;
 };
 
 
@@ -7555,6 +7593,7 @@ class Named_type_handler : public TypeHandler
 };
 
 extern Named_type_handler<Type_handler_row>         type_handler_row;
+extern Named_type_handler<Type_handler_array>       type_handler_array;
 extern Named_type_handler<Type_handler_null>        type_handler_null;
 
 extern Named_type_handler<Type_handler_float>       type_handler_float;

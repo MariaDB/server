@@ -252,6 +252,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   LEX *lex;
   sp_expr_lex *expr_lex;
   sp_assignment_lex *assignment_lex;
+  class sp_lex_stmt *lex_stmt;
   class sp_lex_cursor *sp_cursor_stmt;
   LEX_CSTRING *lex_str_ptr;
   LEX_USER *lex_user;
@@ -748,6 +749,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ALGORITHM_SYM
 %token  <kwd>  ALWAYS_SYM
 %token  <kwd>  ANY_SYM                       /* SQL-2003-R */
+%token  <kwd>  ARRAY_SYM                     /* SQL-2003-R */
 %token  <kwd>  ASCII_SYM                     /* MYSQL-FUNC */
 %token  <kwd>  AT_SYM                        /* SQL-2003-R */
 %token  <kwd>  ATOMIC_SYM                    /* SQL-2003-R */
@@ -1219,6 +1221,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %nonassoc NOT_SYM
 %nonassoc NEG '~' NOT2_SYM BINARY
 %nonassoc COLLATE_SYM
+%right '['
 %nonassoc SUBQUERY_AS_EXPR
 
 /*
@@ -1284,7 +1287,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    and until NEXT_SYM / PREVIOUS_SYM.
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
-%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM
+%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM ARRAY_SYM
 
 %left   PREC_BELOW_SP_OBJECT_TYPE
 %left   FUNCTION_SYM
@@ -1500,6 +1503,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_ws_levels ws_level_list ws_level_list_item ws_level_number
         ws_level_range ws_level_list_or_range bool
         field_options last_field_options
+        maximum_cardinality
+        array_type_tail
+        opt_array_type_tail
 
 %type <ulonglong_number>
         ulonglong_num real_ulonglong_num
@@ -1894,7 +1900,7 @@ rule:
 
 %type <kwd>
         '-' '+' '*' '/' '%' '(' ')'
-        ',' '!' '{' '}' '&' '|'
+        ',' '!' '{' '}' '&' '|' '[' ']'
 
 %type <with_clause> with_clause
 
@@ -3311,17 +3317,13 @@ sp_decl_idents_init_vars:
 
 sp_decl_variable_list:
           sp_decl_idents_init_vars
-          field_type
-          {
-            Lex->last_field->set_attributes(thd, $2,
-                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
-          }
+          field_type opt_array_type_tail
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_finalize(thd, $1,
-                                                                &Lex->last_field[0],
-                                                                $4.expr,
-                                                                $4.expr_str)))
+            if (unlikely(Lex->sp_variable_declarations_finalize(
+                                                thd, $1, $2, (uint) $3,
+                                                COLUMN_DEFINITION_ROUTINE_LOCAL,
+                                                $4.expr, $4.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -3840,21 +3842,22 @@ sp_proc_stmt_if:
 
 sp_proc_stmt_statement:
           {
-            LEX *lex= thd->lex;
-            Lex_input_stream *lip= YYLIP;
-
-            lex->sphead->reset_lex(thd);
+            DBUG_ASSERT(thd->lex->sphead);
+            if (unlikely(!($<lex_stmt>$= new (thd->mem_root)
+                           sp_lex_stmt(thd, thd->lex))))
+              MYSQL_YYABORT;
+            thd->lex->sphead->reset_lex(thd, $<lex_stmt>$);
             /*
               We should not push main select here, it will be done or not
               done by the statement, we just provide only a new LEX for the
               statement here as if it is start of parsing a new statement.
             */
-            lex->sphead->m_tmp_query= lip->get_tok_start();
+            $<lex_stmt>$->sphead->m_tmp_query= YYLIP->get_tok_start();
           }
           sp_statement
           {
-            if (Lex->sp_proc_stmt_statement_finalize(thd, yychar == YYEMPTY) ||
-                Lex->sphead->restore_lex(thd))
+            if ($<lex_stmt>1->sp_proc_stmt_statement_finalize(thd, yychar == YYEMPTY) ||
+                $<lex_stmt>1->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
         ;
@@ -6196,6 +6199,23 @@ udt_name:
           IDENT_sys                     { $$= $1; }
         | reserved_keyword_udt          { $$= $1; }
         | non_reserved_keyword_udt      { $$= $1; }
+        ;
+
+maximum_cardinality:
+          NUM
+          {
+            int error;
+            $$= (ulong) my_strtoll10($1.str, (char**) 0, &error);
+          }
+        ;
+
+array_type_tail:
+          ARRAY_SYM '[' maximum_cardinality ']' { $$= $3; }
+        ;
+
+opt_array_type_tail:
+          /*empty*/ { $$= 0; } %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
+        | array_type_tail
         ;
 
 field_type_all:
@@ -9863,6 +9883,13 @@ column_default_non_parenthesized_expr:
             }
           }
         | inverse_distribution_function
+        | ARRAY_SYM '[' expr ',' expr_list ']'
+          {
+            $5->push_front($3, thd->mem_root);
+            $$= new (thd->mem_root) Item_array(thd, *$5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         | ROW_SYM '(' expr ',' expr_list ')'
           {
             $5->push_front($3, thd->mem_root);
@@ -9987,7 +10014,13 @@ primary_expr:
         ;
 
 string_factor_expr:
-          primary_expr
+          primary_expr %prec '['
+        | primary_expr '[' expr ']'
+          {
+            Query_fragment pos(thd, Lex->sphead, $2.str, $4.end());
+            if (!($$= $1->create_item_array_element(thd, $3, pos)))
+              MYSQL_YYABORT;
+          }
         | string_factor_expr COLLATE_SYM collation_name
           {
             if (unlikely(!($$= new (thd->mem_root)
@@ -12632,7 +12665,15 @@ limit_options:
 limit_option:
           ident_cli
           {
-            if (unlikely(!($$= Lex->create_item_limit(thd, &$1))))
+            if (unlikely(!($$= Lex->create_item_limit(thd, &$1,
+                                                      (Item *) NULL,
+                                                      Query_fragment(0,0)))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '[' expr ']'
+          {
+            Query_fragment pos(thd, Lex->sphead, $2.str, $4.end());
+            if (unlikely(!($$= Lex->create_item_limit(thd, &$1, $3, pos))))
               MYSQL_YYABORT;
           }
         | ident_cli '.' ident_cli
@@ -12937,6 +12978,12 @@ select_outvar:
         | ident_or_text
           {
             if (unlikely(!($$= Lex->create_outvar(thd, &$1)) && Lex->result))
+              MYSQL_YYABORT;
+          }
+        | ident_or_text '[' expr ']'
+          {
+            if (unlikely(!($$= Lex->create_outvar_array_element(thd, &$1, $3)) &&
+                           Lex->result))
               MYSQL_YYABORT;
           }
         | ident '.' ident
@@ -15936,7 +15983,8 @@ keyword_sysvar_type:
   but not allowed as non-delimited SP variable names in sql_mode=ORACLE.
 */
 keyword_data_type:
-          BIT_SYM
+          ARRAY_SYM          %prec '['
+        | BIT_SYM
         | BOOLEAN_SYM
         | BOOL_SYM
         | CLOB_MARIADB_SYM
@@ -16782,6 +16830,23 @@ option_value_no_option_type:
 
             if (unlikely(!tmp.str) ||
                 unlikely(Lex->set_variable(&tmp, $4.expr, $4.expr_str)) ||
+                unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+              MYSQL_YYABORT;
+          }
+        | ident_cli_set_usual_case '['
+          {
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+          }
+          expr ']' equal
+          set_expr_or_default
+          {
+            Lex_ident_sys tmp(thd, &$1);
+
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable_array_element(&tmp, $4,
+                                                         $7.expr,
+                                                         $7.expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -18306,9 +18371,9 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type opt_array_type_tail
           {
-            if (unlikely(Lex->sf_return_fill_definition($1)))
+            if (unlikely(Lex->sf_return_fill_definition($1, (uint) $2)))
               MYSQL_YYABORT;
           }
         | ROW_SYM row_type_body
@@ -18328,16 +18393,16 @@ sf_return_type:
                        Qualified_column_ident(&$4, &$6)))
               MYSQL_YYABORT;
           }
-        | TYPE_SYM OF_SYM ident '.' ident
+        | TYPE_SYM OF_SYM ident '.' ident opt_array_type_tail
           {
             if (Lex->sf_return_fill_definition_type_of(
-                       Qualified_column_ident(&$3, &$5)))
+                       Qualified_column_ident(&$3, &$5), (uint) $6))
               MYSQL_YYABORT;
           }
-        | TYPE_SYM OF_SYM ident '.' ident '.' ident
+        | TYPE_SYM OF_SYM ident '.' ident '.' ident opt_array_type_tail
           {
             if (Lex->sf_return_fill_definition_type_of(
-                       Qualified_column_ident(thd, &$3, &$5, &$7)))
+                       Qualified_column_ident(thd, &$3, &$5, &$7), (uint) $8))
               MYSQL_YYABORT;
           }
         ;
@@ -18458,10 +18523,11 @@ sp_opt_default:
 sp_decl_variable_list_anchored:
           sp_decl_idents_init_vars
           TYPE_SYM OF_SYM optionally_qualified_column_ident
+          opt_array_type_tail
           sp_opt_default
           {
             if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(
-                           thd, $1, $4, $5.expr, $5.expr_str)))
+                           thd, $1, $4, (uint) $5, $6.expr, $6.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -18486,9 +18552,9 @@ sp_param_name_and_mode:
         ;
 
 sp_param:
-          sp_param_name_and_mode field_type
+          sp_param_name_and_mode field_type opt_array_type_tail
           {
-            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2, (uint) $3)))
               MYSQL_YYABORT;
           }
         | sp_param_name_and_mode ROW_SYM row_type_body
@@ -18501,16 +18567,18 @@ sp_param:
 
 sp_param_anchored:
           sp_param_name_and_mode TYPE_SYM OF_SYM ident '.' ident
+          opt_array_type_tail
           {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd,
-                                                                $$= $1, $4,
-                                                                $6)))
+            if (unlikely(Lex->sp_param_fill_definition_type_of($$= $1,
+                           Qualified_column_ident(&$4, &$6), (uint) $7)))
               MYSQL_YYABORT;
           }
         | sp_param_name_and_mode TYPE_SYM OF_SYM ident '.' ident '.' ident
+          opt_array_type_tail
           {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1,
-                                                                $4, $6, $8)))
+            if (unlikely(Lex->sp_param_fill_definition_type_of($$= $1,
+                           Qualified_column_ident(thd, &$4, &$6, &$8),
+                           (uint) $9)))
               MYSQL_YYABORT;
           }
         | sp_param_name_and_mode ROW_SYM TYPE_SYM OF_SYM ident
@@ -18806,9 +18874,9 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type opt_array_type_tail
           {
-            if (unlikely(Lex->sf_return_fill_definition($1)))
+            if (unlikely(Lex->sf_return_fill_definition($1, (uint) $2)))
               MYSQL_YYABORT;
           }
         | ROW_SYM row_type_body
@@ -18829,15 +18897,17 @@ sf_return_type:
               MYSQL_YYABORT;
           }
         | sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          opt_array_type_tail
           {
             if (Lex->sf_return_fill_definition_type_of(
-                       Qualified_column_ident(&$1, &$3)))
+                       Qualified_column_ident(&$1, &$3), (uint) $6))
               MYSQL_YYABORT;
           }
         | sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          opt_array_type_tail
           {
             if (Lex->sf_return_fill_definition_type_of(
-                       Qualified_column_ident(thd, &$1, &$3, &$5)))
+                       Qualified_column_ident(thd, &$1, &$3, &$5), (uint) $8))
               MYSQL_YYABORT;
           }
         ;
@@ -19393,10 +19463,11 @@ package_specification_element:
 sp_decl_variable_list_anchored:
           sp_decl_idents_init_vars
           optionally_qualified_column_ident PERCENT_ORACLE_SYM TYPE_SYM
+          opt_array_type_tail
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $2,
-                           $5.expr, $5.expr_str)))
+            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(
+                           thd, $1, $2, (uint) $5, $6.expr, $6.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -19420,9 +19491,9 @@ sp_param_name_and_mode:
         ;
 
 sp_param:
-          sp_param_name_and_mode field_type
+          sp_param_name_and_mode field_type opt_array_type_tail
           {
-            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2, (uint) $3)))
               MYSQL_YYABORT;
           }
         | sp_param_name_and_mode ROW_SYM row_type_body
@@ -19435,13 +19506,18 @@ sp_param:
 
 sp_param_anchored:
           sp_param_name_and_mode sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          opt_array_type_tail
           {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4)))
+            if (unlikely(Lex->sp_param_fill_definition_type_of($$= $1,
+                           Qualified_column_ident(&$2, &$4), (uint) $7)))
               MYSQL_YYABORT;
           }
         | sp_param_name_and_mode sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          opt_array_type_tail
           {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4, $6)))
+            if (unlikely(Lex->sp_param_fill_definition_type_of($$= $1,
+                           Qualified_column_ident(thd, &$2, &$4, &$6),
+                           (uint) $9)))
               MYSQL_YYABORT;
           }
         | sp_param_name_and_mode sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM

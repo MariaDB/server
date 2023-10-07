@@ -530,6 +530,8 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                               &prelocking_strategy);
 }
 
+bool open_and_lock_tables2(THD *thd, TABLE_LIST *tables,
+                           bool derived, uint flags);
 
 bool restart_trans_for_tables(THD *thd, TABLE_LIST *table);
 

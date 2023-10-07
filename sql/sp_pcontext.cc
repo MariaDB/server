@@ -740,3 +740,39 @@ sp_variable::find_row_field(const LEX_CSTRING *var_name,
            var_name->str, field_name->str);
   return NULL;
 }
+
+
+Item_splocal *
+sp_variable::create_item_splocal_array_element(THD *thd,
+                                          const Sp_rcontext_handler *rh,
+                                          const Query_fragment &array_fragment,
+                                          Item *index,
+                                          const Query_fragment &index_fragment)
+{
+  if (!field_def.array_definition())
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             field_def.type_handler()->name().ptr(), "[]");
+
+    return NULL;
+  }
+
+  if (index->basic_const_item())
+  {
+    uint idx;
+    if (field_def.array_definition()->
+                    to_c_index_with_error(name,
+                                          index->to_longlong_hybrid_null(),
+                                          &idx))
+      return NULL;
+    return new (thd->mem_root) Item_splocal_array_element(thd, rh,
+                                  &name,  offset, idx,
+                                  field_def.array_definition()->type_handler(),
+                                  array_fragment, index_fragment);
+  }
+
+  return new (thd->mem_root) Item_splocal_array_element_by_expr(thd, rh,
+                                 &name,  offset, index,
+                                 field_def.array_definition()->type_handler(),
+                                 array_fragment, index_fragment);
+}

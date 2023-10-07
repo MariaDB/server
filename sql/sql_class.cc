@@ -4281,10 +4281,10 @@ bool my_var_sp::set(THD *thd, Item *item)
   return get_rcontext(thd->spcont)->set_variable(thd, offset, &item);
 }
 
-bool my_var_sp_row_field::set(THD *thd, Item *item)
+bool my_var_sp_container_element::set(THD *thd, Item *item)
 {
   return get_rcontext(thd->spcont)->
-           set_variable_row_field(thd, offset, m_field_offset, &item);
+           set_variable_container_element(thd, offset, m_element_offset, &item);
 }
 
 

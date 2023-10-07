@@ -5653,6 +5653,18 @@ err:
 }
 
 
+bool open_and_lock_tables2(THD *thd, TABLE_LIST *tables,
+                           bool derived, uint flags)
+{
+  if (open_and_lock_tables(thd, tables, derived, flags))
+    return true;
+  sp_lex_stmt *lex_stmt= nullptr;
+  if ((lex_stmt= dynamic_cast<sp_lex_stmt*>(thd->lex)) &&
+      lex_stmt->resolve_array_element_indexes2(thd))
+    return true;
+  return false;
+}
+
 /*
   Open all tables in list and process derived tables
 

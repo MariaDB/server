@@ -1,0 +1,71 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-32380 Array data type for stored routnes
+#
+connection master;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT ARRAY[3];
+DECLARE i1 INT ARRAY[3] DEFAULT ARRAY[1,2,3];
+DECLARE i2 INT ARRAY[3] DEFAULT ARRAY[1,2,3];
+FOR i IN 1..3 DO
+SET a[i]= i*10;
+END FOR;
+FOR i IN 1..3 DO
+INSERT INTO t1 VALUES (a[i]);
+END FOR;
+FOR i IN 1..3 DO
+SET a[i]=i;
+INSERT INTO t1 (SELECT i*100+1 UNION SELECT i*100+2 UNION SELECT i*100+3)
+LIMIT a[i];
+END FOR;
+FOR i IN 1..3 DO
+SET a[i]=i;
+INSERT INTO t1 (SELECT i*100+11 UNION SELECT i*100+12 UNION SELECT i*100+13)
+LIMIT a[i1[i2[COALESCE(i,3)]]];
+END FOR;
+END;
+$$
+CALL p1;
+SELECT * FROM t1;
+a
+10
+20
+30
+101
+201
+202
+301
+302
+303
+111
+211
+212
+311
+312
+313
+connection slave;
+SELECT * FROM t1;
+a
+10
+20
+30
+101
+201
+202
+301
+302
+303
+111
+211
+212
+311
+312
+313
+connection master;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

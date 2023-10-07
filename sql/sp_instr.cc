@@ -547,7 +547,7 @@ int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
   */
   if (thd->open_temporary_tables(tables) ||
       check_table_access(thd, SELECT_ACL, tables, false, UINT_MAX, false)
-      || open_and_lock_tables(thd, tables, true, 0))
+      || open_and_lock_tables2(thd, tables, true, 0))
     result= -1;
   else
     result= 0;
@@ -723,8 +723,13 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   */
   if (sp_instr_lex == nullptr)
   {
-    thd->lex= new (thd->mem_root) st_lex_local;
-    lex_start(thd);
+    sp_lex_stmt *lex_stmt;
+    if (!(thd->lex= lex_stmt= new (thd->mem_root) sp_lex_stmt(thd, NULL)))
+      return nullptr;
+    sp_instr_stmt *instr_stmt= dynamic_cast<sp_instr_stmt*>(this);
+    if (instr_stmt)
+      lex_stmt->set_instr_stmt(instr_stmt);
+
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
     {
       /*
@@ -826,13 +831,86 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 PSI_statement_info sp_instr_stmt::psi_info=
 { 0, "stmt", 0};
 
+
+bool sp_instr_stmt::resolve_array_element_indexes2(THD *thd)
+{
+  DBUG_ENTER("sp_instr_stmt::resolve_array_element_indexes");
+  for (Item *item= free_list; item; item= item->next)
+  {
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    Item_splocal_array_element_by_expr *el;
+    if (!rqp)
+      continue;
+    if ((el= dynamic_cast<Item_splocal_array_element_by_expr*>(rqp)))
+    {
+      Sp_eval_expr_state state(thd); // Do like sp_instr_set/sp_eval_expr do.
+      Item *item= thd->sp_fix_func_item_for_array_index(el->
+                                                       index_expr_addr());
+      if (!item ||
+          el->set_resolved_index(thd, item->to_longlong_hybrid_null()))
+        DBUG_RETURN(true);
+    }
+    else
+    {
+      // Do what Item_splocal*::append_for_log() does
+      if (item->fix_fields_if_needed(thd, NULL))
+        DBUG_RETURN(true);
+    }
+  }
+
+  if (subst_spvars(thd, this, &m_query))
+    return true;
+  DBUG_RETURN(false);
+}
+
+
+int sp_instr_stmt::execute_not_cached_query(THD *thd, uint *nextp)
+{
+  int res;
+  bool save_enable_slow_log;
+  Sub_statement_state backup_state;
+
+  save_enable_slow_log= thd->enable_slow_log;
+  thd->store_slow_query_state(&backup_state);
+
+  thd->reset_slow_query_state(&backup_state);
+  res= m_lex_keeper.validate_lex_and_exec_core(thd, nextp, false, this);
+  bool log_slow= !res && thd->enable_slow_log;
+
+  /* Finalize server status flags after executing a statement. */
+  if (log_slow || thd->get_stmt_da()->is_eof())
+    thd->update_server_status();
+
+  if (thd->get_stmt_da()->is_eof())
+    thd->protocol->end_statement();
+
+  query_cache_end_of_result(thd);
+
+  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                      thd->get_stmt_da()->is_error() ?
+                             thd->get_stmt_da()->sql_errno() : 0,
+                      command_name[COM_QUERY].str);
+
+  if (log_slow)
+    log_slow_statement(thd);
+
+  /*
+    Restore enable_slow_log, that can be changed by a admin or call
+    command
+  */
+  thd->enable_slow_log= save_enable_slow_log;
+
+  /* Add the number of rows to thd for the 'call' statistics */
+  thd->add_slow_query_state(&backup_state);
+  return res;
+}
+
+
 int
 sp_instr_stmt::execute(THD *thd, uint *nextp)
 {
   int res;
-  bool save_enable_slow_log;
   const CSET_STRING query_backup= thd->query_string;
-  Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
 
@@ -843,12 +921,35 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   thd->profiling.set_query_source(m_query.str, m_query.length);
 #endif
 
-  save_enable_slow_log= thd->enable_slow_log;
-  thd->store_slow_query_state(&backup_state);
 
-  if (!(res= alloc_query(thd, m_query.str, m_query.length)) &&
-      !(res=subst_spvars(thd, this, &m_query)))
+  if ((res= alloc_query(thd, m_query.str, m_query.length)))
+    DBUG_RETURN(res);
+
+  if (!m_lex_keeper.lex()->safe_to_cache_query)
   {
+    /*
+      There can be Item_splocal_array_element_by_expr instances:
+        SELECT array_var[stored_function()];
+      Their index expressions are not resolved at this point yet,
+      because tables and SP routines get opened on a later stage.
+      Item_splocal_array_element::append_for_log() can be called only
+      on resolved index expressions. So here substr_spvars() is not called.
+      Instead, it's called inside execute_not_cached_query(),
+      after open_and_lock_table().
+    */
+    res= execute_not_cached_query(thd, nextp);
+    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+  }
+  else
+  {
+    // No SP variables
+    // TODO: add support for ARRAY[1,2,3][stored_function()]
+    if ((res=subst_spvars(thd, this, &m_query)))
+    {
+      thd->set_query(query_backup);
+      thd->query_name_consts= 0;
+      DBUG_RETURN(res);
+    }
     /*
       (the order of query cache and subst_spvars calls is irrelevant because
       queries with SP vars can't be cached)
@@ -858,35 +959,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
     {
-      thd->reset_slow_query_state(&backup_state);
-      res= m_lex_keeper.validate_lex_and_exec_core(thd, nextp, false, this);
-      bool log_slow= !res && thd->enable_slow_log;
-
-      /* Finalize server status flags after executing a statement. */
-      if (log_slow || thd->get_stmt_da()->is_eof())
-        thd->update_server_status();
-
-      if (thd->get_stmt_da()->is_eof())
-        thd->protocol->end_statement();
-
-      query_cache_end_of_result(thd);
-
-      mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                          thd->get_stmt_da()->is_error() ?
-                                 thd->get_stmt_da()->sql_errno() : 0,
-                          command_name[COM_QUERY].str);
-
-      if (log_slow)
-        log_slow_statement(thd);
-
-      /*
-        Restore enable_slow_log, that can be changed by a admin or call
-        command
-      */
-      thd->enable_slow_log= save_enable_slow_log;
-
-      /* Add the number of rows to thd for the 'call' statistics */
-      thd->add_slow_query_state(&backup_state);
+      res= execute_not_cached_query(thd, nextp);
     }
     else
     {
@@ -898,14 +971,14 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->lex->sql_command= save_sql_command;
       *nextp= m_ip+1;
     }
-    thd->set_query(query_backup);
-    thd->query_name_consts= 0;
+  }
+  thd->set_query(query_backup);
+  thd->query_name_consts= 0;
 
-    if (likely(!thd->is_error()))
-    {
-      res= 0;
-      thd->get_stmt_da()->reset_diagnostics_area();
-    }
+  if (likely(!thd->is_error()))
+  {
+    res= 0;
+    thd->get_stmt_da()->reset_diagnostics_area();
   }
 
   DBUG_RETURN(res || thd->is_error());
@@ -972,7 +1045,7 @@ sp_instr_set::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_set::execute");
   DBUG_PRINT("info", ("offset: %u", m_offset));
-
+//TODO: MTR
   DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
@@ -1025,9 +1098,9 @@ sp_instr_set::print(String *str)
 int
 sp_instr_set_row_field::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_row_field(thd, m_offset,
-                                                     m_field_offset,
-                                                     &m_value);
+  int res= get_rcontext(thd)->set_variable_container_element(thd, m_offset,
+                                                             m_field_offset,
+                                                             &m_value);
   *nextp= m_ip + 1;
   return res;
 }
@@ -1109,6 +1182,54 @@ sp_instr_set_row_field_by_name::print(String *str)
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
+/*
+  sp_instr_set_array_element_by_expr class functions
+*/
+
+int
+sp_instr_set_array_element_by_expr::exec_core(THD *thd, uint *nextp)
+{
+  Item *it_index= thd->sp_prepare_func_item(&m_index, 1);
+  if (!it_index)
+    return -1;
+
+  sp_rcontext *ctx= get_rcontext(thd);
+  Item_field *var= ctx->get_variable(m_offset);
+  uint idx;
+  if (Cardinality(var->cols()).to_c_index_with_error(var->field_name,
+                                          it_index->to_longlong_hybrid_null(),
+                                          &idx))
+    return -1;
+
+  int res= ctx->set_variable_container_element(thd, m_offset, idx, &m_value);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_array_element_by_expr::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(var->field_def.is_array());
+
+  if (str->reserve(64))
+    return;
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+  str->append('@');
+  str->append(m_offset);
+  str->append('[');
+  m_index->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  str->append("] ", 2);
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
 
 /*
   sp_instr_set_trigger_field class functions
@@ -1122,6 +1243,7 @@ sp_instr_set_trigger_field::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_set_trigger_field::execute");
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
+//TODO: MTR
   DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
@@ -1250,6 +1372,7 @@ sp_instr_jump_if_not::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_jump_if_not::execute");
   DBUG_PRINT("info", ("destination: %u", m_dest));
+//TODO: MTR
   DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
@@ -2037,7 +2160,7 @@ int
 sp_instr_set_case_expr::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_set_case_expr::execute");
-
+//TODO: MTR
   DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
