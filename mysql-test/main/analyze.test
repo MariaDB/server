@@ -254,6 +254,21 @@ SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_
 --error ER_DROP_INDEX_FK
 ALTER TABLE t1 DROP KEY idx;
 DROP TABLE t1;
+
+--echo #
+--echo # Check index rename where name is not changed
+--echo #
+
+create or replace table t1 (a int primary key, b int, c int, key b (b,c));
+show create table t1;
+analyze table t1 persistent for all;
+select * from mysql.index_stats where table_name= "t1";
+alter ignore table t1 rename key `b` to b, LOCK=shared;
+select * from mysql.index_stats where table_name= "t1";
+alter ignore table t1 rename key `b` to `B`, LOCK=shared;
+select * from mysql.index_stats where table_name= "t1";
+drop table t1;
+
 --echo #
 --echo # End of 10.6 tests
 --echo #

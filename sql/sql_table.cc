@@ -8298,9 +8298,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
 
         key_name= rename_key->new_name.str;     // New name of current key_info
+        if (cmp(&rename_key->old_name, &rename_key->new_name))
+        {
+          /* Key was renamed */
+          alter_info->add_stat_rename_index(key_info, &rename_key->new_name,
+                                            thd->mem_root);
+        }
         rename_key_it.remove();
-        alter_info->add_stat_rename_index(key_info, &rename_key->new_name,
-                                          thd->mem_root);
 
         /*
           If the user has explicitly renamed the key, we should no longer

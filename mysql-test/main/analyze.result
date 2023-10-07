@@ -382,5 +382,40 @@ ALTER TABLE t1 DROP KEY idx;
 ERROR HY000: Cannot drop index 'idx': needed in a foreign key constraint
 DROP TABLE t1;
 #
+# Check index rename where name is not changed
+#
+create or replace table t1 (a int primary key, b int, c int, key b (b,c));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`,`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select * from mysql.index_stats where table_name= "t1";
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	b	1	NULL
+test	t1	b	2	NULL
+alter ignore table t1 rename key `b` to b, LOCK=shared;
+select * from mysql.index_stats where table_name= "t1";
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	b	1	NULL
+test	t1	b	2	NULL
+alter ignore table t1 rename key `b` to `B`, LOCK=shared;
+select * from mysql.index_stats where table_name= "t1";
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	B	1	NULL
+test	t1	B	2	NULL
+drop table t1;
+#
 # End of 10.6 tests
 #
