@@ -91,20 +91,19 @@ sanity_checks() {
   # check for diskspace shortage
   datadir="$(mariadbd_get_param datadir)"
 
-  # If datadir location is not changed int configuration
+  # If datadir location is not customized in configuration
   # then it's not printed with /usr/sbin/mariadbd --print-defaults
-  # then we use 'sane' default.
+  # and this should fall back to a sane default value
   if [ -z "$datadir" ]
   then
     datadir="/var/lib/mysql"
   fi
 
-  # Check if there datadir location is available and
-  # fail if it's not
-  if [ ! -d "$datadir" ]
+  # Verify the datadir location exists
+  if [ ! -d "$datadir" ] && [ ! -L "$datadir" ]
   then
-    log_failure_msg "$0: ERROR: Can't locate MariaDB installation location $datadir"
-    echo                "ERROR: Can't locate MariaDB installation location $datadir" | $ERR_LOGGER
+    log_failure_msg "$0: ERROR: Can't locate MariaDB data location at $datadir"
+    echo                "ERROR: Can't locate MariaDB data location at $datadir" | $ERR_LOGGER
     exit 1
   fi
 
