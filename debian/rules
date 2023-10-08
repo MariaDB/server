@@ -117,16 +117,23 @@ override_dh_auto_build:
 override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
-	# Ensure at least an empty file exists
-	touch mysql-test/unstable-tests
-	# Skip unstable tests if such are defined for arch
-	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
-	# Run testsuite
+	# Skip running test suite after build if DEB_BUILD_OPTIONS contains 'nocheck'
+	@echo "DEB_BUILD_OPTIONS: $(DEB_BUILD_OPTIONS)"
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	# Skip unstable tests if such are defined for arch
+	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> $(MTR_SKIP_TEST_LIST)
+	# Show contents of skip list on this architecture
+	@echo "On architecture $(DEB_HOST_ARCH) skip tests:"
+	cat $(MTR_SKIP_TEST_LIST)
+	# Run testsuite
 	cd $(BUILDDIR)/mysql-test && \
-	./mtr --force --mem \
-	      --parallel=$(NUMJOBS) --skip-rpl --suite=main \
-	      --skip-test-list=unstable-tests
+	export MTR_PRINT_CORE=detailed && \
+	./mtr --force --testcase-timeout=120 --suite-timeout=540 --retry=3 \
+				--verbose-restart --max-save-core=1 --max-save-datadir=1 \
+				--parallel=$(NUMJOBS) --skip-rpl --suite=main \
+				--skip-test-list=$(MTR_SKIP_TEST_LIST)
+	# Don't use --mem here as official Debian builders and most Docker systems don't have a large mem device available and
+	# would fail with errors on lack of disk space.
 endif
 
 override_dh_auto_install:
