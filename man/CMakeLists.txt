@@ -14,7 +14,8 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 SET(MAN1_WSREP wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
-    wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1 galera_new_cluster.1)
+    wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1 galera_new_cluster.1
+    wsrep_sst_backup.1)
 SET(MAN1_SERVER innochecksum.1 myisam_ftdump.1 myisamchk.1
                 aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
                 aria_s3_copy.1
