@@ -25,37 +25,37 @@ echo "using tmpdir: $WORKDIR/tmp"
 echo "Setting up skip-tests-list"
 
 # Use the arch specific skiplists if exist, otherwise list is empty
-if [ -f /usr/share/mysql/mysql-test/unstable-tests.$ARCH ]
+if [ -f "/usr/share/mysql/mysql-test/unstable-tests.$ARCH" ]
 then
-  cat /usr/share/mysql/mysql-test/unstable-tests.$ARCH >> $MTR_SKIP_TEST_LIST
+  cat "/usr/share/mysql/mysql-test/unstable-tests.$ARCH" >> "$MTR_SKIP_TEST_LIST"
 fi
 
 # Skip tests that cannot run properly on ci.debian.net / autopkgtests.ubuntu.com
-cat >> $MTR_SKIP_TEST_LIST << EOF
+cat >> "$MTR_SKIP_TEST_LIST" << EOF
 binlog.binlog_server_start_options : Requires writable /usr
 main.ctype_uca : Requires writable /usr
 rpl.rpl_gtid_mode : Requires starting server as root ref http://bugs.mysql.com/bug.php?id=70517
 EOF
 
 # Skip tests that cannot run properly on Gitlab-CI
-if [ ! -z "$GITLAB_CI" ]
+if [ -n "$GITLAB_CI" ]
 then
-  cat >> $MTR_SKIP_TEST_LIST << EOF
+  cat >> "$MTR_SKIP_TEST_LIST" << EOF
 main.mysqld--help : For unknown reason table-cache is 4000 instead of default 421
 EOF
 fi
 
 if [ "$ARCH" = "s390x" ]
 then
-  echo "main.func_regexp_pcre : recursion fails on s390x https://bugs.launchpad.net/ubuntu/+source/mariadb-10.1/+bug/1723947" >> $MTR_SKIP_TEST_LIST
+  echo "main.func_regexp_pcre : recursion fails on s390x https://bugs.launchpad.net/ubuntu/+source/mariadb-10.1/+bug/1723947" >> "$MTR_SKIP_TEST_LIST"
 elif [ "$ARCH" = "armhf" ] || [ "$ARCH" = "i386" ]
 then
-  echo "main.failed_auth_unixsocket : Test returns wrong exit code on armhf and i386 (but only in debci) https://jira.mariadb.org/browse/MDEV-23933" >> $MTR_SKIP_TEST_LIST
+  echo "main.failed_auth_unixsocket : Test returns wrong exit code on armhf and i386 (but only in debci) https://jira.mariadb.org/browse/MDEV-23933" >> "$MTR_SKIP_TEST_LIST"
 fi
 
 # Store skipped test list in artifacts so it can be viewed while debugging
 # failed autopkgtest runs
-cp -v $MTR_SKIP_TEST_LIST $AUTOPKGTEST_ARTIFACTS
+cp -v "$MTR_SKIP_TEST_LIST" "$AUTOPKGTEST_ARTIFACTS"
 
 cd /usr/share/mysql/mysql-test
 echo "starting mysql-test-tun.pl..."
@@ -64,7 +64,8 @@ eatmydata perl -I. ./mysql-test-run.pl \
     --force --testcase-timeout=120 --suite-timeout=540 --retry=3 \
     --verbose-restart --max-save-core=1 --max-save-datadir=1 \
     --parallel=auto --skip-rpl --suite=main \
-    --skip-test-list=$MTR_SKIP_TEST_LIST \
+    --skip-test-list="$MTR_SKIP_TEST_LIST" \
     --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \
-    --xml-report=$AUTOPKGTEST_ARTIFACTS/mysql-test-run-junit.xml $@ 2>&1
+    --xml-report="$AUTOPKGTEST_ARTIFACTS/mysql-test-run-junit.xml"
+    "$@" 2>&1
 echo "run: OK"
