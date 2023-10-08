@@ -30,7 +30,8 @@ DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
 DEB_VERSION_VERSION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*:\(.*\)\(-\|+\).*/\1/')
 DEB_VERSION_MAJOR := $(shell echo $(DEB_VERSION_VERSION) | sed -e 's/^\(.*\)\..*$$/\1/')
 RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
-TMP:=$(CURDIR)/debian/tmp
+TMP := $(CURDIR)/debian/tmp
+MTR_SKIP_TEST_LIST := $(shell mktemp)
 
 # According to Debian Policy version 4.2.0 builds should be as verbose as
 # possible unless 'terse' is specifically passed.
@@ -59,6 +60,11 @@ ifneq (,$(filter $(DEB_HOST_ARCH),amd64 arm64 ppc64el riscv64))
     CMAKEFLAGS += -DWITH_PMEM=ON
 endif
 
+# Fix compilation errors like "relocation truncated to fit: GPREL16 against symbol `wsrep_debug'"
+ifeq ($(DEB_HOST_ARCH),alpha)
+    export DEB_LDFLAGS_MAINT_APPEND += -Wl,--no-relax
+endif
+
 # Add support for verbose builds
 MAKEFLAGS += VERBOSE=1
 
@@ -74,14 +80,17 @@ override_dh_auto_configure:
 	dh_testdir
 
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
-	dpkg-architecture -a$(DEB_BUILD_ARCH) -f -c dh_auto_configure --builddirectory=builddir-native
+	dpkg-architecture -a$(DEB_BUILD_ARCH) -f -c dh_auto_configure --builddirectory=builddir-native --reload-all-buildenv-variables
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
 
 	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
 
-	# As packages does not have major version any more  on package name there is no way as it not set by dpkg
-	# to use this on postinst script. Use sed to determine major version
+	# As packages does not have major version any more in package name there is no
+	# way as it not set by dpkg to use this on postinst script. Use sed to
+	# determine major version instead.
+	# @TODO: Rewrite this to use the new upstream /var/lib/mysql_upgrade_info file
+	# instead of the legacy /var/lib/debian-XX.X.flag file
 	sed -i 's/__MARIADB_MAJOR_VER__/$(DEB_VERSION_MAJOR)/g' debian/mariadb-server.post* debian/mariadb-server.preinst
 
 	# Don't build ColumnStore as part of the native build as it does not meet the
@@ -92,7 +101,6 @@ endif
 	# Note: Don't use '-DWITH_URING=ON' as some Buildbot builders are missing it
 	# and would fail permanently.
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
-	    NO_UPDATE_BUILD_VERSION=1 \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
 	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	    $(CMAKEFLAGS) \
@@ -129,9 +137,9 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	cd $(BUILDDIR)/mysql-test && \
 	export MTR_PRINT_CORE=detailed && \
 	./mtr --force --testcase-timeout=120 --suite-timeout=540 --retry=3 \
-				--verbose-restart --max-save-core=1 --max-save-datadir=1 \
-				--parallel=$(NUMJOBS) --skip-rpl --suite=main \
-				--skip-test-list=$(MTR_SKIP_TEST_LIST)
+	      --verbose-restart --max-save-core=1 --max-save-datadir=1 \
+	      --parallel=$(NUMJOBS) --skip-rpl --suite=main \
+	      --skip-test-list=$(MTR_SKIP_TEST_LIST)
 	# Don't use --mem here as official Debian builders and most Docker systems don't have a large mem device available and
 	# would fail with errors on lack of disk space.
 endif
@@ -193,6 +201,7 @@ endif
 	# Move test plugins that are only needed by the client to the libmariadb path
 	mv -v $(TMP)/usr/lib/mysql/plugin/qa_auth_client.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/
 
+# Install mariadb.socket without enabling it, keep using mariadb.service by default
 override_dh_systemd_enable:
 	dh_systemd_enable --name=mariadb
 	dh_systemd_enable --no-enable --name=mariadb mariadb.socket
@@ -201,7 +210,7 @@ override_dh_systemd_enable:
 	dh_systemd_enable --no-enable --name=mariadb-extra@ mariadb-extra.socket
 	dh_systemd_enable --no-enable --name=mariadb@ mariadb@.service
 
-# Start MariaDB at sequence number 19 before 20 where apache, proftpd etc gets
+# Start mariadbd at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
 	dh_installinit --name=mariadb --no-start -- defaults 19 21

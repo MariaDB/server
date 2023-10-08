@@ -14,13 +14,22 @@ ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 
+MARIADBD_USERS="root"
+
+# Check if user 'mysql' exists before referring to it in pgrep
+# to avoid pgrep erroring on 'invalid user name'
+if id mysql > /dev/null 2>&1
+then
+  MARIADBD_USERS="$MARIADBD_USERS,mysql"
+fi
+
 # Try to stop the server in a sane way. If it does not success let the admin
 # do it himself. No database directories should be removed while the server
 # is running! Another mariadbd in e.g. a different chroot is fine for us.
 stop_server() {
   # Return immediately if there are no mysqld processes running
   # as there is no point in trying to shutdown in that case.
-  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null
+  if ! pgrep -x -u "$MARIADBD_USERS" --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null
   then
     return
   fi
@@ -36,7 +45,8 @@ stop_server() {
   then
     echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
     echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
-    echo "Stop it yourself and try again!" 1>&2
+    echo "Check if there is any server running with 'pgrep \"mysqld|mariadbd\"' and" 1>&2
+    echo "try to stop it yourself by issuing 'invoke-rc.d mariadb stop'." 1>&2
     db_stop
     exit 1
   fi

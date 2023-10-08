@@ -200,7 +200,7 @@ fi
 
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
-if which eatmydata > /dev/null
+if command -v eatmydata > /dev/null
 then
   BUILDPACKAGE_DPKGCMD+=("eatmydata")
 fi
