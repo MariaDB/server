@@ -222,10 +222,9 @@ protected:
 class Gtid_index_writer : public Gtid_index_base
 {
 public:
-  /* ToDo: configurable. */
-  static constexpr uint32 gtid_threshold= 1; // ToDo 10;
-  static constexpr my_off_t offset_min_threshold= 1; // ToDo 4096;
-  static constexpr my_off_t offset_max_threshold= 65536;
+  const uint32 gtid_threshold;
+  const my_off_t offset_min_threshold;
+  const my_off_t offset_max_threshold;
 
   struct Index_node : public Index_node_base
   {
@@ -246,7 +245,9 @@ public:
   static const Gtid_index_writer *find_hot_index(const char *file_name);
 
   Gtid_index_writer(const char *filename, uint32 offset,
-                    rpl_binlog_state_base *binlog_state);
+                    rpl_binlog_state_base *binlog_state,
+                    uint32 opt_page_size, uint32 opt_sparse,
+                    my_off_t opt_span_min, my_off_t opt_span_max);
   virtual ~Gtid_index_writer();
   void insert_in_hot_index();
   void remove_from_hot_index();

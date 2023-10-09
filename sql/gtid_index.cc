@@ -30,14 +30,19 @@ mysql_mutex_t Gtid_index_writer::gtid_index_mutex;
 
 
 Gtid_index_writer::Gtid_index_writer(const char *filename, uint32 offset,
-                                     rpl_binlog_state_base *binlog_state)
-  : nodes(nullptr), previous_offset(0),
+                                     rpl_binlog_state_base *binlog_state,
+                                     uint32 opt_page_size, uint32 opt_sparse,
+                                     my_off_t opt_span_min,
+                                     my_off_t opt_span_max)
+  : gtid_threshold(opt_sparse),
+    offset_min_threshold(opt_span_min), offset_max_threshold(opt_span_max),
+    nodes(nullptr), previous_offset(0),
     max_level(0), pending_gtid_count(0), index_file(-1),
     error_state(false), file_header_written(false), in_hot_index_list(false)
 {
   uint32 count;
   rpl_gtid *gtid_list;
-  page_size= 64; // 4096;   /* ToDo: init from config */
+  page_size= opt_page_size;
   pending_state.init();
 
   if (alloc_level_if_missing(0))

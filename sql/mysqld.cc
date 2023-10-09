@@ -438,6 +438,11 @@ my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
 ulong binlog_row_metadata;
+my_bool opt_binlog_gtid_index= TRUE;
+ulong opt_binlog_gtid_index_page_size= 4096;
+ulong opt_binlog_gtid_index_sparse= 10;
+ulong opt_binlog_gtid_index_span_min= 4096;
+ulong opt_binlog_gtid_index_span_max= 65536;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};

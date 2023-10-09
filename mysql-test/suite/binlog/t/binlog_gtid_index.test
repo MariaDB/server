@@ -1,18 +1,25 @@
-# ToDo maybe run for all 3 just to fuss the offsets a bit?
 --source include/have_binlog_format_mixed.inc
+
+SET GLOBAL binlog_gtid_index= 0;
+SET GLOBAL binlog_gtid_index= 1;
 
 --let $file= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $pos1= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid1= @@gtid_binlog_pos;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 --let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid2= @@gtid_binlog_pos;
 INSERT INTO t1 VALUES (1);
 --let $pos3= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid3= @@gtid_binlog_pos;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 --let $pos4= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid4= @@gtid_binlog_pos;
 INSERT INTO t1 VALUES (5);
 --let $pos5= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid5= @@gtid_binlog_pos;
 
 --disable_query_log
 --let $i=0
@@ -22,7 +29,7 @@ while ($i < 100) {
 }
 --enable_query_log
 --let $pos6= query_get_value(SHOW MASTER STATUS, Position, 1)
-eval SELECT CONCAT('$pos6', " -> ", @@gtid_binlog_state) AS Source;
+SET @gtid6= @@gtid_binlog_pos;
 
 INSERT INTO t1 VALUES (106);
 INSERT INTO t1 VALUES (107);
@@ -30,12 +37,14 @@ INSERT INTO t1 VALUES (107);
 # Test first the hot and then the cold index.
 --let $i= 0
 while ($i < 2) {
-  eval SELECT BINLOG_GTID_POS('$file', $pos1);
-  eval SELECT BINLOG_GTID_POS('$file', $pos2);
-  eval SELECT BINLOG_GTID_POS('$file', $pos3);
-  eval SELECT BINLOG_GTID_POS('$file', $pos4);
-  eval SELECT BINLOG_GTID_POS('$file', $pos5);
-  eval SELECT BINLOG_GTID_POS('$file', $pos6);
+  --disable_query_log
+  eval SELECT BINLOG_GTID_POS('$file', $pos1) = @gtid1 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos2) = @gtid2 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos3) = @gtid3 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos4) = @gtid4 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos5) = @gtid5 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos6) = @gtid6 AS Ok;
+  --enable_query_log
 
   inc $i;
   if ($i == 1) {
