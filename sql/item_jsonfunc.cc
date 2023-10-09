@@ -3911,7 +3911,24 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
   m_tmp_json.length(0);
-  if (append_json_value(&m_tmp_json, i, tmp))
+  if (i->result_type() == STRING_RESULT)
+  {
+    String *sv= i->val_json(tmp);
+    if (i->null_value)
+    {
+      m_tmp_json.append("null", 4);
+      return &m_tmp_json;
+    }
+    if (is_json_type(i))
+      m_tmp_json.append(sv->ptr(), sv->length());
+    else if (m_tmp_json.append("\"", 1) ||
+             m_tmp_json.append(*sv) ||
+             m_tmp_json.append("\"", 1))
+    {
+      return NULL;
+    }
+  }
+  else if (append_json_value(&m_tmp_json, i, tmp))
     return NULL;
   return &m_tmp_json;
 }
