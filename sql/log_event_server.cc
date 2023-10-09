@@ -247,7 +247,8 @@ static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
     new_db.str= db;
   /* TODO WARNING this makes rewrite_db respect lower_case_table_names values
    * for more info look MDEV-17446 */
-  new_db.str= rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
+  if (rpl_filter)
+    new_db.str= rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
   thd->set_db(&new_db);
 }
 #endif
@@ -1905,7 +1906,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   void *hton= NULL;
   rpl_gtid gtid;
   Relay_log_info const *rli= rgi->rli;
-  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
+  Rpl_filter *rpl_filter= (rli && rli->mi) ? rli->mi->rpl_filter : NULL;
   bool current_stmt_is_commit;
   bool skip_error_check= false;
   DBUG_ENTER("Query_log_event::do_apply_event");
@@ -1961,7 +1962,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             ::do_apply_event(), then the companion SET also have so
             we don't need to reset_one_shot_variables().
   */
-  if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
+  if (is_trans_keyword() || (rpl_filter && rpl_filter->db_ok(thd->db.str)))
   {
     bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
 

@@ -73,6 +73,7 @@ static int check_event_type(int type, Relay_log_info *rli)
     return 0;
 
   case QUERY_EVENT:
+  case QUERY_COMPRESSED_EVENT:
   case TABLE_MAP_EVENT:
   case WRITE_ROWS_EVENT_V1:
   case UPDATE_ROWS_EVENT_V1:

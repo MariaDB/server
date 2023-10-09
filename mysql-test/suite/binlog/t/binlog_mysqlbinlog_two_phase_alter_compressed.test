@@ -1,0 +1,20 @@
+--source include/have_log_bin.inc
+
+set @min_len= @@log_bin_compress_min_len, @compress= @@log_bin_compress, @two_phase= @@binlog_alter_two_phase;
+set global log_bin_compress_min_len=40, log_bin_compress=on, binlog_alter_two_phase=ON;
+reset master;
+
+--connect (con1,localhost,root,,)
+create table t (a int);
+alter table t add b int, add c int, add d int;
+show binlog events;
+flush binary logs;
+drop table t;
+--let $datadir= `select @@datadir`
+--exec $MYSQL_BINLOG $datadir/master-bin.000001 | $MYSQL test
+
+# Cleanup
+drop table t;
+--disconnect con1
+--connection default
+set global log_bin_compress_min_len=@min_len, log_bin_compress=@compress, binlog_alter_two_phase=@two_phase;
