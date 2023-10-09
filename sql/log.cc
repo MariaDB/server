@@ -3898,13 +3898,23 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         DBUG_ASSERT(!gtid_index); /* Binlog close should clear it. */
         if (gtid_index)
           delete gtid_index;
-        my_off_t offset= my_b_tell(&log_file);
-        gtid_index= new Gtid_index_writer(log_file_name, (uint32)offset,
-                                          &rpl_global_gtid_binlog_state);
-        if (!gtid_index)
-          sql_print_information("Could not create GTID index for binlog "
-                                "file '%s'. Accesses to this binlog file will "
-                                "fallback to slower sequential scan.");
+        if (opt_binlog_gtid_index)
+        {
+          my_off_t offset= my_b_tell(&log_file);
+          gtid_index=
+            new Gtid_index_writer(log_file_name, (uint32)offset,
+                                  &rpl_global_gtid_binlog_state,
+                                  (uint32)opt_binlog_gtid_index_page_size,
+                                  (uint32)opt_binlog_gtid_index_sparse,
+                                  (my_off_t)opt_binlog_gtid_index_span_min,
+                                  (my_off_t)opt_binlog_gtid_index_span_max);
+          if (!gtid_index)
+            sql_print_information("Could not create GTID index for binlog "
+                                  "file '%s'. Accesses to this binlog file will "
+                                  "fallback to slower sequential scan.");
+        }
+        else
+          gtid_index= nullptr;
 
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
@@ -12069,7 +12079,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           /* Initialise the binlog state from the Gtid_list event. */
           if (rpl_global_gtid_binlog_state.load(glev->list, glev->count))
             goto err2;
-          gtid_index_recover= recover_gtid_index_start(last_log_name, end_pos);
+          if (opt_binlog_gtid_index)
+            gtid_index_recover= recover_gtid_index_start(last_log_name, end_pos);
         }
         break;
 
@@ -12253,8 +12264,13 @@ MYSQL_BIN_LOG::recover_gtid_index_start(const char *base_name, my_off_t offset)
     }
     my_errno= 0;
   }
-  Gtid_index_writer *gi= new Gtid_index_writer(base_name, (uint32)offset,
-                                               &rpl_global_gtid_binlog_state);
+  Gtid_index_writer *gi=
+    new Gtid_index_writer(base_name, (uint32)offset,
+                          &rpl_global_gtid_binlog_state,
+                          (uint32)opt_binlog_gtid_index_page_size,
+                          (uint32)opt_binlog_gtid_index_sparse,
+                          (my_off_t)opt_binlog_gtid_index_span_min,
+                          (my_off_t)opt_binlog_gtid_index_span_max);
   return gi;
 }
 

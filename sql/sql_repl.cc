@@ -1447,7 +1447,8 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
     goto end;
   }
 
-  reader= new Gtid_index_reader();
+  if (opt_binlog_gtid_index)
+    reader= new Gtid_index_reader();
 
   while (list)
   {
@@ -1622,7 +1623,9 @@ gtid_state_from_pos(const char *name, uint32 offset,
     a point at or just before the desired location, saving an expensive scan
     of the binlog file from the start.
   */
-  found_in_index= gtid_index_lookup_pos(name, offset, &start_seek, gtid_state);
+  found_in_index= opt_binlog_gtid_index ?
+    gtid_index_lookup_pos(name, offset, &start_seek, gtid_state) :
+    false;
   if (found_in_index)
     found_gtid_list_event= true;
   else if (unlikely(gtid_state->load((const rpl_gtid *)NULL, 0)))
