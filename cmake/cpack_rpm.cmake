@@ -13,6 +13,7 @@ SET(CPACK_COMPONENT_SERVER_GROUP "server")
 SET(CPACK_COMPONENT_INIFILES_GROUP "server")
 SET(CPACK_COMPONENT_SERVER_SCRIPTS_GROUP "server")
 SET(CPACK_COMPONENT_SUPPORTFILES_GROUP "server")
+SET(CPACK_COMPONENT_SERVER_GALERA_GROUP "server-galera")
 SET(CPACK_COMPONENT_DEVELOPMENT_GROUP "devel")
 SET(CPACK_COMPONENT_DEVELOPMENTSYMLINKS_GROUP "devel")
 SET(CPACK_COMPONENT_MANPAGESDEVELOPMENT_GROUP "devel")
@@ -27,10 +28,11 @@ SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENT_BACKUP_GROUP "backup")
 SET(CPACK_COMPONENT_BACKUPSYMLINKS_GROUP "backup")
 
-SET(CPACK_COMPONENTS_ALL Server IniFiles Server_Scripts SupportFiles
-                         Development ManPagesDevelopment Readme Test Common
-                         Client SharedLibraries ClientPlugins Backup
-                         TestSymlinks BackupSymlinks DevelopmentSymlinks
+SET(CPACK_COMPONENTS_ALL Server IniFiles Server_Scripts Server_Galera 
+                         SupportFiles Development ManPagesDevelopment
+                         Readme Test Common Client SharedLibraries
+                         ClientPlugins Backup TestSymlinks BackupSymlinks
+                         DevelopmentSymlinks
 )
 
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
@@ -81,6 +83,8 @@ SET(CPACK_RPM_devel_PACKAGE_SUMMARY "MariaDB database development files")
 SET(CPACK_RPM_devel_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_server_PACKAGE_SUMMARY "MariaDB database server binaries")
 SET(CPACK_RPM_server_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+SET(CPACK_RPM_server-galera_PACKAGE_SUMMARY "MariaDB database server binaries and scripts for Galera 4")
+SET(CPACK_RPM_server-galera_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_test_PACKAGE_SUMMARY "MariaDB database regression test suite")
 SET(CPACK_RPM_test_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 
@@ -246,7 +250,7 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "MariaDB-client >= 11.0.0")
 
 IF(WITH_WSREP)
-  SETA(CPACK_RPM_server_PACKAGE_REQUIRES
+  SETA(CPACK_RPM_server_galera_PACKAGE_REQUIRES
     "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
   SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "pv")

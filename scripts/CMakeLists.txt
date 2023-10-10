@@ -305,7 +305,7 @@ ELSE()
       wsrep_sst_common
     )
 
-    INSTALL_LINK(wsrep_sst_rsync wsrep_sst_rsync_wan ${INSTALL_BINDIR} Server)
+    INSTALL_LINK(wsrep_sst_rsync wsrep_sst_rsync_wan ${INSTALL_BINDIR} Server_Galera)
     FOREACH(file ${WSREP_SOURCE})
       CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
         ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)

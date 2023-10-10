@@ -59,7 +59,7 @@ IF(WITH_WSREP AND NOT WITHOUT_SERVER)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep.cnf.sh
                  ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension} @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension}
-          DESTINATION ${inst_location} COMPONENT IniFiles)
+          DESTINATION ${inst_location} COMPONENT Server_Galera)
 ENDIF()
 
 IF(UNIX AND NOT WITHOUT_SERVER)
@@ -149,7 +149,7 @@ IF(UNIX AND NOT WITHOUT_SERVER)
 
     IF(WITH_WSREP)
       INSTALL(FILES use_galera_new_cluster.conf
-              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
+              DESTINATION ${inst_location}/systemd COMPONENT Server_Galera)
     ENDIF()
     INSTALL(FILES
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
