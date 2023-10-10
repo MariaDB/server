@@ -439,7 +439,7 @@ get_transfer()
 get_footprint()
 {
     cd "$DATA_DIR"
-    local payload_data=$(find . \
+    local payload_data=$(find $findopt . \
         -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
         -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
         awk 'END { print $1 }')
@@ -1035,6 +1035,9 @@ setup_commands()
 get_stream
 get_transfer
 
+findopt='-L'
+[ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
+
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     trap cleanup_at_exit EXIT
@@ -1428,21 +1431,13 @@ else # joiner
 
         wsrep_log_info \
             "Cleaning the existing datadir and innodb-data/log directories"
-        if [ "$OS" = 'FreeBSD' ]; then
-            find -E ${ib_home_dir:+"$ib_home_dir"} \
-                    ${ib_undo_dir:+"$ib_undo_dir"} \
-                    ${ib_log_dir:+"$ib_log_dir"} \
-                    ${ar_log_dir:+"$ar_log_dir"} \
-                    "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                    -o -exec rm -rf {} >&2 \+
-        else
-            find ${ib_home_dir:+"$ib_home_dir"} \
-                 ${ib_undo_dir:+"$ib_undo_dir"} \
-                 ${ib_log_dir:+"$ib_log_dir"} \
-                 ${ar_log_dir:+"$ar_log_dir"} \
-                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                 -o -exec rm -rf {} >&2 \+
-        fi
+
+        find $findopt ${ib_home_dir:+"$ib_home_dir"} \
+                ${ib_undo_dir:+"$ib_undo_dir"} \
+                ${ib_log_dir:+"$ib_log_dir"} \
+                ${ar_log_dir:+"$ar_log_dir"} \
+                "$DATA" -mindepth 1 -prune -regex "$cpat" \
+                -o -exec rm -rf {} >&2 \+
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
@@ -1464,7 +1459,7 @@ else # joiner
             exit 2
         fi
 
-        qpfiles=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' -print -quit)
+        qpfiles=$(find $findopt "$DATA" -maxdepth 1 -type f -name '*.qp' -print -quit)
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
@@ -1480,7 +1475,7 @@ else # joiner
             if [ -n "$progress" -a "$progress" != 'none' ] && \
                pv --help | grep -qw -F -- '--line-mode'
             then
-                count=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
+                count=$(find $findopt "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
                 pvopts='-f -l -N Decompression'
                 pvformat="-F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
@@ -1492,13 +1487,13 @@ else # joiner
             # Decompress the qpress files
             wsrep_log_info "Decompression with $nproc threads"
             timeit 'Joiner-Decompression' \
-                   "find '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | \
+                   "find $findopt '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | \
                    $dcmd"
             extcode=$?
 
             if [ $extcode -eq 0 ]; then
                 wsrep_log_info "Removing qpress files after decompression"
-                find "$DATA" -type f -name '*.qp' -delete
+                find $findopt "$DATA" -type f -name '*.qp' -delete
                 if [ $? -ne 0 ]; then
                     wsrep_log_error \
                         "Something went wrong with deletion of qpress files." \
