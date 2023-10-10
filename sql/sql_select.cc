@@ -5054,8 +5054,15 @@ select_handler *find_select_handler_inner(THD *thd,
                                     SELECT_LEX *select_lex,
                                     SELECT_LEX_UNIT *select_lex_unit)
 {
-  if (select_lex->master_unit()->outer_select())
+  if (select_lex->master_unit()->outer_select() ||
+      (select_lex_unit && select_lex->master_unit()->with_clause))
+  {
+    /*
+      Pushdown is not supported neither for non-top-level SELECTs nor for parts
+      of SELECT_LEX_UNITs that have CTEs (SELECT_LEX_UNIT::with_clause)
+    */
     return 0;
+  }
 
   TABLE_LIST *tbl= nullptr;
   // For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
