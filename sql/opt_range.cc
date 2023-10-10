@@ -2757,6 +2757,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       DBUG_RETURN(0);                           // Fatal error flag is set
 
     /* set up parameter that is passed to all functions */
+    bzero((void*) &param, sizeof(param));
     param.thd= thd;
     param.baseflag= head->file->ha_table_flags();
     param.prev_tables=prev_tables | const_tables;
@@ -3949,6 +3950,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   prune_param.part_info= part_info;
   init_sql_alloc(key_memory_quick_range_select_root, &alloc,
                  thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+  bzero((void*) range_par, sizeof(*range_par));
   range_par->mem_root= &alloc;
   range_par->old_root= thd->mem_root;
 
@@ -3974,6 +3976,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   range_par->remove_jump_scans= FALSE;
   range_par->real_keynr[0]= 0;
   range_par->alloced_sel_args= 0;
+  range_par->note_unusable_keys= 0;
 
   thd->no_errors=1;				// Don't warn about NULL
   thd->mem_root=&alloc;
