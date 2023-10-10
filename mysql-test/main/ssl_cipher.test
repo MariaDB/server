@@ -2,6 +2,11 @@
 # Various tests that require setting of a specific ssl_cipher
 # which currently doesn't work in OpenSSL 1.1.1
 #
+
+--disable_query_log
+CALL mtr.add_suppression("are insecure");
+--enable_query_log
+
 --source include/have_ssl_communication.inc
 
 if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
