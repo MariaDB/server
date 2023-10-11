@@ -95,14 +95,14 @@ void log_t::set_capacity()
 	log_sys.max_checkpoint_age = margin;
 }
 
-/** Initialize the redo log subsystem. */
-void log_t::create()
+#ifdef HAVE_PMEM
+void log_t::create_low()
+#else
+bool log_t::create()
+#endif
 {
   ut_ad(this == &log_sys);
   ut_ad(!is_initialised());
-
-  latch.SRW_LOCK_INIT(log_latch_key);
-  init_lsn_lock();
 
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   lsn.store(FIRST_LSN, std::memory_order_relaxed);
@@ -111,9 +111,23 @@ void log_t::create()
 
 #ifndef HAVE_PMEM
   buf= static_cast<byte*>(ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME));
-  TRASH_ALLOC(buf, buf_size);
+  if (!buf)
+  {
+  alloc_fail:
+    sql_print_error("InnoDB: Cannot allocate memory;"
+                    " too large innodb_log_buffer_size?");
+    return false;
+  }
   flush_buf= static_cast<byte*>(ut_malloc_dontdump(buf_size,
                                                    PSI_INSTRUMENT_ME));
+  if (!flush_buf)
+  {
+    ut_free_dodump(buf, buf_size);
+    buf= nullptr;
+    goto alloc_fail;
+  }
+
+  TRASH_ALLOC(buf, buf_size);
   TRASH_ALLOC(flush_buf, buf_size);
   checkpoint_buf= static_cast<byte*>(aligned_malloc(4096, 4096));
   memset_aligned<4096>(checkpoint_buf, 0, 4096);
@@ -122,6 +136,9 @@ void log_t::create()
   ut_ad(!buf);
   ut_ad(!flush_buf);
 #endif
+
+  latch.SRW_LOCK_INIT(log_latch_key);
+  init_lsn_lock();
 
   max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
   set_check_flush_or_checkpoint();
@@ -136,6 +153,9 @@ void log_t::create()
   buf_free= 0;
 
   ut_ad(is_initialised());
+#ifndef HAVE_PMEM
+  return true;
+#endif
 }
 
 dberr_t log_file_t::close() noexcept
@@ -201,7 +221,11 @@ static void *log_mmap(os_file_t file, os_offset_t size)
 }
 #endif
 
-void log_t::attach(log_file_t file, os_offset_t size)
+#ifdef HAVE_PMEM
+bool log_t::attach(log_file_t file, os_offset_t size)
+#else
+void log_t::attach_low(log_file_t file, os_offset_t size)
+#endif
 {
   log= file;
   ut_ad(!size || size >= START_OFFSET + SIZE_OF_FILE_CHECKPOINT);
@@ -218,18 +242,33 @@ void log_t::attach(log_file_t file, os_offset_t size)
       log.close();
       mprotect(ptr, size_t(size), PROT_READ);
       buf= static_cast<byte*>(ptr);
-#if defined __linux__ || defined _WIN32
+# if defined __linux__ || defined _WIN32
       set_block_size(CPU_LEVEL1_DCACHE_LINESIZE);
-#endif
+# endif
       log_maybe_unbuffered= true;
       log_buffered= false;
-      return;
+      return true;
     }
   }
   buf= static_cast<byte*>(ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME));
-  TRASH_ALLOC(buf, buf_size);
+  if (!buf)
+  {
+  alloc_fail:
+    max_buf_free= 0;
+    sql_print_error("InnoDB: Cannot allocate memory;"
+                    " too large innodb_log_buffer_size?");
+    return false;
+  }
   flush_buf= static_cast<byte*>(ut_malloc_dontdump(buf_size,
                                                    PSI_INSTRUMENT_ME));
+  if (!flush_buf)
+  {
+    ut_free_dodump(buf, buf_size);
+    buf= nullptr;
+    goto alloc_fail;
+  }
+
+  TRASH_ALLOC(buf, buf_size);
   TRASH_ALLOC(flush_buf, buf_size);
 #endif
 
@@ -244,6 +283,7 @@ void log_t::attach(log_file_t file, os_offset_t size)
 #ifdef HAVE_PMEM
   checkpoint_buf= static_cast<byte*>(aligned_malloc(block_size, block_size));
   memset_aligned<64>(checkpoint_buf, 0, block_size);
+  return true;
 #endif
 }
 

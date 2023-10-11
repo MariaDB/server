@@ -1201,12 +1201,13 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
   DBUG_VOID_RETURN;
 }
 
-inline void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
+inline dberr_t recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
 {
   size_t file_idx= static_cast<size_t>(total_offset / log_sys.file_size);
   os_offset_t offset= total_offset % log_sys.file_size;
-  dberr_t err= recv_sys.files[file_idx].read(offset, buf);
-  ut_a(err == DB_SUCCESS);
+  return file_idx
+    ? recv_sys.files[file_idx].read(offset, buf)
+    : log_sys.log.read(offset, buf);
 }
 
 inline size_t recv_sys_t::files_size()
@@ -1363,6 +1364,15 @@ same_space:
 					  int(len), name, space_id);
 		}
 	}
+}
+
+void recv_sys_t::close_files()
+{
+  for (auto &file : files)
+    if (file.is_opened())
+      file.close();
+  files.clear();
+  files.shrink_to_fit();
 }
 
 /** Clean up after recv_sys_t::create() */
@@ -1640,7 +1650,8 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
     memcpy_aligned<512>(buf, &log_sys.buf[lsn_offset & ~511], 512);
   else
   {
-    recv_sys.read(lsn_offset & ~lsn_t{4095}, {buf, 4096});
+    if (dberr_t err= recv_sys.read(lsn_offset & ~lsn_t{4095}, {buf, 4096}))
+      return err;
     buf+= lsn_offset & 0xe00;
   }
 
@@ -1691,13 +1702,17 @@ dberr_t recv_sys_t::find_checkpoint()
     else if (size < log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT)
     {
     too_small:
-      os_file_close(file);
       sql_print_error("InnoDB: File %.*s is too small",
                       int(path.size()), path.data());
+    err_exit:
+      os_file_close(file);
       return DB_ERROR;
     }
+    else if (!log_sys.attach(file, size))
+      goto err_exit;
+    else
+      file= OS_FILE_CLOSED;
 
-    log_sys.attach(file, size);
     recv_sys.files.emplace_back(file);
     for (int i= 1; i < 101; i++)
     {

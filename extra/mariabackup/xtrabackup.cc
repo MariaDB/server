@@ -4755,7 +4755,9 @@ fail:
 		goto fail;
 	}
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		goto fail;
+	}
 	/* get current checkpoint_lsn */
 	{
 		mysql_mutex_lock(&recv_sys.mutex);
@@ -6125,7 +6127,9 @@ error:
 		}
 
 		recv_sys.create();
-		log_sys.create();
+		if (!log_sys.create()) {
+			goto error;
+		}
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();
