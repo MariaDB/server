@@ -1,7 +1,6 @@
 --echo #
 --echo # MDEV-29456 Spider hangs in 'Waiting for table metadata lock' state on CREATE TABLE after LOCK TABLES
 --echo #
---source include/have_innodb.inc
 --disable_query_log
 --disable_result_log
 --source ../../t/test_init.inc
