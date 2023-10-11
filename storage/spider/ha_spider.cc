@@ -8433,37 +8433,11 @@ int ha_spider::direct_delete_rows(
 
 int ha_spider::delete_all_rows()
 {
-  int error_num;
   THD *thd = ha_thd();
-  backup_error_status();
   DBUG_ENTER("ha_spider::delete_all_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_delete_all_rows_type(thd, share->delete_all_rows_type))
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
-  {
-    my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
-      table_share->db.str, table_share->table_name.str);
-    DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
-  }
-  do_direct_update = FALSE;
-  if ((error_num = spider_db_delete_all_rows(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  if (wide_handler->sql_command == SQLCOM_TRUNCATE &&
-    table->found_next_number_field)
-  {
-    DBUG_PRINT("info",("spider reset auto increment"));
-    pthread_mutex_lock(&share->lgtm_tblhnd_share->auto_increment_mutex);
-    share->lgtm_tblhnd_share->auto_increment_lclval = 1;
-    share->lgtm_tblhnd_share->auto_increment_init = FALSE;
-    share->lgtm_tblhnd_share->auto_increment_value = 1;
-    DBUG_PRINT("info",("spider init auto_increment_lclval=%llu",
-      share->lgtm_tblhnd_share->auto_increment_lclval));
-    DBUG_PRINT("info",("spider auto_increment_value=%llu",
-      share->lgtm_tblhnd_share->auto_increment_value));
-    pthread_mutex_unlock(&share->lgtm_tblhnd_share->auto_increment_mutex);
-  }
-  DBUG_RETURN(0);
+  DBUG_RETURN(truncate());
 }
 
 int ha_spider::truncate()
@@ -8479,7 +8453,6 @@ int ha_spider::truncate()
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-  wide_handler->sql_command = SQLCOM_TRUNCATE;
   if ((error_num = spider_check_trx_and_get_conn(thd, this, FALSE)))
   {
     DBUG_RETURN(error_num);
