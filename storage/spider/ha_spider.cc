@@ -5941,6 +5941,10 @@ int ha_spider::rnd_next(
       DBUG_RETURN(error_num);
     use_pre_call = FALSE;
   }
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
+  {
+    DBUG_RETURN(error_num);
+  }
   DBUG_RETURN(rnd_next_internal(buf));
 }
 
