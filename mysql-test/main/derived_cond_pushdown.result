@@ -18442,4 +18442,15 @@ a	SUBQ
 4	1=11373
 5	1=11612
 drop table t1,t2,t3;
+#
+# MDEV-32301: Server crashes at Arg_comparator::compare_row
+#
+SELECT * FROM ( SELECT 1 x ) ss 
+WHERE 
+x AND x OR ( ( x , x , x ) <= ( x , x , x ) ) 
+GROUP BY
+x 
+HAVING ( ( x = 1 ) ) ;
+x
+1
 # End of 10.4 tests

@@ -559,6 +559,7 @@ public:
     if (clone)
     {
       clone->cmp.comparators= 0;
+      clone->const_item_cache= 0;
     }
     return clone;
   }
