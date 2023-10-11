@@ -359,12 +359,6 @@ IF(MSVC)
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
 ENDIF()
 
-MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
-IF(have_CXX__Wno_unused_but_set_variable)
-  ADD_COMPILE_FLAGS(pars/pars0grm.cc fts/fts0pars.cc
-    COMPILE_FLAGS "-Wno-unused-but-set-variable")
-ENDIF()
-
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 ENDIF()
