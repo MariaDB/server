@@ -9,6 +9,8 @@ set @old_domain_parallel_threads= @@global.slave_domain_parallel_threads;
 set @old_parallel_mode= @@global.slave_parallel_mode;
 set @old_slave_transaction_retries= @@global.slave_transaction_retries;
 set @old_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+set @old_log_slave_retries= @@global.log_slave_retries;
+set @old_log_slave_retries_file= @@global.log_slave_retries_file;
 set @old_log_slave_retries_max= @@global.log_slave_retries_max;
 include/stop_slave.inc
 change master to master_use_gtid= slave_pos;
@@ -17,7 +19,33 @@ set global slave_domain_parallel_threads= 1;
 set global slave_parallel_mode= optimistic;
 set global slave_transaction_retries= 4;
 set global innodb_lock_wait_timeout= 1;
-set global log_slave_retries_max= 2;
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+retries	max	file
+0	0	MYSQLTEST_VARDIR/log/mysqld.2-retries.err
+set global log_slave_retries= 1;
+set global log_slave_retries_max= 20;
+set global log_slave_retries_file= "abcd";
+ERROR 42000: This version of MariaDB doesn't yet support 'modifying while log_slave_retries is ON'
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+retries	max	file
+1	20	MYSQLTEST_VARDIR/log/mysqld.2-retries.err
+set global log_slave_retries= OFF;
+set global log_slave_retries_file= "abcdef";
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+retries	max	file
+0	20	abcdef
+set global log_slave_retries_file= default;
+call mtr.add_suppression("Open of log_slave_retries");
+set global log_slave_retries= ON;
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+retries	max	file
+1	20	MYSQLTEST_VARDIR/log/mysqld-retries.err
+set global log_slave_retries= off;
+set global log_slave_retries_file= @old_log_slave_retries_file;
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+retries	max	file
+0	20	MYSQLTEST_VARDIR/log/mysqld.2-retries.err
+set global log_slave_retries= ON;
 include/start_slave.inc
 set global innodb_print_all_deadlocks= on;
 connection server_1;
@@ -62,23 +90,20 @@ select * from t2 for update;
 connection server_1;
 update t2 set x= 6;
 connection server_2;
-master_pos_wait('master-bin.000001', 1912, 300, '')
-1
 set global debug_dbug= @old_dbug;
+flush error logs;
 MariaDB thread id x, OS thread handle x, query id x, GTID x-x-x Updating
 *** WAITING FOR THIS LOCK TO BE GRANTED:
 MariaDB thread id x, OS thread handle x, query id x, GTID x-x-x Updating
 *** WAITING FOR THIS LOCK TO BE GRANTED:
-x-x-x x:x:x [Tx] [Rx] event: x of x  log_pos: x  GTID: x-x-x  query_id: x  reason: x
-x-x-x x:x:x [Tx] [Rx] [SUCCESS] event: x of x  log_pos: x  GTID: x-x-x  query_id: x  result: x
-x-x-x x:x:x [Tx] [Rx] event: x of x  log_pos: x  GTID: x-x-x  query_id: x  reason: x
-x-x-x x:x:x [Tx] [Rx] [SUCCESS] event: x of x  log_pos: x  GTID: x-x-x  query_id: x  result: x
+x-x-x x:x:x [Tx] [Rx] [SUCCESS] event: x of x log_pos: x GTID: x-x-x query_id: x result: x
 include/stop_slave.inc
 set global slave_parallel_threads= @old_parallel_threads;
 set global slave_domain_parallel_threads= @old_domain_parallel_threads;
 set global slave_parallel_mode= @old_parallel_mode;
 set global slave_transaction_retries= @old_slave_transaction_retries;
 set global innodb_lock_wait_timeout= @old_innodb_lock_wait_timeout;
+set global log_slave_retries= @old_log_slave_retries;
 set global log_slave_retries_max= @old_log_slave_retries_max;
 include/start_slave.inc
 set global innodb_print_all_deadlocks= default;

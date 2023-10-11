@@ -531,7 +531,8 @@ The following specify which files/extra groups are read (specified before remain
  log_slow_filter='not_using_index'
  --log-short-format  Don't log extra information to update and slow-query
  logs.
- --log-slave-retries[=name] 
+ --log-slave-retries Log transaction retries
+ --log-slave-retries-file=name 
  Log file path for transaction retries
  --log-slave-retries-max=# 
  Log max N transaction retries (default 0 means infinity)
@@ -1739,7 +1740,8 @@ log-isam myisam.log
 log-output FILE
 log-queries-not-using-indexes FALSE
 log-short-format FALSE
-log-slave-retries 
+log-slave-retries FALSE
+log-slave-retries-file (No default value)
 log-slave-retries-max 0
 log-slave-updates FALSE
 log-slow-admin-statements TRUE

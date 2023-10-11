@@ -6024,7 +6024,7 @@ Misc options
 
   sleep=SECONDS         Passed to mysqltest, will be used as fixed sleep time
   debug-sync-timeout=NUM Set default timeout for WAIT_FOR debug sync
-                        actions. Disable facility with NUM=0.
+                        actions. Disable facility with NUM=0. Default: 300
   gcov                  Collect coverage information after the test.
                         The result is a gcov file per source and header file.
   gprof                 Collect profiling information using gprof.

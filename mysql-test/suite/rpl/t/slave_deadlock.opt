@@ -1,1 +1,1 @@
---log-slave-retries
+--loose-debug-sync-timeout=3600
