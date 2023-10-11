@@ -1539,6 +1539,8 @@ void THD::cleanup(void)
   else
     trans_rollback(this);
 
+  DEBUG_SYNC(this, "THD_cleanup_after_trans_cleanup");
+
   DBUG_ASSERT(open_tables == NULL);
   DBUG_ASSERT(m_transaction_psi == NULL);
 

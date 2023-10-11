@@ -38,7 +38,7 @@ struct table_savepoint: ilist_node<>
   table_savepoint(sv_id_t id, my_off_t pos): id(id), log_prev_pos(pos){}
 };
 
-class online_alter_cache_data: public Sql_alloc, public ilist_node<>,
+class online_alter_cache_data: public ilist_node<>,
                                public binlog_cache_data
 {
 public:
@@ -83,7 +83,7 @@ online_alter_cache_data *setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
 {
   static ulong online_alter_cache_use= 0, online_alter_cache_disk_use= 0;
 
-  auto cache= new (root) online_alter_cache_data();
+  auto cache= new online_alter_cache_data();
   if (!cache || open_cached_file(&cache->cache_log, mysql_tmpdir, LOG_PREFIX,
                                  (size_t)binlog_cache_size, MYF(MY_WME)))
   {
@@ -202,15 +202,14 @@ cleanup_cache_list(ilist<online_alter_cache_data> &list, bool ending_trans)
 
 
 static
-int online_alter_end_trans(handlerton *hton, THD *thd, bool all, bool commit)
+int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
+                           bool is_ending_transaction, bool commit)
 {
   DBUG_ENTER("online_alter_end_trans");
   int error= 0;
-  auto &cache_list= get_cache_list(hton, thd);
+
   if (cache_list.empty())
     DBUG_RETURN(0);
-
-  bool is_ending_transaction= ending_trans(thd, all);
 
   for (auto &cache: cache_list)
   {
@@ -263,12 +262,16 @@ int online_alter_end_trans(handlerton *hton, THD *thd, bool all, bool commit)
 
   cleanup_cache_list(cache_list, is_ending_transaction);
 
-  for (TABLE *table= thd->open_tables; table; table= table->next)
-    table->online_alter_cache= NULL;
   DBUG_RETURN(error);
 }
 
+void cleanup_tables(THD *thd)
+{
+  for (TABLE *table= thd->open_tables; table; table= table->next)
+    table->online_alter_cache= NULL;
+}
 
+static
 int online_alter_savepoint_set(handlerton *hton, THD *thd, sv_id_t sv_id)
 {
   DBUG_ENTER("binlog_online_alter_savepoint");
@@ -289,7 +292,7 @@ int online_alter_savepoint_set(handlerton *hton, THD *thd, sv_id_t sv_id)
   DBUG_RETURN(0);
 }
 
-
+static
 int online_alter_savepoint_rollback(handlerton *hton, THD *thd, sv_id_t sv_id)
 {
   DBUG_ENTER("online_alter_savepoint_rollback");
@@ -310,6 +313,63 @@ int online_alter_savepoint_rollback(handlerton *hton, THD *thd, sv_id_t sv_id)
   DBUG_RETURN(0);
 }
 
+static int online_alter_commit(handlerton *hton, THD *thd, bool all)
+{
+  int res= online_alter_end_trans(get_cache_list(hton, thd), thd,
+                                  ending_trans(thd, all), true);
+  cleanup_tables(thd);
+  return res;
+};
+
+static int online_alter_rollback(handlerton *hton, THD *thd, bool all)
+{
+  int res= online_alter_end_trans(get_cache_list(hton, thd), thd,
+                                  ending_trans(thd, all), false);
+  cleanup_tables(thd);
+  return res;
+};
+
+static int online_alter_prepare(handlerton *hton, THD *thd, bool all)
+{
+  auto &cache_list= get_cache_list(hton, thd);
+  int res= 0;
+  if (ending_trans(thd, all))
+  {
+    thd->transaction->xid_state.set_online_alter_cache(&cache_list);
+    thd_set_ha_data(thd, hton, NULL);
+  }
+  else
+  {
+    res= online_alter_end_trans(cache_list, thd, false, true);
+  }
+
+  cleanup_tables(thd);
+  return res;
+};
+
+static int online_alter_commit_by_xid(handlerton *hton, XID *x)
+{
+  auto *xid= static_cast<XA_data*>(x);
+  if (likely(xid->online_alter_cache == NULL))
+    return 1;
+  int res= online_alter_end_trans(*xid->online_alter_cache, current_thd,
+                                  true, true);
+  delete xid->online_alter_cache;
+  xid->online_alter_cache= NULL;
+  return res;
+};
+
+static int online_alter_rollback_by_xid(handlerton *hton, XID *x)
+{
+  auto *xid= static_cast<XA_data*>(x);
+  if (likely(xid->online_alter_cache == NULL))
+    return 1;
+  int res= online_alter_end_trans(*xid->online_alter_cache, current_thd,
+                                  true, false);
+  delete xid->online_alter_cache;
+  xid->online_alter_cache= NULL;
+  return res;
+};
 
 static int online_alter_close_connection(handlerton *hton, THD *thd)
 {
@@ -334,14 +394,14 @@ static int online_alter_log_init(void *p)
   online_alter_hton->savepoint_rollback_can_release_mdl=
           [](handlerton *hton, THD *thd){ return true; };
 
-  online_alter_hton->commit= [](handlerton *hton, THD *thd, bool all)
-  { return online_alter_end_trans(hton, thd, all, true); };
-  online_alter_hton->rollback= [](handlerton *hton, THD *thd, bool all)
-  { return online_alter_end_trans(hton, thd, all, false); };
-  online_alter_hton->commit_by_xid= [](handlerton *hton, XID *xid)
-  { return online_alter_end_trans(hton, current_thd, true, true); };
-  online_alter_hton->rollback_by_xid= [](handlerton *hton, XID *xid)
-  { return online_alter_end_trans(hton, current_thd, true, false); };
+  online_alter_hton->commit= online_alter_commit;
+  online_alter_hton->rollback= online_alter_rollback;
+
+
+  online_alter_hton->recover= [](handlerton*, XID*, uint){ return 0; };
+  online_alter_hton->prepare= online_alter_prepare;
+  online_alter_hton->commit_by_xid= online_alter_commit_by_xid;
+  online_alter_hton->rollback_by_xid= online_alter_rollback_by_xid;
 
   online_alter_hton->drop_table= [](handlerton *, const char*) { return -1; };
   online_alter_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN

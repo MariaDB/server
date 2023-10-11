@@ -1791,6 +1791,135 @@ set @@binlog_format=default;
 set debug_sync= reset;
 
 
+--echo # MDEV-32444 Data from orphaned XA transaction is lost after online alter
+
+create table t (a int primary key) engine=innodb;
+insert into t values (1);
+
+--echo # XA commit
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+update t set a = 2 where a = 1;
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+--disconnect con1
+
+--connection con2
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+--connection default
+--reap # alter table
+
+select * from t;
+
+--echo # XA rollback
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x2';
+insert into t values (53);
+xa end 'x2';
+xa prepare 'x2';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+--disconnect con1
+
+--connection con2
+set debug_sync= 'now wait_for xa_detach';
+xa rollback 'x2';
+set debug_sync= 'now signal go';
+--connection default
+--reap # alter table
+
+select * from t;
+
+--echo # XA transaction is left uncommitted
+--echo # end then is rollbacked after alter fails
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+     for alter table t force, algorithm=copy, lock=none;
+
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'xuncommitted';
+insert into t values (3);
+xa end 'xuncommitted';
+xa prepare 'xuncommitted';
+set debug_sync= 'now signal go';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+--disconnect con1
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap # alter table
+set debug_sync= 'now wait_for xa_detach';
+xa rollback 'xuncommitted';
+
+select * from t;
+
+--echo # Same, but commit
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+     for alter table t force, algorithm=copy, lock=none;
+
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'committed_later';
+insert into t values (3);
+xa end 'committed_later';
+xa prepare 'committed_later';
+set debug_sync= 'now signal go';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+--disconnect con1
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap # alter table
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'committed_later';
+
+
+select * from t;
+
+--echo # Commit, but error in statement, and there is some stmt data to rollback
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+--error ER_DUP_ENTRY
+insert into t values (4), (3);
+insert into t values (5);
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+--disconnect con1
+
+--connection con2
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+--connection default
+--reap # alter table
+
+select * from t;
+
+--connect(con1, localhost, root,,)
+--connection default
+drop table t;
+set debug_sync= reset;
+
 --disconnect con1
 --disconnect con2
 --echo #

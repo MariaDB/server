@@ -1563,6 +1563,116 @@ connection default;
 drop table t1, t2;
 set @@binlog_format=default;
 set debug_sync= reset;
+# MDEV-32444 Data from orphaned XA transaction is lost after online alter
+create table t (a int primary key) engine=innodb;
+insert into t values (1);
+# XA commit
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+update t set a = 2 where a = 1;
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection con2;
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a
+2
+# XA rollback
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x2';
+insert into t values (53);
+xa end 'x2';
+xa prepare 'x2';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection con2;
+set debug_sync= 'now wait_for xa_detach';
+xa rollback 'x2';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a
+2
+# XA transaction is left uncommitted
+# end then is rollbacked after alter fails
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+for alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'xuncommitted';
+insert into t values (3);
+xa end 'xuncommitted';
+xa prepare 'xuncommitted';
+set debug_sync= 'now signal go';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set debug_sync= 'now wait_for xa_detach';
+xa rollback 'xuncommitted';
+select * from t;
+a
+2
+# Same, but commit
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+for alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'committed_later';
+insert into t values (3);
+xa end 'committed_later';
+xa prepare 'committed_later';
+set debug_sync= 'now signal go';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'committed_later';
+select * from t;
+a
+2
+3
+# Commit, but error in statement, and there is some stmt data to rollback
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+insert into t values (4), (3);
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+insert into t values (5);
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection con2;
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a
+2
+3
+5
+connect con1, localhost, root,,;
+connection default;
+drop table t;
+set debug_sync= reset;
 disconnect con1;
 disconnect con2;
 #

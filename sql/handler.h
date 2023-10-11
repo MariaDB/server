@@ -890,6 +890,7 @@ typedef ulonglong my_xid; // this line is the same as in log_event.h
 #define COMPATIBLE_DATA_YES 0
 #define COMPATIBLE_DATA_NO  1
 
+
 /**
   struct xid_t is binary compatible with the XID structure as
   in the X/Open CAE Specification, Distributed Transaction Processing:
@@ -972,6 +973,12 @@ struct xid_t {
   }
 };
 typedef struct xid_t XID;
+
+struct Online_alter_cache_list;
+struct XA_data: XID
+{
+  Online_alter_cache_list *online_alter_cache= NULL;
+};
 
 /*
   Enumerates a sequence in the order of
