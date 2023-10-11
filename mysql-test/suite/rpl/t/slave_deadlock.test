@@ -1,6 +1,18 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
+
+# On --repeat test infinitely increments thread_id and finally fails --sync_with_master at log_pos 1754:
+#
+# 231009 20:58:15 server id 1  end_log_pos 1754 CRC32 0x7e5aecd1 	Query	thread_id=561	exec_time=0	error_code=0	xid=0
+#
+# force_restart seems to fix this
+
+--source include/force_restart.inc
+
+# Note that test requires big enough --debug-sync-timeout unfair scheduling at high load.
+# slave_deadlock.opt sets this to 1 hour
+
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
@@ -14,6 +26,8 @@ set @old_domain_parallel_threads= @@global.slave_domain_parallel_threads;
 set @old_parallel_mode= @@global.slave_parallel_mode;
 set @old_slave_transaction_retries= @@global.slave_transaction_retries;
 set @old_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+set @old_log_slave_retries= @@global.log_slave_retries;
+set @old_log_slave_retries_file= @@global.log_slave_retries_file;
 set @old_log_slave_retries_max= @@global.log_slave_retries_max;
 --source include/stop_slave.inc
 change master to master_use_gtid= slave_pos;
@@ -22,7 +36,31 @@ set global slave_domain_parallel_threads= 1;
 set global slave_parallel_mode= optimistic;
 set global slave_transaction_retries= 4;
 set global innodb_lock_wait_timeout= 1;
-set global log_slave_retries_max= 2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+set global log_slave_retries= 1;
+set global log_slave_retries_max= 20;
+--error ER_NOT_SUPPORTED_YET
+set global log_slave_retries_file= "abcd";
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+set global log_slave_retries= OFF;
+set global log_slave_retries_file= "abcdef";
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+set global log_slave_retries_file= default;
+call mtr.add_suppression("Open of log_slave_retries");
+set global log_slave_retries= ON;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+set global log_slave_retries= off;
+let $logfile= `select @@log_slave_retries_file`;
+--remove_file $logfile
+set global log_slave_retries_file= @old_log_slave_retries_file;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
+set global log_slave_retries= ON;
+
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= on;
 
@@ -78,7 +116,33 @@ delete from t1 where a = 1;
 --connection server_2
 --sync_with_master
 
-# show engine innodb status;
+let $s= `show engine innodb status`;
+let $i= `select instr("$s", "LATEST DETECTED DEADLOCK")`;
+if ($i == 0)
+{
+  # Deadlock didn't happen, exiting...
+  # Both INSERTs continue from after_lock_clust_rec_read_check_and_lock,
+  # there is racing which one goes first.
+  --source include/stop_slave.inc
+  set global slave_parallel_threads= @old_parallel_threads;
+  set global slave_domain_parallel_threads= @old_domain_parallel_threads;
+  set global slave_parallel_mode= @old_parallel_mode;
+  set global slave_transaction_retries= @old_slave_transaction_retries;
+  set global innodb_lock_wait_timeout= @old_innodb_lock_wait_timeout;
+  set global log_slave_retries= @old_log_slave_retries;
+  set global log_slave_retries_max= @old_log_slave_retries_max;
+  --source include/start_slave.inc
+  set global innodb_print_all_deadlocks= default;
+  set debug_sync= reset;
+  --disconnect m1
+  --disconnect m2
+  --connection server_1
+  drop tables t1, t2;
+  drop function foo;
+  set global innodb_print_all_deadlocks= default;
+  --source include/rpl_end.inc
+  --skip "Deadlock didn't happen"
+}
 set debug_sync="ha_commit_one_phase wait_for retries_at_max";
 set global debug_dbug= "d,rpl_parallel_retries_at_max";
 --send select * from t2 for update
@@ -89,22 +153,28 @@ update t2 set x= 6;
 --save_master_pos
 --connection server_2
 --sync_with_master
+--disable_result_log
 reap;
+--enable_result_log
 set global debug_dbug= @old_dbug;
+flush error logs;
 
-let $retries_log= `SELECT @@GLOBAL.log_slave_retries`;
+let $retries_log= `SELECT @@GLOBAL.log_slave_retries_file`;
 let grep_file= $retries_log;
-let grep_regex= WAITING|GTID|event;
---replace_regex /\d+/x/
+let grep_regex= WAITING|Updating;
+let grep_once= \[SUCCESS\];
+--replace_regex /\d+/x/ /  / /
 --source include/grep.inc
 
 # Cleanup
 --source include/stop_slave.inc
+--remove_file $retries_log
 set global slave_parallel_threads= @old_parallel_threads;
 set global slave_domain_parallel_threads= @old_domain_parallel_threads;
 set global slave_parallel_mode= @old_parallel_mode;
 set global slave_transaction_retries= @old_slave_transaction_retries;
 set global innodb_lock_wait_timeout= @old_innodb_lock_wait_timeout;
+set global log_slave_retries= @old_log_slave_retries;
 set global log_slave_retries_max= @old_log_slave_retries_max;
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= default;

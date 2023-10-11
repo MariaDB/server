@@ -163,6 +163,12 @@ sub fix_log_error {
   }
 }
 
+sub fix_log_slave_retries_file {
+  my ($self, $config, $group_name, $group)= @_;
+  my $dir= $self->{ARGS}->{vardir};
+  return "$dir/log/$group_name-retries.err";
+}
+
 sub fix_log {
   my ($self, $config, $group_name, $group)= @_;
   my $dir= dirname($group->value('datadir'));
@@ -198,6 +204,7 @@ my @mysqld_rules=
  { 'port' => \&fix_port },
  { 'socket' => \&fix_socket },
  { 'log-error' => \&fix_log_error },
+ { 'log-slave-retries-file' => \&fix_log_slave_retries_file },
  { 'general-log' => 1 },
  { 'plugin-dir' => sub { $::plugindir } },
  { 'general-log-file' => \&fix_log },
