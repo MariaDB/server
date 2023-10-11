@@ -5863,10 +5863,53 @@ Sys_slave_trans_retry_interval(
        GLOBAL_VAR(slave_trans_retry_interval), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 3600), DEFAULT(0), BLOCK_SIZE(1));
 
+static bool update_slave_retries_log(sys_var *self, THD* thd, enum_var_type type)
+{
+  if (opt_slave_retries)
+  {
+    if (!slave_retries_file.get() && slave_retries_file.open())
+    {
+      my_error(ER_CANT_OPEN_FILE, MYF(0), opt_slave_retries_path, errno);
+      opt_slave_retries= false;
+      return true;
+    }
+  }
+  else
+    slave_retries_file.close();
+  return false;
+}
+
+static Sys_var_mybool Sys_slave_retries_log(
+       "log_slave_retries", "Log transaction retries",
+       GLOBAL_VAR(opt_slave_retries),
+       CMD_LINE(OPT_ARG, OPT_SLAVE_RETRIES), DEFAULT(false),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_slave_retries_log));
+
+
+static bool check_slave_retries_file(sys_var *self, THD *thd, set_var *var)
+{
+  if (opt_slave_retries)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "modifying while log_slave_retries is ON");
+    return true;
+  }
+  return false;
+}
+
+static bool update_slave_retries_file(sys_var *self, THD* thd, enum_var_type type)
+{
+  if (!opt_slave_retries_path)
+    opt_slave_retries_path=  my_strdup(key_memory_Sys_var_charptr_value,
+                                       default_slave_retries_path, MYF(0));
+  return false;
+}
+
 static Sys_var_charptr Sys_slave_retries_log_path(
-       "log_slave_retries", "Log file path for transaction retries",
-       READ_ONLY GLOBAL_VAR(opt_slave_retries_log),
-       CMD_LINE(OPT_ARG, OPT_SLAVE_RETRIES_LOG), DEFAULT(""));
+       "log_slave_retries_file", "Log file path for transaction retries",
+       GLOBAL_VAR(opt_slave_retries_path),
+       CMD_LINE(REQUIRED_ARG, OPT_SLAVE_RETRIES_LOG), DEFAULT(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_slave_retries_file),
+       ON_UPDATE(update_slave_retries_file));
 
 
 static Sys_var_uint Sys_slave_retries_log_max(

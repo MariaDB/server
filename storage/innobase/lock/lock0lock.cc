@@ -331,7 +331,6 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 /* The lock system */
 lock_sys_t lock_sys;
 
-static FILE *deadlock_file= NULL;
 /** Only created if !srv_read_only_mode. Protected by lock_sys.latch. */
 static FILE *lock_latest_err_file;
 BufferStream lock_latest_err_buf(lock_latest_err_file);
@@ -416,9 +415,6 @@ void lock_sys_t::create(ulint n_cells)
   if (!srv_read_only_mode)
   {
     lock_latest_err_buf.init();
-#ifdef HAVE_REPLICATION
-    deadlock_file= slave_retries_file;
-#endif
   }
 }
 
@@ -6267,8 +6263,11 @@ namespace Deadlock
     rewind(lock_latest_err_file);
     if (srv_print_all_deadlocks)
       ut_print_timestamp(lock_latest_err_file);
-    if (deadlock_file)
-      ut_print_timestamp(deadlock_file);
+    if (slave_retries_file.acquire())
+    {
+      ut_print_timestamp(slave_retries_file.get());
+      slave_retries_file.release();
+    }
 
     if (srv_print_all_deadlocks)
       ib::info() << "Transactions deadlock detected,"
@@ -6280,8 +6279,11 @@ namespace Deadlock
   static void print(const char *msg)
   {
     fputs(msg, lock_latest_err_file);
-    if (deadlock_file)
-      fputs(msg, deadlock_file);
+    if (slave_retries_file.acquire())
+    {
+      fputs(msg, slave_retries_file.get());
+      slave_retries_file.release();
+    }
     if (srv_print_all_deadlocks)
       ib::info() << msg;
   }
@@ -6299,8 +6301,11 @@ namespace Deadlock
     trx_print_low(lock_latest_err_file, &trx, 3000,
                   n_rec_locks, n_trx_locks, heap_size);
 
-    if (deadlock_file)
-      trx_print_low(deadlock_file, &trx, 3000, n_rec_locks, n_trx_locks, heap_size);
+    if (slave_retries_file.acquire())
+    {
+      trx_print_low(slave_retries_file.get(), &trx, 3000, n_rec_locks, n_trx_locks, heap_size);
+      slave_retries_file.release();
+    }
     if (srv_print_all_deadlocks)
       trx_print_low(stderr, &trx, 3000, n_rec_locks, n_trx_locks, heap_size);
   }
@@ -6316,8 +6321,11 @@ namespace Deadlock
       mtr_t mtr;
       lock_rec_print(lock_latest_err_file, &lock, mtr);
 
-      if (deadlock_file)
-        lock_rec_print(deadlock_file, &lock, mtr);
+      if (slave_retries_file.acquire())
+      {
+        lock_rec_print(slave_retries_file.get(), &lock, mtr);
+        slave_retries_file.release();
+      }
       if (srv_print_all_deadlocks)
         lock_rec_print(stderr, &lock, mtr);
     }
@@ -6325,8 +6333,11 @@ namespace Deadlock
     {
       lock_table_print(lock_latest_err_file, &lock);
 
-      if (deadlock_file)
-        lock_table_print(deadlock_file, &lock);
+      if (slave_retries_file.acquire())
+      {
+        lock_table_print(slave_retries_file.get(), &lock);
+        slave_retries_file.release();
+      }
       if (srv_print_all_deadlocks)
         lock_table_print(stderr, &lock);
     }

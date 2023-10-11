@@ -766,11 +766,88 @@ char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 
 #ifdef HAVE_REPLICATION
-char default_slave_retries_log[FN_REFLEN];
-char *opt_slave_retries_log= NULL;
-FILE *slave_retries_file= NULL;
+char default_slave_retries_path[FN_REFLEN];
+bool opt_slave_retries= false;
+char *opt_slave_retries_path= NULL;
 uint opt_slave_retries_max_log= 0;
 #endif
+Slave_retries_file slave_retries_file;
+
+bool Slave_retries_file::open()
+{
+#ifdef HAVE_REPLICATION
+  DBUG_ASSERT(opt_slave_retries);
+  DBUG_ASSERT(opt_slave_retries_path);
+  file= fopen(opt_slave_retries_path, "a");
+  if (!file)
+  {
+    sql_print_error("Open of log_slave_retries '%s' failed: %s (%d)",
+                    opt_slave_retries_path, strerror(errno), errno);
+    return true;
+  }
+  else
+  {
+    slave_retries_print("%s (mariadbd %s) starting as process %lu ...",
+                        my_progname, server_version, (ulong) getpid());
+  }
+#endif
+  return false;
+}
+
+void Slave_retries_file::close()
+{
+#ifdef HAVE_REPLICATION
+  if (file)
+  {
+    acquire();
+    fclose(file);
+    release();
+  }
+  file= NULL;
+#endif
+}
+
+void Slave_retries_file::init()
+{
+#ifdef HAVE_REPLICATION
+  mysql_mutex_init(key_LOCK_global_system_variables, &mutex, MY_MUTEX_INIT_FAST);
+#endif
+}
+
+void Slave_retries_file::destroy()
+{
+#ifdef HAVE_REPLICATION
+  mysql_mutex_destroy(&mutex);
+#endif
+}
+
+bool Slave_retries_file::acquire()
+{
+#ifdef HAVE_REPLICATION
+  if (!file)
+    return false;
+  mysql_mutex_lock(&mutex);
+  return true;
+#else
+  return false;
+#endif
+}
+
+void Slave_retries_file::release()
+{
+#ifdef HAVE_REPLICATION
+  mysql_mutex_unlock(&mutex);
+#endif
+}
+
+void Slave_retries_file::flush()
+{
+  if (acquire())
+  {
+    fflush(file);
+    release();
+  }
+}
 
 /* Static variables */
 
@@ -2089,8 +2166,8 @@ static void clean_up(bool print_message)
   destroy_proxy_protocol_networks();
 
 #ifdef HAVE_REPLICATION
-  if (slave_retries_file)
-    fclose(slave_retries_file);
+  slave_retries_file.close();
+  slave_retries_file.destroy();
 #endif
 
   /*
@@ -5069,37 +5146,33 @@ static int init_server_components()
                         "--log-bin option is not defined.");
   }
 
-  if (opt_slave_retries_log && !opt_abort)
+  slave_retries_file.init();
+  if (!log_error_file_ptr[0])
+    fn_format(default_slave_retries_path, pidfile_name, mysql_data_home,
+              "-retries.err", MY_REPLACE_EXT);
+  else
+    fn_format(default_slave_retries_path, log_error_file_ptr, mysql_data_home,
+              "-retries.err", MY_REPLACE_EXT);
+  if (opt_slave_retries_path && !opt_abort)
   {
-    if (!opt_slave_retries_log[0])
+    if (!opt_slave_retries_path[0])
     {
-      if (!log_error_file_ptr[0])
-        fn_format(default_slave_retries_log, pidfile_name, mysql_data_home,
-                  "-retries.err", MY_REPLACE_EXT);
+      if (!default_slave_retries_path[0])
+      {
+        /* fn_format failed */
+        opt_slave_retries_path= NULL;
+        opt_slave_retries= false;
+      }
       else
-        fn_format(default_slave_retries_log, log_error_file_ptr, mysql_data_home,
-                  "-retries.err", MY_REPLACE_EXT);
-      if (!default_slave_retries_log[0])
-        opt_slave_retries_log= NULL;
-      else
-        opt_slave_retries_log= default_slave_retries_log;
+      {
+        opt_slave_retries_path= my_strdup(key_memory_Sys_var_charptr_value,
+                                          default_slave_retries_path, MYF(0));
+      }
     }
 
-    if (opt_slave_retries_log)
-    {
-      slave_retries_file= fopen(opt_slave_retries_log, "a");
-      if (!slave_retries_file)
-      {
-        sql_print_error("Open of log_slave_retries '%s' failed: %s (%d)",
-                        opt_slave_retries_log, strerror(errno), errno);
-        unireg_abort(1);
-      }
-      else
-      {
-        slave_retries_print("%s (mariadbd %s) starting as process %lu ...",
-                            my_progname, server_version, (ulong) getpid());
-      }
-    }
+    if (opt_slave_retries &&
+        slave_retries_file.open())
+      unireg_abort(1);
   }
 #endif
 

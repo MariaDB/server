@@ -1194,8 +1194,8 @@ bool Log_to_file_event_handler::
 #ifdef HAVE_REPLICATION
 bool Log_to_file_event_handler::log_slave_retry(const char *format, va_list args)
 {
-  DBUG_ASSERT(slave_retries_file);
-  return vprint_msg_to_log(slave_retries_file, NO_LEVEL, format, args);
+  DBUG_ASSERT(slave_retries_file.get());
+  return vprint_msg_to_log(slave_retries_file.get(), NO_LEVEL, format, args);
 }
 #endif
 
@@ -1316,7 +1316,13 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 #ifdef HAVE_REPLICATION
 bool LOGGER::slave_retries_print(const char *format, va_list args)
 {
-  return slave_retries_file ? file_log_handler->log_slave_retry(format, args) : false;
+  bool res= false;
+  if (slave_retries_file.acquire())
+  {
+    res= file_log_handler->log_slave_retry(format, args);
+    slave_retries_file.release();
+  }
+  return res;
 }
 #endif
 
@@ -7309,8 +7315,6 @@ bool slave_retries_print(const char *format, ...)
 {
   va_list args;
   bool error;
-  if (!slave_retries_file)
-    return false;
   va_start(args, format);
   error= logger.slave_retries_print(format, args);
   va_end(args);
@@ -9699,6 +9703,7 @@ bool flush_error_log()
       result= 1;
     mysql_mutex_unlock(&LOCK_error_log);
   }
+  slave_retries_file.flush();
   return result;
 }
 
