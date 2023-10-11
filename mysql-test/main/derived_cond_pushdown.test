@@ -4013,4 +4013,14 @@ eval $q;
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-32301: Server crashes at Arg_comparator::compare_row
+--echo #
+SELECT * FROM ( SELECT 1 x ) ss 
+WHERE 
+  x AND x OR ( ( x , x , x ) <= ( x , x , x ) ) 
+GROUP BY
+  x 
+HAVING ( ( x = 1 ) ) ;
+
 --echo # End of 10.4 tests
