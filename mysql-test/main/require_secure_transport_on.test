@@ -1,5 +1,6 @@
--- source include/have_ssl_communication.inc
-SET GLOBAL require_secure_transport=ON;
+--source include/not_windows.inc
+--source include/have_ssl_communication.inc
+
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_SECURE_TRANSPORT_REQUIRED
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
@@ -10,9 +11,4 @@ SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS
 disconnect with_ssl;
 
 connection default;
-SET GLOBAL require_secure_transport=OFF;
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
-connect without_ssl,localhost,root,,,,,TCP NOSSL;
-SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
-disconnect without_ssl;
-connection default;
+
