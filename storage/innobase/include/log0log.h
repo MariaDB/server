@@ -503,13 +503,16 @@ public:
     void write_header_durable(lsn_t lsn);
     /** opens log file which must be closed prior this call */
     dberr_t rename(std::string path) { return fd.rename(path); }
+
+    MY_ATTRIBUTE((warn_unused_result))
     /** reads buffer from log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer where to read */
-    dberr_t MY_ATTRIBUTE((warn_unused_result)) read(os_offset_t offset,
-                                                    span<byte> buf);
+    dberr_t read(os_offset_t offset, span<byte> buf)
+    { return fd.read(offset, buf); }
     /** Tells whether writes require calling flush() */
-    bool writes_are_durable() const noexcept;
+    bool writes_are_durable() const noexcept
+    { return fd.writes_are_durable(); }
     /** writes buffer to log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer from which to write */
