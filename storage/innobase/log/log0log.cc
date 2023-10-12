@@ -514,17 +514,6 @@ void log_t::file::write_header_durable(lsn_t lsn)
     log_sys.log.flush();
 }
 
-__attribute__((warn_unused_result))
-dberr_t log_t::file::read(os_offset_t offset, span<byte> buf)
-{
-  return fd.read(offset, buf);
-}
-
-bool log_t::file::writes_are_durable() const noexcept
-{
-  return fd.writes_are_durable();
-}
-
 void log_t::file::write(os_offset_t offset, span<byte> buf)
 {
   srv_stats.os_log_pending_writes.inc();

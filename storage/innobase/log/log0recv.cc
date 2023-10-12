@@ -763,8 +763,7 @@ void recv_sys_t::open_log_files_if_needed()
 }
 
 MY_ATTRIBUTE((warn_unused_result))
-dberr_t
-recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
+dberr_t recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
 {
   open_log_files_if_needed();
 
@@ -1274,7 +1273,6 @@ inline uint32_t log_block_calc_checksum_format_0(const byte *b)
 ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 {
   uint64_t max_no= 0;
-  dberr_t err;
   byte *buf= log_sys.buf;
 
   ut_ad(log_sys.log.format == 0);
@@ -1298,7 +1296,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   for (ulint field= LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
        field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1)
   {
-    if ((err= log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE})))
+    if (dberr_t err= log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE}))
       return err;
 
     if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1)) !=
@@ -1351,7 +1349,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     "InnoDB: Upgrade after a crash is not supported."
     " This redo log was created before MariaDB 10.2.2";
 
-  if ((err= recv_sys.read(source_offset & ~511, {buf, 512})))
+  if (dberr_t err= recv_sys.read(source_offset & ~511, {buf, 512}))
     return err;
 
   if (log_block_calc_checksum_format_0(buf) != log_block_get_checksum(buf) &&
@@ -1419,7 +1417,8 @@ static dberr_t recv_log_recover_10_4()
 		return DB_CORRUPTION;
 	}
 
-	if (dberr_t err= recv_sys.read(source_offset & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1),
+	if (dberr_t err=
+	    recv_sys.read(source_offset & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1),
 		      {buf, OS_FILE_LOG_BLOCK_SIZE}))
 		return err;
 
