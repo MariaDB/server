@@ -1100,6 +1100,30 @@ private:
 
   /* metadata_lock_info plugin */
   friend int i_s_metadata_lock_info_fill_row(MDL_ticket*, void*);
+public:
+#ifndef DBUG_OFF
+  /**
+    This is for the case when the thread opening the table does not acquire
+    the lock itself, but utilizes a lock guarantee from another MDL context.
+
+    For example, in InnoDB purge, MDL is acquired by the coordinator
+    thread, but the table is opened in the worker thread, where it is also used.
+    The coordinator thread holds the lock for the duration of worker's purge
+    job, or longer, possibly reusing shared MDL for different workers and jobs.
+  */
+  MDL_context *lock_emissary= NULL;
+#endif
+
+  inline void dbug_assert_is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
+                                        const char *db, const char *name,
+                                        enum_mdl_type mdl_type)
+  {
+    DBUG_ASSERT(is_lock_owner(mdl_namespace, db, name, mdl_type) ||
+                (lock_emissary && lock_emissary->is_lock_owner(mdl_namespace,
+                                                               db, name,
+                                                               mdl_type)));
+  }
+
 };
 
 
