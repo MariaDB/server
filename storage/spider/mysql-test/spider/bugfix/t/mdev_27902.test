@@ -1,0 +1,70 @@
+--echo #
+--echo # MDEV-27902 Crashes, asserts, hangs and corruptions in Spider when using HANDLER
+--echo #
+--source include/have_innodb.inc
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# original case
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ next;
+--error ER_PARSE_ERROR
+dummy;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ next;
+
+drop table t;
+
+# case by nayuta
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ FIRST;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ NEXT;
+
+drop table t;
+
+# Another case by Roel
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ NEXT;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ NEXT;
+
+drop table t;
+
+# Case by Ramesh
+CREATE TABLE t (c INT,c2 INT)  engine=Spider PARTITION BY HASH (c) PARTITIONS 4  ;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+UPDATE t SET a=((1));
+LOCK TABLES t WRITE CONCURRENT;
+--error 13
+LOAD DATA INFILE 'unkownfile.txt' IGNORE INTO TABLE t IGNORE 4 LINES;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+DELETE FROM t;
+UNLOCK TABLES;
+
+drop table t;
+
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_27902
+--echo #

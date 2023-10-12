@@ -1,0 +1,65 @@
+#
+# MDEV-27902 Crashes, asserts, hangs and corruptions in Spider when using HANDLER
+#
+for master_1
+for child2
+for child3
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+HANDLER t READ next;
+ERROR HY000: Unable to connect to foreign data source: localhost
+dummy;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'dummy' at line 1
+HANDLER t READ next;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t;
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+HANDLER t READ FIRST;
+ERROR HY000: Unable to connect to foreign data source: localhost
+HANDLER t READ NEXT;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t;
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+HANDLER t READ NEXT;
+ERROR HY000: Unable to connect to foreign data source: localhost
+SELECT * FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+HANDLER t READ NEXT;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t;
+CREATE TABLE t (c INT,c2 INT)  engine=Spider PARTITION BY HASH (c) PARTITIONS 4  ;
+UPDATE t SET a=((1));
+ERROR HY000: Unable to connect to foreign data source: localhost
+LOCK TABLES t WRITE CONCURRENT;
+LOAD DATA INFILE 'unkownfile.txt' IGNORE INTO TABLE t IGNORE 4 LINES;
+ERROR HY000: Can't get stat of '/home/ycp/source/mariadb-server/mdev-30014/build/mysql-test/var/mysqld.1.1/data/test/unkownfile.txt' (Errcode: 2 "No such file or directory")
+DELETE FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+UNLOCK TABLES;
+drop table t;
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_27902
+#

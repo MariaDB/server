@@ -1272,6 +1272,10 @@ int ha_spider::external_lock(
     DBUG_RETURN(0);
   if (store_error_num)
     DBUG_RETURN(store_error_num);
+  if ((error_num= spider_check_trx_and_get_conn(thd, this, FALSE)))
+  {
+    DBUG_RETURN(error_num);
+  }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if ((conn_kinds & SPIDER_CONN_KIND_MYSQL))
   {
