@@ -3700,4 +3700,10 @@ Note	1003	select `test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` A
 set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
 optimizer_use_condition_selectivity=@tmp_o;
 drop table t1,t2,t3,t4;
+#
+# MDEV-32324: Server crashes inside filesort at my_decimal::to_binary
+#
+SELECT 1.000000 two UNION SELECT 1 ORDER BY ( SELECT two LIMIT 1 OFFSET 1 ) ;
+two
+1.000000
 # End of 10.4 tests
