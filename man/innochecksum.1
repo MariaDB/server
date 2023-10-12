@@ -34,7 +34,7 @@ CHECK TABLE
 to check tables within the tablespace\&.
 .PP
 If checksum mismatches are found, you would normally restore the tablespace from backup or start the server and attempt to use
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 to make a backup of the tables within the tablespace\&.
 .PP
 Invoke
@@ -75,9 +75,9 @@ Displays help and exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-\fB\-c, --count\fR
+\fB\-a \fR\fB\fInum\fB, --allow-mismatches=#\fR
 .sp
-Print a count of the number of pages in the file\&.
+Maximum checksum mismatch allowed before innochecksum terminates. Defaults to 0, which terminates on the first mismatch\&.
 .RE
 .sp
 .RS 4
@@ -88,9 +88,9 @@ Print a count of the number of pages in the file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-\fB\-d, --debug\fR
+\fB\-c, --count\fR
 .sp
-Debug mode; prints checksums for each page\&.
+Print a count of the number of pages in the file\&.
 .RE
 .sp
 .RS 4
@@ -140,9 +140,22 @@ Synonym for \fB--help\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-\fB\-l, --leaf\fR
+\fB\-f, --leaf\fR
 .sp
 Examine leaf index pages\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-l \fR\fB\fIfn\fB, --log=fn\fR\fR
+.sp
+Log output to the specified filename, fn\&.
 .RE
 .sp
 .RS 4
@@ -166,9 +179,48 @@ Leaf page count if merge given number of consecutive pages\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+\fB\-n, --no-check\fR\fR
+.sp
+Ignore the checksum verification. Until MariaDB 10.6, must be used with the --write option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 \fB\-p \fR\fB\fInum\fB, --page-num=#\fR\fR
 .sp
 Check only this page number\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-D \fR\fB\fIname\fB, --page-type-dump=name\fR\fR
+.sp
+Dump the page type info for each page in a tablespace\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-S, --page-type-summary\fR\fR
+.sp
+Display a count of each page type in a tablespace\&.
 .RE
 .sp
 .RS 4
@@ -205,6 +257,32 @@ Skip corrupt pages\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+\fB\-C \fR\fB\fIname\fB, --strict-check=name\fR\fR
+.sp
+Specify the strict checksum algorithm. One of: crc32, innodb, none. If not specified, validates against innodb, crc32 and none. Removed in MariaDB 10.6\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-w \fR\fB\fIname\fB, --write=name\fR\fR
+.sp
+Rewrite the checksum algorithm. One of crc32, innodb, none. An exclusive lock is obtained during use. Use in conjunction with the -no-check option to rewrite an invalid checksum. Removed in MariaDB 10.6\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 \fB\-v, --verbose\fR
 .sp
 Verbose mode; print a progress indicator every five seconds\&.
@@ -225,7 +303,7 @@ Displays version information and exits\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2023 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
