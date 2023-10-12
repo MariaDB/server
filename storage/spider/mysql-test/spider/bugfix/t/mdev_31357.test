@@ -1,0 +1,43 @@
+--echo #
+--echo # MDEV-31357 ASAN heap-use-after-free in spider_link_get_key on LOCK TABLES
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE t1 (c INT) ENGINE=Spider;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT="WRAPPER 'mysql',srv 'srv',TABLE 't1'";
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLES t1 WRITE,t2 WRITE;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+TRUNCATE t2;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLES t2 AS o WRITE;
+
+drop table t1, t2;
+
+# MDEV-29854
+CREATE TABLE t (c INT KEY,b INT UNIQUE) ENGINE=Spider;
+CREATE TABLE t2 (c INT,d INT,CONSTRAINT fk FOREIGN KEY(d,c) REFERENCES t (c,d)) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLES t WRITE,t2 WRITE;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+TRUNCATE t2;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLES t2 AS a WRITE;
+
+drop table t, t2;
+
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_31357
+--echo #

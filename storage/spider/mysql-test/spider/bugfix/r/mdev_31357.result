@@ -1,0 +1,33 @@
+#
+# MDEV-31357 ASAN heap-use-after-free in spider_link_get_key on LOCK TABLES
+#
+for master_1
+for child2
+for child3
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t1 (c INT) ENGINE=Spider;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT="WRAPPER 'mysql',srv 'srv',TABLE 't1'";
+LOCK TABLES t1 WRITE,t2 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+TRUNCATE t2;
+ERROR HY000: Unable to connect to foreign data source: localhost
+LOCK TABLES t2 AS o WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t1, t2;
+CREATE TABLE t (c INT KEY,b INT UNIQUE) ENGINE=Spider;
+CREATE TABLE t2 (c INT,d INT,CONSTRAINT fk FOREIGN KEY(d,c) REFERENCES t (c,d)) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+LOCK TABLES t WRITE,t2 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+TRUNCATE t2;
+ERROR HY000: Unable to connect to foreign data source: localhost
+LOCK TABLES t2 AS a WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t, t2;
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_31357
+#
