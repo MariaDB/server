@@ -1126,15 +1126,16 @@ drop view v2, v1;
 drop table t1;
 
 #
-# inserting single value with check option failed always get error
+# inserting single value with check option warns like 2 values
 #
 create table t1 (s1 int);
 create view v1 as select * from t1 where s1 < 5 with check option;
 #single value
--- error ER_VIEW_CHECK_FAILED
 insert ignore into v1 values (6);
+SHOW WARNINGS;
 #several values
 insert ignore into v1 values (6),(3);
+SHOW WARNINGS;
 select * from t1;
 drop view v1;
 drop table t1;
