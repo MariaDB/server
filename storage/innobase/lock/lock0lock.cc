@@ -4345,17 +4345,19 @@ static bool lock_release_on_prepare_try(trx_t *trx)
     {
       ut_ad(!lock->index->table->is_temporary());
       bool supremum_bit = lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
-      if (!supremum_bit && lock->is_rec_granted_exclusive_not_gap())
+      bool rec_granted_exclusive_not_gap =
+        lock->is_rec_granted_exclusive_not_gap();
+      if (!supremum_bit && rec_granted_exclusive_not_gap)
         continue;
       auto &lock_hash= lock_sys.hash_get(lock->type_mode);
       auto cell= lock_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
       auto latch= lock_sys_t::hash_table::latch(cell);
       if (latch->try_acquire())
       {
-        if (supremum_bit)
-          lock_rec_unlock_supremum(*cell, lock);
-        else
+        if (!rec_granted_exclusive_not_gap)
           lock_rec_dequeue_from_page(lock, false);
+        else if (supremum_bit)
+          lock_rec_unlock_supremum(*cell, lock);
         latch->release();
       }
       else
