@@ -88,7 +88,13 @@ static inline bool wsrep_is_real(THD* thd, bool all)
  */
 static inline bool wsrep_has_changes(THD* thd)
 {
-  return (thd->wsrep_trx().is_empty() == false);
+  // Transaction has changes to replicate if it
+  // has appended one or more certification keys,
+  // and has actual changes to replicate in binlog
+  // cache. Except for streaming replication,
+  // where commit message may have no payload.
+  return !thd->wsrep_trx().is_empty() &&
+    (!wsrep_is_binlog_cache_empty(thd) || thd->wsrep_trx().is_streaming());
 }
 
 /*
