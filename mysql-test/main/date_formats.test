@@ -294,6 +294,34 @@ SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
 
 SET @@time_zone= @old_timezone;
 
+--echo # More timezone test:
+
+--echo #
+--echo # Check for time zone with leap seconds
+--echo #
+set time_zone='Europe/Moscow';
+
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+
+set time_zone='leap/Europe/Moscow';
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+
+--echo #
+--echo # Values around and in spring time-gap
+--echo #
+
+set time_zone='MET';
+
+--echo # Normal value with DST
+SELECT DATE_FORMAT('2003-03-30 01:59:59', '%z %Z');
+
+--echo # Values around and in spring time-gap
+SELECT DATE_FORMAT('2023-03-26 01:59:59', '%z %Z');
+SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
+
+
 --echo #
 --echo # End of 11.3 test
 --echo #
