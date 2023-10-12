@@ -940,11 +940,6 @@ innobase_get_computed_value(
 	const upd_t*		update=NULL,
 	bool			ignore_warnings=false);
 
-/** Get the computed value by supplying the base column values.
-@param[in,out]	table		the table whose virtual column
-				template to be built */
-TABLE* innobase_init_vc_templ(dict_table_t* table);
-
 /** Change dbname and table name in table->vc_templ.
 @param[in,out]	table	the table whose virtual column template
 dbname and tbname to be renamed. */
