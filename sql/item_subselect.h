@@ -868,6 +868,10 @@ public:
                              select_result_interceptor *result,
                              bool temp= FALSE)= 0;
   virtual bool no_tables()= 0;
+  /*
+    Return true we can guarantee that the subquery will always return one row.
+  */
+  virtual bool always_returns_one_row() { return false; }
   virtual bool is_executed() const { return FALSE; }
   /* Check if subquery produced any rows during last query execution */
   virtual bool no_rows() = 0;
@@ -901,6 +905,7 @@ public:
                      select_result_interceptor *result,
                      bool temp);
   bool no_tables();
+  bool always_returns_one_row() override;
   bool may_be_null();
   bool is_executed() const { return executed; }
   bool no_rows();

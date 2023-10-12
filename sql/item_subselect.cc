@@ -1240,18 +1240,10 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   unsigned_flag= value->unsigned_flag;
   /*
-    If the subquery has no tables (1) and is not a UNION (2), like:
-
-      (SELECT subq_value)
-
+    If the subquery always returns a row, like "(SELECT subq_value)"
     then its NULLability is the same as subq_value's NULLability.
-
-    (1): A subquery that uses a table will return NULL when the table is empty.
-    (2): A UNION subquery will return NULL if it produces a "Subquery returns
-         more than one row" error.
   */
-  if (engine->no_tables() &&
-      engine->engine_type() != subselect_engine::UNION_ENGINE)
+  if (engine->always_returns_one_row())
     maybe_null= engine->may_be_null();
   else
   {
@@ -1261,6 +1253,28 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   return FALSE;
 }
 
+
+
+/*
+  @detail
+    Check if the subquery is just
+
+      (SELECT value)
+
+    Then we can guarantee we always return one row.
+    Selecting from tables may produce more than one row.
+    HAVING, WHERE or ORDER BY/LIMIT clauses may cause no rows to be produced.
+*/
+
+bool subselect_single_select_engine::always_returns_one_row()
+{
+  st_select_lex *params= select_lex->master_unit()->global_parameters();
+  return no_tables() &&
+         !params->select_limit &&
+         !params->offset_limit &&
+         !select_lex->where &&
+         !select_lex->having;
+}
 
 /**
   Add an expression cache for this subquery if it is needed
