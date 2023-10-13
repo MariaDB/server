@@ -2428,6 +2428,17 @@ fil_ibd_discover(
 	/* A datafile was not discovered for the filename given. */
 	return(false);
 }
+
+bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
+{
+  if (crypt_data->is_key_found())
+    return true;
+  sql_print_error("InnoDB: Encryption key is not found for %s", f_name);
+  crypt_data->~fil_space_crypt_t();
+  ut_free(crypt_data);
+  return false;
+}
+
 /** Open an ibd tablespace and add it to the InnoDB data structures.
 This is similar to fil_ibd_open() except that it is used while processing
 the REDO log, so the data dictionary is not available and very little
@@ -2576,9 +2587,7 @@ tablespace_check:
 					    first_page)
 		: NULL;
 
-	if (crypt_data && !crypt_data->is_key_found()) {
-		crypt_data->~fil_space_crypt_t();
-		ut_free(crypt_data);
+	if (crypt_data && !fil_crypt_check(crypt_data, filename)) {
 		return FIL_LOAD_INVALID;
 	}
 
