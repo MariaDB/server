@@ -493,6 +493,14 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+  if ((alter_info.partition_flags & ALTER_PARTITION_CONVERT_IN))
+  {
+    TABLE_LIST *tl= first_table->next_local;
+    tl->grant.privilege= first_table->grant.privilege;
+    tl->grant.m_internal= first_table->grant.m_internal;
+  }
+
+
   /* If it is a merge table, check privileges for merge children. */
   if (create_info.merge_list)
   {

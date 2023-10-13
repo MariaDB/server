@@ -20,7 +20,6 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
   if ($HAS_REWRITE)
   {
     DROP FUNCTION spider_flush_rewrite_cache;
-    UNINSTALL PLUGIN spider_rewrite;
     DROP TABLE IF EXISTS mysql.spider_rewrite_tables;
     DROP TABLE IF EXISTS mysql.spider_rewrite_table_tables;
     DROP TABLE IF EXISTS mysql.spider_rewrite_table_partitions;

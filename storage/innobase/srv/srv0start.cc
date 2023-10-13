@@ -216,14 +216,17 @@ err_exit:
 
 	ret = os_file_set_size(logfile0.c_str(), file, srv_log_file_size);
 	if (!ret) {
-		os_file_close_func(file);
 		ib::error() << "Cannot set log file " << logfile0
 			    << " size to " << ib::bytes_iec{srv_log_file_size};
+close_and_exit:
+		os_file_close_func(file);
 		goto err_exit;
 	}
 
 	log_sys.set_latest_format(srv_encrypt_log);
-	log_sys.attach(file, srv_log_file_size);
+	if (!log_sys.attach(file, srv_log_file_size)) {
+		goto close_and_exit;
+	}
 	if (!fil_system.sys_space->open(create_new_db)) {
 		goto err_exit;
 	}
@@ -1290,7 +1293,10 @@ dberr_t srv_start(bool create_new_db)
 	}
 #endif /* UNIV_DEBUG */
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		return srv_init_abort(DB_ERROR);
+	}
+
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
