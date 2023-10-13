@@ -13,12 +13,12 @@ A.a + B.a* 10 + C.a * 100,
 from t0 A, t0 B, t0 C;
 select 
 pk,
-count(a) over (order by pk rows between 2 preceding and 2 following)
+count(a) over (order by pk rows between 2 preceding and 2 following) as exp
 from t1
 where pk between 1 and 30
 order by pk desc
 limit 4;
-pk	count(a) over (order by pk rows between 2 preceding and 2 following)
+pk	exp
 30	3
 29	4
 28	5
@@ -65,21 +65,9 @@ WINDOW w2 AS (ORDER BY id)
 )
 )
 )
-)
+) as exp
 FROM t1;
-id IN (SELECT id
-FROM t1
-WINDOW w AS (ORDER BY (SELECT  1
-FROM t1
-WHERE
-EXISTS ( SELECT id
-FROM t1
-GROUP BY id
-WINDOW w2 AS (ORDER BY id)
-)
-)
-)
-)
+exp
 1
 1
 1

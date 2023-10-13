@@ -2,9 +2,6 @@
 DROP TABLE IF EXISTS t1, t2;
 --enable_warnings
 
-#enable view protocol after fix MDEV-27871 
--- source include/no_view_protocol.inc
-
 --disable_ps2_protocol
 --echo #
 --echo # Bug#31663 FIELDS TERMINATED BY special character
@@ -20,7 +17,7 @@ INSERT INTO t1 VALUES (101, 202, '-r-', '=raker=');
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -35,7 +32,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -50,7 +47,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -65,7 +62,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -80,7 +77,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -105,7 +102,7 @@ SELECT HEX(c1) FROM t1;
 TRUNCATE t1;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT HEX(LOAD_FILE('$file'))
+--eval SELECT HEX(LOAD_FILE('$file')) as exp
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$file' INTO TABLE t1 FIELDS ENCLOSED BY 0xC3
@@ -281,7 +278,7 @@ let $length= 800;
 
 --echo # should be greater than $length
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LENGTH(LOAD_FILE($file))
+--eval SELECT LENGTH(LOAD_FILE($file)) as exp
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE $file INTO TABLE t2
