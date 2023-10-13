@@ -83,9 +83,9 @@ ROLLBACK;
 connection default;
 # Get thread ids for each connection.
 USE performance_schema;
-SELECT thread_id INTO @con1_id FROM threads WHERE processlist_user IN ('user1');
-SELECT thread_id INTO @con2_id FROM threads WHERE processlist_user IN ('user2');
-SELECT thread_id INTO @con3_id FROM threads WHERE processlist_user IN ('user3');
+SELECT thread_id INTO @con1_id FROM threads WHERE processlist_user IN ('user1') and processlist_id;
+SELECT thread_id INTO @con2_id FROM threads WHERE processlist_user IN ('user2') and processlist_id;
+SELECT thread_id INTO @con3_id FROM threads WHERE processlist_user IN ('user3') and processlist_id;
 #=================
 # Global results
 #=================

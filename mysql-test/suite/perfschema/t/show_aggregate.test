@@ -13,6 +13,7 @@
 --source include/not_embedded.inc
 --source include/no_protocol.inc
 --source include/maybe_pool_of_threads.inc
+--source include/wait_for_pfs_thread_count.inc
 
 --echo #
 --echo # ================================================================================
@@ -107,9 +108,9 @@ ROLLBACK;
 connection default;
 --echo # Get thread ids for each connection.
 USE performance_schema;
-SELECT thread_id INTO @con1_id FROM threads WHERE processlist_user IN ('user1');
-SELECT thread_id INTO @con2_id FROM threads WHERE processlist_user IN ('user2');
-SELECT thread_id INTO @con3_id FROM threads WHERE processlist_user IN ('user3');
+SELECT thread_id INTO @con1_id FROM threads WHERE processlist_user IN ('user1') and processlist_id;
+SELECT thread_id INTO @con2_id FROM threads WHERE processlist_user IN ('user2') and processlist_id;
+SELECT thread_id INTO @con3_id FROM threads WHERE processlist_user IN ('user3') and processlist_id;
 
 --source ../include/show_aggregate.inc
 
@@ -201,6 +202,7 @@ ORDER BY variable_name;
 disconnect con1;
 disconnect con2;
 disconnect con3;
+
 --echo #
 USE test;
 --echo #
@@ -211,6 +213,9 @@ UPDATE test.status_results
       u1=0, u2=0, u3=0, user=0,
       h1=0, h2=0, h3=0, host=0,
       a1=0, a2=0, a3=0, acct=0;
+
+let $wait_condition= select count(*) = 0 from performance_schema.threads where processlist_user like 'user%' and processlist_id;
+--source include/wait_condition.inc
 
 #--echo DEBUG
 #SELECT * FROM test.status_results;
