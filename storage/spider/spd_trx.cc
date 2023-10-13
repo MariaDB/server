@@ -3438,6 +3438,14 @@ int spider_rollback(
   trx->bulk_access_conn_first = NULL;
 #endif
 
+  /* In case the rollback happens due to failure of LOCK TABLE, we
+  need to clear the list of tables to lock. */
+  for (uint i= 0; i < trx->trx_conn_hash.records; i++)
+  {
+    conn= (SPIDER_CONN *) my_hash_element(&trx->trx_conn_hash, i);
+    conn->db_conn->reset_lock_table_hash();
+  }
+
   if (all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
   {
     if (trx->trx_start)
