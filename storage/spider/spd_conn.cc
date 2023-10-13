@@ -1255,6 +1255,8 @@ int spider_free_conn(
       ip_port_conn->ip_port_count--;
     pthread_mutex_unlock(&ip_port_conn->mutex);
   }
+  if (conn->conn_holder_for_direct_join)
+    conn->conn_holder_for_direct_join->conn= NULL;
   spider_free_conn_alloc(conn);
   spider_free(spider_current_trx, conn, MYF(0));
   DBUG_RETURN(0);
