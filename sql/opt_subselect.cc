@@ -660,6 +660,14 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         my_error(ER_OPERAND_COLUMNS, MYF(0), in_subs->left_expr->cols());
         DBUG_RETURN(-1);
       }
+
+      uint cols_num= in_subs->left_expr->cols();
+      for (uint i= 0; i < cols_num; i++)
+      {
+        if (select_lex->ref_pointer_array[i]->
+           check_cols(in_subs->left_expr->element_index(i)->cols()))
+             DBUG_RETURN(-1);
+      }
     }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));

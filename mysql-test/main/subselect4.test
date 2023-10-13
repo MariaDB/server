@@ -2596,4 +2596,38 @@ select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
 
 drop table t0, t1, t2;
 
+--echo #
+--echo # MDEV-32320: Server crashes at TABLE::add_tmp_key
+--echo #
+
+--error ER_OPERAND_COLUMNS
+select
+  ( ( 'x' , 1.000000 ) , 1 )
+IN
+(SELECT
+   'x' , 'x'
+ WHERE ( 'x' )
+ UNION
+ SELECT 1 , 'x'
+ HAVING 1 != 1
+) as T;
+
+--error ER_OPERAND_COLUMNS
+SELECT
+  EXISTS (
+    WITH x ( x ) AS ( SELECT 1 )
+    SELECT NULL
+    WHERE ( 1 , 1 ) =
+         (SELECT
+           1 , ( ( x , 1.000000 ) , 1 )
+          IN
+          (SELECT 'x' , 'x' WHERE ( ( 'x' ) )
+           UNION
+           SELECT 1 , x HAVING 1 != 1
+          )
+          FROM x
+         )
+  );
+
+
 --echo # End of 10.4 tests

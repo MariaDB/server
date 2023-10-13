@@ -2492,10 +2492,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
-      if (select_lex->ref_pointer_array[i]->
-          check_cols(left_expr->element_index(i)->cols()))
-        DBUG_RETURN(true);
-
       Item *item_eq=
         new (thd->mem_root)
         Item_func_eq(thd, new (thd->mem_root)
@@ -2562,9 +2558,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
-      if (select_lex->ref_pointer_array[i]->
-          check_cols(left_expr->element_index(i)->cols()))
-        DBUG_RETURN(true);
       item= new (thd->mem_root)
         Item_func_eq(thd,
                      new (thd->mem_root)
