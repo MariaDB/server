@@ -3203,4 +3203,34 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	100	
 drop table t0, t1, t2;
+#
+# MDEV-32320: Server crashes at TABLE::add_tmp_key
+#
+select
+( ( 'x' , 1.000000 ) , 1 )
+IN
+(SELECT
+'x' , 'x'
+ WHERE ( 'x' )
+UNION
+SELECT 1 , 'x'
+ HAVING 1 != 1
+) as T;
+ERROR 21000: Operand should contain 2 column(s)
+SELECT
+EXISTS (
+WITH x ( x ) AS ( SELECT 1 )
+SELECT NULL
+WHERE ( 1 , 1 ) =
+(SELECT
+1 , ( ( x , 1.000000 ) , 1 )
+IN
+(SELECT 'x' , 'x' WHERE ( ( 'x' ) )
+UNION
+SELECT 1 , x HAVING 1 != 1
+)
+FROM x
+)
+);
+ERROR 21000: Operand should contain 2 column(s)
 # End of 10.4 tests
