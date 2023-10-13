@@ -420,6 +420,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   if (ptr != NULL)
   {
     MEM_MAKE_DEFINED(ptr, *size);
+    update_malloc_size(*size, 0);
   }
 
   DBUG_RETURN(ptr);
@@ -452,31 +453,36 @@ void my_large_free(void *ptr, size_t size)
   {
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size, errno);
   }
-# if !__has_feature(memory_sanitizer)
+#if !__has_feature(memory_sanitizer)
   else
   {
     MEM_MAKE_ADDRESSABLE(ptr, size);
   }
-# endif
+#endif
+  update_malloc_size(- (longlong) size, 0);
 #elif defined(_WIN32)
   /*
      When RELEASE memory, the size parameter must be 0.
      Do not use MEM_RELEASE with MEM_DECOMMIT.
   */
-  if (ptr && !VirtualFree(ptr, 0, MEM_RELEASE))
+  if (ptr)
   {
-    my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
-             GetLastError());
+    if (!VirtualFree(ptr, 0, MEM_RELEASE))
+    {
+      my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
+               GetLastError());
+    }
+    update_malloc_size(- (longlong) size, 0);
   }
-# if !__has_feature(memory_sanitizer)
+#if !__has_feature(memory_sanitizer)
   else
   {
     MEM_MAKE_ADDRESSABLE(ptr, size);
   }
-# endif
+#endif /* memory_sanitizer */
 #else
   my_free_lock(ptr);
-#endif
+#endif /* HAVE_MMMAP */
 
   DBUG_VOID_RETURN;
 }

@@ -199,7 +199,6 @@ static void thread_attach(THD* thd)
   DBUG_ASSERT(thd->mysys_var == my_thread_var);
   thd->mysys_var->stack_ends_here= thd->thread_stack + tinfo->stack_size;
   PSI_CALL_set_thread(thd->get_psi());
-  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
 }
 
 /*
@@ -313,6 +312,7 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
 
   /* Login. */
   thread_attach(thd);
+  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
   re_init_net_server_extension(thd);
   ulonglong now= microsecond_interval_timer();
   thd->prior_thr_create_utime= now;

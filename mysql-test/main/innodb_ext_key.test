@@ -162,10 +162,10 @@ insert into t0 values (1), (2), (3), (4), (5);
 create index i_p_size on part(p_size);
 
 explain
-select * from t0, part ignore index (primary)
+select straight_join * from t0, part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
-select * from t0,  part ignore index (primary)
+select straight_join * from t0,  part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
 drop table t0;

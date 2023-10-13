@@ -182,13 +182,9 @@ note that the trx may have been committed before the caller acquires
 trx_t::mutex
 @retval	NULL if no match */
 trx_t* trx_get_trx_by_xid(const XID* xid);
-/**********************************************************************//**
-If required, flushes the log to disk if we called trx_commit_for_mysql()
-with trx->flush_log_later == TRUE. */
-void
-trx_commit_complete_for_mysql(
-/*==========================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+/** Durably write log until trx->commit_lsn
+(if trx_t::commit_in_memory() was invoked with flush_log_later=true). */
+void trx_commit_complete_for_mysql(trx_t *trx);
 /**********************************************************************//**
 Marks the latest SQL statement ended. */
 void
@@ -341,7 +337,10 @@ struct trx_lock_t
 
 #if  defined(UNIV_DEBUG) || !defined(DBUG_OFF)
   /** 2=high priority WSREP thread has marked this trx to abort;
-  1=another transaction chose this as a victim in deadlock resolution. */
+  1=another transaction chose this as a victim in deadlock resolution.
+
+  Other threads than the one that is executing the transaction may set
+  flags in this while holding lock_sys.wait_mutex. */
   Atomic_relaxed<byte> was_chosen_as_deadlock_victim;
 
   /** Flag the lock owner as a victim in Galera conflict resolution. */
@@ -360,13 +359,14 @@ struct trx_lock_t
 #else /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
 
   /** High priority WSREP thread has marked this trx to abort or
-  another transaction chose this as a victim in deadlock resolution. */
+  another transaction chose this as a victim in deadlock resolution.
+
+  Other threads than the one that is executing the transaction may set
+  this while holding lock_sys.wait_mutex. */
   Atomic_relaxed<bool> was_chosen_as_deadlock_victim;
 
   /** Flag the lock owner as a victim in Galera conflict resolution. */
-  void set_wsrep_victim() {
-    was_chosen_as_deadlock_victim= true;
-  }
+  void set_wsrep_victim() { was_chosen_as_deadlock_victim= true; }
 #endif /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
 
   /** Next available rec_pool[] entry */
@@ -818,12 +818,6 @@ public:
 					defer flush of the logs to disk
 					until after we release the
 					mutex. */
-	bool		must_flush_log_later;/*!< set in commit()
-					if flush_log_later was
-					set and redo log was written;
-					in that case we will
-					flush the log in
-					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
   /** whether this modifies InnoDB dictionary tables */
   bool dict_operation;
@@ -862,11 +856,13 @@ public:
 					/*!< how many tables the current SQL
 					statement uses, except those
 					in consistent read */
-	dberr_t		error_state;	/*!< 0 if no error, otherwise error
-					number; NOTE That ONLY the thread
-					doing the transaction is allowed to
-					set this field: this is NOT protected
-					by any mutex */
+
+  /** DB_SUCCESS or error code; usually only the thread that is running
+  the transaction is allowed to modify this field. The only exception is
+  when a thread invokes lock_sys_t::cancel() in order to abort a
+  lock_wait(). That is protected by lock_sys.wait_mutex and lock.wait_lock. */
+  dberr_t error_state;
+
 	const dict_index_t*error_info;	/*!< if the error number indicates a
 					duplicate key error, a pointer to
 					the problematic index is stored here */
@@ -1015,10 +1011,18 @@ private:
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
+  /** Commit an empty transaction.
+  @param mtr   mini-transaction */
+  void commit_empty(mtr_t *mtr);
+  /** Commit an empty transaction.
+  @param mtr   mini-transaction */
+  /** Assign the transaction its history serialisation number and write the
+  UNDO log to the assigned rollback segment.
+  @param mtr   mini-transaction */
+  inline void write_serialisation_history(mtr_t *mtr);
 public:
   /** Commit the transaction. */
   void commit();
-
 
   /** Try to drop a persistent table.
   @param table       persistent table

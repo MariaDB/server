@@ -78,7 +78,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -101,7 +101,7 @@ COUNT(*)
 SELECT * FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='a';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 SELECT MIN(t1.a), MAX(t1.a), 
 (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
 (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.a)",
@@ -232,34 +232,7 @@ hist_size, hist_type, decode_histogram(hist_type,histogram)
 FROM mysql.column_stats
 ORDER BY db_name, table_name, column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
-test	t1	a	0	49	0.0000	1.0000	4	JSON_HB	{
-  "target_histogram_size": 4,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "0",
-      "size": 0.275,
-      "ndv": 11
-    },
-    {
-      "start": "12",
-      "size": 0.275,
-      "ndv": 11
-    },
-    {
-      "start": "29",
-      "size": 0.275,
-      "ndv": 11
-    },
-    {
-      "start": "41",
-      "end": "49",
-      "size": 0.175,
-      "ndv": 7
-    }
-  ]
-}
+test	t1	a	0	49	0.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	JSON_HB	{
   "target_histogram_size": 4,
   "collected_at": "REPLACED",
@@ -409,49 +382,7 @@ hist_size, hist_type, decode_histogram(hist_type,histogram)
 FROM mysql.column_stats
 ORDER BY db_name, table_name, column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
-test	t1	a	0	49	0.0000	1.0000	7	JSON_HB	{
-  "target_histogram_size": 8,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "0",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "7",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "14",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "22",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "31",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "38",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "44",
-      "end": "49",
-      "size": 0.1,
-      "ndv": 4
-    }
-  ]
-}
+test	t1	a	0	49	0.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	5	JSON_HB	{
   "target_histogram_size": 8,
   "collected_at": "REPLACED",
@@ -653,13 +584,13 @@ test	t1	40
 test	t3	17
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
 SELECT * FROM mysql.index_stats;
@@ -682,13 +613,13 @@ test	s1	40
 test	t3	17
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	s1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	s1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	s1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	s1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	s1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
 SELECT * FROM mysql.index_stats;
@@ -711,13 +642,13 @@ test	t1	40
 test	t3	17
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
 SELECT * FROM mysql.index_stats;
@@ -739,7 +670,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -780,7 +711,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
@@ -805,7 +736,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -832,7 +763,7 @@ db_name	table_name	cardinality
 test	s1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	s1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	s1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	s1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -870,7 +801,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -905,7 +836,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -916,6 +847,13 @@ test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
 test	t1	idx3	1	8.5000
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(x) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats where column_name="x";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	x	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -934,7 +872,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -951,7 +889,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -992,7 +930,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1021,7 +959,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1032,15 +970,15 @@ test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
 test	t1	idx3	1	8.5000
-LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats'
-  INTO TABLE mysql.column_stats
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats' IGNORE
+INTO TABLE mysql.column_stats
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_index_stats'
   INTO TABLE mysql.index_stats
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1074,7 +1012,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1137,7 +1075,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1152,7 +1090,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	NULL	NULL	1.0000	NULL	NULL	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1176,7 +1114,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1208,7 +1146,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1238,7 +1176,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1253,7 +1191,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1335,7 +1273,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1366,8 +1304,8 @@ test	t1	40
 test	t2	40
 SELECT * FROM mysql.column_stats ORDER BY column_name, table_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
-test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
+test	t2	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
@@ -1411,7 +1349,7 @@ db_name	table_name	cardinality
 test	t2	40
 SELECT * FROM mysql.column_stats ORDER BY column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t2	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1470,12 +1408,17 @@ test	t2	idx4	1	6.2000
 test	t2	idx4	2	1.7222
 test	t2	idx4	3	1.1154
 test	t2	idx4	4	1.0000
+SELECT * FROM mysql.column_stats where column_name="b";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 ALTER TABLE t2 CHANGE COLUMN b b varchar(30);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t2	idx2	1	7.0000
 test	t2	idx2	2	2.3846
 test	t2	idx3	1	8.5000
+SELECT * FROM mysql.column_stats where column_name="b";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -1511,6 +1454,9 @@ test	t2	idx4	1	6.2000
 test	t2	idx4	2	1.7222
 test	t2	idx4	3	1.1154
 test	t2	idx4	4	1.0000
+SELECT * FROM mysql.column_stats where column_name="b";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t2	b	0	zzzzzzzzzzzzzzzzzz	0.0000	13.9000	6.6667	0	NULL	NULL
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -1584,7 +1530,7 @@ test.t1	analyze	Warning	Engine-independent statistics are not collected for colu
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1640,7 +1586,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -4765,457 +4711,7 @@ set histogram_size=50;
 ANALYZE TABLE Country, City, CountryLanguage persistent for all;
 SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
 column_name	min_value	max_value	hist_size	hist_type	histogram
-Code	ABW	ZWE	48	JSON_HB	{
-  "target_histogram_size": 50,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "ABW",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "AND",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ASM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "AUT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BFA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BIH",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BRA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BWA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "CHL",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "COG",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "CRI",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "CZE",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "DOM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ESH",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "FJI",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GAB",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GIN",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GRC",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GUM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "HRV",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "IOT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ISR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "KAZ",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "KNA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "LBR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "LSO",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MAR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MEX",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MMR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MSR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MYT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "NGA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "NPL",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "PAN",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "PNG",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "PRY",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ROM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SEN",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SLB",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SPM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SWE",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "TCD",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "TKM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "TUR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "UKR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "VAT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "VNM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "YUG",
-      "end": "ZWE",
-      "size": 0.016736402,
-      "ndv": 4
-    }
-  ]
-}
-Country	ABW	ZWE	39	JSON_HB	{
-  "target_histogram_size": 50,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "ABW",
-      "size": 0.020102966,
-      "ndv": 11
-    },
-    {
-      "start": "ATG",
-      "size": 0.020102966,
-      "ndv": 14
-    },
-    {
-      "start": "BLR",
-      "size": 0.006619269,
-      "ndv": 4
-    },
-    {
-      "start": "BRA",
-      "size": 0.061289532,
-      "ndv": 1
-    },
-    {
-      "start": "BRB",
-      "size": 0.020102966,
-      "ndv": 9
-    },
-    {
-      "start": "CHL",
-      "size": 0.002206423,
-      "ndv": 1
-    },
-    {
-      "start": "CHN",
-      "size": 0.0889924,
-      "ndv": 1
-    },
-    {
-      "start": "CIV",
-      "size": 0.020102966,
-      "ndv": 10
-    },
-    {
-      "start": "CUB",
-      "size": 0.020102966,
-      "ndv": 6
-    },
-    {
-      "start": "DEU",
-      "size": 0.020102966,
-      "ndv": 8
-    },
-    {
-      "start": "EGY",
-      "size": 0.020102966,
-      "ndv": 4
-    },
-    {
-      "start": "ESP",
-      "size": 0.020102966,
-      "ndv": 11
-    },
-    {
-      "start": "GBR",
-      "size": 0.020102966,
-      "ndv": 3
-    },
-    {
-      "start": "GIB",
-      "size": 0.020102966,
-      "ndv": 19
-    },
-    {
-      "start": "IDN",
-      "size": 0.012503064,
-      "ndv": 1
-    },
-    {
-      "start": "IND",
-      "size": 0.083598921,
-      "ndv": 1
-    },
-    {
-      "start": "IRL",
-      "size": 0.020102966,
-      "ndv": 3
-    },
-    {
-      "start": "IRQ",
-      "size": 0.020102966,
-      "ndv": 6
-    },
-    {
-      "start": "JOR",
-      "size": 2.451581e-4,
-      "ndv": 1
-    },
-    {
-      "start": "JPN",
-      "size": 0.060799215,
-      "ndv": 1
-    },
-    {
-      "start": "KAZ",
-      "size": 0.020102966,
-      "ndv": 7
-    },
-    {
-      "start": "KOR",
-      "size": 0.020102966,
-      "ndv": 16
-    },
-    {
-      "start": "MDA",
-      "size": 0.002451581,
-      "ndv": 3
-    },
-    {
-      "start": "MEX",
-      "size": 0.042412356,
-      "ndv": 1
-    },
-    {
-      "start": "MHL",
-      "size": 0.020102966,
-      "ndv": 20
-    },
-    {
-      "start": "NGA",
-      "size": 0.020102966,
-      "ndv": 4
-    },
-    {
-      "start": "NLD",
-      "size": 0.020102966,
-      "ndv": 7
-    },
-    {
-      "start": "PAK",
-      "size": 0.007354744,
-      "ndv": 4
-    },
-    {
-      "start": "PHL",
-      "size": 0.033341505,
-      "ndv": 1
-    },
-    {
-      "start": "PLW",
-      "size": 0.020102966,
-      "ndv": 8
-    },
-    {
-      "start": "PSE",
-      "size": 0.008580534,
-      "ndv": 5
-    },
-    {
-      "start": "RUS",
-      "size": 0.046334886,
-      "ndv": 1
-    },
-    {
-      "start": "RWA",
-      "size": 0.020102966,
-      "ndv": 18
-    },
-    {
-      "start": "SWE",
-      "size": 0.020102966,
-      "ndv": 16
-    },
-    {
-      "start": "TUR",
-      "size": 0.020102966,
-      "ndv": 4
-    },
-    {
-      "start": "TZA",
-      "size": 0.015199804,
-      "ndv": 4
-    },
-    {
-      "start": "USA",
-      "size": 0.067173327,
-      "ndv": 1
-    },
-    {
-      "start": "UZB",
-      "size": 0.020102966,
-      "ndv": 7
-    },
-    {
-      "start": "VNM",
-      "end": "ZWE",
-      "size": 0.018632018,
-      "ndv": 9
-    }
-  ]
-}
+Code	ABW	ZWE	NULL	NULL	NULL
 Name	Afghanistan	Zimbabwe	48	JSON_HB	{
   "target_histogram_size": 50,
   "collected_at": "REPLACED",
@@ -5461,6 +4957,210 @@ Name	Afghanistan	Zimbabwe	48	JSON_HB	{
       "end": "Zimbabwe",
       "size": 0.016736402,
       "ndv": 4
+    }
+  ]
+}
+ID	1	4079	NULL	NULL	NULL
+Country	ABW	ZWE	39	JSON_HB	{
+  "target_histogram_size": 50,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "ABW",
+      "size": 0.020102966,
+      "ndv": 11
+    },
+    {
+      "start": "ATG",
+      "size": 0.020102966,
+      "ndv": 14
+    },
+    {
+      "start": "BLR",
+      "size": 0.006619269,
+      "ndv": 4
+    },
+    {
+      "start": "BRA",
+      "size": 0.061289532,
+      "ndv": 1
+    },
+    {
+      "start": "BRB",
+      "size": 0.020102966,
+      "ndv": 9
+    },
+    {
+      "start": "CHL",
+      "size": 0.002206423,
+      "ndv": 1
+    },
+    {
+      "start": "CHN",
+      "size": 0.0889924,
+      "ndv": 1
+    },
+    {
+      "start": "CIV",
+      "size": 0.020102966,
+      "ndv": 10
+    },
+    {
+      "start": "CUB",
+      "size": 0.020102966,
+      "ndv": 6
+    },
+    {
+      "start": "DEU",
+      "size": 0.020102966,
+      "ndv": 8
+    },
+    {
+      "start": "EGY",
+      "size": 0.020102966,
+      "ndv": 4
+    },
+    {
+      "start": "ESP",
+      "size": 0.020102966,
+      "ndv": 11
+    },
+    {
+      "start": "GBR",
+      "size": 0.020102966,
+      "ndv": 3
+    },
+    {
+      "start": "GIB",
+      "size": 0.020102966,
+      "ndv": 19
+    },
+    {
+      "start": "IDN",
+      "size": 0.012503064,
+      "ndv": 1
+    },
+    {
+      "start": "IND",
+      "size": 0.083598921,
+      "ndv": 1
+    },
+    {
+      "start": "IRL",
+      "size": 0.020102966,
+      "ndv": 3
+    },
+    {
+      "start": "IRQ",
+      "size": 0.020102966,
+      "ndv": 6
+    },
+    {
+      "start": "JOR",
+      "size": 2.451581e-4,
+      "ndv": 1
+    },
+    {
+      "start": "JPN",
+      "size": 0.060799215,
+      "ndv": 1
+    },
+    {
+      "start": "KAZ",
+      "size": 0.020102966,
+      "ndv": 7
+    },
+    {
+      "start": "KOR",
+      "size": 0.020102966,
+      "ndv": 16
+    },
+    {
+      "start": "MDA",
+      "size": 0.002451581,
+      "ndv": 3
+    },
+    {
+      "start": "MEX",
+      "size": 0.042412356,
+      "ndv": 1
+    },
+    {
+      "start": "MHL",
+      "size": 0.020102966,
+      "ndv": 20
+    },
+    {
+      "start": "NGA",
+      "size": 0.020102966,
+      "ndv": 4
+    },
+    {
+      "start": "NLD",
+      "size": 0.020102966,
+      "ndv": 7
+    },
+    {
+      "start": "PAK",
+      "size": 0.007354744,
+      "ndv": 4
+    },
+    {
+      "start": "PHL",
+      "size": 0.033341505,
+      "ndv": 1
+    },
+    {
+      "start": "PLW",
+      "size": 0.020102966,
+      "ndv": 8
+    },
+    {
+      "start": "PSE",
+      "size": 0.008580534,
+      "ndv": 5
+    },
+    {
+      "start": "RUS",
+      "size": 0.046334886,
+      "ndv": 1
+    },
+    {
+      "start": "RWA",
+      "size": 0.020102966,
+      "ndv": 18
+    },
+    {
+      "start": "SWE",
+      "size": 0.020102966,
+      "ndv": 16
+    },
+    {
+      "start": "TUR",
+      "size": 0.020102966,
+      "ndv": 4
+    },
+    {
+      "start": "TZA",
+      "size": 0.015199804,
+      "ndv": 4
+    },
+    {
+      "start": "USA",
+      "size": 0.067173327,
+      "ndv": 1
+    },
+    {
+      "start": "UZB",
+      "size": 0.020102966,
+      "ndv": 7
+    },
+    {
+      "start": "VNM",
+      "end": "ZWE",
+      "size": 0.018632018,
+      "ndv": 9
     }
   ]
 }
@@ -6200,264 +5900,6 @@ Capital	1	4074	47	JSON_HB	{
       "end": "4074",
       "size": 0.00862069,
       "ndv": 2
-    }
-  ]
-}
-ID	1	4079	50	JSON_HB	{
-  "target_histogram_size": 50,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "1",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "83",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "165",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "247",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "329",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "411",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "493",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "575",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "657",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "739",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "821",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "903",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "985",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1067",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1149",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1231",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1313",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1395",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1477",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1559",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1641",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1723",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1805",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1887",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1969",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2051",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2133",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2215",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2297",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2379",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2461",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2543",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2625",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2707",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2789",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2871",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2953",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3035",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3117",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3199",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3281",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3363",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3445",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3527",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3609",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3691",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3773",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3855",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3937",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "4019",
-      "end": "4079",
-      "size": 0.014954646,
-      "ndv": 61
     }
   ]
 }
@@ -7728,10 +7170,10 @@ Percentage	0.0	99.9	47	JSON_HB	{
 }
 analyze select * from Country use index () where Code between 'BBC' and 'GGG';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	24.58	25.52	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	20.00	25.52	Using where
 analyze select * from Country use index () where Code < 'BBC';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	8.37	7.11	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	4.00	7.11	Using where
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 DROP SCHEMA world;
@@ -8294,6 +7736,8 @@ analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '13715197108439488792'
 select histogram
 from mysql.column_stats where table_name='t1' and db_name=database();
 histogram

@@ -5,6 +5,9 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+# Disable wrong key warnings for this test (to test @@note_verbosity usage)
+set @@note_verbosity=replace(@@note_verbosity,"explain","");
+
 create table t1 (a int, b int not null,unique key (a,b),index(b)) engine=myisam;
 insert ignore into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(null,7),(9,9),(8,8),(7,7),(null,9),(null,9),(6,6);
 explain select * from t1 where a is null;
@@ -281,3 +284,6 @@ INSERT INTO t1 VALUES ('9','k'),(NULL,'r');
 SELECT * FROM t1 WHERE (f3 = 83) OR (f10 = 'z' AND f3 IS NULL);
 DROP TABLE t1;
 
+--echo ## end of 10.6 tests
+
+set @@note_verbosity=default;

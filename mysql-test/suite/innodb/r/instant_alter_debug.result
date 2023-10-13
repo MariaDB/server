@@ -180,7 +180,7 @@ ROLLBACK;
 connection stop_purge;
 COMMIT;
 connection default;
-InnoDB		2 transactions not purged
+InnoDB		1 transactions not purged
 SET DEBUG_SYNC='now SIGNAL logged';
 connection ddl;
 connection default;

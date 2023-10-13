@@ -6,8 +6,6 @@ SET default_storage_engine=InnoDB;
 
 --disable_query_log
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
-SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
-SET GLOBAL innodb_read_only_compressed=OFF;
 --enable_query_log
 
 let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
@@ -146,14 +144,14 @@ show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx3 on worklog5743_1(a2(436));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx4 on worklog5743_1(a2(434));
+# MDEV-27634 innodb_zip tests failing on s390x
+create index idx4 on worklog5743_1(a2(290));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx5 on worklog5743_1(a1, a2(430));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx6 on worklog5743_1(a1, a2(428));
+# MDEV-27634 innodb_zip tests failing on s390x
+create index idx6 on worklog5743_1(a1, a2(283));
 show warnings;
 
 # Test edge cases for indexes using key_block_size=2
@@ -163,14 +161,14 @@ show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx3 on worklog5743_2(a2(948));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx4 on worklog5743_2(a2(946));
+# MDEV-27634 innodb_zip tests failing on s390x
+create index idx4 on worklog5743_2(a2(802));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx5 on worklog5743_2(a1, a2(942));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx6 on worklog5743_2(a1, a2(940));
+# MDEV-27634 innodb_zip tests failing on s390x
+create index idx6 on worklog5743_2(a1, a2(795));
 show warnings;
 
 # Test edge cases for indexes using key_block_size=4
@@ -398,9 +396,7 @@ create table worklog5743(a TEXT not null) ROW_FORMAT=COMPACT;
 -- error ER_INDEX_COLUMN_TOO_LONG
 create index idx on worklog5743(a(768));
 create index idx2 on worklog5743(a(767));
---disable_query_log
-SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
---enable_query_log
 drop table worklog5743;
+
 
 eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;

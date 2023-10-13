@@ -112,9 +112,12 @@ set sort_buffer_size=262144*10;
 --source include/analyze-format.inc
 eval analyze format=json $query;
 flush status;
+# Enable view-protocol after fix MDEV-27871
+--disable_view_protocol
 --disable_ps2_protocol
 eval $query;
 --enable_ps2_protocol
+--enable_view_protocol
 show status like '%sort%';
 set sort_buffer_size=default;
 
@@ -126,9 +129,12 @@ set sort_buffer_size=32768;
 --source include/analyze-format.inc
 eval analyze format=json $query;
 flush status;
+# Enable view-protocol after fix MDEV-27871
+--disable_view_protocol
 --disable_ps2_protocol
 eval $query;
 --enable_ps2_protocol
+--enable_view_protocol
 show status like '%sort%';
 set sort_buffer_size=default;
 

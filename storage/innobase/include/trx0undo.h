@@ -226,12 +226,6 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
                                    mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 
-/** Free temporary undo log after commit or rollback.
-The information is not needed after a commit or rollback, therefore
-the data can be discarded.
-@param undo     temporary undo log */
-void trx_undo_commit_cleanup(trx_undo_t *undo);
-
 /** At shutdown, frees the undo logs of a transaction. */
 void
 trx_undo_free_at_shutdown(trx_t *trx);

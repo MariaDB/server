@@ -105,6 +105,8 @@ c
 EXPLAIN SELECT * FROM t1 WHERE c=CAST('::1' AS INET6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	c	c	67	NULL	3	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c` part[0] for lookup: `test`.`t1`.`c` of type `varchar` = "cast('::1' as inet6)" of type `inet6`
 DROP TABLE t1;
 #
 # End of 10.5 tests

@@ -268,12 +268,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
   ut_ad(rseg->needs_purge > trx->id);
-
-  if (rseg->last_page_no == FIL_NULL)
-  {
-    rseg->last_page_no= undo->hdr_page_no;
-    rseg->set_last_commit(undo->hdr_offset, trx->rw_trx_hash_element->no);
-  }
+  ut_ad(rseg->last_page_no != FIL_NULL);
 
   rseg->history_size++;
 
@@ -312,11 +307,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   undo= nullptr;
 
-  /* After the purge thread has been given permission to exit,
-  we may roll back transactions (trx->undo_no==0)
-  in THD::cleanup() invoked from unlink_thd() in fast shutdown,
-  or in trx_rollback_recovered() in slow shutdown.
-
+  /*
   Before any transaction-generating background threads or the purge
   have been started, we can start transactions in
   row_merge_drop_temp_indexes(), and roll back recovered transactions.
@@ -328,12 +319,10 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   During fast shutdown, we may also continue to execute user
   transactions. */
-  ut_ad(srv_undo_sources || trx->undo_no == 0 ||
+  ut_ad(srv_undo_sources || srv_fast_shutdown ||
         (!purge_sys.enabled() &&
          (srv_is_being_started ||
-          trx_rollback_is_active ||
-          srv_force_recovery >= SRV_FORCE_NO_BACKGROUND)) ||
-        srv_fast_shutdown);
+          srv_force_recovery >= SRV_FORCE_NO_BACKGROUND)));
 
 #ifdef WITH_WSREP
   if (wsrep_is_wsrep_xid(&trx->xid))
@@ -381,7 +370,6 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
 
     This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
-    log_free_check();
     mtr.start();
     block->page.lock.x_lock();
     ut_ad(block->page.id() == id);
@@ -404,7 +392,6 @@ trx_purge_truncate_rseg_history(trx_rseg_t &rseg,
   fil_addr_t hdr_addr;
   mtr_t mtr;
 
-  log_free_check();
   mtr.start();
 
   dberr_t err;
@@ -506,7 +493,6 @@ loop:
   mtr.commit();
   ut_ad(rseg.history_size > 0);
   rseg.history_size--;
-  log_free_check();
   mtr.start();
   rseg_hdr->page.lock.x_lock();
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
@@ -582,6 +568,7 @@ TRANSACTIONAL_TARGET void trx_purge_truncate_history()
     if (rseg.space)
     {
       ut_ad(rseg.is_persistent());
+      log_free_check();
       rseg.latch.wr_lock(SRW_LOCK_CALL);
       if (dberr_t e=
           trx_purge_truncate_rseg_history(rseg, head,
@@ -791,7 +778,9 @@ not_free:
         continue;
 
       ut_ad(!rseg.is_referenced());
-      ut_ad(!head.trx_no || rseg.needs_purge <= head.trx_no);
+      /* We may actually have rseg.needs_purge > head.trx_no here
+      if trx_t::commit_empty() had been executed in the past,
+      possibly before this server had been started up. */
 
       buf_block_t *rblock= trx_rseg_header_create(&space,
                                                   &rseg - trx_sys.rseg_array,

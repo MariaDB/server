@@ -860,6 +860,7 @@ void wsrep_deinit_server()
   wsrep_deinit_schema();
   Wsrep_server_state::destroy();
   Wsrep_status::destroy();
+  wsrep_free_status_vars();
 }
 
 int wsrep_init()
