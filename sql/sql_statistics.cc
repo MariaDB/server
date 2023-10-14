@@ -2345,7 +2345,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   column_total_length= 0;
   if (is_single_pk_col)
     count_distinct= NULL;
-  if (table_field->flags & BLOB_FLAG)
+  else if (table_field->flags & BLOB_FLAG)
     count_distinct= NULL;
   else
   {

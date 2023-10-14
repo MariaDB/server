@@ -574,14 +574,14 @@ test.t1	analyze	Warning	Engine-independent statistics are not collected for colu
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	pk	1	2	0.0000	4.0000	1.0000	NULL	NULL	NULL
 DELETE FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='t';
 INSERT INTO mysql.column_stats VALUES
 ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	pk	1	2	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	t	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
 SELECT pk FROM t1;
 pk
@@ -605,7 +605,7 @@ pk	c
 2	bar
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	pk	1	2	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
 CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
 SELECT * FROM t1;
