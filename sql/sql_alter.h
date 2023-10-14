@@ -199,6 +199,7 @@ public:
   Alter_info() :
   flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
+    original_table(0),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_NONE),
     requested_lock(ALTER_TABLE_LOCK_DEFAULT)

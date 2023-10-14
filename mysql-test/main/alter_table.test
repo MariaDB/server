@@ -2382,3 +2382,21 @@ drop table t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-32449 Server crashes in Alter_info::add_stat_drop_index upon CREATE TABLE
+--echo #
+
+CREATE TABLE t1 (
+  `altcol1` blob DEFAULT '',
+  KEY `altcol1` (`altcol1`(2300))
+) ROW_FORMAT=PAGE, ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY h (`altcol1`) REFERENCES t1 (`altcol1`) ON UPDATE SET DEFAULT, ALGORITHM=COPY;
+create or replace table t2 like t1;
+show create table t1;
+show create table t2;
+drop table t1,t2;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
