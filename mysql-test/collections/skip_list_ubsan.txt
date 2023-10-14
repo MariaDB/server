@@ -1,3 +1,0 @@
-binlog.binlog_truncate_active_log : MDEV-26919 - undefined value
-main.json_normalize : MDEV-27415 - out of bounds
-main.json_equals : MDEV-27415 - out of bounds
