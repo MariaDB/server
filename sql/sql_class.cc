@@ -1209,6 +1209,7 @@ const Type_handler *THD::type_handler_for_datetime() const
 void THD::init()
 {
   DBUG_ENTER("thd::init");
+  mdl_context.reset();
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
