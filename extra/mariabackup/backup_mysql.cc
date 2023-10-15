@@ -141,6 +141,8 @@ xb_mysql_connect()
 		mysql_options(connection, MYSQL_OPT_SSL_CRLPATH,
 			      opt_ssl_crlpath);
 	}
+        else
+          opt_ssl_verify_server_cert= 0;
 	mysql_options(connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
 		      (char*)&opt_ssl_verify_server_cert);
 #endif

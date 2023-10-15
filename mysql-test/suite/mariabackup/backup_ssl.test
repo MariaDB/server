@@ -21,3 +21,11 @@ echo #;
 echo # tcp ssl ssl-verify-server-cert;
 error 1;
 exec $XTRABACKUP --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+
+--echo #
+--echo # MDEV-32473 --disable-ssl doesn't disable it
+--echo #
+# connects fine
+echo # tcp skip-ssl;
+exec $XTRABACKUP --protocol=tcp --user=root --skip-ssl --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+rmdir $targetdir;

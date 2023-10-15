@@ -48,6 +48,8 @@ SSL_STATIC my_bool opt_ssl_verify_server_cert= 2;
       mysql_options((M), MARIADB_OPT_TLS_PEER_FP, opt_ssl_fp);          \
       mysql_options((M), MARIADB_OPT_TLS_PEER_FP_LIST, opt_ssl_fplist); \
     }                                                                   \
+    else                                                                \
+      opt_ssl_verify_server_cert= 0;                                    \
     mysql_options((M),MYSQL_OPT_SSL_VERIFY_SERVER_CERT,                 \
                   &opt_ssl_verify_server_cert);                         \
   } while(0)
@@ -58,7 +60,7 @@ SSL_STATIC my_bool opt_ssl_verify_server_cert= 2;
 */
 #define SET_SSL_OPTS_WITH_CHECK(M)                                      \
   do {                                                                  \
-    if (opt_ssl_verify_server_cert==2 &&                                \
+    if (opt_use_ssl && opt_ssl_verify_server_cert==2 &&                 \
         !(opt_ssl_ca && opt_ssl_ca[0]) &&                               \
         !(opt_ssl_capath && opt_ssl_capath[0]) &&                       \
         !(opt_ssl_fp && opt_ssl_fp[0]) &&                               \
