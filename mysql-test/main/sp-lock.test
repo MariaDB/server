@@ -23,14 +23,6 @@
 # Tests will be skipped for the view protocol
 -- source include/no_view_protocol.inc
 
---disable_warnings
-drop table if exists t1;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop procedure if exists p4;
-drop function if exists f1;
---enable_warnings
 create table t1 (a int);
 --echo #
 --echo # Test 'CREATE PROCEDURE'.
@@ -860,11 +852,6 @@ DROP PROCEDURE p1;
 --echo # Bug#57663 Concurrent statement using stored function and DROP DATABASE
 --echo #           breaks SBR
 --echo #
-
---disable_warnings
-DROP DATABASE IF EXISTS db1;
-DROP FUNCTION IF EXISTS f1;
---enable_warnings
 
 connect(con1, localhost, root);
 connect(con2, localhost, root);

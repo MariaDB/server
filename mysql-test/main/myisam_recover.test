@@ -28,9 +28,6 @@ call mtr.add_suppression(" '\..test.t1'");
 set @save_table_open_cache=@@table_open_cache;
 set global table_open_cache=256;
 set global table_definition_cache=400;
---disable_warnings
-drop procedure if exists p_create;
---enable_warnings
 delimiter |;
 create procedure p_create()
 begin
@@ -54,10 +51,9 @@ end|
 delimiter ;|
 call p_create();
 drop procedure p_create;
---disable_query_log
 let $lock=`select @lock_table_stmt`;
-eval $lock;
---enable_query_log
+evalp $lock;
+
 connection default;
 --echo #
 --echo # We have to disable the ps-protocol, to avoid
@@ -65,9 +61,6 @@ connection default;
 --echo # -- table def versions change all the time with full table cache.
 --echo #
 --disable_ps_protocol
---disable_warnings
-drop table if exists t1, t1_mrg, t1_copy;
---enable_warnings
 let $MYSQLD_DATADIR=`select @@datadir`;
 --echo #
 --echo # Prepare a MERGE engine table, that refers to a corrupted
@@ -151,20 +144,19 @@ select * from t2;
 select * from t1;
 
 connect(con2, localhost, root);
---SEND ALTER TABLE t2 ADD val INT
+--send ALTER TABLE t2 ADD val INT
 
 connection default;
 --echo # With fix we should have alter table waiting for t2 lock here.
 let $wait_condition=
   SELECT count(*) = 1 FROM information_schema.processlist WHERE state
   LIKE "Waiting%" AND info = "ALTER TABLE t2 ADD val INT";
-
 --source include/wait_condition.inc
 ROLLBACK;
 SET autocommit = 1;
 
 connection con2;
---REAP
+--reap
 
 connection default;
 disconnect con2;

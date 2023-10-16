@@ -13,12 +13,6 @@
 # Start a transaction, create a savepoint, 
 # then call a DDL operation on a procedure, and then check
 # that the savepoint is no longer present.
-drop table if exists t1;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop procedure if exists p4;
-drop function if exists f1;
 create table t1 (a int);
 #
 # Test 'CREATE PROCEDURE'.
@@ -744,8 +738,6 @@ DROP PROCEDURE p1;
 # Bug#57663 Concurrent statement using stored function and DROP DATABASE
 #           breaks SBR
 #
-DROP DATABASE IF EXISTS db1;
-DROP FUNCTION IF EXISTS f1;
 connect con1, localhost, root;
 connect con2, localhost, root;
 # Test 1: Check that DROP DATABASE block if a function is used
