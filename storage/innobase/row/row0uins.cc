@@ -389,8 +389,6 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	ulint		dummy;
 	bool		dummy_extern;
 
-	ut_ad(node->state == UNDO_INSERT_PERSISTENT
-	      || node->state == UNDO_INSERT_TEMPORARY);
 	ut_ad(node->trx->in_rollback);
 	ut_ad(trx_undo_roll_ptr_is_insert(node->roll_ptr));
 
@@ -398,7 +396,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 				    &dummy_extern, &undo_no, &table_id);
 
 	node->update = NULL;
-	if (node->state == UNDO_INSERT_PERSISTENT) {
+	if (!node->is_temp) {
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
@@ -428,7 +426,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		      || dict_table_is_file_per_table(table)
 		      == !is_system_tablespace(table->space_id));
 		size_t len = mach_read_from_2(node->undo_rec)
-			+ size_t(node->undo_rec - ptr) - 2;
+			- page_offset(ptr) - 2;
 		const span<const char> name(reinterpret_cast<const char*>(ptr),
 					    len);
 		if (strlen(table->name.m_name) != len
