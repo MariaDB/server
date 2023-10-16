@@ -91,7 +91,19 @@ TABLE_STATISTICS_CB::TABLE_STATISTICS_CB():
 
 TABLE_STATISTICS_CB::~TABLE_STATISTICS_CB()
 {
+  Column_statistics *column_stats= table_stats->column_stats;
+  Column_statistics *column_stats_end= column_stats + table_stats->columns;
   DBUG_ASSERT(usage_count == 0);
+
+  /* Free json histograms */
+  for (; column_stats < column_stats_end ; column_stats++)
+  {
+    delete column_stats->histogram;
+    /*
+      Protect against possible other free in free_statistics_for_table()
+    */
+    column_stats->histogram= 0;
+  }
   free_root(&mem_root, MYF(0));
 }
 
@@ -2381,6 +2393,7 @@ alloc_engine_independent_statistics(THD *thd, const TABLE_SHARE *table_share,
   bzero(idx_avg_frequency, sizeof(idx_avg_frequency) * key_parts);
 
   stats_cb->table_stats= table_stats;
+  table_stats->columns= table_share->fields;
   table_stats->column_stats= column_stats;
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;

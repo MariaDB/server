@@ -432,9 +432,9 @@ class Index_statistics;
 
 class Table_statistics
 {
-
 public:
   my_bool cardinality_is_null;      /* TRUE if the cardinality is unknown */
+  uint  columns;                    /* Number of columns in table */
   ha_rows cardinality;              /* Number of rows in the table        */
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
