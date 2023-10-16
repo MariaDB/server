@@ -165,8 +165,6 @@ ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fail
 ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
@@ -730,7 +728,6 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 #
 # MDEV-17187 table doesn't exist in engine after ALTER other tables
 # with CONSTRAINTs
@@ -1034,8 +1031,6 @@ DROP TABLE IF EXISTS t2, t1;
 #
 # MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
 #
-SET @freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE collections (
 id int(11) unsigned NOT NULL AUTO_INCREMENT,
 collectionhash varchar(255) NOT NULL DEFAULT '0',
@@ -1061,7 +1056,6 @@ CHECK TABLE binaries, collections EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.binaries	check	status	OK
 test.collections	check	status	OK
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
 disconnect con1;
 DROP TABLE binaries, collections;
 # End of 10.6 tests

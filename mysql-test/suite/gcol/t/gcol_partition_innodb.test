@@ -30,8 +30,6 @@
 # Set the session storage engine
 --source include/have_innodb.inc
 eval SET @@session.default_storage_engine = 'InnoDB';
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 ##### Workarounds for known open engine specific bugs
 #     none
@@ -63,4 +61,3 @@ DROP TABLE t1;
 #------------------------------------------------------------------------------#
 # Cleanup
 --source suite/gcol/inc/gcol_cleanup.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

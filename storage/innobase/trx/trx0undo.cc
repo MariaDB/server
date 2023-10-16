@@ -1255,8 +1255,8 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	ut_ad(rseg == trx->rsegs.m_redo.rseg);
 
 	if (rseg->needs_purge <= trx->id) {
-		/* trx_purge_truncate_history() compares
-		rseg->needs_purge <= head.trx_no
+		/* trx_purge_truncate_history() checks
+		purge_sys.sees(rseg.needs_purge)
 		so we need to compensate for that.
 		The rseg->needs_purge after crash
 		recovery would be at least trx->id + 1,

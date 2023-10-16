@@ -138,9 +138,6 @@ ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 
@@ -737,7 +734,6 @@ disconnect con1;
 --source include/wait_all_purged.inc
 CHECK TABLE t1;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo #
 --echo # MDEV-17187 table doesn't exist in engine after ALTER other tables
@@ -1080,9 +1076,6 @@ DROP TABLE IF EXISTS t2, t1;
 --echo # MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
 --echo #
 
-SET @freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 CREATE TABLE collections (
   id int(11) unsigned NOT NULL AUTO_INCREMENT,
   collectionhash varchar(255) NOT NULL DEFAULT '0',
@@ -1111,7 +1104,6 @@ REPLACE INTO binaries (id) VALUES (NULL);
 
 SET GLOBAL innodb_max_purge_lag_wait=0;
 CHECK TABLE binaries, collections EXTENDED;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
 
 --disconnect con1
 

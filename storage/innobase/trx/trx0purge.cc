@@ -124,9 +124,15 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 #endif
 	}
 
-	/* Only the purge coordinator task will access this object
+	/* Only the purge_coordinator_task will access this object
 	purge_sys.rseg_iter, or any of purge_sys.hdr_page_no,
-	purge_sys.tail, purge_sys.head, or modify purge_sys.view. */
+	purge_sys.tail.
+	The field purge_sys.head and purge_sys.view are only modified by
+	purge_sys_t::clone_end_view()
+	in the purge_coordinator_task
+	while holding exclusive purge_sys.latch.
+	The purge_sys.head may be read by
+	purge_truncation_callback(). */
 	ut_ad(last_trx_no == m_rsegs.trx_no);
 	ut_a(purge_sys.hdr_page_no != FIL_NULL);
 	ut_a(purge_sys.tail.trx_no <= last_trx_no);
@@ -539,6 +545,24 @@ static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
 	mysql_mutex_unlock(&purge_sys.pq_mutex);
 }
 
+dberr_t purge_sys_t::iterator::free_history() const
+{
+  for (auto &rseg : trx_sys.rseg_array)
+    if (rseg.space)
+    {
+      ut_ad(rseg.is_persistent());
+      log_free_check();
+      rseg.latch.wr_lock(SRW_LOCK_CALL);
+      dberr_t err=
+        trx_purge_truncate_rseg_history(rseg, *this, !rseg.is_referenced() &&
+                                        purge_sys.sees(rseg.needs_purge));
+      rseg.latch.wr_unlock();
+      if (err)
+        return err;
+    }
+  return DB_SUCCESS;
+}
+
 #if defined __GNUC__ && __GNUC__ == 4 && !defined __clang__
 # if defined __arm__ || defined __aarch64__
 /* Work around an internal compiler error in GCC 4.8.5 */
@@ -547,7 +571,8 @@ __attribute__((optimize(0)))
 #endif
 /**
 Remove unnecessary history data from rollback segments. NOTE that when this
-function is called, the caller (purge_coordinator_callback)
+function is called, the caller
+(purge_coordinator_callback or purge_truncation_callback)
 must not have any latches on undo log pages!
 */
 TRANSACTIONAL_TARGET void trx_purge_truncate_history()
@@ -563,22 +588,7 @@ TRANSACTIONAL_TARGET void trx_purge_truncate_history()
     head.undo_no= 0;
   }
 
-  dberr_t err= DB_SUCCESS;
-  for (auto &rseg : trx_sys.rseg_array)
-    if (rseg.space)
-    {
-      ut_ad(rseg.is_persistent());
-      log_free_check();
-      rseg.latch.wr_lock(SRW_LOCK_CALL);
-      if (dberr_t e=
-          trx_purge_truncate_rseg_history(rseg, head,
-                                          !rseg.is_referenced() &&
-                                          purge_sys.sees(rseg.needs_purge)))
-        err= e;
-      rseg.latch.wr_unlock();
-    }
-
-  if (err != DB_SUCCESS || srv_undo_tablespaces_active < 2)
+  if (head.free_history() != DB_SUCCESS || srv_undo_tablespaces_active < 2)
     return;
 
   while (srv_undo_log_truncate)
@@ -782,6 +792,7 @@ not_free:
       if trx_t::commit_empty() had been executed in the past,
       possibly before this server had been started up. */
 
+      dberr_t err;
       buf_block_t *rblock= trx_rseg_header_create(&space,
                                                   &rseg - trx_sys.rseg_array,
                                                   trx_sys.get_max_trx_id(),
@@ -1101,9 +1112,8 @@ trx_purge_fetch_next_rec(
 
 /** Run a purge batch.
 @param n_purge_threads	number of purge threads
-@return number of undo log pages handled in the batch */
-static
-ulint
+@return new purge_sys.head and the number of undo log pages handled */
+static std::pair<purge_sys_t::iterator,ulint>
 trx_purge_attach_undo_recs(ulint n_purge_threads)
 {
 	que_thr_t*	thr;
@@ -1113,7 +1123,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 	ut_a(n_purge_threads > 0);
 	ut_a(UT_LIST_GET_LEN(purge_sys.query->thrs) >= n_purge_threads);
 
-	purge_sys.head = purge_sys.tail;
+        purge_sys_t::iterator head = purge_sys.tail;
 
 #ifdef UNIV_DEBUG
 	i = 0;
@@ -1142,7 +1152,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 	to a per purge node vector. */
 	thr = UT_LIST_GET_FIRST(purge_sys.query->thrs);
 
-	ut_ad(purge_sys.head <= purge_sys.tail);
+	ut_ad(head <= purge_sys.tail);
 
 	i = 0;
 
@@ -1155,8 +1165,8 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 		/* Track the max {trx_id, undo_no} for truncating the
 		UNDO logs once we have purged the records. */
 
-		if (purge_sys.head <= purge_sys.tail) {
-			purge_sys.head = purge_sys.tail;
+		if (head <= purge_sys.tail) {
+			head = purge_sys.tail;
 		}
 
 		/* Fetch the next record, and advance the purge_sys.tail. */
@@ -1195,9 +1205,9 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 		}
 	}
 
-	ut_ad(purge_sys.head <= purge_sys.tail);
+	ut_ad(head <= purge_sys.tail);
 
-	return(n_pages_handled);
+	return std::make_pair(head, n_pages_handled);
 }
 
 extern tpool::waitable_task purge_worker_task;
@@ -1221,7 +1231,8 @@ static void trx_purge_wait_for_workers_to_complete()
 }
 
 /** Update end_view at the end of a purge batch. */
-TRANSACTIONAL_INLINE void purge_sys_t::clone_end_view()
+TRANSACTIONAL_INLINE
+void purge_sys_t::clone_end_view(const purge_sys_t::iterator &head)
 {
   /* This is only invoked only by the purge coordinator,
   which is the only thread that can modify our inputs head, tail, view.
@@ -1234,6 +1245,7 @@ TRANSACTIONAL_INLINE void purge_sys_t::clone_end_view()
 #else
   transactional_lock_guard<srw_spin_lock_low> g(end_latch);
 #endif
+  this->head= head;
   end_view= view;
   end_view.clamp_low_limit_id(trx_no);
 #ifdef SUX_LOCK_GENERIC
@@ -1248,8 +1260,6 @@ Run a purge batch.
 @return number of undo log pages handled in the batch */
 TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 {
-	ulint		n_pages_handled;
-
 	ut_ad(n_tasks > 0);
 
 	purge_sys.clone_oldest_view();
@@ -1261,10 +1271,10 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 #endif /* UNIV_DEBUG */
 
 	/* Fetch the UNDO recs that need to be purged. */
-	n_pages_handled = trx_purge_attach_undo_recs(n_tasks);
+	const auto n = trx_purge_attach_undo_recs(n_tasks);
 
 	{
-		ulint delay = n_pages_handled ? srv_max_purge_lag : 0;
+		ulint delay = n.second ? srv_max_purge_lag : 0;
 		if (UNIV_UNLIKELY(delay)) {
 			if (delay >= history_size) {
 		no_throttle:
@@ -1297,10 +1307,10 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 
 	trx_purge_wait_for_workers_to_complete();
 
-	purge_sys.clone_end_view();
+	purge_sys.clone_end_view(n.first);
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);
-	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages_handled);
+	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n.second);
 
-	return(n_pages_handled);
+	return n.second;
 }

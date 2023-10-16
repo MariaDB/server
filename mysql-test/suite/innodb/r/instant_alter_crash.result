@@ -20,7 +20,6 @@ COMMIT;
 # Kill the server
 disconnect ddl;
 # restart
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
 id	c2
 0	2
@@ -46,8 +45,6 @@ COMMIT;
 # Kill the server
 disconnect ddl;
 # restart
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
 id	c2
 0	3
@@ -76,7 +73,6 @@ COMMIT;
 # Kill the server
 disconnect ddl;
 # restart
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 FOUND 3 /\[Note\] InnoDB: Rolled back recovered transaction / in mysqld.1.err
 SELECT * FROM t1;
 id	c2
