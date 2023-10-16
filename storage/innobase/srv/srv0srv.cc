@@ -1286,7 +1286,7 @@ static void purge_coordinator_callback(void*);
 static void purge_truncation_callback(void*)
 {
   purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-  const purge_sys_t::iterator head{purge_sys.head};
+  const purge_sys_t::iterator head= purge_sys.head;
   purge_sys.latch.rd_unlock();
   head.free_history();
 }
@@ -1304,12 +1304,31 @@ static tpool::waitable_task purge_truncation_task
 static tpool::timer *purge_coordinator_timer;
 
 /** Wake up the purge threads if there is work to do. */
-void srv_wake_purge_thread_if_not_active()
+void purge_sys_t::wake_if_not_active()
 {
-  if (purge_sys.enabled() && !purge_sys.paused() &&
-      (srv_undo_log_truncate || trx_sys.history_exists()) &&
-      ++purge_state.m_running == 1)
-    srv_thread_pool->submit_task(&purge_coordinator_task);
+  if (enabled() && !paused() && !purge_state.m_running)
+  {
+    if (srv_undo_log_truncate);
+    else if (!trx_sys.history_exists())
+      return;
+    else
+    {
+      purge_coordinator_timer->disarm();
+      latch.wr_lock(SRW_LOCK_CALL);
+      if (purge_state.m_running)
+      {
+        latch.wr_unlock();
+        return;
+      }
+      trx_sys.clone_oldest_view(&view);
+      const trx_id_t purged= head.trx_no, limit= view.low_limit_no();
+      latch.wr_unlock();
+      if (purged > limit)
+        return;
+    }
+    if (++purge_state.m_running == 1)
+      srv_thread_pool->submit_task(&purge_coordinator_task);
+  }
 }
 
 /** @return whether the purge tasks are active */
@@ -1389,8 +1408,8 @@ void purge_sys_t::resume()
    if (paused == 1)
    {
      ib::info() << "Resuming purge";
-     purge_state.m_running = 0;
-     srv_wake_purge_thread_if_not_active();
+     purge_state.m_running= 1;
+     srv_thread_pool->submit_task(&purge_coordinator_task);
      MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
    }
    latch.wr_unlock();
@@ -1535,8 +1554,7 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-  if (!purge_state.m_running)
-    srv_wake_purge_thread_if_not_active();
+  purge_sys.wake_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
   srv_sync_log_buffer_in_background();
   MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
@@ -1723,7 +1741,7 @@ fewer_threads:
     if (srv_dml_needed_delay);
     else if (m_running == sigcount)
     {
-      /* Purge was not woken up by srv_wake_purge_thread_if_not_active() */
+      /* Purge was not woken up by purge_sys_t::wake_if_not_active() */
 
       /* The magic number 5000 is an approximation for the case where we have
       cached undo log records which prevent truncate of rollback segments. */
@@ -1944,7 +1962,7 @@ void srv_purge_shutdown()
     {
       history_size= trx_sys.history_size();
       ut_a(!purge_sys.paused());
-      srv_wake_purge_thread_if_not_active();
+      srv_thread_pool->submit_task(&purge_coordinator_task);
       purge_coordinator_task.wait();
     }
     purge_sys.coordinator_shutdown();

@@ -570,10 +570,6 @@ Frees the data structures created in srv_init(). */
 void
 srv_free(void);
 
-/** Wake up the purge if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active();
-
 /******************************************************************//**
 Outputs to a file the output of the InnoDB Monitor.
 @return FALSE if not all information printed
