@@ -47,6 +47,7 @@ static const ulint TRX_SYS_SPACE = 0;
 static const ulint TRX_MAGIC_N = 91118598;
 
 constexpr uint innodb_purge_threads_MAX= 32;
+constexpr uint innodb_purge_batch_size_MAX= 5000;
 
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
