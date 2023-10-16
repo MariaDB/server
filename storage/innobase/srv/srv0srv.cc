@@ -1644,9 +1644,8 @@ inline void purge_coordinator_state::do_purge()
     goto first_loop;
   }
 
-  while (purge_sys.enabled() && !purge_sys.paused())
+  do
   {
-loop:
     if (UNIV_UNLIKELY(srv_purge_thread_count_changed))
     {
       /* Read the fresh value of srv_n_purge_threads, reset
@@ -1701,10 +1700,8 @@ first_loop:
       srv_dml_needed_delay= 0;
       break;
     }
-
-    if (!srv_purge_should_exit(history_size))
-      goto loop;
   }
+  while (!srv_purge_should_exit(history_size));
 
   if (wakeup)
     purge_coordinator_timer->set_time(10, 0);
