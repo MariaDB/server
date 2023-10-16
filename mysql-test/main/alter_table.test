@@ -2397,6 +2397,14 @@ show create table t1;
 show create table t2;
 drop table t1,t2;
 
+--echo # Another test for MDEV-32449
+
+CREATE TABLE t1 (a POINT, b POINT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t (b);
+CREATE TEMPORARY TABLE t2 LIKE t1;
+DROP TEMPORARY TABLE t2;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.6 tests
 --echo #
