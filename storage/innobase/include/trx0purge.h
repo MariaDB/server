@@ -134,7 +134,11 @@ private:
   that are older than view will be removed. */
   ReadViewBase view;
   /** whether purge is enabled; protected by latch and std::atomic */
-  std::atomic<bool> m_enabled;
+  std::atomic<bool> m_enabled{false};
+public:
+  /** whether purge is active (may hold table handles) */
+  std::atomic<bool> m_active{false};
+private:
   /** number of pending stop() calls without resume() */
   Atomic_counter<uint32_t> m_paused;
   /** number of stop_SYS() calls without resume_SYS() */
@@ -252,33 +256,30 @@ public:
   }
 
   /** @return whether the purge tasks are active */
-  bool running() const;
+  static bool running();
+
   /** Stop purge during FLUSH TABLES FOR EXPORT. */
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
 
+  /** Close and reopen all tables in case of a MDL conflict with DDL */
+  dict_table_t *close_and_reopen(table_id_t id, THD *thd, MDL_ticket **mdl);
 private:
-  void wait_SYS();
-  void wait_FTS();
+  /** Suspend purge during a DDL operation on FULLTEXT INDEX tables */
+  void wait_FTS(bool also_sys);
 public:
   /** Suspend purge in data dictionary tables */
-  void stop_SYS();
+  void stop_SYS() { m_SYS_paused++; }
   /** Resume purge in data dictionary tables */
   static void resume_SYS(void *);
-  /** @return whether stop_SYS() is in effect */
-  bool must_wait_SYS() const { return m_SYS_paused; }
-  /** check stop_SYS() */
-  void check_stop_SYS() { if (must_wait_SYS()) wait_SYS(); }
 
   /** Pause purge during a DDL operation that could drop FTS_ tables. */
-  void stop_FTS() { m_FTS_paused++; }
+  void stop_FTS();
   /** Resume purge after stop_FTS(). */
   void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
   /** @return whether stop_SYS() is in effect */
   bool must_wait_FTS() const { return m_FTS_paused; }
-  /** check stop_SYS() */
-  void check_stop_FTS() { if (must_wait_FTS()) wait_FTS(); }
 
   /** Determine if the history of a transaction is purgeable.
   @param trx_id  transaction identifier
@@ -313,6 +314,8 @@ public:
   template<bool also_end_view= false>
   void clone_oldest_view()
   {
+    if (!also_end_view)
+      wait_FTS(true);
     latch.wr_lock(SRW_LOCK_CALL);
     trx_sys.clone_oldest_view(&view);
     if (also_end_view)

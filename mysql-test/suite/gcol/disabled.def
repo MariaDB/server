@@ -10,3 +10,4 @@
 #
 ##############################################################################
 gcol.innodb_virtual_fk: MDEV-29181 Constant failures "InnoDB: tried to purge non-delete-marked record in index"
+gcol_purge : MDEV-32050 FIXME: assertion failure unless innodb_purge_threads=1
