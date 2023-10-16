@@ -28,31 +28,8 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "trx0types.h"
 #include "row0types.h"
-#include "mtr0mtr.h"
-#include "rem0types.h"
 #include "page0types.h"
-#include "row0log.h"
 #include "que0types.h"
-
-/***********************************************************************//**
-Copies the undo record to the heap.
-@param undo_rec   record in an undo log page
-@param heap       memory heap
-@return copy of undo_rec
-@retval nullptr if the undo log record is corrupted */
-inline trx_undo_rec_t* trx_undo_rec_copy(const trx_undo_rec_t *undo_rec,
-                                         mem_heap_t *heap)
-{
-  const size_t offset= ut_align_offset(undo_rec, srv_page_size);
-  const size_t end= mach_read_from_2(undo_rec);
-  if (end <= offset || end >= srv_page_size - FIL_PAGE_DATA_END)
-    return nullptr;
-  const size_t len= end - offset;
-  trx_undo_rec_t *rec= static_cast<trx_undo_rec_t*>
-    (mem_heap_dup(heap, undo_rec, len));
-  mach_write_to_2(rec, len);
-  return rec;
-}
 
 /**********************************************************************//**
 Reads the undo log record number.
