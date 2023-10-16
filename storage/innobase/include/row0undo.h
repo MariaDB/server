@@ -86,7 +86,7 @@ struct undo_node_t{
 	roll_ptr_t	roll_ptr;/*!< roll pointer to undo log record */
 	trx_undo_rec_t*	undo_rec;/*!< undo log record */
 	undo_no_t	undo_no;/*!< undo number of the record */
-	ulint		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
+	byte		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
 				... */
 	trx_id_t	new_trx_id; /*!< trx id to restore to clustered index
 				record */

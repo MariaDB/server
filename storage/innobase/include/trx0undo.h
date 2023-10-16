@@ -310,14 +310,14 @@ class UndorecApplier
   page_id_t page_id;
   /** Undo log record pointer */
   const trx_undo_rec_t *undo_rec;
+  /** Undo log record type */
+  byte type;
+  /** compiler information */
+  byte cmpl_info;
   /** Offset of the undo log record within the block */
   uint16_t offset;
   /** Transaction id of the undo log */
   const trx_id_t trx_id;
-  /** Undo log record type */
-  ulint type;
-  /** compiler information */
-  ulint cmpl_info;
   /** Update vector */
   upd_t *update;
   /** memory heap which can be used to build previous version of

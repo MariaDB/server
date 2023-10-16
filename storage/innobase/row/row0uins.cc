@@ -386,7 +386,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	const byte*	ptr;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
-	ulint		dummy;
+	byte		dummy;
 	bool		dummy_extern;
 
 	ut_ad(node->trx->in_rollback);
