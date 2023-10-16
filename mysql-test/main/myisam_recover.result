@@ -126,7 +126,7 @@ test.t1	check	error	Record-count is not ok; is 2   Should be: 1
 test.t1	check	warning	Found 2 key parts. Should be: 1
 test.t1	check	error	Corrupt
 # At this point we have a corrupt t1
-set autocommit = 0;
+start transaction;
 select * from t2;
 a
 1
@@ -145,7 +145,6 @@ ALTER TABLE t2 ADD val INT;
 connection default;
 # With fix we should have alter table waiting for t2 lock here.
 ROLLBACK;
-SET autocommit = 1;
 connection con2;
 connection default;
 disconnect con2;

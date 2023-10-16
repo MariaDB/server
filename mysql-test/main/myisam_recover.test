@@ -135,7 +135,7 @@ flush table t1;
 check table t1;
 
 --echo # At this point we have a corrupt t1
-set autocommit = 0;
+start transaction;
 select * from t2;
 --echo # Without fix select from t1 will break the transaction. After the fix
 --echo # transaction should be active and should hold lock on table t2. Alter
@@ -153,7 +153,6 @@ let $wait_condition=
   LIKE "Waiting%" AND info = "ALTER TABLE t2 ADD val INT";
 --source include/wait_condition.inc
 ROLLBACK;
-SET autocommit = 1;
 
 connection con2;
 --reap

@@ -463,8 +463,8 @@ drop function f1;
 create function f1() returns varchar(20) return "f1()";
 create function f2() returns varchar(20) return "f2()";
 create view v1 as select f1() as a;
-set @@session.autocommit=0;
 lock table v1 read;
+start transaction;
 select * from v1;
 a
 f1()
@@ -486,6 +486,7 @@ connection con2;
 # Reaping 'drop function f2'...
 connection default;
 unlock tables;
+commit;
 connection con1;
 # Reaping 'drop function f1'...
 connection default;
@@ -494,7 +495,6 @@ ERROR 42000: FUNCTION test.f1 does not exist
 drop function f2;
 ERROR 42000: FUNCTION test.f2 does not exist
 drop view v1;
-set @@session.autocommit=default;
 # 
 # 8) Check the situation when we're preparing or executing a
 # prepared statement, and as part of that try to flush the

@@ -537,8 +537,8 @@ drop function f1;
 create function f1() returns varchar(20) return "f1()";
 create function f2() returns varchar(20) return "f2()";
 create view v1 as select f1() as a;
-set @@session.autocommit=0;
 lock table v1 read;
+start transaction;
 select * from v1;
 savepoint sv;
 select f2();
@@ -565,6 +565,7 @@ connection con2;
 reap;
 connection default;
 unlock tables;
+commit;
 connection con1;
 --echo # Reaping 'drop function f1'...
 reap;
@@ -574,7 +575,6 @@ drop function f1;
 --error ER_SP_DOES_NOT_EXIST
 drop function f2;
 drop view v1;
-set @@session.autocommit=default;
 
 --echo # 
 --echo # 8) Check the situation when we're preparing or executing a
