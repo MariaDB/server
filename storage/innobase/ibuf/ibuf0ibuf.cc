@@ -1089,7 +1089,6 @@ ibuf_rec_get_info_func(
 	case 1:
 		op_local = IBUF_OP_INSERT;
 		comp_local = info_len_local;
-		ut_ad(!counter);
 		counter_local = ULINT_UNDEFINED;
 		break;
 
@@ -2259,8 +2258,9 @@ static void ibuf_delete_recs(const page_id_t page_id)
 {
   if (!ibuf.index || srv_read_only_mode)
     return;
-  dfield_t dfield[IBUF_REC_FIELD_METADATA];
-  dtuple_t tuple {0,IBUF_REC_FIELD_METADATA,IBUF_REC_FIELD_METADATA,
+
+  dfield_t dfield[IBUF_REC_FIELD_USER];
+  dtuple_t tuple {0,IBUF_REC_FIELD_USER,IBUF_REC_FIELD_USER,
                   dfield,0,nullptr
 #ifdef UNIV_DEBUG
                   ,DATA_TUPLE_MAGIC_N
@@ -2274,9 +2274,11 @@ static void ibuf_delete_recs(const page_id_t page_id)
   dfield_set_data(&dfield[0], space_id, 4);
   dfield_set_data(&dfield[1], field_ref_zero, 1);
   dfield_set_data(&dfield[2], page_no, 4);
-  dtuple_set_types_binary(&tuple, IBUF_REC_FIELD_METADATA);
+  dfield_set_data(&dfield[3], field_ref_zero, 4);
+  dtuple_set_types_binary(&tuple, IBUF_REC_FIELD_USER);
 
   mtr_t mtr;
+  ulint counter= 0;
 loop:
   btr_pcur_t pcur;
   pcur.btr_cur.page_cur.index= ibuf.index;
@@ -2296,12 +2298,22 @@ loop:
     if (ibuf_rec_get_space(&mtr, ibuf_rec) != page_id.space()
         || ibuf_rec_get_page_no(&mtr, ibuf_rec) != page_id.page_no())
       break;
+    ibuf_rec_get_info(
+	&mtr, ibuf_rec, nullptr, nullptr, nullptr, &counter);
     /* Delete the record from ibuf */
     if (ibuf_delete_rec(page_id, &pcur, &tuple, &mtr))
     {
       /* Deletion was pessimistic and mtr was committed:
       we start from the beginning again */
       ut_ad(mtr.has_committed());
+      if (counter != ULINT_UNDEFINED)
+      {
+        dfield_t* field= dtuple_get_nth_field(
+		&tuple, IBUF_REC_FIELD_METADATA);
+        mach_write_to_4(
+          (byte*) dfield_get_data(field) + IBUF_REC_OFFSET_COUNTER,
+          counter);
+      }
       goto loop;
     }
 
@@ -2309,6 +2321,14 @@ loop:
     {
       ibuf_mtr_commit(&mtr);
       btr_pcur_close(&pcur);
+      if (counter != ULINT_UNDEFINED)
+      {
+        dfield_t *field= dtuple_get_nth_field(
+		&tuple, IBUF_REC_FIELD_METADATA);
+        mach_write_to_4(
+	  (byte*) dfield_get_data(field) + IBUF_REC_OFFSET_COUNTER,
+	  counter + 1);
+      }
       goto loop;
     }
   }
