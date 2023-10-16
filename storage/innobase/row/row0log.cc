@@ -3825,6 +3825,12 @@ dberr_t dict_table_t::clear(que_thr_t *thr)
   return err;
 }
 
+inline bool UndorecApplier::is_same(roll_ptr_t roll_ptr) const
+{
+  return uint16_t(roll_ptr) == offset &&
+    uint32_t(roll_ptr >> 16) == page_id.page_no();
+}
+
 const rec_t *
 UndorecApplier::get_old_rec(const dtuple_t &tuple, dict_index_t *index,
                             const rec_t **clust_rec, rec_offs **offsets)
@@ -3950,8 +3956,7 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
       /* Update the row with virtual column values present
       in the undo log or update vector */
       if (type == TRX_UNDO_UPD_DEL_REC)
-        row_upd_replace_vcol(row, table, update, false,
-                             nullptr,
+        row_upd_replace_vcol(row, table, update, false, nullptr,
                              (cmpl_info & UPD_NODE_NO_ORD_CHANGE)
                              ? nullptr : undo_rec);
       else
@@ -4073,7 +4078,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
   if (table->n_v_cols)
     row_upd_replace_vcol(row, table, update, false, nullptr,
                          (cmpl_info & UPD_NODE_NO_ORD_CHANGE)
-                         ? nullptr : this->undo_rec);
+                         ? nullptr : undo_rec);
 
   bool success= true;
   dict_index_t *index= dict_table_get_next_index(clust_index);

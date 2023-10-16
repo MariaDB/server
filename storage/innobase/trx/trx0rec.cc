@@ -2335,7 +2335,7 @@ trx_undo_prev_version_build(
 	update vector to dtuple vrow */
 	if (v_status & TRX_UNDO_GET_OLD_V_VALUE) {
 		row_upd_replace_vcol((dtuple_t*)*vrow, index->table, update,
-				     false, NULL, NULL);
+				     false, nullptr, nullptr);
 	}
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG

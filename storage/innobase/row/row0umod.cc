@@ -1192,7 +1192,7 @@ close_table:
 		row_upd_replace_vcol(node->row, node->table,
 				     node->update, false, node->undo_row,
 				     (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
-					? NULL : ptr);
+				     ? nullptr : ptr);
 	}
 
 	return true;
