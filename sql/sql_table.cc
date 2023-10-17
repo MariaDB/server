@@ -81,11 +81,9 @@ static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
                                         List<Virtual_column_info> *, uint *);
 static const char *make_unique_invisible_field_name(THD *, const char *,
                                                     List<Create_field> *);
-static int copy_data_between_tables(THD *, TABLE *,TABLE *,
-                                    List<Create_field> &, bool, uint, ORDER *,
-                                    ha_rows *, ha_rows *,
-                                    Alter_info::enum_enable_or_disable,
-                                    Alter_table_ctx *);
+static int copy_data_between_tables(THD *, TABLE *,TABLE *, bool, uint,
+                                    ORDER *, ha_rows *, ha_rows *,
+                                    Alter_info *, Alter_table_ctx *);
 static int append_system_key_parts(THD *, HA_CREATE_INFO *, Key *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
@@ -2974,8 +2972,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   bool primary_key=0,unique_key=0;
   Key *key, *key2;
   uint tmp, key_number;
-  /* special marker for keys to be ignored */
-  static char ignore_key[1];
 
   /* Calculate number of key segements */
   *key_count= 0;
@@ -3023,17 +3019,17 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           both, is 'generated', and a generated key is a prefix of the other
           key. Then we do not need the generated shorter key.
         */
-        if (key2->type != Key::FOREIGN_KEY && key2->name.str != ignore_key &&
+        if (key2->type != Key::FOREIGN_KEY && key2->type != Key::IGNORE_KEY &&
             is_foreign_key_prefix(key, key2))
         {
           /* mark that the generated key should be ignored */
           if (!key2->generated ||
               (key->generated && key->columns.elements <
                key2->columns.elements))
-            key->name.str= ignore_key;
+            key->type= Key::IGNORE_KEY;
           else
           {
-            key2->name.str= ignore_key;
+            key2->type= Key::IGNORE_KEY;
             key_parts-= key2->columns.elements;
             (*key_count)--;
           }
@@ -3041,7 +3037,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         }
       }
     }
-    if (key->name.str != ignore_key)
+    if (key->type != Key::IGNORE_KEY)
       key_parts+=key->columns.elements;
     else
       (*key_count)--;
@@ -3071,7 +3067,14 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   key_iterator.rewind();
   while ((key=key_iterator++))
   {
-    if (key->name.str == ignore_key || key->type == Key::FOREIGN_KEY)
+    if (key->type == Key::IGNORE_KEY)
+    {
+      /* The key was replaced by another key */
+      if (alter_info->add_stat_drop_index(thd, &key->name))
+        DBUG_RETURN(true);
+      continue;
+    }
+    if (key->type == Key::FOREIGN_KEY)
       continue;
     /* Create the key name based on the first column (if not given) */
     if (key->type == Key::PRIMARY)
@@ -3133,12 +3136,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     Key_part_spec *column;
 
     is_hash_field_needed= false;
-    if (key->name.str == ignore_key)
+    if (key->type == Key::IGNORE_KEY)
     {
       /* ignore redundant keys */
       do
 	key=key_iterator++;
-      while (key && key->name.str == ignore_key);
+      while (key && key->type == Key::IGNORE_KEY);
       if (!key)
 	break;
     }
@@ -3166,6 +3169,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     case Key::FOREIGN_KEY:
       key_number--;				// Skip this key
       continue;
+    case Key::IGNORE_KEY:
+      DBUG_ASSERT(0);
+      break;
     default:
       key_info->flags = HA_NOSAME;
       break;
@@ -3368,6 +3374,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
             sql_field->check_vcol_for_key(thd) ||
             key_add_part_check_null(file, key_info, sql_field, column))
           DBUG_RETURN(TRUE);
+        break;
+      case Key::IGNORE_KEY:
         break;
       }
 
@@ -6651,7 +6659,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
 
           if (table->s->tmp_table == NO_TMP_TABLE)
           {
-            delete_statistics_for_column(thd, table, field);
+            if (alter_info->drop_stat_fields.push_back(field, thd->mem_root))
+              DBUG_RETURN(true);
+
             KEY *key_info= table->key_info;
             for (uint i= 0; i < table->s->keys; i++, key_info++)
             {
@@ -6663,9 +6673,10 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
               {
                 if (key_info->key_part[j].fieldnr - 1 == field->field_index)
                 {
-                  delete_statistics_for_index(
-                      thd, table, key_info,
-                      j >= key_info->user_defined_key_parts);
+                  if (alter_info->add_stat_drop_index(key_info,
+                                                      j >= key_info->user_defined_key_parts,
+                                                      thd->mem_root))
+                    DBUG_RETURN(true);
                   break;
                 }
               }
@@ -6722,13 +6733,17 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
           ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
       }
 
-      /* Check if field was renamed (case-sensitive for detecting case change) */
+      /*
+        Check if field was renamed (case-sensitive for detecting case change)
+      */
       if (cmp(&field->field_name, &new_field->field_name))
       {
         field->flags|= FIELD_IS_RENAMED;
         ha_alter_info->handler_flags|= ALTER_COLUMN_NAME;
-        rename_column_in_stat_tables(thd, table, field,
-                                     new_field->field_name.str);
+        if (alter_info->add_stat_rename_field(field,
+                                              &new_field->field_name,
+                                              thd->mem_root))
+          DBUG_RETURN(true);
       }
 
       /* Check that NULL behavior is same for old and new fields */
@@ -7806,6 +7821,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     in case of crash it should use the new one and log the query
     to the binary log.
   */
+  ha_alter_info->alter_info->apply_statistics_deletes_renames(thd, table);
+
   ddl_log_update_phase(ddl_log_state, DDL_ALTER_TABLE_PHASE_INPLACE_COPIED);
   debug_crash_here("ddl_log_alter_after_log");
 
@@ -7911,6 +7928,7 @@ static bool mysql_inplace_alter_table(THD *thd,
 err:
   DBUG_RETURN(true);
 }
+
 
 /**
   maximum possible length for certain blob types.
@@ -8166,7 +8184,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         create_info->used_fields|=HA_CREATE_USED_AUTO;
       }
       if (table->s->tmp_table == NO_TMP_TABLE)
-        (void) delete_statistics_for_column(thd, table, field);
+      {
+        if (alter_info->drop_stat_fields.push_back(field, thd->mem_root))
+          DBUG_RETURN(true);
+      }
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
       dropped_fields= &table->tmp_set;
@@ -8178,13 +8199,19 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       vers_system_invisible= true;
     }
-    /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
+    /*
+      invisible versioning column is dropped automatically on
+      DROP SYSTEM VERSIONING
+    */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
         alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
-        (void) delete_statistics_for_column(thd, table, field);
+      {
+        if (alter_info->drop_stat_fields.push_back(field, thd->mem_root))
+          DBUG_RETURN(true);
+      }
       continue;
     }
 
@@ -8547,19 +8574,24 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
-        (void) delete_statistics_for_index(thd, table, key_info, FALSE);
+        if (alter_info->add_stat_drop_index(key_info, FALSE, thd->mem_root))
+          DBUG_RETURN(true);
         if (primary_key)
 	{
           KEY *tab_key_info= table->key_info;
 	  for (uint j=0; j < table->s->keys; j++, tab_key_info++)
 	  {
-            if (tab_key_info->user_defined_key_parts !=
+            if (tab_key_info != key_info &&
+                tab_key_info->user_defined_key_parts !=
                 tab_key_info->ext_key_parts)
-	      (void) delete_statistics_for_index(thd, table, tab_key_info,
-                                                 TRUE);
-	  }
+            {
+              if (alter_info->add_stat_drop_index(tab_key_info, TRUE,
+                                                  thd->mem_root))
+                DBUG_RETURN(true);
+            }
+          }
 	}
-      }  
+      }
       drop_it.remove();
       continue;
     }
@@ -8596,8 +8628,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           goto err;
         }
 
-        key_name= rename_key->new_name.str;
+        key_name= rename_key->new_name.str;     // New name of current key_info
+        if (cmp(&rename_key->old_name, &rename_key->new_name))
+        {
+          /* Key was renamed */
+          alter_info->add_stat_rename_index(key_info, &rename_key->new_name,
+                                            thd->mem_root);
+        }
         rename_key_it.remove();
+
         /*
           If the user has explicitly renamed the key, we should no longer
           treat it as generated. Otherwise this key might be automatically
@@ -8708,10 +8747,17 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (table->s->tmp_table == NO_TMP_TABLE)
     {
       if (delete_index_stat) 
-        (void) delete_statistics_for_index(thd, table, key_info, FALSE);
+      {
+        if (alter_info->add_stat_drop_index(key_info, FALSE, thd->mem_root))
+          DBUG_RETURN(true);
+      }
       else if (alter_ctx->modified_primary_key &&
                key_info->user_defined_key_parts != key_info->ext_key_parts)
-        (void) delete_statistics_for_index(thd, table, key_info, TRUE);
+      {
+        if (alter_info->add_stat_drop_index(key_info, FALSE,
+                                               thd->mem_root))
+          DBUG_RETURN(true);
+      }
     }
 
     if (!user_keyparts && key_parts.elements)
@@ -10689,6 +10735,13 @@ do_continue:;
     alter_info->flags|= ALTER_INDEX_ORDER;
   create_info->alias= alter_ctx.table_name;
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
+
+  /*
+    This is to be able to call Alter_info::add_stat_drop_index(thd, key_name)
+    from mysql_prepare_create_table()
+  */
+  alter_info->original_table= table;
+
   /*
     Create the .frm file for the new table. Storage engine table will not be
     created at this stage.
@@ -10980,6 +11033,16 @@ do_continue:;
   thd->cuted_fields=0L;
 
   /*
+    Collect fields that was renamed.
+    We do not do that if fill_alter_inplace_info() has
+    already collected renamed fields.
+  */
+  if (alter_info->flags & (ALTER_CHANGE_COLUMN | ALTER_RENAME_COLUMN) &&
+      alter_info->rename_stat_fields.is_empty())
+    if (alter_info->collect_renamed_fields(thd))
+      goto err_new_table_cleanup;
+
+  /*
     We do not copy data for MERGE tables. Only the children have data.
     MERGE tables have HA_NO_COPY_ON_ALTER set.
   */
@@ -11029,10 +11092,8 @@ do_continue:;
       new_table->mark_columns_needed_for_insert();
       thd->binlog_write_table_map(new_table, 1);
     }
-    if (copy_data_between_tables(thd, table, new_table,
-                                 alter_info->create_list, ignore,
-                                 order_num, order, &copied, &deleted,
-                                 alter_info->keys_onoff,
+    if (copy_data_between_tables(thd, table, new_table, ignore, order_num,
+                                 order, &copied, &deleted, alter_info,
                                  &alter_ctx))
       goto err_new_table_cleanup;
   }
@@ -11186,6 +11247,9 @@ do_continue:;
 
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
     goto err_new_table_cleanup;
+
+  /* Now we are the only user. Update the data in EITS tables */
+  alter_info->apply_statistics_deletes_renames(thd, table);
 
   close_all_tables_for_name(thd, table->s,
                             alter_ctx.is_table_renamed() ?
@@ -11529,11 +11593,9 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
 
 
 static int
-copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
-			 List<Create_field> &create, bool ignore,
-			 uint order_num, ORDER *order,
-			 ha_rows *copied, ha_rows *deleted,
-                         Alter_info::enum_enable_or_disable keys_onoff,
+copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
+                         uint order_num, ORDER *order, ha_rows *copied,
+                         ha_rows *deleted, Alter_info *alter_info,
                          Alter_table_ctx *alter_ctx)
 {
   int error= 1;
@@ -11582,7 +11644,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   backup_set_alter_copy_lock(thd, from);
 
-  alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
+  alter_table_manage_keys(to, from->file->indexes_are_disabled(),
+                          alter_info->keys_onoff);
 
   from->default_column_bitmaps();
 
@@ -11591,12 +11654,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
-  to->file->ha_start_bulk_insert(from->file->stats.records,
-                                 ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-  bulk_insert_started= 1;
+  if (!to->s->long_unique_table)
+  {
+    to->file->ha_start_bulk_insert(from->file->stats.records,
+                                   ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+    bulk_insert_started= 1;
+  }
   mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);
-
-  List_iterator<Create_field> it(create);
+  List_iterator<Create_field> it(alter_info->create_list);
   Create_field *def;
   copy_end=copy;
   to->s->default_fields= 0;
@@ -11857,7 +11922,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }
-  if (unlikely(to->file->ha_end_bulk_insert()) && error <= 0)
+  if (bulk_insert_started && to->file->ha_end_bulk_insert() && error <= 0)
   {
     /* Give error, if not already given */
     if (!thd->is_error())
@@ -11899,7 +11964,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   {
     /* This happens if we get an error during initialization of data */
     DBUG_ASSERT(error);
-    to->file->ha_end_bulk_insert();
     ha_enable_transaction(thd, TRUE);
   }
 

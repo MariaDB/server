@@ -8,7 +8,7 @@
           Win64="no"
 />
 </Property>
-<?define pluginlist=auth_gssapi_client.dll;mysql_clear_password.dll;sha256_password.dll;caching_sha2_password.dll;pvio_npipe.dll;dialog.dll;pvio_shmem.dll?>
+<?define pluginlist=auth_gssapi_client.dll;auth_named_pipe.dll;caching_sha2_password.dll;client_ed25519.dll;dialog.dll;mysql_clear_password.dll;pvio_npipe.dll;pvio_shmem.dll;sha256_password.dll?>
 <DirectoryRef Id="MariaDBShared">
   <Directory Id="D.HeidiSQL" Name="HeidiSQL">
    <Component Id="component.HeidiSQL" Guid="96ea3879-5320-4098-8f26-2f655d2f716c"  Win64="no">

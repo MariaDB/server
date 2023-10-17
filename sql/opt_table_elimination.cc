@@ -1593,7 +1593,8 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
       left->real_item()->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*)left->real_item())->field;
-    if (!field->can_optimize_outer_join_table_elimination(cond, right))
+    if (field->can_optimize_outer_join_table_elimination(cond, right) !=
+        Data_type_compatibility::OK)
       return;
     Dep_value_field *field_val;
     if ((field_val= ctx->get_field_value(field)))

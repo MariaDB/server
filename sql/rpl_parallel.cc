@@ -221,6 +221,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     waiting for this). In most cases (normal DML), it will be a no-op.
   */
   rgi->mark_start_commit_no_lock();
+  rgi->commit_orderer.wakeup_blocked= false;
 
   if (entry->last_committed_sub_id < sub_id)
   {
@@ -852,6 +853,10 @@ do_retry:
   event_count= 0;
   err= 0;
   errmsg= NULL;
+#ifdef WITH_WSREP
+  thd->wsrep_cs().reset_error();
+  WSREP_DEBUG("retrying async replication event");
+#endif /* WITH_WSREP */
 
   /*
     If we already started committing before getting the deadlock (or other
@@ -949,6 +954,7 @@ do_retry:
       err= rgi->worker_error= 1;
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
       mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+
       goto err;
     }
     mysql_mutex_unlock(&entry->LOCK_parallel_entry);
@@ -990,7 +996,17 @@ do_retry:
     possibility of an old deadlock kill lingering on beyond this point.
   */
   thd->reset_killed();
+#ifdef WITH_WSREP
+  if (wsrep_before_command(thd))
+  {
+    WSREP_WARN("Parallel slave worker failed at wsrep_before_command() hook");
+    err= 1;
+    goto err;
+  }
+  wsrep_start_trx_if_not_started(thd);
+  WSREP_DEBUG("parallel slave retry, after trx start");
 
+#endif /* WITH_WSREP */
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
   {
@@ -1472,7 +1488,22 @@ handle_rpl_parallel_thread(void *arg)
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
-          rgi->mark_start_commit();
+          if (thd->lex->stmt_accessed_temp_table())
+          {
+            /*
+              Temporary tables are special, they require strict
+              single-threaded use as they have no locks protecting concurrent
+              access. Therefore, we cannot safely use the optimization of
+              overlapping the commit of this transaction with the start of the
+              following.
+              So we skip the early mark_start_commit() and also block any
+              wakeup_subsequent_commits() until this event group is fully
+              done, inside finish_event_group().
+            */
+            rgi->commit_orderer.wakeup_blocked= true;
+          }
+          else
+            rgi->mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
         }
       }
@@ -2548,21 +2579,6 @@ rpl_parallel_thread * rpl_parallel_entry::choose_thread_internal(uint idx,
         /* The thread is ready to queue into. */
         break;
       }
-      else if (unlikely(rli->sql_driver_thd->check_killed(1)))
-      {
-        unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
-                            did_enter_cond, old_stage);
-        my_error(ER_CONNECTION_KILLED, MYF(0));
-#ifdef ENABLED_DEBUG_SYNC
-        DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
-          {
-            debug_sync_set_action(rli->sql_driver_thd,
-                      STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
-          };);
-#endif
-        slave_output_error_info(rgi, rli->sql_driver_thd);
-        return NULL;
-      }
       else
       {
         /*
@@ -2590,6 +2606,23 @@ rpl_parallel_thread * rpl_parallel_entry::choose_thread_internal(uint idx,
                                           old_stage);
           *did_enter_cond= true;
         }
+
+        if (unlikely(rli->sql_driver_thd->check_killed(1)))
+        {
+          unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
+                              did_enter_cond, old_stage);
+          my_error(ER_CONNECTION_KILLED, MYF(0));
+#ifdef ENABLED_DEBUG_SYNC
+          DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
+            {
+              debug_sync_set_action(rli->sql_driver_thd,
+                        STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
+            };);
+#endif
+          slave_output_error_info(rgi, rli->sql_driver_thd);
+          return NULL;
+        }
+
         mysql_cond_wait(&thr->COND_rpl_thread_queue, &thr->LOCK_rpl_thread);
       }
     }

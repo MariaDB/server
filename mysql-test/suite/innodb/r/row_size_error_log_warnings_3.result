@@ -51,14 +51,13 @@ set global innodb_compression_level=1;
 CREATE TABLE t1(
 f1 INT, f2 CHAR(200), f3 CHAR(200),
 f4 CHAR(200), f5 CHAR(200), f6 CHAR(200),
-f7 CHAR(200), f8 CHAR(200), f9 CHAR(200),
-f10 CHAR(200), PRIMARY KEY(f1, f2(20), f3(20), f4(20))
+f7 CHAR(200), f8 CHAR(200), f9 CHAR(106),
+PRIMARY KEY(f1, f2(20), f3(20), f4(20))
 ) ROW_FORMAT=COMPRESSED, ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, repeat('a', 200), repeat('b', 200),
 repeat('c', 200), repeat('d', 200),
 repeat('d', 200), repeat('e', 200),
-repeat('e', 200), repeat('f', 200),
-repeat('g', 200) FROM seq_1_to_20;
+repeat('f', 200), repeat('g', 106) FROM seq_1_to_20;
 DROP TABLE t1;
 set global innodb_compression_level=default;
 CREATE TABLE t1(f1 char(200), f2 char(200), f3 char(200),

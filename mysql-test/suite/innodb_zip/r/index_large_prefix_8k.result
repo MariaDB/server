@@ -109,7 +109,7 @@ ERROR 42000: Row size too large. The maximum row size for the used table type, n
 show warnings;
 Level	Code	Message
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 4030. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx4 on worklog5743_1(a2(434));
+create index idx4 on worklog5743_1(a2(290));
 show warnings;
 Level	Code	Message
 create index idx5 on worklog5743_1(a1, a2(430));
@@ -117,7 +117,7 @@ ERROR 42000: Row size too large. The maximum row size for the used table type, n
 show warnings;
 Level	Code	Message
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 4030. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx6 on worklog5743_1(a1, a2(428));
+create index idx6 on worklog5743_1(a1, a2(283));
 show warnings;
 Level	Code	Message
 create index idx2 on worklog5743_2(a2(4000));
@@ -131,7 +131,7 @@ ERROR 42000: Row size too large. The maximum row size for the used table type, n
 show warnings;
 Level	Code	Message
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 4030. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx4 on worklog5743_2(a2(946));
+create index idx4 on worklog5743_2(a2(802));
 show warnings;
 Level	Code	Message
 create index idx5 on worklog5743_2(a1, a2(942));
@@ -139,7 +139,7 @@ ERROR 42000: Row size too large. The maximum row size for the used table type, n
 show warnings;
 Level	Code	Message
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 4030. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx6 on worklog5743_2(a1, a2(940));
+create index idx6 on worklog5743_2(a1, a2(795));
 show warnings;
 Level	Code	Message
 create index idx3 on worklog5743_4(a2(1537));
@@ -362,7 +362,7 @@ worklog5743	CREATE TABLE `worklog5743` (
   `a` text NOT NULL,
   KEY `idx1` (`a`(1536)),
   KEY `idx2` (`a`(1536))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 drop table worklog5743;
 create table worklog5743(a TEXT not null) ROW_FORMAT=REDUNDANT;
 create index idx on worklog5743(a(768));

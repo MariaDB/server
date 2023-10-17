@@ -1037,35 +1037,38 @@ exit_func:
 static int do_stmt_prepare(struct st_connection *cn, const char *q, int q_len)
 {
   /* The cn->stmt is already set. */
+  DBUG_ENTER("do_stmt_prepare");
   if (!cn->has_thread)
-    return mysql_stmt_prepare(cn->stmt, q, q_len);
+    DBUG_RETURN(mysql_stmt_prepare(cn->stmt, q, q_len));
   cn->cur_query= q;
   cn->cur_query_len= q_len;
   signal_connection_thd(cn, EMB_PREPARE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_RETURN(cn->result);
 }
 
 
 static int do_stmt_execute(struct st_connection *cn)
 {
+  DBUG_ENTER("do_stmt_execute");
   /* The cn->stmt is already set. */
   if (!cn->has_thread)
-    return mysql_stmt_execute(cn->stmt);
+    DBUG_RETURN(mysql_stmt_execute(cn->stmt));
   signal_connection_thd(cn, EMB_EXECUTE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_RETURN(cn->result);
 }
 
 
 static int do_stmt_close(struct st_connection *cn)
 {
+  DBUG_ENTER("do_stmt_close");
   /* The cn->stmt is already set. */
   if (!cn->has_thread)
-    return mysql_stmt_close(cn->stmt);
+    DBUG_RETURN(mysql_stmt_close(cn->stmt));
   signal_connection_thd(cn, EMB_CLOSE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_RETURN(cn->result);
 }
 
 
@@ -7973,6 +7976,7 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
 
   if (!(count= mysql_warning_count(mysql)))
     DBUG_RETURN(0);
+  DBUG_PRINT("info", ("Warnings: %ud", count));
 
   /*
     If one day we will support execution of multi-statements
@@ -8428,6 +8432,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
                     char *query, size_t query_len, DYNAMIC_STRING *ds,
                     DYNAMIC_STRING *ds_warnings)
 {
+  my_bool ignore_second_execution= 0;
   MYSQL_RES *res= NULL;     /* Note that here 'res' is meta data result set */
   MYSQL *mysql= cn->mysql;
   MYSQL_STMT *stmt;
@@ -8435,6 +8440,9 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   DYNAMIC_STRING ds_execute_warnings;
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
+  DBUG_PRINT("info",
+             ("disable_warnings: %d  prepare_warnings_enabled: %d",
+              (int) disable_warnings, (int) prepare_warnings_enabled));
 
   if (!mysql)
   {
@@ -8505,12 +8513,18 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
                   mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
       goto end;
     }
+    /*
+      We cannot run query twice if we get prepare warnings as these will otherwise be
+      disabled
+    */
+    ignore_second_execution= (prepare_warnings_enabled &&
+                              mysql_warning_count(mysql) != 0);
   }
 
   /*
     Execute the query
   */
-  if (do_stmt_execute(cn))
+  if (!ignore_second_execution && do_stmt_execute(cn))
   {
     handle_error(command, mysql_stmt_errno(stmt),
                  mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
@@ -8585,7 +8599,10 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
           that warnings from both the prepare and execute phase are shown.
         */
         if (!disable_warnings && !prepare_warnings_enabled)
+        {
+          DBUG_PRINT("info", ("warnings disabled"));
           dynstr_set(&ds_prepare_warnings, NULL);
+        }
       }
       else
       {
@@ -8687,7 +8704,9 @@ end:
   error - function will not return
 */
 
-void run_prepare_stmt(struct st_connection *cn, struct st_command *command, const char *query, size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
+void run_prepare_stmt(struct st_connection *cn, struct st_command *command,
+                      const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                      DYNAMIC_STRING *ds_warnings)
 {
 
   MYSQL *mysql= cn->mysql;
@@ -8848,9 +8867,8 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
 */
 
 void run_execute_stmt(struct st_connection *cn, struct st_command *command,
-                    const char *query, size_t query_len, DYNAMIC_STRING *ds,
-                      DYNAMIC_STRING *ds_warnings
-                      )
+                      const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                      DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= NULL;     /* Note that here 'res' is meta data result set */
   MYSQL *mysql= cn->mysql;

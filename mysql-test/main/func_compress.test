@@ -1,4 +1,5 @@
 -- source include/have_compress.inc
+-- source include/have_normal_bzip.inc
 #
 # Test for compress and uncompress functions:
 #

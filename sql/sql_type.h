@@ -124,6 +124,40 @@ enum scalar_comparison_op
 };
 
 
+/*
+  This enum is intentionally defined as "class" to disallow its implicit
+  cast as "bool". This is needed to avoid pre-MDEV-32203 constructs like:
+    if (field->can_optimize_range(...))
+      do_optimization();
+  to merge automatically as such - that would change the meaning
+  to the opposite. The pre-MDEV-32203 code must to be changed to:
+    if (field->can_optimize_range(...) == Data_type_compatibility::OK)
+      do_optimization();
+*/
+enum class Data_type_compatibility
+{
+  OK,
+  INCOMPATIBLE_DATA_TYPE,
+  INCOMPATIBLE_COLLATION
+};
+
+
+static inline const LEX_CSTRING
+scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
+{
+  switch (op) {
+  case SCALAR_CMP_EQ:    return LEX_CSTRING{STRING_WITH_LEN("=")};
+  case SCALAR_CMP_EQUAL: return LEX_CSTRING{STRING_WITH_LEN("<=>")};
+  case SCALAR_CMP_LT:    return LEX_CSTRING{STRING_WITH_LEN("<")};
+  case SCALAR_CMP_LE:    return LEX_CSTRING{STRING_WITH_LEN("<=")};
+  case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">")};
+  case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
+  }
+  DBUG_ASSERT(0);
+  return LEX_CSTRING{STRING_WITH_LEN("<?>")};
+}
+
+
 class Hasher
 {
   ulong m_nr1;

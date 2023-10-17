@@ -25,7 +25,7 @@ Database monitor counter interfaces
 Created 12/9/2009 Jimmy Yang
 *******************************************************/
 
-#include "buf0buf.h"
+#include "buf0flu.h"
 #include "dict0mem.h"
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
