@@ -817,12 +817,8 @@ processed:
                              const std::string &name, uint32_t flags,
                              fil_space_crypt_t *crypt_data, uint32_t size)
   {
-    if (crypt_data && !crypt_data->is_key_found())
-    {
-      crypt_data->~fil_space_crypt_t();
-      ut_free(crypt_data);
+    if (crypt_data && !fil_crypt_check(crypt_data, name.c_str()))
       return nullptr;
-    }
     mysql_mutex_lock(&fil_system.mutex);
     fil_space_t *space= fil_space_t::create(it->first, flags,
                                             FIL_TYPE_TABLESPACE, crypt_data);

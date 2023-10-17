@@ -3070,7 +3070,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::IGNORE_KEY)
     {
       /* The key was replaced by another key */
-      if (alter_info->add_stat_drop_index(thd, &key->name))
+      if (!create_info->tmp_table() &&
+          alter_info->add_stat_drop_index(thd, &key->name))
         DBUG_RETURN(true);
       continue;
     }

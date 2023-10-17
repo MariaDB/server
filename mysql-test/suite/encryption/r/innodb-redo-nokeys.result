@@ -11,6 +11,7 @@ call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch");
 call mtr.add_suppression("InnoDB: Missing FILE_CHECKPOINT");
 call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption");
+call mtr.add_suppression("InnoDB: Encryption key is not found for");
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 SET GLOBAL innodb_file_per_table = ON;
 create table t1(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=20;
@@ -41,5 +42,6 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /\[ERROR\] InnoDB: Encryption key is not found for .*test.t1.ibd/ in mysqld.1.err
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 drop table t1,t2,t3,t4,t5;
