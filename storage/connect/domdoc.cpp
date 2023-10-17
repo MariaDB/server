@@ -642,7 +642,6 @@ bool DOMNODELIST::DropItem(PGLOBAL g, int n)
 	if (Listp == NULL || Listp->length < n)
 		return true;
 
-//Listp->item[n] = NULL;  La propriété n'a pas de méthode 'set'
   return false;
 }  // end of DeleteItem
 

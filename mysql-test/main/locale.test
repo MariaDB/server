@@ -181,3 +181,17 @@ select date_format('2001-10-01', '%c %b %M', 'rm_CH');
 select date_format('2001-12-01', '%c %b %M', 'rm_CH');
 select date_format('2001-01-06', '%w %a %W', 'de_CH');
 select date_format('2001-09-01', '%c %b %M', 'de_CH');
+
+--echo #
+--echo #  MDEV-30630 locale: Chinese error message for ZH_CN
+--echo #
+
+SET lc_messages=ZH_CN;
+--error ER_BAD_FIELD_ERROR
+SELECT x;
+
+SET lc_messages=DEFAULT;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

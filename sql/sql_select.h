@@ -227,7 +227,7 @@ enum sj_strategy_enum
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
+Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
@@ -394,8 +394,9 @@ typedef struct st_join_table {
   */
   bool          idx_cond_fact_out;
   bool          use_join_cache;
+  /* TRUE <=> it is prohibited to join this table using join buffer */
+  bool          no_forced_join_cache;
   uint          used_join_cache_level;
-  ulong         join_buffer_size_limit;
   JOIN_CACHE	*cache;
   /*
     Index condition for BKA access join
@@ -520,6 +521,16 @@ typedef struct st_join_table {
 
   bool preread_init_done;
 
+  /* true <=> split optimization has been applied to this materialized table */
+  bool is_split_derived;
+
+  /*
+    Bitmap of split materialized derived tables that can be filled just before
+    this join table is to be joined. All parameters of the split derived tables
+    belong to tables preceding this join table.
+  */
+  table_map split_derived_to_update;
+
   /*
     Cost info to the range filter used when joining this join table
     (Defined when the best join order has been already chosen)
@@ -535,14 +546,19 @@ typedef struct st_join_table {
   void cleanup();
   inline bool is_using_loose_index_scan()
   {
-    const SQL_SELECT *sel= filesort ? filesort->select : select;
+    const SQL_SELECT *sel= get_sql_select();
     return (sel && sel->quick &&
             (sel->quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX));
   }
   bool is_using_agg_loose_index_scan ()
   {
+    const SQL_SELECT *sel= get_sql_select();
     return (is_using_loose_index_scan() &&
-            ((QUICK_GROUP_MIN_MAX_SELECT *)select->quick)->is_agg_distinct());
+            ((QUICK_GROUP_MIN_MAX_SELECT *)sel->quick)->is_agg_distinct());
+  }
+  const SQL_SELECT *get_sql_select()
+  {
+    return filesort ? filesort->select : select;
   }
   bool is_inner_table_of_semi_join_with_first_match()
   {
@@ -682,9 +698,11 @@ typedef struct st_join_table {
 
   void partial_cleanup();
   void add_keyuses_for_splitting();
-  SplM_plan_info *choose_best_splitting(double record_count,
-                                        table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+  SplM_plan_info *choose_best_splitting(uint idx,
+                                        table_map remaining_tables,
+                                        const POSITION *join_positions,
+                                        table_map *spl_pd_boundary);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map excluded_tables,
                      bool is_const_table);
 } JOIN_TAB;
 
@@ -949,8 +967,20 @@ public:
   */
   KEYUSE *key;
 
+  /* Cardinality of current partial join ending with this position */
+  double partial_join_cardinality;
+
   /* Info on splitting plan used at this position */
   SplM_plan_info *spl_plan;
+
+  /*
+    If spl_plan is NULL the value of spl_pd_boundary is 0. Otherwise
+    spl_pd_boundary contains the bitmap of the table from the current
+    partial join ending at this position that starts the sub-sequence of
+    tables S from which no conditions are allowed to be used in the plan
+    spl_plan for the split table joined at this position.
+  */
+  table_map spl_pd_boundary;
 
   /* Cost info for the range filter used at this position */
   Range_rowid_filter_cost_info *range_rowid_filter_info;
@@ -1742,7 +1772,8 @@ public:
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
-  void clear();
+  void clear(table_map *cleared_tables);
+  void inline clear_sum_funcs();
   bool send_row_on_empty_set()
   {
     return (do_send_rows && implicit_grouping && !group_optimized_away &&
@@ -2533,8 +2564,6 @@ class derived_handler;
 
 class Pushdown_derived: public Sql_alloc
 {
-private:
-  bool is_analyze;
 public:
   TABLE_LIST *derived;
   derived_handler *handler;

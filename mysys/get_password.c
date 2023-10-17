@@ -60,11 +60,11 @@
 /* were just going to fake it here and get input from
    the keyboard */
 
-char *get_tty_password(const char *opt_message)
+char *my_get_tty_password(const char *opt_message)
 {
   char to[80];
   char *pos=to,*end=to+sizeof(to)-1;
-  DBUG_ENTER("get_tty_password");
+  DBUG_ENTER("my_get_tty_password");
   _cputs(opt_message ? opt_message : "Enter password: ");
   for (;;)
   {
@@ -145,7 +145,7 @@ static void get_password(char *to,uint length,int fd, my_bool echo)
 #endif /* ! HAVE_GETPASS */
 
 
-char *get_tty_password(const char *opt_message)
+char *my_get_tty_password(const char *opt_message)
 {
 #ifdef HAVE_GETPASS
   char *passbuff;
@@ -154,7 +154,7 @@ char *get_tty_password(const char *opt_message)
 #endif /* HAVE_GETPASS */
   char buff[80];
 
-  DBUG_ENTER("get_tty_password");
+  DBUG_ENTER("my_get_tty_password");
 
 #ifdef HAVE_GETPASS
   passbuff = getpass(opt_message ? opt_message : "Enter password: ");

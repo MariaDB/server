@@ -43,8 +43,10 @@ set debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
 
 --echo # Prove that no COMMIT or ROLLBACK occurred yet.
 SELECT * FROM t1;
+--disable_ps2_protocol
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t1;
+--enable_ps2_protocol
 
 # TODO: MDEV-12700 Allow innodb_read_only startup without prior slow shutdown.
 --source include/kill_mysqld.inc
@@ -90,8 +92,10 @@ SELECT * FROM t1;
 
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT * FROM t1;
+--disable_ps2_protocol
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t1;
+--enable_ps2_protocol
 #
 # Cleanup
 #

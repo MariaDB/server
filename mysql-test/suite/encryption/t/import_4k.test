@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_example_key_management_plugin.inc
+--source include/have_debug.inc
+
+set @save_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+set global innodb_limit_optimistic_insert_debug=3;
+create table t1 (a INT PRIMARY KEY) engine=InnoDB ENCRYPTED=YES;
+insert into t1 select * from seq_1_to_6000;
+flush table t1 for export;
+--let $datadir= `select @@datadir`
+--copy_file $datadir/test/t1.ibd $datadir/t1.ibd
+--copy_file $datadir/test/t1.cfg $datadir/t1.cfg
+unlock tables;
+alter table t1 discard tablespace;
+--move_file $datadir/t1.ibd $datadir/test/t1.ibd
+--move_file $datadir/t1.cfg $datadir/test/t1.cfg
+alter table t1 import tablespace;
+set global innodb_limit_optimistic_insert_debug=@save_limit;
+drop table t1;

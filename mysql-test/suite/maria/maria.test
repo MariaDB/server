@@ -5,6 +5,7 @@
 
 -- source include/have_maria.inc
 -- source include/have_partition.inc
+-- source include/have_sequence.inc
 
 call mtr.add_suppression("Can't find record in '.*'");
 
@@ -2028,52 +2029,6 @@ DROP TABLE t1;
 --echo #
 --echo # End of 5.5 tests
 --echo #
-
---echo #
---echo # BUG#47444 - --myisam_repair_threads > 1 can result in all index
---echo #             cardinalities=1
---echo #
-SET aria_repair_threads=2;
-SET aria_sort_buffer_size=8192;
-CREATE TABLE t1(a CHAR(255), KEY(a), KEY(a), KEY(a));
-INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(0),(1),(2),(3);
---replace_regex /Current aria_sort_buffer_size.*/X/
-REPAIR TABLE t1;
-SELECT CARDINALITY FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
-CHECK TABLE t1;
-DROP TABLE t1;
-SET aria_sort_buffer_size=@@global.aria_sort_buffer_size;
-SET aria_repair_threads=@@global.aria_repair_threads;
-
---echo #
---echo # BUG#47073 - valgrind errs, corruption,failed repair of partition,
---echo #             low myisam_sort_buffer_size
---echo #
-CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
-INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
-                     (6,'0'),(7,'0');
-INSERT INTO t1 SELECT a+10,b FROM t1;
-INSERT INTO t1 SELECT a+20,b FROM t1;
-INSERT INTO t1 SELECT a+40,b FROM t1;
-INSERT INTO t1 SELECT a+80,b FROM t1;
-INSERT INTO t1 SELECT a+160,b FROM t1;
-INSERT INTO t1 SELECT a+320,b FROM t1;
-INSERT INTO t1 SELECT a+640,b FROM t1;
-INSERT INTO t1 SELECT a+1280,b FROM t1;
-INSERT INTO t1 SELECT a+2560,b FROM t1;
-INSERT INTO t1 SELECT a+5120,b FROM t1;
-SET aria_sort_buffer_size=4096;
---replace_regex /Current aria_sort_buffer_size.*/X/
-REPAIR TABLE t1;
-CHECK TABLE t1;
-SET aria_repair_threads=2;
-# May report different values depending on threads activity.
---replace_regex /Current aria_sort_buffer_size.*/X/
-REPAIR TABLE t1;
-CHECK TABLE t1;
-SET aria_repair_threads=@@global.aria_repair_threads;
-SET aria_sort_buffer_size=@@global.aria_sort_buffer_size;
-DROP TABLE t1;
 
 #
 # Check FLUSH FOR EXPORT

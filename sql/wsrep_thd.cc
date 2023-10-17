@@ -307,50 +307,9 @@ void wsrep_fire_rollbacker(THD *thd)
   }
 }
 
-
-int wsrep_abort_thd(THD *bf_thd,
-                    THD *victim_thd,
-                    my_bool signal)
+static bool wsrep_bf_abort_low(THD *bf_thd, THD *victim_thd)
 {
-  DBUG_ENTER("wsrep_abort_thd");
-
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
-
-  /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
-  might not be true.
-  */
-  if ((WSREP(bf_thd) ||
-       ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
-	 wsrep_thd_is_toi(bf_thd))) &&
-       !wsrep_thd_is_aborting(victim_thd))
-  {
-      WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu",
-                  (long long)bf_thd->real_id, (long long)victim_thd->real_id);
-      ha_abort_transaction(bf_thd, victim_thd, signal);
-  }
-  else
-  {
-    WSREP_DEBUG("wsrep_abort_thd not effective: bf %llu victim %llu "
-                "wsrep %d wsrep_on %d RSU %d TOI %d aborting %d",
-                (long long)bf_thd->real_id, (long long)victim_thd->real_id,
-                WSREP_NNULL(bf_thd), WSREP_ON,
-                bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU,
-                wsrep_thd_is_toi(bf_thd),
-                wsrep_thd_is_aborting(victim_thd));
-    wsrep_thd_UNLOCK(victim_thd);
-  }
-
-  DBUG_RETURN(1);
-}
-
-bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
-{
-  WSREP_LOG_THD(bf_thd, "BF aborter before");
-  WSREP_LOG_THD(victim_thd, "victim before");
-
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
 
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_bf_abort",
@@ -363,6 +322,88 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
                                                        STRING_WITH_LEN(act)));
                   };);
 #endif
+
+  wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
+  bool ret;
+
+  {
+    /* Adopt the lock, it is being held by the caller. */
+    Wsrep_mutex wsm{&victim_thd->LOCK_thd_data};
+    wsrep::unique_lock<wsrep::mutex> lock{wsm, std::adopt_lock};
+
+    if (wsrep_thd_is_toi(bf_thd))
+    {
+      ret= victim_thd->wsrep_cs().total_order_bf_abort(lock, bf_seqno);
+    }
+    else
+    {
+      DBUG_ASSERT(WSREP(victim_thd) ? victim_thd->wsrep_trx().active() : 1);
+      ret= victim_thd->wsrep_cs().bf_abort(lock, bf_seqno);
+    }
+    if (ret)
+    {
+      /* BF abort should be allowed only once by wsrep-lib.*/
+      DBUG_ASSERT(victim_thd->wsrep_aborter == 0);
+      victim_thd->wsrep_aborter= bf_thd->thread_id;
+      wsrep_bf_aborts_counter++;
+    }
+    lock.release(); /* No unlock at the end of the scope. */
+  }
+
+  /* Sanity check for wsrep-lib calls to return with LOCK_thd_data held. */
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+
+  return ret;
+}
+
+
+void wsrep_abort_thd(THD *bf_thd,
+                    THD *victim_thd,
+                    my_bool signal)
+{
+  DBUG_ENTER("wsrep_abort_thd");
+
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
+
+  /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
+  might not be true.
+  */
+  if ((WSREP(bf_thd)
+       || ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU)
+           &&  wsrep_thd_is_toi(bf_thd))
+       || bf_thd->lex->sql_command == SQLCOM_KILL)
+      && !wsrep_thd_is_aborting(victim_thd) &&
+      wsrep_bf_abort_low(bf_thd, victim_thd) &&
+      !victim_thd->wsrep_cs().is_rollbacker_active())
+  {
+    WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu",
+                (long long)bf_thd->real_id, (long long)victim_thd->real_id);
+    victim_thd->awake_no_mutex(KILL_QUERY_HARD);
+    ha_abort_transaction(bf_thd, victim_thd, signal);
+  }
+  else
+  {
+    WSREP_DEBUG("wsrep_abort_thd not effective: bf %llu victim %llu "
+                "wsrep %d wsrep_on %d RSU %d TOI %d aborting %d",
+                (long long)bf_thd->real_id, (long long)victim_thd->real_id,
+                WSREP_NNULL(bf_thd), WSREP_ON,
+                bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU,
+                wsrep_thd_is_toi(bf_thd),
+                wsrep_thd_is_aborting(victim_thd));
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
+  }
+
+  DBUG_VOID_RETURN;
+}
+
+bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
+{
+  WSREP_LOG_THD(bf_thd, "BF aborter before");
+  WSREP_LOG_THD(victim_thd, "victim before");
+
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
 
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
@@ -385,32 +426,81 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
     mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   }
 
-  bool ret;
-  wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
+  return wsrep_bf_abort_low(bf_thd, victim_thd);
+}
 
-  if (wsrep_thd_is_toi(bf_thd))
+uint wsrep_kill_thd(THD *thd, THD *victim_thd, killed_state kill_signal)
+{
+  DBUG_ENTER("wsrep_kill_thd");
+  DBUG_ASSERT(WSREP(victim_thd));
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+  using trans= wsrep::transaction;
+  auto trx_state= victim_thd->wsrep_trx().state();
+#ifndef DBUG_OFF
+  victim_thd->wsrep_killed_state= trx_state;
+#endif /* DBUG_OFF */
+  /*
+    Already killed or in commit codepath. Mark the victim as killed,
+    the killed status will be restored in wsrep_after_commit() and
+    will be processed after the commit is over. In case of multiple
+    KILLs happened on commit codepath, the last one will be effective.
+  */
+  if (victim_thd->wsrep_abort_by_kill ||
+      trx_state == trans::s_preparing ||
+      trx_state == trans::s_committing ||
+      trx_state == trans::s_ordered_commit)
   {
-    /* Here we enter wsrep-lib were LOCK_thd_data will be acquired,
-    thus we need to release it. However, we can still hold
-    LOCK_thd_kill to protect from disconnect or delete. */
+    victim_thd->wsrep_abort_by_kill= kill_signal;
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    ret= victim_thd->wsrep_cs().total_order_bf_abort(bf_seqno);
-    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
+    DBUG_RETURN(0);
   }
-  else
+  /*
+    Mark killed victim_thd with kill_signal so that awake_no_mutex does
+    not dive into storage engine. We use ha_abort_transaction()
+    to do the storage engine part for wsrep THDs.
+  */
+  DEBUG_SYNC(thd, "wsrep_kill_before_awake_no_mutex");
+  victim_thd->wsrep_abort_by_kill= kill_signal;
+  victim_thd->awake_no_mutex(kill_signal);
+  /* ha_abort_transaction() releases tmp->LOCK_thd_kill, so tmp
+     is not safe to access anymore. */
+  ha_abort_transaction(thd, victim_thd, 1);
+  DBUG_RETURN(0);
+}
+
+void wsrep_backup_kill_for_commit(THD *thd)
+{
+  DBUG_ASSERT(WSREP(thd));
+  mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
+  DBUG_ASSERT(thd->killed != NOT_KILLED);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  /* If the transaction will roll back, keep the killed state.
+     For must replay, the replay will happen in different THD context
+     which is high priority and cannot be killed. The owning thread will
+     pick the killed state in after statement processing. */
+  if (thd->wsrep_trx().state() != wsrep::transaction::s_cert_failed &&
+      thd->wsrep_trx().state() != wsrep::transaction::s_must_abort &&
+      thd->wsrep_trx().state() != wsrep::transaction::s_aborting &&
+      thd->wsrep_trx().state() != wsrep::transaction::s_must_replay)
   {
-    /* Test: mysql-wsrep-features#165. Here we enter wsrep-lib
-    were LOCK_thd_data will be acquired and later LOCK_thd_kill
-    thus we need to release them. */
-    wsrep_thd_UNLOCK(victim_thd);
-    ret= victim_thd->wsrep_cs().bf_abort(bf_seqno);
-    wsrep_thd_LOCK(victim_thd);
+    thd->wsrep_abort_by_kill= thd->killed;
+    thd->wsrep_abort_by_kill_err= thd->killed_err;
+    thd->killed= NOT_KILLED;
+    thd->killed_err= 0;
   }
-  if (ret)
-  {
-    wsrep_bf_aborts_counter++;
-  }
-  return ret;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+}
+
+void wsrep_restore_kill_after_commit(THD *thd)
+{
+  DBUG_ASSERT(WSREP(thd));
+  mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
+  thd->killed= thd->wsrep_abort_by_kill;
+  thd->killed_err= thd->wsrep_abort_by_kill_err;
+  thd->wsrep_abort_by_kill= NOT_KILLED;
+  thd->wsrep_abort_by_kill_err= 0;
 }
 
 int wsrep_create_threadvars()

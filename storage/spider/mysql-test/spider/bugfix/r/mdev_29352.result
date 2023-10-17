@@ -9,4 +9,5 @@ CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 SELECT * FROM t;
 c
+# restart
 DROP TABLE t;

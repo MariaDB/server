@@ -1077,7 +1077,7 @@ KEY `a_2` (`a`,`vbidxcol`),
 KEY `vbidxcol_2` (`vbidxcol`,`d`),
 CONSTRAINT `fk_16` FOREIGN KEY (`a`) REFERENCES `ibstd_16` (`a`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
-DROP TABLE ibstd_16_fk;
+ERROR HY000: Function or expression 'a' cannot be used in the GENERATED ALWAYS AS clause of `vadcol`
 CREATE TABLE `ibstd_16_fk` (
 `a` int(11) DEFAULT NULL,
 `d` int(11) DEFAULT NULL,

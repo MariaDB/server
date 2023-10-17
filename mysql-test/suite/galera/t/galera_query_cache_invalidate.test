@@ -1,0 +1,120 @@
+--source include/big_test.inc
+--source include/force_restart.inc
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+#
+# MDEV-28641 : Query cache entries not invalidated on slave of a Galera cluster
+#
+# We use two 2-node galera clusters as follows
+#
+#       A(1) <-> B(2)              {Galera cluster 1}
+#       |                          {Async replication}
+#       D(3) <-> E(4)              {Galera cluster 2}
+#
+# Normal asyncronous replication is used between nodes 1 and 3
+# so that node_1 is master and node_3 a slave.
+#
+# In this test we can't test is some query fast or slow but we can
+# test does all nodes see all rows (this is not true before fix)
+#
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+
+--connection node_2
+call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+--connection node_4
+call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+
+--connection node_3
+
+--replace_result $NODE_MYPORT_1 NODE_MYPORT_1
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_1, master_use_gtid=current_pos;
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--connection node_1
+
+CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
+--disable_query_log
+INSERT INTO t1 SELECT seq, md5(rand()) from seq_1_to_50000;
+COMMIT;
+--enable_query_log
+SET AUTOCOMMIT=1;
+INSERT INTO t1 VALUES (4000000, 'foobar');
+SELECT COUNT(*) FROM t1;
+--sync_slave_with_master node_3
+
+#
+# All nodes should see one row and first query is slow and second fast
+#
+--connection node_1
+--echo # node_1
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+--connection node_2
+--echo # node_2
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+--connection node_3
+--echo # node_3
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+--connection node_4
+--echo # node_4
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+#
+# Insert a new row in master, this should cause query cache
+# invalidation
+#
+--connection node_1
+--echo # node_1 insert new
+INSERT INTO t1 values (5000000, 'foobar');
+--sync_slave_with_master node_3
+
+#
+# All nodes should see 2 rows
+#
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+
+--connection node_2
+--echo # node_2
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+--connection node_3
+--echo # node_3
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+--connection node_4
+--echo # node_4
+SELECT * FROM t1 WHERE msg='foobar';
+SELECT * FROM t1 WHERE msg='foobar';
+
+--connection node_2
+--echo # node_3 different query same table
+SELECT id, msg FROM t1 WHERE msg='foobar';
+
+--connection node_4
+--echo # node_6 different query same table
+SELECT id, msg FROM t1 WHERE msg='foobar';
+
+#
+# Cleanup
+#
+--connection node_1
+drop table t1;
+--sync_slave_with_master node_3
+
+--connection node_3
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection node_1
+SET SESSION WSREP_ON=OFF;
+RESET MASTER;
+SET SESSION WSREP_ON=ON;
+
+--source include/galera_end.inc
+--echo # End of test

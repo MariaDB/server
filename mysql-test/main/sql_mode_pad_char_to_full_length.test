@@ -1,0 +1,19 @@
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-28190 sql_mode makes MDEV-371 virtual column expressions nondeterministic
+--echo #
+
+SET default_storage_engine=MyISAM;
+--source include/sql_mode_pad_char_to_full_length.inc
+
+SET default_storage_engine=MEMORY;
+--source include/sql_mode_pad_char_to_full_length.inc
+
+SET default_storage_engine=DEFAULT;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

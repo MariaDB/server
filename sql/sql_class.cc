@@ -68,8 +68,6 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
-#else
-static inline bool wsrep_is_bf_aborted(THD* thd) { return false; }
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
 #include <mysql/psi/mysql_transaction.h>
@@ -177,7 +175,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -213,11 +211,11 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
     We only compare field names
 
   RETURN
-    0	Generated key is a prefix of other key
-    1	Not equal
+    true        Generated key is a prefix of other key
+    false       Not a prefix
 */
 
-bool foreign_key_prefix(Key *a, Key *b)
+bool is_foreign_key_prefix(Key *a, Key *b)
 {
   /* Ensure that 'a' is the generated key */
   if (a->generated)
@@ -228,13 +226,13 @@ bool foreign_key_prefix(Key *a, Key *b)
   else
   {
     if (!b->generated)
-      return TRUE;                              // No foreign key
+      return false;                             // No foreign key
     swap_variables(Key*, a, b);                 // Put generated key in 'a'
   }
 
   /* Test if 'a' is a prefix of 'b' */
   if (a->columns.elements > b->columns.elements)
-    return TRUE;                                // Can't be prefix
+    return false;                                // Can't be prefix
 
   List_iterator<Key_part_spec> col_it1(a->columns);
   List_iterator<Key_part_spec> col_it2(b->columns);
@@ -254,17 +252,17 @@ bool foreign_key_prefix(Key *a, Key *b)
       }
     }
     if (!found)
-      return TRUE;                              // Error
+      return false;                             // Error
   }
-  return FALSE;                                 // Is prefix
+  return true;                                  // Is prefix
 #else
   while ((col1= col_it1++))
   {
     col2= col_it2++;
     if (!(*col1 == *col2))
-      return TRUE;
+      return false;
   }
-  return FALSE;                                 // Is prefix
+  return true;                                 // Is prefix
 #endif
 }
 
@@ -285,6 +283,8 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   List_iterator<Key_part_spec> cols(columns);
   List_iterator<Create_field> it(table_fields);
   DBUG_ENTER("Foreign_key::validate");
+  if (old)
+    DBUG_RETURN(FALSE); // must be good
   while ((column= cols++))
   {
     it.rewind();
@@ -1305,6 +1305,11 @@ void THD::init()
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_aborter           = 0;
+  wsrep_abort_by_kill     = NOT_KILLED;
+  wsrep_abort_by_kill_err = 0;
+#ifndef DBUG_OFF
+  wsrep_killed_state      = 0;
+#endif /* DBUG_OFF */
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
@@ -1656,6 +1661,13 @@ void THD::reset_for_reuse()
 #endif
 #ifdef WITH_WSREP
   wsrep_free_status(this);
+  wsrep_cs().reset_error();
+  wsrep_aborter= 0;
+  wsrep_abort_by_kill= NOT_KILLED;
+  wsrep_abort_by_kill_err= 0;
+#ifndef DBUG_OFF
+  wsrep_killed_state= 0;
+#endif /* DBUG_OFF */
 #endif /* WITH_WSREP */
 }
 
@@ -1911,7 +1923,9 @@ void THD::awake_no_mutex(killed_state state_to_set)
   }
 
   /* Interrupt target waiting inside a storage engine. */
-  if (state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this))
+  if (state_to_set != NOT_KILLED &&
+      IF_WSREP(!wsrep_is_bf_aborted(this) && wsrep_abort_by_kill == NOT_KILLED,
+               true))
     ha_kill_query(this, thd_kill_level(this));
 
   abort_current_cond_wait(false);
@@ -2153,6 +2167,17 @@ void THD::reset_killed()
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
+  if (WSREP_NNULL(this))
+  {
+    if (wsrep_abort_by_kill != NOT_KILLED)
+    {
+      mysql_mutex_assert_not_owner(&LOCK_thd_kill);
+      mysql_mutex_lock(&LOCK_thd_kill);
+      wsrep_abort_by_kill= NOT_KILLED;
+      wsrep_abort_by_kill_err= 0;
+      mysql_mutex_unlock(&LOCK_thd_kill);
+    }
+  }
   mysql_mutex_assert_not_owner(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_data);
   wsrep_aborter= 0;
@@ -5304,12 +5329,6 @@ thd_need_wait_reports(const MYSQL_THD thd)
   deadlock with the pre-determined commit order, we kill the later
   transaction, and later re-try it, to resolve the deadlock.
 
-  This call need only receive reports about waits for locks that will remain
-  until the holding transaction commits. InnoDB auto-increment locks,
-  for example, are released earlier, and so need not be reported. (Such false
-  positives are not harmful, but could lead to unnecessary kill and retry, so
-  best avoided).
-
   Returns 1 if the OTHER_THD will be killed to resolve deadlock, 0 if not. The
   actual kill will happen later, asynchronously from another thread. The
   caller does not need to take any actions on the return value if the
@@ -5437,6 +5456,49 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   */
   return 0;
 }
+
+
+/*
+  If the storage engine detects a deadlock, and needs to choose a victim
+  transaction to roll back, it can call this function to ask the upper
+  server layer for which of two possible transactions is prefered to be
+  aborted and rolled back.
+
+  In parallel replication, if two transactions are running in parallel and
+  one is fixed to commit before the other, then the one that commits later
+  will be prefered as the victim - chosing the early transaction as a victim
+  will not resolve the deadlock anyway, as the later transaction still needs
+  to wait for the earlier to commit.
+
+  The return value is -1 if the first transaction is prefered as a deadlock
+  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  which case the storage engine can make the choice as it prefers).
+*/
+extern "C" int
+thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
+{
+  rpl_group_info *rgi1, *rgi2;
+
+  if (!thd1 || !thd2)
+    return 0;
+
+  /*
+    If the transactions are participating in the same replication domain in
+    parallel replication, then request to select the one that will commit
+    later (in the fixed commit order from the master) as the deadlock victim.
+  */
+  rgi1= thd1->rgi_slave;
+  rgi2= thd2->rgi_slave;
+  if (rgi1 && rgi2 &&
+      rgi1->is_parallel_exec &&
+      rgi1->rli == rgi2->rli &&
+      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
+    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
+
+  /* No preferences, let the storage engine decide. */
+  return 0;
+}
+
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
@@ -5740,7 +5802,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     The following is added to the old values as we are interested in the
     total complexity of the query
   */
-  inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
 }
@@ -5818,6 +5879,8 @@ void THD::set_examined_row_count(ha_rows count)
 void THD::inc_sent_row_count(ha_rows count)
 {
   m_sent_row_count+= count;
+  DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
+                  m_examined_row_count= (ULONGLONG_MAX - 1000000););
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
@@ -7810,6 +7873,7 @@ wait_for_commit::reinit()
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
   commit_started= false;
+  wakeup_blocked= false;
 #ifdef SAFE_MUTEX
   /*
     When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
@@ -7947,15 +8011,22 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   with register_wait_for_prior_commit(). If the commit already completed,
   returns immediately.
 
+  If ALLOW_KILL is set to true (the default), the wait can be aborted by a
+  kill. In case of kill, the wait registration is still removed, so another
+  call of unregister_wait_for_prior_commit() is needed to later retry the
+  wait. If ALLOW_KILL is set to false, then kill will be ignored and this
+  function will not return until the prior commit (if any) has called
+  wakeup_subsequent_commits().
+
   If thd->backup_commit_lock is set, release it while waiting for other threads
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
-  bool backup_lock_released= 0;
+  bool backup_lock_released= false;
 
   /*
     Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to commit
@@ -7965,7 +8036,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   */
   if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
   {
-    backup_lock_released= 1;
+    backup_lock_released= true;
     thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
     thd->backup_commit_lock->ticket= 0;
   }
@@ -7976,7 +8047,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (!allow_kill || likely(!thd->check_killed(1))))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   if (!loc_waitee)
   {
@@ -8018,14 +8089,14 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     use within enter_cond/exit_cond.
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
@@ -8075,6 +8146,9 @@ void
 wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 {
   wait_for_commit *waiter;
+
+  if (unlikely(wakeup_blocked))
+    return;
 
   mysql_mutex_lock(&LOCK_wait_commit);
   wakeup_subsequent_commits_running= true;

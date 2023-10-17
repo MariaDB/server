@@ -976,6 +976,7 @@ SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
 #
 # MDEV-6940: SET STATEMENT executed after SET GLOBAL does not work
 #
+--disable_ps2_protocol
 --disable_view_protocol
 set @save_general_log=@@global.general_log;
 --echo # SET STATEMENT works (OK)
@@ -1038,6 +1039,7 @@ set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 --enable_view_protocol
+--enable_ps2_protocol
 #
 # log_slow_verbosity is impossible to check because results are not written
 # in TABLE mode
@@ -1189,4 +1191,16 @@ SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unk
 SET sql_mode=default;
 SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
 
+--echo #
+--echo # MDEV-17711 Assertion `arena_for_set_stmt== 0' failed in LEX::set_arena_for_set_stmt upon SET STATEMENT
+--echo #
+
+--delimiter $
+set rand_seed1=1, rand_seed2=2;
+set statement rand_seed1=4 for select 2, @@rand_seed1, @@rand_seed2;
+set statement rand_seed2=5 for select 3, @@rand_seed1, @@rand_seed2 $
+--delimiter ;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #

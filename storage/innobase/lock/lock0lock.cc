@@ -71,6 +71,9 @@ static void lock_grant_after_reset(lock_t* lock);
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+#ifdef HAVE_REPLICATION
+extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+#endif
 
 /** Pretty-print a table lock.
 @param[in,out]	file	output stream
@@ -988,6 +991,14 @@ lock_rec_has_expl(
 			    static_cast<lock_mode>(
 				    precise_mode & LOCK_MODE_MASK))
 		    && !lock_get_wait(lock)
+		    /* If we unfold the following expression, we will see it's
+		    true when:
+		      (heap_no is supremum)
+		      or
+		      (the found lock is LOCK_ORDINARY)
+		      or
+		      (the requested and the found lock modes are equal to each
+		       other and equal to LOCK_REC_GAP | LOCK_REC_NOT_GAP). */
 		    && (!lock_rec_get_rec_not_gap(lock)
 			|| (precise_mode & LOCK_REC_NOT_GAP)
 			|| heap_no == PAGE_HEAP_NO_SUPREMUM)
@@ -1469,6 +1480,20 @@ static bool has_higher_priority(lock_t *lock1, lock_t *lock2)
 	} else if (!lock_get_wait(lock2)) {
 		return false;
 	}
+
+#ifdef HAVE_REPLICATION
+	// Ask the upper server layer if any of the two trx should be prefered.
+	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd,
+							lock2->trx->mysql_thd);
+	if (preference == -1) {
+		// lock1 is preferred as a victim, so lock2 has higher priority
+		return false;
+	} else if (preference == 1) {
+		// lock2 is preferred as a victim, so lock1 has higher priority
+		return true;
+	}
+#endif
+
 	return lock1->trx->start_time_micro <= lock2->trx->start_time_micro;
 }
 
@@ -1848,6 +1873,46 @@ lock_rec_add_to_queue(
 		type_mode, block, heap_no, index, trx, caller_owns_trx_mutex);
 }
 
+/** A helper function for lock_rec_lock_slow(), which grants a Next Key Lock
+(either LOCK_X or LOCK_S as specified by `mode`) on <`block`,`heap_no`> in the
+`index` to the `trx`, assuming that it already has a granted `held_lock`, which
+is at least as strong as mode|LOCK_REC_NOT_GAP. It does so by either reusing the
+lock if it already covers the gap, or by ensuring a separate GAP Lock, which in
+combination with Record Lock satisfies the request.
+@param[in]      held_lock   a lock granted to `trx` which is at least as strong
+                            as mode|LOCK_REC_NOT_GAP
+@param[in]      mode        requested lock mode: LOCK_X or LOCK_S
+@param[in]      block       buffer block containing the record to be locked
+@param[in]      heap_no     heap number of the record to be locked
+@param[in]      index       index of record to be locked
+@param[in]      trx         the transaction requesting the Next Key Lock */
+static void lock_reuse_for_next_key_lock(const lock_t *held_lock, unsigned mode,
+                                         const buf_block_t *block,
+                                         ulint heap_no, dict_index_t *index,
+                                         trx_t *trx)
+{
+  ut_ad(lock_mutex_own());
+  ut_ad(trx_mutex_own(trx));
+  ut_ad(mode == LOCK_S || mode == LOCK_X);
+  ut_ad(lock_mode_is_next_key_lock(mode));
+
+  if (!held_lock->is_record_not_gap())
+  {
+    ut_ad(held_lock->is_next_key_lock());
+    return;
+  }
+
+  /* We have a Record Lock granted, so we only need a GAP Lock. We assume
+  that GAP Locks do not conflict with anything. Therefore a GAP Lock
+  could be granted to us right now if we've requested: */
+  mode|= LOCK_GAP;
+  ut_ad(nullptr == lock_rec_other_has_conflicting(mode, block, heap_no, trx));
+
+  /* It might be the case we already have one, so we first check that. */
+  if (lock_rec_has_expl(mode, block, heap_no, trx) == nullptr)
+    lock_rec_add_to_queue(LOCK_REC | mode, block, heap_no, index, trx, true);
+}
+
 /*********************************************************************//**
 Tries to lock the specified record in the mode requested. If not immediately
 possible, enqueues a waiting lock request. This is a low-level function
@@ -1900,8 +1965,17 @@ lock_rec_lock(
         lock->type_mode != (ulint(mode) | LOCK_REC) ||
         lock_rec_get_n_bits(lock) <= heap_no)
     {
+
+      ulint checked_mode= (heap_no != PAGE_HEAP_NO_SUPREMUM &&
+                          lock_mode_is_next_key_lock(mode))
+                             ? mode | LOCK_REC_NOT_GAP
+                             : mode;
+
+      const lock_t *held_lock=
+          lock_rec_has_expl(checked_mode, block, heap_no, trx);
+
       /* Do nothing if the trx already has a strong enough lock on rec */
-      if (!lock_rec_has_expl(mode, block, heap_no, trx))
+      if (!held_lock)
       {
         if (
 #ifdef WITH_WSREP
@@ -1927,6 +2001,16 @@ lock_rec_lock(
                                 true);
           err= DB_SUCCESS_LOCKED_REC;
         }
+      }
+      /* If checked_mode == mode, trx already has a strong enough lock on rec */
+      else if (checked_mode != mode)
+      {
+        /* As check_mode != mode, the mode is Next Key Lock, which can not be
+        emulated by implicit lock (which are LOCK_REC_NOT_GAP only). */
+        ut_ad(!impl);
+
+        lock_reuse_for_next_key_lock(held_lock, mode, block, heap_no, index,
+                                     trx);
       }
     }
     else if (!impl)
@@ -4037,6 +4121,39 @@ lock_grant_and_move_on_rec(
 	}
 }
 
+/** Rebuild waiting queue after first_lock for heap_no. The queue is rebuilt
+close to the way lock_rec_dequeue_from_page() does it.
+@param trx        transaction that has set a lock, which caused the queue
+                  rebuild
+@param first_lock the lock after which waiting queue will be rebuilt
+@param heap_no    heap no of the record for which waiting queue to rebuild */
+static void lock_rec_rebuild_waiting_queue(trx_t *trx, lock_t *first_lock,
+                                           ulint heap_no)
+{
+  ut_ad(lock_mutex_own());
+  ut_ad(trx_mutex_own(trx));
+  if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
+      thd_is_replication_slave_thread(trx->mysql_thd))
+  {
+    /* Check if we can now grant waiting lock requests */
+    for (lock_t *lock= first_lock; lock != NULL;
+         lock= lock_rec_get_next(heap_no, lock))
+    {
+      if (!lock_get_wait(lock))
+        continue;
+      const lock_t *c= lock_rec_has_to_wait_in_queue(lock);
+      if (!c)
+      {
+        /* Grant the lock */
+        ut_ad(trx != lock->trx);
+        lock_grant(lock);
+      }
+    }
+  }
+  else
+    lock_grant_and_move_on_rec(first_lock, heap_no);
+}
+
 /*************************************************************//**
 Removes a granted record lock of a transaction from the queue and grants
 locks to other transactions waiting in the queue if they now are entitled
@@ -4097,28 +4214,7 @@ lock_rec_unlock(
 released:
 	ut_a(!lock_get_wait(lock));
 	lock_rec_reset_nth_bit(lock, heap_no);
-
-	if (innodb_lock_schedule_algorithm
-		== INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
-		thd_is_replication_slave_thread(lock->trx->mysql_thd)) {
-
-		/* Check if we can now grant waiting lock requests */
-
-		for (lock = first_lock; lock != NULL;
-			 lock = lock_rec_get_next(heap_no, lock)) {
-			if (!lock_get_wait(lock)) {
-				continue;
-			}
-			const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
-			if (!c) {
-				/* Grant the lock */
-				ut_ad(trx != lock->trx);
-				lock_grant(lock);
-			}
-		}
-	} else {
-		lock_grant_and_move_on_rec(first_lock, heap_no);
-	}
+	lock_rec_rebuild_waiting_queue(trx, first_lock, heap_no);
 
 	lock_mutex_exit();
 	trx_mutex_exit(trx);
@@ -4250,10 +4346,28 @@ void lock_release(trx_t* trx)
 #endif
 }
 
+/** Reset lock bit for supremum and rebuild waiting queue.
+@param lock the lock with supemum bit set */
+static void lock_rec_unlock_supremum(lock_t *lock)
+{
+  ut_ad(lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
+  ut_ad(lock_mutex_own());
+  ut_ad(lock_get_type_low(lock) == LOCK_REC);
+  trx_mutex_enter(lock->trx);
+  lock_t *first_lock=
+      lock_rec_get_first(&lock_sys.rec_hash, lock->un_member.rec_lock.page_id,
+                         PAGE_HEAP_NO_SUPREMUM);
+  lock_rec_reset_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
+  lock_rec_rebuild_waiting_queue(lock->trx, first_lock, PAGE_HEAP_NO_SUPREMUM);
+  trx_mutex_exit(lock->trx);
+}
+
 /** Release non-exclusive locks on XA PREPARE,
 and release possible other transactions waiting because of these locks. */
 void lock_release_on_prepare(trx_t *trx)
 {
+  trx->set_skip_lock_inheritance();
+
   ulint count= 0;
   lock_mutex_enter();
   ut_ad(!trx_mutex_own(trx));
@@ -4265,8 +4379,10 @@ void lock_release_on_prepare(trx_t *trx)
     if (lock_get_type_low(lock) == LOCK_REC)
     {
       ut_ad(!lock->index->table->is_temporary());
-      if (lock_rec_get_gap(lock) || lock_get_mode(lock) != LOCK_X)
+      if ((lock->type_mode & (LOCK_MODE_MASK | LOCK_GAP)) != LOCK_X)
         lock_rec_dequeue_from_page(lock);
+      else if (lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM))
+        lock_rec_unlock_supremum(lock);
       else
       {
         ut_ad(trx->dict_operation ||
@@ -4313,7 +4429,6 @@ retain_lock:
 
   lock_mutex_exit();
 
-  trx->set_skip_lock_inheritance();
 }
 
 /* True if a lock mode is S or X */
@@ -5763,6 +5878,8 @@ lock_sec_rec_read_check_and_lock(
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 
+	DEBUG_SYNC_C("lock_sec_rec_read_check_and_lock_has_locked");
+
 	return(err);
 }
 
@@ -6687,13 +6804,7 @@ DeadlockChecker::search()
 			return m_start;
 		}
 
-		/* We do not need to report autoinc locks to the upper
-		layer. These locks are released before commit, so they
-		can not cause deadlocks with binlog-fixed commit
-		order. */
-		if (m_report_waiters
-		    && (lock_get_type_low(lock) != LOCK_TABLE
-			|| lock_get_mode(lock) != LOCK_AUTO_INC)) {
+		if (m_report_waiters) {
 			thd_rpl_deadlock_check(m_start->mysql_thd,
 					       lock->trx->mysql_thd);
 		}

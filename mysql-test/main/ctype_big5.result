@@ -537,15 +537,15 @@ create table t1 (a blob);
 insert into t1 values (0xEE00);
 select * into outfile 'test/t1.txt' from t1;
 delete from t1;
-select hex(load_file('MYSQLD_DATADIR/test/t1.txt'));;
-hex(load_file('MYSQLD_DATADIR/test/t1.txt'))
+select hex(load_file('MYSQLD_DATADIR/test/t1.txt')) as lf;
+lf
 5CEE5C300A
 load data infile 't1.txt' into table t1;
 select hex(a) from t1;
 hex(a)
 EE00
 drop table t1;
-End of 5.0 tests
+# End of 5.0 tests
 #
 # Start of 5.5 tests
 #
@@ -4705,6 +4705,11 @@ a	HEX(a)
 \'à\	5C27E05C
 à\'\	E05C275C
 DROP TABLE t1;
+create view v1 as select hex('à\'), hex('à\t');
+select * from v1;
+hex('à\')	hex('à\t')
+E05C	E05C74
+drop view v1;
 SET character_set_client=binary, character_set_results=binary;
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
@@ -4744,7 +4749,7 @@ HEX(a)
 E05C5B
 E05B
 DROP TABLE t1;
-# Start of ctype_E05C.inc
+# End of ctype_E05C.inc
 SET NAMES big5;
 CREATE TABLE t1 (a ENUM('È@') CHARACTER SET big5);
 SHOW CREATE TABLE t1;

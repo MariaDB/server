@@ -702,6 +702,10 @@ include/assert.inc [Table t1 should have 0 rows.]
 # 6- Rows must be present upon restoring from flashback
 include/assert.inc [Table t1 should have six rows.]
 DROP TABLE t1;
+#
+# MDEV-30698 Cover missing test cases for mariadb-binlog options
+#            --raw [and] --flashback
+#
 SET binlog_format=statement;
 Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT

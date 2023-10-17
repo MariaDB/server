@@ -1,0 +1,29 @@
+#
+# MDEV-30971 Add a new system variable aria_data_home_dir
+#
+# restart: --loose-aria-log-file-size=8388608 --loose-aria-log-dir-path=MYSQLTEST_VARDIR/tmp/aria_log_dir_path_1
+SET @@global.aria_log_purge_type=external;
+SHOW VARIABLES LIKE 'aria_log_file_size';
+Variable_name	Value
+aria_log_file_size	8388608
+SELECT @@aria_log_dir_path;
+@@aria_log_dir_path
+MYSQLTEST_VARDIR/tmp/aria_log_dir_path_1
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+SHOW ENGINE aria logs;
+Type	Name	Status
+Aria	aria_log.00000001	in use
+CREATE TABLE t1 (id INT, txt LONGTEXT) ENGINE=Aria;
+BEGIN NOT ATOMIC
+FOR id IN 0..9 DO
+INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+END FOR;
+END;
+$$
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+SHOW ENGINE aria logs;
+Type	Name	Status
+Aria	aria_log.00000001	free
+Aria	aria_log.00000002	in use
+DROP TABLE t1;
+# restart

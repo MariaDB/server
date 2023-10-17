@@ -892,8 +892,10 @@ CREATE TABLE t1 (t INT, u INT, KEY(t));
 INSERT INTO t1 VALUES(10, 10), (11, 11), (12, 12), (12, 13),(14, 15), (15, 16),
                      (16, 17), (17, 17);
 ANALYZE TABLE t1;
+--disable_ps2_protocol
 SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
        GROUP BY t HAVING r = 1  ORDER BY t1.u;
+--enable_ps2_protocol
 
 DROP TABLE t1;
 DROP FUNCTION next_seq_value;
@@ -948,8 +950,53 @@ DROP TABLE t1,t2;
 CREATE TABLE t (f VARCHAR(512));
 INSERT INTO t VALUES ('a'),('b');
 SELECT * FROM t HAVING f = 'foo';
+DROP TABLE t;
 
-# Cleanup
+--echo #
+--echo # MDEV-29731 Crash when HAVING in a correlated subquery references
+--echo #            columns in the outer query
+--echo #
+CREATE TABLE t (a INT, b INT);
+SELECT 1 FROM t
+  WHERE b = (SELECT 1 FROM t GROUP BY a HAVING b = a+1);
+DROP TABLE t;
+
+CREATE TABLE t (a INT, b INT, c INT);
+SELECT 1 FROM t
+  WHERE (b,c) = (SELECT 1,1 FROM t GROUP BY a HAVING b = a+1 and c = a-1);
+DROP TABLE t;
+
+CREATE TABLE t (a TEXT, b INT UNIQUE);
+SELECT 1 FROM t
+  WHERE b IN (SELECT 1 FROM t
+              GROUP BY '', a
+              HAVING (CASE b WHEN 1 +'' THEN 3 ELSE a END)
+              ORDER BY b)
+  GROUP BY b HAVING b = 1;
+DROP TABLE t;
+
+CREATE TABLE t (a INT, b CHAR KEY UNIQUE);
+CREATE VIEW v AS SELECT * FROM t WHERE a LIKE '' GROUP BY b HAVING a > a;
+SELECT * FROM v AS v1 NATURAL JOIN v AS v5 NATURAL JOIN v
+  WHERE a LIKE '' AND b IN (SELECT a FROM t
+                            WHERE a LIKE ''
+                            GROUP BY a
+                            HAVING b LIKE (b < +1 OR a > 1) >= b);
+DROP VIEW v;
+DROP TABLE t;
+
+EXECUTE IMMEDIATE 'SELECT LEAD(c) OVER (ORDER BY c)
+                   FROM (SELECT 0 AS c) AS a NATURAL JOIN (SELECT 0 AS c) AS b;';
+
+CREATE TABLE t (a INT);
+UPDATE t SET a = ''
+  WHERE 1 IN (SELECT * FROM
+               (SELECT * FROM
+                 (SELECT * FROM t AS v5 NATURAL JOIN t AS v4 NATURAL JOIN t) AS v3
+                NATURAL JOIN t
+              GROUP BY a) AS v2
+              WHERE (0, a) IN ((0,-1),(+1,0))
+              ORDER BY 1+AVG(a) OVER (ORDER BY a)) ORDER BY a;
 DROP TABLE t;
 
 --echo #

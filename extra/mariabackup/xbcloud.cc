@@ -2534,7 +2534,7 @@ swift_keystone_auth_v3(const char *auth_url, swift_auth_info *info)
 	} else if (opt_swift_project != NULL) {
 		snprintf(scope, sizeof(scope),
 			",\"scope\":{\"project\":{\"name\":\"%s\"%s}}",
-			opt_swift_project_id, domain);
+			opt_swift_project, domain);
 	}
 
 	snprintf(payload, sizeof(payload), "{\"auth\":{\"identity\":"

@@ -1,2 +1,2 @@
 --let $use_remote_mysqlbinlog= 1
---source suite/rpl/include/rpl_skip_replication.inc
+--source suite/rpl/t/rpl_skip_replication.test

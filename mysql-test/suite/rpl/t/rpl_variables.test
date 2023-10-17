@@ -468,8 +468,9 @@ BEGIN
 END|
 DELIMITER ;|
 
+--disable_ps2_protocol
 SELECT func();
-
+--enable_ps2_protocol
 
 --echo ==== Insert variables from a trigger ====
 

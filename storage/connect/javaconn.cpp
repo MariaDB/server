@@ -167,7 +167,7 @@ bool JAVAConn::gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig
 		mid = env->GetMethodID(jdi, name, sig);
 
 		if (Check()) {
-			strcpy(g->Message, Msg);
+			snprintf(g->Message, sizeof(g->Message), "%s", Msg);
 			return true;
 		} else
 			return false;
@@ -372,7 +372,7 @@ bool JAVAConn::Open(PGLOBAL g)
 		rc = jvm->AttachCurrentThread((void**)&env, nullptr);
 
 		if (rc != JNI_OK) {
-			strcpy(g->Message, "Cannot attach jvm to the current thread");
+			snprintf(g->Message, sizeof(g->Message), "Cannot attach jvm to the current thread");
 			return true;
 		} // endif rc
 
@@ -456,26 +456,26 @@ bool JAVAConn::Open(PGLOBAL g)
 
 		switch (rc) {
 			case JNI_OK:
-				strcpy(g->Message, "VM successfully created");
+				snprintf(g->Message, sizeof(g->Message), "VM successfully created");
 				brc = false;
 				break;
 			case JNI_ERR:
-				strcpy(g->Message, "Initialising JVM failed: unknown error");
+				snprintf(g->Message, sizeof(g->Message), "Initialising JVM failed: unknown error");
 				break;
 			case JNI_EDETACHED:
-				strcpy(g->Message, "Thread detached from the VM");
+				snprintf(g->Message, sizeof(g->Message), "Thread detached from the VM");
 				break;
 			case JNI_EVERSION:
-				strcpy(g->Message, "JNI version error");
+				snprintf(g->Message, sizeof(g->Message), "JNI version error");
 				break;
 			case JNI_ENOMEM:
-				strcpy(g->Message, "Not enough memory");
+				snprintf(g->Message, sizeof(g->Message), "Not enough memory");
 				break;
 			case JNI_EEXIST:
-				strcpy(g->Message, "VM already created");
+				snprintf(g->Message, sizeof(g->Message), "VM already created");
 				break;
 			case JNI_EINVAL:
-				strcpy(g->Message, "Invalid arguments");
+				snprintf(g->Message, sizeof(g->Message), "Invalid arguments");
 				break;
 			default:
 				snprintf(g->Message, sizeof(g->Message), "Unknown return code %d", (int)rc);
@@ -516,7 +516,7 @@ bool JAVAConn::Open(PGLOBAL g)
 			rc = env->CallStaticIntMethod(jdi, alp, path);
 
 			if ((msg = Check(rc))) {
-				strcpy(g->Message, msg);
+				snprintf(g->Message, sizeof(g->Message), msg);
 				env->DeleteLocalRef(path);
 				return RC_FX;
 			} else switch (rc) {
@@ -528,7 +528,7 @@ bool JAVAConn::Open(PGLOBAL g)
 					break;
 				case JNI_ERR:
 				default:
-					strcpy(g->Message, "Error adding jpath");
+					snprintf(g->Message, sizeof(g->Message), "Error adding jpath");
 					env->DeleteLocalRef(path);
 					return RC_FX;
 			}	// endswitch rc
@@ -559,7 +559,7 @@ bool JAVAConn::Open(PGLOBAL g)
 	errid = env->GetMethodID(jdi, "GetErrmsg", "()Ljava/lang/String;");
 
 	if (env->ExceptionCheck()) {
-		strcpy(g->Message, "ERROR: method GetErrmsg() not found!");
+		snprintf(g->Message, sizeof(g->Message), "ERROR: method GetErrmsg() not found!");
 		env->ExceptionDescribe();
 		env->ExceptionClear();
 		return true;

@@ -2655,6 +2655,8 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
       fixed underlying Item_field pointing to Field_row.
     - In case if we're assigning from a ROW() value, src and value[0] will
       point to the same Item_row.
+    - In case if we're assigning from a subselect, src and value[0] also
+      point to the same Item_singlerow_subselect.
   */
   Item *src;
   if (!(src= thd->sp_fix_func_item(value)) ||
@@ -2666,6 +2668,7 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
     DBUG_RETURN(true);
   }
 
+  src->bring_value();
   DBUG_RETURN(m_table->sp_set_all_fields_from_item(thd, src));
 }
 
@@ -4642,6 +4645,28 @@ bool Field_longlong::is_max()
   single precision float
 ****************************************************************************/
 
+Field_float::Field_float(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+                         uchar null_bit_arg,
+                         enum utype unireg_check_arg,
+                         const LEX_CSTRING *field_name_arg,
+                         uint8 dec_arg,bool zero_arg,bool unsigned_arg)
+  :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+              unireg_check_arg, field_name_arg,
+              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
+              zero_arg, unsigned_arg)
+{
+}
+
+Field_float::Field_float(uint32 len_arg, bool maybe_null_arg,
+                         const LEX_CSTRING *field_name_arg, uint8 dec_arg)
+  :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
+              NONE, field_name_arg,
+              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
+              0, 0)
+{
+}
+
+
 int Field_float::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
   int error;
@@ -4789,6 +4814,38 @@ Binlog_type_info Field_float::binlog_type_info() const
 /****************************************************************************
   double precision floating point numbers
 ****************************************************************************/
+
+Field_double::Field_double(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+                           uchar null_bit_arg,
+                           enum utype unireg_check_arg,
+                           const LEX_CSTRING *field_name_arg,
+                           uint8 dec_arg,bool zero_arg,bool unsigned_arg)
+  :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+              unireg_check_arg, field_name_arg,
+              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
+              zero_arg, unsigned_arg)
+{
+}
+
+Field_double::Field_double(uint32 len_arg, bool maybe_null_arg,
+                           const LEX_CSTRING *field_name_arg, uint8 dec_arg)
+  :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
+              NONE, field_name_arg,
+              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
+              0, 0)
+{
+}
+
+Field_double::Field_double(uint32 len_arg, bool maybe_null_arg,
+                           const LEX_CSTRING *field_name_arg,
+                           uint8 dec_arg, bool not_fixed_arg)
+  :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
+              NONE, field_name_arg,
+              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
+              0, 0)
+{
+  not_fixed= not_fixed_arg;
+}
 
 int Field_double::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
@@ -7558,7 +7615,8 @@ int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return field_charset()->coll->strnncollsp_nchars(field_charset(),
                                                    a_ptr, field_length,
                                                    b_ptr, field_length,
-                                                   Field_string::char_length());
+                                                   Field_string::char_length(),
+                        MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
 }
 
 
@@ -7925,10 +7983,11 @@ int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 
 
 int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
-                                size_t prefix_len) const
+                                size_t prefix_char_len) const
 {
-  /* avoid expensive well_formed_char_length if possible */
-  if (prefix_len == table->field[field_index]->field_length)
+  /* avoid more expensive strnncollsp_nchars() if possible */
+  if (prefix_char_len * field_charset()->mbmaxlen ==
+      table->field[field_index]->field_length)
     return Field_varstring::cmp(a_ptr, b_ptr);
 
   size_t a_length, b_length;
@@ -7948,8 +8007,8 @@ int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
                                                    a_length,
                                                    b_ptr + length_bytes,
                                                    b_length,
-                                                   prefix_len /
-                                                     field_charset()->mbmaxlen);
+                                                   prefix_char_len,
+                                                   0);
 }
 
 
@@ -8736,7 +8795,7 @@ int Field_blob::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 
 
 int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
-                           size_t prefix_len) const
+                           size_t prefix_char_len) const
 {
   uchar *blob1,*blob2;
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
@@ -8745,8 +8804,8 @@ int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
   return field_charset()->coll->strnncollsp_nchars(field_charset(),
                                                    blob1, a_len,
                                                    blob2, b_len,
-                                                   prefix_len /
-                                                   field_charset()->mbmaxlen);
+                                                   prefix_char_len,
+                                                   0);
 }
 
 
@@ -9942,7 +10001,7 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
     (not the table->record[0] necessarily)
 */
 int Field_bit::cmp_prefix(const uchar *a, const uchar *b,
-                          size_t prefix_len) const
+                          size_t prefix_char_len) const
 {
   my_ptrdiff_t a_diff= a - ptr;
   my_ptrdiff_t b_diff= b - ptr;

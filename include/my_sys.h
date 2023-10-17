@@ -84,7 +84,6 @@ C_MODE_START
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
-#define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
@@ -1049,7 +1048,7 @@ extern void add_compiled_extra_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
-extern char *get_tty_password(const char *opt_message);
+extern char *my_get_tty_password(const char *opt_message);
 #ifdef _WIN32
 #define BACKSLASH_MBTAIL
 /* File system character set */

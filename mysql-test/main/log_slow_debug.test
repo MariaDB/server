@@ -93,3 +93,41 @@ SET @@global.slow_query_log= @org_slow_query_log;
 SET @@global.log_output= @org_log_output;
 SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
 DROP PROCEDURE show_slow_log;
+
+
+--echo #
+--echo # MDEV-30820: slow log Rows_examined out of range
+--echo #
+
+CREATE TABLE `tab_MDEV_30820` (
+`ID` int(11) NOT NULL AUTO_INCREMENT,
+`A` int(11),
+PRIMARY KEY(ID)
+);
+
+insert into tab_MDEV_30820 values (null, 0),(null, 0);
+
+SET @old_slow_query_log= @@global.slow_query_log;
+SET @old_log_output= @@global.log_output;
+SET @old_long_query_time= @@long_query_time;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL log_output= "TABLE";
+
+SET GLOBAL slow_query_log= ON;
+SET SESSION long_query_time= 0;
+
+SET GLOBAL debug_dbug="+d,debug_huge_number_of_examined_rows";
+SELECT * FROM tab_MDEV_30820 ORDER BY 1;
+SET GLOBAL debug_dbug=@old_dbug;
+
+
+## Reset to initial values
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= @old_log_output;
+SET @@global.slow_query_log= @old_slow_query_log;
+
+drop table tab_MDEV_30820;
+
+--echo #
+--echo # End of 10.4 test
+--echo #

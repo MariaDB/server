@@ -65,7 +65,16 @@ namespace RDB_CFSTATS_FIELD {
 enum { CF_NAME = 0, STAT_TYPE, VALUE };
 }  // namespace RDB_CFSTATS_FIELD
 
-using namespace Show;
+
+using Column = Show::Column;
+using CEnd = Show::CEnd;
+using Varchar = Show::Varchar;
+using SShort = Show::SShort;
+using SLong = Show::SLong;
+using SLonglong = Show::SLonglong;
+using ULonglong = Show::ULonglong;
+using Double = Show::Double;
+
 
 static ST_FIELD_INFO rdb_i_s_cfstats_fields_info[] = {
     Column("CF_NAME",   Varchar(NAME_LEN + 1), NOT_NULL),

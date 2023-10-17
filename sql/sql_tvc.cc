@@ -258,7 +258,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   
   List_item *first_elem= li++;
   uint cnt= first_elem->elements;
-  Type_holder *holders;
+  Type_holder *holders= type_holders;
   
   if (cnt == 0)
   {
@@ -269,32 +269,35 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   if (fix_fields_for_tvc(thd, li))
     DBUG_RETURN(true);
 
-  if (!(holders= new (thd->stmt_arena->mem_root) Type_holder[cnt]) ||
-       join_type_handlers_for_tvc(thd, li, holders, cnt) ||
-       get_type_attributes_for_tvc(thd, li, holders,
-				   lists_of_values.elements, cnt))
-    DBUG_RETURN(true);
-  
-  List_iterator_fast<Item> it(*first_elem);
-  Item *item;
-  Query_arena *arena, backup;
-  arena=thd->activate_stmt_arena_if_needed(&backup);
-  
-  sl->item_list.empty();
-  for (uint pos= 0; (item= it++); pos++)
+  if (!holders)
   {
-    /* Error's in 'new' will be detected after loop */
-    Item_type_holder *new_holder= new (thd->mem_root)
-                      Item_type_holder(thd, item, holders[pos].type_handler(),
-                                       &holders[pos]/*Type_all_attributes*/,
-                                       holders[pos].get_maybe_null());
-    sl->item_list.push_back(new_holder);
+    holders= type_holders= new (thd->stmt_arena->mem_root) Type_holder[cnt];
+    if (!holders ||
+         join_type_handlers_for_tvc(thd, li, holders, cnt) ||
+         get_type_attributes_for_tvc(thd, li, holders,
+				     lists_of_values.elements, cnt))
+       DBUG_RETURN(true);
+    List_iterator_fast<Item> it(*first_elem);
+    Item *item;
+    Query_arena *arena, backup;
+    arena=thd->activate_stmt_arena_if_needed(&backup);
+
+    sl->item_list.empty();
+    for (uint pos= 0; (item= it++); pos++)
+    {
+      /* Error's in 'new' will be detected after loop */
+      Item_type_holder *new_holder= new (thd->mem_root)
+                        Item_type_holder(thd, item, holders[pos].type_handler(),
+                                         &holders[pos]/*Type_all_attributes*/,
+                                         holders[pos].get_maybe_null());
+      sl->item_list.push_back(new_holder);
+    }
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
+    if (unlikely(thd->is_fatal_error))
+      DBUG_RETURN(true); // out of memory
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
-  
-  if (unlikely(thd->is_fatal_error))
-    DBUG_RETURN(true); // out of memory
     
   result= tmp_result;
   
@@ -705,6 +708,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   wrapper_sl->parent_lex= lex; /* Used in init_query. */
   wrapper_sl->init_query();
   wrapper_sl->init_select();
+  wrapper_sl->is_tvc_wrapper= true;
 
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;

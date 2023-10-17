@@ -1,0 +1,8 @@
+!include my.cnf
+
+[mysqld.1]
+encrypt-binlog=0
+skip-file-key-management
+
+[mysqld.2]
+gtid-domain-id=1

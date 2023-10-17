@@ -2989,6 +2989,14 @@ static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 }
 
 
+static inline int my_weight_mb2_ucs2_general_mysql500_ci(uchar b0, uchar b1)
+{
+  my_wc_t wc= UCS2_CODE(b0, b1);
+  MY_UNICASE_CHARACTER *page= my_unicase_mysql500_pages[wc >> 8];
+  return (int) (page ? page[wc & 0xFF].sort : wc);
+}
+
+
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_general_ci
 #define DEFINE_STRNXFRM_UNICODE
 #define DEFINE_STRNXFRM_UNICODE_NOPAD
@@ -2999,6 +3007,18 @@ static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 #define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_ci(b0,b1)
+#include "strcoll.inl"
+
+
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_general_mysql500_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_mysql500_page00
+#define UNICASE_PAGES            my_unicase_mysql500_pages
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_mysql500_ci(b0,b1)
 #include "strcoll.inl"
 
 
@@ -3287,6 +3307,23 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_ci_handler =
 };
 
 
+static MY_COLLATION_HANDLER my_collation_ucs2_general_mysql500_ci_handler =
+{
+    NULL,		/* init */
+    my_strnncoll_ucs2_general_mysql500_ci,
+    my_strnncollsp_ucs2_general_mysql500_ci,
+    my_strnncollsp_nchars_ucs2_general_mysql500_ci,
+    my_strnxfrm_ucs2_general_mysql500_ci,
+    my_strnxfrmlen_unicode,
+    my_like_range_generic,
+    my_wildcmp_ucs2_ci,
+    my_strcasecmp_mb2_or_mb4,
+    my_instr_mb,
+    my_hash_sort_ucs2,
+    my_propagate_simple
+};
+
+
 static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
 {
     NULL,		/* init */
@@ -3434,7 +3471,7 @@ struct charset_info_st my_charset_ucs2_general_mysql500_ci=
   0,                          /* escape_with_backslash_is_dangerous    */
   1,                                               /* levels_for_order   */
   &my_charset_ucs2_handler,
-  &my_collation_ucs2_general_ci_handler
+  &my_collation_ucs2_general_mysql500_ci_handler
 };
 
 

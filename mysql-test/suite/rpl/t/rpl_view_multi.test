@@ -27,6 +27,7 @@ drop view if exists v1;
 --echo # Syncing slave with master
 --sync_slave_with_master
 
+--disable_ps2_protocol
 connect (master2,127.0.0.1,root,,test,$MASTER_MYPORT,);
 
 connection master;
@@ -122,6 +123,7 @@ select * from t2;
 --echo # So we have same result on slave.
 select * from t1;
 select * from t2;
+--enable_ps2_protocol
 
 connection master;
 drop table t1, t2;

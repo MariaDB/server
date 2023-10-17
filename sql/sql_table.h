@@ -194,24 +194,16 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
 #define C_ALTER_TABLE_FRM_ONLY   -2
 #define C_ASSISTED_DISCOVERY     -3
 
-int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
-                               const LEX_CSTRING *table_name,
-                               Table_specification_st *create_info,
+int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
                                int create_table_mode, TABLE_LIST *table);
 
-handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING &db,
-                                const LEX_CSTRING &table_name,
-                                HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                int create_table_mode,
-                                KEY **key_info,
-                                uint *key_count,
+handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
+                                Alter_info *alter_info, int create_table_mode,
+                                KEY **key_info, uint *key_count,
                                 LEX_CUSTRING *frm);
 
-int mysql_discard_or_import_tablespace(THD *thd,
-                                       TABLE_LIST *table_list,
+int mysql_discard_or_import_tablespace(THD *thd, TABLE_LIST *table_list,
                                        bool discard);
 
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
@@ -292,5 +284,9 @@ extern MYSQL_PLUGIN_IMPORT const char *primary_key_name;
 extern mysql_mutex_t LOCK_gdl;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
+
+#ifdef WITH_WSREP
+bool wsrep_check_sequence(THD* thd, const class sequence_definition *seq);
+#endif
 
 #endif /* SQL_TABLE_INCLUDED */

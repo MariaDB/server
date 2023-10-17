@@ -10,8 +10,10 @@ SET tokudb_auto_analyze=0;
 INSERT INTO t1 VALUES(0,0,0), (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
 
 SET GLOBAL debug_dbug = "+d,tokudb_fake_db_notfound_error_in_read_full_row";
+--disable_ps2_protocol
 --error ER_NOT_KEYFILE
 SELECT * FROM t1 WHERE b = 2;
+--enable_ps2_protocol
 
 DROP TABLE t1;
 

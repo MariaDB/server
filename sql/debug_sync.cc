@@ -1317,7 +1317,7 @@ uchar *debug_sync_value_ptr(THD *thd)
 
   if (opt_debug_sync_timeout)
   {
-    static char on[]= "ON - current signal: '"; 
+    static const char on[]= "ON - current signal: '";
 
     // Ensure exclusive access to debug_sync_global.ds_signal
     mysql_mutex_lock(&debug_sync_global.ds_mutex);

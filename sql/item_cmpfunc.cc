@@ -1306,9 +1306,22 @@ bool Item_in_optimizer::fix_left(THD *thd)
     ref0= args[1]->get_IN_subquery()->left_exp_ptr();
     args[0]= (*ref0);
   }
-  if ((*ref0)->fix_fields_if_needed(thd, ref0) ||
-      (!cache && !(cache= (*ref0)->get_cache(thd))))
+  if ((*ref0)->fix_fields_if_needed(thd, ref0))
     DBUG_RETURN(1);
+  if (!cache)
+  {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+
+    bool rc= !(cache= (*ref0)->get_cache(thd));
+
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
+    if (rc)
+      DBUG_RETURN(1);
+    cache->keep_array();
+  }
   /*
     During fix_field() expression could be substituted.
     So we copy changes before use
@@ -1669,19 +1682,10 @@ longlong Item_in_optimizer::val_int()
 }
 
 
-void Item_in_optimizer::keep_top_level_cache()
-{
-  cache->keep_array();
-  save_cache= 1;
-}
-
-
 void Item_in_optimizer::cleanup()
 {
   DBUG_ENTER("Item_in_optimizer::cleanup");
   Item_bool_func::cleanup();
-  if (!save_cache)
-    cache= 0;
   expr_cache= 0;
   DBUG_VOID_RETURN;
 }
@@ -3698,7 +3702,7 @@ in_string::~in_string()
   }
 }
 
-void in_string::set(uint pos,Item *item)
+bool in_string::set(uint pos, Item *item)
 {
   String *str=((String*) base)+pos;
   String *res=item->val_str(str);
@@ -3718,6 +3722,7 @@ void in_string::set(uint pos,Item *item)
       cs= &my_charset_bin;		// Should never happen for STR items
     str->set_charset(cs);
   }
+  return res == NULL;
 }
 
 
@@ -3759,12 +3764,12 @@ uchar *in_row::get_value(Item *item)
   return (uchar *)&tmp;
 }
 
-void in_row::set(uint pos, Item *item)
+bool in_row::set(uint pos, Item *item)
 {
   DBUG_ENTER("in_row::set");
   DBUG_PRINT("enter", ("pos: %u  item: %p", pos,item));
-  ((cmp_item_row*) base)[pos].store_value_by_template(current_thd, &tmp, item);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(((cmp_item_row*) base)[pos].store_value_by_template(current_thd,
+                                                                  &tmp, item));
 }
 
 in_longlong::in_longlong(THD *thd, uint elements)
@@ -3772,12 +3777,13 @@ in_longlong::in_longlong(THD *thd, uint elements)
              (qsort2_cmp) cmp_longlong, 0)
 {}
 
-void in_longlong::set(uint pos,Item *item)
+bool in_longlong::set(uint pos, Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
   
   buff->val= item->val_int();
   buff->unsigned_flag= item->unsigned_flag;
+  return item->null_value;
 }
 
 uchar *in_longlong::get_value(Item *item)
@@ -3812,14 +3818,17 @@ in_timestamp::in_timestamp(THD *thd, uint elements)
 {}
 
 
-void in_timestamp::set(uint pos, Item *item)
+bool in_timestamp::set(uint pos, Item *item)
 {
   Timestamp_or_zero_datetime *buff= &((Timestamp_or_zero_datetime *) base)[pos];
   Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
   if (native.is_null())
+  {
     *buff= Timestamp_or_zero_datetime();
-  else
-    *buff= Timestamp_or_zero_datetime(native);
+    return true;
+  }
+  *buff= Timestamp_or_zero_datetime(native);
+  return false;
 }
 
 
@@ -3846,20 +3855,22 @@ void in_timestamp::value_to_item(uint pos, Item *item)
 }
 
 
-void in_datetime::set(uint pos,Item *item)
+bool in_datetime::set(uint pos, Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
   buff->val= item->val_datetime_packed(current_thd);
   buff->unsigned_flag= 1L;
+  return item->null_value;
 }
 
-void in_time::set(uint pos,Item *item)
+bool in_time::set(uint pos, Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
   buff->val= item->val_time_packed(current_thd);
   buff->unsigned_flag= 1L;
+  return item->null_value;
 }
 
 uchar *in_datetime::get_value(Item *item)
@@ -3890,9 +3901,10 @@ in_double::in_double(THD *thd, uint elements)
   :in_vector(thd, elements, sizeof(double), (qsort2_cmp) cmp_double, 0)
 {}
 
-void in_double::set(uint pos,Item *item)
+bool in_double::set(uint pos, Item *item)
 {
   ((double*) base)[pos]= item->val_real();
+  return item->null_value;
 }
 
 uchar *in_double::get_value(Item *item)
@@ -3914,7 +3926,7 @@ in_decimal::in_decimal(THD *thd, uint elements)
 {}
 
 
-void in_decimal::set(uint pos, Item *item)
+bool in_decimal::set(uint pos, Item *item)
 {
   /* as far as 'item' is constant, we can store reference on my_decimal */
   my_decimal *dec= ((my_decimal *)base) + pos;
@@ -3924,6 +3936,7 @@ void in_decimal::set(uint pos, Item *item)
   /* if item->val_decimal() is evaluated to NULL then res == 0 */ 
   if (!item->null_value && res != dec)
     my_decimal2decimal(res, dec);
+  return item->null_value;
 }
 
 
@@ -4099,15 +4112,16 @@ void cmp_item_row::store_value(Item *item)
 }
 
 
-void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
+bool cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
 {
   cmp_item_row *tmpl= (cmp_item_row*) t;
   if (tmpl->n != item->cols())
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), tmpl->n);
-    return;
+    return 1;
   }
   n= tmpl->n;
+  bool rc= false;
   if ((comparators= (cmp_item **) thd->alloc(sizeof(cmp_item *)*n)))
   {
     item->bring_value();
@@ -4116,11 +4130,11 @@ void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
     {
       if (!(comparators[i]= tmpl->comparators[i]->make_same()))
 	break;					// new failed
-      comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
-					      item->element_index(i));
-      item->null_value|= item->element_index(i)->null_value;
+      rc|= comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
+                                                   item->element_index(i));
     }
   }
+  return rc;
 }
 
 
@@ -4428,6 +4442,42 @@ bool Item_func_in::fix_length_and_dec()
     return TRUE;
   }
 
+  if (!arg_types_compatible && comparator_count() == 2)
+  {
+    /*
+      Catch a special case: a mixture of signed and unsigned integer types.
+      in_longlong can handle such cases.
+
+      Note, prepare_predicant_and_values() aggregates this mixture as follows:
+      - signed+unsigned produce &type_handler_newdecimal.
+      - signed+signed or unsigned+unsigned produce &type_handler_slonglong
+      So we have extactly two distinct handlers.
+
+      The code below assumes that unsigned longlong is handled
+      by &type_handler_slonglong in comparison context,
+      which may change in the future to &type_handler_ulonglong.
+      The DBUG_ASSERT is needed to address this change here properly.
+    */
+    DBUG_ASSERT(type_handler_ulonglong.type_handler_for_comparison() ==
+                &type_handler_slonglong);
+    // Let's check if all arguments are of integer types
+    uint found_int_args= 0;
+    for (uint i= 0; i < arg_count; i++, found_int_args++)
+    {
+      if (args[i]->type_handler_for_comparison() != &type_handler_slonglong)
+        break;
+    }
+    if (found_int_args == arg_count)
+    {
+      // All arguments are integers. Switch to integer comparison.
+      arg_types_compatible= true;
+      DBUG_EXECUTE_IF("Item_func_in",
+                      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_UNKNOWN_ERROR, "DBUG: found a mix of UINT and SINT"););
+      m_comparator.set_handler(&type_handler_slonglong);
+    }
+  }
+
   if (arg_types_compatible) // Bisection condition #1
   {
     if (m_comparator.type_handler()->
@@ -4464,8 +4514,7 @@ void Item_func_in::fix_in_vector()
   uint j=0;
   for (uint i=1 ; i < arg_count ; i++)
   {
-    array->set(j,args[i]);
-    if (!args[i]->null_value)
+    if (!array->set(j,args[i]))
       j++; // include this cell in the array.
     else
     {
@@ -6146,7 +6195,9 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
                                       Item *subject_arg,
                                       Item *pattern_arg)
 {
-  if (!is_compiled() && pattern_arg->const_item())
+  if (!is_compiled() &&
+      pattern_arg->const_item() &&
+      !pattern_arg->is_expensive())
   {
     if (compile(pattern_arg, true))
     {

@@ -117,6 +117,33 @@ insert into t1 values(1006);
 --error ER_OPTION_PREVENTS_STATEMENT
 insert into t2 values(2006);
 
+
+--echo #
+--echo # MDEV-30978: On slave XA COMMIT/XA ROLLBACK fail to return an error in read-only mode
+--echo #
+--echo #   Where a read-only server permits writes through replication, it
+--echo # should not permit user connections to commit/rollback XA transactions
+--echo # prepared via replication. This test ensure this behavior is prohibited
+--echo #
+
+# Note: slave's read_only=1 is set prior to this test case
+
+connection master;
+xa start '1';
+insert into t1 values (1007);
+xa end '1';
+xa prepare '1';
+sync_slave_with_master;
+
+connection slave2;
+--error ER_OPTION_PREVENTS_STATEMENT
+xa commit '1';
+--error ER_OPTION_PREVENTS_STATEMENT
+xa rollback '1';
+
+connection master;
+xa rollback '1';
+
 ## Cleanup
 connection master;
 drop user test;

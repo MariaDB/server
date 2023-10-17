@@ -1480,7 +1480,7 @@ void MakeAMPM(int n)
           n, pp->Num, pp->InFmt, pp->OutFmt);
 #endif
   pp->Index[pp->Num++] = -n;
-  sprintf(buf, "%%%ds", m);
+  snprintf(buf, sizeof(buf), "%%%ds", m);
   MakeIn(buf);
 
   if (pp->OutFmt) {

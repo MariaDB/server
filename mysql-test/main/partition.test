@@ -474,6 +474,7 @@ INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 
+--disable_ps2_protocol
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 SHOW STATUS LIKE 'Handler_read_%';
@@ -484,6 +485,7 @@ FLUSH STATUS;
 SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 SHOW STATUS LIKE 'Handler_read_%';
 DROP TABLE t1,t2;
+--enable_ps2_protocol
 
 # Bug#37329 Range scan on partitioned tables shows higher Handler_read_next
 # (marked as duplicate of Bug#35931)
@@ -505,6 +507,7 @@ INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
 
+--disable_ps2_protocol
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
 SHOW STATUS LIKE 'Handler_read_%';
@@ -527,6 +530,7 @@ FLUSH STATUS;
 SELECT c1 FROM t2 WHERE (c1 > 12 AND c1 < 15);
 SHOW STATUS LIKE 'Handler_read_%';
 DROP TABLE t1,t2;
+--enable_ps2_protocol
 
 --error ER_PARTITION_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int) partition by list ((a/3)*10 div 1)
@@ -3019,7 +3023,44 @@ INSERT INTO t2 VALUES (1),(2);
 UPDATE t1 SET a = 7 WHERE a = ( SELECT b FROM t2 ) ORDER BY a LIMIT 6;
 
 DROP TABLE t1,t2;
-
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-30596: Assertion 'pushed_rowid_filter != __null ...' failed
+--echo #
+--source include/have_sequence.inc
+create table t1 (a int);
+insert into t1 values (NULL),(1),(2);
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_1000;
+
+create table t3 (
+  a1 int,
+  a2 int,
+  b int,
+  c int,
+  filler1 char(200),
+  filler2 char(200),
+  key(a1,a2),
+  key(b)
+) partition by hash(a1) partitions 2;
+insert into t3 select seq/100, seq/100, seq, seq, seq, seq from seq_1_to_10000;
+analyze table t3 persistent for all;
+
+set @tmp_os= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+
+--echo # Must not show "Using rowid filter":
+explain
+select *
+from t1
+where
+  t1.a not in (select straight_join t3.a1
+               from t2, t3
+               where t3.b < 3000 and t3.a2=t2.a);
+set optimizer_switch=@tmp_os;
+
+drop table t1,t2,t3;
+

@@ -1,6 +1,6 @@
---- update.result	2018-12-19 13:55:35.873917389 +0300
-+++ update,trx_id.reject	2018-12-19 13:55:35.533917399 +0300
-@@ -81,12 +81,10 @@
+--- update.result
++++ update.reject
+@@ -84,12 +84,10 @@
  commit;
  select x, y, sys_trx_end = MAXVAL as current from t1 for system_time all order by sys_trx_end, x, y;
  x	y	current
@@ -14,3 +14,11 @@
  1	1	1
  2	2	1
  3	3	1
+@@ -464,7 +462,6 @@
+ select nid, nstate, check_row(row_start, row_end) from t1 for system_time all order by row_start, row_end;
+ nid	nstate	check_row(row_start, row_end)
+ 1	1	HISTORICAL ROW
+-1	1	HISTORICAL ROW
+ 1	3	CURRENT ROW
+ commit;
+ drop tables t1;

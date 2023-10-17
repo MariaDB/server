@@ -61,7 +61,7 @@ struct get_sched_indexer_t : public generic_indexer_t<Type, N> {
 
 		size_t	cpu = sched_getcpu();
 		if (cpu == (size_t) -1) {
-			cpu = get_curr_thread_id();
+			cpu = (size_t) get_curr_thread_id();
 		}
 
 		return(cpu);

@@ -968,13 +968,14 @@ os_file_flush_func(
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
-@param[in]	report		true if we want an error message printed
-				for all errors
-@return error number, or OS error number + 100 */
-ulint
-os_file_get_last_error(
-	bool		report);
+the OS error number + OS_FILE_ERROR_MAX is returned.
+@param[in]	report_all_errors	true if we want an error message
+                                        printed of all errors
+@param[in]	on_error_silent		true then don't print any diagnostic
+                                        to the log
+@return error number, or OS error number + OS_FILE_ERROR_MAX */
+ulint os_file_get_last_error(bool report_all_errors,
+                             bool on_error_silent= false);
 
 /** NOTE! Use the corresponding macro os_file_read(), not directly this
 function!
@@ -1226,7 +1227,11 @@ is_absolute_path(
 	}
 
 #ifdef _WIN32
-	if (path[1] == ':' && path[2] == OS_PATH_SEPARATOR) {
+	// This will conflict during a 10.5->10.6 merge.
+	// Choose the 10.6 version as is.
+	if (path[1] == ':' &&
+	    (path[2] == OS_PATH_SEPARATOR ||
+	     path[2] == OS_PATH_SEPARATOR_ALT)) {
 		return(true);
 	}
 #endif /* _WIN32 */

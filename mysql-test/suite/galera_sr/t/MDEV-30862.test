@@ -1,0 +1,24 @@
+#
+# MDEV-30862 Assertion `mode_ == m_high_priority' failed in
+# void wsrep::client_state::after_applying()
+#
+
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+SET autocommit=0;
+SET SESSION wsrep_trx_fragment_size=1;
+--error ER_NOT_ALLOWED_COMMAND
+CREATE TABLE t2 SELECT seq FROM seq_1_to_50;
+
+
+#
+# Same test without using seq
+#
+CREATE TABLE t1 (f1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
+INSERT INTO t1 VALUES(DEFAULT);
+--error ER_NOT_ALLOWED_COMMAND
+CREATE TABLE t2 SELECT * FROM t1;
+
+
+DROP TABLE t1;

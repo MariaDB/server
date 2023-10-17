@@ -4729,7 +4729,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
                            uchar *data, uchar *end_of_data)
 {
   MARIA_SHARE *share= info->s;
-  uchar *UNINIT_VAR(field_length_data), *UNINIT_VAR(blob_buffer), *start_of_data;
+  uchar *field_length_data= 0, *UNINIT_VAR(blob_buffer), *start_of_data;
   uint flag, null_bytes, cur_null_bytes, row_extents, field_lengths;
   my_bool found_blob= 0;
   MARIA_EXTENT_CURSOR extent;

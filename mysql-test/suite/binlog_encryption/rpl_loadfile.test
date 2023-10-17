@@ -1,4 +1,4 @@
---source suite/rpl/include/rpl_loadfile.inc
+--source suite/rpl/t/rpl_loadfile.test
 
 --let $datadir= `SELECT @@datadir`
 

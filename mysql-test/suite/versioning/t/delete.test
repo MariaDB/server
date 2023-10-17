@@ -97,16 +97,26 @@ drop table t1;
 --echo #
 --echo # MDEV-21138 Assertion `col->ord_part' or `f.col->ord_part' failed in row_build_index_entry_low
 --echo #
-create table t1 (
+--echo # Check DELETE and multi-DELETE with foreign key
+replace_result $sys_datatype_expl SYS_TYPE;
+eval create table t1 (
   f1 int, f2 text, f3 int, fulltext (f2), key(f1), key(f3),
-  foreign key r (f3) references t1 (f1) on delete set null)
+  foreign key r (f3) references t1 (f1) on delete set null,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
 with system versioning engine innodb;
 insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
-select f1, f3, check_row_ts(row_start, row_end) from t1;
-delete from t1;
-select f1, f3, check_row_ts(row_start, row_end) from t1 for system_time all;
-
-# cleanup
-drop table t1;
+insert into t1 select 2, f2, 2 from t1;
+select f1, f3, check_row(row_start, row_end) from t1;
+delete from t1 where f1 = 1;
+select f1, f3, check_row(row_start, row_end) from t1 for system_time all order by f1, row_end;
+create table t2 (f1 int);
+insert into t2 values (2);
+--echo # Multi-delelte
+delete t1, t2 from t1 join t2 where t1.f1 = t2.f1;
+select f1, f3, check_row(row_start, row_end) from t1 for system_time all order by f1, row_end;
+--echo # Cleanup
+drop tables t1, t2;
 
 --source suite/versioning/common_finish.inc

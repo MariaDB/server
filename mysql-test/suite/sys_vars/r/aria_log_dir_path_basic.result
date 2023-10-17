@@ -1,0 +1,36 @@
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+COUNT(@@GLOBAL.aria_log_dir_path)
+1
+SET @@GLOBAL.aria_log_dir_path=1;
+ERROR HY000: Variable 'aria_log_dir_path' is a read only variable
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+COUNT(@@GLOBAL.aria_log_dir_path)
+1
+SELECT @@GLOBAL.aria_log_dir_path = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='aria_log_dir_path';
+@@GLOBAL.aria_log_dir_path = VARIABLE_VALUE
+1
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+COUNT(@@GLOBAL.aria_log_dir_path)
+1
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='aria_log_dir_path';
+COUNT(VARIABLE_VALUE)
+1
+SELECT @@aria_log_dir_path = @@GLOBAL.aria_log_dir_path;
+@@aria_log_dir_path = @@GLOBAL.aria_log_dir_path
+1
+SELECT COUNT(@@aria_log_dir_path);
+COUNT(@@aria_log_dir_path)
+1
+SELECT COUNT(@@local.aria_log_dir_path);
+ERROR HY000: Variable 'aria_log_dir_path' is a GLOBAL variable
+SELECT COUNT(@@SESSION.aria_log_dir_path);
+ERROR HY000: Variable 'aria_log_dir_path' is a GLOBAL variable
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+COUNT(@@GLOBAL.aria_log_dir_path)
+1
+SELECT aria_log_dir_path = @@SESSION.aria_log_dir_path;
+ERROR 42S22: Unknown column 'aria_log_dir_path' in 'field list'

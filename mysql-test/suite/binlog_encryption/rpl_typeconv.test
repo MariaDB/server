@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_typeconv.inc
+--source suite/rpl/t/rpl_typeconv.test

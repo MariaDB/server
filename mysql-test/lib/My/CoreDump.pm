@@ -310,16 +310,8 @@ sub cdb_check {
    `cdb -? 2>&1`;
   if ($? >> 8)
   {
-    print "Cannot find cdb. Please Install Debugging tools for Windows\n";
-    print "from http://www.microsoft.com/whdc/devtools/debugging/";
-    if($ENV{'ProgramW6432'})
-    {
-      print "install64bit.mspx (native x64 version)\n";
-    }
-    else
-   {
-      print "installx86.mspx\n";
-   }
+    print "Cannot find the cdb debugger. Please install Debugging tools for Windows\n";
+    print "and set PATH environment variable to include location of cdb.exe";
   }
 }
 
@@ -328,25 +320,6 @@ sub _cdb {
   my ($core_name, $format)= @_;
   print "\nTrying 'cdb' to get a backtrace\n";
   return unless -f $core_name;
-  
-  # Try to set environment for debugging tools for Windows
-  if ($ENV{'PATH'} !~ /Debugging Tools/)
-  {
-    if ($ENV{'ProgramW6432'})
-    {
-      # On x64 computer
-      $ENV{'PATH'}.= ";".$ENV{'ProgramW6432'}."\\Debugging Tools For Windows (x64)";
-    }
-    else
-    {
-     # On x86 computer. Newest versions of Debugging tools are installed in the  
-     # directory with (x86) suffix, older versions did not have this suffix.
-     $ENV{'PATH'}.= ";".$ENV{'ProgramFiles'}."\\Debugging Tools For Windows (x86)";
-     $ENV{'PATH'}.= ";".$ENV{'ProgramFiles'}."\\Debugging Tools For Windows";
-    }
-  }
-  
-  
   # Read module list, find out the name of executable and 
   # build symbol path (required by cdb if executable was built on 
   # different machine)
@@ -384,7 +357,7 @@ sub _cdb {
   if (!$ENV{'_NT_SYMBOL_PATH'})
   {
     my $windir= $ENV{'windir'};
-    my $symbol_cache= substr($windir ,0, index($windir,'\\'))."\\cdb_symbols";
+    my $symbol_cache= substr($windir ,0, index($windir,'\\'))."\\symbols";
 
     print "OS debug symbols will be downloaded and stored in $symbol_cache.\n";
     print "You can control the location of symbol cache with _NT_SYMBOL_PATH\n";

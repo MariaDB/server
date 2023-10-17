@@ -20,6 +20,7 @@
 #include "my_base.h"                            /* ha_rows */
 #include <my_sys.h>                             /* qsort2_cmp */
 #include "queues.h"
+#include "sql_string.h"
 #include "sql_class.h"
 
 class Field;

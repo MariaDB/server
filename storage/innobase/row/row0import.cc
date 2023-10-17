@@ -3988,6 +3988,7 @@ page_corrupted:
 					block->page.zip.data = src;
 					frame_changed = true;
 				} else if (!page_compressed
+					   && type != FIL_PAGE_TYPE_XDES
 					   && !block->page.zip.data) {
 					block->frame = src;
 					frame_changed = true;

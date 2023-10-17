@@ -402,9 +402,11 @@ SET @@GLOBAL.max_allowed_packet=2048;
 # reconnect to make the new max packet size take effect
 --connect (newconn, localhost, root,,)
 
+--disable_ps2_protocol
 SELECT CONVERT('a', BINARY(2049));  
 SELECT CONVERT('a', CHAR(2049));  
 SELECT length(CONVERT(repeat('a',2048), CHAR(2049)));
+--enable_ps2_protocol
 
 connection default;
 disconnect newconn;

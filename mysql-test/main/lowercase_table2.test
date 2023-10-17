@@ -288,3 +288,29 @@ show create database mysql_TEST;
 show create table mysql_TEST.T1;
 show create table mysql_test.t1;
 drop database mysql_TEST;
+
+--echo # MDEV-30765 SHOW TABLES not working properly with
+--echo # lower_case_table_names=2
+--echo #
+create database db1;
+use db1;
+--echo # lowercase table name
+create table `a` (a int);
+--echo # uppercase table name
+create table `B` (a int);
+
+create user 'mysqltest_1'@'localhost' identified by 'password';
+
+grant select, show view on db1.`a` to 'mysqltest_1'@'localhost';
+grant select, show view on db1.`B` to 'mysqltest_1'@'localhost';
+
+connect (conn1, localhost, mysqltest_1, password, test);
+connection conn1;
+use db1;
+show tables;
+
+connection default;
+disconnect conn1;
+drop user 'mysqltest_1'@'localhost';
+drop tables a, B;
+drop database db1;

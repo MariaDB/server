@@ -1294,7 +1294,7 @@ public:
     Currently it's only used in partitioning.
   */
   virtual int cmp_prefix(const uchar *a, const uchar *b,
-                         size_t prefix_len) const
+                         size_t prefix_char_len) const
   { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *) const=0;
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const
@@ -2842,22 +2842,9 @@ public:
   Field_float(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-              uint8 dec_arg,bool zero_arg,bool unsigned_arg)
-    :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-                unireg_check_arg, field_name_arg,
-                dec_arg, zero_arg, unsigned_arg)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+              uint8 dec_arg,bool zero_arg,bool unsigned_arg);
   Field_float(uint32 len_arg, bool maybe_null_arg,
-              const LEX_CSTRING *field_name_arg, uint8 dec_arg)
-    :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+              const LEX_CSTRING *field_name_arg, uint8 dec_arg);
   const Type_handler *type_handler() const override
   { return &type_handler_float; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_FLOAT; }
@@ -2890,32 +2877,12 @@ public:
   Field_double(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	       uchar null_bit_arg,
 	       enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	       uint8 dec_arg,bool zero_arg,bool unsigned_arg)
-    :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-                unireg_check_arg, field_name_arg,
-                dec_arg, zero_arg, unsigned_arg)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+	       uint8 dec_arg,bool zero_arg,bool unsigned_arg);
   Field_double(uint32 len_arg, bool maybe_null_arg,
-               const LEX_CSTRING *field_name_arg, uint8 dec_arg)
-    :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+               const LEX_CSTRING *field_name_arg, uint8 dec_arg);
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
-	       uint8 dec_arg, bool not_fixed_arg)
-    :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      not_fixed= not_fixed_arg;
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+	       uint8 dec_arg, bool not_fixed_arg);
   void init_for_tmp_table(Field *org_field, TABLE *new_table) override
   {
     Field::init_for_tmp_table(org_field, new_table);
@@ -4176,7 +4143,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool send(Protocol *protocol) override;
   int cmp(const uchar *a,const uchar *b) const override;
-  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len) const
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
     override;
   void sort_string(uchar *buff,uint length) override;
   uint get_key_image(uchar *buff, uint length,
@@ -4469,7 +4436,7 @@ public:
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *a, const uchar *b) const override;
-  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len) const
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
     override;
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length)
     const;
@@ -4954,7 +4921,7 @@ public:
   int cmp_binary_offset(uint row_offset) override
   { return cmp_offset(row_offset); }
   int cmp_prefix(const uchar *a, const uchar *b,
-                 size_t  max_length) const override;
+                 size_t  prefix_char_length) const override;
   int key_cmp(const uchar *a, const uchar *b) const override
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length) const override;
@@ -5234,7 +5201,7 @@ class Column_definition: public Sql_alloc,
   const Type_handler *field_type() const; // Prevent using this
   Compression_method *compression_method_ptr;
 public:
-  LEX_CSTRING field_name;
+  Lex_ident   field_name;
   LEX_CSTRING comment;			// Comment for field
   enum enum_column_versioning
   {

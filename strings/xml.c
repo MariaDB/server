@@ -304,10 +304,10 @@ static int my_xml_leave(MY_XML_PARSER *p, const char *str, size_t slen)
     if (glen)
     {
       mstr(g, tag, sizeof(g)-1, glen);
-      sprintf(p->errstr,"'</%s>' unexpected ('</%s>' wanted)",s,g);
+      snprintf(p->errstr,sizeof(p->errstr),"'</%s>' unexpected ('</%s>' wanted)",s,g);
     }
     else
-      sprintf(p->errstr,"'</%s>' unexpected (END-OF-INPUT wanted)", s);
+      snprintf(p->errstr,sizeof(p->errstr),"'</%s>' unexpected (END-OF-INPUT wanted)", s);
     return MY_XML_ERROR;
   }
   
@@ -362,7 +362,7 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
       {
         if (MY_XML_IDENT != (lex=my_xml_scan(p,&a)))
         {
-          sprintf(p->errstr,"%s unexpected (ident wanted)",lex2str(lex));
+          snprintf(p->errstr,sizeof(p->errstr),"%s unexpected (ident wanted)",lex2str(lex));
           return MY_XML_ERROR;
         }
         if (MY_XML_OK != my_xml_leave(p,a.beg,(size_t) (a.end-a.beg)))
@@ -390,7 +390,7 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
       }
       else
       {
-        sprintf(p->errstr,"%s unexpected (ident or '/' wanted)",
+        snprintf(p->errstr,sizeof(p->errstr),"%s unexpected (ident or '/' wanted)",
 		lex2str(lex));
         return MY_XML_ERROR;
       }
@@ -412,7 +412,7 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
           }
           else
           {
-            sprintf(p->errstr,"%s unexpected (ident or string wanted)",
+            snprintf(p->errstr,sizeof(p->errstr),"%s unexpected (ident or string wanted)",
 		    lex2str(lex));
             return MY_XML_ERROR;
           }
@@ -449,7 +449,7 @@ gt:
       {
         if (lex != MY_XML_QUESTION)
         {
-          sprintf(p->errstr,"%s unexpected ('?' wanted)",lex2str(lex));
+          snprintf(p->errstr,sizeof(p->errstr),"%s unexpected ('?' wanted)",lex2str(lex));
           return MY_XML_ERROR;
         }
         if (MY_XML_OK != my_xml_leave(p,NULL,0))
@@ -465,7 +465,7 @@ gt:
       
       if (lex != MY_XML_GT)
       {
-        sprintf(p->errstr,"%s unexpected ('>' wanted)",lex2str(lex));
+        snprintf(p->errstr,sizeof(p->errstr),"%s unexpected ('>' wanted)",lex2str(lex));
         return MY_XML_ERROR;
       }
     }
@@ -486,7 +486,7 @@ gt:
 
   if (p->attr.start[0])
   {
-    sprintf(p->errstr,"unexpected END-OF-INPUT");
+    snprintf(p->errstr,sizeof(p->errstr),"unexpected END-OF-INPUT");
     return MY_XML_ERROR;
   }
   return MY_XML_OK;

@@ -41,7 +41,7 @@ typedef struct _datpar *PDTP;         // For DTVAL
 /***********************************************************************/
 // Exported functions
 DllExport PCSZ  GetTypeName(int);
-DllExport int   GetTypeSize(int, int);
+DllExport unsigned   GetTypeSize(int, unsigned);
 #ifdef ODBC_SUPPORT
 /* This function is exported for use in OEM table type DLLs */
 DllExport int   TranslateSQLType(int stp, int prec, 

@@ -5,6 +5,7 @@
 # $table_item = <schema>.<tablename> must be set before sourcing this script.
 #
 
+--disable_ps2_protocol
 insert into marker set a = 1;
 eval insert into $table_item set a = 'foo', b = 1;
 insert into marker set a = 1;
@@ -33,4 +34,4 @@ insert into marker set a = 1;
 eval truncate table $table_item;
 --enable_abort_on_error
 insert into marker set a = 1;
-
+--enable_ps2_protocol

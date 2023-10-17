@@ -1221,7 +1221,7 @@ drop table if exists t1,t2,t3;
 # Fix modified for MariaDB: we support this syntax
 create table t1 (a int) transactional=0;
 Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=0'
+Warning	1911	Unknown option 'transactional'
 create table t2 (a int) page_checksum=1;
 create table t3 (a int) row_format=page;
 drop table t1,t2,t3;
@@ -2019,7 +2019,7 @@ drop table t1;
 # MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
 #
 create table t1 (c int(10) unsigned) engine=memory transactional=0;
-ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'TRANSACTIONAL=0'
+ERROR HY000: Unknown option 'transactional'
 #
 # End of 10.2 tests
 #

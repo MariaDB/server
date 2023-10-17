@@ -280,9 +280,7 @@ buf_read_page_low(
 	*err = DB_SUCCESS;
 
 	if (buf_dblwr.is_inside(page_id)) {
-		ib::error() << "Trying to read doublewrite buffer page "
-			<< page_id;
-		ut_ad(0);
+		*err = DB_CORRUPTION;
 nothing_read:
 		space->release();
 		return false;
@@ -337,7 +335,8 @@ nothing_read:
 	auto fio = space->io(IORequest(sync
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
-			     page_id.page_no() * len, len, dst, bpage);
+			     os_offset_t{page_id.page_no()} * len, len,
+			     dst, bpage);
 	*err= fio.err;
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
@@ -582,7 +581,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
   /* We will check that almost all pages in the area have been accessed
   in the desired order. */
-  const bool descending= page_id == low;
+  const bool descending= page_id != low;
 
   if (!descending && page_id != high_1)
     /* This is not a border page of the area */
@@ -612,7 +611,7 @@ fail:
                                uint32_t{buf_pool.read_ahead_area});
   page_id_t new_low= low, new_high_1= high_1;
   unsigned prev_accessed= 0;
-  for (page_id_t i= low; i != high_1; ++i)
+  for (page_id_t i= low; i <= high_1; ++i)
   {
     const ulint fold= i.fold();
     page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
@@ -647,12 +646,21 @@ hard_fail:
       if (prev == FIL_NULL || next == FIL_NULL)
         goto hard_fail;
       page_id_t id= page_id;
-      if (descending && next - 1 == page_id.page_no())
-        id.set_page_no(prev);
-      else if (!descending && prev + 1 == page_id.page_no())
-        id.set_page_no(next);
+      if (descending)
+      {
+        if (id == high_1)
+          ++id;
+        else if (next - 1 != page_id.page_no())
+          goto hard_fail;
+        else
+          id.set_page_no(prev);
+      }
       else
-        goto hard_fail; /* Successor or predecessor not in the right order */
+      {
+        if (prev + 1 != page_id.page_no())
+          goto hard_fail;
+        id.set_page_no(next);
+      }
 
       new_low= id - (id.page_no() % buf_read_ahead_area);
       new_high_1= new_low + (buf_read_ahead_area - 1);
@@ -693,7 +701,7 @@ failed:
   /* If we got this far, read-ahead can be sensible: do it */
   count= 0;
   for (ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
-       new_low != new_high_1; ++new_low)
+       new_low <= new_high_1; ++new_low)
   {
     if (ibuf_bitmap_page(new_low, zip_size))
       continue;
@@ -719,6 +727,13 @@ failed:
   return count;
 }
 
+/** @return whether a page has been freed */
+inline bool fil_space_t::is_freed(uint32_t page)
+{
+  std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
+  return freed_ranges.contains(page);
+}
+
 /** Issues read requests for pages which recovery wants to read in.
 @param[in]	space_id	tablespace id
 @param[in]	page_nos	array of page numbers to read, with the
@@ -738,7 +753,7 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 	for (ulint i = 0; i < n; i++) {
 
 		/* Ignore if the page already present in freed ranges. */
-		if (space->freed_ranges.contains(page_nos[i])) {
+		if (space->is_freed(page_nos[i])) {
 			continue;
 		}
 

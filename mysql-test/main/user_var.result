@@ -567,7 +567,7 @@ End of 5.5 tests
 #
 # Check that used memory extends if we set a variable
 #
-set @var= repeat('a',20000);
+set @var= repeat('a',30000);
 1
 explain select @a:=max(seq) from seq_1_to_1000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

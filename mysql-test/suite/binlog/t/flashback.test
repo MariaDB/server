@@ -364,6 +364,14 @@ FLUSH LOGS;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-30698 Cover missing test cases for mariadb-binlog options
+--echo #            --raw [and] --flashback
+--echo #
+
+--error 1 # --raw mode and --flashback mode are not allowed
+--exec $MYSQL_BINLOG -vv -B --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000003> $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8.sql
+
 ## Clear
 SET binlog_format=statement;
 --error ER_FLASHBACK_NOT_SUPPORTED

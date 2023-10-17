@@ -450,6 +450,7 @@ DROP TABLE t;
 --echo # MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP
 --echo #
 
+--disable_ps2_protocol 
 #enable view protocol after fix MDEV-28538
 --disable_view_protocol
 
@@ -460,6 +461,7 @@ SELECT HEX( RELEASE_LOCK( 'foo' ) ) AS f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
 
 --enable_view_protocol
+--enable_ps2_protocol
 
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1),(2);

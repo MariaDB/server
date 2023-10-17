@@ -152,6 +152,30 @@ is_parallel_retry_error(rpl_group_info *rgi, int err)
   return has_temporary_error(rgi->thd);
 }
 
+/**
+  Accumulate a Diagnostics_area's errors and warnings into an output buffer
+
+    @param errbuf       The output buffer to write error messages
+    @param errbuf_size  The size of the output buffer
+    @param da           The Diagnostics_area to check for errors
+*/
+static void inline aggregate_da_errors(char *errbuf, size_t errbuf_size,
+                                       Diagnostics_area *da)
+{
+  const char *errbuf_end= errbuf + errbuf_size;
+  char *slider;
+  Diagnostics_area::Sql_condition_iterator it= da->sql_conditions();
+  const Sql_condition *err;
+  size_t len;
+  for (err= it++, slider= errbuf; err && slider < errbuf_end - 1;
+       slider += len, err= it++)
+  {
+    len= my_snprintf(slider, errbuf_end - slider,
+                     " %s, Error_code: %d;", err->get_message_text(),
+                     err->get_sql_errno());
+  }
+}
+
 
 /**
    Error reporting facility for Rows_log_event::do_apply_event
@@ -172,13 +196,8 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
                                            const char *log_name, my_off_t pos)
 {
   const char *handler_error= (ha_error ? HA_ERR(ha_error) : NULL);
-  char buff[MAX_SLAVE_ERRMSG], *slider;
-  const char *buff_end= buff + sizeof(buff);
-  size_t len;
-  Diagnostics_area::Sql_condition_iterator it=
-    thd->get_stmt_da()->sql_conditions();
+  char buff[MAX_SLAVE_ERRMSG];
   Relay_log_info const *rli= rgi->rli;
-  const Sql_condition *err;
   buff[0]= 0;
   int errcode= thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0;
 
@@ -191,13 +210,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
   if (is_parallel_retry_error(rgi, errcode))
     return;
 
-  for (err= it++, slider= buff; err && slider < buff_end - 1;
-       slider += len, err= it++)
-  {
-    len= my_snprintf(slider, buff_end - slider,
-                     " %s, Error_code: %d;", err->get_message_text(),
-                     err->get_sql_errno());
-  }
+  aggregate_da_errors(buff, sizeof(buff), thd->get_stmt_da());
 
   if (ha_error != 0)
     rli->report(level, errcode, rgi->gtid_info(),
@@ -3274,7 +3287,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       thd_arg->transaction->all.has_created_dropped_temp_table() ||
       thd_arg->transaction->all.trans_executed_admin_cmd())
     flags2|= FL_DDL;
-  else if (is_transactional && !is_tmp_table)
+  else if (is_transactional && !is_tmp_table &&
+           !(thd_arg->transaction->all.modified_non_trans_table &&
+             thd->variables.binlog_direct_non_trans_update == 0 &&
+             !thd->is_current_stmt_binlog_format_row()))
     flags2|= FL_TRANSACTIONAL;
   if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
@@ -3893,7 +3909,8 @@ bool slave_execute_deferred_events(THD *thd)
 #if defined(HAVE_REPLICATION)
 
 int Xid_apply_log_event::do_record_gtid(THD *thd, rpl_group_info *rgi,
-                                        bool in_trans, void **out_hton)
+                                        bool in_trans, void **out_hton,
+                                        bool force_err)
 {
   int err= 0;
   Relay_log_info const *rli= rgi->rli;
@@ -3908,14 +3925,26 @@ int Xid_apply_log_event::do_record_gtid(THD *thd, rpl_group_info *rgi,
     int ec= thd->get_stmt_da()->sql_errno();
     /*
       Do not report an error if this is really a kill due to a deadlock.
-      In this case, the transaction will be re-tried instead.
+      In this case, the transaction will be re-tried instead. Unless force_err
+      is set, as in the case of XA PREPARE, as the GTID state is updated as a
+      separate transaction, and if that fails, we should not retry but exit in
+      error immediately.
     */
-    if (!is_parallel_retry_error(rgi, ec))
+    if (!is_parallel_retry_error(rgi, ec) || force_err)
+    {
+      char buff[MAX_SLAVE_ERRMSG];
+      buff[0]= 0;
+      aggregate_da_errors(buff, sizeof(buff), thd->get_stmt_da());
+
+      if (force_err)
+        thd->clear_error();
+
       rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
                   "Error during XID COMMIT: failed to update GTID state in "
-                  "%s.%s: %d: %s",
+                  "%s.%s: %d: %s the event's master log %s, end_log_pos %llu",
                   "mysql", rpl_gtid_slave_state_table_name.str, ec,
-                  thd->get_stmt_da()->message());
+                  buff, RPL_LOG_NAME, log_pos);
+    }
     thd->is_slave_error= 1;
   }
 
@@ -3989,7 +4018,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   {
     DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
 
-    if ((err= do_record_gtid(thd, rgi, false, &hton)))
+    if ((err= do_record_gtid(thd, rgi, false, &hton, true)))
       return err;
   }
 
@@ -5586,7 +5615,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       to avoid query cache being polluted with stale entries,
     */
 # ifdef WITH_WSREP
-    if (!WSREP(thd) && !wsrep_thd_is_applying(thd))
+    /* Query cache is not invalidated on wsrep applier here */
+    if (!(WSREP(thd) && wsrep_thd_is_applying(thd)))
 # endif /* WITH_WSREP */
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* HAVE_QUERY_CACHE */
@@ -5698,7 +5728,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              ignored_error_code(actual_error) : 0);
 
 #ifdef WITH_WSREP
-        if (WSREP(thd) && wsrep_ignored_error_code(this, actual_error))
+        if (WSREP(thd) && thd->wsrep_applier &&
+            wsrep_ignored_error_code(this, actual_error))
         {
           idempotent_error= true;
           thd->wsrep_has_ignored_error= true;
@@ -7230,7 +7261,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     DBUG_RETURN(error);
   }
 
-  if (m_curr_row == m_rows_buf && !invoke_triggers)
+  if (m_curr_row == m_rows_buf && !invoke_triggers && !table->s->long_unique_table)
   {
     /*
        This table has no triggers so we can do bulk insert.
@@ -7262,6 +7293,9 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
   DBUG_PRINT_BITSET("debug", "rpl_write_set: %s", table->rpl_write_set);
   DBUG_PRINT_BITSET("debug", "read_set:      %s", table->read_set);
+
+  if (table->s->long_unique_table)
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
 
   if (invoke_triggers &&
       unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
@@ -7374,7 +7408,14 @@ Rows_log_event::write_row(rpl_group_info *rgi,
        Now, record[1] should contain the offending row.  That
        will enable us to update it or, alternatively, delete it (so
        that we can insert the new row afterwards).
-     */
+    */
+    if (table->s->long_unique_table)
+    {
+      /* same as for REPLACE/ODKU */
+      table->move_fields(table->field, table->record[1], table->record[0]);
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
+      table->move_fields(table->field, table->record[0], table->record[1]);
+    }
 
     /*
       If row is incomplete we will use the record found to fill 
@@ -7384,6 +7425,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     {
       restore_record(table,record[1]);
       error= unpack_current_row(rgi);
+      if (table->s->long_unique_table)
+        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
     }
 
     DBUG_PRINT("debug",("preparing for update: before and after image"));
@@ -7466,8 +7509,18 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 int Rows_log_event::update_sequence()
 {
   TABLE *table= m_table;  // pointer to event's table
+  bool old_master= false;
+  int err= 0;
 
-  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO))
+  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
+      (
+#if defined(WITH_WSREP)
+       ! WSREP(thd) &&
+#endif
+       !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
+       !(old_master=
+         rpl_master_has_bug(thd->rgi_slave->rli,
+                            29621, FALSE, FALSE, FALSE, TRUE))))
   {
     /* This event come from a setval function executed on the master.
        Update the sequence next_number and round, like we do with setval()
@@ -7480,12 +7533,27 @@ int Rows_log_event::update_sequence()
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
-
+  if (old_master && !WSREP(thd) && thd->rgi_slave->is_parallel_exec)
+  {
+    DBUG_ASSERT(thd->rgi_slave->parallel_entry);
+    /*
+      With parallel replication enabled, we can't execute alongside any other
+      transaction in which we may depend, so we force retry to release
+      the server layer table lock for possible prior in binlog order
+      same table transactions.
+    */
+    if (thd->rgi_slave->parallel_entry->last_committed_sub_id <
+        thd->rgi_slave->wait_commit_sub_id)
+    {
+      err= ER_LOCK_DEADLOCK;
+      my_error(err, MYF(0));
+    }
+  }
   /*
     Update all fields in table and update the active sequence, like with
     ALTER SEQUENCE
   */
-  return table->file->ha_write_row(table->record[0]);
+  return err == 0 ? table->file->ha_write_row(table->record[0]) : err;
 }
 
 
@@ -7543,7 +7611,7 @@ uint8 Write_rows_log_event::get_trg_event_map()
 
   Returns TRUE if different.
 */
-static bool record_compare(TABLE *table)
+static bool record_compare(TABLE *table, bool vers_from_plain= false)
 {
   bool result= FALSE;
   /**
@@ -7576,10 +7644,19 @@ static bool record_compare(TABLE *table)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if (table->versioned() && (*ptr)->vers_sys_field())
-    {
+    /*
+      If the table is versioned, don't compare using the version if there is a
+      primary key. If there isn't a primary key, we need the version to
+      identify the correct record if there are duplicate rows in the data set.
+      However, if the primary server is unversioned (vers_from_plain is true),
+      then we implicitly use row_end as the primary key on our side. This is
+      because the implicit row_end value will be set to the maximum value for
+      the latest row update (which is what we care about).
+    */
+    if (table->versioned() && (*ptr)->vers_sys_field() &&
+        (table->s->primary_key < MAX_KEY ||
+         (vers_from_plain && table->vers_start_field() == (*ptr))))
       continue;
-    }
     /**
       We only compare field contents that are not null.
       NULL fields (i.e., their null bits) were compared 
@@ -7976,7 +8053,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table))
+    while (record_compare(table, m_vers_from_plain))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
@@ -8029,7 +8106,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         goto end;
       }
     }
-    while (record_compare(table));
+    while (record_compare(table, m_vers_from_plain));
     
     /* 
       Note: above record_compare will take into accout all record fields 
@@ -8296,6 +8373,11 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     return error;
   }
 
+  const bool history_change= m_table->versioned() ?
+    !m_table->vers_end_field()->is_max() : false;
+  TABLE_LIST *tl= m_table->pos_in_table_list;
+  uint8 trg_event_map_save= tl->trg_event_map;
+
   /*
     This is the situation after locating BI:
 
@@ -8322,6 +8404,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   thd_proc_info(thd, message);
   if (unlikely((error= unpack_current_row(rgi, &m_cols_ai))))
     goto err;
+  if (m_table->s->long_unique_table)
+    m_table->update_virtual_fields(m_table->file, VCOL_UPDATE_FOR_WRITE);
 
   /*
     Now we have the right row to update.  The old row (the one we're
@@ -8353,9 +8437,17 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     goto err;
   }
 
-  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
-    m_table->vers_update_fields();
+  if (m_table->versioned())
+  {
+    if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
+      m_table->vers_update_fields();
+    if (!history_change && !m_table->vers_end_field()->is_max())
+    {
+      tl->trg_event_map|= trg2bit(TRG_EVENT_DELETE);
+    }
+  }
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
+  tl->trg_event_map= trg_event_map_save;
   if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))

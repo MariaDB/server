@@ -5,6 +5,7 @@
 # Test sequence generation
 #
 
+--disable_ps2_protocol
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 2 cycle;
 show create table t1;
 select next value for t1;
@@ -297,3 +298,4 @@ SELECT SETVAL (v,0);
 
 UNLOCK TABLES;
 DROP VIEW v;
+--disable_ps2_protocol

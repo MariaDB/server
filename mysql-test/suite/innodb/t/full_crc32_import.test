@@ -199,6 +199,16 @@ SET GLOBAL innodb_compression_algorithm=0;
 ALTER TABLE t1 FORCE;
 ALTER TABLE t1 DISCARD TABLESPACE;
 
+--echo # Display the discarded table name by using SPACE and PAGE_NO
+--echo # column in INNODB_SYS_INDEXES and discard doesn't affect the
+--echo # SPACE in INNODB_SYS_TABLES
+SELECT t.NAME, t.SPACE BETWEEN 1 and 0xFFFFFFEF as SYS_TABLE_SPACE_RANGE
+FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+WHERE t.TABLE_ID IN (
+	SELECT i.TABLE_ID FROM
+	INFORMATION_SCHEMA.INNODB_SYS_INDEXES i WHERE
+	i.PAGE_NO IS NULL and i.SPACE IS NULL);
+
 --list_files $MYSQLD_DATADIR/test
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";

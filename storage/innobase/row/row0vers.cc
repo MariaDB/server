@@ -723,9 +723,16 @@ row_vers_vc_matches_cluster(
 			    && (!compare[v_col->v_pos])) {
 
 				if (ind_field->prefix_len != 0
-				    && !dfield_is_null(field2)
-				    && field2->len > ind_field->prefix_len) {
-					field2->len = ind_field->prefix_len;
+				    && !dfield_is_null(field2)) {
+					field2->len = unsigned(
+						dtype_get_at_most_n_mbchars(
+							field2->type.prtype,
+							field2->type.mbminlen,
+							field2->type.mbmaxlen,
+							ind_field->prefix_len,
+							field2->len,
+							static_cast<char*>
+							(field2->data)));
 				}
 
 				/* The index field mismatch */
@@ -831,6 +838,30 @@ row_vers_build_cur_vrow(
 					 clust_index->n_core_fields,
 					 ULINT_UNDEFINED, &heap);
 	return(cur_vrow);
+}
+
+/** Find out whether data tuple has missing data type
+for indexed virtual column.
+@param tuple   data tuple
+@param index   virtual index
+@return true if tuple has missing column type */
+static bool dtuple_vcol_data_missing(const dtuple_t &tuple,
+                                     dict_index_t *index)
+{
+  for (ulint i= 0; i < index->n_uniq; i++)
+  {
+    dict_col_t *col= index->fields[i].col;
+    if (!col->is_virtual())
+      continue;
+    dict_v_col_t *vcol= reinterpret_cast<dict_v_col_t*>(col);
+    for (ulint j= 0; j < index->table->n_v_cols; j++)
+    {
+      if (vcol == &index->table->v_cols[j]
+          && tuple.v_fields[j].type.mtype == DATA_MISSING)
+        return true;
+    }
+  }
+  return false;
 }
 
 /** Finds out if a version of the record, where the version >= the current
@@ -1041,6 +1072,9 @@ unsafe_to_purge:
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {
+				if (dtuple_vcol_data_missing(*vrow, index)) {
+					goto nochange_index;
+				}
 				/* Keep the virtual row info for the next
 				version, unless it is changed */
 				mem_heap_empty(v_heap);
@@ -1051,6 +1085,7 @@ unsafe_to_purge:
 			if (!cur_vrow) {
 				/* Nothing for this index has changed,
 				continue */
+nochange_index:
 				version = prev_version;
 				continue;
 			}

@@ -32,17 +32,6 @@ const char *GetMsgid(int id)
   const char *p = NULL;
 
   // This conditional until a real fix is found for MDEV-7304
-#if defined(FRENCH)
-  if (!stricmp(msglang(), "french"))
-    switch (id) {
-#include "frids.h"
-#if defined(NEWMSG)
-#include "frcas.h"
-#endif   // NEWMSG
-    } // endswitch(id)
-
-  else    // English
-#endif   // FRENCH
     switch (id) {
 #include "enids.h"
 #if defined(NEWMSG)

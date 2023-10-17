@@ -45,6 +45,9 @@
 #include "ha_sequence.h"
 #include "sql_show.h"
 #include "opt_trace.h"
+#ifdef WITH_WSREP
+#include "wsrep_schema.h"
+#endif
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -267,10 +270,14 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
 
 #ifdef WITH_WSREP
   if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
-      my_strcasecmp(system_charset_info, name->str, "wsrep_streaming_log") == 0)
+      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
   {
-    return TABLE_CATEGORY_INFORMATION;
+    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    {
+      return TABLE_CATEGORY_INFORMATION;
+    }
   }
 #endif /* WITH_WSREP */
   if (is_infoschema_db(db))
@@ -938,39 +945,6 @@ static uint enum_value_with_check(THD *thd, TABLE_SHARE *share,
 }
 
 
-/**
-   Check if a collation has changed number
-
-   @param mysql_version
-   @param current collation number
-
-   @retval new collation number (same as current collation number of no change)
-*/
-
-static uint upgrade_collation(ulong mysql_version, uint cs_number)
-{
-  if (mysql_version >= 50300 && mysql_version <= 50399)
-  {
-    switch (cs_number) {
-    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
-    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
-    }
-  }
-  if ((mysql_version >= 50500 && mysql_version <= 50599) ||
-      (mysql_version >= 100000 && mysql_version <= 100005))
-  {
-    switch (cs_number) {
-    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
-    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
-    case 214: return MY_PAGE2_COLLATION_ID_UTF32;  // utf32_croatian_ci
-    case 215: return MY_PAGE2_COLLATION_ID_UTF16;  // utf16_croatian_ci
-    case 245: return MY_PAGE2_COLLATION_ID_UTF8MB4;// utf8mb4_croatian_ci
-    }
-  }
-  return cs_number;
-}
-
-
 void Column_definition_attributes::frm_pack_basic(uchar *buff) const
 {
   int2store(buff + 3, length);
@@ -1030,7 +1004,7 @@ bool Column_definition_attributes::frm_unpack_charset(TABLE_SHARE *share,
                                                       const uchar *buff)
 {
   uint cs_org= buff[14] + (((uint) buff[11]) << 8);
-  uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+  uint cs_new= Charset::upgrade_collation_id(share->mysql_version, cs_org);
   if (cs_org != cs_new)
     share->incompatible_version|= HA_CREATE_USED_CHARSET;
   if (cs_new && !(charset= get_charset(cs_new, MYF(0))))
@@ -1857,7 +1831,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!frm_image[32])				// New frm file in 3.23
   {
     uint cs_org= (((uint) frm_image[41]) << 8) + (uint) frm_image[38];
-    uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+    uint cs_new= Charset::upgrade_collation_id(share->mysql_version, cs_org);
     if (cs_org != cs_new)
       share->incompatible_version|= HA_CREATE_USED_CHARSET;
 
@@ -2965,6 +2939,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
 
         field= key_part->field= share->field[key_part->fieldnr-1];
+        if (Charset::collation_changed_order(share->mysql_version,
+                                             field->charset()->number))
+          share->incompatible_version|= HA_CREATE_USED_CHARSET;
         key_part->type= field->key_type();
 
         if (field->invisible > INVISIBLE_USER && !field->vers_sys_field())
@@ -3401,7 +3378,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   char *sql_copy;
   handler *file;
   LEX *old_lex;
-  Query_arena *arena, backup;
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
@@ -3428,12 +3404,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   old_lex= thd->lex;
   thd->lex= &tmp_lex;
 
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
-
   thd->reset_db(&db);
   lex_start(thd);
 
@@ -3441,17 +3411,18 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
 
-  thd->lex->create_info.db_type= hton;
+  tmp_lex.create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;                       // For partitioning
 #endif
 
   if (tabledef_version.str)
-    thd->lex->create_info.tabledef_version= tabledef_version;
+    tmp_lex.create_info.tabledef_version= tabledef_version;
 
-  promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, db, table_name,
-                               &thd->lex->create_info, &thd->lex->alter_info,
+  tmp_lex.alter_info.db= db;
+  tmp_lex.alter_info.table_name= table_name;
+  promote_first_timestamp_column(&tmp_lex.alter_info.create_list);
+  file= mysql_create_frm_image(thd, &tmp_lex.create_info, &tmp_lex.alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
@@ -3465,11 +3436,9 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
 ret:
   my_free(const_cast<uchar*>(frm.str));
-  lex_end(thd->lex);
+  lex_end(&tmp_lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
@@ -6655,6 +6624,9 @@ bool TABLE_LIST::prepare_security(THD *thd)
 #ifndef DBUG_OFF
 void TABLE_LIST::set_check_merged()
 {
+  if (is_view())
+    return;
+
   DBUG_ASSERT(derived);
   /*
     It is not simple to check all, but at least this should be checked:
@@ -6982,9 +6954,8 @@ void Field_iterator_table_ref::set_field_iterator()
                        table_ref->alias.str));
   }
   /* This is a merge view, so use field_translation. */
-  else if (table_ref->field_translation)
+  else if (table_ref->is_merged_derived() && table_ref->field_translation)
   {
-    DBUG_ASSERT(table_ref->is_merged_derived());
     field_it= &view_field_it;
     DBUG_PRINT("info", ("field_it for '%s' is Field_iterator_view",
                         table_ref->alias.str));
@@ -9041,7 +9012,7 @@ bool TABLE::check_period_overlaps(const KEY &key,
         return false;
     uint kp_len= key.key_part[part_nr].length;
     if (f->cmp_prefix(f->ptr_in_record(lhs), f->ptr_in_record(rhs),
-                      kp_len) != 0)
+                      kp_len / f->charset()->mbmaxlen) != 0)
       return false;
   }
 
@@ -9414,8 +9385,13 @@ void TABLE_LIST::wrap_into_nested_join(List<TABLE_LIST> &join_list)
 
 static inline bool derived_table_optimization_done(TABLE_LIST *table)
 {
-  return table->derived &&
-      (table->derived->is_excluded() ||
+  SELECT_LEX_UNIT *derived= (table->derived ?
+                             table->derived :
+                             (table->view ?
+                              &table->view->unit:
+                              NULL));
+  return derived &&
+      (derived->is_excluded() ||
        table->is_materialized_derived());
 }
 
@@ -9477,15 +9453,14 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     set_derived();
   }
 
-  if (!is_view() &&
-      !derived_table_optimization_done(this))
+  if (!derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
-    if (!is_materialized_derived() && first_select->is_mergeable() &&
-        optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
+    if (!is_materialized_derived() && unit->can_be_merged() &&
+        (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) || is_view()) &&
         !thd->lex->can_not_use_merged() &&
-        !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-          thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+        !((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+           thd->lex->sql_command == SQLCOM_DELETE_MULTI) && !is_view()) &&
         !is_recursive_with_table())
       set_merged_derived();
     else
@@ -9797,18 +9772,12 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   {
     { STRING_WITH_LEN("???") },
     { STRING_WITH_LEN("RESTRICT") },
+    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("CASCADE") },
     { STRING_WITH_LEN("SET NULL") },
-    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("SET DEFAULT") }
   };
   return names + opt;
-}
-
-bool fk_modifies_child(enum_fk_option opt)
-{
-  static bool can_write[]= { false, false, true, true, false, true };
-  return can_write[opt];
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;

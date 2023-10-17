@@ -91,7 +91,7 @@ py
 import subprocess,shlex,time
 valg=subprocess.Popen(shlex.split("""valgrind --tool=memcheck --show-reachable=yes --leak-check=yes --num-callers=16 --quiet --suppressions=valgrind.supp --vgdb-error=0 {exe} {args} --loose-wait-for-pos-timeout=1500"""))
 time.sleep(2)
-gdb.execute("target remote | /usr/lib64/valgrind/../../bin/vgdb --pid=" + str(valg.pid))
+gdb.execute("target remote | vgdb --pid=" + str(valg.pid))
 EEE
     pre => sub {
       my $debug_libraries_path= "/usr/lib/debug";
@@ -116,19 +116,19 @@ for my $k (sort keys %debuggers) {
   my $v = $debuggers{$k};
   $v = $debuggers{$k} = $debuggers{$v} if not ref $v; # resolve aliases
 
-  sub register_opt($$) {
-    my ($name, $msg) = @_;
-    $opts{"$name=s"} = \$opt_vals{$name};
-    $help .= wrap(sprintf("  %-23s", $name), ' 'x25, "$msg under $name\n");
+  sub register_opt($$$) {
+    my ($prefix, $name, $msg) = @_;
+    $opts{"$prefix$name=s"} = \$opt_vals{$prefix.$name};
+    $help .= wrap(sprintf("  %-23s", $prefix.$name), ' 'x25, "$msg under $name\n");
   }
 
   $v->{script} = '' unless $v->{script};
   $v->{options} =~ s/(\{exe\}|$)/ {options} $&/ unless $v->{options} =~ /\{options\}/;
 
-  register_opt "$k" => "Start mariadbd";
-  register_opt "client-$k" => "Start mariadb-test client";
-  register_opt "boot-$k" => "Start bootstrap server";
-  register_opt "manual-$k" => "Before running test(s) let user manually start mariadbd";
+  register_opt "", $k, "Start mysqld";
+  register_opt "client-", $k, "Start mysqltest client";
+  register_opt "boot-", $k, "Start bootstrap server";
+  register_opt "manual-", "$k", "Before running test(s) let user manually start mariadbd";
 }
 
 sub subst($%) {

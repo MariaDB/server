@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_init_slave_errors.inc
+--source suite/rpl/t/rpl_init_slave_errors.test

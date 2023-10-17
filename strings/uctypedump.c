@@ -120,7 +120,7 @@ int main(int ac, char ** av)
       }
       else
       {
-        strcpy(tok,s);
+        safe_strcpy(tok, sizeof(tok), s);
       }
       
       end=tok+strlen(tok);
@@ -225,7 +225,7 @@ int main(int ac, char ** av)
   {
     char plane_name[128]="NULL";
     if(uctype[plane].ctype){
-      sprintf(plane_name,"uctype_page%02X",(uint) plane);
+      snprintf(plane_name,sizeof(plane_name),"uctype_page%02X",(uint) plane);
     }
     printf("\t{%d,%s}%s\n",uctype[plane].pctype,plane_name,plane<255?",":"");
   }

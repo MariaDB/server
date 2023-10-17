@@ -306,3 +306,13 @@ date_format('2001-01-06', '%w %a %W', 'de_CH')
 select date_format('2001-09-01', '%c %b %M', 'de_CH');
 date_format('2001-09-01', '%c %b %M', 'de_CH')
 9 Sep September
+#
+#  MDEV-30630 locale: Chinese error message for ZH_CN
+#
+SET lc_messages=ZH_CN;
+SELECT x;
+ERROR 42S22: 未知列'x'在'field list'
+SET lc_messages=DEFAULT;
+#
+# End of 10.4 tests
+#

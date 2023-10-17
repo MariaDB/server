@@ -233,6 +233,8 @@ struct rpl_slave_state
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
              uint64 seq_no, void *hton, rpl_group_info *rgi);
+  int update_nolock(uint32 domain_id, uint32 server_id, uint64 sub_id,
+                    uint64 seq_no, void *hton, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
   void select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,

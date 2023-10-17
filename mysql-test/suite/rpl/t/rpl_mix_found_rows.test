@@ -75,7 +75,9 @@ END $$
 --delimiter ;
 
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 WHERE a < 5 ORDER BY a LIMIT 1;
+--disable_ps2_protocol
 SELECT log_rows(2,1), log_rows(2,2);
+--enable_ps2_protocol
 
 CREATE TABLE t2 (a INT, b INT);
 

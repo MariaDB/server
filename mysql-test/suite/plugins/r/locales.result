@@ -57,7 +57,7 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 53	uk_UA	Ukrainian - Ukraine	8	9	,	.	ukrainian
 54	ur_PK	Urdu - Pakistan	6	6	.	,	english
 55	vi_VN	Vietnamese - Vietnam	16	11	,	.	english
-56	zh_CN	Chinese - Peoples Republic of China	3	3	.	,	english
+56	zh_CN	Chinese - Peoples Republic of China	3	3	.	,	chinese
 57	zh_TW	Chinese - Taiwan	3	2	.	,	english
 58	ar_DZ	Arabic - Algeria	6	8	.	,	english
 59	ar_EG	Arabic - Egypt	6	8	.	,	english
@@ -170,7 +170,7 @@ Id	Name	Description	Error_Message_Language
 53	uk_UA	Ukrainian - Ukraine	ukrainian
 54	ur_PK	Urdu - Pakistan	english
 55	vi_VN	Vietnamese - Vietnam	english
-56	zh_CN	Chinese - Peoples Republic of China	english
+56	zh_CN	Chinese - Peoples Republic of China	chinese
 57	zh_TW	Chinese - Taiwan	english
 58	ar_DZ	Arabic - Algeria	english
 59	ar_EG	Arabic - Egypt	english

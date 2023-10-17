@@ -92,6 +92,18 @@ end~~
 delimiter ;~~
 
 delimiter ~~;
+eval create or replace function check_row_slave(row_start $sys_datatype_expl, row_end $sys_datatype_expl)
+returns varchar(255)
+deterministic
+begin
+  if current_row(row_end) then
+    return "CURRENT ROW";
+  end if;
+  return "HISTORICAL ROW";
+end~~
+delimiter ;~~
+
+delimiter ~~;
 eval create or replace function check_row_ts(row_start timestamp(6), row_end timestamp(6))
 returns varchar(255)
 deterministic

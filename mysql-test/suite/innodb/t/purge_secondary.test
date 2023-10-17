@@ -1,6 +1,10 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
+--enable_query_log
+
 # Ensure that the history list length will actually be decremented by purge.
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;

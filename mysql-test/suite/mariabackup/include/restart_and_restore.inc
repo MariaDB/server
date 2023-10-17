@@ -4,5 +4,5 @@ echo # shutdown server;
 echo # remove datadir;
 rmdir $_datadir;
 echo # xtrabackup move back;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$_datadir --target-dir=$targetdir --parallel=2 --throttle=1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$_datadir --target-dir=$targetdir --parallel=2 --throttle=1 $backup_opts;
 --source include/start_mysqld.inc

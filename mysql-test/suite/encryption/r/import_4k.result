@@ -1,0 +1,10 @@
+set @save_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+set global innodb_limit_optimistic_insert_debug=3;
+create table t1 (a INT PRIMARY KEY) engine=InnoDB ENCRYPTED=YES;
+insert into t1 select * from seq_1_to_6000;
+flush table t1 for export;
+unlock tables;
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+set global innodb_limit_optimistic_insert_debug=@save_limit;
+drop table t1;

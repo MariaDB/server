@@ -38,6 +38,7 @@ DELIMITER ;$
 
 SET SESSION long_query_time = 0;
 
+--disable_ps2_protocol
 SELECT @@log_slow_disabled_statements;
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra int;
@@ -77,6 +78,7 @@ SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part5';
 --echo -->
 SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
 --echo <--
+--enable_ps2_protocol
 
 DROP TABLE t1,t2;
 DROP PROCEDURE slow;

@@ -74,6 +74,7 @@ TRUNCATE TABLE mysql.general_log;
 --connection child2_2
 TRUNCATE TABLE mysql.general_log;
 
+--disable_ps2_protocol
 --connection master_1
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 
@@ -136,6 +137,7 @@ eval $CHILD2_1_SELECT_TABLES;
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_2_SELECT_ARGUMENT1;
 eval $CHILD2_2_SELECT_TABLES;
+--enable_ps2_protocol
 
 --echo
 --echo deinit

@@ -1,15 +1,28 @@
-drop table if exists t1;
+#
+# test mysqld in bootstrap mode
+#
+#
+# Check that --bootstrap reads from stdin
+#
 # Kill the server
 # restart
 drop table t1;
+#
+# Check that --bootstrap of file with SQL error returns error
+#
 # Kill the server
 # restart
 drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
+#
+# Bootstrap with a large thd->net.max_packet
+#
 # Kill the server
 # restart
 drop table t1;
-End of 5.1 tests
+# 
+# End of 5.1 tests
+#
 #
 # Bug #11766306: 59393: HAVE_INNODB=YES WHEN MYSQLD 
 #  STARTED WITH --SKIP-INNODB
@@ -18,9 +31,23 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 
 # Kill the server
+#
+# MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
+#
+#
+# MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
+#
 # restart
-End of 5.5 tests
+#
+# End of 5.5 tests
+#
+#
+# Check that --bootstrap can install and uninstall plugins
+#
 # Kill the server
+#
+# Check that installed plugins are *not* automatically loaded in --bootstrap
+#
 # restart
 flush tables;
 show create table t1;
@@ -34,4 +61,16 @@ name	dl
 EXAMPLE	ha_example.so
 truncate table mysql.plugin;
 # Kill the server
+#
+# MDEV-9969 mysql_install_db error processing ignore_db_dirs.
+#
+#
+# MDEV-13397 MariaDB upgrade fail when using default_time_zone
+#
+#
+# MDEV-30818 invalid ssl prevents bootstrap
+#
 # restart
+#
+# End of 10.3 tests
+#

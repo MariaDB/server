@@ -68,7 +68,9 @@ INSERT INTO t1 VALUES (1);
 CREATE SEQUENCE s ENGINE=InnoDB;
 
 XA START '2';
+--disable_ps2_protocol
 SELECT NEXT VALUE FOR s;
+--enable_ps2_protocol
 REPLACE INTO t1 SELECT * FROM t1;
 XA END '2';
 XA PREPARE '2';

@@ -23,7 +23,7 @@ set global debug_dbug="+d,ib_purge_virtual_index_callback";
 connection con1;
 COMMIT;
 
---source ../innodb/include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait=1;
 
 connection con2;
 commit;

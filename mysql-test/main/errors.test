@@ -94,8 +94,10 @@ end|
 delimiter ;|
 
 flush status;
+--disable_ps2_protocol
 --error 1062
 select f1(), f2();
+--enable_ps2_protocol
 show status like 'Com_insert';
 select * from t1;
 select * from t2;

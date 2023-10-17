@@ -22,6 +22,7 @@ select 't1',b,count(*) from t1 group by b UNION select 't2',b,count(*) from t2 g
 --error ER_TABLENAME_NOT_ALLOWED_HERE
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by t1.b;
 explain extended (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by b desc;
+--disable_ps2_protocol
 --disable_view_protocol
 select count(*) from (
 (select                      a,b from t1 limit 2)  union all (select a,b from t2 order by a)) q;
@@ -32,6 +33,7 @@ select                      a,b from t1  union all select a,b from t2) q;
 select sql_calc_found_rows  a,b from t1  union all select a,b from t2 limit 2;
 select found_rows();
 --enable_view_protocol
+--enable_ps2_protocol
 #
 # Test some error conditions with UNION
 #
@@ -206,6 +208,7 @@ insert into t1 values (1),(2),(3);
 create table t2 (a int);
 insert into t2 values (3),(4),(5);
 
+--disable_ps2_protocol
 --disable_view_protocol
 # Test global limits
 SELECT COUNT(*) FROM (
@@ -233,14 +236,17 @@ SELECT COUNT(*) FROM (
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 1;
 select found_rows();
 --enable_view_protocol
+--enable_ps2_protocol
 
 # In these case found_rows() should work
 --error ER_PARSE_ERROR
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION all SELECT * FROM t2 LIMIT 2;
+--disable_ps2_protocol
 --disable_view_protocol
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
 --enable_view_protocol
+--enable_ps2_protocol
 
 # The following examples will not be exact
 SELECT COUNT(*) FROM (
@@ -248,16 +254,20 @@ SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2;
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION all SELECT * FROM t2) q;
+--disable_ps2_protocol
 --disable_view_protocol
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
 --enable_view_protocol
+--enable_ps2_protocol
 SELECT COUNT(*) FROM (
 SELECT                     * FROM t1 UNION all SELECT * FROM t2) q;
+--disable_ps2_protocol
 --disable_view_protocol
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 100;
 select found_rows();
 --enable_view_protocol
+--enable_ps2_protocol
 --error ER_PARSE_ERROR
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 100 UNION SELECT * FROM t2;
 SELECT COUNT(*) FROM (
@@ -273,10 +283,12 @@ SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2 LIMIT 2;
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 2;
+--disable_ps2_protocol
 --disable_view_protocol
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2,2;
 select found_rows();
 --enable_view_protocol
+--enable_ps2_protocol
 SELECT COUNT(*) FROM (
 SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 --error ER_PARSE_ERROR
@@ -508,6 +520,7 @@ insert t1 select a+1, a+b from t1;
 insert t1 select a+1, a+b from t1;
 insert t1 select a+1, a+b from t1;
 FLUSH STATUS;
+--disable_ps2_protocol
 --disable_view_protocol
 show status like 'Slow_queries';
 select count(*) from t1 where a=7;
@@ -523,6 +536,7 @@ flush status;
 select a from t1 where b not in (1,2,3) union select a from t1 where b not in (4,5,6); 
 show status like 'Slow_queries';
 --enable_view_protocol
+--enable_ps2_protocol
 drop table t1;
 
 #
@@ -1096,6 +1110,7 @@ DROP TABLE t1;
 -- echo # Bug#32858: Error: "Incorrect usage of UNION and INTO" does not take 
 -- echo # subselects into account
 -- echo #
+--disable_ps2_protocol
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
@@ -1141,6 +1156,7 @@ SELECT ( SELECT a UNION SELECT a ) INTO DUMPFILE 'union.out.file4' FROM t1;
 
 DROP TABLE t1;
 remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.1/data/test union.out.fil*;
+--enable_ps2_protocol
 
 --echo # 
 --echo # Bug #49734: Crash on EXPLAIN EXTENDED UNION ... ORDER BY 
@@ -1367,11 +1383,13 @@ INSERT INTO t17059925 VALUES (1), (2), (3);
 INSERT INTO t2 VALUES (4), (5), (6);
 INSERT INTO t3 VALUES (7), (8), (9);
 TRUNCATE table mysql.slow_log;
---sorted_result
+--disable_ps2_protocol
 --disable_view_protocol
+--sorted_result
 SELECT * FROM t17059925 UNION SELECT * FROM t2 UNION SELECT * FROM t3;
 SELECT sql_text, rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%t17059925%';
 --enable_view_protocol
+--enable_ps_protocol
 DROP TABLE t17059925, t2, t3;
 
 ## Reset to initial values

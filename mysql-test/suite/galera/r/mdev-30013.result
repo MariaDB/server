@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+INSTALL PLUGIN ARCHIVE SONAME 'ha_archive.so';
+CREATE TABLE t (a CHAR(1)) ENGINE=ARCHIVE;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t VALUES ('A');
+UNINSTALL SONAME 'ha_archive';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+ALTER TABLE t CHANGE COLUMN a a CHAR(2);
+INSERT INTO t (a) VALUES ('AB');
+ERROR 42000: Unknown storage engine 'ARCHIVE'
+DROP TABLE t;

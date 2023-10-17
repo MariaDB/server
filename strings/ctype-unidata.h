@@ -21,6 +21,9 @@
 extern MY_UNICASE_CHARACTER my_unicase_default_page00[256];
 extern MY_UNICASE_CHARACTER *my_unicase_default_pages[256];
 
+extern MY_UNICASE_CHARACTER my_unicase_mysql500_page00[256];
+extern MY_UNICASE_CHARACTER *my_unicase_mysql500_pages[256];
+
 size_t my_strxfrm_pad_nweights_unicode(uchar *str, uchar *strend, size_t nweights);
 size_t my_strxfrm_pad_unicode(uchar *str, uchar *strend);
 

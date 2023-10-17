@@ -1,7 +1,7 @@
+--source include/have_udf.inc
 if (!$DIALOG_EXAMPLES_SO) { skip requires dialog_examples.so; }
 if (!$HA_EXAMPLE_SO) { skip requires ha_examples.so; }
 if (!$LIBDAEMON_EXAMPLE_SO) { skip requires libdaemon_examples.so; }
-if (!$UDF_EXAMPLE_SO) { skip requires udf_example.so; }
 if (!$EXAMPLE_KEY_MANAGEMENT_SO) { skip requires example_key_management.so; }
 if (`SELECT VERSION() LIKE '%embedded%'`) { skip Disabled for embedded until MDEV-8664 is resolved; }
 
@@ -12,7 +12,9 @@ show status like '%libraries%';
 #show status like '%libraries%';
 --replace_result .dll .so
 --replace_column 5 MYSQL_VERSION_ID
+--disable_ps2_protocol
 eval select * from information_schema.all_plugins where plugin_library='$HA_EXAMPLE_SO';
+--enable_ps2_protocol
 show status like '%libraries%';
 --sorted_result
 --replace_result .dll .so

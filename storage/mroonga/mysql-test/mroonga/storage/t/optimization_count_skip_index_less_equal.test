@@ -34,7 +34,9 @@ INSERT INTO users (age) VALUES (30);
 INSERT INTO users (age) VALUES (31);
 INSERT INTO users (age) VALUES (32),(33),(34),(35),(36),(37);
 
+--disable_ps2_protocol
 SELECT COUNT(*) FROM users WHERE age <= 29;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_count_skip';
 

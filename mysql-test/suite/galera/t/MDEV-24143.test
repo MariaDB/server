@@ -1,0 +1,20 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (c1 BIGINT NOT NULL PRIMARY KEY, c2 BINARY (10), c3 DATETIME);
+SELECT get_lock ('test2', 0);
+DROP TABLE t1;
+CREATE TABLE t1 (c1 SMALLINT NOT NULL AUTO_INCREMENT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_trx_fragment_size=10;
+SET SESSION autocommit=0;
+SELECT * FROM t1 WHERE c1 <=0 ORDER BY c1 DESC;
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 VALUES (4),(3),(1),(2);
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE t1 (pk INT PRIMARY KEY, b INT) ENGINE=SEQUENCE;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP COLUMN c2;
+SELECT get_lock ('test', 1.5);
+DROP TABLE t1;
+

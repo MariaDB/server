@@ -33,17 +33,22 @@ SET @@global.wsrep_sst_donor=default;
 SELECT @@global.wsrep_sst_donor;
 @@global.wsrep_sst_donor
 
-SET @@global.wsrep_sst_donor=NULL;
+SET @@global.wsrep_sst_donor='';
 SELECT @@global.wsrep_sst_donor;
 @@global.wsrep_sst_donor
-NULL
+
 
 # invalid values
 SET @@global.wsrep_sst_donor=1;
 ERROR 42000: Incorrect argument type to variable 'wsrep_sst_donor'
 SELECT @@global.wsrep_sst_donor;
 @@global.wsrep_sst_donor
-NULL
+
+SET @@global.wsrep_sst_donor=NULL;
+ERROR 42000: Variable 'wsrep_sst_donor' can't be set to the value of 'NULL'
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+
 
 # restore the initial value
 SET @@global.wsrep_sst_donor = @wsrep_sst_donor_global_saved;

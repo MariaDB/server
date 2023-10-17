@@ -31,7 +31,9 @@ explain extended select log10(100),log10(18),log10(-4),log10(0),log10(NULL);
 select pow(10,log10(10)),power(2,4);
 explain extended select pow(10,log10(10)),power(2,4);
 set @@rand_seed1=10000000,@@rand_seed2=1000000;
+--disable_ps2_protocol
 select rand(999999),rand();
+--enable_ps2_protocol
 explain extended select rand(999999),rand();
 select pi(),format(sin(pi()/2),6),format(cos(pi()/2),6),format(abs(tan(pi())),6),format(cot(1),6),format(asin(1),6),format(acos(0),6),format(atan(1),6);
 explain extended select pi(),format(sin(pi()/2),6),format(cos(pi()/2),6),format(abs(tan(pi())),6),format(cot(1),6),format(asin(1),6),format(acos(0),6),format(atan(1),6);
@@ -710,7 +712,6 @@ DROP TABLE t1;
 SELECT  9223372036854775808 DIV  1;
 --error ER_DATA_OUT_OF_RANGE
 SELECT  9223372036854775808 DIV -1;
---error ER_DATA_OUT_OF_RANGE
 SELECT -9223372036854775808 DIV  1;
 --error ER_DATA_OUT_OF_RANGE
 SELECT -9223372036854775808 DIV -1;
@@ -1866,6 +1867,32 @@ CREATE OR REPLACE TABLE t2 AS SELECT FORMAT(f,0) FROM t1;
 SELECT * FROM t2;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-30932 UBSAN: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in Item_func_mul::int_op and Item_func_round::int_op
+--echo #
+
+--error ER_DATA_OUT_OF_RANGE
+SELECT (1 DIV(-1/POW(807,14))*1);
+
+DO((-9223372036854775808)*(1));
+
+SELECT (-9223372036854775808)*(1);
+
+--error ER_DATA_OUT_OF_RANGE
+SELECT (GET_FORMAT(TIME,'JIS'))DIV(POW(-40,65)DIV(1)*2);
+
+SELECT -9223372036854775808 MOD 9223372036854775810;
+
+CREATE TABLE t1 (c INT);
+INSERT INTO t1 VALUES(TRUNCATE(0,-1.e+30));
+DROP TABLE t1;
+SELECT TRUNCATE(0, -9223372036854775808);
+
+--disable_warnings
+SELECT GET_FORMAT(TIME,'JIS') DIV ATAN (TRUNCATE (0,'2000000000000000' DIV SIN(1500)*NOW(5))) AS col1;
+SELECT (GET_FORMAT(TIME,'JIS') DIV ATAN (TRUNCATE (0,'2000000000000000' DIV SIN(1500)*NOW(5))/ROUND(-1)))DIV(-1-LOG2(1))-(-1*POWER(-1,0)) AS col1;
+--enable_warnings
 
 --echo #
 --echo # End of 10.4 tests

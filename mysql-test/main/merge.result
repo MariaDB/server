@@ -3919,3 +3919,15 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE m1;
+#
+# MDEV-31083 ASAN use-after-poison in myrg_attach_children
+#
+CREATE TABLE t1 (f TEXT, FULLTEXT (f)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE mrg (f TEXT) ENGINE=MERGE, UNION(t1);
+SELECT * FROM mrg;
+f
+foo
+bar
+DROP TABLE mrg, t1;
+End of 10.5 tests

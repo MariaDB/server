@@ -1,3 +1,4 @@
+--disable_ps2_protocol
 #
 # MDEV-8633: information_schema.index_statistics doesn't delete item when drop table indexes or drop table;
 #
@@ -45,3 +46,4 @@ drop table just_a_test;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 set global userstat=@save_userstat;
+--enable_ps2_protocol

@@ -29,14 +29,17 @@ extern "C" my_bool wsrep_on(const THD *thd)
 
 extern "C" void wsrep_thd_LOCK(const THD *thd)
 {
-  mysql_mutex_lock(&thd->LOCK_thd_kill);
   mysql_mutex_lock(&thd->LOCK_thd_data);
+}
+
+extern "C" int wsrep_thd_TRYLOCK(const THD *thd)
+{
+  return mysql_mutex_trylock(&thd->LOCK_thd_data);
 }
 
 extern "C" void wsrep_thd_UNLOCK(const THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_thd_data);
-  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 extern "C" void wsrep_thd_kill_LOCK(const THD *thd)
@@ -248,21 +251,12 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
 
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
-    if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
-    {
-      WSREP_DEBUG("victim is killed already by %llu, skipping awake",
-                  victim_thd->wsrep_aborter);
-      wsrep_thd_UNLOCK(victim_thd);
-      return false;
-    }
-
-    victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY_HARD);
   }
   else
-    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake for %llu", thd_get_thread_id(victim_thd));
+    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake for %llu",
+                thd_get_thread_id(victim_thd));
 
-  wsrep_thd_UNLOCK(victim_thd);
   return ret;
 }
 
@@ -383,25 +377,6 @@ extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd)
     return(thd->variables.wsrep_OSU_method);
   else
     return(global_system_variables.wsrep_OSU_method);
-}
-
-extern "C" bool wsrep_thd_set_wsrep_aborter(THD *bf_thd, THD *victim_thd)
-{
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-  if (!bf_thd)
-  {
-    victim_thd->wsrep_aborter= 0;
-    WSREP_DEBUG("wsrep_thd_set_wsrep_aborter resetting wsrep_aborter");
-    return false;
-  }
-  if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
-  {
-    return true;
-  }
-  victim_thd->wsrep_aborter= bf_thd->thread_id;
-  WSREP_DEBUG("wsrep_thd_set_wsrep_aborter setting wsrep_aborter %u",
-              victim_thd->wsrep_aborter);
-  return false;
 }
 
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,

@@ -6951,4 +6951,22 @@ create algorithm=merge view v as
 select * from t1 left join t2 on t1.a=t2.b and t1.a in (select d from t3);
 ERROR 42S22: Unknown column 'd' in 'field list'
 drop table t1,t2,t3;
+#
+# MDEV-31189: Server crash or assertion failure in upon 2nd
+# execution of PS with views and HAVING
+#
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v1 AS SELECT 1 AS a;
+CREATE VIEW v2 AS SELECT a FROM v1;
+PREPARE stmt FROM "SELECT * FROM v2 HAVING 1 IN (SELECT f FROM t)";
+EXECUTE stmt;
+a
+1
+EXECUTE stmt;
+a
+1
+DROP VIEW v1;
+DROP VIEW v2;
+DROP TABLE t;
 # End of 10.4 tests

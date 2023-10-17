@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_switch_stm_row_mixed.inc
+--source suite/rpl/t/rpl_switch_stm_row_mixed.test

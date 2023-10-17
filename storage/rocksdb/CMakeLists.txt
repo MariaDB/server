@@ -1,6 +1,11 @@
 # TODO: Copyrights
 
-SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB" PARENT_SCOPE)
+IF(PLUGIN_ROCKSDB STREQUAL "NO")
+  ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
+  RETURN()
+ENDIF()
+
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
@@ -29,6 +34,11 @@ ENDIF()
 IF(WITH_VALGRIND)
   ADD_DEFINITIONS(-DROCKSDB_VALGRIND_RUN=1)
 ENDIF()
+
+ADD_DEFINITIONS(-Duint64_t=u_int64_t)
+ADD_DEFINITIONS(-Duint32_t=u_int32_t)
+ADD_DEFINITIONS(-Duint16_t=u_int16_t)
+ADD_DEFINITIONS(-Duint8_t=u_int8_t)
 
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.

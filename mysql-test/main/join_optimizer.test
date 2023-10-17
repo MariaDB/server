@@ -2,6 +2,8 @@
 drop table if exists t0,t1,t2,t3;
 --enable_warnings
 
+--source include/have_innodb.inc
+
 --echo #
 --echo # BUG#38049 incorrect rows estimations with references from preceding table
 --echo #

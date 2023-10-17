@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_incident.inc
+--source suite/rpl/t/rpl_incident.test

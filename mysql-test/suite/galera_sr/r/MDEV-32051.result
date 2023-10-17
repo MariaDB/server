@@ -1,0 +1,38 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=1;
+SET DEBUG_SYNC='wsrep_before_certification SIGNAL before_fragment WAIT_FOR continue';
+INSERT INTO t1 VALUES (2);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_sync_wait=0;
+SET DEBUG_SYNC='now WAIT_FOR before_fragment';
+SET GLOBAL wsrep_provider_options = 'dbug=d,before_replicate_sync';
+SET DEBUG_SYNC='now SIGNAL continue';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET DEBUG_SYNC='RESET';
+connection node_2;
+TRUNCATE TABLE t1;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=before_replicate_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_2;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+DROP TABLE t1;

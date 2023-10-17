@@ -1,0 +1,154 @@
+#
+# The test starts with unencrypted master.
+# It stops replication, generates a few statement and row events
+# on the master, then restarts the server with encrypted binlog,
+# generates some more events and restarts it back without encryption
+# (no encryption plugin).
+# Then it resumes replication and should error with
+# ER_MASTER_FATAL_ERROR_READING_BINLOG because the encrypted binlog is
+# sent and unable to be decrypted.
+#
+# Note this variation of encrypted_master_switch_to_unencrypted tests
+# using MASTER_USE_GTID=SLAVE_POS. encrypted_master_switch_to_unencrypted
+# was the original test which only used binlog coordinates. When tested
+# using MASTER_USE_GTID=Slave_Pos, the master optimizes the detection of
+# an undecryptable binlog. I.e, the master will initially look for a
+# Gtid_list_log_event, but fail to decrypt it and fail immediately in
+# part 3.
+#
+
+--source include/have_binlog_format_mixed.inc
+
+--echo #################
+--echo # Initialization
+--echo #################
+
+--let $rpl_topology= 1->2
+--source include/rpl_init.inc
+
+--enable_connect_log
+
+# We stop replication because we want it to happen after the switch
+
+--connection server_2
+--disable_connect_log
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
+--enable_connect_log
+call mtr.add_suppression(" Got fatal error 1236 from master when reading data from binary log: 'Could not set up decryption for binlog.'");
+
+--echo #####################################################
+--echo # Part 1: unencrypted master
+--echo #####################################################
+
+--connection server_1
+
+CREATE TABLE table1_no_encryption (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM;
+
+INSERT INTO table1_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+FLUSH BINARY LOGS;
+SET binlog_format=ROW;
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+
+# Make sure that binary logs are not encrypted
+
+--let SEARCH_RANGE = 500000
+--let SEARCH_FILE= master-bin.0*
+--let SEARCH_PATTERN= table1_no_encryption
+--source include/search_pattern_in_file.inc
+
+--echo #####################################################
+--echo # Part 2: restart master, now with binlog encryption
+--echo #####################################################
+
+--let $rpl_server_parameters= --encrypt-binlog=1 --plugin-load-add=$FILE_KEY_MANAGEMENT_SO --file-key-management --loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+
+--let $rpl_server_number= 1
+--source restart_server.inc
+
+CREATE TABLE table2_to_encrypt (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM;
+
+INSERT INTO table2_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+FLUSH BINARY LOGS;
+SET binlog_format=ROW;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+
+# Make sure that binary logs are encrypted
+
+--let SEARCH_FILE= master-bin.0*
+--let SEARCH_PATTERN= table2_to_encrypt
+--source include/search_pattern_in_file.inc
+
+--echo #####################################################
+--echo # Part 3: restart master again without encryption
+--echo #####################################################
+
+--let $rpl_server_parameters= --encrypt-binlog=0
+--let $rpl_server_number= 1
+--source restart_server.inc
+
+CREATE TABLE table3_no_encryption (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM;
+
+INSERT INTO table3_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
+INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+
+--echo #####################################################
+--echo # Check: resume replication and check how it goes
+--echo #####################################################
+
+--connection server_2
+start slave;
+# Make slave to try to synchronize. It shouldn't work, the slave IO thread is
+# expected to abort with an error
+--let $slave_io_errno= 1236
+--source include/wait_for_slave_io_error.inc
+
+--echo # Ensuring slave was unable to replicate any transactions..
+--let $gsp= `SELECT @@global.gtid_slave_pos`
+if (`SELECT strcmp("$gsp","")`)
+{
+  die Slave without encryption configured should fail to read encrypted binlog;
+}
+--echo # ..success
+
+--sorted_result
+SHOW TABLES;
+
+--disable_connect_log
+--source include/stop_slave.inc
+--enable_connect_log
+reset slave;
+
+--echo ##########
+--echo # Cleanup
+--echo ##########
+
+--connection server_1
+reset master;
+
+SELECT COUNT(*) FROM table1_no_encryption;
+SELECT COUNT(*) FROM table2_to_encrypt;
+SELECT COUNT(*) FROM table3_no_encryption;
+DROP TABLE table1_no_encryption, table2_to_encrypt, table3_no_encryption;
+
+--connection server_2
+--disable_connect_log
+--source include/start_slave.inc
+--source include/rpl_end.inc

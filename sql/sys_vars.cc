@@ -602,10 +602,9 @@ bool check_has_super(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
-          READ_ONLY GLOBAL_VAR(test_flags), NO_CMD_LINE,
-          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-          0,0,0);
+static Sys_var_bit Sys_core_file("core_file", "Write core on crashes",
+          READ_ONLY GLOBAL_VAR(test_flags), CMD_LINE(OPT_ARG),
+          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)));
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {
@@ -1801,6 +1800,13 @@ Sys_gtid_domain_id(
        ON_CHECK(check_gtid_domain_id));
 
 
+/*
+  Check that setting gtid_seq_no isn't done inside a transaction, and (in
+  gtid_strict_mode) doesn't create an out-of-order GTID sequence.
+
+  Setting gtid_seq_no to DEFAULT or 0 means we 'reset' it so that the value
+  doesn't affect the GTID of the next event group written to the binlog.
+*/
 static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 {
   uint32 domain_id, server_id;
@@ -1811,13 +1817,16 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
                                                  ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO)))
     return true;
 
-  domain_id= thd->variables.gtid_domain_id;
-  server_id= thd->variables.server_id;
-  seq_no= (uint64)var->value->val_uint();
-  DBUG_EXECUTE_IF("ignore_set_gtid_seq_no_check", return 0;);
-  if (opt_gtid_strict_mode && opt_bin_log &&
-      mysql_bin_log.check_strict_gtid_sequence(domain_id, server_id, seq_no))
-    return true;
+  DBUG_EXECUTE_IF("ignore_set_gtid_seq_no_check", return false;);
+  if (var->value && opt_gtid_strict_mode && opt_bin_log)
+  {
+    domain_id= thd->variables.gtid_domain_id;
+    server_id= thd->variables.server_id;
+    seq_no= (uint64)var->value->val_uint();
+    if (seq_no != 0 &&
+        mysql_bin_log.check_strict_gtid_sequence(domain_id, server_id, seq_no))
+      return true;
+  }
 
   return false;
 }
@@ -3795,7 +3804,7 @@ static Sys_var_set Sys_tls_version(
        "TLS protocol version for secure connections.",
        READ_ONLY GLOBAL_VAR(tls_version), CMD_LINE(REQUIRED_ARG),
        tls_version_names,
-       DEFAULT(VIO_TLSv1_1 | VIO_TLSv1_2 | VIO_TLSv1_3));
+       DEFAULT(VIO_TLSv1_2 | VIO_TLSv1_3));
 
 static Sys_var_mybool Sys_standard_compliant_cte(
        "standard_compliant_cte",

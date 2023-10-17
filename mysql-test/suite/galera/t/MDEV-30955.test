@@ -1,0 +1,70 @@
+#
+# MDEV-30955
+# Assertion `thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+# table->s->db.str, table->s->table_name.str, MDL_SHARED)'
+# failed in close_thread_table()
+#
+
+--source include/galera_cluster.inc
+
+#
+# Test 1: Assertion thd->mdl_context.is_lock_owner()
+# failed in close_thread_table()
+#
+CREATE TABLE t (a CHAR(1) KEY);
+START TRANSACTION;
+HANDLER t OPEN;
+
+#
+# If bug is present the transaction will be aborted
+# through Wsrep_client_service::bf_rollback() and
+# release explicit locks too early. Later, during
+# THD::cleanup(), table t will be closed and the
+# THD is expected to be owner of the MDL lock that
+# was just released.
+#
+--disconnect node_1
+
+--connect node_1, 127.0.0.1, root, , test, $NODE_MYPORT_1
+DROP TABLE t;
+
+
+#
+# Test 2: Similar issue reproduces also with BACKUP STAGE locks.
+# See comments in MDEV-25037
+#
+
+BACKUP STAGE START;
+START TRANSACTION;
+--disconnect node_1
+--connect node_1, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+
+#
+# Test 3: Assertion `!thd->mdl_context.has_locks()' failed
+# in do_command()
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY);
+
+--let $bf_count = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.global_status WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+HANDLER t2 OPEN;
+
+--connection node_2
+INSERT INTO t1 VALUES(1);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = $bf_count + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'
+--source include/wait_condition.inc
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1,t2;

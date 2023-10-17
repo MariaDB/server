@@ -317,6 +317,7 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
 static inline weight_and_nchars_t
 MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
                                         size_t nchars,
+                                        uint flags,
                                         uint *generated)
 {
   weight_and_nchars_t res;
@@ -330,7 +331,10 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
         We reached the end of the string, but the caller wants more weights.
         Perform space padding.
       */
-      res.weight= my_space_weight(scanner->level);
+      res.weight=
+        flags & MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES ?
+        my_space_weight(scanner->level) : 0;
+
       res.nchars= 1;
       (*generated)++;
     }
@@ -367,7 +371,8 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
                                               const MY_UCA_WEIGHT_LEVEL *level,
                                               const uchar *s, size_t slen,
                                               const uchar *t, size_t tlen,
-                                              size_t nchars)
+                                              size_t nchars,
+                                              uint flags)
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
@@ -385,15 +390,17 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
     int diff;
 
     s_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&sscanner, s_nchars_left,
-                                                   &generated);
+                                                   flags, &generated);
     t_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&tscanner, t_nchars_left,
-                                                   &generated);
+                                                   flags, &generated);
+
     if ((diff= (s_res.weight - t_res.weight)))
       return diff;
 
     if (generated == 2)
     {
-      if (cs->state & MY_CS_NOPAD)
+      if ((cs->state & MY_CS_NOPAD) &&
+          (flags & MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES))
       {
         /*
           Both values are auto-generated. There's no real data any more.
@@ -445,11 +452,12 @@ static int
 MY_FUNCTION_NAME(strnncollsp_nchars)(CHARSET_INFO *cs,
                                      const uchar *s, size_t slen,
                                      const uchar *t, size_t tlen,
-                                     size_t nchars)
+                                     size_t nchars,
+                                     uint flags)
 {
   return MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs, &cs->uca->level[0],
                                                        s, slen, t, tlen,
-                                                       nchars);
+                                                       nchars, flags);
 }
 
 
@@ -460,7 +468,8 @@ static int
 MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
                                                 const uchar *s, size_t slen,
                                                 const uchar *t, size_t tlen,
-                                                size_t nchars)
+                                                size_t nchars,
+                                                uint flags)
 {
   uint num_level= cs->levels_for_order;
   uint i;
@@ -470,7 +479,7 @@ MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
                                                            &cs->uca->level[i],
                                                            s, slen,
                                                            t, tlen,
-                                                           nchars);
+                                                           nchars, flags);
     if (ret)
        return ret;
   }

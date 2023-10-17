@@ -818,6 +818,10 @@ retry:
 
     element= (TDC_element*) lf_hash_search_using_hash_value(&tdc_hash,
              thd->tdc_hash_pins, hash_value, (uchar*) key, key_length);
+    /* It's safe to unpin the pins here, because an empty element was inserted
+    above, "empty" means at least element->share = 0. Some other thread can't
+    delete it while element->share == 0. And element->share is also protected
+    with element->LOCK_table_share mutex. */
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
 

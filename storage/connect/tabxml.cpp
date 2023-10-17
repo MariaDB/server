@@ -140,7 +140,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
     } // endif info
 
 	if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
-		strcpy(g->Message, "Cannot find column definition for multiple table");
+		snprintf(g->Message, sizeof(g->Message), "Cannot find column definition for multiple table");
 		return NULL;
 	}	// endif Multiple
 
@@ -152,7 +152,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
       fn = GetStringTableOption(g, topt, "Subtype", NULL);
     
     if (!fn) {
-      strcpy(g->Message, MSG(MISSING_FNAME));
+      snprintf(g->Message, sizeof(g->Message), MSG(MISSING_FNAME));
       return NULL;
     } else
       topt->subtype = NULL;
@@ -483,12 +483,12 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
 
   if (*Fn == '?') {
-    strcpy(g->Message, MSG(MISSING_FNAME));
+    snprintf(g->Message, sizeof(g->Message), MSG(MISSING_FNAME));
     return true;
     } // endif fn
 
   if ((signed)GetIntCatInfo("Flag", -1) != -1) {
-    strcpy(g->Message, MSG(DEPREC_FLAG));
+    snprintf(g->Message, sizeof(g->Message), MSG(DEPREC_FLAG));
     return true;
     } // endif flag
 
@@ -567,7 +567,7 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
     return new(g) TDBXCT(this);
 
 	if (Zipped && !(m == MODE_READ || m == MODE_ANY)) {
-		strcpy(g->Message, "ZIpped XML tables are read only");
+		snprintf(g->Message, sizeof(g->Message), "ZIpped XML tables are read only");
 		return NULL;
 	}	// endif Zipped
 
@@ -857,16 +857,16 @@ bool TDBXML::Initialize(PGLOBAL g)
 			// Get root node
 			if (!(Root = Docp->GetRoot(g))) {
 				// This should never happen as load should have failed
-				strcpy(g->Message, MSG(EMPTY_DOC));
+				snprintf(g->Message, sizeof(g->Message), MSG(EMPTY_DOC));
 				goto error;
 			} // endif Root
 
 		// If tabname is not an Xpath,
 		// construct one that will find it anywhere
 			if (!strchr(Tabname, '/'))
-				strcat(strcpy(tabpath, "//"), Tabname);
+				snprintf(tabpath, sizeof(tabpath), "//%s", Tabname);
 			else
-				strcpy(tabpath, Tabname);
+				snprintf(tabpath, sizeof(tabpath), "%s", Tabname);
 
 			// Evaluate table xpath
 			if ((TabNode = Root->SelectSingleNode(g, tabpath))) {
@@ -911,7 +911,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 
 				// Create the XML node
 				if (Docp->NewDoc(g, "1.0")) {
-					strcpy(g->Message, MSG(NEW_DOC_FAILED));
+					snprintf(g->Message, sizeof(g->Message), MSG(NEW_DOC_FAILED));
 					goto error;
 				} // endif NewDoc
 
@@ -919,7 +919,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 				To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
 
 				// Add a CONNECT comment node
-				strcpy(buf, " Created by the MariaDB CONNECT Storage Engine");
+				snprintf(buf, sizeof(buf), " Created by the MariaDB CONNECT Storage Engine");
 				Docp->AddComment(g, buf);
 
 				if (XmlDB) {
@@ -932,7 +932,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 					TabNode = Root = Docp->NewRoot(g, Tabname);
 
 				if (TabNode == NULL || Root == NULL) {
-					strcpy(g->Message, MSG(XML_INIT_ERROR));
+					snprintf(g->Message, sizeof(g->Message), MSG(XML_INIT_ERROR));
 					goto error;
 				} else if (SetTabNode(g))
 					goto error;
@@ -992,7 +992,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 #if !defined(UNIX)
   } catch(...) {
     // Other errors
-    strcpy(g->Message, MSG(XMLTAB_INIT_ERR));
+    snprintf(g->Message, sizeof(g->Message), MSG(XMLTAB_INIT_ERR));
     goto error;
 #endif
   } // end of try-catches
@@ -1037,7 +1037,7 @@ bool TDBXML::SetTabNode(PGLOBAL g)
       TabNode->AddText(g, "\n\t");
       rn = TabNode->AddChildNode(g, Rowname, NULL);
     } else {
-      strcpy(g->Message, MSG(NO_ROW_NODE));
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_ROW_NODE));
       return true;
     } // endif Rowname
 
@@ -1293,7 +1293,7 @@ bool TDBXML::CheckRow(PGLOBAL g, bool b)
       TabNode->AddText(g, "\n\t");
       RowNode = TabNode->AddChildNode(g, Rowname, RowNode);
     } else {
-      strcpy(g->Message, MSG(NO_ROW_NODE));
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_ROW_NODE));
       return true;
     } // endif Rowname
   }
@@ -1550,7 +1550,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
       if (Tdbp->Mulnode && !strncmp(p, Tdbp->Mulnode, p2 - p))
       {
         if (!Tdbp->Xpand && mode) {
-          strcpy(g->Message, MSG(CONCAT_SUBNODE));
+          snprintf(g->Message, sizeof(g->Message), MSG(CONCAT_SUBNODE));
           return true;
         } else
           Inod = i;                  // Index of multiple node
@@ -1843,7 +1843,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
       } // endfor k
 
     if (ColNode == NULL) {
-      strcpy(g->Message, MSG(COL_ALLOC_ERR));
+      snprintf(g->Message, sizeof(g->Message), MSG(COL_ALLOC_ERR));
 			throw (int)TYPE_AM_XML;
 		} // endif ColNode
 
@@ -1862,7 +1862,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
       AttNode = ColNode->AddProperty(g, Xname, Vxap);
 
   if (ValNode == NULL && AttNode == NULL) {
-    strcpy(g->Message, MSG(VAL_ALLOC_ERR));
+    snprintf(g->Message, sizeof(g->Message), MSG(VAL_ALLOC_ERR));
     throw (int)TYPE_AM_XML;
     } // endif ValNode
 
@@ -2104,7 +2104,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
       } // endfor k
 
     if (ColNode == NULL) {
-      strcpy(g->Message, MSG(COL_ALLOC_ERR));
+      snprintf(g->Message, sizeof(g->Message), MSG(COL_ALLOC_ERR));
 			throw (int)TYPE_AM_XML;
 		} // endif ColNode
 
@@ -2123,7 +2123,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
       AttNode = ColNode->AddProperty(g, Xname, Vxap);
 
   if (ValNode == NULL && AttNode == NULL) {
-    strcpy(g->Message, MSG(VAL_ALLOC_ERR));
+    snprintf(g->Message, sizeof(g->Message), MSG(VAL_ALLOC_ERR));
 		throw (int)TYPE_AM_XML;
 	} // endif ValNode
 
@@ -2165,7 +2165,7 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
     return;                         // Same row than the last read
 
   if (Tdbp->Clist == NULL) {
-    strcpy(g->Message, MSG(MIS_TAG_LIST));
+    snprintf(g->Message, sizeof(g->Message), MSG(MIS_TAG_LIST));
 		throw (int)TYPE_AM_XML;
 	} // endif Clist
 
@@ -2235,7 +2235,7 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
   /*  Find the column and value nodes to update or insert.             */
   /*********************************************************************/
   if (Tdbp->Clist == NULL) {
-    strcpy(g->Message, MSG(MIS_TAG_LIST));
+    snprintf(g->Message, sizeof(g->Message), MSG(MIS_TAG_LIST));
 		throw (int)TYPE_AM_XML;
 	} // endif Clist
 

@@ -45,6 +45,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags __attribute__((unused)),
   else
   {
     free(resp);
+    resp= NULL;
     msg[0].msg_style = PAM_PROMPT_ECHO_ON;
     msg[0].msg = (char*)"PIN:";
     pam_err = (*conv->conv)(1, msgp, &resp, conv->appdata_ptr);

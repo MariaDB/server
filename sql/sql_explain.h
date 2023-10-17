@@ -474,7 +474,7 @@ public:
                     bool is_analyze);
   
   /* Send tabular EXPLAIN to the client */
-  int send_explain(THD *thd);
+  int send_explain(THD *thd, bool extended);
   
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);

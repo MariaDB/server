@@ -1,0 +1,12 @@
+#
+# MDEV-30981 Spider UBSAN: null pointer passed as argument 2, which is declared to never be null in spider_create_trx_alter_table on ALTER
+#
+for master_1
+for child2
+for child3
+CREATE TABLE t (c INT) ENGINE=Spider PARTITION BY LIST (c) (PARTITION p VALUES IN (1,2));
+ALTER TABLE t ENGINE=InnoDB;
+drop table t;
+for master_1
+for child2
+for child3

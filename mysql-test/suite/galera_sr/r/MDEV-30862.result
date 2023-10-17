@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+SET autocommit=0;
+SET SESSION wsrep_trx_fragment_size=1;
+CREATE TABLE t2 SELECT seq FROM seq_1_to_50;
+ERROR 42000: CREATE TABLE AS SELECT is not supported with streaming replication
+CREATE TABLE t1 (f1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
+INSERT INTO t1 VALUES(DEFAULT);
+CREATE TABLE t2 SELECT * FROM t1;
+ERROR 42000: CREATE TABLE AS SELECT is not supported with streaming replication
+DROP TABLE t1;

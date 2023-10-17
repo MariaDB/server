@@ -1,0 +1,11 @@
+#
+# MDEV-31121: ANALYZE statement produces 0 for all timings in embedded serve
+#
+create table t1 (a int);
+insert into t1 values (0),(0);
+set @js='$out';
+set @out=(select json_extract(@js,'$**.query_block.r_total_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+cast(json_extract(@out,'$[0]') as DOUBLE) > 0
+1
+drop table t1;

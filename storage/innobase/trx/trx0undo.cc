@@ -458,9 +458,9 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   mach_write_to_2(buf + 2, free);
   static_assert(TRX_UNDO_STATE + 2 == TRX_UNDO_LAST_LOG, "compatibility");
   static_assert(!((TRX_UNDO_SEG_HDR + TRX_UNDO_STATE) % 4), "alignment");
-  mtr->memcpy(*undo_page, my_assume_aligned<4>
-              (TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page->frame),
-              buf, 4);
+  mtr->memcpy<mtr_t::MAYBE_NOP>
+    (*undo_page, my_assume_aligned<4>
+     (TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page->frame), buf, 4);
   if (prev_log)
     mtr->write<2>(*undo_page, prev_log + TRX_UNDO_NEXT_LOG + undo_page->frame,
                   free);

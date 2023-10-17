@@ -1,5 +1,6 @@
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+InnoDB		0 transactions not purged
 #
 # MDEV-17793 Crash in purge after instant DROP and emptying the table
 #
@@ -16,7 +17,7 @@ COMMIT;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 ALTER TABLE t1 ADD COLUMN extra TINYINT UNSIGNED NOT NULL DEFAULT 42;
-InnoDB		1 transactions not purged
+SET GLOBAL innodb_max_purge_lag_wait=1;
 ALTER TABLE t1 DROP extra;
 disconnect prevent_purge;
 InnoDB		0 transactions not purged

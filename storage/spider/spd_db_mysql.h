@@ -126,6 +126,25 @@ public:
     bool use_fields,
     spider_fields *fields
   ) override;
+protected:
+  int check_item_func(
+    Item_func *item_func,
+    ha_spider *spider,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
+  );
+  int print_item_func(
+    Item_func *item_func,
+    ha_spider *spider,
+    spider_string *str,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
+  );
+public:
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
     Item_sum *item_sum,
@@ -442,9 +461,7 @@ public:
   bool is_xa_nota_error(
     int error_num
   );
-  int print_warnings(
-    struct tm *l_time
-  );
+  int fetch_and_print_warnings(struct tm *l_time);
   spider_db_result *store_result(
     spider_db_result_buffer **spider_res_buf,
     st_spider_db_request_key *request_key,
@@ -1470,9 +1487,6 @@ public:
     SPIDER_HS_STRING_REF &info
   );
 #endif
-  bool need_lock_before_set_sql_for_exec(
-    ulong sql_type
-  );
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,

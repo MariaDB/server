@@ -76,7 +76,7 @@ void end_my_likely(FILE *out)
   if (!(likely_file= out))
   {
     char name[80];
-    sprintf(name, "/tmp/unlikely-%lu.out", (ulong) getpid());
+    snprintf(name, sizeof(name), "/tmp/unlikely-%lu.out", (ulong) getpid());
     if ((likely_file= my_fopen(name, O_TRUNC | O_WRONLY, MYF(MY_WME))))
       do_close= 1;
     else

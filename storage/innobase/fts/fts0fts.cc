@@ -852,7 +852,7 @@ fts_drop_index(
 	dberr_t		err = DB_SUCCESS;
 
 	ut_a(indexes);
-
+	ut_d(dict_sys.assert_locked());
 	if ((ib_vector_size(indexes) == 1
 	     && (index == static_cast<dict_index_t*>(
 			ib_vector_getp(table->fts->indexes, 0)))
@@ -865,7 +865,9 @@ fts_drop_index(
 
 		current_doc_id = table->fts->cache->next_doc_id;
 		first_doc_id = table->fts->cache->first_doc_id;
+		rw_lock_x_lock(&table->fts->cache->init_lock);
 		fts_cache_clear(table->fts->cache);
+		rw_lock_x_unlock(&table->fts->cache->init_lock);
 		fts_cache_destroy(table->fts->cache);
 		table->fts->cache = fts_cache_create(table);
 		table->fts->cache->next_doc_id = current_doc_id;
@@ -4180,9 +4182,15 @@ fts_sync_commit(
 
 	/* We need to do this within the deleted lock since fts_delete() can
 	attempt to add a deleted doc id to the cache deleted id array. */
+	mutex_enter(&dict_sys.mutex);
+	sync->table->fts->dict_locked = true;
+	rw_lock_x_lock(&cache->init_lock);
 	fts_cache_clear(cache);
 	DEBUG_SYNC_C("fts_deleted_doc_ids_clear");
 	fts_cache_init(cache);
+	rw_lock_x_unlock(&cache->init_lock);
+	sync->table->fts->dict_locked = false;
+	mutex_exit(&dict_sys.mutex);
 	rw_lock_x_unlock(&cache->lock);
 
 	if (UNIV_LIKELY(error == DB_SUCCESS)) {

@@ -32,7 +32,7 @@ UPDATE t1 SET b=4 WHERE a=3;
 
 --connection default
 # Initiate a full purge, which should reset the DB_TRX_ID except for a=3.
---source include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait=1;
 # Initiate a ROLLBACK of the update, which should reset the DB_TRX_ID for a=3.
 --connection con1
 ROLLBACK;

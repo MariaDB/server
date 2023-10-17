@@ -505,6 +505,7 @@ static void bg_rpl_load_gtid_slave_state(void *)
 static void bg_slave_kill(void *victim)
 {
   THD *to_kill= (THD *)victim;
+  DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
   to_kill->awake(KILL_CONNECTION);
   mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
   to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
@@ -1895,8 +1896,10 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
       (master_row= mysql_fetch_row(master_res)))
   {
     mysql_mutex_lock(&mi->data_lock);
-    mi->clock_diff_with_master=
-      (long) (time((time_t*) 0) - strtoul(master_row[0], 0, 10));
+    mi->clock_diff_with_master= DBUG_EVALUATE_IF(
+        "negate_clock_diff_with_master", 0,
+        (long) (time((time_t *) 0) - strtoul(master_row[0], 0, 10)));
+
     mysql_mutex_unlock(&mi->data_lock);
   }
   else if (check_io_slave_killed(mi, NULL))
@@ -3225,6 +3228,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       else
       {
         idle= mi->rli.sql_thread_caught_up;
+
+        /*
+          The idleness of the SQL thread is needed for the parallel slave
+          because events can be ignored before distribution to a worker thread.
+          That is, Seconds_Behind_Master should still be calculated and visible
+          while the slave is processing ignored events, such as those skipped
+          due to slave_skip_counter.
+        */
         if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
           idle= false;
       }
@@ -3867,9 +3878,19 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       default:
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
-          rli->abort_slave= 1;
-          rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                      "Node has dropped from cluster");
+          /*
+            async replication thread should be stopped, if failure was
+            not due to optimistic parallel applying or if node
+            has dropped from cluster
+           */
+          if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
+              ((rli->mi->using_parallel() &&
+                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
+               wsrep_ready == 0)) {
+            rli->abort_slave= 1;
+            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                        "Node has dropped from cluster");
+          }
           break;
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -4190,7 +4211,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
               thd,
               STRING_WITH_LEN(
                   "now SIGNAL paused_on_event WAIT_FOR sql_thread_continue")));
-          DBUG_SET("-d,pause_sql_thread_on_next_event");
           mysql_mutex_lock(&rli->data_lock);
         });
 
@@ -4207,7 +4227,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if ((!rli->mi->using_parallel()) && event_can_update_last_master_timestamp(ev))
+    if ((!rli->mi->using_parallel()) &&
+        event_can_update_last_master_timestamp(ev))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
       rli->sql_thread_caught_up= false;
@@ -4262,9 +4283,22 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     if (rli->mi->using_parallel())
     {
-      if (unlikely((rli->last_master_timestamp == 0 ||
-                    rli->sql_thread_caught_up) &&
-                   event_can_update_last_master_timestamp(ev)))
+      /*
+        rli->sql_thread_caught_up is checked and negated here to ensure that
+        the value of Seconds_Behind_Master in SHOW SLAVE STATUS is consistent
+        with the update of last_master_timestamp. It was previously unset
+        immediately after reading an event from the relay log; however, for the
+        duration between that unset and the time that LMT would be updated
+        could lead to spikes in SBM.
+
+        The check for queued_count == dequeued_count ensures the worker threads
+        are all idle (i.e. all events have been executed).
+      */
+      if ((unlikely(rli->last_master_timestamp == 0) ||
+           (rli->sql_thread_caught_up &&
+            (rli->last_inuse_relaylog->queued_count ==
+             rli->last_inuse_relaylog->dequeued_count))) &&
+          event_can_update_last_master_timestamp(ev))
       {
         if (rli->last_master_timestamp < ev->when)
         {
@@ -5257,6 +5291,19 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
+
+  /*
+    Reset errors for a clean start (otherwise, if the master is idle, the SQL
+    thread may execute no Query_log_event, so the error will remain even
+    though there's no problem anymore). Do not reset the master timestamp
+    (imagine the slave has caught everything, the STOP SLAVE and START SLAVE:
+    as we are not sure that we are going to receive a query, we want to
+    remember the last master timestamp (to say how many seconds behind we are
+    now.
+    But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
+  */
+  rli->clear_error();
+
   mysql_mutex_lock(&rli->run_lock);
   DBUG_ASSERT(!rli->slave_running);
   errmsg= 0;
@@ -5333,17 +5380,16 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->run_lock);
   mysql_cond_broadcast(&rli->start_cond);
 
-  /*
-    Reset errors for a clean start (otherwise, if the master is idle, the SQL
-    thread may execute no Query_log_event, so the error will remain even
-    though there's no problem anymore). Do not reset the master timestamp
-    (imagine the slave has caught everything, the STOP SLAVE and START SLAVE:
-    as we are not sure that we are going to receive a query, we want to
-    remember the last master timestamp (to say how many seconds behind we are
-    now.
-    But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
-  */
-  rli->clear_error();
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("delay_sql_thread_after_release_run_lock", {
+    const char act[]= "now "
+                      "signal sql_thread_run_lock_released "
+                      "wait_for sql_thread_continue";
+    DBUG_ASSERT(debug_sync_service);
+    DBUG_ASSERT(!debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+  };);
+#endif
+
   rli->parallel.reset();
 
   //tell the I/O thread to take relay_log_space_limit into account from now on
@@ -5508,6 +5554,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->data_lock);
 #ifdef WITH_WSREP
   wsrep_open(thd);
+  if (WSREP_ON_)
+    wsrep_wait_ready(thd);
   if (wsrep_before_command(thd))
   {
     WSREP_WARN("Slave SQL wsrep_before_command() failed");
@@ -8109,14 +8157,15 @@ end:
    @return TRUE if master has the bug, FALSE if it does not.
 */
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
-                        bool (*pred)(const void *), const void *param)
+                        bool (*pred)(const void *), const void *param,
+                        bool maria_master)
 {
   struct st_version_range_for_one_bug {
     uint        bug_id;
     Version introduced_in; // first version with bug
     Version fixed_in;      // first version with fix
   };
-  static struct st_version_range_for_one_bug versions_for_all_bugs[]=
+  static struct st_version_range_for_one_bug versions_for_their_bugs[]=
   {
     {24432, { 5, 0, 24 }, { 5, 0, 38 } },
     {24432, { 5, 1, 12 }, { 5, 1, 17 } },
@@ -8124,11 +8173,27 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
     {33029, { 5, 1,  0 }, { 5, 1, 12 } },
     {37426, { 5, 1,  0 }, { 5, 1, 26 } },
   };
+  static struct st_version_range_for_one_bug versions_for_our_bugs[]=
+  {
+    {29621, { 10, 3, 36 }, { 10, 3, 39 } },
+    {29621, { 10, 4, 26 }, { 10, 4, 29 } },
+    {29621, { 10, 5, 17 }, { 10, 5, 20 } },
+    {29621, { 10, 6, 9  }, { 10, 6, 13 } },
+    {29621, { 10, 7, 5  }, { 10, 7, 9 } },
+    {29621, { 10, 8, 4  }, { 10, 8, 8  } },
+    {29621, { 10, 9, 2  }, { 10, 9, 6  } },
+    {29621, { 10, 10,1  }, { 10, 10,4  } },
+    {29621, { 10, 11,1  }, { 10, 11,3  } },
+  };
   const Version &master_ver=
     rli->relay_log.description_event_for_exec->server_version_split;
+  struct st_version_range_for_one_bug* versions_for_all_bugs= maria_master ?
+    versions_for_our_bugs : versions_for_their_bugs;
+  uint all_size= maria_master ?
+    sizeof(versions_for_our_bugs)/sizeof(*versions_for_our_bugs) :
+    sizeof(versions_for_their_bugs)/sizeof(*versions_for_their_bugs);
 
-  for (uint i= 0;
-       i < sizeof(versions_for_all_bugs)/sizeof(*versions_for_all_bugs);i++)
+  for (uint i= 0; i < all_size; i++)
   {
     const Version &introduced_in= versions_for_all_bugs[i].introduced_in;
     const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
@@ -8137,18 +8202,21 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
         fixed_in > master_ver &&
         (pred == NULL || (*pred)(param)))
     {
+      const char *bug_source= maria_master ?
+        "https://jira.mariadb.org/browse/MDEV-" :
+        "http://bugs.mysql.com/bug.php?id=";
       if (!report)
 	return TRUE;
       // a short message for SHOW SLAVE STATUS (message length constraints)
       my_printf_error(ER_UNKNOWN_ERROR, "master may suffer from"
-                      " http://bugs.mysql.com/bug.php?id=%u"
+                      " %s%u"
                       " so slave stops; check error log on slave"
-                      " for more info", MYF(0), bug_id);
+                      " for more info", MYF(0), bug_source, bug_id);
       // a verbose message for the error log
       rli->report(ERROR_LEVEL, ER_UNKNOWN_ERROR, NULL,
                   "According to the master's version ('%s'),"
                   " it is probable that master suffers from this bug:"
-                      " http://bugs.mysql.com/bug.php?id=%u"
+                      " %s%u"
                       " and thus replicating the current binary log event"
                       " may make the slave's data become different from the"
                       " master's data."
@@ -8162,6 +8230,7 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
                       " equal to '%d.%d.%d'. Then replication can be"
                       " restarted.",
                       rli->relay_log.description_event_for_exec->server_version,
+                      bug_source,
                       bug_id,
                       fixed_in[0], fixed_in[1], fixed_in[2]);
       return TRUE;

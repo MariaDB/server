@@ -146,14 +146,14 @@ show create table servers;
 Table	Create Table
 servers	CREATE TABLE `servers` (
   `Server_name` char(64) NOT NULL DEFAULT '',
-  `Host` char(64) NOT NULL DEFAULT '',
+  `Host` varchar(2048) NOT NULL DEFAULT '',
   `Db` char(64) NOT NULL DEFAULT '',
   `Username` char(80) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
   `Port` int(4) NOT NULL DEFAULT 0,
   `Socket` char(64) NOT NULL DEFAULT '',
   `Wrapper` char(64) NOT NULL DEFAULT '',
-  `Owner` char(64) NOT NULL DEFAULT '',
+  `Owner` varchar(512) NOT NULL DEFAULT '',
   PRIMARY KEY (`Server_name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MySQL Foreign Servers table'
 show create table proc;
@@ -226,15 +226,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
 show create table table_stats;
 Table	Create Table

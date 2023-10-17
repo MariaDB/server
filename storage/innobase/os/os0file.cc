@@ -772,22 +772,16 @@ os_file_punch_hole_posix(
 	return(DB_IO_NO_PUNCH_HOLE);
 }
 
-
-
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
 the OS error number + 100 is returned.
 @param[in]	report_all_errors	true if we want an error message
-					printed of all errors
+                                        printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
 @return error number, or OS error number + 100 */
-static
-ulint
-os_file_get_last_error_low(
-	bool	report_all_errors,
-	bool	on_error_silent)
+ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 {
 	int	err = errno;
 
@@ -1793,16 +1787,13 @@ bool os_file_flush_func(os_file_t file)
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
 then OS error number + OS_FILE_ERROR_MAX is returned.
-@param[in]	report_all_errors	true if we want an error message printed
-					of all errors
+@param[in]	report_all_errors	true if we want an error message
+printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
 @return error number, or OS error number + OS_FILE_ERROR_MAX */
-static
-ulint
-os_file_get_last_error_low(
-	bool	report_all_errors,
-	bool	on_error_silent)
+ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
+
 {
 	ulint	err = (ulint) GetLastError();
 
@@ -3024,20 +3015,6 @@ os_file_read_page(
 	return err;
 }
 
-/** Retrieves the last error number if an error occurs in a file io function.
-The number should be retrieved before any other OS calls (because they may
-overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
-@param[in]	report_all_errors	true if we want an error printed
-					for all errors
-@return error number, or OS error number + 100 */
-ulint
-os_file_get_last_error(
-	bool	report_all_errors)
-{
-	return(os_file_get_last_error_low(report_all_errors, false));
-}
-
 /** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
@@ -3054,7 +3031,7 @@ os_file_handle_error_cond_exit(
 {
 	ulint	err;
 
-	err = os_file_get_last_error_low(false, on_error_silent);
+	err = os_file_get_last_error(false, on_error_silent);
 
 	switch (err) {
 	case OS_FILE_DISK_FULL:
@@ -4083,36 +4060,40 @@ static bool is_volume_on_ssd(const char *volume_mount_point)
 }
 
 #include <unordered_map>
-static bool is_file_on_ssd(char *file_path)
+static bool is_path_on_ssd(char *file_path)
 {
-  /* Cache of volume_path => volume_info, protected by rwlock.*/
-  static std::unordered_map<std::string, bool> cache;
-  static SRWLOCK lock= SRWLOCK_INIT;
-
   /* Preset result, in case something fails, e.g we're on network drive.*/
   char volume_path[MAX_PATH];
   if (!GetVolumePathName(file_path, volume_path, array_elements(volume_path)))
     return false;
+  return is_volume_on_ssd(volume_path);
+}
 
-  /* Try cached volume info first.*/
-  std::string volume_path_str(volume_path);
+static bool is_file_on_ssd(HANDLE handle, char *file_path)
+{
+  ULONGLONG volume_serial_number;
+  FILE_ID_INFO info;
+  if(!GetFileInformationByHandleEx(handle, FileIdInfo, &info, sizeof(info)))
+    return false;
+  volume_serial_number= info.VolumeSerialNumber;
+
+  static std::unordered_map<ULONGLONG, bool> cache;
+  static SRWLOCK lock= SRWLOCK_INIT;
   bool found;
   bool result;
   AcquireSRWLockShared(&lock);
-  auto e= cache.find(volume_path_str);
+  auto e= cache.find(volume_serial_number);
   if ((found= e != cache.end()))
     result= e->second;
   ReleaseSRWLockShared(&lock);
-
-  if (found)
-    return result;
-
-  result= is_volume_on_ssd(volume_path);
-
-  /* Update cache */
-  AcquireSRWLockExclusive(&lock);
-  cache[volume_path_str]= result;
-  ReleaseSRWLockExclusive(&lock);
+  if (!found)
+  {
+    result= is_path_on_ssd(file_path);
+    /* Update cache */
+    AcquireSRWLockExclusive(&lock);
+    cache[volume_serial_number]= result;
+    ReleaseSRWLockExclusive(&lock);
+  }
   return result;
 }
 
@@ -4152,7 +4133,7 @@ void fil_node_t::find_metadata(os_file_t file
 	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
 		|| space->purpose == FIL_TYPE_IMPORT;
 #ifdef _WIN32
-	on_ssd = is_file_on_ssd(name);
+	on_ssd = is_file_on_ssd(file, name);
 	FILE_STORAGE_INFO info;
 	if (GetFileInformationByHandleEx(
 		file, FileStorageInfo, &info, sizeof(info))) {

@@ -215,7 +215,7 @@ OFFSET BDOC::ParseArray(size_t& i)
     switch (s[i]) {
     case ',':
       if (level < 2) {
-        sprintf(G->Message, "Unexpected ',' near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "Unexpected ',' near %.*s", (int) ARGS);
         throw 1;
       } else
         level = 1;
@@ -223,7 +223,7 @@ OFFSET BDOC::ParseArray(size_t& i)
       break;
     case ']':
       if (level == 1) {
-        sprintf(G->Message, "Unexpected ',]' near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "Unexpected ',]' near %.*s", (int) ARGS);
         throw 1;
       } // endif level
 
@@ -237,7 +237,7 @@ OFFSET BDOC::ParseArray(size_t& i)
       break;
     default:
       if (level == 2) {
-        sprintf(G->Message, "Unexpected value near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "Unexpected value near %.*s", (int) ARGS);
         throw 1;
       } else if (lastvlp) {
         vlp = ParseValue(i, NewVal());
@@ -284,7 +284,7 @@ OFFSET BDOC::ParseObject(size_t& i)
 
         level = 2;
       } else {
-        sprintf(G->Message, "misplaced string near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "misplaced string near %.*s", (int) ARGS);
         throw 2;
       } // endif level
 
@@ -294,14 +294,14 @@ OFFSET BDOC::ParseObject(size_t& i)
         ParseValue(++i, GetVlp(lastbpp));
         level = 3;
       } else {
-        sprintf(G->Message, "Unexpected ':' near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "Unexpected ':' near %.*s", (int) ARGS);
         throw 2;
       } // endif level
 
       break;
     case ',':
       if (level < 3) {
-        sprintf(G->Message, "Unexpected ',' near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "Unexpected ',' near %.*s", (int) ARGS);
         throw 2;
       } else
         level = 1;
@@ -309,7 +309,7 @@ OFFSET BDOC::ParseObject(size_t& i)
       break;
     case '}':
       if (!(level == 0 || level == 3)) {
-        sprintf(G->Message, "Unexpected '}' near %.*s", (int) ARGS);
+        snprintf(G->Message, sizeof(G->Message), "Unexpected '}' near %.*s", (int) ARGS);
         throw 2;
       } // endif level
 
@@ -321,7 +321,7 @@ OFFSET BDOC::ParseObject(size_t& i)
     case '\t':
       break;
     default:
-      sprintf(G->Message, "Unexpected character '%c' near %.*s",
+      snprintf(G->Message, sizeof(G->Message), "Unexpected character '%c' near %.*s",
         s[i], (int) ARGS);
       throw 2;
     }; // endswitch s[i]
@@ -399,7 +399,7 @@ suite:
   return bvp;
 
 err:
-  sprintf(G->Message, "Unexpected character '%c' near %.*s", s[i], (int) ARGS);
+  snprintf(G->Message, sizeof(G->Message), "Unexpected character '%c' near %.*s", s[i], (int) ARGS);
   throw 3;
 } // end of ParseValue
 
@@ -758,16 +758,16 @@ bool BDOC::SerializeValue(PBVAL jvp, bool b)
       return jp->Escape(MZP(jvp->To_Val));
 
   case TYPE_INTG:
-    sprintf(buf, "%d", jvp->N);
+    snprintf(buf, sizeof(buf), "%d", jvp->N);
     return jp->WriteStr(buf);
   case TYPE_BINT:
-    sprintf(buf, "%lld", *(longlong*)MakePtr(Base, jvp->To_Val));
+    snprintf(buf, sizeof(buf), "%lld", *(longlong*)MakePtr(Base, jvp->To_Val));
     return jp->WriteStr(buf);
   case TYPE_FLOAT:
-    sprintf(buf, "%.*f", jvp->Nd, jvp->F);
+    snprintf(buf, sizeof(buf), "%.*f", jvp->Nd, jvp->F);
     return jp->WriteStr(buf);
   case TYPE_DBL:
-    sprintf(buf, "%.*lf", jvp->Nd, *(double*)MakePtr(Base, jvp->To_Val));
+    snprintf(buf, sizeof(buf), "%.*lf", jvp->Nd, *(double*)MakePtr(Base, jvp->To_Val));
     return jp->WriteStr(buf);
   case TYPE_NULL:
     return jp->WriteStr("null");
@@ -797,7 +797,7 @@ void* BJSON::BsonSubAlloc(size_t size)
     memp, size, pph->To_Free, pph->FreeBlk);
 
   if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    sprintf(G->Message,
+    snprintf(G->Message, sizeof(G->Message),
       "Not enough memory for request of %zd (used=%zd free=%zd)",
       size, pph->To_Free, pph->FreeBlk);
     xtrc(1, "BsonSubAlloc: %s\n", G->Message);
@@ -1679,7 +1679,7 @@ PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
 
       break;
     default:
-      sprintf(G->Message, "Unsupported typ %d\n", valp->GetType());
+      snprintf(G->Message, sizeof(G->Message), "Unsupported typ %d\n", valp->GetType());
       throw(777);
   } // endswitch Type
 

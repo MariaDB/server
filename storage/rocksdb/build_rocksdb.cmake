@@ -134,8 +134,8 @@ option(WITH_FALLOCATE "build with fallocate" ON)
 if(WITH_FALLOCATE AND UNIX)
   include(CheckCSourceCompiles)
   CHECK_C_SOURCE_COMPILES("
+#define _GNU_SOURCE
 #include <fcntl.h>
-#include <linux/falloc.h>
 int main() {
  int fd = open(\"/dev/null\", 0);
  fallocate(fd, FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE, 0, 1024);

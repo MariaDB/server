@@ -18,3 +18,7 @@ SELECT * FROM (SELECT id FROM t1 GROUP BY id) dt WHERE 1=0;
 
 SET GLOBAL slow_query_log = @sql_tmp;
 drop table t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

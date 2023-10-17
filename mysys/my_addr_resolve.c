@@ -239,10 +239,10 @@ static int addr_resolve(void *ptr, my_addr_loc *loc)
   }
 
 
-  /* 500 ms should be plenty of time for addr2line to issue a response. */
+  /* 5000 ms should be plenty of time for addr2line to issue a response. */
   /* Read in a loop till all the output from addr2line is complete. */
   while (parsed == total_bytes_read &&
-         (ret= poll(&poll_fds, 1, 500)))
+         (ret= poll(&poll_fds, 1, 5000)))
   {
     /* error during poll */
     if (ret < 0)
@@ -286,7 +286,8 @@ static int addr_resolve(void *ptr, my_addr_loc *loc)
   loc->line= atoi(output + line_number_start);
 
   /* Addr2line was unable to extract any meaningful information. */
-  if (strcmp(loc->file, "??") == 0 && loc->func[0] == '?')
+  if ((strcmp(loc->file, "??") == 0 || strcmp(loc->file, "") == 0) &&
+      (loc->func[0] == '?' || loc->line == 0))
     return 6;
 
   loc->file= strip_path(loc->file);

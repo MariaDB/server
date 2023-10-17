@@ -30,8 +30,6 @@
 #ifndef __cplusplus
 #define inline __inline
 #endif
-#else
-#include <stdlib.h>
 #endif
 #endif
 

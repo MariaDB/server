@@ -391,8 +391,6 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
               m_thd->killed);
 
   m_thd->release_transactional_locks();
-  mysql_ull_cleanup(m_thd);
-  m_thd->mdl_context.release_explicit_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
 
@@ -502,20 +500,24 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
     if (!WSREP_EMULATE_BINLOG(m_thd))
     {
       wsrep_register_for_group_commit(m_thd);
-      ret = ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+      /* wait_for_prior_commit() ensures that all preceding transactions
+         have been committed and seqno has been synced into
+         storage engine. We don't release commit order here yet to
+         avoid following transactions to sync seqno before
+         wsrep_set_SE_checkpoint() below returns. This effectively pauses
+         group commit for the checkpoint operation, but is the only way to
+         ensure proper ordering. */
       m_thd->wait_for_prior_commit();
     }
 
+    WSREP_DEBUG("checkpointing dummy write set %lld", ws_meta.seqno().get());
     wsrep_set_SE_checkpoint(ws_meta.gtid(), wsrep_gtid_server.gtid());
 
     if (!WSREP_EMULATE_BINLOG(m_thd))
     {
       wsrep_unregister_from_group_commit(m_thd);
     }
-    else
-    {
-      ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
-    }
+    ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
     cs.after_applying();
   }
   DBUG_RETURN(ret);

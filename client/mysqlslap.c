@@ -1528,7 +1528,7 @@ get_options(int *argc,char ***argv)
   }
 
   if (tty_password)
-    opt_password= get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
 
   DBUG_RETURN(0);
 }
@@ -1773,6 +1773,7 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
   uint x;
   struct timeval start_time, end_time;
   thread_context con;
+  int error;
   pthread_t mainthread;            /* Thread descriptor */
   pthread_attr_t attr;          /* Thread attributes */
   DBUG_ENTER("run_scheduler");
@@ -1781,8 +1782,11 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
   con.limit= limit;
 
   pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr,
-		  PTHREAD_CREATE_DETACHED);
+  if ((error= pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)))
+  {
+    printf("Got error: %d from pthread_attr_setdetachstate\n", error);
+    exit(1);
+  }
 
   pthread_mutex_lock(&counter_mutex);
   thread_counter= 0;

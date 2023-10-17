@@ -6,6 +6,7 @@
 # an additional util connection and other statistics data
 -- source include/no_view_protocol.inc
 
+--disable_ps2_protocol
 --echo #
 --echo # Bug #30584: delete with order by and limit clauses does not use
 --echo #             limit efficiently
@@ -455,4 +456,4 @@ SHOW STATUS LIKE 'Handler_read_%';
 SELECT * FROM t2 WHERE c = 10 ORDER BY a DESC, b DESC;
 
 DROP TABLE t1, t2;
-
+--enable_ps2_protocol

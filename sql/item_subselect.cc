@@ -402,11 +402,11 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
   {
     is_correlated= TRUE;
     Ref_to_outside *upper;
-    if (!(upper= new (thd->stmt_arena->mem_root) Ref_to_outside()))
+    if (!(upper= new (thd->mem_root) Ref_to_outside()))
       return TRUE;
     upper->select= select;
     upper->item= item;
-    if (upper_refs.push_back(upper, thd->stmt_arena->mem_root))
+    if (upper_refs.push_back(upper, thd->mem_root))
       return TRUE;
   }
   return FALSE;
@@ -2030,7 +2030,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     thd->lex->current_select= current;
 
     /* We will refer to upper level cache array => we have to save it for SP */
-    optimizer->keep_top_level_cache();
+    DBUG_ASSERT(optimizer->get_cache()[0]->is_array_kept());
 
     /*
       As far as  Item_in_optimizer does not substitute itself on fix_fields
@@ -2427,7 +2427,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
     }
 
     // we will refer to upper level cache array => we have to save it in PS
-    optimizer->keep_top_level_cache();
+    DBUG_ASSERT(optimizer->get_cache()[0]->is_array_kept());
 
     thd->lex->current_select= current;
     /*
@@ -4573,10 +4573,11 @@ void subselect_union_engine::print(String *str, enum_query_type query_type)
 void subselect_uniquesubquery_engine::print(String *str,
                                             enum_query_type query_type)
 {
+  TABLE *table= tab->tab_list ? tab->tab_list->table : tab->table;
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));
-  if (tab->table->s->table_category == TABLE_CATEGORY_TEMPORARY)
+  if (table->s->table_category == TABLE_CATEGORY_TEMPORARY)
   {
     /*
       Temporary tables' names change across runs, so they can't be used for
@@ -4585,8 +4586,8 @@ void subselect_uniquesubquery_engine::print(String *str,
     str->append(STRING_WITH_LEN("<temporary table>"));
   }
   else
-    str->append(&tab->table->s->table_name);
-  KEY *key_info= tab->table->key_info+ tab->ref.key;
+    str->append(&table->s->table_name);
+  KEY *key_info= table->key_info+ tab->ref.key;
   str->append(STRING_WITH_LEN(" on "));
   str->append(&key_info->name);
   if (cond)
@@ -4604,12 +4605,13 @@ all other tests pass.
 
 void subselect_uniquesubquery_engine::print(String *str)
 {
-  KEY *key_info= tab->table->key_info + tab->ref.key;
+  TABLE *table= tab->tab_list ? tab->tab_list->table : tab->table;
+  KEY *key_info= table->key_info + tab->ref.key;
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
   for (uint i= 0; i < key_info->user_defined_key_parts; i++)
     tab->ref.items[i]->print(str);
   str->append(STRING_WITH_LEN(" in "));
-  str->append(&tab->table->s->table_name);
+  str->append(&table->s->table_name);
   str->append(STRING_WITH_LEN(" on "));
   str->append(&key_info->name);
   if (cond)
@@ -4624,11 +4626,12 @@ void subselect_uniquesubquery_engine::print(String *str)
 void subselect_indexsubquery_engine::print(String *str,
                                            enum_query_type query_type)
 {
+  TABLE *table= tab->tab_list ? tab->tab_list->table : tab->table;
   str->append(STRING_WITH_LEN("<index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));
-  str->append(tab->table->s->table_name.str, tab->table->s->table_name.length);
-  KEY *key_info= tab->table->key_info+ tab->ref.key;
+  str->append(&table->s->table_name);
+  KEY *key_info= table->key_info+ tab->ref.key;
   str->append(STRING_WITH_LEN(" on "));
   str->append(&key_info->name);
   if (check_null)
@@ -5312,6 +5315,7 @@ subselect_hash_sj_engine::make_unique_engine()
     DBUG_RETURN(NULL);
 
   tab->table= tmp_table;
+  tab->tab_list= 0;
   tab->preread_init_done= FALSE;
   tab->ref.tmp_table_index_lookup_init(thd, tmp_key, it, FALSE);
 

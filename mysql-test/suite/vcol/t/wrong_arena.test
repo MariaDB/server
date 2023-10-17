@@ -21,7 +21,10 @@ connect con1, localhost, root;
 disable_warnings;
 insert t1 (a) values ('2010-10-10 10:10:10');
 enable_warnings;
+#Enable after fix MDEV-31359
+--disable_ps2_protocol
 select * from t1;
+--enable_ps2_protocol
 disconnect con1;
 connection default;
 disable_warnings;

@@ -277,7 +277,7 @@ PTDB JDBCDEF::GetTable(PGLOBAL g, MODE m)
 			if (Multiple == 1)
 				tdbp = new(g)TDBMUL(tdbp);
 			else if (Multiple == 2)
-				strcpy(g->Message, "NO_JDBC_MUL");
+				safe_strcpy(g->Message, sizeof(g->Message), "NO_JDBC_MUL");
 
 		} // endswitch Catfunc
 
@@ -386,7 +386,7 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 
 	for (colp = Columns; colp; colp = colp->GetNext())
 		if (colp->IsSpecial()) {
-			strcpy(g->Message, "No JDBC special columns");
+			safe_strcpy(g->Message, sizeof(g->Message), "No JDBC special columns");
 			return true;
 		} else {
 			// Column name can be encoded in UTF-8
@@ -460,7 +460,7 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	} // endfor colp
 
 	if ((Query->Append(") VALUES ("))) {
-		strcpy(g->Message, "MakeInsert: Out of memory");
+		safe_strcpy(g->Message, sizeof(g->Message), "MakeInsert: Out of memory");
 		return true;
 	} else // in case prepared statement fails
 		pos = Query->GetLength();
@@ -470,7 +470,7 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 		Query->Append("?,");
 
 	if (Query->IsTruncated()) {
-		strcpy(g->Message, "MakeInsert: Out of memory");
+		safe_strcpy(g->Message, sizeof(g->Message), "MakeInsert: Out of memory");
 		return true;
 	} else
 		Query->RepLast(')');
@@ -532,12 +532,15 @@ int TDBJDBC::Cardinality(PGLOBAL g)
 
 		// Table name can be encoded in UTF-8
 		Decode(TableName, tbn, sizeof(tbn));
-		strcpy(qry, "SELECT COUNT(*) FROM ");
+		safe_strcpy(qry, sizeof(qry), "SELECT COUNT(*) FROM ");
 
-		if (Quote)
-			strcat(strcat(strcat(qry, Quote), tbn), Quote);
+		if (Quote) {
+			safe_strcat(qry, sizeof(qry), Quote);
+			safe_strcat(qry, sizeof(qry), tbn);
+			safe_strcat(qry, sizeof(qry), Quote);
+		}
 		else
-			strcat(qry, tbn);
+			safe_strcat(qry, sizeof(qry), tbn);
 
 		// Allocate a Count(*) column (must not use the default constructor)
 		Cnp = new(g)JDBCCOL;
@@ -656,7 +659,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 					if ((Qrp = Jcp->AllocateResult(g, this)))
 						Memory = 2;            // Must be filled
 					else {
-						strcpy(g->Message, "Result set memory allocation failed");
+						safe_strcpy(g->Message, sizeof(g->Message), "Result set memory allocation failed");
 						return true;
 					} // endif n
 
@@ -683,7 +686,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 #if 0
 		if (!(rc = MakeInsert(g))) {
 			if (Nparm != Jcp->PrepareSQL(Query->GetStr())) {
-				strcpy(g->Message, MSG(PARM_CNT_MISS));
+				safe_strcpy(g->Message, sizeof(g->Message), MSG(PARM_CNT_MISS));
 				rc = true;
 			} else
 				rc = BindParameters(g);
@@ -735,12 +738,12 @@ bool TDBJDBC::SetRecpos(PGLOBAL g, int recpos)
 		  CurNum = recpos;
 			Fpos = recpos;
 		} else {
-			strcpy(g->Message, "Scrolling out of row set NIY");
+			safe_strcpy(g->Message, sizeof(g->Message), "Scrolling out of row set NIY");
 			return true;
 		} // endif recpos
 
 	} else {
-		strcpy(g->Message, "This action requires a scrollable cursor");
+		safe_strcpy(g->Message, sizeof(g->Message), "This action requires a scrollable cursor");
 		return true;
 	} // endif's
 
@@ -786,7 +789,7 @@ bool TDBJDBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 
 			if (To_CondFil)
 				if (Query->Append(" AND ") || Query->Append(To_CondFil->Body)) {
-					strcpy(g->Message, "Readkey: Out of memory");
+					safe_strcpy(g->Message, sizeof(g->Message), "Readkey: Out of memory");
 					return true;
 				} // endif Append
 
@@ -919,7 +922,7 @@ int TDBJDBC::WriteDB(PGLOBAL g)
 	} // endfor colp
 
 	if (unlikely(Query->IsTruncated())) {
-		strcpy(g->Message, "WriteDB: Out of memory");
+		safe_strcpy(g->Message, sizeof(g->Message), "WriteDB: Out of memory");
 		return RC_FX;
 	} // endif Query
 
@@ -1112,13 +1115,13 @@ PCMD TDBXJDC::MakeCMD(PGLOBAL g)
 				(To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
 				xcmd = To_CondFil->Cmds;
 			} else
-				strcpy(g->Message, "Invalid command specification filter");
+				safe_strcpy(g->Message, sizeof(g->Message), "Invalid command specification filter");
 
 		} else
-			strcpy(g->Message, "No command column in select list");
+			safe_strcpy(g->Message, sizeof(g->Message), "No command column in select list");
 
 	} else if (!Srcdef)
-		strcpy(g->Message, "No Srcdef default command");
+		safe_strcpy(g->Message, sizeof(g->Message), "No Srcdef default command");
 	else
 		xcmd = new(g) CMD(g, Srcdef);
 
@@ -1149,7 +1152,7 @@ bool TDBXJDC::OpenDB(PGLOBAL g)
 		this, Tdb_No, Use, Mode);
 
 	if (Use == USE_OPEN) {
-		strcpy(g->Message, "Multiple execution is not allowed");
+		safe_strcpy(g->Message, sizeof(g->Message), "Multiple execution is not allowed");
 		return true;
 	} // endif use
 
@@ -1171,7 +1174,7 @@ bool TDBXJDC::OpenDB(PGLOBAL g)
 	Use = USE_OPEN;       // Do it now in case we are recursively called
 
 	if (Mode != MODE_READ && Mode != MODE_READX) {
-		strcpy(g->Message, "No INSERT/DELETE/UPDATE of XJDBC tables");
+		safe_strcpy(g->Message, sizeof(g->Message), "No INSERT/DELETE/UPDATE of XJDBC tables");
 		return true;
 	} // endif Mode
 
@@ -1224,7 +1227,7 @@ int TDBXJDC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXJDC::WriteDB(PGLOBAL g)
 {
-	strcpy(g->Message, "Execsrc tables are read only");
+	safe_strcpy(g->Message, sizeof(g->Message), "Execsrc tables are read only");
 	return RC_FX;
 } // end of DeleteDB
 
@@ -1233,7 +1236,7 @@ int TDBXJDC::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXJDC::DeleteDB(PGLOBAL g, int irc)
 {
-	strcpy(g->Message, "NO_XJDBC_DELETE");
+	safe_strcpy(g->Message, sizeof(g->Message), "NO_XJDBC_DELETE");
 	return RC_FX;
 } // end of DeleteDB
 

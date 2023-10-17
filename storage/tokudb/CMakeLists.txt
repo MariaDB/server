@@ -1,7 +1,11 @@
-SET(CPACK_RPM_tokudb-engine_PACKAGE_SUMMARY "TokuDB storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_tokudb-engine_PACKAGE_SUMMARY "TokuDB storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_tokudb-engine_PACKAGE_DESCRIPTION "The TokuDB storage engine is for use in high-performance and write-intensive
 environments, offering increased compression and better performance based
 on fractal indexes." PARENT_SCOPE)
+
+IF(POLICY CMP0115)
+  CMAKE_POLICY(SET CMP0115 OLD)
+ENDIF()
 
 SET(TOKUDB_VERSION 5.6.49-89.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+

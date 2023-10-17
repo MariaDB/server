@@ -136,3 +136,13 @@ DROP TABLE t1;
 CREATE TABLE t1 (c VARCHAR(0), KEY(c)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('');
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19216 Assertion ...SYS_FOREIGN failed in btr_node_ptr_max_size
+--echo #
+
+CREATE TABLE t1 (b BINARY(0), v VARBINARY(0), KEY(b), KEY(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET b='',v='';
+DROP TABLE t1;
+
+--echo # End of 10.4 tests

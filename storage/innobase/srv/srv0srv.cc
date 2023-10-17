@@ -1013,13 +1013,14 @@ srv_export_innodb_status(void)
 
 	if (buf_dblwr.is_initialised()) {
 		buf_dblwr.lock();
-		dblwr = buf_dblwr.submitted();
-		export_vars.innodb_dblwr_pages_written = buf_dblwr.written();
+		dblwr = buf_dblwr.written();
+		export_vars.innodb_dblwr_pages_written = dblwr;
 		export_vars.innodb_dblwr_writes = buf_dblwr.batches();
 		buf_dblwr.unlock();
 	}
 
-	export_vars.innodb_data_written = srv_stats.data_written + dblwr;
+	export_vars.innodb_data_written = srv_stats.data_written
+		+ (dblwr << srv_page_size_shift);
 
 	export_vars.innodb_buffer_pool_read_requests
 		= buf_pool.stat.n_page_gets;
@@ -1345,17 +1346,12 @@ static tpool::waitable_task purge_coordinator_task
 static tpool::timer *purge_coordinator_timer;
 
 /** Wake up the purge threads if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active()
+void srv_wake_purge_thread_if_not_active()
 {
-	ut_ad(!srv_read_only_mode);
-
-	if (purge_sys.enabled() && !purge_sys.paused()
-	    && trx_sys.rseg_history_len) {
-		if(++purge_state.m_running == 1) {
-			srv_thread_pool->submit_task(&purge_coordinator_task);
-		}
-	}
+  if (purge_sys.enabled() && !purge_sys.paused() &&
+      (srv_undo_log_truncate || trx_sys.rseg_history_len) &&
+      ++purge_state.m_running == 1)
+    srv_thread_pool->submit_task(&purge_coordinator_task);
 }
 
 /** @return whether the purge tasks are active */
@@ -1696,7 +1692,7 @@ void srv_master_callback(void*)
 }
 
 /** @return whether purge should exit due to shutdown */
-static bool srv_purge_should_exit()
+static bool srv_purge_should_exit(size_t old_history_size)
 {
   ut_ad(srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP);
 
@@ -1707,7 +1703,12 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
-  if (const size_t history_size= trx_sys.rseg_history_len)
+  size_t prepared, active= trx_sys.any_active_transactions(&prepared);
+  const size_t history_size= trx_sys.rseg_history_len;
+
+  if (!history_size);
+  else if (!active && history_size == old_history_size && prepared);
+  else
   {
     static time_t progress_time;
     time_t now= time(NULL);
@@ -1724,7 +1725,7 @@ static bool srv_purge_should_exit()
     return false;
   }
 
-  return !trx_sys.any_active_transactions();
+  return !active;
 }
 
 /*********************************************************************//**
@@ -1805,8 +1806,8 @@ static size_t srv_do_purge(ulint* n_total_purged)
 			n_threads = n_use_threads = srv_n_purge_threads;
 			srv_purge_thread_count_changed = 0;
 		} else if (trx_sys.rseg_history_len > rseg_history_len
-		    || (srv_max_purge_lag > 0
-			&& rseg_history_len > srv_max_purge_lag)) {
+			   || (srv_max_purge_lag > 0
+			       && rseg_history_len > srv_max_purge_lag)) {
 
 			/* History length is now longer than what it was
 			when we took the last snapshot. Use more threads. */
@@ -1832,19 +1833,23 @@ static size_t srv_do_purge(ulint* n_total_purged)
 
 		/* Take a snapshot of the history list before purge. */
 		if (!(rseg_history_len = trx_sys.rseg_history_len)) {
-			break;
+			n_pages_purged = 0;
+			goto truncate;
 		}
 
-		n_pages_purged = trx_purge(
-			n_use_threads,
-			!(++count % srv_purge_rseg_truncate_frequency)
-			|| purge_sys.truncate.current
-			|| (srv_shutdown_state != SRV_SHUTDOWN_NONE
-			    && srv_fast_shutdown == 0));
+		n_pages_purged = trx_purge(n_use_threads);
+
+		if (!(++count % srv_purge_rseg_truncate_frequency)
+		    || purge_sys.truncate.current
+		    || (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			&& srv_fast_shutdown == 0)) {
+truncate:
+			trx_purge_truncate_history();
+		}
 
 		*n_total_purged += n_pages_purged;
 	} while (n_pages_purged > 0 && !purge_sys.paused()
-		 && !srv_purge_should_exit());
+		 && !srv_purge_should_exit(rseg_history_len));
 
 	return(rseg_history_len);
 }
@@ -1959,7 +1964,7 @@ static void purge_coordinator_callback_low()
     }
   }
   while ((purge_sys.enabled() && !purge_sys.paused()) ||
-         !srv_purge_should_exit());
+         !srv_purge_should_exit(trx_sys.rseg_history_len));
 }
 
 static void purge_coordinator_callback(void*)
@@ -2030,15 +2035,19 @@ ulint srv_get_task_queue_length()
 /** Shut down the purge threads. */
 void srv_purge_shutdown()
 {
-	if (purge_sys.enabled()) {
-		if (!srv_fast_shutdown && !opt_bootstrap)
-			srv_update_purge_thread_count(innodb_purge_threads_MAX);
-		while(!srv_purge_should_exit()) {
-			ut_a(!purge_sys.paused());
-			srv_wake_purge_thread_if_not_active();
-			purge_coordinator_task.wait();
-		}
-		purge_sys.coordinator_shutdown();
-		srv_shutdown_purge_tasks();
-	}
+  if (purge_sys.enabled())
+  {
+    if (!srv_fast_shutdown && !opt_bootstrap)
+      srv_update_purge_thread_count(innodb_purge_threads_MAX);
+    size_t history_size= trx_sys.rseg_history_len;
+    while (!srv_purge_should_exit(history_size))
+    {
+      history_size= trx_sys.rseg_history_len;
+      ut_a(!purge_sys.paused());
+      srv_wake_purge_thread_if_not_active();
+      purge_coordinator_task.wait();
+    }
+    purge_sys.coordinator_shutdown();
+    srv_shutdown_purge_tasks();
+  }
 }

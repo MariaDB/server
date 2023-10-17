@@ -534,5 +534,20 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-29782 CONNECT engine converted YEAR to DATETIME, causing INSERT to fail
+--echo #
+
+CREATE TABLE t1 (id year);
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+
+INSERT INTO t2 VALUES (1999);
+SELECT * FROM t2;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

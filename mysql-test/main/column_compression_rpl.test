@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
+--source include/have_normal_bzip.inc
 
 --let $engine_type= myisam
 --let $engine_type2= innodb

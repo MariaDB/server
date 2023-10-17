@@ -1,0 +1,140 @@
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo MDEV-31482: Lock wait timeout with INSERT-SELECT, autoinc, and statement-based replication
+
+# The scenario is transactions T1, T2, T3:
+#
+#   T1 is waiting for T3 on an autoinc lock
+#   T2 is waiting for T1 to commit
+#   T3 is waiting on a normal row lock held by T2
+#
+# This caused a hang until innodb_lock_wait_timeout, because autoinc
+# locks were not reported to the in-order parallel replication, so T3
+# was not deadlock killed.
+
+--let $lock_wait_timeout=20
+
+--let $rpl_connection_name= slave2
+--let $rpl_server_number= 2
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave3
+--let $rpl_server_number= 2
+--source include/rpl_connect.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+# A table as destination for INSERT-SELECT
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b INT, c INT, INDEX (c)) ENGINE=InnoDB;
+INSERT INTO t1 (b,c) VALUES (0, 1), (0, 1), (0, 2), (0,3), (0, 5), (0, 7), (0, 8);
+
+# A table as source for INSERT-SELECT.
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (10,1), (20,2), (30,3), (40,4), (50,5);
+
+# A table to help order slave worker threads to setup the desired scenario.
+CREATE TABLE t3 (a VARCHAR(20) PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES ('row for T1', 0), ('row for T2', 0), ('row for T3', 0);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+--let $save_slave_parallel_threads= `SELECT @@global.slave_parallel_threads`
+--let $save_slave_parallel_mode= `SELECT @@global.slave_parallel_mode`
+set @@global.slave_parallel_threads= 3;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+eval set @@global.innodb_lock_wait_timeout= $lock_wait_timeout;
+
+--connection master
+# Transaction T1.
+BEGIN;
+UPDATE t3 SET b=b+1 where a="row for T1";
+INSERT INTO t1(b, c) SELECT 1, t2.b FROM t2 WHERE a=10;
+COMMIT;
+
+# Transaction T2.
+DELETE FROM t1 WHERE c >= 4 and c < 6;
+
+# Transaction T3.
+BEGIN;
+UPDATE t3 SET b=b+1 where a="row for T3";
+INSERT INTO t1(b, c) SELECT 3, t2.b FROM t2 WHERE a >= 20 AND a <= 40;
+COMMIT;
+
+--source include/save_master_gtid.inc
+
+--connection slave1
+# Temporarily block T1 to create the scheduling that triggers the bug.
+BEGIN;
+SELECT * FROM t3 WHERE a="row for T1" FOR UPDATE;
+
+--connection slave2
+# Temporarily block T3 from starting (so T2 can reach commit).
+BEGIN;
+SELECT * FROM t3 WHERE a="row for T3" FOR UPDATE;
+
+--connection slave3
+# This critical step blocks T3 after it has inserted its first row,
+# and thus taken the auto-increment lock, but before it has reached
+# the point where it gets a row lock wait on T2. Even though
+# auto-increment lock waits were not reported due to the bug,
+# transitive lock waits (T1 waits on autoinc of T3 which waits on row
+# on T2) _were_ reported as T1 waiting on T2, and thus a deadlock kill
+# happened and the bug was not triggered.
+BEGIN;
+DELETE FROM t2 WHERE a=30;
+
+--connection slave
+--source include/start_slave.inc
+
+# First let T2 complete until it is waiting for T1 to commit.
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state='Waiting for prior transaction to commit' and command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+# Then let T3 reach the point where it has obtained the autoinc lock,
+# but it is not yet waiting for a row lock held by T2.
+--connection slave2
+ROLLBACK;
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state='Sending data' and info LIKE 'INSERT INTO t1(b, c) SELECT 3, t2.b%' and time_ms > 500 and command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+# Now let T1 continue, while T3 is holding the autoinc lock but before
+# it is waiting for T2. Wait a short while to give the hang a chance to
+# happen; T1 needs to get to request the autoinc lock before we let T3
+# continue. (There's a small chance the sleep will be too small, which will
+# let the test occasionally pass on non-fixed server).
+--connection slave1
+ROLLBACK;
+--sleep 0.5
+
+# Now let T3 continue; the bug was that this lead to an undetected
+# deadlock that remained until innodb lock wait timeout.
+--connection slave3
+ROLLBACK;
+
+--connection slave
+--let $slave_timeout= `SELECT $lock_wait_timeout/2`
+--source include/sync_with_master_gtid.inc
+--let $slave_timeout=
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+
+# Cleanup.
+--connection master
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+DROP TABLE t1, t2, t3;
+
+--connection slave
+--source include/stop_slave.inc
+eval SET @@global.slave_parallel_threads= $save_slave_parallel_threads;
+eval SET @@global.slave_parallel_mode= $save_slave_parallel_mode;
+eval SET @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout;
+--source include/start_slave.inc
+SELECT @@GLOBAL.innodb_autoinc_lock_mode;
+--source include/rpl_end.inc

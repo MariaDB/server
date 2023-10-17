@@ -92,7 +92,7 @@ extern "C" FILE *my_win_popen(const char *cmd, const char *mode)
       goto error;
     break;
   default:
-    /* Unknown mode, éxpected "r", "rt", "w", "wt" */
+    /* Unknown mode, expected "r", "rt", "w", "wt" */
     abort();
   }
   if (!SetHandleInformation(parent_pipe_end, HANDLE_FLAG_INHERIT, 0))

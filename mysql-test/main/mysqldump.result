@@ -5281,15 +5281,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
 SET @@global.log_output=       @old_log_output_state;
 SET @@global.slow_query_log=   @old_slow_query_log_state;
@@ -5747,15 +5747,15 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
@@ -5842,15 +5842,15 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
@@ -5947,15 +5947,15 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
@@ -6342,6 +6342,7 @@ END	utf8	utf8_general_ci	latin1_swedish_ci
 DROP DATABASE test1;
 DROP DATABASE test2;
 SET sql_mode=@save_sql_mode;
+use test;
 #
 # MDEV-4875 Can't restore a mysqldump if --add-drop-database meets general_log
 #
@@ -6394,15 +6395,15 @@ DROP TABLE IF EXISTS mysql.column_stats;
 		<field Field="user_host" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="query_time" Type="time(6)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="lock_time" Type="time(6)" Null="NO" Key="" Extra="" Comment="" />
-		<field Field="rows_sent" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
-		<field Field="rows_examined" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_sent" Type="bigint(20) unsigned" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_examined" Type="bigint(20) unsigned" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="db" Type="varchar(512)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="last_insert_id" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="insert_id" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="server_id" Type="int(10) unsigned" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="sql_text" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="thread_id" Type="bigint(21) unsigned" Null="NO" Key="" Extra="" Comment="" />
-		<field Field="rows_affected" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_affected" Type="bigint(20) unsigned" Null="NO" Key="" Extra="" Comment="" />
 		<options Name="slow_log" Engine="CSV" Version="10" Row_format="Dynamic" Rows="2" Avg_row_length="0" Data_length="0" Max_data_length="0" Index_length="0" Data_free="0" Collation="utf8_general_ci" Create_options="" Comment="Slow log" Max_index_length="0" Temporary="N" />
 	</table_structure>
 
@@ -6435,4 +6436,67 @@ TABLE	1
 SET GLOBAL LOG_OUTPUT=DEFAULT, GLOBAL GENERAL_LOG=@save_general_log;
 TRUNCATE TABLE mysql.general_log;
 DROP DATABASE test1;
+#
 # End of 10.3 tests
+#
+#
+# MDEV-31092 mysqldump --force doesn't ignore error as it should
+#
+create function f1() returns int return 1;
+create function f2() returns int return 2;
+update mysql.proc set body='return no_such_var' where db='test' and name='f1';
+create event e1 on schedule every 1 year starts '2030-01-01' do select 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+update mysql.event set body ='select not_a_value' where db='test' and name='e1';
+create table t1 (i int);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+mariadb-dump: Couldn't execute 'SHOW CREATE FUNCTION `f1`': Undeclared variable: no_such_var (1327)
+/*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
+DELIMITER ;;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
+/*!50003 SET character_set_client  = utf8 */ ;;
+/*!50003 SET character_set_results = utf8 */ ;;
+/*!50003 SET collation_connection  = utf8_general_ci */ ;;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
+/*!50003 SET sql_mode              = '' */ ;;
+/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
+/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 YEAR STARTS '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO select not_a_value */ ;;
+/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;;
+/*!50003 SET character_set_results = @saved_cs_results */ ;;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;;
+DELIMITER ;
+/*!50106 SET TIME_ZONE= @save_time_zone */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8 */ ;
+/*!50003 SET character_set_results = utf8 */ ;
+/*!50003 SET collation_connection  = utf8_general_ci */ ;
+DELIMITER ;;
+CREATE DEFINER=`root`@`localhost` FUNCTION `f2`() RETURNS int(11)
+return 2 ;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+drop function f1;
+drop function f2;
+drop event e1;
+drop table t1;
+#
+# End of 10.4 tests
+#

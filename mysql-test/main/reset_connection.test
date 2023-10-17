@@ -6,6 +6,7 @@ FLUSH STATUS;
 --disable_query_log
 --disable_service_connection
 
+--disable_ps2_protocol
 let $i = 10;
 begin;
 while ($i)
@@ -14,6 +15,7 @@ while ($i)
   SELECT 1;
 }
 commit;
+--enable_ps2_protocol
 
 --enable_query_log
 --enable_result_log

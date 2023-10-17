@@ -1,0 +1,251 @@
+client/mysql.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysql_upgrade.c: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysqladmin.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysqlbinlog.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysqlcheck.c: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysqlimport.c: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysqlshow.c: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+client/mysqltest.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+dbug/tests.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+lexyy.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+mysql-test/lib/My/SafeProcess/safe_process_win.cc: error: Uninitialized variable: message_text
+mysys/mf_keycache.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+mysys/my_delete.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+mysys/my_fopen.c: error: Return value of allocation function 'freopen' is not stored.
+mysys/my_getsystime.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+mysys/my_pread.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+mysys/my_rename.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+mysys/my_winfile.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+mysys/my_write.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+mysys/thr_lock.c: error: There is an unknown macro here somewhere. Configuration is required. If MYSQL_TABLE_WAIT_VARIABLES is a macro then please configure it.
+mysys/tree.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+pcre/pcrecpp.cc: warning: Uninitialized variable: kmat
+pcre/pcrecpp.h: error: syntax error
+pcre/pcregrep.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/audit_null/audit_null.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_ed25519/server_ed25519.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_examples/auth_0x0100.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_examples/dialog_examples.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_examples/qa_auth_interface.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_examples/qa_auth_server.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_examples/test_plugin.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_gssapi/server_plugin.cc: error: syntax error
+plugin/auth_gssapi/sspi.h: error: #include nested too deeply
+plugin/auth_pam/auth_pam.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_pam/auth_pam_v1.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_pipe/auth_pipe.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/auth_socket/auth_socket.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/aws_key_management/aws_key_management_plugin.cc: error: syntax error
+plugin/cracklib_password_check/cracklib_password_check.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/daemon_example/daemon_example.cc: error: syntax error
+plugin/debug_key_management/debug_key_management_plugin.cc: error: syntax error
+plugin/disks/information_schema_disks.cc: error: syntax error
+plugin/example_key_management/example_key_management_plugin.cc: error: syntax error
+plugin/feedback/feedback.cc: error: syntax error
+plugin/file_key_management/file_key_management_plugin.cc: error: syntax error
+plugin/fulltext/plugin_example.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/handler_socket/handlersocket/handlersocket.cpp: error: syntax error
+plugin/locale_info/locale_info.cc: error: syntax error
+plugin/metadata_lock_info/metadata_lock_info.cc: error: syntax error
+plugin/metadata_lock_info/metadata_lock_info.cc: error: syntax error
+plugin/qc_info/qc_info.cc: error: syntax error
+plugin/query_response_time/plugin.cc: error: syntax error
+plugin/query_response_time/query_response_time.cc: error: Array 'm_count[41]' accessed at index 43, which is out of bounds.
+plugin/query_response_time/query_response_time.cc: error: Array 'm_total[41]' accessed at index 43, which is out of bounds.
+plugin/server_audit/server_audit.c: error: Uninitialized variable: &tm_time
+plugin/server_audit/server_audit.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/server_audit/server_audit.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/server_audit/server_audit.c: error: Uninitialized variable: &tm_time
+plugin/simple_password_check/simple_password_check.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/sql_errlog/sql_errlog.c: error: Found a exit path from function with non-void return type that has missing return statement
+plugin/sql_errlog/sql_errlog.c: error: Uninitialized variable: &t
+plugin/user_variables/user_variables.cc: error: syntax error
+plugin/userstat/userstat.cc: error: syntax error
+plugin/versioning/versioning.cc: error: syntax error
+plugin/wsrep_info/plugin.cc: error: syntax error
+sql-common/client.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+sql-common/client_plugin.c: error: va_list 'unused' used before va_start() was called.
+sql-common/client_plugin.c: error: va_list 'unused' used before va_start() was called.
+sql-common/client_plugin.c: error: va_list 'unused' used before va_start() was called.
+sql-common/client_plugin.c: error: va_list 'unused' used before va_start() was called.
+sql/debug_sync.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE is a macro then please configure it.
+sql/gcalc_slicescan.cc: warning: Possible null pointer dereference: first_bottom_point
+sql/gen_lex_hash.cc: error: Common realloc mistake: 'hash_map' nulled but not freed upon failure
+sql/handler.h: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+sql/log.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+sql/log_event.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+sql/log_event_old.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+sql/net_serv.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+sql/protocol.h: error: syntax error
+sql/rpl_utility.h: error: There is an unknown macro here somewhere. Configuration is required. If CPP_UNNAMED_NS_START is a macro then please configure it.
+sql/semisync_slave.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+sql/sql_select.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+sql/sql_string.cc: warning: Iterators to containers from different expressions 'to' and 'from' are used together.
+sql/table.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+sql/winservice.c: error: Resource leak: mysql_upgrade_info
+sql/wsrep_thd.h: error: failed to expand 'wsrep_create_appliers', Wrong number of parameters for macro 'wsrep_create_appliers'.
+storage/archive/azio.c: error: Syntax Error: AST broken, 'if' doesn't have two operands.
+storage/archive/ha_archive.cc: error: syntax error
+storage/blackhole/ha_blackhole.cc: error: syntax error
+storage/cassandra/gen-cpp/Cassandra_server.skeleton.cpp: error: Found a exit path from function with non-void return type that has missing return statement
+storage/cassandra/ha_cassandra.cc: error: syntax error
+storage/connect/connect.cc: error: Uninitialized variable: lg
+storage/connect/domdoc.cpp: error: syntax error
+storage/connect/ha_connect.cc: error: syntax error
+storage/connect/myconn.cpp: error: Unmatched '{'. Configuration: 'ALPHA;MYSQL_PREPARED_STATEMENTS'.
+storage/connect/myconn.cpp: error: Unmatched '{'. Configuration: 'MYSQL_PREPARED_STATEMENTS'.
+storage/connect/odbconn.cpp: warning: Uninitialized variable: b
+storage/connect/odbconn.cpp: warning: Uninitialized variable: b
+storage/connect/odbconn.cpp: warning: Uninitialized variable: b
+storage/connect/plugutil.cpp: error: Width 255 given in format string (no. 2) is larger than destination buffer 'stmsg[200]', use %199[^\"] to prevent overflowing it.
+storage/connect/plugutil.cpp: error: Width 255 given in format string (no. 1) is larger than destination buffer 'stmsg[200]', use %199[^\"] to prevent overflowing it.
+storage/connect/tabjson.cpp: warning: Possible null pointer dereference: Val
+storage/connect/tabmul.cpp: error: Uninitialized variable: buf
+storage/connect/tabmul.cpp: error: Uninitialized variable: buf
+storage/connect/tabmul.cpp: error: Uninitialized variable: buf
+storage/connect/taboccur.cpp: warning: Uninitialized variable: *pcrp
+storage/connect/unzip.c: warning: Uninitialized variable: *pzlib_filefunc64_32_def.zopen32_file
+storage/connect/value.cpp: error: Signed integer overflow for expression 'n*126230400'.
+storage/connect/zip.c: warning: Uninitialized variable: *pzlib_filefunc64_32_def.zopen32_file
+storage/csv/ha_tina.cc: error: syntax error
+storage/example/ha_example.cc: error: syntax error
+storage/federated/ha_federated.cc: error: syntax error
+storage/heap/ha_heap.cc: error: syntax error
+storage/innobase/btr/btr0btr.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/btr/btr0cur.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/btr/btr0defragment.cc: error: There is an unknown macro here somewhere. Configuration is required. If DECLARE_THREAD is a macro then please configure it.
+storage/innobase/btr/btr0sea.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/buf/buf0buf.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/buf/buf0dump.cc: error: There is an unknown macro here somewhere. Configuration is required. If DECLARE_THREAD is a macro then please configure it.
+storage/innobase/buf/buf0flu.cc: error: There is an unknown macro here somewhere. Configuration is required. If DECLARE_THREAD is a macro then please configure it.
+storage/innobase/buf/buf0lru.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/dict/dict0crea.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/dict/dict0dict.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/dict/dict0load.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/dict/dict0stats.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/dict/dict0stats_bg.cc: error: There is an unknown macro here somewhere. Configuration is required. If DECLARE_THREAD is a macro then please configure it.
+storage/innobase/fil/fil0crypt.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/fil/fil0fil.cc: error: syntax error
+storage/innobase/fsp/fsp0file.cc: error: Resource leak: file
+storage/innobase/fsp/fsp0fsp.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/fts/fts0fts.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/fts/fts0opt.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/fts/fts0que.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/gis/gis0rtree.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/gis/gis0sea.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/handler/ha_innodb.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/handler/handler0alter.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/handler/i_s.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/ibuf/ibuf0ibuf.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/ibuf/ibuf0ibuf.cc: error: failed to expand 'ibuf_bitmap_page_get_bits', Wrong number of parameters for macro 'ibuf_bitmap_page_get_bits'.
+storage/innobase/lock/lock0lock.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/lock/lock0wait.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/lock/lock0wait.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/log/log0log.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/log/log0recv.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/os/os0file.cc: error: syntax error
+storage/innobase/page/page0page.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/page/page0zip.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/pars/pars0pars.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/row/row0ftsort.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/row/row0import.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/row/row0ins.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/row/row0log.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/row/row0merge.cc: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/innobase/row/row0mysql.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/row/row0quiesce.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/row/row0sel.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/row/row0umod.cc: error: There is an unknown macro here somewhere. Configuration is required. If ut_d is a macro then please configure it.
+storage/innobase/row/row0upd.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/row/row0vers.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/srv/srv0conc.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ALIGNED is a macro then please configure it.
+storage/innobase/srv/srv0srv.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/srv/srv0start.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ATTRIBUTE is a macro then please configure it.
+storage/innobase/trx/trx0i_s.cc: error: Array 'table_cache->chunks[39]' accessed at index 39, which is out of bounds.
+storage/innobase/trx/trx0i_s.cc: error: Array 'table_cache->chunks[39]' accessed at index 39, which is out of bounds.
+storage/innobase/trx/trx0purge.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/trx/trx0rec.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/trx/trx0roll.cc: error: There is an unknown macro here somewhere. Configuration is required. If DECLARE_THREAD is a macro then please configure it.
+storage/innobase/trx/trx0trx.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/innobase/trx/trx0undo.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ha_maria.cc: error: syntax error
+storage/maria/ma_bitmap.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_blockrec.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_check.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_checkpoint.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_delete.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/maria/ma_delete.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_ft_parser.c: error: Address of local auto-variable assigned to a function parameter.
+storage/maria/ma_key.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_loghandler.c: warning: Uninitialized variable: data->current_offset
+storage/maria/ma_open.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/maria/ma_pagecache.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_pagecache.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_range.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_recovery_util.c: error: va_start() or va_copy() called subsequently on 'args' without va_end() in between.
+storage/maria/ma_rkey.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_rt_index.c: error: failed to expand 'rt_PAGE_END', Wrong number of parameters for macro 'rt_PAGE_END'.
+storage/maria/ma_search.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_sp_key.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_update.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/maria/ma_update.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/ma_write.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/maria/ma_write.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/maria/maria_pack.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/ft_parser.c: error: Address of local auto-variable assigned to a function parameter.
+storage/myisam/ha_myisam.cc: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_check.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_close.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/myisam/mi_delete.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_key.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_locking.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_open.c: error: There is an unknown macro here somewhere. Configuration is required. If DBUG_EXECUTE_IF is a macro then please configure it.
+storage/myisam/mi_range.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_rkey.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_search.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_update.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/mi_write.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisam/myisampack.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+storage/myisammrg/ha_myisammrg.cc: error: syntax error
+storage/oqgraph/ha_oqgraph.cc: error: syntax error
+storage/perfschema/ha_perfschema.cc: error: syntax error
+storage/perfschema/pfs_instr.h: error: Uninitialized variable: m_has_io_stats
+storage/perfschema/pfs_instr.h: error: Uninitialized variable: m_has_lock_stats
+storage/perfschema/pfs_instr_class.cc: error: There is an unknown macro here somewhere. Configuration is required. If MY_ALIGNED is a macro then please configure it.
+storage/perfschema/table_accounts.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_esgs_by_account_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_esgs_by_host_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_esgs_by_user_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_esms_by_account_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_esms_by_host_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_esms_by_user_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_events_waits.cc: error: Uninitialized struct member: wait.m_wait_class
+storage/perfschema/table_events_waits.cc: error: Uninitialized variable: wait
+storage/perfschema/table_events_waits.cc: error: Uninitialized struct member: wait.m_wait_class
+storage/perfschema/table_ews_by_account_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_ews_by_host_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_ews_by_user_by_event_name.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_hosts.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_setup_actors.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_threads.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/perfschema/table_users.cc: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+storage/sequence/sequence.cc: error: syntax error
+storage/test_sql_discovery/test_sql_discovery.cc: error: syntax error
+strings/decimal.c: warning: Possible null pointer dereference: to
+strings/dump_map.c: error: Array 'fromstat[256]' accessed at index 256, which is out of bounds.
+tests/mysql_client_fw.c: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+tests/thread_test.c: error: There is an unknown macro here somewhere. Configuration is required. If STRINGIFY_ARG is a macro then please configure it.
+unittest/mysys/dynstring-t.c: error: syntax error
+unittest/mysys/queues-t.c: error: Uninitialized variable: i
+unittest/mysys/waiting_threads-t.c: error: Uninitialized variable: m
+unittest/mytap/tap.c: error: va_list 'ap' used before va_start() was called.
+unittest/mytap/tap.c: error: va_list 'ap' used before va_start() was called.
+unittest/mytap/tap.c: error: va_list 'ap' used before va_start() was called.
+unittest/mytap/tap.c: error: va_list 'ap' used before va_start() was called.
+vio/viosocket.c: error: There is an unknown macro here somewhere. Configuration is required. If MYSQL_SOCKET_WAIT_VARIABLES is a macro then please configure it.
+vio/viosocket.c: error: There is an unknown macro here somewhere. Configuration is required. If MYSQL_SOCKET_WAIT_VARIABLES is a macro then please configure it.
+vio/viosslfactories.c: error: There is an unknown macro here somewhere. Configuration is required. If ; is a macro then please configure it.
+vio/viotest-sslconnect.cc: error: Memory pointed to by 'vio' is freed twice.
+vio/viotest-sslconnect.cc: error: Memory pointed to by 'ssl_connector' is freed twice.
+wsrep-lib/src/server_state.cpp: error: syntax error: keyword 'try' is not allowed in global scope
+wsrep-lib/src/thread_service_v1.cpp: error: Rethrowing current exception with 'throw;', it seems there is no current exception to rethrow. If there is no current exception this calls std::terminate(). More: https://isocpp.org/wiki/faq/exceptions#throw-without-an-object

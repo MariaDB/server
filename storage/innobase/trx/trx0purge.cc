@@ -346,7 +346,6 @@ static
 void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
 {
   mtr.commit();
-  log_free_check();
   mtr.start();
   ut_ad(mutex_own(&rseg->mutex));
 
@@ -367,19 +366,29 @@ void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
                                     block->frame, &mtr))
   {
     block->fix();
+    const page_id_t id{block->page.id()};
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
     up to this point was written, and before the log from the mtr.commit()
     in our caller is written, then the pages belonging to the
     undo log will become unaccessible garbage.
 
-    This does not matters when using multiple innodb_undo_tablespaces;
+    This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
-    log_free_check();
     mtr.start();
     ut_ad(rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
     rw_lock_x_lock(&block->lock);
-    mtr_memo_push(&mtr, block, MTR_MEMO_PAGE_X_FIX);
+    if (UNIV_UNLIKELY(block->page.id() != id))
+    {
+      block->unfix();
+      rw_lock_x_unlock(&block->lock);
+      ut_d(rw_lock_s_unlock(block->debug_latch));
+      block= buf_page_get(id, 0, RW_X_LATCH, &mtr);
+      if (!block)
+        return;
+    }
+    else
+      mtr_memo_push(&mtr, block, MTR_MEMO_PAGE_X_FIX);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
@@ -388,12 +397,14 @@ void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 /** Remove unnecessary history data from a rollback segment.
 @param[in,out]	rseg		rollback segment
-@param[in]	limit		truncate anything before this */
+@param[in]	limit		truncate anything before this
+@param[in]	all		whether everything can be truncated */
 static
 void
 trx_purge_truncate_rseg_history(
 	trx_rseg_t&			rseg,
-	const purge_sys_t::iterator&	limit)
+	const purge_sys_t::iterator&	limit,
+	bool				all)
 {
 	fil_addr_t	hdr_addr;
 	fil_addr_t	prev_hdr_addr;
@@ -432,17 +443,16 @@ func_exit:
 		goto func_exit;
 	}
 
+	if (!all) {
+		goto func_exit;
+	}
+
 	prev_hdr_addr = flst_get_prev_addr(block->frame + hdr_addr.boffset
 					   + TRX_UNDO_HISTORY_NODE);
 	prev_hdr_addr.boffset = static_cast<uint16_t>(prev_hdr_addr.boffset
 						      - TRX_UNDO_HISTORY_NODE);
 
-	if (!rseg.trx_ref_count
-	    && rseg.needs_purge <= (purge_sys.head.trx_no
-				    ? purge_sys.head.trx_no
-				    : purge_sys.tail.trx_no)
-	    && mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
-				+ block->frame)
+	if (mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + block->frame)
 	    == TRX_UNDO_TO_PURGE
 	    && !mach_read_from_2(block->frame + hdr_addr.boffset
 				 + TRX_UNDO_NEXT_LOG)) {
@@ -510,10 +520,11 @@ __attribute__((optimize(0)))
 # endif
 #endif
 /**
-Removes unnecessary history data from rollback segments. NOTE that when this
-function is called, the caller must not have any latches on undo log pages!
+Remove unnecessary history data from rollback segments. NOTE that when this
+function is called, the caller (purge_coordinator_callback)
+must not have any latches on undo log pages!
 */
-static void trx_purge_truncate_history()
+void trx_purge_truncate_history()
 {
   ut_ad(purge_sys.head <= purge_sys.tail);
   purge_sys_t::iterator &head= purge_sys.head.trx_no
@@ -532,8 +543,11 @@ static void trx_purge_truncate_history()
     {
       ut_ad(rseg->id == i);
       ut_ad(rseg->is_persistent());
+      log_free_check();
       mutex_enter(&rseg->mutex);
-      trx_purge_truncate_rseg_history(*rseg, head);
+      trx_purge_truncate_rseg_history(*rseg, head,
+                                      !rseg->trx_ref_count &&
+                                      purge_sys.sees(rseg->needs_purge));
       mutex_exit(&rseg->mutex);
     }
   }
@@ -590,7 +604,7 @@ static void trx_purge_truncate_history()
       transactions to finish and to be purged. */
       rseg->skip_allocation = true;
 
-      if (rseg->trx_ref_count || rseg->needs_purge > head.trx_no)
+      if (rseg->trx_ref_count || !purge_sys.sees(rseg->needs_purge))
       {
       not_free:
         mutex_exit(&rseg->mutex);
@@ -604,7 +618,7 @@ static void trx_purge_truncate_history()
       for (const trx_undo_t *undo= UT_LIST_GET_FIRST(rseg->undo_cached); undo;
            undo= UT_LIST_GET_NEXT(undo_list, undo))
       {
-        if (head.trx_no < undo->trx_id)
+        if (head.trx_no && head.trx_no < undo->trx_id)
           goto not_free;
         else
           cached+= undo->size;
@@ -612,7 +626,8 @@ static void trx_purge_truncate_history()
 
       ut_ad(rseg->curr_size > cached);
 
-      if (rseg->curr_size > cached + 1)
+      if (rseg->curr_size > cached + 1 &&
+          (srv_fast_shutdown || srv_undo_sources || trx_sys.rseg_history_len))
         goto not_free;
 
       mutex_exit(&rseg->mutex);
@@ -716,7 +731,7 @@ static void trx_purge_truncate_history()
       ut_ad(rseg->id == i);
       ut_ad(rseg->is_persistent());
       ut_ad(!rseg->trx_ref_count);
-      ut_ad(rseg->needs_purge <= head.trx_no);
+      ut_ad(!head.trx_no || rseg->needs_purge <= head.trx_no);
       ut_d(const auto old_page= rseg->page_no);
 
       buf_block_t *rblock= trx_rseg_header_create(&space, i,
@@ -1220,9 +1235,8 @@ static void trx_purge_wait_for_workers_to_complete()
 /**
 Run a purge batch.
 @param n_tasks   number of purge tasks to submit to the queue
-@param truncate  whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint trx_purge(ulint n_tasks, bool truncate)
+ulint trx_purge(ulint n_tasks)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1255,10 +1269,6 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 	que_run_threads(thr);
 
 	trx_purge_wait_for_workers_to_complete();
-
-	if (truncate) {
-		trx_purge_truncate_history();
-	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);
 	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages_handled);

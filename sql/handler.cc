@@ -110,7 +110,7 @@ static handlerton *installed_htons[128];
 #define BITMAP_STACKBUF_SIZE (128/8)
 
 KEY_CREATE_INFO default_key_create_info=
-{ HA_KEY_ALG_UNDEF, 0, 0, {NullS, 0}, {NullS, 0}, true };
+{ HA_KEY_ALG_UNDEF, 0, 0, {NullS, 0}, {NullS, 0} };
 
 /* number of entries in handlertons[] */
 ulong total_ha= 0;
@@ -355,9 +355,6 @@ handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute)
 
   if (no_substitute)
     return NULL;
-#ifdef WITH_WSREP
-  (void)wsrep_after_rollback(thd, false);
-#endif /* WITH_WSREP */
 
   return ha_default_handlerton(thd);
 } /* ha_checktype */
@@ -623,6 +620,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton;
   static const char *no_exts[]= { 0 };
+  int ret= 0;
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
@@ -632,6 +630,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   {
     sql_print_error("Unable to allocate memory for plugin '%s' handlerton.",
                     plugin->name.str);
+    ret= 1;
     goto err_no_hton_memory;
   }
 
@@ -642,12 +641,15 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
   plugin->data= hton; // shortcut for the future
-  if (plugin->plugin->init && plugin->plugin->init(hton))
-  {
-    sql_print_error("Plugin '%s' init function returned error.",
-                    plugin->name.str);
+  /* [remove after merge] notes on merge conflict (MDEV-31400):
+  10.6-10.11: 13ba00ff4933cfc1712676f323587504e453d1b5
+  11.0-11.2: 42f8be10f18163c4025710cf6a212e82bddb2f62
+  The 10.11->11.0 conflict is trivial, but the reference commit also
+  contains different non-conflict changes needs to be applied to 11.0
+  (and beyond).
+  */
+  if (plugin->plugin->init && (ret= plugin->plugin->init(hton)))
     goto err;
-  }
 
   // hton_ext_based_table_discovery() works only when discovery
   // is supported and the engine if file-based.
@@ -685,6 +687,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     if (idx == (int) DB_TYPE_DEFAULT)
     {
       sql_print_warning("Too many storage engines!");
+      ret= 1;
       goto err_deinit;
     }
     if (hton->db_type != DB_TYPE_UNKNOWN)
@@ -712,6 +715,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     {
       sql_print_error("Too many plugins loaded. Limit is %lu. "
                       "Failed on '%s'", (ulong) MAX_HA, plugin->name.str);
+      ret= 1;
       goto err_deinit;
     }
     hton->slot= total_ha++;
@@ -761,7 +765,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(ret);
 
 err_deinit:
   /* 
@@ -779,7 +783,7 @@ err:
   my_free(hton);
 err_no_hton_memory:
   plugin->data= NULL;
-  DBUG_RETURN(1);
+  DBUG_RETURN(ret);
 }
 
 int ha_init()
@@ -1668,10 +1672,7 @@ int ha_commit_trans(THD *thd, bool all)
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
 
-  if (rw_trans &&
-      opt_readonly &&
-      !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-      !thd->slave_thread)
+  if (rw_trans && thd->is_read_only_ctx())
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
     goto err;
@@ -1733,7 +1734,19 @@ int ha_commit_trans(THD *thd, bool all)
       ordering is normally done. Commit ordering must be done here.
     */
     if (run_wsrep_hooks)
-      error= wsrep_before_commit(thd, all);
+    {
+      // This commit involves more than one storage engine and requires
+      // two phases, but some engines don't support it.
+      // Issue a message to the client and roll back the transaction.
+      if (trans->no_2pc && rw_ha_count > 1)
+      {
+        my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                   "by involved engine(s)", MYF(0));
+        error= 1;
+      }
+      else
+        error= wsrep_before_commit(thd, all);
+    }
     if (error)
     {
       ha_rollback_trans(thd, FALSE);
@@ -2040,14 +2053,26 @@ int ha_rollback_trans(THD *thd, bool all)
       attempt. Otherwise those following transactions can run too early, and
       possibly cause replication to fail. See comments in retry_event_group().
 
+      (This concerns rollbacks due to temporary errors where the transaction
+      will be retried afterwards. For non-recoverable errors, following
+      transactions will not start but just be skipped as the worker threads
+      perform the error stop).
+
       There were several bugs with this in the past that were very hard to
       track down (MDEV-7458, MDEV-8302). So we add here an assertion for
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
-                thd->transaction->xid_state.is_explicit_XA());
-    if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
+    DBUG_ASSERT(
+        !(thd->rgi_slave &&
+          !thd->rgi_slave->worker_error &&
+          thd->rgi_slave->did_mark_start_commit) ||
+        (thd->transaction->xid_state.is_explicit_XA() ||
+         (thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_PREPARED_XA)));
+
+    if (thd->rgi_slave &&
+        !thd->rgi_slave->worker_error &&
+        thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
 #endif
@@ -4321,7 +4346,7 @@ int handler::check_collation_compatibility()
 {
   ulong mysql_version= table->s->mysql_version;
 
-  if (mysql_version < 50124)
+  if (mysql_version < Charset::latest_mariadb_version_with_collation_change())
   {
     KEY *key= table->key_info;
     KEY *key_end= key + table->s->keys;
@@ -4335,18 +4360,7 @@ int handler::check_collation_compatibility()
           continue;
         Field *field= table->field[key_part->fieldnr - 1];
         uint cs_number= field->charset()->number;
-        if ((mysql_version < 50048 &&
-             (cs_number == 11 || /* ascii_general_ci - bug #29499, bug #27562 */
-              cs_number == 41 || /* latin7_general_ci - bug #29461 */
-              cs_number == 42 || /* latin7_general_cs - bug #29461 */
-              cs_number == 20 || /* latin7_estonian_cs - bug #29461 */
-              cs_number == 21 || /* latin2_hungarian_ci - bug #29461 */
-              cs_number == 22 || /* koi8u_general_ci - bug #29461 */
-              cs_number == 23 || /* cp1251_ukrainian_ci - bug #29461 */
-              cs_number == 26)) || /* cp1250_general_ci - bug #29461 */
-             (mysql_version < 50124 &&
-             (cs_number == 33 || /* utf8mb3_general_ci - bug #27877 */
-              cs_number == 35))) /* ucs2_general_ci - bug #27877 */
+        if (Charset::collation_changed_order(mysql_version, cs_number))
           return HA_ADMIN_NEEDS_UPGRADE;
       }
     }
@@ -6836,7 +6850,13 @@ static int wsrep_after_row(THD *thd)
       thd->wsrep_affected_rows > wsrep_max_ws_rows &&
       wsrep_thd_is_local(thd))
   {
-    trans_rollback_stmt(thd) || trans_rollback(thd);
+    /*
+      If we are inside stored function or trigger we should not commit or
+      rollback current statement transaction. See comment in ha_commit_trans()
+      call for more information.
+    */
+    if (!thd->in_sub_stmt)
+      trans_rollback_stmt(thd) || trans_rollback(thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
@@ -6859,6 +6879,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   KEY *key_info= table->key_info + key_no;
   Field *hash_field= key_info->key_part->field;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+  String *blob_storage;
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
 
   DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
@@ -6873,9 +6894,11 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   result= lookup_handler->ha_index_init(key_no, 0);
   if (result)
     DBUG_RETURN(result);
+  blob_storage= (String*)alloca(sizeof(String)*table->s->virtual_not_stored_blob_fields);
+  table->remember_blob_values(blob_storage);
   store_record(table, file->lookup_buffer);
-  result= lookup_handler->ha_index_read_map(table->record[0],
-                               ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+  result= lookup_handler->ha_index_read_map(table->record[0], ptr,
+                                            HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (!result)
   {
     bool is_same;
@@ -6883,6 +6906,13 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
     Item_func_hash * temp= (Item_func_hash *)hash_field->vcol_info->expr;
     Item ** arguments= temp->arguments();
     uint arg_count= temp->argument_count();
+    // restore pointers after swap_values in TABLE::update_virtual_fields()
+    for (Field **vf= table->vfield; *vf; vf++)
+    {
+      if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
+          bitmap_is_set(table->read_set, (*vf)->field_index))
+        ((Field_blob*)*vf)->swap_value_and_read_value();
+    }
     do
     {
       my_ptrdiff_t diff= table->file->lookup_buffer - new_rec;
@@ -6930,6 +6960,7 @@ exit:
     }
   }
   restore_record(table, file->lookup_buffer);
+  table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();
   DBUG_RETURN(error);
 }
@@ -7589,6 +7620,9 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
   concurrent accesses. And it's an overkill to take LOCK_plugin and
   iterate the whole installed_htons[] array every time.
 
+  @note Object victim_thd is not guaranteed to exist after this
+        function returns.
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
 
@@ -7602,6 +7636,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
         wsrep_thd_is_toi(bf_thd))) {
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     DBUG_RETURN(0);
   }
 
@@ -7613,6 +7649,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   else
   {
     WSREP_WARN("Cannot abort InnoDB transaction");
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
 
   DBUG_RETURN(0);
@@ -7644,11 +7682,13 @@ static
 int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
 {
   int res = 0;
+  uint to_delete_counter= 0;
+  INDEX_STATS *index_stats_to_delete[MAX_INDEXES];
   DBUG_ENTER("del_global_index_stats_for_table");
 
   mysql_mutex_lock(&LOCK_global_index_stats);
 
-  for (uint i= 0; i < global_index_stats.records;)
+  for (uint i= 0; i < global_index_stats.records; i++)
   {
     INDEX_STATS *index_stats =
       (INDEX_STATS*) my_hash_element(&global_index_stats, i);
@@ -7658,18 +7698,12 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_ke
 	index_stats->index_name_length >= cache_key_length &&
 	!memcmp(index_stats->index, cache_key, cache_key_length))
     {
-      res= my_hash_delete(&global_index_stats, (uchar*)index_stats);
-      /*
-          In our HASH implementation on deletion one elements
-          is moved into a place where a deleted element was,
-          and the last element is moved into the empty space.
-          Thus we need to re-examine the current element, but
-          we don't have to restart the search from the beginning.
-      */
+      index_stats_to_delete[to_delete_counter++]= index_stats;
     }
-    else
-      i++;
   }
+
+  for (uint i= 0; i < to_delete_counter; i++)
+    res= my_hash_delete(&global_index_stats, (uchar*)index_stats_to_delete[i]);
 
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);

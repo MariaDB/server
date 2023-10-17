@@ -234,11 +234,13 @@ create table t1 ( a int, b int default 0, index (a) );
 insert into t1 (a) values (0),(0),(0),(0),(0),(0),(0),(0);
 
 # the view protocol creates an additional statistics data
+--disable_ps2_protocol
 --disable_view_protocol
 flush status;
 select a from t1 order by a limit 1;
 show status like 'handler_read%';
 --enable_view_protocol
+--enable_ps2_protocol
 
 flush status;
 update t1 set a=9999 order by a limit 1;
@@ -344,6 +346,7 @@ INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 
+--disable_ps2_protocol
 flush status;
 SELECT user_id FROM t1 WHERE request_id=9999999999999; 
 show status like '%Handler_read%';
@@ -353,6 +356,7 @@ UPDATE t1 SET user_id=null WHERE request_id=9999999999999;
 show status like '%Handler_read%';
 UPDATE t1 SET user_id=null WHERE request_id=999999999999999999999999999999;
 show status like '%Handler_read%';
+--enable_ps2_protocol
 
 DROP TABLE t1;
 
@@ -676,3 +680,26 @@ UPDATE t1,t2 SET t1.i1 = -39 WHERE t2.d1 <> t1.i1 AND t2.d1 = t1.d2;
 DROP TABLE t1,t2;
 
 --echo # End of MariaDB 10.2 tests
+
+--echo #
+--echo # MDEV-20773: UPDATE with LIKE predicate over non-indexed column
+--echo #             of VARCHAR type
+--echo #
+
+create table t1 (a1 varchar(30), a2 varchar(30) collate utf8_bin);
+insert into t1 values
+  ('aa','zzz'), ('b','xxaa'), ('ccc','yyy'), ('ddd','xxb');
+analyze table t1 persistent for all;
+
+explain extended
+update t1 set a1 = 'u'
+  where a2 like 'xx%' and exists(select 1 from t1 where t1.a1 < 'c');
+
+update t1 set a1 = 'u'
+  where a2 like 'xx%' and exists(select 1 from t1 where t1.a1 < 'c');
+
+select * from t1;
+
+drop table t1;
+
+--echo # End of MariaDB 10.4 tests

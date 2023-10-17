@@ -190,7 +190,7 @@ FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	7.00	100.00	100.00	
-1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	0.00	100.00	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	1.00	100.00	100.00	
 2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 SELECT *
 FROM federated.t3, (SELECT t1.name FROM federated.t1
@@ -242,7 +242,7 @@ ANALYZE
       "ref": ["federated.t3.name"],
       "r_loops": 7,
       "rows": 2,
-      "r_rows": 0,
+      "r_rows": 0.142857143,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
       "filtered": 100,

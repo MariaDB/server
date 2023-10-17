@@ -23,3 +23,15 @@ let $coll_pad='utf8_bin';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_nopad_ci;
+--source include/ctype_nopad_prefix_unique.inc
+
+--echo #
+--echo # End 10.4 tests
+--echo #

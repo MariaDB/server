@@ -1,0 +1,4 @@
+--let $ARIA_LOGDIR_MARIADB=../../tmp/backup_aria_log_dir_path_rel
+--let $ARIA_LOGDIR_FS=$MYSQLTEST_VARDIR/tmp/backup_aria_log_dir_path_rel
+
+--source aria_log_dir_path.test

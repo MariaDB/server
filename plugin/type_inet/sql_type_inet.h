@@ -528,11 +528,11 @@ public:
   }
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param)
+                          String *tmp)
                      const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void sort_length(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override;

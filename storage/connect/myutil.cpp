@@ -183,6 +183,7 @@ int MYSQLtoPLG(int mytype, char *var)
 
   switch (mytype) {
     case MYSQL_TYPE_SHORT:
+    case MYSQL_TYPE_YEAR:
       type = TYPE_SHORT;
       break;
     case MYSQL_TYPE_LONG:
@@ -209,7 +210,6 @@ int MYSQLtoPLG(int mytype, char *var)
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_DATE:
     case MYSQL_TYPE_DATETIME:
-    case MYSQL_TYPE_YEAR:
     case MYSQL_TYPE_TIME:
       type = TYPE_DATE;
       break;

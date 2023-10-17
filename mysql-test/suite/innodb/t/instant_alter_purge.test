@@ -6,6 +6,7 @@ if ($have_debug) {
 
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+--source include/wait_all_purged.inc
 
 --echo #
 --echo # MDEV-17793 Crash in purge after instant DROP and emptying the table
@@ -27,8 +28,7 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 
 ALTER TABLE t1 ADD COLUMN extra TINYINT UNSIGNED NOT NULL DEFAULT 42;
-let $wait_all_purged= 1;
---source include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait=1;
 ALTER TABLE t1 DROP extra;
 disconnect prevent_purge;
 let $wait_all_purged= 0;

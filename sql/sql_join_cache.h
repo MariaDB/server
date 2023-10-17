@@ -130,6 +130,7 @@ protected:
     case 4: int4store(ptr, (uint32) ofs); return;
     }
   }
+  size_t calc_avg_record_length();
   
   /* 
     The maximum total length of the fields stored for a record in the cache.
@@ -248,9 +249,6 @@ protected:
   /* The expected size of the space per record in the auxiliary buffer */
   size_t avg_aux_buffer_incr;
 
-  /* Expected join buffer space used for one record */
-  size_t space_per_record; 
-
   /* Pointer to the beginning of the join buffer */
   uchar *buff;         
   /* 
@@ -272,11 +270,6 @@ protected:
     the minimal size equal to min_buff_size
   */
   size_t min_records;
-  /*
-    The maximum expected number of records to be put in the join buffer
-    at one refill 
-  */
-  size_t max_records;
 
   /* 
     Pointer to the current position in the join buffer.
@@ -542,6 +535,7 @@ protected:
     join_tab= tab;
     prev_cache= next_cache= 0;
     buff= 0;
+    min_buff_size= max_buff_size= 0;            // Caches
   }
 
   /* 
@@ -557,6 +551,7 @@ protected:
     next_cache= 0;
     prev_cache= prev;
     buff= 0;
+    min_buff_size= max_buff_size= 0;            // Caches
     if (prev)
       prev->next_cache= this;
   }
@@ -608,9 +603,10 @@ public:
   void set_join_buffer_size(size_t sz) { buff_size= sz; }
 
   /* Get the minimum possible size of the cache join buffer */
-  virtual size_t get_min_join_buffer_size();
+  size_t get_min_join_buffer_size();
   /* Get the maximum possible size of the cache join buffer */ 
-  virtual size_t get_max_join_buffer_size(bool optimize_buff_size);
+  size_t get_max_join_buffer_size(bool optimize_buff_size,
+                                  size_t min_buffer_size_arg);
 
   /* Shrink the size if the cache join buffer in a given ratio */
   bool shrink_join_buffer_in_ratio(ulonglong n, ulonglong d);
