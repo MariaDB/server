@@ -423,11 +423,6 @@ private:
 	else DB_ERROR. */
 	dberr_t find_space_id();
 
-	/** Restore the first page of the tablespace from
-	the double write buffer.
-	@return whether the operation failed */
-	bool restore_from_doublewrite();
-
 	/** Points into m_filepath to the file name with extension */
 	char*			m_filename;
 

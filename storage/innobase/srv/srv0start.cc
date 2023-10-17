@@ -484,7 +484,8 @@ static ulint trx_rseg_get_n_undo_tablespaces()
 @param[in]	name	tablespace file name
 @param[in]	i	undo tablespace count
 @return undo tablespace identifier
-@retval 0 on failure */
+@retval 0               if file doesn't exist
+@retval ULINT_UNDEFINED if page0 is corrupted */
 static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
 {
   bool success;
@@ -523,13 +524,13 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
   {
     page_t *page= static_cast<byte*>(aligned_malloc(srv_page_size,
                                                     srv_page_size));
-    dberr_t err= os_file_read(IORequestRead, fh, page, 0, srv_page_size);
-    if (err != DB_SUCCESS)
+    if (os_file_read(IORequestRead, fh, page, 0, srv_page_size) !=
+        DB_SUCCESS)
     {
 err_exit:
       ib::error() << "Unable to read first page of file " << name;
       aligned_free(page);
-      return err;
+      return ULINT_UNDEFINED;
     }
 
     uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
@@ -538,19 +539,18 @@ err_exit:
                           FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4))
     {
       ib::error() << "Inconsistent tablespace ID in file " << name;
-      err= DB_CORRUPTION;
-      goto err_exit;
-    }
-
-    fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-    if (buf_page_is_corrupted(false, page, fsp_flags))
-    {
-      ib::error() << "Checksum mismatch in the first page of file " << name;
-      err= DB_CORRUPTION;
       goto err_exit;
     }
 
     space_id= id;
+    fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+    if (buf_page_is_corrupted(false, page, fsp_flags))
+    {
+      ib::error() << "Checksum mismatch in the first page of file " << name;
+      if (recv_sys.dblwr.restore_first_page(space_id, name, fh))
+        goto err_exit;
+    }
+
     snprintf(undo_name, sizeof undo_name, "innodb_undo%03u", id);
     aligned_free(page);
   }
@@ -669,16 +669,18 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
     snprintf(name, sizeof name, "%s%cundo%03zu", srv_undo_dir,
              OS_PATH_SEPARATOR, i + 1);
     ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
-    if (!space_id)
-    {
+    switch (space_id) {
+    case ULINT_UNDEFINED:
+      return DB_CORRUPTION;
+    case 0:
       if (!create_new_db)
-        break;
-      ib::error() << "Unable to open create tablespace '" << name << "'.";
+        goto unused_undo;
+      sql_print_error("InnoDB: Unable to open create tablespace '%s'", name);
       return DB_ERROR;
+    default:
+      /* Should be no gaps in undo tablespace ids. */
+      ut_a(!i || prev_id + 1 == space_id);
     }
-
-    /* Should be no gaps in undo tablespace ids. */
-    ut_a(!i || prev_id + 1 == space_id);
 
     prev_id= space_id;
 
@@ -692,14 +694,15 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
   We stop at the first failure. These are undo tablespaces that are
   not in use and therefore not required by recovery. We only check
   that there are no gaps. */
-
+unused_undo:
   for (ulint i= prev_id + 1; i < srv_undo_space_id_start + TRX_SYS_N_RSEGS;
        ++i)
   {
      char name[OS_FILE_MAX_PATH];
      snprintf(name, sizeof(name),
               "%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
-     if (!srv_undo_tablespace_open(create_new_db, name, i))
+     ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
+     if (!space_id || space_id == SRV_SPACE_ID_UPPER_BOUND)
        break;
      ++srv_undo_tablespaces_open;
   }

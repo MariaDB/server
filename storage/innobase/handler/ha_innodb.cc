@@ -18298,6 +18298,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 		while (log_sys.last_checkpoint_lsn.load(
 			       std::memory_order_acquire)
 		       + SIZE_OF_FILE_CHECKPOINT
+		       + log_sys.framing_size()
 		       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
 			log_make_checkpoint();
 			log_sys.log.flush();
