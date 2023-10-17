@@ -21,6 +21,7 @@ source include/have_binlog_format_row.inc;
 source include/have_innodb.inc;
 
 --connection slave
+set statement sql_log_bin=0 for call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 --source include/stop_slave.inc
 
 set @save_par_thds= @@global.slave_parallel_threads;
@@ -84,6 +85,24 @@ if ($retried_tx_initial != $retried_tx_test)
 
 --connection slave1
 ROLLBACK;
+
+
+#   Addendum for MDEV-31949:
+# With concurrent XAC, it is non-determinsitic whether or not it will complete
+# or be rolled back due to failure of prior commit. We've already verified the
+# intended behavior though, so here we don't care either way. Silently just
+# perform an XA COMMIT on the prepared transaction if it never completed, and
+# for consistency, use the same GTID as the master uses.
+#
+# XA RECOVER is used to test the completion of the replicated XA COMMIT, as
+# any result returned indicates its failure.
+--let $xac_failed= query_get_value(XA RECOVER, data, 1)
+if ($xac_failed != "No such row")
+{
+    --disable_query_log
+    set statement gtid_domain_id=0, server_id=1, gtid_seq_no=101 for xa commit '1';
+    --enable_query_log
+}
 
 --echo # Cleanup
 
