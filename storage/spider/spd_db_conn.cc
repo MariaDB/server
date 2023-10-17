@@ -5452,16 +5452,6 @@ int spider_db_bulk_insert(
           }
           pthread_mutex_lock(&conn->mta_conn_mutex);
           SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        } else {
-          sql_type = SPIDER_SQL_TYPE_INSERT_HS;
-          conn = spider->hs_w_conns[roop_count2];
-          dbton_handler = spider->dbton_handler[conn->dbton_id];
-          pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        }
-#endif
         conn->need_mon = &spider->need_mons[roop_count2];
         DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
         DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -6175,13 +6165,6 @@ int spider_db_direct_update(
     }
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-#ifdef HA_CAN_BULK_ACCESS
-    if (spider->is_bulk_access_clone)
-    {
-      spider->connection_ids[roop_count] = conn->connection_id;
-      spider_trx_add_bulk_access_conn(spider->wide_handler->trx, conn);
-    } else {
-#endif
       conn->need_mon = &spider->need_mons[roop_count];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -6440,13 +6423,6 @@ int spider_db_direct_delete(
     }
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-#ifdef HA_CAN_BULK_ACCESS
-    if (spider->is_bulk_access_clone)
-    {
-      spider->connection_ids[roop_count] = conn->connection_id;
-      spider_trx_add_bulk_access_conn(spider->wide_handler->trx, conn);
-    } else {
-#endif
       conn->need_mon = &spider->need_mons[roop_count];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);

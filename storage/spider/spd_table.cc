@@ -1906,7 +1906,6 @@ static int spider_get_connect_info(const int type,
 {
   switch (type)
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   case 4:
     if (!sub_elem || !sub_elem->part_comment)
       return 1;
@@ -1921,7 +1920,6 @@ static int spider_get_connect_info(const int type,
             part_elem->part_comment, strlen(part_elem->part_comment))))
       return HA_ERR_OUT_OF_MEM;
     break;
-#endif
   case 2:
     if (table_share->comment.length == 0)
       return 1;
@@ -2160,11 +2158,7 @@ int spider_parse_connect_info(
     option_struct= table_share->option_struct;
 
   spider_minus_1(share, table_share);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   for (int i = 4; i > 0; i--)
-#else
-  for (roop_count = 2; roop_count > 0; roop_count--)
-#endif
   {
     if (connect_string)
     {
@@ -7917,7 +7911,7 @@ bool spider_check_direct_order_limit(
       DBUG_PRINT("info",("spider with distinct"));
       spider->result_list.direct_distinct = TRUE;
     }
-      spider->result_list.direct_aggregate = spider_param_direct_aggregate(thd);
+    spider->result_list.direct_aggregate = spider_param_direct_aggregate(thd);
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (

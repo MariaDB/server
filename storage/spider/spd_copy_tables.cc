@@ -139,9 +139,7 @@ static void spider_minus_1(SPIDER_COPY_TABLES *copy_tables)
   copy_tables->bulk_insert_rows = -1;
   copy_tables->use_table_charset = -1;
   copy_tables->use_transaction = -1;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   copy_tables->bg_mode = -1;
-#endif
 }
 
 int spider_udf_parse_copy_tables_param(

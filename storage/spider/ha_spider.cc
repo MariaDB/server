@@ -432,9 +432,6 @@ int ha_spider::open(
   } else
     wide_handler->semi_table_lock =
       spider_param_semi_table_lock(thd, share->semi_table_lock);
-#ifdef HA_CAN_BULK_ACCESS
-  external_lock_cnt = 0;
-#endif
 
   if (reset())
   {
