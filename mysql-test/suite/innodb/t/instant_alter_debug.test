@@ -200,7 +200,7 @@ COMMIT;
 connection default;
 
 # Wait for purge to empty the table.
-let $wait_all_purged=2;
+let $wait_all_purged=1;
 --source include/wait_all_purged.inc
 let $wait_all_purged=0;
 

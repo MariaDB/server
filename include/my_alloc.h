@@ -53,6 +53,10 @@ typedef struct st_mem_root
   unsigned short first_block_usage;
   unsigned short flags;
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+  int read_only;
+#endif
+
   void (*error_handler)(void);
 
   PSI_memory_key psi_key;

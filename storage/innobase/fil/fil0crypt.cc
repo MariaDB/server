@@ -24,13 +24,13 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
 #include "fil0crypt.h"
-#include "mtr0types.h"
 #include "mach0data.h"
 #include "page0zip.h"
 #include "buf0checksum.h"
 #ifdef UNIV_INNOCHECKSUM
 # include "buf0buf.h"
 #else
+#include "buf0flu.h"
 #include "buf0dblwr.h"
 #include "srv0srv.h"
 #include "srv0start.h"

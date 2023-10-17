@@ -126,7 +126,9 @@ get_make_parallel_flag
 # SSL library to use.--with-ssl will select our bundled yaSSL
 # implementation of SSL. --with-ssl=yes will first try system library
 # then the bundled one  --with-ssl=system will use the system library.
-# We use bundled by default as this is guaranteed to work with Galera
+# We normally use bundled by default as this is guaranteed to work with Galera
+# However as bundled gives problem on SuSE with tls_version1.test, system
+# is used
 SSL_LIBRARY=--with-ssl=system
 
 if [ "x$warning_mode" = "xpedantic" ]; then

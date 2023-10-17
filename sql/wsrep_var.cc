@@ -1058,8 +1058,10 @@ static void export_wsrep_status_to_mysql(THD* thd)
 
 #if DYNAMIC
   if (wsrep_status_len != mysql_status_len) {
-    void* tmp= realloc (mysql_status_vars,
-                         (wsrep_status_len + 1) * sizeof(SHOW_VAR));
+    void* tmp= my_realloc(key_memory_WSREP,
+                          mysql_status_vars,
+                          (wsrep_status_len + 1) * sizeof(SHOW_VAR),
+                          MYF(MY_ALLOW_ZERO_PTR));
     if (!tmp) {
 
       sql_print_error ("Out of memory for wsrep status variables."
@@ -1109,6 +1111,15 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, void *,
 void wsrep_free_status (THD* thd)
 {
   thd->wsrep_status_vars.clear();
+}
+
+void wsrep_free_status_vars()
+{
+#if DYNAMIC
+  my_free(mysql_status_vars);
+  mysql_status_vars= NULL;
+  mysql_status_len= 0;
+#endif
 }
 
 bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)

@@ -85,7 +85,7 @@ PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-SET @stmt = IF (@cond = '1', 'CREATE TABLE IF NOT EXISTS slow_log ( start_time timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), user_host mediumtext NOT NULL, query_time time(6) NOT NULL, lock_time time(6) NOT NULL, rows_sent int(11) NOT NULL, rows_examined int(11) NOT NULL, db varchar(512) NOT NULL, last_insert_id int(11) NOT NULL, insert_id int(11) NOT NULL, server_id int(10) unsigned NOT NULL, sql_text mediumtext NOT NULL, thread_id bigint(21) unsigned NOT NULL) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT=\"Slow log\"', 'SET @dummy = 0');
+SET @stmt = IF (@cond = '1', 'CREATE TABLE IF NOT EXISTS slow_log ( start_time timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), user_host mediumtext NOT NULL, query_time time(6) NOT NULL, lock_time time(6) NOT NULL, rows_sent bigint(20) UNSIGNED NOT NULL, rows_examined bigint(20) UNSIGNED NOT NULL, db varchar(512) NOT NULL, last_insert_id int(11) NOT NULL, insert_id int(11) NOT NULL, server_id int(10) unsigned NOT NULL, sql_text mediumtext NOT NULL, thread_id bigint(21) unsigned NOT NULL) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT=\"Slow log\"', 'SET @dummy = 0');
 
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;

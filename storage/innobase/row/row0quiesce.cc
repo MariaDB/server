@@ -26,6 +26,7 @@ Created 2012-02-08 by Sunny Bains.
 
 #include "row0quiesce.h"
 #include "row0mysql.h"
+#include "buf0flu.h"
 #include "ibuf0ibuf.h"
 #include "srv0start.h"
 #include "trx0purge.h"

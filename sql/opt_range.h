@@ -351,7 +351,7 @@ public:
 #endif
 
   /* See RANGE_OPT_PARAM::alloced_sel_args */
-  enum { MAX_SEL_ARGS = 16000 };
+  enum { DEFAULT_MAX_SEL_ARGS = 16000 };
 
   SEL_ARG() = default;
   SEL_ARG(SEL_ARG &);
@@ -889,6 +889,8 @@ public:
   */
   bool remove_false_where_parts;
 
+  bool note_unusable_keys;        // Give SQL notes for unusable keys
+
   /*
     used_key_no -> table_key_no translation table. Only makes sense if
     using_real_indexes==TRUE
@@ -914,7 +916,7 @@ public:
       thd->killed ||
       thd->is_fatal_error ||
       thd->is_error() ||
-      alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
+      alloced_sel_args > thd->variables.optimizer_max_sel_args;
   }
 };
 
@@ -1909,7 +1911,8 @@ class SQL_SELECT :public Sql_alloc {
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
                         bool ordered_output, bool remove_false_parts_of_where,
-                        bool only_single_index_range_scan);
+                        bool only_single_index_range_scan,
+                        bool suppress_unusable_key_notes = 0);
 };
 
 

@@ -2910,7 +2910,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
     init_sql_alloc(key_memory_sp_head_call_root, &sp_mem_root,
                    MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
     *sp_query_arena= Query_arena(&sp_mem_root,
-                                 Query_arena::STMT_INITIALIZED_FOR_SP);
+                                 Query_arena::STMT_SP_QUERY_ARGUMENTS);
   }
 
   bool err_status= m_sp->execute_function(thd, args, arg_count,
@@ -8170,7 +8170,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
-        if (!(fld= new (thd->mem_root) Item_field(thd, from_field)))
+        if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,

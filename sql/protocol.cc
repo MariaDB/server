@@ -324,6 +324,8 @@ Protocol::net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
   NET *net= &thd->net;
   bool error= FALSE;
   DBUG_ENTER("Protocol::net_send_eof");
+  DBUG_PRINT("enter", ("status: %u  warn_count: %u",
+                       server_status, statement_warn_count));
 
   /*
     Check if client understand new format packets (OK instead of EOF)

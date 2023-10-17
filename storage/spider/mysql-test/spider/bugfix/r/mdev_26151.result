@@ -1,0 +1,34 @@
+
+MDEV-26151 MDEV-31787
+
+for master_1
+for child2
+for child3
+set @old_spider_bgs_mode= @@spider_bgs_mode;
+set session spider_bgs_mode=1;
+CREATE SERVER $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table td (a int, PRIMARY KEY (a));
+create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_26151",TABLE "td", casual_read "3"';
+insert into td values (11), (42);
+select max(a) from ts;
+max(a)
+42
+drop table td, ts;
+create table td (a int, PRIMARY KEY (a));
+create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_26151",TABLE "td", casual_read "1"';
+insert into td values (11), (42);
+select max(a) from ts;
+max(a)
+42
+select min(a) from ts;
+min(a)
+11
+drop table td, ts;
+drop server srv_mdev_26151;
+set session spider_bgs_mode=@old_spider_bgs_mode;
+for master_1
+for child2
+for child3
+
+end of test
+

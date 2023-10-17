@@ -1736,9 +1736,9 @@ static int sst_flush_tables(THD* thd)
 
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
-    char *real_name= (char*) malloc(full_len);
+    char *real_name= (char*) my_malloc(key_memory_WSREP, full_len, 0);
     sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
-    char *tmp_name= (char*) malloc(full_len + 4);
+    char *tmp_name= (char*) my_malloc(key_memory_WSREP, full_len + 4, 0);
     sprintf(tmp_name, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
@@ -1766,8 +1766,8 @@ static int sst_flush_tables(THD* thd)
                      tmp_name, real_name, err,strerror(err));
       }
     }
-    free(real_name);
-    free(tmp_name);
+    my_free(real_name);
+    my_free(tmp_name);
     if (err)
       ha_disable_internal_writes(false);
   }

@@ -57,6 +57,7 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 uint32 tc_instances;
+static size_t tc_allocated_size;
 static std::atomic<uint32_t> tc_active_instances(1);
 static std::atomic<bool> tc_contention_warning_reported;
 
@@ -150,6 +151,10 @@ struct Table_cache_instance
   static void *operator new[](size_t size)
   { return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE); }
   static void operator delete[](void *ptr) { aligned_free(ptr); }
+  static void mark_memory_freed()
+  {
+    update_malloc_size(-(longlong) tc_allocated_size, 0);
+  }
 
   /**
     Lock table cache mutex and check contention.
@@ -601,6 +606,8 @@ bool tdc_init(void)
   /* Extra instance is allocated to avoid false sharing */
   if (!(tc= new Table_cache_instance[tc_instances + 1]))
     DBUG_RETURN(true);
+  tc_allocated_size= (tc_instances + 1) * sizeof *tc;
+  update_malloc_size(tc_allocated_size, 0);
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
@@ -654,7 +661,12 @@ void tdc_deinit(void)
     tdc_inited= false;
     lf_hash_destroy(&tdc_hash);
     mysql_mutex_destroy(&LOCK_unused_shares);
-    delete [] tc;
+    if (tc)
+    {
+      tc->mark_memory_freed();
+      delete [] tc;
+      tc= 0;
+    }
   }
   DBUG_VOID_RETURN;
 }

@@ -3066,3 +3066,17 @@ set optimizer_switch=@tmp_os;
 
 drop table t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-32388 MSAN / Valgrind errors in
+--echo # Item_func_like::get_mm_leaf upon query from partitioned table
+--echo #
+
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a LIKE '1';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
