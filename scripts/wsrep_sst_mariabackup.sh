@@ -798,10 +798,20 @@ recv_joiner()
     local ltcmd="$tcmd"
     if [ $tmt -gt 0 ]; then
         if [ -n "$(commandex timeout)" ]; then
-            if timeout --help | grep -qw -F -- '-k'; then
+            local koption=0
+            if [ "$OS" = 'FreeBSD' ]; then
+                if timeout 2>&1 | grep -qw -F -- '-k'; then
+                    koption=1
+                fi
+            else
+                if timeout --help | grep -qw -F -- '-k'; then
+                    koption=1
+                fi
+            fi
+            if [ $koption -ne 0 ]; then
                 ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
             else
-                ltcmd="timeout -s9 $tmt $tcmd"
+                ltcmd="timeout -s 9 $tmt $tcmd"
             fi
         fi
     fi
