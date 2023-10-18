@@ -244,10 +244,16 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
 	ut_ad(!os_aio_pending_reads());
-	ut_ad(!os_aio_pending_writes());
 	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 	ut_ad(!buf_pool.get_oldest_modification(0));
 	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+	/* os_aio_pending_writes() may hold here if some
+	write_io_callback() did not release the slot yet.  However,
+	the page write itself must have completed, because the
+	buf_pool.flush_list is empty. In debug builds, we wait for
+	this to happen, hoping to get a hung process if this
+	assumption does not hold. */
+	ut_d(os_aio_wait_until_no_pending_writes(false));
 
 	DBUG_EXECUTE_IF("innodb_log_abort_7", return DB_ERROR;);
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
@@ -1659,10 +1665,17 @@ file_checked:
 			end of create_log_file(). */
 			ut_d(recv_no_log_write = true);
 			ut_ad(!os_aio_pending_reads());
-			ut_ad(!os_aio_pending_writes());
 			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 			ut_ad(!buf_pool.get_oldest_modification(0));
 			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+			/* os_aio_pending_writes() may hold here if
+			some write_io_callback() did not release the
+			slot yet. However, the page write itself must
+			have completed, because the buf_pool.flush_list
+			is empty. In debug builds, we wait for this to
+			happen, hoping to get a hung process if this
+			assumption does not hold. */
+			ut_d(os_aio_wait_until_no_pending_writes(false));
 
 			DBUG_EXECUTE_IF("innodb_log_abort_3",
 					return(srv_init_abort(DB_ERROR)););
