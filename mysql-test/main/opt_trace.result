@@ -468,6 +468,9 @@ select * from v2	{
                       }
                     ]
                   }
+                },
+                {
+                  "test_if_skip_sort_order": []
                 }
               ]
             }
@@ -796,6 +799,9 @@ explain select * from v1	{
                       }
                     ]
                   }
+                },
+                {
+                  "test_if_skip_sort_order": []
                 }
               ]
             }
@@ -1290,6 +1296,9 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                 }
               ]
             }
+          },
+          {
+            "test_if_skip_sort_order": []
           }
         ]
       }
@@ -1485,23 +1494,27 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
             }
           },
           {
-            "reconsidering_access_paths_for_index_ordering": {
-              "clause": "GROUP BY",
-              "fanout": 1,
-              "read_time": 3.3131,
-              "table": "t1",
-              "rows_estimation": 7,
-              "possible_keys": [
-                {
-                  "index": "a",
-                  "can_resolve_order": true,
-                  "updated_limit": 7,
-                  "index_scan_time": 7,
-                  "records": 7,
-                  "chosen": true
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "GROUP BY",
+                  "fanout": 1,
+                  "read_time": 3.3131,
+                  "table": "t1",
+                  "rows_estimation": 7,
+                  "possible_keys": [
+                    {
+                      "index": "a",
+                      "can_resolve_order": true,
+                      "updated_limit": 7,
+                      "index_scan_time": 7,
+                      "records": 7,
+                      "chosen": true
+                    }
+                  ]
                 }
-              ]
-            }
+              }
+            ]
           }
         ]
       }
@@ -1687,23 +1700,27 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
             }
           },
           {
-            "reconsidering_access_paths_for_index_ordering": {
-              "clause": "GROUP BY",
-              "fanout": 1,
-              "read_time": 2.0322,
-              "table": "t1",
-              "rows_estimation": 9,
-              "possible_keys": [
-                {
-                  "index": "id",
-                  "can_resolve_order": true,
-                  "updated_limit": 16,
-                  "index_scan_time": 16,
-                  "records": 16,
-                  "chosen": true
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "GROUP BY",
+                  "fanout": 1,
+                  "read_time": 2.0322,
+                  "table": "t1",
+                  "rows_estimation": 9,
+                  "possible_keys": [
+                    {
+                      "index": "id",
+                      "can_resolve_order": true,
+                      "updated_limit": 16,
+                      "index_scan_time": 16,
+                      "records": 16,
+                      "chosen": true
+                    }
+                  ]
                 }
-              ]
-            }
+              }
+            ]
           }
         ]
       }
@@ -1878,23 +1895,27 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
             }
           },
           {
-            "reconsidering_access_paths_for_index_ordering": {
-              "clause": "GROUP BY",
-              "fanout": 1,
-              "read_time": 2.0322,
-              "table": "t1",
-              "rows_estimation": 9,
-              "possible_keys": [
-                {
-                  "index": "id",
-                  "can_resolve_order": true,
-                  "updated_limit": 16,
-                  "index_scan_time": 16,
-                  "records": 16,
-                  "chosen": true
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "GROUP BY",
+                  "fanout": 1,
+                  "read_time": 2.0322,
+                  "table": "t1",
+                  "rows_estimation": 9,
+                  "possible_keys": [
+                    {
+                      "index": "id",
+                      "can_resolve_order": true,
+                      "updated_limit": 16,
+                      "index_scan_time": 16,
+                      "records": 16,
+                      "chosen": true
+                    }
+                  ]
                 }
-              ]
-            }
+              }
+            ]
           }
         ]
       }
@@ -2176,97 +2197,101 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             }
           },
           {
-            "reconsidering_access_paths_for_index_ordering": {
-              "clause": "ORDER BY",
-              "fanout": 1,
-              "read_time": 22.001,
-              "table": "t1",
-              "rows_estimation": 21,
-              "possible_keys": [
-                {
-                  "index": "a_a",
-                  "can_resolve_order": true,
-                  "updated_limit": 47,
-                  "index_scan_time": 47,
-                  "usable": false,
-                  "cause": "cost"
-                },
-                {
-                  "index": "a_c",
-                  "can_resolve_order": true,
-                  "updated_limit": 47,
-                  "range_scan_time": 4.324,
-                  "index_scan_time": 4.324,
-                  "records": 180,
-                  "chosen": true
-                },
-                {
-                  "index": "a_b",
-                  "can_resolve_order": false,
-                  "cause": "not usable index for the query"
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "ORDER BY",
+                  "fanout": 1,
+                  "read_time": 22.001,
+                  "table": "t1",
+                  "rows_estimation": 21,
+                  "possible_keys": [
+                    {
+                      "index": "a_a",
+                      "can_resolve_order": true,
+                      "updated_limit": 47,
+                      "index_scan_time": 47,
+                      "usable": false,
+                      "cause": "cost"
+                    },
+                    {
+                      "index": "a_c",
+                      "can_resolve_order": true,
+                      "updated_limit": 47,
+                      "range_scan_time": 4.324,
+                      "index_scan_time": 4.324,
+                      "records": 180,
+                      "chosen": true
+                    },
+                    {
+                      "index": "a_b",
+                      "can_resolve_order": false,
+                      "cause": "not usable index for the query"
+                    }
+                  ]
                 }
-              ]
-            }
-          },
-          {
-            "table": "t1",
-            "range_analysis": {
-              "table_scan": {
-                "rows": 1000,
-                "cost": 2e308
               },
-              "potential_range_indexes": [
-                {
-                  "index": "a_a",
-                  "usable": false,
-                  "cause": "not applicable"
-                },
-                {
-                  "index": "a_c",
-                  "usable": true,
-                  "key_parts": ["a", "c"]
-                },
-                {
-                  "index": "a_b",
-                  "usable": false,
-                  "cause": "not applicable"
-                }
-              ],
-              "setup_range_conditions": [],
-              "group_index_range": {
-                "chosen": false,
-                "cause": "no group by or distinct"
-              },
-              "analyzing_range_alternatives": {
-                "range_scan_alternatives": [
-                  {
-                    "index": "a_c",
-                    "ranges": ["(1) <= (a) <= (1)"],
-                    "rowid_ordered": false,
-                    "using_mrr": false,
-                    "index_only": false,
-                    "rows": 180,
-                    "cost": 229.72,
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 1000,
+                    "cost": 2e308
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "a_a",
+                      "usable": false,
+                      "cause": "not applicable"
+                    },
+                    {
+                      "index": "a_c",
+                      "usable": true,
+                      "key_parts": ["a", "c"]
+                    },
+                    {
+                      "index": "a_b",
+                      "usable": false,
+                      "cause": "not applicable"
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "a_c",
+                        "ranges": ["(1) <= (a) <= (1)"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 180,
+                        "cost": 229.72,
+                        "chosen": true
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "a_c",
+                      "rows": 180,
+                      "ranges": ["(1) <= (a) <= (1)"]
+                    },
+                    "rows_for_plan": 180,
+                    "cost_for_plan": 229.72,
                     "chosen": true
                   }
-                ],
-                "analyzing_roworder_intersect": {
-                  "cause": "too few roworder scans"
-                },
-                "analyzing_index_merge_union": []
-              },
-              "chosen_range_access_summary": {
-                "range_access_plan": {
-                  "type": "range_scan",
-                  "index": "a_c",
-                  "rows": 180,
-                  "ranges": ["(1) <= (a) <= (1)"]
-                },
-                "rows_for_plan": 180,
-                "cost_for_plan": 229.72,
-                "chosen": true
+                }
               }
-            }
+            ]
           }
         ]
       }
