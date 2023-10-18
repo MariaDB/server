@@ -3125,7 +3125,8 @@ void TABLE_STATISTICS_CB::update_stats_in_table(TABLE *table)
   for ( ; *field_ptr; field_ptr++, column_stats++)
     (*field_ptr)->read_stats= column_stats;
   /* Mark that stats are now usable */
-  table->stats_is_read= true;
+  table->stats_is_read= (table->stats_cb->stats_available !=
+                         TABLE_STAT_NO_STATS);
 }
 
 
@@ -3246,8 +3247,6 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
       }
       mysql_mutex_unlock(&table_share->LOCK_statistics);
       table->stats_cb->update_stats_in_table(table);
-      table->stats_is_read= (stats_cb->stats_available !=
-                             TABLE_STAT_NO_STATS);
     }
   }
 
@@ -4312,10 +4311,8 @@ bool is_eits_usable(Field *field)
   Column_statistics* col_stats= field->read_stats;
   
   // check if column_statistics was allocated for this field
-  if (!col_stats)
+  if (!col_stats || !field->table->stats_is_read)
     return false;
-
-  DBUG_ASSERT(field->table->stats_is_read);
 
   /*
     (1): checks if we have EITS statistics for a particular column

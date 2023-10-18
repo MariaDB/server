@@ -445,9 +445,7 @@ public:
   */
   bool no_stat_values_provided()
   {
-    if (column_stat_nulls == no_values_provided_bitmap())
-      return true;
-    return false;
+    return (column_stat_nulls == no_values_provided_bitmap());
   }
 };
 
