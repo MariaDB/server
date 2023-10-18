@@ -3445,18 +3445,18 @@ void fil_aio_callback(const IORequest &request)
 
   if (!request.bpage)
   {
+    request.node->complete_write();
     ut_ad(!srv_read_only_mode);
     if (request.type == IORequest::DBLWR_BATCH)
       buf_dblwr.flush_buffered_writes_completed(request);
     else
       ut_ad(request.type == IORequest::WRITE_ASYNC);
-write_completed:
     request.node->complete_write();
   }
   else if (request.is_write())
   {
+    request.node->complete_write();
     buf_page_write_complete(request);
-    goto write_completed;
   }
   else
   {
