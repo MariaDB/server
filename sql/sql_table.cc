@@ -5306,7 +5306,14 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
     if (res)
     {
       DBUG_ASSERT(thd->is_error());
-      /* Drop the table as it wasn't completely done */
+      /*
+        Drop the new table, we were not completely done.
+
+        Temporarily modify table_list to avoid dropping source sequence
+        in CREATE TABLE LIKE <SEQUENCE>.
+      */
+      TABLE_LIST *tail= table_list->next_local;
+      table_list->next_local= NULL;
       if (!mysql_rm_table_no_locks(thd, table_list, 1,
                                    create_info->tmp_table(),
                                    false, true /* Sequence*/,
@@ -5320,6 +5327,7 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
         */
         res= 2;
       }
+      table_list->next_local= tail;
     }
   }
 
