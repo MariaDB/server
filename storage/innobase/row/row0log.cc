@@ -2167,6 +2167,11 @@ row_log_table_apply_op(
 
 	*error = DB_SUCCESS;
 
+	/* 3 = 1 (op type) + 1 (extra_size) + at least 1 byte payload */
+	if (mrec + 3 >= mrec_end) {
+		return(NULL);
+	}
+
 	const bool is_instant = log->is_instant(dup->index);
 	const mrec_t* const mrec_start = mrec;
 
@@ -2214,11 +2219,6 @@ row_log_table_apply_op(
 		break;
 
 	case ROW_T_DELETE:
-		/* 1 (extra_size) + at least 1 (payload) */
-		if (mrec + 2 >= mrec_end) {
-			return(NULL);
-		}
-
 		extra_size = *mrec++;
 		ut_ad(mrec < mrec_end);
 

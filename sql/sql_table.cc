@@ -2898,10 +2898,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   key_iterator.rewind();
   while ((key=key_iterator++))
   {
-    if (key->type == Key::IGNORE_KEY && !create_info->tmp_table())
+    if (key->type == Key::IGNORE_KEY)
     {
       /* The key was replaced by another key */
-      if (alter_info->add_stat_drop_index(thd, &key->name))
+      if (!create_info->tmp_table() &&
+          alter_info->add_stat_drop_index(thd, &key->name))
         DBUG_RETURN(true);
       continue;
     }
