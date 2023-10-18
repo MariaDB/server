@@ -155,6 +155,11 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   wait_for_commit *wfc= &rgi->commit_orderer;
   int err;
 
+  DBUG_EXECUTE_IF("hold_xap_finalization", {
+      if (rgi->current_gtid.seq_no == 99) {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL xap_finalizing WAIT_FOR xap_continue"));
+      }});
+
   thd->get_stmt_da()->set_overwrite_status(true);
 
   if (unlikely(rgi->worker_error))
