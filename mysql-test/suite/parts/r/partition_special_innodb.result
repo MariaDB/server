@@ -348,6 +348,7 @@ SELECT * FROM t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 UNLOCK TABLES;
+SET GLOBAL innodb_max_purge_lag_wait=0;
 connection con2;
 DROP TABLE t1;
 disconnect con2;

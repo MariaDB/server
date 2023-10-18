@@ -222,6 +222,8 @@ SELECT * FROM t1;
 
 --connection default
 UNLOCK TABLES;
+# Avoid a MDL conflict between purge and the DROP TABLE below
+SET GLOBAL innodb_max_purge_lag_wait=0;
 
 --connection con2
 DROP TABLE t1;
