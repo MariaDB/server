@@ -22,7 +22,6 @@ ENDIF()
 # Common warning flags for GCC, G++, Clang and Clang++
 SET(MY_WARNING_FLAGS
   -Wall
-  -Wdeclaration-after-statement
   -Wenum-compare
   -Wenum-conversion
   -Wextra

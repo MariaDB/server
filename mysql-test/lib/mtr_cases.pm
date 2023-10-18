@@ -64,8 +64,8 @@ my $plugin_suitedir_regex;
 my $overlay_regex;
 
 if (-d '../sql') {
-  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', );
-  $overlay_regex= '\b(?:storage|plugin|storage[/][^/]*)/(\w+)/mysql-test\b';
+  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', 'extra/*/mysql-test' );
+  $overlay_regex= '\b(?:storage|plugin|extra|storage[/][^/]*)/(\w+)/mysql-test\b';
 } else {
   @plugin_suitedirs= ('mariadb-test/plugin/*');
   $overlay_regex= '\bmariadb-test/plugin/(\w+)\b';
@@ -404,7 +404,7 @@ sub collect_suite_name($$)
       # their overlays here. Let's group them appropriately.
       #
       for (@dirs) {
-        m@^.*/(?:mariadb-test/suite|mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
+        m@^.*/(?:mariadb-test/suite|mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess "$_ does not match to $plugin_suitedir_regex" ;
         push @{$suites{$1}}, $_;
       }
     }

@@ -69,7 +69,7 @@ sub mtr_add_arg ($$@) {
 }
 
 sub mtr_args2str($@) {
-  my $exe=   shift or die;
+  my $exe=   shift or confess "No arguments";
   return join(" ", native_path($exe), @_);
 }
 

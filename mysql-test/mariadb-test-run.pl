@@ -2034,6 +2034,22 @@ sub mysqldump_arguments ($) {
 }
 
 
+sub mydumper_arguments ($) {
+  my($program, $group_suffix, $rest) = @_;
+  my $exe= mtr_exe_maybe_exists("$bindir/extra/mydumper/$program",
+                                "$bindir/bin/$program");
+  return undef if !length($exe);
+
+  my $args;
+  mtr_init_args(\$args);
+  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
+  if ($opt_debug) {
+    mtr_add_arg($args, "--debug");
+  }
+  return mtr_args2str($exe, @$args);
+}
+
+
 sub mysql_client_test_arguments(){
   my $exe;
   # mysql_client_test executable may _not_ exist
@@ -2213,6 +2229,10 @@ sub environment_setup {
   $ENV{'MYSQL_SLAVE'}=              client_arguments("mariadb", ".2");
   $ENV{'MYSQL_UPGRADE'}=            client_arguments("mariadb-upgrade");
   $ENV{'MYSQLADMIN'}=               client_arguments("mariadb-admin");
+  $ENV{'MYDUMPER'}=                 mydumper_arguments("mydumper");
+  $ENV{'MYLOADER'}=                 mydumper_arguments("myloader");
+  # FIXME: add group-suffix support for mydumper_arguments()
+  # $ENV{'MYDUMPER_SLAVE'}=           mydumper_arguments("mydumper", ".2");
   $ENV{'MYSQL_CLIENT_TEST'}=        mysql_client_test_arguments();
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
