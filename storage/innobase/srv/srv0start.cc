@@ -183,10 +183,16 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 	delete_log_files();
 
 	ut_ad(!os_aio_pending_reads());
-	ut_ad(!os_aio_pending_writes());
 	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 	ut_ad(!buf_pool.get_oldest_modification(0));
 	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+	/* os_aio_pending_writes() may hold here if some
+	write_io_callback() did not release the slot yet.  However,
+	the page write itself must have completed, because the
+	buf_pool.flush_list is empty. In debug builds, we wait for
+	this to happen, hoping to get a hung process if this
+	assumption does not hold. */
+	ut_d(os_aio_wait_until_no_pending_writes(false));
 
 	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	log_sys.set_capacity();
@@ -1388,10 +1394,17 @@ dberr_t srv_start(bool create_new_db)
 			end of create_log_file(). */
 			ut_d(recv_no_log_write = true);
 			ut_ad(!os_aio_pending_reads());
-			ut_ad(!os_aio_pending_writes());
 			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 			ut_ad(!buf_pool.get_oldest_modification(0));
 			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+			/* os_aio_pending_writes() may hold here if
+			some write_io_callback() did not release the
+			slot yet. However, the page write itself must
+			have completed, because the buf_pool.flush_list
+			is empty. In debug builds, we wait for this to
+			happen, hoping to get a hung process if this
+			assumption does not hold. */
+			ut_d(os_aio_wait_until_no_pending_writes(false));
 
 			/* Close the redo log file, so that we can replace it */
 			log_sys.close_file();

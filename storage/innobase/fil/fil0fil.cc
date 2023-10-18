@@ -2804,6 +2804,7 @@ void IORequest::write_complete(int io_error) const
   ut_ad(fil_validate_skip());
   ut_ad(node);
   ut_ad(is_write());
+  node->complete_write();
 
   if (!bpage)
   {
@@ -2816,7 +2817,6 @@ void IORequest::write_complete(int io_error) const
   else
     buf_page_write_complete(*this, io_error);
 
-  node->complete_write();
   node->space->release();
 }
 
