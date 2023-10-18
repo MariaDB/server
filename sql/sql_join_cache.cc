@@ -2080,13 +2080,12 @@ bool JOIN_CACHE::skip_if_not_needed_match()
   if (prev_cache)
     offset+= prev_cache->get_size_of_rec_offset();
 
-  if (!join_tab->check_only_first_match())
-    return FALSE;
-
   match_fl= get_match_flag_by_pos(pos+offset);
   skip= join_tab->first_sj_inner_tab ?
         match_fl == MATCH_FOUND :           // the case of semi-join
-        match_fl != MATCH_NOT_FOUND;        // the case of outer-join
+        join_tab->on_precond ?
+        match_fl == MATCH_IMPOSSIBLE :
+        match_fl != MATCH_NOT_FOUND;        // the case of not exist opt
 
   if (skip)
   {
@@ -2408,8 +2407,9 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
         }
       }
 
-      if (!check_only_first_match ||
-	  (join_tab->first_inner && !not_exists_opt_is_applicable) ||
+      if ((!join_tab->on_precond &&
+           (!check_only_first_match ||
+            (join_tab->first_inner && !not_exists_opt_is_applicable))) ||
           !skip_next_candidate_for_match(rec_ptr))
       {
 	read_next_candidate_for_match(rec_ptr);
