@@ -1209,6 +1209,7 @@ const Type_handler *THD::type_handler_for_datetime() const
 void THD::init()
 {
   DBUG_ENTER("thd::init");
+  mdl_context.reset();
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
@@ -1730,7 +1731,7 @@ THD::~THD()
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
-    SAFEMALLOC_REPORT_MEMORY(thread_id);
+    SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id());
     DBUG_ASSERT(status_var.local_memory_used == 0 ||
                 !debug_assert_on_not_freed_memory);
   }

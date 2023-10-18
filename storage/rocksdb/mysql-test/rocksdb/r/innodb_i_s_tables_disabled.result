@@ -32,7 +32,7 @@ lock_rec_locks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabl
 lock_table_lock_created	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of table locks created
 lock_table_lock_removed	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of table locks removed from the lock queue
 lock_table_locks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Current number of table locks on tables
-lock_row_lock_current_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of row locks currently being waited for (innodb_row_lock_current_waits)
+lock_row_lock_current_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Number of row locks currently being waited for (innodb_row_lock_current_waits)
 lock_row_lock_time	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Time spent in acquiring row locks, in milliseconds (innodb_row_lock_time)
 lock_row_lock_time_max	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	The maximum time to acquire a row lock, in milliseconds (innodb_row_lock_time_max)
 lock_row_lock_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of times a row lock had to be waited for (innodb_row_lock_waits)

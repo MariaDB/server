@@ -201,6 +201,7 @@ static ulint fil_page_compress_for_full_crc32(
 	bool		encrypted)
 {
 	ulint comp_level = fsp_flags_get_page_compression_level(flags);
+	ulint comp_algo = fil_space_t::get_compression_algo(flags);
 
 	if (comp_level == 0) {
 		comp_level = page_zip_level;
@@ -209,12 +210,12 @@ static ulint fil_page_compress_for_full_crc32(
 	const ulint header_len = FIL_PAGE_COMP_ALGO;
 
 	ulint write_size = fil_page_compress_low(
-		buf, out_buf, header_len,
-		fil_space_t::get_compression_algo(flags), comp_level);
+		buf, out_buf, header_len, comp_algo, comp_level);
 
 	if (write_size == 0) {
 fail:
-		srv_stats.pages_page_compression_error.inc();
+		if (comp_algo != PAGE_UNCOMPRESSED)
+			srv_stats.pages_page_compression_error.inc();
 		return 0;
 	}
 
@@ -293,7 +294,8 @@ static ulint fil_page_compress_for_non_full_crc32(
 				header_len, comp_algo, comp_level);
 
 	if (write_size == 0) {
-		srv_stats.pages_page_compression_error.inc();
+		if (comp_algo != PAGE_UNCOMPRESSED)
+			srv_stats.pages_page_compression_error.inc();
 		return 0;
 	}
 

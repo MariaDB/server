@@ -397,3 +397,17 @@ DROP TABLE t1;
 disconnect con1;
 SET GLOBAL innodb_optimize_fulltext_only=OFF;
 SET GLOBAL innodb_ft_aux_table = default;
+
+--echo #
+--echo #  MDEV-32017  Auto-increment no longer works for
+--echo #		 explicit FTS_DOC_ID
+--echo #
+CREATE TABLE t (
+  FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  f1 char(255), f2 char(255), f3 char(255), fulltext key (f3)
+) ENGINE=InnoDB;
+INSERT INTO t (f1,f2,f3) VALUES ('foo','bar','baz');
+ALTER TABLE t ADD FULLTEXT INDEX ft1(f1);
+ALTER TABLE t ADD FULLTEXT INDEX ft2(f2);
+INSERT INTO t (f1,f2,f3) VALUES ('bar','baz','qux');
+DROP TABLE t;
