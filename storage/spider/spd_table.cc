@@ -1412,7 +1412,7 @@ int spider_create_bounded_nat_list(
   }
 
   if (!(*long_list = (long*)
-        spider_bulk_malloc(spider_current_trx, 38, MYF(MY_WME | MY_ZEROFILL),
+        spider_bulk_malloc(spider_current_trx, 44, MYF(MY_WME | MY_ZEROFILL),
                            long_list, (uint) (sizeof(long) * (*list_length)),
                            NullS))
   ) {
