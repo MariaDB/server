@@ -1,14 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2023, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,19 +27,21 @@ Created 11/5/1995 Heikki Tuuri
 #include "assume_aligned.h"
 #include "mtr0types.h"
 #include "mach0data.h"
-#include "buf0buf.h"
 #include "buf0checksum.h"
 #include "mariadb_stats.h"
 #include <string.h>
 
 #ifdef UNIV_INNOCHECKSUM
-#include "my_sys.h"
+# include "my_sys.h"
+# include "buf0buf.h"
 #else
 #include "my_cpu.h"
 #include "mem0mem.h"
 #include "btr0btr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "buf0rea.h"
+#include "buf0flu.h"
 #include "buf0buddy.h"
 #include "buf0dblwr.h"
 #include "lock0lock.h"

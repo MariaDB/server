@@ -29,6 +29,7 @@ Created 2012-02-08 by Sunny Bains.
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "buf0flu.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"

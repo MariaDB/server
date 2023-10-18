@@ -1,15 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2023, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -216,14 +209,17 @@ err_exit:
 
 	ret = os_file_set_size(logfile0.c_str(), file, srv_log_file_size);
 	if (!ret) {
-		os_file_close_func(file);
 		ib::error() << "Cannot set log file " << logfile0
 			    << " size to " << ib::bytes_iec{srv_log_file_size};
+close_and_exit:
+		os_file_close_func(file);
 		goto err_exit;
 	}
 
 	log_sys.set_latest_format(srv_encrypt_log);
-	log_sys.attach(file, srv_log_file_size);
+	if (!log_sys.attach(file, srv_log_file_size)) {
+		goto close_and_exit;
+	}
 	if (!fil_system.sys_space->open(create_new_db)) {
 		goto err_exit;
 	}
@@ -1347,7 +1343,10 @@ dberr_t srv_start(bool create_new_db)
 	}
 #endif /* UNIV_DEBUG */
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		return srv_init_abort(DB_ERROR);
+	}
+
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
@@ -1572,11 +1571,18 @@ dberr_t srv_start(bool create_new_db)
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
 			respective file pages, for the last batch of
-			recv_group_scan_log_recs(). */
+			recv_group_scan_log_recs().
+			Since it may generate huge batch of threadpool tasks,
+			for read io task group, scale down thread creation rate
+			by temporarily restricting tpool concurrency.
+			*/
+			srv_thread_pool->set_concurrency(srv_n_read_io_threads);
 
 			mysql_mutex_lock(&recv_sys.mutex);
 			recv_sys.apply(true);
 			mysql_mutex_unlock(&recv_sys.mutex);
+
+			srv_thread_pool->set_concurrency();
 
 			if (recv_sys.is_corrupt_log()
 			    || recv_sys.is_corrupt_fs()) {

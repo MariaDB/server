@@ -1,7 +1,6 @@
 --source include/have_innodb.inc
---source include/have_debug.inc
 --source include/have_geometry.inc
---source include/have_innodb_4k.inc
+--source include/innodb_page_size.inc
 
 ############################################################################################
 # Creating the spatial objects                                                             #
@@ -230,33 +229,6 @@ INSERT INTO gis_geometrycollection VALUES
     (713, ST_GEOMCOLLFROMWKB(ST_ASWKB(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION('
                                                                 'POINT(0 0),'
                                                                 'LINESTRING(0 0,10 10),'
-                                                                'POLYGON((0 0,0 10,10 10,10 0,0 0)),'
-                                                                'MULTIPOINT(0 0,2 2,4 4,6 6,8 8,10 10),'
-                                                                'MULTILINESTRING((0 0,10 10),(0 10,10 0)),'
-                                                                'MULTIPOLYGON(((0 0,0 5,5 5,5 0,0 0)),((5 5,5 10,10 10,10 5,5 5))))')))),
-    (714, ST_GEOMCOLLFROMWKB(ST_ASWKB(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION('
-                                                                'GEOMETRYCOLLECTION('
-                                                                      'POINT(0 0)),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                      'LINESTRING(0 0,10 10)),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                      'POLYGON((0 0,0 10,10 10,10 0,0 0))),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                       'MULTIPOINT(0 0,2 2,4 4,6 6,8 8,10 10)),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                       'MULTILINESTRING((0 0,10 10),(0 10,10 0))),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                       'MULTIPOLYGON(((0 0,0 5,5 5,5 0,0 0)),((5 5,5 10,10 10,10 5,5 5)))))')))),
-    (715, ST_GEOMCOLLFROMWKB(ST_ASWKB(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION('
-                                                                'GEOMETRYCOLLECTION(),'
-                                                                'POINT(0 0),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                      'LINESTRING(0 0,10 10),'
-                                                                      'GEOMETRYCOLLECTION('
-                                                                            'GEOMETRYCOLLECTION())),'
-                                                                'GEOMETRYCOLLECTION(),'
-                                                                'GEOMETRYCOLLECTION('
-                                                                       'GEOMETRYCOLLECTION()),'
                                                                 'POLYGON((0 0,0 10,10 10,10 0,0 0)),'
                                                                 'MULTIPOINT(0 0,2 2,4 4,6 6,8 8,10 10),'
                                                                 'MULTILINESTRING((0 0,10 10),(0 10,10 0)),'

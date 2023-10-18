@@ -376,9 +376,9 @@ public:
     if (tmp.length)
       to->set_data_type_name(tmp);
   }
-  bool can_optimize_range(const Item_bool_func *cond,
-                                  const Item *item,
-                                  bool is_eq_func) const override;
+  Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                             const Item *item,
+                                             bool is_eq_func) const override;
   void sql_type(String &str) const override;
   Copy_func *get_copy_func(const Field *from) const override
   {

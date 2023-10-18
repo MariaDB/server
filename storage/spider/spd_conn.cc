@@ -861,6 +861,30 @@ int spider_free_conn(
   DBUG_RETURN(0);
 }
 
+/**
+  May get or create a connection spawning a background thread
+
+  For each link (data node, formally representable as the tuple
+  (spider, link_idx)), there is an associated casual read value
+  (`spider->result_list.casual_read[link_idx]').
+
+  If the CRV is 0, do nothing. Otherwise, An casual read id
+  (`conn->casual_read_current_id`) is associated with the link and
+  query id. The CRI starts from 2, and is used only when CRV is 1, to
+  update the CRV (see below). The updated CRV is then used to
+  construct the connection key used for get or create a connection
+  that spawns a background thread to execute queries.
+
+  If the CRV is 1, it is assigned CRI. The latter is then incremented
+  by 1. The CRI will only go up to 63, before "wrapping" back to 2.
+
+  If 2 <= CRV <= 63, it is left alone.
+
+  Note that this function relies on the assumption that the CRV is
+  reset (e.g. using `spider_param_casual_read()') between consecutive
+  calls of this function for the CRV == 1 case to auto-increment as
+  expected.
+*/
 int spider_check_and_get_casual_read_conn(
   THD *thd,
   ha_spider *spider,
@@ -868,38 +892,34 @@ int spider_check_and_get_casual_read_conn(
 ) {
   int error_num;
   DBUG_ENTER("spider_check_and_get_casual_read_conn");
-  if (spider->result_list.casual_read[link_idx])
+  if (!spider->result_list.casual_read[link_idx])
+    DBUG_RETURN(0);
+  SPIDER_CONN *conn = spider->conns[link_idx];
+  if (conn->casual_read_query_id != thd->query_id)
   {
-    SPIDER_CONN *conn = spider->conns[link_idx];
-    if (conn->casual_read_query_id != thd->query_id)
-    {
-      conn->casual_read_query_id = thd->query_id;
-      conn->casual_read_current_id = 2;
-    }
-    if (spider->result_list.casual_read[link_idx] == 1)
-    {
-      spider->result_list.casual_read[link_idx] = conn->casual_read_current_id;
-      ++conn->casual_read_current_id;
-      if (conn->casual_read_current_id > 63)
-      {
-        conn->casual_read_current_id = 2;
-      }
-    }
-    char first_byte_bak = *spider->conn_keys[link_idx];
-    *spider->conn_keys[link_idx] =
-      '0' + spider->result_list.casual_read[link_idx];
-    if (!(spider->conns[link_idx]= spider_get_conn(
-              spider->share, link_idx, spider->conn_keys[link_idx],
-              spider->wide_handler->trx, spider, FALSE, TRUE, &error_num)))
-    {
-      *spider->conn_keys[link_idx] = first_byte_bak;
-      DBUG_RETURN(error_num);
-    }
-    *spider->conn_keys[link_idx] = first_byte_bak;
-    spider->conns[link_idx]->casual_read_base_conn = conn;
-    conn = spider->conns[link_idx];
-    spider_check_and_set_autocommit(thd, conn, NULL);
+    conn->casual_read_query_id = thd->query_id;
+    conn->casual_read_current_id = 2;
   }
+  if (spider->result_list.casual_read[link_idx] == 1)
+  {
+    spider->result_list.casual_read[link_idx] = conn->casual_read_current_id;
+    ++conn->casual_read_current_id;
+    if (conn->casual_read_current_id > 63)
+      conn->casual_read_current_id = 2;
+  }
+  char first_byte_bak = *spider->conn_keys[link_idx];
+  *spider->conn_keys[link_idx] =
+    '0' + spider->result_list.casual_read[link_idx];
+  if (!(spider->conns[link_idx]= spider_get_conn(
+          spider->share, link_idx, spider->conn_keys[link_idx],
+          spider->wide_handler->trx, spider, FALSE, TRUE, &error_num)))
+  {
+    *spider->conn_keys[link_idx] = first_byte_bak;
+    DBUG_RETURN(error_num);
+  }
+  *spider->conn_keys[link_idx] = first_byte_bak;
+  spider->conns[link_idx]->casual_read_base_conn = conn;
+  spider_check_and_set_autocommit(thd, spider->conns[link_idx], NULL);
   DBUG_RETURN(0);
 }
 
@@ -1552,6 +1572,11 @@ void spider_conn_set_timeout_from_direct_sql(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Insert a connection to a binary tree ordered by priority
+
+  Starting from `top', find the correct spot for `conn' and insert it.
+*/
 void spider_tree_insert(
   SPIDER_CONN *top,
   SPIDER_CONN *conn
@@ -1589,6 +1614,7 @@ void spider_tree_insert(
   DBUG_VOID_RETURN;
 }
 
+/* Returns the connection with the smallest priority in a tree */
 SPIDER_CONN *spider_tree_first(
   SPIDER_CONN *top
 ) {
@@ -1604,6 +1630,7 @@ SPIDER_CONN *spider_tree_first(
   DBUG_RETURN(current);
 }
 
+/* Returns the connection with the biggest priority in a tree */
 SPIDER_CONN *spider_tree_last(
   SPIDER_CONN *top
 ) {
@@ -1619,6 +1646,12 @@ SPIDER_CONN *spider_tree_last(
   DBUG_RETURN(current);
 }
 
+/*
+  Returns the next connection
+
+  Find the connection in the tree with the smallest priority that is
+  bigger than that of the current connection.
+*/
 SPIDER_CONN *spider_tree_next(
   SPIDER_CONN *current
 ) {
@@ -1781,6 +1814,12 @@ int spider_set_conn_bg_param(
   DBUG_RETURN(0);
 }
 
+/**
+  Creates a background thread on `conn' to run `spider_bg_conn_action()'
+
+  Does not create when `conn' is NULL or a bg thread has already been
+  created for `conn'.
+*/
 int spider_create_conn_thread(
   SPIDER_CONN *conn
 ) {
@@ -2518,11 +2557,6 @@ void *spider_bg_conn_action(
         ulong sql_type;
         sql_type= SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-        if (dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
-        {
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        }
         if (spider->use_fields)
         {
           if ((error_num = dbton_handler->set_sql_for_exec(sql_type,
@@ -2541,11 +2575,8 @@ void *spider_bg_conn_action(
               strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
           }
         }
-        if (!dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
-        {
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        }
+        pthread_mutex_lock(&conn->mta_conn_mutex);
+        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
         sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
         DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
         if (!result_list->bgs_error)
@@ -2992,6 +3023,12 @@ void *spider_bg_sts_action(
     if (spider.search_link_idx < 0)
     {
       spider_trx_set_link_idx_for_all(&spider);
+/*
+      spider.search_link_idx = spider_conn_next_link_idx(
+        thd, share->link_statuses, share->access_balances,
+        spider.conn_link_idx, spider.search_link_idx, share->link_count,
+        SPIDER_LINK_STATUS_OK);
+*/
       spider.search_link_idx = spider_conn_first_link_idx(thd,
         share->link_statuses, share->access_balances, spider.conn_link_idx,
         share->link_count, SPIDER_LINK_STATUS_OK);
@@ -3007,6 +3044,32 @@ void *spider_bg_sts_action(
                           share->conn_keys[spider.search_link_idx], trx,
                           &spider, FALSE, FALSE, &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
+/*
+          if (
+            error_num &&
+            share->monitoring_kind[spider.search_link_idx] &&
+            need_mons[spider.search_link_idx]
+          ) {
+            lex_start(thd);
+            error_num = spider_ping_table_mon_from_table(
+                trx,
+                thd,
+                share,
+                spider.search_link_idx,
+                (uint32) share->monitoring_sid[spider.search_link_idx],
+                share->table_name,
+                share->table_name_length,
+                spider.conn_link_idx[spider.search_link_idx],
+                NULL,
+                0,
+                share->monitoring_kind[spider.search_link_idx],
+                share->monitoring_limit[spider.search_link_idx],
+                share->monitoring_flag[spider.search_link_idx],
+                TRUE
+              );
+            lex_end(thd->lex);
+          }
+*/
           spider.search_link_idx = -1;
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
@@ -3017,6 +3080,31 @@ void *spider_bg_sts_action(
             share->bg_sts_sync,
             2, HA_STATUS_CONST | HA_STATUS_VARIABLE))
           {
+/*
+            if (
+              share->monitoring_kind[spider.search_link_idx] &&
+              need_mons[spider.search_link_idx]
+            ) {
+              lex_start(thd);
+              error_num = spider_ping_table_mon_from_table(
+                  trx,
+                  thd,
+                  share,
+                  spider.search_link_idx,
+                  (uint32) share->monitoring_sid[spider.search_link_idx],
+                  share->table_name,
+                  share->table_name_length,
+                  spider.conn_link_idx[spider.search_link_idx],
+                  NULL,
+                  0,
+                  share->monitoring_kind[spider.search_link_idx],
+                  share->monitoring_limit[spider.search_link_idx],
+                  share->monitoring_flag[spider.search_link_idx],
+                  TRUE
+                );
+              lex_end(thd->lex);
+            }
+*/
             spider.search_link_idx = -1;
           }
         }
@@ -3259,6 +3347,12 @@ void *spider_bg_crd_action(
     if (spider.search_link_idx < 0)
     {
       spider_trx_set_link_idx_for_all(&spider);
+/*
+      spider.search_link_idx = spider_conn_next_link_idx(
+        thd, share->link_statuses, share->access_balances,
+        spider.conn_link_idx, spider.search_link_idx, share->link_count,
+        SPIDER_LINK_STATUS_OK);
+*/
       spider.search_link_idx = spider_conn_first_link_idx(thd,
         share->link_statuses, share->access_balances, spider.conn_link_idx,
         share->link_count, SPIDER_LINK_STATUS_OK);
@@ -3684,24 +3778,6 @@ void *spider_bg_mon_action(
   }
 }
 
-/**
-  Returns a random (active) server with a maximum required link status
-
-  Calculate the sum of balances of all servers whose link status is at
-  most the specified status ("eligible"), generate a random number
-  less than this balance, then find the first server cumulatively
-  exceeding this balance
-
-  @param thd              Connection used for generating a random number
-  @param link_statuses    The link statuses of servers
-  @param access_balances  The access balances of servers
-  @param conn_link_idx    Array of indexes to servers
-  @param link_count       Number of servers
-  @param link_status      The maximum required link status
-  @retval Index to the found server
-  @retval -1              if no eligible servers
-  @retval -2              if out of memory
-*/
 int spider_conn_first_link_idx(
   THD *thd,
   long *link_statuses,
@@ -3710,35 +3786,35 @@ int spider_conn_first_link_idx(
   int link_count,
   int link_status
 ) {
-  int eligible_link_idx, eligible_links = 0;
-  longlong balance_total = 0, balance_threshold;
+  int roop_count, active_links = 0;
+  longlong balance_total = 0, balance_val;
   double rand_val;
-  int *link_idxs, result;
+  int *link_idxs, link_idx;
+  long *balances;
   DBUG_ENTER("spider_conn_first_link_idx");
   char *ptr;
-  /* Allocate memory for link_idxs */
-  ptr = (char *) my_alloca((sizeof(int) * link_count));
+  ptr = (char *) my_alloca((sizeof(int) * link_count) + (sizeof(long) * link_count));
   if (!ptr)
   {
     DBUG_PRINT("info",("spider out of memory"));
     DBUG_RETURN(-2);
   }
   link_idxs = (int *) ptr;
-
-  /* Filter for eligible servers, store their indexes and calculate
-  the total balances */
-  for (int link_idx = 0; link_idx < link_count; link_idx++)
+  ptr += sizeof(int) * link_count;
+  balances = (long *) ptr;
+  for (roop_count = 0; roop_count < link_count; roop_count++)
   {
-    DBUG_ASSERT((conn_link_idx[link_idx] - link_idx) % link_count == 0);
-    if (link_statuses[conn_link_idx[link_idx]] <= link_status)
+    DBUG_ASSERT((conn_link_idx[roop_count] - roop_count) % link_count == 0);
+    if (link_statuses[conn_link_idx[roop_count]] <= link_status)
     {
-      link_idxs[eligible_links] = link_idx;
-      balance_total += access_balances[link_idx];
-      eligible_links++;
+      link_idxs[active_links] = roop_count;
+      balances[active_links] = access_balances[roop_count];
+      balance_total += access_balances[roop_count];
+      active_links++;
     }
   }
 
-  if (eligible_links == 0)
+  if (active_links == 0)
   {
     DBUG_PRINT("info",("spider all links are failed"));
     my_afree(link_idxs);
@@ -3748,25 +3824,21 @@ int spider_conn_first_link_idx(
   DBUG_PRINT("info",("spider thread_id=%lu", thd_get_thread_id(thd)));
   rand_val = spider_rand(thd->variables.server_id + thd_get_thread_id(thd));
   DBUG_PRINT("info",("spider rand_val=%f", rand_val));
-  balance_threshold = (longlong) (rand_val * balance_total);
-  DBUG_PRINT("info",("spider balance_threshold=%lld", balance_threshold));
-  /* Since balance_threshold < total balance, this loop WILL break */
-  for (eligible_link_idx = 0;
-       eligible_link_idx < eligible_links;
-       eligible_link_idx++)
+  balance_val = (longlong) (rand_val * balance_total);
+  DBUG_PRINT("info",("spider balance_val=%lld", balance_val));
+  for (roop_count = 0; roop_count < active_links - 1; roop_count++)
   {
-    result = link_idxs[eligible_link_idx];
-    const long balance = access_balances[result];
     DBUG_PRINT("info",("spider balances[%d]=%ld",
-      link_idxs[eligible_link_idx], balance));
-    if (balance_threshold < balance)
+      roop_count, balances[roop_count]));
+    if (balance_val < balances[roop_count])
       break;
-    balance_threshold -= balance;
+    balance_val -= balances[roop_count];
   }
 
-  DBUG_PRINT("info",("spider first link_idx=%d", result));
+  DBUG_PRINT("info",("spider first link_idx=%d", link_idxs[roop_count]));
+  link_idx = link_idxs[roop_count];
   my_afree(link_idxs);
-  DBUG_RETURN(result);
+  DBUG_RETURN(link_idx);
 }
 
 int spider_conn_next_link_idx(
@@ -3801,17 +3873,6 @@ int spider_conn_next_link_idx(
   DBUG_RETURN(tmp_link_idx);
 }
 
-/**
-  Finds the next active server with a maximum required link status
-
-  @param link_statuses  The statuses of servers
-  @param conn_link_idx  The array of active servers
-  @param link_idx       The index of the current active server
-  @param link_count     The number of active servers
-  @param link_status    The required maximum link status
-  @return               The next active server whose link status is
-                        at most the required one.
-*/
 int spider_conn_link_idx_next(
   long *link_statuses,
   uint *conn_link_idx,
@@ -3824,8 +3885,6 @@ int spider_conn_link_idx_next(
     link_idx++;
     if (link_idx >= link_count)
       break;
-    /* Asserts that the `link_idx`th active server is in the correct
-    "group" */
     DBUG_ASSERT((conn_link_idx[link_idx] - link_idx) % link_count == 0);
   } while (link_statuses[conn_link_idx[link_idx]] > link_status);
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));

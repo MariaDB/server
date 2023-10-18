@@ -80,6 +80,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0start.h>
 #include "trx0sys.h"
 #include <buf0dblwr.h>
+#include <buf0flu.h>
 #include "ha_innodb.h"
 
 #include <list>
@@ -4660,7 +4661,9 @@ fail:
 		goto fail;
 	}
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		goto fail;
+	}
 	/* get current checkpoint_lsn */
 	{
 		mysql_mutex_lock(&recv_sys.mutex);
@@ -6030,7 +6033,9 @@ error:
 		}
 
 		recv_sys.create();
-		log_sys.create();
+		if (!log_sys.create()) {
+			goto error;
+		}
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();
