@@ -3,10 +3,6 @@ SET GLOBAL innodb_stats_persistent=OFF;
 #
 # MDEV-6402: Optimizer doesn't choose best execution plan when composite key is used
 #
-create table t0(a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t1(a int);
-insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
 CREATE TABLE t2 (
 pk1 int(11) NOT NULL,
 pk2 int(11) NOT NULL,
@@ -18,13 +14,13 @@ UNIQUE KEY ux_pk1_fd5 (pk1,fd5)
 ) ENGINE=InnoDB;
 insert into t2 
 select 
-round(log(2,t1.a+1)),
-t1.a,
-t1.a,
+round(log(2,seq+1)),
+seq,
+seq,
 REPEAT('filler-data-', 10),
 REPEAT('filler-data-', 10)
 from 
-t1;
+seq_0_to_1999;
 select pk1, count(*) from t2 group by pk1;
 pk1	count(*)
 0	1
@@ -37,7 +33,8 @@ pk1	count(*)
 7	91
 8	181
 9	362
-10	276
+10	724
+11	552
 # The following should use range(ux_pk1_fd5), two key parts (key_len=5+8=13)
 EXPLAIN SELECT * FROM t2 USE INDEX(ux_pk1_fd5) WHERE pk1=9 AND fd5 < 500 ORDER BY fd5 DESC LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -46,7 +43,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t2                       WHERE pk1=9 AND fd5 < 500 ORDER BY fd5 DESC LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	PRIMARY,ux_pk1_fd5	ux_pk1_fd5	13	NULL	138	Using where
-drop table t0,t1, t2;
+drop table t2;
 #
 # MDEV-6814: Server crashes in calculate_key_len on query with ORDER BY
 #
