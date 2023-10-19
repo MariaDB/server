@@ -7163,6 +7163,7 @@ drop table t1;
 #
 # MDEV-7565: Server crash with Signal 6 (part 2)
 #
+truncate table mysql.slow_log;
 Select 
 (Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
 Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
