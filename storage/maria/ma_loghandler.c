@@ -8426,34 +8426,41 @@ my_bool translog_is_file(uint file_no)
 
 static uint32 translog_first_file(TRANSLOG_ADDRESS horizon, int is_protected)
 {
-  uint min_file= 0, max_file;
+  uint min_file= 1, max_file;
   DBUG_ENTER("translog_first_file");
   if (!is_protected)
     mysql_mutex_lock(&log_descriptor.purger_lock);
-  if (log_descriptor.min_file_number &&
-      translog_is_file(log_descriptor.min_file_number))
+  if (log_descriptor.min_file_number)
   {
-    DBUG_PRINT("info", ("cached %lu",
-                        (ulong) log_descriptor.min_file_number));
-    if (!is_protected)
-      mysql_mutex_unlock(&log_descriptor.purger_lock);
-    DBUG_RETURN(log_descriptor.min_file_number);
+    min_file= log_descriptor.min_file_number;
+    if (translog_is_file(log_descriptor.min_file_number))
+    {
+      DBUG_PRINT("info", ("cached %lu",
+                          (ulong) log_descriptor.min_file_number));
+      if (!is_protected)
+        mysql_mutex_unlock(&log_descriptor.purger_lock);
+      DBUG_RETURN(log_descriptor.min_file_number);
+    }
   }
 
   max_file= LSN_FILE_NO(horizon);
+  if (!translog_is_file(max_file))
+  {
+    if (!is_protected)
+      mysql_mutex_unlock(&log_descriptor.purger_lock);
+    DBUG_RETURN(max_file);                      /* For compatibility */
+  }
 
   /* binary search for last file */
-  while (min_file != max_file && min_file != (max_file - 1))
+  while (min_file < max_file)
   {
     uint test= (min_file + max_file) / 2;
     DBUG_PRINT("info", ("min_file: %u  test: %u  max_file: %u",
                         min_file, test, max_file));
-    if (test == max_file)
-      test--;
     if (translog_is_file(test))
       max_file= test;
     else
-      min_file= test;
+      min_file= test+1;
   }
   log_descriptor.min_file_number= max_file;
   if (!is_protected)
@@ -8722,9 +8729,9 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
 
 /**
   @brief Purges files by stored min need file in case of
-    "ondemend" purge type
+    "one demand" purge type
 
-  @note This function do real work only if it is "ondemend" purge type
+  @note This function do real work only if it is "one demand" purge type
     and translog_purge() was called at least once and last time without
     errors
 
@@ -8763,13 +8770,14 @@ my_bool translog_purge_at_flush()
 
   min_file= translog_first_file(translog_get_horizon(), 1);
   DBUG_ASSERT(min_file != 0); /* log is already started */
-  for(i= min_file; i < log_descriptor.min_need_file && rc == 0; i++)
+  for(i= min_file; i < log_descriptor.min_need_file ; i++)
   {
     char path[FN_REFLEN], *file_name;
     DBUG_PRINT("info", ("purge file %lu\n", (ulong) i));
     file_name= translog_filename_by_fileno(i, path);
-    rc= MY_TEST(mysql_file_delete(key_file_translog,
+    rc|= MY_TEST(mysql_file_delete(key_file_translog,
                                   file_name, MYF(MY_WME)));
+    DBUG_ASSERT(rc == 0);
   }
 
   mysql_mutex_unlock(&log_descriptor.purger_lock);
