@@ -495,3 +495,17 @@ DROP TABLE t1;
 CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-32453 Bulk insert fails to apply when trigger
+--echo #		does insert operation
+--echo #
+CREATE TABLE t (c INT) ENGINE=INNODB;
+CREATE TRIGGER t2_ai AFTER INSERT ON t FOR EACH ROW SET @a:=(SELECT * FROM t);
+BEGIN;
+INSERT INTO t VALUES (1);
+--error ER_SUBQUERY_NO_1_ROW
+INSERT INTO t VALUES (1);
+COMMIT;
+SELECT * FROM t;
+DROP TABLE t;
