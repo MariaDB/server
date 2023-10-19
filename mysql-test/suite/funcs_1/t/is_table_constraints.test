@@ -99,7 +99,7 @@ CREATE TABLE db_datadict.t2 (f1 BIGINT, f2 BIGINT, f3 BIGINT, f4 BIGINT,
 ENGINE = $engine_type;
 
 CREATE USER 'testuser1'@'localhost';
-GRANT SELECT(f5) ON db_datadict.t1 TO 'testuser1'@'localhost';
+GRANT SELECT(f5), UPDATE(f6) ON db_datadict.t1 TO 'testuser1'@'localhost';
 SHOW GRANTS FOR 'testuser1'@'localhost';
 
 let $my_select = SELECT * FROM information_schema.table_constraints

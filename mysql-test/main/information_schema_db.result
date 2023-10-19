@@ -262,8 +262,8 @@ set global sql_mode=default;
 create user foo@localhost;
 grant select on test.* to foo@localhost;
 create procedure rootonly() select 1;
-create sql security definer view v1d as select current_user(),user from information_schema.processlist;
-create sql security invoker view v1i as select current_user(),user from information_schema.processlist;
+create sql security definer view v1d as select current_user(),user from information_schema.processlist where command!='daemon';
+create sql security invoker view v1i as select current_user(),user from information_schema.processlist where command!='daemon';
 create sql security definer view v2d as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security invoker view v2i as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security definer view v3d as select schema_name from information_schema.schemata where schema_name like '%mysql%';
@@ -340,4 +340,48 @@ drop user foo@localhost;
 drop procedure rootonly;
 #
 # End of 10.2 tests
+#
+#
+# MDEV-32500 Information schema leaks table names and structure to unauthorized users
+#
+create database db;
+create table db.t1 (x int, key(x)) engine=InnoDB;
+create table db.t2 (a int, b int, c int, unique(b), check(c>b), foreign key(c) references db.t1(x)) engine=InnoDB;
+create table db.t3 (d int, e int, f int, unique(e), check(f>e), foreign key(f) references db.t1(x),
+foreign key(e) references db.t2(b),
+foreign key(d) references db.t3(f)
+) engine=InnoDB;
+create user u@localhost;
+grant select (a) on db.t2 to u@localhost;
+grant update (d) on db.t3 to u@localhost;
+connect con1,localhost,u,,db;
+select table_name, column_name from information_schema.columns where table_name like 't_';
+table_name	column_name
+t2	a
+t3	d
+select table_name, column_name from information_schema.key_column_usage where table_name like 't_';
+table_name	column_name
+select table_name, unique_constraint_name, referenced_table_name from information_schema.referential_constraints where table_name like 't_';
+table_name	unique_constraint_name	referenced_table_name
+t3	x	NULL
+t3	b	NULL
+t3	f	t3
+select table_name, constraint_name, constraint_type from information_schema.table_constraints where table_name like 't_';
+table_name	constraint_name	constraint_type
+t3	e	UNIQUE
+t3	CONSTRAINT_1	CHECK
+t3	t3_ibfk_1	FOREIGN KEY
+t3	t3_ibfk_2	FOREIGN KEY
+t3	t3_ibfk_3	FOREIGN KEY
+show index in t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+show index in t3;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t3	1	d	1	d	A	0	NULL	NULL	YES	BTREE		
+disconnect con1;
+connection default;
+drop user u@localhost;
+drop database db;
+#
+# End of 10.4 tests
 #

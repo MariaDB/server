@@ -1,7 +1,7 @@
 # this test mostly test privilege control (what doesn't work
 # in the embedded server by default). So skip the test in embedded-server mode.
 -- source include/not_embedded.inc
-
+-- source include/have_innodb.inc
 -- source include/testdb_only.inc
 
 set local sql_mode="";
@@ -256,8 +256,8 @@ set global sql_mode=default;
 create user foo@localhost;
 grant select on test.* to foo@localhost;
 create procedure rootonly() select 1;
-create sql security definer view v1d as select current_user(),user from information_schema.processlist;
-create sql security invoker view v1i as select current_user(),user from information_schema.processlist;
+create sql security definer view v1d as select current_user(),user from information_schema.processlist where command!='daemon';
+create sql security invoker view v1i as select current_user(),user from information_schema.processlist where command!='daemon';
 create sql security definer view v2d as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security invoker view v2i as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security definer view v3d as select schema_name from information_schema.schemata where schema_name like '%mysql%';
@@ -296,4 +296,37 @@ drop procedure rootonly;
 
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-32500 Information schema leaks table names and structure to unauthorized users
+--echo #
+create database db;
+create table db.t1 (x int, key(x)) engine=InnoDB;
+create table db.t2 (a int, b int, c int, unique(b), check(c>b), foreign key(c) references db.t1(x)) engine=InnoDB;
+create table db.t3 (d int, e int, f int, unique(e), check(f>e), foreign key(f) references db.t1(x),
+                                                                foreign key(e) references db.t2(b),
+                                                                foreign key(d) references db.t3(f)
+                                                              ) engine=InnoDB;
+
+create user u@localhost;
+grant select (a) on db.t2 to u@localhost;
+grant update (d) on db.t3 to u@localhost;
+
+--connect con1,localhost,u,,db
+--sorted_result
+select table_name, column_name from information_schema.columns where table_name like 't_';
+select table_name, column_name from information_schema.key_column_usage where table_name like 't_';
+select table_name, unique_constraint_name, referenced_table_name from information_schema.referential_constraints where table_name like 't_';
+select table_name, constraint_name, constraint_type from information_schema.table_constraints where table_name like 't_';
+show index in t2;
+show index in t3;
+
+--disconnect con1
+--connection default
+drop user u@localhost;
+drop database db;
+
+--echo #
+--echo # End of 10.4 tests
 --echo #
