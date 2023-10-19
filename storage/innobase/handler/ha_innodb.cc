@@ -18318,6 +18318,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 		while (log_sys.last_checkpoint_lsn.load(
 			       std::memory_order_acquire)
 		       + SIZE_OF_FILE_CHECKPOINT
+		       + log_sys.framing_size()
 		       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
 			log_make_checkpoint();
 			log_sys.log.flush();
@@ -20058,30 +20059,6 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
 	return mysql_table;
-}
-
-/** Only used by the purge thread
-@param[in,out]	table       table whose virtual column template to be built */
-TABLE* innobase_init_vc_templ(dict_table_t* table)
-{
-	DBUG_ENTER("innobase_init_vc_templ");
-
-	ut_ad(table->vc_templ == NULL);
-
-	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
-
-	ut_ad(mysql_table);
-	if (!mysql_table) {
-		DBUG_RETURN(NULL);
-	}
-
-	dict_vcol_templ_t* vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-
-	dict_sys.lock(SRW_LOCK_CALL);
-	table->vc_templ = vc_templ;
-	innobase_build_v_templ(mysql_table, table, vc_templ, nullptr, true);
-	dict_sys.unlock();
-	DBUG_RETURN(mysql_table);
 }
 
 /** Change dbname and table name in table->vc_templ.

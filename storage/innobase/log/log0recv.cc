@@ -1231,14 +1231,14 @@ void recv_sys_t::open_log_files_if_needed()
   }
 }
 
-void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
+MY_ATTRIBUTE((warn_unused_result))
+dberr_t recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
 {
   open_log_files_if_needed();
 
   size_t file_idx= static_cast<size_t>(total_offset / log_sys.log.file_size);
   os_offset_t offset= total_offset % log_sys.log.file_size;
-  dberr_t err= recv_sys.files[file_idx].read(offset, buf);
-  ut_a(err == DB_SUCCESS);
+  return recv_sys.files[file_idx].read(offset, buf);
 }
 
 inline size_t recv_sys_t::files_size()
@@ -1566,7 +1566,8 @@ loop:
 
 	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	recv_sys.read(source_offset, {buf, len});
+	if (recv_sys.read(source_offset, {buf, len}))
+		return false;
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
 		     buf += OS_FILE_LOG_BLOCK_SIZE,
@@ -1754,7 +1755,8 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   for (ulint field= LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
        field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1)
   {
-    log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
+    if (dberr_t err= log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE}))
+      return err;
 
     if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1)) !=
         mach_read_from_4(buf + CHECKSUM_1) ||
@@ -1806,7 +1808,8 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     "InnoDB: Upgrade after a crash is not supported."
     " This redo log was created before MariaDB 10.2.2";
 
-  recv_sys.read(source_offset & ~511, {buf, 512});
+  if (dberr_t err= recv_sys.read(source_offset & ~511, {buf, 512}))
+    return err;
 
   if (log_block_calc_checksum_format_0(buf) != log_block_get_checksum(buf) &&
       !log_crypt_101_read_block(buf, lsn))
@@ -1873,8 +1876,10 @@ static dberr_t recv_log_recover_10_4()
 		return DB_CORRUPTION;
 	}
 
-	recv_sys.read(source_offset & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1),
-		      {buf, OS_FILE_LOG_BLOCK_SIZE});
+	if (dberr_t err=
+	    recv_sys.read(source_offset & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1),
+		      {buf, OS_FILE_LOG_BLOCK_SIZE}))
+		return err;
 
 	ulint crc = log_block_calc_checksum_crc32(buf);
 	ulint cksum = log_block_get_checksum(buf);
@@ -1932,7 +1937,8 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	buf = log_sys.checkpoint_buf;
 
-	log_sys.log.read(0, {buf, OS_FILE_LOG_BLOCK_SIZE});
+	if (dberr_t err= log_sys.log.read(0, {buf, OS_FILE_LOG_BLOCK_SIZE}))
+		return err;
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
@@ -1971,7 +1977,8 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	for (field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
 	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
-		log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
+		if (dberr_t err= log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE}))
+			return err;
 
 		const ulint crc32 = log_block_calc_checksum_crc32(buf);
 		const ulint cksum = log_block_get_checksum(buf);
@@ -4415,7 +4422,10 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	}
 
 	buf = log_sys.checkpoint_buf;
-	log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE});
+	if ((err= log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE}))) {
+		mysql_mutex_unlock(&log_sys.mutex);
+		return(err);
+	}
 
 	checkpoint_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
 	checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
@@ -4512,7 +4522,8 @@ completed:
 	} else if (checkpoint_lsn != flush_lsn) {
 		ut_ad(!srv_log_file_created);
 
-		if (checkpoint_lsn + sizeof_checkpoint < flush_lsn) {
+		if (checkpoint_lsn + sizeof_checkpoint
+		    + log_sys.framing_size() < flush_lsn) {
 			ib::warn()
 				<< "Are you sure you are using the right "
 				<< LOG_FILE_NAME
@@ -4783,6 +4794,11 @@ byte *recv_dblwr_t::find_page(const page_id_t page_id,
     if (page_get_page_no(page) != page_id.page_no() ||
         page_get_space_id(page) != page_id.space())
       continue;
+    uint32_t flags= mach_read_from_4(
+      FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+    if (!fil_space_t::is_valid_flags(flags, page_id.space()))
+      continue;
+
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
     if (lsn <= max_lsn ||
         !validate_page(page_id, page, space, tmp_buf))
@@ -4791,9 +4807,38 @@ byte *recv_dblwr_t::find_page(const page_id_t page_id,
       memset(page + FIL_PAGE_LSN, 0, 8);
       continue;
     }
+
+    ut_a(page_get_page_no(page) == page_id.page_no());
     max_lsn= lsn;
     result= page;
   }
 
   return result;
+}
+
+bool recv_dblwr_t::restore_first_page(ulint space_id, const char *name,
+                                      os_file_t file)
+{
+  const page_id_t page_id(space_id, 0);
+  const byte* page= find_page(page_id);
+  if (!page)
+  {
+    /* If the first page of the given user tablespace is not there
+    in the doublewrite buffer, then the recovery is going to fail
+    now. Hence this is treated as error. */
+    ib::error()
+            << "Corrupted page " << page_id << " of datafile '"
+            << name <<"' could not be found in the doublewrite buffer.";
+    return true;
+  }
+
+  ulint physical_size= fil_space_t::physical_size(
+    mach_read_from_4(page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS));
+  ib::info() << "Restoring page " << page_id << " of datafile '"
+          << name << "' from the doublewrite buffer. Writing "
+          << physical_size << " bytes into file '" << name << "'";
+
+  return os_file_write(
+           IORequestWrite, name, file, page, 0, physical_size) !=
+         DB_SUCCESS;
 }

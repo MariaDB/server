@@ -364,7 +364,7 @@ void buf_dblwr_t::recover()
   {
     byte *page= *i;
     const uint32_t page_no= page_get_page_no(page);
-    if (!page_no) /* recovered via Datafile::restore_from_doublewrite() */
+    if (!page_no) /* recovered via recv_dblwr_t::restore_first_page() */
       continue;
 
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);

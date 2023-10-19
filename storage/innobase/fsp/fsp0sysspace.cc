@@ -593,7 +593,9 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 		if (err != DB_SUCCESS
 		    && (retry == 1
-			|| it->restore_from_doublewrite())) {
+			|| recv_sys.dblwr.restore_first_page(
+				it->m_space_id, it->m_filepath,
+				it->handle()))) {
 
 			it->close();
 

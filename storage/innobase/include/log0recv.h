@@ -140,6 +140,15 @@ struct recv_dblwr_t
   byte* find_page(const page_id_t page_id, const fil_space_t *space= NULL,
                   byte *tmp_buf= NULL);
 
+  /** Restore the first page of the given tablespace from
+  doublewrite buffer.
+  @param space_id  tablespace identifier
+  @param name      tablespace filepath
+  @param file      tablespace file handle
+  @return whether the operation failed */
+  bool restore_first_page(
+         ulint space_id, const char *name, os_file_t file);
+
   typedef std::deque<byte*, ut_allocator<byte*> > list;
 
   /** Recovered doublewrite buffer page frames */
@@ -298,7 +307,8 @@ public:
   /** Last added LSN to pages. */
   lsn_t last_stored_lsn= 0;
 
-  void read(os_offset_t offset, span<byte> buf);
+  __attribute__((warn_unused_result))
+  dberr_t read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
   void close_files() { files.clear(); files.shrink_to_fit(); }
 
