@@ -80,6 +80,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0start.h>
 #include "trx0sys.h"
 #include <buf0dblwr.h>
+#include <buf0flu.h>
 #include "ha_innodb.h"
 
 #include <list>
@@ -2386,10 +2387,15 @@ static bool innodb_init()
   buf_flush_sync();
   recv_sys.debug_free();
   ut_ad(!os_aio_pending_reads());
-  ut_ad(!os_aio_pending_writes());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
   ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+  /* os_aio_pending_writes() may hold here if some write_io_callback()
+  did not release the slot yet.  However, the page write itself must
+  have completed, because the buf_pool.flush_list is empty. In debug
+  builds, we wait for this to happen, hoping to get a hung process if
+  this assumption does not hold. */
+  ut_d(os_aio_wait_until_no_pending_writes(false));
   log_sys.close_file();
 
   if (xtrabackup_incremental)
@@ -4660,7 +4666,9 @@ fail:
 		goto fail;
 	}
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		goto fail;
+	}
 	/* get current checkpoint_lsn */
 	{
 		mysql_mutex_lock(&recv_sys.mutex);
@@ -6030,7 +6038,9 @@ error:
 		}
 
 		recv_sys.create();
-		log_sys.create();
+		if (!log_sys.create()) {
+			goto error;
+		}
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();

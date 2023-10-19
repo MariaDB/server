@@ -199,7 +199,6 @@ typedef struct st_spider_thread
   volatile bool         killed;
   volatile bool         thd_wait;
   volatile bool         first_free_wait;
-  volatile bool         init_command;
   volatile int          error;
   pthread_t             thread;
   pthread_cond_t        cond;
@@ -364,9 +363,18 @@ typedef struct st_spider_conn
   THD                *thd;
   void               *another_ha_first;
   void               *another_ha_last;
+  /* Exactly one of p_small and p_big is not null */
+  /* The parent node in the binary tree ordered by priority with a
+  smaller or equal priority */
   st_spider_conn     *p_small;
+  /* The parent node in the binary tree ordered by priority with a
+  bigger priority */
   st_spider_conn     *p_big;
+  /* The child node in the binary tree ordered by priority with a
+  smaller priority */
   st_spider_conn     *c_small;
+  /* The child node in the binary tree ordered by priority with a
+  bigger or equal priority */
   st_spider_conn     *c_big;
   longlong           priority;
   bool               server_lost;

@@ -837,15 +837,21 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       *((ulonglong*)value)= find_typeset(argument, opts->typelib, &err);
       if (err)
       {
-        /* Accept an integer representation of the set */
-        char *endptr;
-        ulonglong arg= (ulonglong) strtol(argument, &endptr, 10);
-        if (*endptr || (arg >> 1) >= (1ULL << (opts->typelib->count-1)))
+        /* Check if option 'all' is used (to set all bits) */
+        if (!my_strcasecmp(&my_charset_latin1, argument, "all"))
+          *(ulonglong*) value= ((1ULL << opts->typelib->count) - 1);
+        else
         {
-          res= EXIT_ARGUMENT_INVALID;
-          goto ret;
-        };
-        *(ulonglong*)value= arg;
+          /* Accept an integer representation of the set */
+          char *endptr;
+          ulonglong arg= (ulonglong) strtol(argument, &endptr, 10);
+          if (*endptr || (arg >> 1) >= (1ULL << (opts->typelib->count-1)))
+          {
+            res= EXIT_ARGUMENT_INVALID;
+            goto ret;
+          };
+          *(ulonglong*)value= arg;
+        }
         err= 0;
       }
       break;
@@ -1644,6 +1650,8 @@ void my_print_help(const struct my_option *options)
         printf(" to disable.)\n");
       }
     }
+    else if ((optp->var_type & GET_TYPE_MASK) == GET_SET)
+      printf("  Use 'ALL' to set all combinations.\n");
   }
   DBUG_VOID_RETURN;
 }
