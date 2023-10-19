@@ -2,20 +2,10 @@
 # in the embedded server by default). So skip the test in embedded-server mode.
 -- source include/not_embedded.inc
 
-#Don't run this test when thread_pool active
---source include/not_threadpool.inc
-
 -- source include/testdb_only.inc
 
 set local sql_mode="";
 set global sql_mode="";
-
---disable_warnings
-drop table if exists t1,t2;
-drop view if exists v1,v2;
-drop function if exists f1;
-drop function if exists f2;
---enable_warnings
 
 --replace_result 'Tables_in_INFORMATION_SCHEMA (T%)' 'Tables_in_information_schema (T%)'
 --sorted_result
@@ -25,9 +15,10 @@ create database mbase;
 use `inf%`;
 show tables;
 
-#
-# Bug#18113 SELECT * FROM information_schema.xxx crashes server
-# Bug#17204 second CALL to procedure crashes Server
+--echo #
+--echo # Bug#18113 SELECT * FROM information_schema.xxx crashes server
+--echo # Bug#17204 second CALL to procedure crashes Server
+--echo #
 # Crash happened when one selected data from one of INFORMATION_SCHEMA
 # tables and in order to build its contents server had to open view which
 # used stored function and table or view on which one had not global or
@@ -89,9 +80,9 @@ drop procedure mbase.p1;
 drop database mbase;
 disconnect user1;
 
-#
-# Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
-#
+--echo #
+--echo # Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
+--echo #
 use test;
 create table t1 (i int);
 create function f1 () returns int return (select max(i) from t1);
@@ -110,11 +101,10 @@ drop function f2;
 drop view v1, v2;
 --enable_view_protocol
 
-#
-# Bug#20543 select on information_schema strange warnings, view, different
-#           schemas/users
-#
-#
+--echo #
+--echo # Bug#20543 select on information_schema strange warnings, view, different
+--echo #           schemas/users
+--echo #
 --disable_service_connection
 create database testdb_1;
 create user testdb_1@localhost;
@@ -225,9 +215,9 @@ connection default;
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
 
-#
-# Bug#22763 Disrepancy between SHOW CREATE VIEW and I_S.VIEWS
-#
+--echo #
+--echo # Bug#22763 Disrepancy between SHOW CREATE VIEW and I_S.VIEWS
+--echo #
 create database testdb_1;
 create table testdb_1.t1 (a int);
 create view testdb_1.v1 as select * from testdb_1.t1;
@@ -259,9 +249,9 @@ connection default;
 
 set global sql_mode=default;
 
-#
-# MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables
-#
+--echo #
+--echo # MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables
+--echo #
 
 create user foo@localhost;
 grant select on test.* to foo@localhost;
@@ -303,3 +293,7 @@ drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
 drop user foo@localhost;
 drop procedure rootonly;
 --enable_service_connection
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

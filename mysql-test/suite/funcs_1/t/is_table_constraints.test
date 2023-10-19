@@ -36,7 +36,6 @@ eval SHOW TABLES FROM information_schema LIKE '$is_table';
 #
 --source suite/funcs_1/datadict/is_table_query.inc
 
-
 --echo #########################################################################
 --echo # Testcase 3.2.10.1: INFORMATION_SCHEMA.TABLE_CONSTRAINTS layout
 --echo #########################################################################
@@ -85,9 +84,6 @@ ORDER BY constraint_schema, table_name, constraint_name;
 #       mysql              is_table_constraints_mysql
 #       information_schema is_table_constraints_is
 #
---disable_warnings
-DROP DATABASE IF EXISTS db_datadict;
---enable_warnings
 CREATE DATABASE db_datadict;
 --replace_result $engine_type <some_engine_type>
 eval
@@ -102,8 +98,6 @@ CREATE TABLE db_datadict.t2 (f1 BIGINT, f2 BIGINT, f3 BIGINT, f4 BIGINT,
        f5 BIGINT, f6 BIGINT, PRIMARY KEY (f1,f2))
 ENGINE = $engine_type;
 
---error 0,ER_CANNOT_USER
-DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
 GRANT SELECT(f5) ON db_datadict.t1 TO 'testuser1'@'localhost';
 SHOW GRANTS FOR 'testuser1'@'localhost';
@@ -161,10 +155,6 @@ DROP DATABASE db_datadict;
 #           automatically deletes all relevant information on that object from
 #           every appropriate INFORMATION_SCHEMA table.
 #
---disable_warnings
-DROP DATABASE IF EXISTS db_datadict;
-DROP TABLE IF EXISTS test.t1_my_table;
---enable_warnings
 CREATE DATABASE db_datadict;
 
 SELECT table_name FROM information_schema.table_constraints
@@ -281,10 +271,6 @@ WHERE table_name = 't1_my_tablex';
 # 3.2.1.12: Ensure that no user may directly add to, alter, or delete any data
 #           in an INFORMATION_SCHEMA table.
 #
---disable_warnings
-DROP DATABASE IF EXISTS db_datadict;
-DROP TABLE IF EXISTS db_datadict.t1;
---enable_warnings
 CREATE DATABASE db_datadict;
 --replace_result $engine_type <engine_type>
 eval

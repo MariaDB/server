@@ -5210,6 +5210,13 @@ public:
 };
 
 
+ulong GRANT_INFO::all_privilege()
+{
+  return (grant_table_user ? grant_table_user->cols : 0) |
+         (grant_table_role ? grant_table_role->cols : 0) | privilege;
+}
+
+
 void GRANT_NAME::set_user_details(const char *h, const char *d,
                                   const char *u, const char *t,
                                   bool is_routine)
@@ -8227,9 +8234,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (!(~t_ref->grant.privilege & want_access))
       continue;
 
-    if ((want_access&= ~((grant_table ? grant_table->cols : 0) |
-                        (grant_table_role ? grant_table_role->cols : 0) |
-                        t_ref->grant.privilege)))
+    if ((want_access&= ~t_ref->grant.all_privilege()))
     {
       goto err;                                 // impossible
     }

@@ -336,6 +336,9 @@ typedef struct st_grant_info
   ulong orig_want_privilege;
   /** The grant state for internal tables. */
   GRANT_INTERNAL_INFO m_internal;
+
+  /* OR table and all column privileges */
+  ulong all_privilege();
 } GRANT_INFO;
 
 enum tmp_table_type

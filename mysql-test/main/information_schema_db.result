@@ -1,9 +1,5 @@
 set local sql_mode="";
 set global sql_mode="";
-drop table if exists t1,t2;
-drop view if exists v1,v2;
-drop function if exists f1;
-drop function if exists f2;
 show tables from INFORMATION_SCHEMA like 'T%';
 Tables_in_information_schema (T%)
 TABLES
@@ -17,6 +13,10 @@ create database mbase;
 use `inf%`;
 show tables;
 Tables_in_inf%
+#
+# Bug#18113 SELECT * FROM information_schema.xxx crashes server
+# Bug#17204 second CALL to procedure crashes Server
+#
 grant all privileges on `inf%`.* to 'mysqltest_1'@'localhost';
 grant all privileges on `mbase`.* to 'mysqltest_1'@'localhost';
 create table t1 (f1 int);
@@ -65,6 +65,9 @@ drop database `inf%`;
 drop procedure mbase.p1;
 drop database mbase;
 disconnect user1;
+#
+# Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
+#
 use test;
 create table t1 (i int);
 create function f1 () returns int return (select max(i) from t1);
@@ -88,6 +91,10 @@ v2	VIEW	VIEW
 drop function f1;
 drop function f2;
 drop view v1, v2;
+#
+# Bug#20543 select on information_schema strange warnings, view, different
+#           schemas/users
+#
 create database testdb_1;
 create user testdb_1@localhost;
 grant all on testdb_1.* to testdb_1@localhost with grant option;
@@ -216,6 +223,9 @@ disconnect testdb_2;
 connection default;
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
+#
+# Bug#22763 Disrepancy between SHOW CREATE VIEW and I_S.VIEWS
+#
 create database testdb_1;
 create table testdb_1.t1 (a int);
 create view testdb_1.v1 as select * from testdb_1.t1;
@@ -246,6 +256,9 @@ connection user1;
 disconnect user1;
 connection default;
 set global sql_mode=default;
+#
+# MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables
+#
 create user foo@localhost;
 grant select on test.* to foo@localhost;
 create procedure rootonly() select 1;
@@ -325,3 +338,6 @@ disconnect foo;
 drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
 drop user foo@localhost;
 drop procedure rootonly;
+#
+# End of 10.2 tests
+#
