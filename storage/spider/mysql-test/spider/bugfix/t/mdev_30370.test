@@ -6,7 +6,7 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $PLUGIN_DIR=`select @@plugin_dir`;
 --source include/kill_mysqld.inc
---exec $MYSQLD_CMD --datadir=$MYSQLD_DATADIR --wsrep-recover --plugin-dir=$PLUGIN_DIR --plugin-load-add=ha_spider
+--exec $MYSQLD_CMD --datadir=$MYSQLD_DATADIR --bootstrap --wsrep-recover --plugin-dir=$PLUGIN_DIR --plugin-load-add=ha_spider
 --source include/start_mysqld.inc
 --disable_query_log
 --source ../../include/clean_up_spider.inc
