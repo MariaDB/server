@@ -241,9 +241,10 @@ public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
 
-  inline void read(os_offset_t offset, span<byte> buf);
+  __attribute__((warn_unused_result)) 
+  inline dberr_t read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
-  void close_files() { files.clear(); files.shrink_to_fit(); }
+  void close_files();
 
   /** Advance pages_it if it matches the iterator */
   void pages_it_invalidate(const map::iterator &p)

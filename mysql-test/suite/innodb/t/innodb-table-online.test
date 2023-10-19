@@ -2,6 +2,7 @@
 --source include/innodb_encrypt_log.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_sequence.inc
 
 let $innodb_metrics_select=
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -436,6 +437,32 @@ connection con1;
 reap;
 DROP TABLE t1;
 connection default;
+
+--echo #
+--echo #  MDEV-28122 Optimize table crash while applying online log
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                f3 CHAR(200), f4 CHAR(200),
+                f5 VARCHAR(87), PRIMARY KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(6000, 6000, "InnoDB",
+                      "MariaDB", repeat('a', 87));
+
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 FORCE;
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, "IDB", "MDB", repeat('a', 87) FROM seq_1_to_127;
+INSERT INTO t1 VALUES(128, 128, "IDB", "MDB", repeat('a', 86));
+INSERT INTO t1 VALUES(129, 129, "idb", "mdb", repeat('a', 2));
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+reap;
+CHECK TABLE t1;
+DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 disconnect con1;
 

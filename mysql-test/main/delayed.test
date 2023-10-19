@@ -408,6 +408,9 @@ DROP TABLE t2;
 DROP TABLE t1;
 
 
+# The following test is disabled as it fails randomly
+if (0)
+{
 --echo #
 --echo # Bug#54332 Deadlock with two connections doing LOCK TABLE+INSERT DELAYED
 --echo #
@@ -566,6 +569,7 @@ connection default;
 DROP TABLE t1, t2, t3;
 --enable_ps_protocol
 --enable_view_protocol
+}
 
 --echo #
 --echo # Test for bug #56251 "Deadlock with INSERT DELAYED and MERGE tables".

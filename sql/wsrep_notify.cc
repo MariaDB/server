@@ -22,7 +22,15 @@
 void wsrep_notify_status(enum wsrep::server_state::state status,
                          const wsrep::view* view)
 {
+
   Wsrep_status::report_state(status);
+
+  if (!view)
+  {
+    WSREP_DEBUG("wsrep_notify_status server not yet ready : wsrep_ready=%d status %d",
+		wsrep_ready, (int)status);
+    return;
+  }
 
   if (!wsrep_notify_cmd || 0 == strlen(wsrep_notify_cmd))
   {

@@ -334,6 +334,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	return node;
 }
 
+__attribute__((warn_unused_result, nonnull))
 /** Open a tablespace file.
 @param node  data file
 @return whether the file was successfully opened */
@@ -362,9 +363,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
                                  OS_FILE_AIO, type,
                                  srv_read_only_mode, &success);
-    if (node->is_open())
+
+    if (success && node->is_open())
     {
-      ut_ad(success);
 #ifndef _WIN32
       if (!node->space->id && !srv_read_only_mode && my_disable_locking &&
           os_file_lock(node->handle, node->name))
@@ -2496,6 +2497,17 @@ fil_ibd_discover(
 	/* A datafile was not discovered for the filename given. */
 	return(false);
 }
+
+bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
+{
+  if (crypt_data->is_key_found())
+    return true;
+  sql_print_error("InnoDB: Encryption key is not found for %s", f_name);
+  crypt_data->~fil_space_crypt_t();
+  ut_free(crypt_data);
+  return false;
+}
+
 /** Open an ibd tablespace and add it to the InnoDB data structures.
 This is similar to fil_ibd_open() except that it is used while processing
 the REDO log, so the data dictionary is not available and very little
@@ -2641,9 +2653,7 @@ tablespace_check:
 					    first_page)
 		: NULL;
 
-	if (crypt_data && !crypt_data->is_key_found()) {
-		crypt_data->~fil_space_crypt_t();
-		ut_free(crypt_data);
+	if (crypt_data && !fil_crypt_check(crypt_data, filename)) {
 		return FIL_LOAD_INVALID;
 	}
 
@@ -2907,6 +2917,7 @@ void IORequest::write_complete(int io_error) const
   ut_ad(fil_validate_skip());
   ut_ad(node);
   ut_ad(is_write());
+  node->complete_write();
 
   if (!bpage)
   {
@@ -2919,7 +2930,6 @@ void IORequest::write_complete(int io_error) const
   else
     buf_page_write_complete(*this, io_error);
 
-  node->complete_write();
   node->space->release();
 }
 

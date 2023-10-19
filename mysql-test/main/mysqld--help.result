@@ -215,6 +215,7 @@ The following specify which files/extra groups are read (specified before remain
  Default flags for the regex library. Any combination of: 
  DOTALL, DUPNAMES, EXTENDED, EXTENDED_MORE, EXTRA, 
  MULTILINE, UNGREEDY
+ Use 'ALL' to set all combinations.
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
@@ -490,12 +491,14 @@ The following specify which files/extra groups are read (specified before remain
  --log-disabled-statements=name 
  Don't log certain types of statements to general log. Any
  combination of: slave, sp
+ Use 'ALL' to set all combinations.
  --log-error[=name]  Log errors to file (instead of stdout).  If file name is
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
  --log-isam[=name]   Log all MyISAM changes to file.
  --log-output=name   How logs should be written. Any combination of: NONE, 
  FILE, TABLE
+ Use 'ALL' to set all combinations.
  --log-queries-not-using-indexes 
  Log queries that are executed without benefit of any
  index to the slow log if it is open. Same as
@@ -514,15 +517,20 @@ The following specify which files/extra groups are read (specified before remain
  --log-slow-disabled-statements=name 
  Don't log certain types of statements to slow log. Any
  combination of: admin, call, slave, sp
+ Use 'ALL' to set all combinations.
  --log-slow-filter=name 
  Log only certain types of queries to the slow log. If
- variable empty alll kind of queries are logged.  All
- types are bound by slow_query_time, except
- 'not_using_index' which is always logged if enabled. Any
- combination of: admin, filesort, filesort_on_disk, 
+ variable empty all kind of queries are logged.  All types
+ are bound by slow_query_time, except 'not_using_index'
+ which is always logged if enabled. Any combination of: 
+ admin, filesort, filesort_on_disk, 
  filesort_priority_queue, full_join, full_scan, 
  not_using_index, query_cache, query_cache_miss, tmp_table,
  tmp_table_on_disk
+ Use 'ALL' to set all combinations.
+ --log-slow-max-warnings=# 
+ Max numbers of warnings printed to slow query log per
+ statement
  --log-slow-min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that
@@ -550,7 +558,8 @@ The following specify which files/extra groups are read (specified before remain
  (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
  Verbosity level for the slow log. Any combination of: 
- innodb, query_plan, explain, engine, full
+ innodb, query_plan, explain, engine, warnings, full
+ Use 'ALL' to set all combinations.
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).
@@ -668,6 +677,7 @@ The following specify which files/extra groups are read (specified before remain
  Specifies how corrupted tables should be automatically
  repaired. Any combination of: DEFAULT, BACKUP, FORCE, 
  QUICK, BACKUP_ALL, OFF
+ Use 'ALL' to set all combinations.
  --myisam-repair-threads=# 
  If larger than 1, when repairing a MyISAM table all
  indexes will be created in parallel, with one thread per
@@ -696,6 +706,11 @@ The following specify which files/extra groups are read (specified before remain
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
+ --note-verbosity=name 
+ Verbosity level for note-warnings given to the user. See
+ also @@sql_notes.. Any combination of: basic, 
+ unusable_keys, explain
+ Use 'ALL' to set all combinations.
  --old               Use compatible behavior from previous MariaDB version.
  See also --old-mode
  --old-alter-table[=name] 
@@ -707,6 +722,7 @@ The following specify which files/extra groups are read (specified before remain
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM
+ Use 'ALL' to set all combinations.
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
@@ -749,6 +765,10 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
+ --optimizer-max-sel-args=# 
+ The maximum number of SEL_ARG objects created when
+ optimizing a range. If more objects would be needed, the
+ range will not be used by the optimizer.
  --optimizer-prune-level=# 
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
@@ -1358,6 +1378,7 @@ The following specify which files/extra groups are read (specified before remain
  variable is empty, no conversions are allowed and it is
  expected that the types match exactly. Any combination
  of: ALL_LOSSY, ALL_NON_LOSSY
+ Use 'ALL' to set all combinations.
  --slow-launch-time=# 
  If creating the thread takes longer than this value (in
  seconds), the Slow_launch_threads counter will be
@@ -1388,6 +1409,7 @@ The following specify which files/extra groups are read (specified before remain
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH, 
  EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT, 
  TIME_ROUND_FRACTIONAL
+ Use 'ALL' to set all combinations.
  --sql-safe-updates  If set to 1, UPDATEs and DELETEs need either a key in the
  WHERE clause, or a LIMIT clause, or else they will
  aborted. Prevents the common mistake of accidentally
@@ -1498,6 +1520,7 @@ The following specify which files/extra groups are read (specified before remain
  --time-format=name  The TIME format (ignored)
  --tls-version=name  TLS protocol version for secure connections.. Any
  combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
+ Use 'ALL' to set all combinations.
  --tmp-disk-table-size=# 
  Max size for data for an internal temporary on-disk
  MyISAM or Aria table.
@@ -1679,6 +1702,7 @@ log-slave-updates FALSE
 log-slow-admin-statements TRUE
 log-slow-disabled-statements sp
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log-slow-max-warnings 10
 log-slow-min-examined-row-limit 0
 log-slow-query FALSE
 log-slow-query-time 10
@@ -1736,6 +1760,7 @@ net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
+note-verbosity basic,explain
 old FALSE
 old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
@@ -1750,6 +1775,7 @@ optimizer-key-copy-cost 0.015685
 optimizer-key-lookup-cost 0.435777
 optimizer-key-next-find-cost 0.082347
 optimizer-max-sel-arg-weight 32000
+optimizer-max-sel-args 16000
 optimizer-prune-level 2
 optimizer-row-copy-cost 0.060866
 optimizer-row-lookup-cost 0.130839

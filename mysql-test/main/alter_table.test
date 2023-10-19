@@ -2370,6 +2370,32 @@ drop table t1;
 --echo #
 
 --echo #
+--echo # MDEV-32449 Server crashes in Alter_info::add_stat_drop_index upon CREATE TABLE
+--echo #
+
+CREATE TABLE t1 (
+  `altcol1` blob DEFAULT '',
+  KEY `altcol1` (`altcol1`(2300))
+) ROW_FORMAT=PAGE, ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY h (`altcol1`) REFERENCES t1 (`altcol1`) ON UPDATE SET DEFAULT, ALGORITHM=COPY;
+create or replace table t2 like t1;
+show create table t1;
+show create table t2;
+drop table t1,t2;
+
+--echo # Another test for MDEV-32449
+
+CREATE TABLE t1 (a POINT, b POINT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t (b);
+CREATE TEMPORARY TABLE t2 LIKE t1;
+DROP TEMPORARY TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+--echo #
 --echo # MDEV-26767 Server crashes when rename table and alter storage engine
 --echo #
 --error ER_NO_SUCH_TABLE

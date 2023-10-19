@@ -31,7 +31,7 @@ Created April 08, 2011 Vasil Dimov
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
-#include "buf0buf.h"
+#include "buf0rea.h"
 #include "buf0dump.h"
 #include "dict0dict.h"
 #include "os0file.h"
@@ -698,7 +698,9 @@ static void buf_dump_load_func(void *)
 #ifdef WITH_WSREP
 		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
+			srv_thread_pool->set_concurrency(srv_n_read_io_threads);
 			buf_load();
+			srv_thread_pool->set_concurrency();
 #ifdef WITH_WSREP
 		}
 #endif /* WITH_WSREP */
