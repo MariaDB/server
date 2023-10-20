@@ -872,10 +872,6 @@ int ha_spider::external_lock(
 
   if (lock_type == F_UNLCK)
   {
-    if (sql_command != SQLCOM_UNLOCK_TABLES)
-    {
-      DBUG_RETURN(0); /* Unlock remote tables only by UNLOCK TABLES. */
-    }
     if (!trx->locked_connections)
     {
       DBUG_RETURN(0); /* No remote table actually locked by Spider */
@@ -899,12 +895,12 @@ int ha_spider::external_lock(
 
   if (!partition_handler || !partition_handler->handlers)
   {
-    DBUG_RETURN(lock_tables()); /* Non-partitioned table */
+    DBUG_RETURN(lock_tables(lock_type)); /* Non-partitioned table */
   }
 
   for (uint i= 0; i < partition_handler->no_parts; ++i)
   {
-    if (unlikely((error_num= partition_handler->handlers[i]->lock_tables())))
+    if (unlikely((error_num= partition_handler->handlers[i]->lock_tables(lock_type))))
     {
       DBUG_RETURN(error_num);
     }
@@ -11876,7 +11872,7 @@ int ha_spider::append_lock_tables_list()
   DBUG_RETURN(0);
 }
 
-int ha_spider::lock_tables()
+int ha_spider::lock_tables(int lock_type)
 {
   int error_num, roop_count;
   DBUG_ENTER("ha_spider::lock_tables");
@@ -11898,7 +11894,7 @@ int ha_spider::lock_tables()
         conn_link_idx, roop_count, share->link_count,
         SPIDER_LINK_STATUS_RECOVERY)
     ) {
-      if (wide_handler->sql_command != SQLCOM_UNLOCK_TABLES)
+      if (lock_type != F_UNLCK)
       {
         DBUG_PRINT("info",("spider conns[%d]->join_trx=%u",
           roop_count, conns[roop_count]->join_trx));
@@ -11965,7 +11961,7 @@ int ha_spider::lock_tables()
         }
         if (conns[roop_count]->table_lock == 2)
           conns[roop_count]->table_lock = 1;
-      } else if (wide_handler->sql_command == SQLCOM_UNLOCK_TABLES ||
+      } else if (lock_type == F_UNLCK ||
         spider_param_internal_unlock(wide_handler->trx->thd) == 1)
       {
         if (conns[roop_count]->table_lock == 1)
