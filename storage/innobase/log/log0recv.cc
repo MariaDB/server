@@ -3559,7 +3559,8 @@ completed:
 	} else if (checkpoint_lsn != flush_lsn) {
 		ut_ad(!srv_log_file_created);
 
-		if (checkpoint_lsn + sizeof_checkpoint < flush_lsn) {
+		if (checkpoint_lsn + sizeof_checkpoint
+		    + log_sys.framing_size() < flush_lsn) {
 			ib::warn()
 				<< "Are you sure you are using the right "
 				<< LOG_FILE_NAME

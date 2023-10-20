@@ -702,7 +702,7 @@ unused_undo:
      snprintf(name, sizeof(name),
               "%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
      ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
-     if (!space_id || space_id == SRV_SPACE_ID_UPPER_BOUND)
+     if (!space_id || space_id == ULINT_UNDEFINED)
        break;
      ++srv_undo_tablespaces_open;
   }
