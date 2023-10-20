@@ -22,7 +22,6 @@ call mtr.add_suppression(" '\..test.t1'");
 set @save_table_open_cache=@@table_open_cache;
 set global table_open_cache=256;
 set global table_definition_cache=400;
-drop procedure if exists p_create;
 create procedure p_create()
 begin
 declare i int default 1;
@@ -44,13 +43,13 @@ end while;
 end|
 call p_create();
 drop procedure p_create;
+$lock;
 connection default;
 #
 # We have to disable the ps-protocol, to avoid
 # "Prepared statement needs to be re-prepared" errors
 # -- table def versions change all the time with full table cache.
 #
-drop table if exists t1, t1_mrg, t1_copy;
 #
 # Prepare a MERGE engine table, that refers to a corrupted
 # child.
@@ -127,7 +126,7 @@ test.t1	check	error	Record-count is not ok; is 2   Should be: 1
 test.t1	check	warning	Found 2 key parts. Should be: 1
 test.t1	check	error	Corrupt
 # At this point we have a corrupt t1
-set autocommit = 0;
+start transaction;
 select * from t2;
 a
 1
@@ -146,7 +145,6 @@ ALTER TABLE t2 ADD val INT;
 connection default;
 # With fix we should have alter table waiting for t2 lock here.
 ROLLBACK;
-SET autocommit = 1;
 connection con2;
 connection default;
 disconnect con2;

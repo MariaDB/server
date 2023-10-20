@@ -3616,7 +3616,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     /* The user specified fields: check that structure is ok */
-    if (check_sequence_fields(thd->lex, &alter_info->create_list))
+    if (check_sequence_fields(thd->lex, &alter_info->create_list,
+                              alter_info->db, alter_info->table_name))
       DBUG_RETURN(TRUE);
   }
 
@@ -12082,6 +12083,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   int res= 0;
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+  ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
   if (used_engine)
   {
@@ -12120,6 +12122,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     copy.
   */
   Alter_info alter_info(lex->alter_info, thd->mem_root);
+
+#ifdef WITH_WSREP
+  // If CREATE TABLE AS SELECT and wsrep_on
+  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+#endif
 
   if (unlikely(thd->is_fatal_error))
   {
@@ -12197,15 +12204,17 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #endif
 
 #ifdef WITH_WSREP
-  if (select_lex->item_list.elements && // With SELECT
-      WSREP(thd) && thd->variables.wsrep_trx_fragment_size > 0)
+  if (wsrep_ctas)
   {
-    my_message(
+    if (thd->variables.wsrep_trx_fragment_size > 0)
+    {
+      my_message(
         ER_NOT_ALLOWED_COMMAND,
         "CREATE TABLE AS SELECT is not supported with streaming replication",
         MYF(0));
-    res= 1;
-    goto end_with_restore_list;
+      res= 1;
+      goto end_with_restore_list;
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -12235,7 +12244,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
      */
     if (thd->query_name_consts && mysql_bin_log.is_open() &&
-        thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        binlog_format == BINLOG_FORMAT_STMT &&
         !mysql_bin_log.is_query_in_union(thd, thd->query_id))
     {
       List_iterator_fast<Item> it(select_lex->item_list);
@@ -12376,7 +12385,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
                                          &create_info)
 	  {
 	    WSREP_WARN("CREATE TABLE isolation failure");
-	    DBUG_RETURN(true);
+            res= true;
+            goto end_with_restore_list;
 	  }
 #endif /* WITH_WSREP */
         }

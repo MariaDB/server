@@ -371,7 +371,28 @@ public:
   class Lex_for_loop: public Lex_for_loop_st
   {
   public:
-    Lex_for_loop() { init(); }
+    /*
+      The label poiting to the body start,
+      either explicit or automatically generated.
+      Used during generation of "ITERATE loop_label"
+      to check if "loop_label" is a FOR loop label.
+      - In case of a FOR loop, some additional code
+        (cursor fetch or iteger increment) is generated before
+        the backward jump to the beginning of the loop body.
+      - In case of other loop types (WHILE, REPEAT)
+        only the jump is generated.
+    */
+    const sp_label *m_start_label;
+
+    Lex_for_loop()
+     :m_start_label(NULL)
+    { Lex_for_loop_st::init(); }
+
+    Lex_for_loop(const Lex_for_loop_st &for_loop, const sp_label *start)
+     :m_start_label(start)
+    {
+      Lex_for_loop_st::operator=(for_loop);
+    }
   };
 
 public:
@@ -679,9 +700,9 @@ public:
 
   void set_for_loop(const Lex_for_loop_st &for_loop)
   {
-    m_for_loop.init(for_loop);
+    m_for_loop= Lex_for_loop(for_loop, last_label());
   }
-  const Lex_for_loop_st &for_loop()
+  const Lex_for_loop &for_loop()
   {
     return m_for_loop;
   }

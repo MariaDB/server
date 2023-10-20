@@ -90,3 +90,46 @@ connection default;
 disconnect locker;
 DROP TABLE t1,t3;
 --enable_service_connection
+
+--echo #
+--echo # MDEV-28820 MyISAM wrong server status flags
+--echo #
+# MyISAM alone doesn't start a transaction or takes transactional MDL
+create table t1 (a int);
+set autocommit=0;
+select @@in_transaction;
+select * from t1;
+select @@in_transaction;
+connect foo,localhost,root;
+drop table t1;
+connection default;
+set autocommit=1;
+
+# MyISAM in a transaction (started by InnoDB) takes transactional MDL all right
+create table t1 (a int);
+create table t2 (b int) engine=innodb;
+set autocommit=0;
+select @@in_transaction;
+select * from t2;
+select @@in_transaction;
+select * from t1;
+connection foo;
+send drop table t1;
+connection default;
+let $wait_condition=
+  select count(*) > 0 from information_schema.processlist
+  where state = "Waiting for table metadata lock";
+--source include/wait_condition.inc
+select * from t1;
+commit;
+
+connection foo;
+reap;
+disconnect foo;
+connection default;
+set autocommit=default;
+drop table t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

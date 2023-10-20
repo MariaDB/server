@@ -492,7 +492,7 @@ done
 
 if test -n "$user"
 then
-  if test -z "$srcdir" -a "$in_rpm" -eq 0
+  if test -z "$srcdir" -a "$in_rpm" -eq 0 -a -d "$pamtooldir/auth_pam_tool_dir"
   then
     chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool" && \
     chmod 04755 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"

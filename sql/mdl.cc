@@ -262,6 +262,12 @@ const char *dbug_print_mdl(MDL_ticket *mdl_ticket)
 }
 
 
+const char *dbug_print(MDL_ticket *mdl_ticket)
+{
+  return dbug_print_mdl(mdl_ticket);
+}
+
+
 static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
 {
   String *tmp= (String*) arg;
@@ -276,6 +282,7 @@ static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
 const char *mdl_dbug_print_locks()
 {
   thread_local String tmp;
+  tmp.length(0);
   mdl_iterate(mdl_dbug_print_lock, (void*) &tmp);
   return tmp.c_ptr();
 }

@@ -32,6 +32,9 @@
 #include "sql_admin.h"
 #include "sql_statistics.h"
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif
 
 const LEX_CSTRING msg_status= {STRING_WITH_LEN("status")};
 
@@ -433,6 +436,32 @@ dbug_err:
   return open_error;
 }
 
+#ifdef WITH_WSREP
+/** RAII class for temporarily disable wsrep_on in the connection. */
+class Disable_wsrep_on_guard
+{
+ public:
+  /**
+    @param thd     - pointer to the context of connection in which
+                     wsrep_on mode needs to be disabled.
+    @param disable - true if wsrep_on should be disabled
+  */
+  explicit Disable_wsrep_on_guard(THD *thd, bool disable)
+    : m_thd(thd), m_orig_wsrep_on(thd->variables.wsrep_on)
+  {
+    if (disable)
+      thd->variables.wsrep_on= false;
+  }
+
+  ~Disable_wsrep_on_guard()
+  {
+    m_thd->variables.wsrep_on= m_orig_wsrep_on;
+  }
+ private:
+  THD* m_thd;
+  bool m_orig_wsrep_on;
+};
+#endif /* WITH_WSREP */
 
 
 static void send_read_only_warning(THD *thd, const LEX_CSTRING *msg_status,
@@ -483,6 +512,18 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
+
+#ifdef WITH_WSREP
+  /*
+    CACHE INDEX and LOAD INDEX INTO CACHE statements are
+    local operations. Do not replicate them with Galera
+  */
+  const bool disable_wsrep_on= (WSREP(thd) &&
+    (lex->sql_command == SQLCOM_ASSIGN_TO_KEYCACHE ||
+     lex->sql_command == SQLCOM_PRELOAD_KEYS));
+
+  Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
+#endif /* WITH_WSREP */
 
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table",
@@ -548,7 +589,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                 ? MDL_SHARED_NO_READ_WRITE
                                 : lock_type >= TL_WRITE_ALLOW_WRITE
                                 ? MDL_SHARED_WRITE : MDL_SHARED_READ);
-
     if (thd->check_killed())
     {
       open_error= false;

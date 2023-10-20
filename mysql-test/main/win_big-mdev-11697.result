@@ -65,9 +65,9 @@ id	next_id
 9	10
 10	11
 select variable_name,
-case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as exp
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
-variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+variable_name	exp
 SORT_MERGE_PASSES	WITH PASSES
 drop table test_table;

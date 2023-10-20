@@ -4293,6 +4293,11 @@ fts_sync(
 	size_t		fts_cache_size= 0;
 	rw_lock_x_lock(&cache->lock);
 
+	if (cache->total_size == 0) {
+		rw_lock_x_unlock(&cache->lock);
+		return DB_SUCCESS;
+	}
+
 	/* Check if cache is being synced.
 	Note: we release cache lock in fts_sync_write_words() to
 	avoid long wait for the lock by other threads. */

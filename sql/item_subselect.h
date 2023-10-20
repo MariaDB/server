@@ -880,7 +880,11 @@ public:
   virtual bool change_result(Item_subselect *si,
                              select_result_interceptor *result,
                              bool temp= FALSE)= 0;
-  virtual bool no_tables()= 0;
+  virtual bool no_tables() const = 0;
+  /*
+    Return true we can guarantee that the subquery will always return one row.
+  */
+  virtual bool always_returns_one_row() const { return false; }
   virtual bool is_executed() const { return FALSE; }
   /* Check if subquery produced any rows during last query execution */
   virtual bool no_rows() = 0;
@@ -913,7 +917,8 @@ public:
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp);
-  bool no_tables();
+  bool no_tables() const override;
+  bool always_returns_one_row() const override;
   bool may_be_null();
   bool is_executed() const { return executed; }
   bool no_rows();
@@ -950,7 +955,7 @@ public:
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp= FALSE);
-  bool no_tables();
+  bool no_tables() const override;
   bool is_executed() const;
   void force_reexecution();
   bool no_rows();
@@ -1008,7 +1013,7 @@ public:
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp= FALSE);
-  bool no_tables();
+  bool no_tables() const override;
   int index_lookup(); /* TIMOUR: this method needs refactoring. */
   int scan_table();
   bool copy_ref_key(bool skip_constants);
@@ -1153,7 +1158,7 @@ public:
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp= FALSE);
-  bool no_tables();//=>base class
+  bool no_tables() const override;//=>base class
 
 protected:
   /* The engine used to compute the IN predicate. */
@@ -1429,7 +1434,7 @@ public:
                      select_result_interceptor*,
                      bool temp= FALSE)
   { DBUG_ASSERT(FALSE); return false; }
-  bool no_tables() { return false; }
+  bool no_tables() const override { return false; }
   bool no_rows()
   {
     /*

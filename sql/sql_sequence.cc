@@ -187,7 +187,8 @@ void sequence_definition::store_fields(TABLE *table)
     true        Failure
 */
 
-bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
+bool check_sequence_fields(LEX *lex, List<Create_field> *fields,
+                           const LEX_CSTRING db, const LEX_CSTRING table_name)
 {
   Create_field *field;
   List_iterator_fast<Create_field> it(*fields);
@@ -235,8 +236,7 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
 err:
   my_error(ER_SEQUENCE_INVALID_TABLE_STRUCTURE, MYF(0),
-           lex->first_select_lex()->table_list.first->db.str,
-           lex->first_select_lex()->table_list.first->table_name.str, reason);
+           db.str, table_name.str, reason);
   DBUG_RETURN(TRUE);
 }
 

@@ -379,3 +379,67 @@ a	FLOOR(a)	CEILING(a)	TRUNCATE(a,0)	ROUND(a)
 999999999999999999999999999999999999999999999999999999999999	1	1	1	1
 DROP TABLE t2;
 DROP TABLE t1;
+#
+# MDEV-32226 UBSAN shift exponent X is too large for 64-bit type 'long long int' in sql/field.cc
+#
+SET sql_mode='';
+CREATE TABLE t (f SET('1','2','3','4','5','6','7','8','9','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1'));
+Warnings:
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+Note	1291	Column 'f' has duplicated value '1' in SET
+INSERT INTO t VALUES ('0');
+DROP TABLE t;

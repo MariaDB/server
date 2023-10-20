@@ -1,0 +1,16 @@
+#
+# MDEV-32369: Memory leak when executing PS for query with IN subquery
+#
+CREATE TABLE t1 (a VARCHAR(10)) ENGINE=MYISAM;
+CREATE TABLE t2 (b VARCHAR(10) CHARACTER SET utf8) ENGINE=MYISAM;
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+PREPARE stmt FROM "SELECT t1.a FROM t1 WHERE t1.a IN (SELECT t2.b FROM t2)";
+EXECUTE stmt;
+a
+b
+EXECUTE stmt;
+a
+b
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
