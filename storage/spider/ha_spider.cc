@@ -1265,11 +1265,6 @@ int ha_spider::external_lock(
 #ifdef HA_CAN_BULK_ACCESS
   external_lock_cnt++;
 #endif
-  if (
-    lock_type == F_UNLCK &&
-    sql_command != SQLCOM_UNLOCK_TABLES
-  )
-    DBUG_RETURN(0);
   if (store_error_num)
     DBUG_RETURN(store_error_num);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -1306,7 +1301,7 @@ int ha_spider::external_lock(
     ) {
       if (sql_command == SQLCOM_TRUNCATE)
         DBUG_RETURN(0);
-      else if (sql_command != SQLCOM_UNLOCK_TABLES)
+      else if (lock_type != F_UNLCK)
       {
         DBUG_PRINT("info",("spider conns[%d]->join_trx=%u",
           roop_count, conns[roop_count]->join_trx));
@@ -1428,7 +1423,7 @@ int ha_spider::external_lock(
         }
         if (conns[roop_count]->table_lock == 2)
           conns[roop_count]->table_lock = 1;
-      } else if (sql_command == SQLCOM_UNLOCK_TABLES ||
+      } else if (lock_type == F_UNLCK ||
         spider_param_internal_unlock(thd) == 1)
       {
         if (conns[roop_count]->table_lock == 1)
