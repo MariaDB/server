@@ -326,44 +326,44 @@ CREATE TABLE t3 ( c INT );
 INSERT INTO t3 VALUES (4),(5);
 SET optimizer_switch='exists_to_in=on,subquery_cache=off,materialization=on,in_to_exists=off,semijoin=off';
 explain extended
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in ( <materialize> (/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` is not null ), <primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in ( <materialize> (/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` is not null ), <primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `exp` from `test`.`t1`
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
+exp
 1
 1
 SET optimizer_switch='exists_to_in=on,subquery_cache=off';
 explain extended
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in ( <materialize> (/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` is not null ), <primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in ( <materialize> (/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` is not null ), <primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `exp` from `test`.`t1`
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
+exp
 1
 1
 SET optimizer_switch='exists_to_in=off,subquery_cache=off';
 explain extended
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !exists(/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` = 1 limit 1)) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !exists(/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` = 1 limit 1)) AS `exp` from `test`.`t1`
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
+exp
 1
 1
 set optimizer_switch=default;

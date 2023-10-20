@@ -4255,6 +4255,11 @@ fts_sync(
 
 	mysql_mutex_lock(&cache->lock);
 
+	if (cache->total_size == 0) {
+                mysql_mutex_unlock(&cache->lock);
+		return DB_SUCCESS;
+	}
+
 	/* Check if cache is being synced.
 	Note: we release cache lock in fts_sync_write_words() to
 	avoid long wait for the lock by other threads. */

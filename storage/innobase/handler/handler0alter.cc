@@ -8398,8 +8398,17 @@ err_exit:
 	if (ha_alter_info->handler_flags
 			& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) {
 
-		for (uint i= 0; i < table->s->fields; i++) {
+		for (uint i= 0, n_v_col= 0; i < table->s->fields;
+		     i++) {
 			Field* field = table->field[i];
+
+			/* Altering the virtual column is not
+			supported for inplace alter algorithm */
+			if (field->vcol_info) {
+				n_v_col++;
+				continue;
+			}
+
 			for (const Create_field& new_field :
 				ha_alter_info->alter_info->create_list) {
 				if (new_field.field == field) {
@@ -8414,7 +8423,7 @@ err_exit:
 field_changed:
 			const char* col_name= field->field_name.str;
 			dict_col_t *col= dict_table_get_nth_col(
-				m_prebuilt->table, i);
+				m_prebuilt->table, i - n_v_col);
 			if (check_col_is_in_fk_indexes(
 				m_prebuilt->table, col, col_name,
 				span<const dict_foreign_t*>(
