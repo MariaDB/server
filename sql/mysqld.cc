@@ -681,6 +681,21 @@ SHOW_COMP_OPTION have_openssl;
 static std::atomic<char*> shutdown_user;
 #endif //EMBEDDED_LIBRARY
 
+/*
+  The signal handler thread can use various different runtime resources when
+  processing a SIGHUP (e.g. master-info information). On server shutdown,
+  it must be ensured that a SIGHUP has finished processing before performing
+  any cleanup related activities. The atomic
+  signal_handler_using_server_resources indicates if the signal thread is
+  actively using these resources. If so, during close_connections(), before
+  killing any threads, the main thread will cond_wait on
+  COND_signal_handler_thd_sighup; which is signalled when a SIGHUP has
+  finished processing.
+*/
+std::atomic<bool> signal_handler_using_server_resources;
+mysql_mutex_t LOCK_signal_handler_thd_sighup;
+mysql_cond_t COND_signal_handler_thd_sighup;
+
 /* Thread specific variables */
 
 pthread_key(THD*, THR_THD);
@@ -879,7 +894,8 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_error_messages,
   key_LOCK_start_thread,
   key_LOCK_thread_cache,
-  key_PARTITION_LOCK_auto_inc;
+  key_PARTITION_LOCK_auto_inc,
+  key_LOCK_signal_handler_thd_sighup;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_relaylog_end_pos;
 PSI_mutex_key key_LOCK_thread_id;
@@ -938,6 +954,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_prepared_stmt_count, "LOCK_prepared_stmt_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_rpl_status, "LOCK_rpl_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_server_started, "LOCK_server_started", PSI_FLAG_GLOBAL},
+  { &key_LOCK_signal_handler_thd_sighup, "LOCK_signal_handler_thd_sighup", PSI_FLAG_GLOBAL},
   { &key_LOCK_status, "LOCK_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_system_variables_hash, "LOCK_system_variables_hash", PSI_FLAG_GLOBAL},
   { &key_LOCK_stats, "LOCK_stats", PSI_FLAG_GLOBAL},
@@ -1030,7 +1047,8 @@ PSI_cond_key key_BINLOG_COND_xid_list,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_cache, key_COND_flush_thread_cache,
   key_COND_start_thread, key_COND_binlog_send,
-  key_BINLOG_COND_queue_busy;
+  key_BINLOG_COND_queue_busy,
+  key_COND_signal_handler_thd_sighup;
 PSI_cond_key key_RELAYLOG_COND_relay_log_updated,
   key_RELAYLOG_COND_bin_log_updated, key_COND_wakeup_ready,
   key_COND_wait_commit;
@@ -1064,6 +1082,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_cache_status_changed, "Query_cache::COND_cache_status_changed", 0},
   { &key_COND_manager, "COND_manager", PSI_FLAG_GLOBAL},
   { &key_COND_server_started, "COND_server_started", PSI_FLAG_GLOBAL},
+  { &key_COND_signal_handler_thd_sighup, "COND_signal_handler_thd_sighup", PSI_FLAG_GLOBAL},
   { &key_delayed_insert_cond, "Delayed_insert::cond", 0},
   { &key_delayed_insert_cond_client, "Delayed_insert::cond_client", 0},
   { &key_item_func_sleep_cond, "Item_func_sleep::cond", 0},
@@ -1731,6 +1750,23 @@ static void close_connections(void)
     my_sleep(100);
 
   /*
+    If the signal thread is actively using server resources, let it finish
+    before killing any connections
+  */
+  if (signal_handler_using_server_resources)
+  {
+    mysql_mutex_lock(&LOCK_signal_handler_thd_sighup);
+    if (signal_handler_using_server_resources)
+    {
+      timespec abstime;
+      set_timespec(abstime, 10);
+      mysql_cond_timedwait(&COND_signal_handler_thd_sighup,
+                           &LOCK_signal_handler_thd_sighup, &abstime);
+    }
+    mysql_mutex_unlock(&LOCK_signal_handler_thd_sighup);
+  }
+
+  /*
     First signal all threads that it's time to die
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
@@ -2143,6 +2179,8 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_flush_thread_cache);
   mysql_mutex_destroy(&LOCK_server_started);
   mysql_cond_destroy(&COND_server_started);
+  mysql_mutex_destroy(&LOCK_signal_handler_thd_sighup);
+  mysql_cond_destroy(&COND_signal_handler_thd_sighup);
   mysql_mutex_destroy(&LOCK_prepare_ordered);
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
@@ -3291,6 +3329,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
+      signal_handler_using_server_resources= true;
 #if defined(SI_KERNEL)
       if (!abort_loop && origin != SI_KERNEL)
 #elif defined(SI_USER)
@@ -3315,6 +3354,11 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
                             ? fixed_log_output_options : LOG_NONE,
                             opt_log ? fixed_log_output_options : LOG_NONE);
       }
+
+      mysql_mutex_lock(&LOCK_signal_handler_thd_sighup);
+      signal_handler_using_server_resources= false;
+      mysql_cond_broadcast(&COND_signal_handler_thd_sighup);
+      mysql_mutex_unlock(&LOCK_signal_handler_thd_sighup);
       break;
 #ifdef USE_ONE_SIGNAL_HAND
     case THR_SERVER_ALARM:
@@ -4595,6 +4639,9 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_server_started,
                    &LOCK_server_started, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_server_started, &COND_server_started, NULL);
+  mysql_mutex_init(key_LOCK_signal_handler_thd_sighup,
+                   &LOCK_signal_handler_thd_sighup, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_signal_handler_thd_sighup, &COND_signal_handler_thd_sighup, NULL);
   sp_cache_init();
 #ifdef HAVE_EVENT_SCHEDULER
   Events::init_mutexes();
@@ -5252,6 +5299,8 @@ static int init_server_components()
     sql_print_error("Could not initialize semisync.");
     unireg_abort(1);
   }
+
+  signal_handler_using_server_resources= false;
 #endif
 
 #ifndef EMBEDDED_LIBRARY

@@ -1,0 +1,67 @@
+#
+#
+#  TODO
+#
+# References:
+#  MDEV-30260: Slave crashed:reload_acl_and_cache during shutdown
+#
+
+# Binlog format doesn't matter
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+insert into t1 values (1);
+insert into t1 values (1);
+insert into t1 values (1);
+insert into t1 values (1);
+insert into t1 values (1);
+insert into t1 values (1);
+insert into t1 values (1);
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+
+# Make a thread handle SIGHUP
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+        my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+        my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+        my $mysqld_pid = `cat $pid_filename`;
+        chomp($mysqld_pid);
+        system("kill -HUP $mysqld_pid");
+        exit(0);
+EOF
+
+# While we are shutting down
+--send shutdown
+--reap
+
+--source include/wait_until_disconnected.inc
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+
+--source include/rpl_end.inc
+
+--echo # End of test
