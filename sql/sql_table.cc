@@ -5464,7 +5464,14 @@ int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
     if (res)
     {
       DBUG_ASSERT(thd->is_error());
-      /* Drop the table as it wasn't completely done */
+      /*
+        Drop the new table, we were not completely done.
+
+        Temporarily modify table_list to avoid dropping source sequence
+        in CREATE TABLE LIKE <SEQUENCE>.
+      */
+      TABLE_LIST *tail= table_list->next_local;
+      table_list->next_local= NULL;
       if (!mysql_rm_table_no_locks(thd, table_list, 1,
                                    create_info->tmp_table(),
                                    false, true /* Sequence*/,
@@ -5478,6 +5485,7 @@ int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
         */
         res= 2;
       }
+      table_list->next_local= tail;
     }
   }
 
@@ -9438,8 +9446,7 @@ enum fk_column_change_type
   @retval FK_COLUMN_NO_CHANGE    No significant changes are to be done on
                                  foreign key columns.
   @retval FK_COLUMN_DATA_CHANGE  ALTER TABLE might result in value
-                                 change in foreign key column (and
-                                 foreign_key_checks is on).
+                                 change in foreign key column.
   @retval FK_COLUMN_RENAMED      Foreign key column is renamed.
   @retval FK_COLUMN_DROPPED      Foreign key column is dropped.
 */
@@ -9475,7 +9482,18 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
+      /*
+        Field_{num|decimal}::is_equal evaluates to IS_EQUAL_NO where
+        the new_field adds an AUTO_INCREMENT flag on a column due to a
+	limitation in MyISAM/ARIA. For the purposes of FK determination
+        it doesn't matter if AUTO_INCREMENT is there or not.
+      */
+      const uint flags= new_field->flags;
+      new_field->flags&= ~AUTO_INCREMENT_FLAG;
+      const bool equal_result= old_field->is_equal(*new_field);
+      new_field->flags= flags;
+
+      if ((equal_result == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {

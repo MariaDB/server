@@ -301,7 +301,8 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   Query_tables_list query_tables_list_backup;
   TABLE_LIST table_list;                        // For sequence table
   DBUG_ENTER("sequence_insert");
-
+  DBUG_EXECUTE_IF("kill_query_on_sequence_insert",
+                  thd->set_killed(KILL_QUERY););
   /*
     seq is 0 if sequence was created with CREATE TABLE instead of
     CREATE SEQUENCE
