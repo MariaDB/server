@@ -987,7 +987,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       table_map needed_in_prefix= 0;
       do
       {
-        if (keyuse_ext->needed_in_prefix & remaining_tables)
+        if (keyuse_ext->needed_in_prefix &
+            (remaining_tables | this->join->sjm_lookup_tables))
 	{
           keyuse_ext++;
           continue;

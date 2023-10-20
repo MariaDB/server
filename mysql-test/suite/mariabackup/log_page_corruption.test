@@ -49,7 +49,7 @@ corrupt_space_page_id("$schema/t2_corrupted.ibd",
 $last_page_no = extend_space("$schema/t5_corrupted_to_rename.ibd", 1);
 corrupt_space_page_id("$schema/t5_corrupted_to_rename.ibd", $last_page_no);
 
-$last_page_no = extend_space("$schema/t6_corrupted_to_drop.ibd", );
+$last_page_no = extend_space("$schema/t6_corrupted_to_drop.ibd", 1);
 corrupt_space_page_id("$schema/t6_corrupted_to_drop.ibd", $last_page_no);
 EOF
 --source include/start_mysqld.inc
@@ -72,6 +72,21 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=
 --echo # "innodb_corrupted_pages" file must not exist
 --error 1
 --file_exists $corrupted_pages_file
+--rmdir $targetdir
+
+--echo # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option, and the file must contain all corrupted pages info, including those, which are supposed to be absent in the next test due to "DROP TABLE" execution during backup
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$targetdir
+--enable_result_log
+
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
 --rmdir $targetdir
 
 --let after_load_tablespaces=CREATE TABLE test.t4_corrupted_new ENGINE=INNODB SELECT UUID() from test.seq_1_to_10
@@ -134,7 +149,7 @@ $last_page_no = extend_space("$schema/t5_inc_corrupted_to_rename.ibd", 1);
 corrupt_space_page_id("$schema/t5_inc_corrupted_to_rename.ibd", $last_page_no);
 print $fh "$last_page_no\n";
 
-$last_page_no = extend_space("$schema/t6_inc_corrupted_to_drop.ibd", );
+$last_page_no = extend_space("$schema/t6_inc_corrupted_to_drop.ibd", 1);
 corrupt_space_page_id("$schema/t6_inc_corrupted_to_drop.ibd", $last_page_no);
 
 close $fh;
@@ -142,6 +157,23 @@ EOF
 --source include/start_mysqld.inc
 
 --let incdir=$MYSQLTEST_VARDIR/tmp/backup_inc
+
+--echo # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option, and the file must contain all corrupted pages info, including those, which are supposed to be absent in the next test due to "DROP TABLE" execution during backup
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$incdir --incremental-basedir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code
+--disable_result_log
+
+--let corrupted_pages_file = $incdir/innodb_corrupted_pages
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+--remove_file $corrupted_pages_file_filt
+--rmdir $incdir
 
 --let after_load_tablespaces=CREATE TABLE test.t4_inc_corrupted_new ENGINE=INNODB SELECT UUID() from test.seq_1_to_10
 --let add_corrupted_page_for_test_t4_inc_corrupted_new=1

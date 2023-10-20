@@ -47,9 +47,9 @@ IF @auth_root_socket is not null THEN
 
 INSERT INTO global_priv SELECT * FROM tmp_user_nopasswd WHERE @had_user_table=0 AND @auth_root_socket IS NULL;
 INSERT INTO global_priv SELECT * FROM tmp_user_socket WHERE @had_user_table=0 AND @auth_root_socket IS NOT NULL;
-DROP TABLE tmp_user_nopasswd, tmp_user_socket;
 
 CREATE TEMPORARY TABLE tmp_proxies_priv LIKE proxies_priv;
-INSERT INTO tmp_proxies_priv SELECT @current_hostname, 'root', '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
+INSERT INTO tmp_proxies_priv SELECT Host, User, '', '', TRUE, '', now() FROM tmp_user_nopasswd WHERE Host != 'localhost' AND @auth_root_socket IS NULL;
+REPLACE INTO tmp_proxies_priv SELECT @current_hostname, IFNULL(@auth_root_socket, 'root'), '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
 INSERT INTO  proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
-DROP TABLE tmp_proxies_priv;
+DROP TABLE tmp_user_nopasswd, tmp_user_socket, tmp_proxies_priv;

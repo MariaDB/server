@@ -412,14 +412,14 @@ pk1 int, a1 varchar(3), b1 varchar(3), PRIMARY KEY (pk1), KEY(a1), KEY(b1)
 INSERT INTO t1 VALUES (1,'foo','bar'),(2,'bar','foo');
 CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 VARCHAR(3), KEY(a2)) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1,'abc'),(2,'xyz'),(3,'foo');
-SELECT 'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
-'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 )
+SELECT 'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 ) as exp;
+exp
 0
-SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
-'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 )
+SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 ) as exp;
+exp
 1
 EXPLAIN 
-SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 ) as exp;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 2	SUBQUERY	t2	const	PRIMARY,a2	PRIMARY	4	const	1	

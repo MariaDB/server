@@ -4820,6 +4820,12 @@ public:
     type_limits_int_by_unsigned_flag(bool unsigned_flag) const= 0;
   uint32 max_display_length(const Item *item) const;
   uint32 Item_decimal_notation_int_digits(const Item *item) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items,
+                                       uint nitems) const;
   bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 

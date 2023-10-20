@@ -2584,19 +2584,22 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     if (conv->fix_fields_if_needed(thd, arg))
       return TRUE;
 
-    Query_arena *arena, backup;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
-    if (arena)
+    if (!thd->stmt_arena->is_conventional())
     {
+      Query_arena *arena, backup;
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+
       Item_direct_ref_to_item *ref=
         new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
       if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
       {
-        thd->restore_active_arena(arena, &backup);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
         return TRUE;
       }
       *arg= ref;
-      thd->restore_active_arena(arena, &backup);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       ref->change_item(thd, conv);
     }
     else
@@ -2840,7 +2843,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   {
     init_sql_alloc(&sp_mem_root, "Item_sp", MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
     *sp_query_arena= Query_arena(&sp_mem_root,
-                                 Query_arena::STMT_INITIALIZED_FOR_SP);
+                                 Query_arena::STMT_SP_QUERY_ARGUMENTS);
   }
 
   bool err_status= m_sp->execute_function(thd, args, arg_count,
@@ -8041,7 +8044,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
-        if (!(fld= new (thd->mem_root) Item_field(thd, from_field)))
+        if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,

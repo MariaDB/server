@@ -1,4 +1,3 @@
-drop table if exists t1;
 create table t1 (a char(10), tmsp timestamp);
 insert into t1 set a = 1;
 insert delayed into t1 set a = 2;
@@ -259,7 +258,6 @@ INSERT DELAYED INTO t1 SET b= b();
 ERROR 42000: FUNCTION test.b does not exist
 DROP TABLE t1;
 End of 5.0 tests
-DROP TABLE IF EXISTS t1,t2;
 SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';
 CREATE TABLE `t1` (
 `id` int(11) PRIMARY KEY auto_increment,
@@ -293,7 +291,6 @@ set global low_priority_updates = 1;
 select @@global.low_priority_updates;
 @@global.low_priority_updates
 1
-drop table if exists t1;
 create table t1 (a int, b int);
 insert into t1 values (1,1);
 lock table t1 read;
@@ -322,7 +319,6 @@ set global low_priority_updates = @old_delayed_updates;
 #
 # Bug #47682 strange behaviour of INSERT DELAYED
 #
-DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (f1 integer);
 CREATE TABLE t2 (f1 integer);
 FLUSH TABLES WITH READ LOCK;
@@ -335,8 +331,6 @@ End of 5.1 tests
 #
 # Bug #47274 assert in open_table on CREATE TABLE <already existing>
 #
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
 CREATE TABLE t1 ( f1 INTEGER AUTO_INCREMENT, PRIMARY KEY (f1));
 # The following CREATE TABLEs before gave an assert.
 INSERT DELAYED t1 VALUES (4);
@@ -352,14 +346,12 @@ CREATE TABLE t2 (f1 INTEGER);
 INSERT DELAYED t1 VALUES (7);
 CREATE TABLE t1 LIKE t2;
 ERROR 42S01: Table 't1' already exists
-DROP TABLE t2;
-DROP TABLE t1;
+DROP TABLE t2, t1;
 #
 # Bug#54332 Deadlock with two connections doing LOCK TABLE+INSERT DELAYED
 #
 # This test is not supposed to work under --ps-protocol since
 # INSERT DELAYED doesn't work under LOCK TABLES with this protocol.
-DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 CREATE TABLE t3 (a INT);
@@ -450,7 +442,6 @@ DROP TABLE t1, t2, t3;
 #
 connect  con1,localhost,root,,;
 connection default;
-drop table if exists t1, t2, tm;
 create table t1(a int);
 create table t2(a int);
 create table tm(a int) engine=merge union=(t1, t2);

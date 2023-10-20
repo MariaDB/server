@@ -160,7 +160,7 @@ INSERT INTO t1 VALUES
 --echo
 --echo # Execute select with invalid timestamp, desc ordering
 SELECT *
-FROM t1 
+FROM t1 FORCE INDEX(PRIMARY)
 WHERE ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00' 
 ORDER BY ts DESC
 LIMIT 2; 
@@ -169,7 +169,7 @@ LIMIT 2;
 --echo # Should use index condition
 EXPLAIN
 SELECT *
-FROM t1 
+FROM t1 FORCE INDEX(PRIMARY)
 WHERE ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00' 
 ORDER BY ts DESC
 LIMIT 2; 
@@ -456,6 +456,7 @@ INSERT INTO t2 VALUES (11,1);
 INSERT INTO t2 VALUES (12,2);
 INSERT INTO t2 VALUES (15,4);
 
+analyze table t1,t2 persistent for all;
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='semijoin=off';
 
@@ -725,6 +726,7 @@ CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
 INSERT INTO t2 VALUES
   ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
 
+analyze table t1,t2 persistent for all;
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)

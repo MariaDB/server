@@ -1960,15 +1960,16 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 static bool trans_cannot_safely_rollback(THD *thd, bool all)
 {
   DBUG_ASSERT(ending_trans(thd, all));
+  ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
 
   return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
           (trans_has_updated_non_trans_table(thd) &&
-           thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT) ||
+           binlog_format == BINLOG_FORMAT_STMT) ||
           (thd->transaction.all.has_modified_non_trans_temp_table() &&
-           thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED) ||
+           binlog_format == BINLOG_FORMAT_MIXED) ||
           (trans_has_updated_non_trans_table(thd) &&
            ending_single_stmt_trans(thd,all) &&
-           thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED));
+           binlog_format == BINLOG_FORMAT_MIXED));
 }
 
 
@@ -2117,6 +2118,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   }
   else if (likely(!error))
   {  
+    ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
     if (ending_trans(thd, all) && trans_cannot_safely_rollback(thd, all))
       error= binlog_rollback_flush_trx_cache(thd, all, cache_mngr);
     /*
@@ -2133,9 +2135,9 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
              (!(thd->transaction.stmt.has_created_dropped_temp_table() &&
                 !thd->is_current_stmt_binlog_format_row()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
-               thd->wsrep_binlog_format() != BINLOG_FORMAT_STMT) &&
+               binlog_format != BINLOG_FORMAT_STMT) &&
               (!thd->transaction.stmt.has_modified_non_trans_temp_table() ||
-               thd->wsrep_binlog_format() != BINLOG_FORMAT_MIXED)))
+               binlog_format != BINLOG_FORMAT_MIXED)))
       error= binlog_truncate_trx_cache(thd, cache_mngr, all);
   }
 

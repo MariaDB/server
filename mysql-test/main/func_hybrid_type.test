@@ -470,10 +470,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
---enable_view_protocol
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END as exp;
 SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
 SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
 

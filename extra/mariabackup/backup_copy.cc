@@ -1984,8 +1984,10 @@ copy_back()
 				 dst_dir, i);
 			unlink(filename);
 		}
-	} else if (!(ret = copy_or_move_file(ds_tmp, "ib_logfile0", "ib_logfile0",
-					     dst_dir, 1))) {
+	}
+
+	if (!(ret = copy_or_move_file(ds_tmp, "ib_logfile0", "ib_logfile0",
+				      dst_dir, 1))) {
 		goto cleanup;
 	}
 	ds_destroy(ds_tmp);

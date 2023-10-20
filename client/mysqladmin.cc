@@ -431,6 +431,7 @@ int main(int argc,char *argv[])
 	if (error > 0)
 	  break;
 
+        error= -error; /* don't exit with negative error codes */
         /*
           Command was well-formed, but failed on the server. Might succeed
           on retry (if conditions on server change etc.), but needs --force
@@ -1204,24 +1205,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       else
       if (mysql_query(mysql,buff))
       {
-	if (mysql_errno(mysql)!=1290)
-	{
-	  my_printf_error(0,"unable to change password; error: '%s'",
-			  error_flags, mysql_error(mysql));
-	}
-	else
-	{
-	  /*
-	    We don't try to execute 'update mysql.user set..'
-	    because we can't perfectly find out the host
-	   */
-	  my_printf_error(0,"\n"
-			  "You cannot use 'password' command as mysqld runs\n"
-			  " with grant tables disabled (was started with"
-			  " --skip-grant-tables).\n"
-			  "Use: \"mysqladmin flush-privileges password '*'\""
-			  " instead", error_flags);
-	}
+        my_printf_error(0,"unable to change password; error: '%s'",
+                        error_flags, mysql_error(mysql));
         ret = -1;
       }
 password_done:

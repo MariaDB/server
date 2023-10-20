@@ -7487,9 +7487,10 @@ void Field_string::sql_type(String &res) const
 */
 void Field_string::sql_rpl_type(String *res) const
 {
-  CHARSET_INFO *cs=charset();
   if (Field_string::has_charset())
   {
+    CHARSET_INFO *cs= res->charset();
+    DBUG_ASSERT(cs->mbminlen == 1);
     size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
                                       res->alloced_length(),
                                       "char(%u octets) character set %s",
@@ -7978,9 +7979,10 @@ void Field_varstring::sql_type(String &res) const
 */
 void Field_varstring::sql_rpl_type(String *res) const
 {
-  CHARSET_INFO *cs=charset();
   if (Field_varstring::has_charset())
   {
+    CHARSET_INFO *cs= res->charset();
+    DBUG_ASSERT(cs->mbminlen == 1);
     size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
                                       res->alloced_length(),
                                       "varchar(%u octets) character set %s",
@@ -9568,13 +9570,13 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
     /* This is for reading numbers with LOAD DATA INFILE */
     char *end;
     tmp=my_strntoull(cs,from,length,10,&end,&err);
-    if (err || end != from+length ||
-	tmp > (ulonglong) (((longlong) 1 << typelib->count) - (longlong) 1))
+    if (err || end != from + length)
     {
-      tmp=0;      
       set_warning(WARN_DATA_TRUNCATED, 1);
-      err= 1;
+      store_type(0);
+      return 1;
     }
+    return Field_set::store((longlong) tmp, true/*unsigned*/);
   }
   else if (got_warning)
     set_warning(WARN_DATA_TRUNCATED, 1);
