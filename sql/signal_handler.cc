@@ -170,11 +170,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   my_safe_printf_stderr("[ERROR] mysqld got " SIGNAL_FMT " ;\n",sig);
 
   my_safe_printf_stderr("%s",
-    "This could be because you hit a bug. It is also possible that this binary\n"
-    "or one of the libraries it was linked against is corrupt, improperly built,\n"
-    "or misconfigured. This error can also be caused by malfunctioning hardware.\n\n");
-
-  my_safe_printf_stderr("%s",
+                        "Sorry, we probably made a mistake, and this is a bug.\n\n"
+                        "Your assistance in bug reporting will enable us to fix this for the next release.\n"
                         "To report this bug, see https://mariadb.com/kb/en/reporting-bugs\n\n");
 
   my_safe_printf_stderr("%s",
@@ -306,7 +303,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   }
   my_safe_printf_stderr("%s",
     "The manual page at "
-    "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/ contains\n"
+    "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mariadbd/ contains\n"
     "information that should help you find out what is causing the crash.\n");
 
 #endif /* HAVE_STACKTRACE */
