@@ -569,3 +569,14 @@ drop table t1;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-31112 vcol circular references lead to stack overflow
+#
+create table t (a int, c int as (a));
+alter table t alter column c drop default;
+alter table t modify column a int as (c) stored;
+ERROR 01000: Expression for field `a` is referring to uninitialized field `c`
+drop table t;
+#
+# End of 10.4 tests
+#
