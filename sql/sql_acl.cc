@@ -12746,6 +12746,8 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   char scramble_buf[SCRAMBLE_LENGTH];
   char *end= buff;
   DBUG_ENTER("send_server_handshake_packet");
+  DBUG_PRINT("info", ("send_server_handshake STARTING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
 
   *end++= protocol_version;
 
@@ -12759,6 +12761,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   if (ssl_acceptor_fd)
   {
     thd->client_capabilities |= CLIENT_SSL;
+    thd->client_capabilities |= CLIENT_CAN_SSL_V2;  /* See parse_client_handshake_packet */
   }
 
   if (data_len)
@@ -13237,10 +13240,13 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
   char *end;
+  DBUG_ENTER("parse_client_handshake_packet");
   DBUG_ASSERT(mpvio->status == MPVIO_EXT::FAILURE);
+  DBUG_PRINT("info", ("parse_client_handshake STARTING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
 
   if (pkt_len < MIN_HANDSHAKE_SIZE)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   /*
     Protocol buffer is guaranteed to always end with \0. (see my_net_read())
@@ -13248,34 +13254,35 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
 
-  ulonglong client_capabilities= uint2korr(net->read_pos);
-  compile_time_assert(sizeof(client_capabilities) >= 8);
-  if (client_capabilities & CLIENT_PROTOCOL_41)
-  {
-    if (pkt_len < 32)
-      return packet_error;
-    client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
-    if (!(client_capabilities & CLIENT_MYSQL))
-    {
-      // it is client with mariadb extensions
-      ulonglong ext_client_capabilities=
-        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
-      client_capabilities|= ext_client_capabilities;
-    }
-  }
+  ushort first_two_bytes_of_client_capabilities= uint2korr(net->read_pos);
+  bool pre_tls_client_packet_is_ssl_v2= (pkt_len==2 && first_two_bytes_of_client_capabilities == CLIENT_SSL);
+  bool pre_tls_client_packet_wants_ssl= !!(first_two_bytes_of_client_capabilities & CLIENT_SSL);
 
-  /* Disable those bits which are not supported by the client. */
-  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
-  thd->client_capabilities&= client_capabilities;
-
-  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
-  if (thd->client_capabilities & CLIENT_SSL)
+  if (pre_tls_client_packet_wants_ssl)
   {
+    /* Client wants to use TLS. This SSLRequest packet, sent in
+     * plaintext before the TLS handshake, is basically just a vestige
+     * that triggers the server (us) to start the TLS handshake.
+     *
+     * We ignore everything else in this pre-TLS packet, even though
+     * older clients send much of the same information that they will
+     * re-send over the TLS channel.
+     *
+     * This pre-TLS packet is untrustworthy AND if the server acts on
+     * its content, that FORCES the client to send more information
+     * in the clear.
+     */
+
     unsigned long errptr __attribute__((unused));
+    if (pre_tls_client_packet_is_ssl_v2)
+        DBUG_PRINT("info", ("client sent SSL_V2 SSLRequest packet (2 bytes with only TLS/SSL bit set)"));
+    else
+        DBUG_PRINT("info", ("client sent old SSLRequest packet (%ld bytes including TLS/SSL bit; capabilities & 0xffff == 0x%04x)",
+                            pkt_len, first_two_bytes_of_client_capabilities));
 
     /* Do the SSL layering. */
     if (!ssl_acceptor_fd)
-      return packet_error;
+      DBUG_RETURN(packet_error);
 
     DBUG_PRINT("info", ("IO layer change in progress..."));
     mysql_rwlock_rdlock(&LOCK_ssl_refresh);
@@ -13286,37 +13293,91 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     if(ssl_ret)
     {
       DBUG_PRINT("error", ("Failed to accept new SSL connection"));
-      return packet_error;
+      DBUG_RETURN(packet_error);
     }
 
+    DBUG_PRINT("info", ("Immediately following IO layer change: vio_type=%s",
+                        safe_vio_type_name(thd->net.vio)));
+
+    /* Now we are using TLS. The client will resend its REAL
+     * handshake packet, containing complete credentials and
+     * capability information.
+     */
     DBUG_PRINT("info", ("Reading user information over SSL layer"));
     pkt_len= my_net_read(net);
     if (unlikely(pkt_len == packet_error || pkt_len < NORMAL_HANDSHAKE_SIZE))
     {
       DBUG_PRINT("error", ("Failed to read user information (pkt_len= %lu)",
 			   pkt_len));
-      return packet_error;
+      DBUG_RETURN(packet_error);
+    }
+
+    /* Re-load the FIRST TWO BYTES of the capabilities from the packet sent over TLS. */
+    first_two_bytes_of_client_capabilities = uint2korr(net->read_pos);
+  }
+
+  ulonglong client_capabilities= (ulonglong) first_two_bytes_of_client_capabilities;
+  compile_time_assert(sizeof(client_capabilities) >= 8);
+
+  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
+  if (client_capabilities & CLIENT_PROTOCOL_41)
+  {
+    if (pkt_len < 32)
+      DBUG_RETURN(packet_error);
+    client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
+    if (!(client_capabilities & CLIENT_MYSQL))
+    {
+      // it is client with mariadb extensions
+      ulonglong ext_client_capabilities=
+        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
+      client_capabilities|= ext_client_capabilities;
     }
   }
+  bool post_tls_client_packet_indicates_ssl_v2= (client_capabilities & CLIENT_CAN_SSL_V2);
+
+  if (pre_tls_client_packet_wants_ssl
+      && post_tls_client_packet_indicates_ssl_v2
+      && !pre_tls_client_packet_is_ssl_v2)
+  {
+    /* 1. We told the client in our server greeting that we support the pre-TLS client packet containing only the TLS/SSL flag,
+     *    CLIENT_CAN_SSL_V2. [Server greeting packet is sent in the clear, may be MITM'ed en route to the client.]
+     * 2. The client told us in its pre-TLS SSLRequest packet that it wants to use SSL. (CLIENT_SSL flag)
+     * 3. The client told us in its post-TLS packet that it too supports the pre-TLS client packet containing only the TLS/SSL flag,
+     *    CLIENT_CAN_SSL_V2. [We received this information via TLS; assuming the client validated our server certificate
+     *    to avoid a 2-sided TLS MITM, we know that this packet is authentically from the client.]
+     * 4. Nevertheless, the client DID NOT SEND us an SSL_V2-style SSLRequest packet.
+     *
+     * The only way this can happen is if the client is being downgraded by an active MITM attacker which
+     * disables the CLIENT_CAN_SSL_V2 bit in our server greeting packet.
+     */
+    sql_print_warning("Aborting connection %lld because it is being actively MITM'ed to downgrade TLS security (attacker "
+                      "is stripping the CLIENT_CAN_SSL_V2 bit from our server capabilities)",
+                      thd->thread_id);
+    DBUG_RETURN(packet_error);
+  }
+
+  /* Disable those bits which are not supported by the client. */
+  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
+  thd->client_capabilities&= client_capabilities;
 
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
     DBUG_PRINT("info", ("client_character_set: %d", (uint) net->read_pos[8]));
     if (thd_init_client_charset(thd, (uint) net->read_pos[8]))
-      return packet_error;
+      DBUG_RETURN(packet_error);
     end= (char*) net->read_pos+32;
   }
   else
   {
     if (pkt_len < 5)
-      return packet_error;
+      DBUG_RETURN(packet_error);
     thd->max_client_packet_length= uint3korr(net->read_pos+2);
     end= (char*) net->read_pos+5;
   }
 
   if (end >= (char*) net->read_pos+ pkt_len +2)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   if (thd->client_capabilities & CLIENT_IGNORE_SPACE)
     thd->variables.sql_mode|= MODE_IGNORE_SPACE;
@@ -13324,7 +13385,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     thd->variables.net_wait_timeout= thd->variables.net_interactive_timeout;
 
   if (end >= (char*) net->read_pos+ pkt_len +2)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   if ((thd->client_capabilities & CLIENT_TRANSACTIONS) &&
       opt_using_transactions)
@@ -13359,7 +13420,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     len= safe_net_field_length_ll((uchar**)&passwd,
                                       net->read_pos + pkt_len - (uchar*)passwd);
     if (len > pkt_len)
-      return packet_error;
+      DBUG_RETURN(packet_error);
   }
 
   passwd_len= (size_t)len;
@@ -13368,7 +13429,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   if (passwd == NULL ||
       passwd + passwd_len + MY_TEST(db) > (char*) net->read_pos + pkt_len)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   /* strlen() can't be easily deleted without changing protocol */
   db_len= safe_strlen(db);
@@ -13383,7 +13444,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   if (unlikely(thd->copy_with_error(system_charset_info,
                                     (LEX_STRING*) &mpvio->db,
                                     thd->charset(), db, db_len)))
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
                              system_charset_info, user, user_len,
@@ -13410,7 +13471,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   my_free((char*) sctx->user);
   if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))
-    return packet_error; /* The error is set by my_strdup(). */
+    DBUG_RETURN(packet_error); /* The error is set by my_strdup(). */
 
 
   /*
@@ -13424,12 +13485,12 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   {
     // if mysqld's been started with --skip-grant-tables option
     mpvio->status= MPVIO_EXT::SUCCESS;
-    return packet_error;
+    DBUG_RETURN(packet_error);
   }
 
   thd->password= passwd_len > 0;
   if (find_mpvio_user(mpvio))
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   if ((thd->client_capabilities & CLIENT_PLUGIN_AUTH) &&
       (client_plugin < (char *)net->read_pos + pkt_len))
@@ -13458,7 +13519,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
                                 mpvio->auth_info.thd->charset()))
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   /*
     if the acl_user needs a different plugin to authenticate
@@ -13475,7 +13536,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
     mpvio->cached_client_reply.plugin= client_plugin;
     mpvio->status= MPVIO_EXT::RESTART;
-    return packet_error;
+    DBUG_RETURN(packet_error);
   }
 
   /*
@@ -13494,16 +13555,17 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     if (send_plugin_request_packet(mpvio,
                                    (uchar*) mpvio->cached_server_packet.pkt,
                                    mpvio->cached_server_packet.pkt_len))
-      return packet_error;
+      DBUG_RETURN(packet_error);
 
     passwd_len= my_net_read(&thd->net);
     passwd= (char*)thd->net.read_pos;
   }
 
   *buff= (uchar*) passwd;
-  return (ulong)passwd_len;
+  DBUG_RETURN((ulong)passwd_len);
 #else
-  return 0;
+  DBUG_ENTER("parse_client_handshake_packet (EMPTY STUB)");
+  DBUG_RETURN(0);
 #endif
 }
 
@@ -13524,6 +13586,8 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
   MPVIO_EXT *mpvio= (MPVIO_EXT *) param;
   int res;
   DBUG_ENTER("server_mpvio_write_packet");
+  DBUG_PRINT("info", ("server_mpvio_write_packet STARTING: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
 
   /* reset cached_client_reply */
   mpvio->cached_client_reply.pkt= 0;
@@ -13570,6 +13634,9 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   MYSQL_SERVER_AUTH_INFO * const ai= &mpvio->auth_info;
   ulong pkt_len;
   DBUG_ENTER("server_mpvio_read_packet");
+  DBUG_PRINT("info", ("server_mpvio_read_packet STARTING: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
+
   if (mpvio->status == MPVIO_EXT::RESTART)
   {
     const char *client_auth_plugin=
@@ -13647,6 +13714,8 @@ done:
   ai->auth_string_length= (ulong) mpvio->acl_user->auth[mpvio->curr_auth].salt.length;
   strmake_buf(ai->authenticated_as, mpvio->acl_user->user.str);
 
+  DBUG_PRINT("info", ("server_mpvio_read_packet FINISHING: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
   DBUG_RETURN((int)pkt_len);
 
 err:
@@ -13655,6 +13724,8 @@ err:
     if (!ai->thd->is_error())
       my_error(ER_HANDSHAKE_ERROR, MYF(0));
   }
+  DBUG_PRINT("info", ("server_mpvio_read_packet FINISHING WITH ERROR: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
   DBUG_RETURN(-1);
 }
 
@@ -13786,18 +13857,26 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   bool unlock_plugin= false;
   plugin_ref plugin= get_auth_plugin(thd, *auth_plugin_name, &unlock_plugin);
 
+  DBUG_ENTER("do_auth_once");
+  DBUG_PRINT("info", ("do_auth_once STARTING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
   mpvio->plugin= plugin;
   mpvio->auth_info.user_name= NULL;
 
   if (plugin)
   {
     st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
+
+    DBUG_PRINT("info", ("auth_plugin_name: %s, interface_version: %d",
+                        auth_plugin_name->str, info->interface_version));
+
     switch (info->interface_version >> 8) {
     case 0x02:
       res= info->authenticate_user(mpvio, &mpvio->auth_info);
       break;
     case 0x01:
       {
+        DBUG_PRINT("info", ("Using compat downgrade for authentication"));
         MYSQL_SERVER_AUTH_INFO_0x0100 compat;
         compat.downgrade(&mpvio->auth_info);
         res= info->authenticate_user(mpvio, (MYSQL_SERVER_AUTH_INFO *)&compat);
@@ -13820,7 +13899,9 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
     res= CR_ERROR;
   }
 
-  return res;
+  DBUG_PRINT("info", ("do_auth_once FINISHING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
+  DBUG_RETURN(res);
 }
 
 enum PASSWD_ERROR_ACTION

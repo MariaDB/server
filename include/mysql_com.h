@@ -274,6 +274,20 @@ enum enum_indicator_type
 /* Client no longer needs EOF packet */
 #define CLIENT_DEPRECATE_EOF (1ULL << 24)
 
+/* This capability is set if:
+ *
+ * - The CLIENT knows how to send a truncated 2-byte SSLRequest
+ *   packet, containing no information other than the CLIENT_SSL flag
+ *   which is necessary to trigger the TLS handshake, and to send its
+ *   complete capability flags and other identifying information after
+ *   the TLS handshake.
+ * - The SERVER knows how to receive this truncated 2-byte SSLRequest
+ *   packet, and to receive the client's complete capability bits
+ *   after the TLS handshake.
+ *
+ */
+#define CLIENT_CAN_SSL_V2    (1ULL << 37)
+
 #define CLIENT_PROGRESS_OBSOLETE  (1ULL << 29)
 #define CLIENT_SSL_VERIFY_SERVER_CERT_OBSOLETE (1ULL << 30)
 /*
