@@ -5339,12 +5339,15 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
 
 @param thd    thread handle
 @param seq    sequence definition
-@retval 0     failure
-@retval 1     success
+@retval false success
+@retval true  failure
 */
 bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
 {
     enum legacy_db_type db_type;
+
+    DBUG_ASSERT(WSREP(thd));
+
     if (thd->lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
     {
       db_type= thd->lex->create_info.db_type->db_type;
@@ -5359,7 +5362,7 @@ bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
     if (db_type != DB_TYPE_INNODB)
     {
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "Galera cluster does support only InnoDB sequences");
+               "non-InnoDB sequences in Galera cluster");
       return(true);
     }
 
@@ -5370,8 +5373,7 @@ bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
         seq->cache)
     {
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "In Galera if you use CACHE you should set INCREMENT BY 0"
-	       " to behave correctly in a cluster");
+               "CACHE without INCREMENT BY 0 in Galera cluster");
       return(true);
     }
 
@@ -9780,6 +9782,15 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   TABLE *table= table_list->table;
   bool versioned= table && table->versioned();
+#ifdef WITH_WSREP
+  /*
+    If this ALTER TABLE is actually SEQUENCE we need to check
+    if we can support implementing storage engine.
+  */
+  if (WSREP(thd) && table && table->s->sequence &&
+      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info))
+    DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 
   if (versioned)
   {
@@ -11797,6 +11808,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       /* Store reference to table in case of LOCK TABLES */
       create_info.table= create_table->table;
 
+      DEBUG_SYNC(thd, "wsrep_create_table_as_select");
+
       /*
         select_create is currently not re-execution friendly and
         needs to be created for every execution of a PS/SP.
@@ -11855,6 +11868,10 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
              !create_info.tmp_table()))
         {
 #ifdef WITH_WSREP
+          if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
+              wsrep_check_sequence(thd, lex->create_info.seq_create_info))
+            DBUG_RETURN(true);
+
           WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
                                          first_table, &alter_info, NULL)
           {
