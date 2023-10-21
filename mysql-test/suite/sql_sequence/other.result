@@ -359,4 +359,34 @@ Note	4092	Unknown VIEW: 'test.s'
 DROP VIEW v1;
 DROP SEQUENCE s;
 DROP TABLE t;
+#
 # End of 10.3 tests
+#
+#
+# MDEV-32541 Assertion `!(thd->server_status & (1U | 8192U))' failed in MDL_context::release_transactional_locks
+#
+create sequence s1;
+create sequence s2;
+connect  con1,localhost,root,,;
+set session transaction read only;
+start transaction;
+connection default;
+start transaction;
+insert into s2 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+connection con1;
+select lastval(s1);
+lastval(s1)
+NULL
+select lastval(s2);;
+connection default;
+set lock_wait_timeout= 1;
+insert into s1 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con1;
+connection default;
+drop sequence s1;
+drop sequence s2;
+#
+# End of 10.4 tests
+#

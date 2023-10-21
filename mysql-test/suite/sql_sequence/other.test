@@ -387,4 +387,39 @@ DROP VIEW IF EXISTS s;
 DROP VIEW v1;
 DROP SEQUENCE s;
 DROP TABLE t;
+--echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-32541 Assertion `!(thd->server_status & (1U | 8192U))' failed in MDL_context::release_transactional_locks
+--echo #
+create sequence s1;
+create sequence s2;
+--connect (con1,localhost,root,,)
+set session transaction read only;
+start transaction;
+
+--connection default
+start transaction;
+insert into s2 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+
+--connection con1
+select lastval(s1);
+--send select lastval(s2);
+
+--connection default
+set lock_wait_timeout= 1;
+insert into s1 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+
+--connection con1
+--error ER_LOCK_DEADLOCK
+--reap
+--disconnect con1
+--connection default
+drop sequence s1;
+drop sequence s2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
