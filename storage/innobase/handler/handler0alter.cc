@@ -4558,7 +4558,11 @@ static void innobase_build_col_map_add(
 		return;
 	}
 
-	const Field& from = old_field ? *old_field : *field;
+	const Field& from =
+		old_field && (old_field->field_length
+			      == field->field_length)
+		? *old_field : *field;
+
 	ulint	size	= from.pack_length();
 
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));

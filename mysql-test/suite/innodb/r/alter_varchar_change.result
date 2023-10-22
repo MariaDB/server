@@ -507,3 +507,14 @@ name	pos	mtype	prtype	len
 a	0	1	524303	110
 drop table t;
 # End of 10.2 tests
+#
+# MDEV-32523  ASAN errors or assertion failure in row_merge_buf_add
+#
+CREATE TABLE t (a INT, b VARCHAR(16)) ENGINE=InnoDB;
+INSERT INTO t (a) VALUES (1),(2);
+ALTER TABLE t MODIFY b VARCHAR(16) DEFAULT '0';
+ALTER IGNORE TABLE t MODIFY b VARCHAR(12289) NOT NULL;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+DROP TABLE t;

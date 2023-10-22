@@ -373,3 +373,13 @@ on sc.table_id=st.table_id where st.name='test/t' and sc.name='a';
 drop table t;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-32523  ASAN errors or assertion failure in row_merge_buf_add
+--echo #
+CREATE TABLE t (a INT, b VARCHAR(16)) ENGINE=InnoDB;
+INSERT INTO t (a) VALUES (1),(2);
+ALTER TABLE t MODIFY b VARCHAR(16) DEFAULT '0';
+ALTER IGNORE TABLE t MODIFY b VARCHAR(12289) NOT NULL;
+# Cleanup
+DROP TABLE t;
