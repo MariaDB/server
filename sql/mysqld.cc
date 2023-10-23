@@ -1769,7 +1769,8 @@ static void close_connections(void)
   DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",
                   my_sleep(500000););
 
-  Events::deinit();
+  if (Events::inited)
+    Events::stop();
   slave_prepare_for_shutdown();
   mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
@@ -1825,6 +1826,12 @@ static void close_connections(void)
     my_sleep(1000);
   }
   /* End of kill phase 2 */
+
+  /*
+    If the signal thread is actively using server resources, let it finish
+    before killing any connections
+  */
+  wait_for_signal_thread_to_end();
 
   DBUG_PRINT("quit",("close_connections thread"));
   DBUG_VOID_RETURN;
@@ -1943,7 +1950,6 @@ static void mysqld_exit(int exit_code)
   */
   rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
-  wait_for_signal_thread_to_end();
 #ifdef WITH_WSREP
   wsrep_deinit_server();
   wsrep_sst_auth_free();
@@ -2023,6 +2029,7 @@ static void clean_up(bool print_message)
   free_status_vars();
   end_thr_alarm(1);			/* Free allocated memory */
 #ifndef EMBEDDED_LIBRARY
+  Events::deinit();
   end_thr_timer();
 #endif
   my_free_open_file_info();
@@ -2091,16 +2098,33 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
-  uint i;
+  uint i, n_waits= DBUG_EVALUATE("force_sighup_processing_timeout", 5, 100);
+  int err= 0;
+
   /*
     Wait up to 10 seconds for signal thread to die. We use this mainly to
     avoid getting warnings that my_thread_end has not been called
   */
-  for (i= 0 ; i < 100 && signal_thread_in_use; i++)
+  for (i= 0; i < n_waits && signal_thread_in_use; i++)
   {
-    if (pthread_kill(signal_thread, MYSQL_KILL_SIGNAL) == ESRCH)
+    err= pthread_kill(signal_thread, MYSQL_KILL_SIGNAL);
+    if (err)
       break;
-    my_sleep(100);				// Give it time to die
+    my_sleep(100000); // Give it time to die, .1s per iteration
+  }
+
+  if (err && err != ESRCH)
+  {
+    sql_print_error("Failed to send kill signal to signal handler thread, "
+                    "pthread_kill() errno: %d",
+                    err);
+  }
+
+  if (i == n_waits)
+  {
+    sql_print_warning("Signal handler thread did not exit in a timely manner. "
+                      "Continuing to wait for it to stop..");
+    pthread_join(signal_thread, NULL);
   }
 }
 #endif /*EMBEDDED_LIBRARY*/
@@ -3259,7 +3283,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int origin;
 
     while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
-    if (cleanup_done)
+    if (abort_loop)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
       my_thread_end();
@@ -3283,18 +3307,8 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       {
         /* Delete the instrumentation for the signal thread */
         PSI_CALL_delete_current_thread();
-#ifdef USE_ONE_SIGNAL_HAND
-	pthread_t tmp;
-        if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
-                                                 &tmp, &connection_attrib,
-                                                 kill_server_thread,
-                                                 (void*) &sig))))
-          sql_print_error("Can't create thread to kill server (errno= %d)",
-                          error);
-#else
         my_sigset(sig, SIG_IGN);
         break_connect_loop(); // MIT THREAD has a alarm thread
-#endif
       }
       break;
     case SIGHUP:
@@ -3322,6 +3336,10 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
                             ? fixed_log_output_options : LOG_NONE,
                             opt_log ? fixed_log_output_options : LOG_NONE);
       }
+
+      /* Sleep 1s to force timeout in test */
+      DBUG_EXECUTE("force_sighup_processing_timeout", my_sleep(1000000););
+
       break;
 #ifdef USE_ONE_SIGNAL_HAND
     case THR_SERVER_ALARM:
