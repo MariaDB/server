@@ -2324,6 +2324,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
       mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
       rw_lock_x_lock_inline(&block->lock, 0, file, line);
       buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+      mtr->set_modified(*block);
 
 #ifdef BTR_CUR_HASH_ADAPT
       if (block->index)
