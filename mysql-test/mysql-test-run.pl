@@ -1063,13 +1063,6 @@ sub run_worker ($) {
 }
 
 
-sub ignore_option {
-  my ($opt, $value)= @_;
-  mtr_report("Ignoring option '$opt'");
-}
-
-
-
 # Setup any paths that are $opt_vardir related
 sub set_vardir {
   ($opt_vardir)= @_;
@@ -1168,8 +1161,6 @@ sub command_line_setup {
              'big-test+'                => \$opt_big_test,
 	     'combination=s'            => \@opt_combinations,
              'experimental=s'           => \@opt_experimentals,
-	     # skip-im is deprecated and silently ignored
-	     'skip-im'                  => \&ignore_option,
              'staging-run'              => \$opt_staging_run,
 
              # Specify ports
