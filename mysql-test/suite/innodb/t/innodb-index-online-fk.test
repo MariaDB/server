@@ -482,3 +482,18 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 DROP TABLE t2;
 
 DROP TABLE t3;
+
+--echo #
+--echo #  MDEV-29092  FOREIGN_KEY_CHECKS does not prevent non-copy
+--echo #		alter from creating invalid FK structure
+--echo #
+SET foreign_key_checks = 1;
+CREATE TABLE t1(f1 INT, KEY(f1), KEY(f1), KEY(f1),
+		FOREIGN KEY(f1) references t1(f1))ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 DROP KEY f1_2;
+--error ER_DROP_INDEX_FK
+ALTER TABLE t1 DROP KEY f1_3;
+--error ER_DROP_INDEX_FK
+ALTER TABLE t1 DROP KEY f1;
+DROP TABLE t1;

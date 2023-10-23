@@ -525,9 +525,11 @@ dict_foreign_find_index(
 	ulint*			err_col_no = NULL,
 					/*!< out: column number where
 					error happened */
-	dict_index_t**		err_index = NULL)
+	dict_index_t**		err_index = NULL,
 					/*!< out: index where error
 					happened */
+	dict_index_t*		ignore_idx= nullptr)
+					/*!< in: index to be ignored */
 
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 

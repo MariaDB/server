@@ -7429,14 +7429,24 @@ innobase_check_foreign_key_index(
 		}
 		ut_ad(indexed_table == foreign->referenced_table);
 
-		if (NULL == dict_foreign_find_index(
-			    indexed_table, col_names,
-			    foreign->referenced_col_names,
-			    foreign->n_fields, index,
-			    /*check_charsets=*/TRUE,
-			    /*check_null=*/FALSE,
-			    NULL, NULL, NULL)
-		    && NULL == innobase_find_equiv_index(
+		dict_index_t* fk_idx= dict_foreign_find_index(
+			indexed_table, col_names,
+			foreign->referenced_col_names,
+			foreign->n_fields, index,
+			/*check_charset=*/TRUE,
+			/*check_null=*/FALSE,
+			NULL, NULL, NULL);
+		if (fk_idx && fk_idx == foreign->foreign_index) {
+			fk_idx = dict_foreign_find_index(
+				indexed_table, col_names,
+				foreign->referenced_col_names,
+				foreign->n_fields, index,
+				/*check_charset=*/TRUE,
+				/*check_null=*/FALSE,
+				NULL, NULL, NULL, fk_idx);
+		}
+
+		if (!fk_idx && NULL == innobase_find_equiv_index(
 			    foreign->referenced_col_names,
 			    foreign->n_fields,
 			    ha_alter_info->key_info_buffer,
@@ -7462,21 +7472,34 @@ innobase_check_foreign_key_index(
 
 		ut_ad(indexed_table == foreign->foreign_table);
 
-		if (!innobase_dropping_foreign(
-			    foreign, drop_fk, n_drop_fk)
-		    && NULL == dict_foreign_find_index(
-			    indexed_table, col_names,
-			    foreign->foreign_col_names,
-			    foreign->n_fields, index,
-			    /*check_charsets=*/TRUE,
-			    /*check_null=*/FALSE,
-			    NULL, NULL, NULL)
-		    && NULL == innobase_find_equiv_index(
-			    foreign->foreign_col_names,
-			    foreign->n_fields,
-			    ha_alter_info->key_info_buffer,
-			    span<uint>(ha_alter_info->index_add_buffer,
-				       ha_alter_info->index_add_count))) {
+		if (innobase_dropping_foreign(
+			    foreign, drop_fk, n_drop_fk)) {
+			continue;
+		}
+
+		dict_index_t *fk_idx= dict_foreign_find_index(
+				indexed_table, col_names,
+				foreign->foreign_col_names,
+				foreign->n_fields, index,
+				/*check_charsets=*/TRUE,
+				/*check_null=*/FALSE,
+				NULL, NULL, NULL);
+		if (fk_idx && fk_idx == foreign->referenced_index) {
+			fk_idx= dict_foreign_find_index(
+				indexed_table, col_names,
+				foreign->foreign_col_names,
+				foreign->n_fields, index,
+				/*check_charsets=*/TRUE,
+				/*check_null=*/FALSE,
+				NULL, NULL, NULL, fk_idx);
+		}
+
+		if (!fk_idx && NULL == innobase_find_equiv_index(
+				foreign->foreign_col_names,
+				foreign->n_fields,
+				ha_alter_info->key_info_buffer,
+				span<uint>(ha_alter_info->index_add_buffer,
+					   ha_alter_info->index_add_count))) {
 
 			/* Index cannot be dropped. */
 			trx->error_info = index;

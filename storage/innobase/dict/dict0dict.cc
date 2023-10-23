@@ -2684,9 +2684,11 @@ dict_foreign_find_index(
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
-	dict_index_t**		err_index)
+	dict_index_t**		err_index,
 					/*!< out: index where error
 					happened */
+	dict_index_t*		ignore_idx)
+					/*!<in: index to be ignored */
 {
 	ut_ad(mutex_own(&dict_sys.mutex));
 
@@ -2698,6 +2700,7 @@ dict_foreign_find_index(
 	     index;
 	     index = dict_table_get_next_index(index)) {
 		if (types_idx != index
+		    && ignore_idx != index
 		    && !index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
 		    && dict_foreign_qualify_index(
@@ -5502,6 +5505,18 @@ dict_foreign_replace_index(
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
 				NULL, NULL, NULL);
+			if (new_index
+			    && new_index == foreign->referenced_index) {
+				new_index = dict_foreign_find_index(
+					foreign->foreign_table,
+					col_names,
+					foreign->foreign_col_names,
+					foreign->n_fields, index,
+					/*check_charsets=*/TRUE,
+					/*check_null=*/FALSE,
+					NULL, NULL, NULL, new_index);
+			}
+
 			if (new_index) {
 				ut_ad(new_index->table == index->table);
 				ut_ad(!new_index->to_be_dropped);
@@ -5527,6 +5542,16 @@ dict_foreign_replace_index(
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
 				NULL, NULL, NULL);
+			if (new_index && new_index == foreign->foreign_index) {
+				new_index = dict_foreign_find_index(
+					foreign->referenced_table, NULL,
+					foreign->referenced_col_names,
+					foreign->n_fields, index,
+					/*check_charsets=*/TRUE,
+					/*check_null=*/FALSE,
+					NULL, NULL, NULL, new_index);
+			}
+
 			/* There must exist an alternative index,
 			since this must have been checked earlier. */
 			if (new_index) {
