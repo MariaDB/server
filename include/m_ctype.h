@@ -1865,6 +1865,9 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
 #include "t_ctype.h"
 #endif
 
+int my_wc_mb_utf8mb4_bmp_only(CHARSET_INFO *cs, my_wc_t wc, uchar *r,
+                              uchar *e);
+
 #ifdef	__cplusplus
 }
 #endif
