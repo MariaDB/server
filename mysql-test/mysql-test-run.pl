@@ -259,6 +259,7 @@ sub using_extern { return (keys %opts_extern > 0);};
 
 our $opt_fast= 0;
 our $opt_force= 0;
+our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
 
@@ -1158,6 +1159,7 @@ sub command_line_setup {
 
              # Control what test suites or cases to run
              'force+'                   => \$opt_force,
+             'skip-not-found'           => \$opt_skip_not_found,
              'suite|suites=s'           => \$opt_suites,
              'skip-rpl'                 => \&collect_option,
              'skip-test=s'              => \&collect_option,
@@ -5802,6 +5804,8 @@ Options to control what test suites or cases to run
                         the execution will continue from the next test file.
                         When specified twice, execution will continue executing
                         the failed test file from the next command.
+  skip-not-found        It is not an error if a test was not found in a
+                        specified test suite. Test will be marked as skipped.
   do-test=PREFIX or REGEX
                         Run test cases which name are prefixed with PREFIX
                         or fulfills REGEX
