@@ -2441,6 +2441,11 @@ set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
 
 drop table t1,t2,t3,t4;
 
+--echo #
+--echo # MDEV-32324: Server crashes inside filesort at my_decimal::to_binary
+--echo #
+SELECT 1.000000 two UNION SELECT 1 ORDER BY ( SELECT two LIMIT 1 OFFSET 1 ) ;
+
 --echo # End of 10.4 tests
 
 --echo #

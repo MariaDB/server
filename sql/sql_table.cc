@@ -2830,7 +2830,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     /* The user specified fields: check that structure is ok */
-    if (check_sequence_fields(thd->lex, &alter_info->create_list))
+    if (check_sequence_fields(thd->lex, &alter_info->create_list,
+                              alter_info->db, alter_info->table_name))
       DBUG_RETURN(TRUE);
   }
 
@@ -4731,6 +4732,14 @@ int mysql_create_table_no_lock(THD *thd,
     if (res)
     {
       DBUG_ASSERT(thd->is_error());
+      /*
+        Drop the new table, we were not completely done.
+
+        Temporarily modify table_list to avoid dropping source sequence
+        in CREATE TABLE LIKE <SEQUENCE>.
+      */
+      TABLE_LIST *tail= table_list->next_local;
+      table_list->next_local= NULL;
       /* Drop the table as it wasn't completely done */
       if (!mysql_rm_table_no_locks(thd, table_list, &thd->db,
                                    (DDL_LOG_STATE*) 0,
@@ -4747,6 +4756,7 @@ int mysql_create_table_no_lock(THD *thd,
         */
         res= 2;
       }
+      table_list->next_local= tail;
     }
   }
 
@@ -9149,8 +9159,7 @@ enum fk_column_change_type
   @retval FK_COLUMN_NO_CHANGE    No significant changes are to be done on
                                  foreign key columns.
   @retval FK_COLUMN_DATA_CHANGE  ALTER TABLE might result in value
-                                 change in foreign key column (and
-                                 foreign_key_checks is on).
+                                 change in foreign key column.
   @retval FK_COLUMN_RENAMED      Foreign key column is renamed.
   @retval FK_COLUMN_DROPPED      Foreign key column is dropped.
 */
@@ -9186,7 +9195,18 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
+      /*
+        Field_{num|decimal}::is_equal evaluates to IS_EQUAL_NO where
+        the new_field adds an AUTO_INCREMENT flag on a column due to a
+	limitation in MyISAM/ARIA. For the purposes of FK determination
+        it doesn't matter if AUTO_INCREMENT is there or not.
+      */
+      const uint flags= new_field->flags;
+      new_field->flags&= ~AUTO_INCREMENT_FLAG;
+      const bool equal_result= old_field->is_equal(*new_field);
+      new_field->flags= flags;
+
+      if ((equal_result == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
@@ -12267,6 +12287,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   int res= 0;
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+  ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
 
   if (lex->create_info.resolve_to_charset_collation_context(thd,
@@ -12310,6 +12331,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     copy.
   */
   Alter_info alter_info(lex->alter_info, thd->mem_root);
+
+#ifdef WITH_WSREP
+  // If CREATE TABLE AS SELECT and wsrep_on
+  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+#endif
 
   if (unlikely(thd->is_fatal_error))
   {
@@ -12377,15 +12403,17 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #endif
 
 #ifdef WITH_WSREP
-  if (select_lex->item_list.elements && // With SELECT
-      WSREP(thd) && thd->variables.wsrep_trx_fragment_size > 0)
+  if (wsrep_ctas)
   {
-    my_message(
+    if (thd->variables.wsrep_trx_fragment_size > 0)
+    {
+      my_message(
         ER_NOT_ALLOWED_COMMAND,
         "CREATE TABLE AS SELECT is not supported with streaming replication",
         MYF(0));
-    res= 1;
-    goto end_with_restore_list;
+      res= 1;
+      goto end_with_restore_list;
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -12415,7 +12443,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
      */
     if (thd->query_name_consts && mysql_bin_log.is_open() &&
-        thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        binlog_format == BINLOG_FORMAT_STMT &&
         !mysql_bin_log.is_query_in_union(thd, thd->query_id))
     {
       List_iterator_fast<Item> it(select_lex->item_list);
@@ -12556,7 +12584,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
                                          &create_info)
 	  {
 	    WSREP_WARN("CREATE TABLE isolation failure");
-	    DBUG_RETURN(true);
+            res= true;
+            goto end_with_restore_list;
 	  }
 #endif /* WITH_WSREP */
         }

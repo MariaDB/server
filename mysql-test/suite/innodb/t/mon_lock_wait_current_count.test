@@ -1,0 +1,76 @@
+# Check if lock_row_lock_current_waits counter in
+# information_schema.innodb_metrics does not become negative after disabling,
+# resetting and enabling.
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/count_sessions.inc
+
+--connect (prevent_purge,localhost,root,,)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+SET GLOBAL innodb_monitor_disable='all';
+SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+CREATE TABLE `t` (a INT PRIMARY KEY) engine=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES (5);
+SELECT name, count FROM information_schema.innodb_metrics
+  WHERE name ='lock_row_lock_current_waits';
+
+--connect (con1,localhost,root,,)
+BEGIN;
+SELECT * FROM t FOR UPDATE;
+
+--connect (con2,localhost,root,,)
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL blocked WAIT_FOR cont";
+BEGIN;
+--send SELECT * FROM t FOR UPDATE
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR blocked";
+SELECT name, count FROM information_schema.innodb_metrics
+  WHERE name ='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_disable='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+######################################
+# Equals to zero if the bug is not fixed, as MONITOR_DISPLAY_CURRENT is not
+# set for this counter and its value is reset during previous
+# "SET GLOBAL innodb_monitor_reset_all='lock_row_lock_current_waits'" execution.
+#####
+SELECT name, count FROM information_schema.innodb_metrics
+  WHERE name ='lock_row_lock_current_waits';
+SET DEBUG_SYNC="now SIGNAL cont";
+
+--disconnect con1
+
+--connection con2
+--reap
+COMMIT;
+--disconnect con2
+
+--connection default
+SET DEBUG_SYNC="reset";
+######################################
+# Equals to -1 if the bug is not fixed. I.e.
+# innodb_counter_value[MONITOR_OVLD_ROW_LOCK_CURRENT_WAIT].mon_start_value is
+# set to 1 during
+# "set global innodb_monitor_disable='lock_row_lock_current_waits'" execution,
+# and the value is counted as
+# (value = 0) - (mon_value_reset = 0) - (mon_start_value = 1) +
+# (mon_last_value = 0) = -1. See MONITOR_SET_DIFF() macro in
+# srv_mon_process_existing_counter() for details.
+#####
+SELECT name, count FROM information_schema.innodb_metrics
+  WHERE name ='lock_row_lock_current_waits';
+DROP TABLE `t`;
+SET GLOBAL innodb_monitor_disable='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_current_waits';
+SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+--disable_warnings
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;
+SET GLOBAL innodb_monitor_enable=default;
+--enable_warnings
+--disconnect prevent_purge
+--source include/wait_until_count_sessions.inc
