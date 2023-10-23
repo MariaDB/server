@@ -2682,14 +2682,15 @@ static int fill_used_fields_bitmap(PARAM *param)
           or can't use quick_select
 */
 
-quick_select_return SQL_SELECT::test_quick_select(THD *thd,
-                                  key_map keys_to_use,
-				  table_map prev_tables,
-				  ha_rows limit, bool force_quick_range, 
-                                  bool ordered_output,
-                                  bool remove_false_parts_of_where,
-                                  bool only_single_index_range_scan,
-                                  bool suppress_unusable_key_notes)
+quick_select_return
+SQL_SELECT::test_quick_select(THD *thd,
+                              key_map keys_to_use,
+                              table_map prev_tables,
+                              ha_rows limit, bool force_quick_range,
+                              bool ordered_output,
+                              bool remove_false_parts_of_where,
+                              bool only_single_index_range_scan,
+                              bool suppress_unusable_key_notes)
 {
   uint idx;
   double scan_time;

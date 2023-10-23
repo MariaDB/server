@@ -206,7 +206,7 @@ static int join_no_more_records(READ_RECORD *info);
 static int join_read_next(READ_RECORD *info);
 static int join_init_quick_read_record(JOIN_TAB *tab);
 static quick_select_return test_if_quick_select(JOIN_TAB *tab);
-static bool test_if_use_dynamic_range_scan(JOIN_TAB *join_tab);
+static int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab);
 static int join_read_first(JOIN_TAB *tab);
 static int join_read_next(READ_RECORD *info);
 static int join_read_next_same(READ_RECORD *info);
@@ -246,7 +246,8 @@ static int test_if_order_by_key(JOIN *join,
 				uint *used_key_parts);
 static bool test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,
 				    ha_rows select_limit, bool no_changes,
-                                    const key_map *map);
+                                    const key_map *map,
+                                    bool *fatal_error);
 static bool list_contains_unique_index(TABLE *table,
                           bool (*find_func) (Field *, void *), void *data);
 static bool find_field_in_item_list (Field *field, void *data);
@@ -1892,7 +1893,8 @@ int JOIN::optimize()
     object a pointer to which is set in the field JOIN_TAB::rowid_filter of
     the joined table.
 
-  @retval false  always
+  @retval false  Ok
+  @retval true   Error
 */
 
 bool JOIN::make_range_rowid_filters()
@@ -1935,13 +1937,15 @@ bool JOIN::make_range_rowid_filters()
     filter_map.merge(tab->table->with_impossible_ranges);
     bool force_index_save= tab->table->force_index;
     tab->table->force_index= true;
-    quick_select_return rc= sel->test_quick_select( thd, filter_map,
-                                   (table_map) 0,
-                                   (ha_rows) HA_POS_ERROR,
-                                   true, false, true, true);
+    quick_select_return rc;
+    rc= sel->test_quick_select(thd, filter_map, (table_map) 0,
+                               (ha_rows) HA_POS_ERROR, true, false, true,
+                               true);
     tab->table->force_index= force_index_save;
-    if (thd->is_error())
-      goto no_filter;
+    if (rc == SQL_SELECT::ERROR || thd->is_error())
+    {
+      DBUG_RETURN(true); /* Fatal error */
+    }
     /*
       If SUBS_IN_TO_EXISTS strtrategy is chosen for the subquery then
       additional conditions are injected into WHERE/ON/HAVING and it may
@@ -2961,20 +2965,29 @@ int JOIN::optimize_stage2()
     tab= &join_tab[const_tables];
     if (order)
     {
+      bool fatal_err;
       skip_sort_order=
         test_if_skip_sort_order(tab, order, select_limit,
                                 true,           // no_changes
-                                &tab->table->keys_in_use_for_order_by);
+                                &tab->table->keys_in_use_for_order_by,
+                                &fatal_err);
+      if (fatal_err)
+        DBUG_RETURN(1);
     }
     if ((group_list=create_distinct_group(thd, select_lex->ref_pointer_array,
                                           order, fields_list, all_fields,
 				          &all_order_fields_used)))
     {
+      bool fatal_err= 0;
       const bool skip_group=
         skip_sort_order &&
         test_if_skip_sort_order(tab, group_list, select_limit,
-                                  true,         // no_changes
-                                  &tab->table->keys_in_use_for_group_by);
+                                true,         // no_changes
+                                &tab->table->keys_in_use_for_group_by,
+                                &fatal_err);
+      if (fatal_err)
+        DBUG_RETURN(1);
+
       count_field_types(select_lex, &tmp_table_param, all_fields, 0);
       if ((skip_group && all_order_fields_used) ||
 	  select_limit == HA_POS_ERROR ||
@@ -3237,12 +3250,16 @@ int JOIN::optimize_stage2()
             'need_tmp' implies that there will be more postprocessing 
             so the specified 'limit' should not be enforced yet.
            */
+          bool fatal_err;
           const ha_rows limit = need_tmp ? HA_POS_ERROR : select_limit;
           if (test_if_skip_sort_order(tab, group_list, limit, false, 
-                                      &tab->table->keys_in_use_for_group_by))
+                                      &tab->table->keys_in_use_for_group_by,
+                                      &fatal_err))
           {
             ordered_index_usage= ordered_index_group_by;
           }
+          if (fatal_err)
+            DBUG_RETURN(1);
         }
 
 	/*
@@ -3265,11 +3282,15 @@ int JOIN::optimize_stage2()
     else if (order &&                      // ORDER BY wo/ preceding GROUP BY
              (simple_order || skip_sort_order)) // which is possibly skippable
     {
+      bool fatal_err;
       if (test_if_skip_sort_order(tab, order, select_limit, false, 
-                                  &tab->table->keys_in_use_for_order_by))
+                                  &tab->table->keys_in_use_for_order_by,
+                                  &fatal_err))
       {
         ordered_index_usage= ordered_index_order_by;
       }
+      if (fatal_err)
+        DBUG_RETURN(1);
     }
   }
 
@@ -5152,7 +5173,7 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
                                      TRUE,     /* remove_where_parts*/
                                      FALSE, TRUE);
 
-    if (likely(error == SQL_SELECT::OK && select->quick))
+    if (error == SQL_SELECT::OK && select->quick)
     {
       *quick_count= select->quick->records;
       DBUG_RETURN(false);
@@ -12651,16 +12672,18 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	    */
 	    if (sel->cond && !sel->cond->fixed())
 	      sel->cond->quick_fix_field();
+            quick_select_return res;
 
-	    if (sel->test_quick_select(thd, tab->keys,
-				       ((used_tables & ~ current_map) |
-                                        OUTER_REF_TABLE_BIT),
-				       (join->select_options &
-					OPTION_FOUND_ROWS ?
-					HA_POS_ERROR :
-					join->unit->lim.get_select_limit()), 0,
-                                       FALSE, FALSE, FALSE) ==
-                SQL_SELECT::IMPOSSIBLE_RANGE )
+	    if ((res= sel->test_quick_select(thd, tab->keys,
+                                             ((used_tables & ~ current_map) |
+                                              OUTER_REF_TABLE_BIT),
+                                             (join->select_options &
+                                              OPTION_FOUND_ROWS ?
+                                              HA_POS_ERROR :
+                                              join->unit->lim.get_select_limit()),
+                                              0,
+                                             FALSE, FALSE, FALSE)) ==
+                SQL_SELECT::IMPOSSIBLE_RANGE)
             {
 	      /*
 		Before reporting "Impossible WHERE" for the whole query
@@ -12668,18 +12691,21 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	      */
               sel->cond=orig_cond;
               if (!*tab->on_expr_ref ||
-                  sel->test_quick_select(thd, tab->keys,
-                                         used_tables & ~ current_map,
-                                         (join->select_options &
-                                          OPTION_FOUND_ROWS ?
-                                          HA_POS_ERROR :
-                                          join->unit->lim.get_select_limit()),0,
-                                         FALSE, FALSE, FALSE, TRUE) ==
-                  SQL_SELECT::IMPOSSIBLE_RANGE )
+                  (res= sel->test_quick_select(thd, tab->keys,
+                                               used_tables & ~ current_map,
+                                               (join->select_options &
+                                                OPTION_FOUND_ROWS ?
+                                                HA_POS_ERROR :
+                                                join->unit->lim.get_select_limit()),
+                                                0, FALSE, FALSE, FALSE, TRUE)) ==
+                  SQL_SELECT::IMPOSSIBLE_RANGE)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
             else
 	      sel->cond=orig_cond;
+
+            if (res == SQL_SELECT::ERROR)
+              DBUG_RETURN(1); /* Some error in one of test_quick_select calls */
 
 	    /* Fix for EXPLAIN */
 	    if (sel->quick)
@@ -21491,6 +21517,7 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
   enum_nested_loop_state rc;
   JOIN_CACHE *cache= join_tab->cache;
+  int err;
   DBUG_ENTER("sub_select_cache");
 
   /*
@@ -21516,7 +21543,7 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   }
   join_tab->jbuf_loops_tracker->on_scan_init();
 
-  if (!test_if_use_dynamic_range_scan(join_tab))
+  if (!(err= test_if_use_dynamic_range_scan(join_tab)))
   {
     if (!cache->put_record())
       DBUG_RETURN(NESTED_LOOP_OK); 
@@ -21528,6 +21555,10 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     rc= cache->join_records(FALSE);
     DBUG_RETURN(rc);
   }
+
+  if (err < 0)
+    DBUG_RETURN(NESTED_LOOP_ERROR);
+
   /*
      TODO: Check whether we really need the call below and we can't do
            without it. If it's not the case remove it.
@@ -22628,8 +22659,18 @@ join_read_prev_same(READ_RECORD *info)
 static int
 join_init_quick_read_record(JOIN_TAB *tab)
 {
-  if (test_if_quick_select(tab) == SQL_SELECT::IMPOSSIBLE_RANGE)
-    return -1;					/* No possible records */
+  quick_select_return res= test_if_quick_select(tab);
+
+  if (res == SQL_SELECT::ERROR)
+    return 1;   /* Fatal error */
+
+  if (res == SQL_SELECT::IMPOSSIBLE_RANGE)
+    return -1;	/* No possible records */
+
+  /*
+    Proceed to read rows. If we've created a quick select, use it, otherwise
+    do a full scan.
+  */
   return join_init_read_record(tab);
 }
 
@@ -22640,6 +22681,12 @@ int read_first_record_seq(JOIN_TAB *tab)
     return 1;
   return tab->read_record.read_record();
 }
+
+
+/*
+  @brief
+    Create a new (dynamic) quick select.
+*/
 
 static quick_select_return
 test_if_quick_select(JOIN_TAB *tab)
@@ -22658,12 +22705,11 @@ test_if_quick_select(JOIN_TAB *tab)
   if (tab->table->file->inited != handler::NONE)
     tab->table->file->ha_index_or_rnd_end();
 
-  quick_select_return res= tab->select->test_quick_select(
-                                          tab->join->thd, tab->keys,
-                                          (table_map) 0, HA_POS_ERROR, 0,
-                                          FALSE, /*remove where parts*/FALSE,
-                                          FALSE,
-                                          /* no warnings */ TRUE);
+  quick_select_return res;
+  res= tab->select->test_quick_select(tab->join->thd, tab->keys,
+                                      (table_map) 0, HA_POS_ERROR, 0,
+                                      FALSE, /*remove where parts*/FALSE,
+                                      FALSE, /* no warnings */ TRUE);
   if (tab->explain_plan && tab->explain_plan->range_checked_fer)
     tab->explain_plan->range_checked_fer->collect_data(tab->select->quick);
 
@@ -22671,11 +22717,29 @@ test_if_quick_select(JOIN_TAB *tab)
 }
 
 
-static 
-bool test_if_use_dynamic_range_scan(JOIN_TAB *join_tab)
+/*
+  @return
+     1  - Yes, use dynamically built range
+     0  - No, don't use dynamic range (but there's no error)
+    -1 -  Fatal rrror
+*/
+
+static
+int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab)
 {
-    return (join_tab->use_quick == 2 && 
-            test_if_quick_select(join_tab) == SQL_SELECT::OK);
+  if (unlikely(join_tab->use_quick == 2))
+  {
+    quick_select_return res= test_if_quick_select(join_tab);
+    if (res == SQL_SELECT::ERROR)
+      return -1;
+    else
+    {
+      /* Both OK and IMPOSSIBLE_RANGE go here */
+      return join_tab->select->quick ? 1 : 0;
+    }
+  }
+  else
+    return 0;
 }
 
 int join_init_read_record(JOIN_TAB *tab)
@@ -24498,7 +24562,8 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
 
   The index must cover all fields in <order>, or it will not be considered.
 
-  @param no_changes No changes will be made to the query plan.
+  @param no_changes        No changes will be made to the query plan.
+  @param fatal_error OUT   A fatal error occurred
 
   @todo
     - sergeyp: Results of all index merge selects actually are ordered 
@@ -24512,7 +24577,7 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
 
 static bool
 test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
-			bool no_changes, const key_map *map)
+			bool no_changes, const key_map *map, bool *fatal_error)
 {
   int ref_key;
   uint UNINIT_VAR(ref_key_parts);
@@ -24528,6 +24593,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   bool changed_key= false;
   DBUG_ENTER("test_if_skip_sort_order");
 
+  *fatal_error= false;
   /* Check that we are always called with first non-const table */
   DBUG_ASSERT(tab == tab->join->join_tab + tab->join->const_tables);
 
@@ -24665,7 +24731,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
            */
           key_map new_ref_key_map;
           COND *save_cond;
-          bool res;
+          quick_select_return res;
           new_ref_key_map.clear_all();  // Force the creation of quick select
           new_ref_key_map.set_bit(new_ref_key); // only for new_ref_key.
 
@@ -24674,16 +24740,17 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
           save_cond= select->cond;
           if (select->pre_idx_push_select_cond)
             select->cond= select->pre_idx_push_select_cond;
-          res= (select->test_quick_select(tab->join->thd, new_ref_key_map, 0,
+          res= select->test_quick_select(tab->join->thd, new_ref_key_map, 0,
                                          (tab->join->select_options &
                                           OPTION_FOUND_ROWS) ?
                                           HA_POS_ERROR :
                                           tab->join->unit->
                                             lim.get_select_limit(),
-                                          TRUE, TRUE, FALSE, FALSE) !=
-               SQL_SELECT::OK);
-          if (res)
+                                          TRUE, TRUE, FALSE, FALSE);
+          if (res != SQL_SELECT::OK)
           {
+            if (res == SQL_SELECT::ERROR)
+              *fatal_error= true;
             select->cond= save_cond;
             goto use_filesort;
           }
@@ -24779,11 +24846,17 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
         cond_saved= true;
       }
 
-      select->test_quick_select(join->thd, tmp_map, 0,
-                                join->select_options & OPTION_FOUND_ROWS ?
-                                HA_POS_ERROR :
-                                join->unit->lim.get_select_limit(),
-                                TRUE, FALSE, FALSE, FALSE);
+      quick_select_return res;
+      res = select->test_quick_select(join->thd, tmp_map, 0,
+                                      join->select_options & OPTION_FOUND_ROWS ?
+                                      HA_POS_ERROR :
+                                      join->unit->lim.get_select_limit(),
+                                      TRUE, FALSE, FALSE, FALSE);
+      if (res == SQL_SELECT::ERROR)
+      {
+        *fatal_error= true;
+        goto use_filesort;
+      }
 
       if (cond_saved)
         select->cond= saved_cond;
