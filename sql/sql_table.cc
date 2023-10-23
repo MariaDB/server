@@ -5101,7 +5101,13 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
           Rollback the empty transaction started in mysql_create_table()
           call to open_and_lock_tables() when we are using LOCK TABLES.
         */
-        (void) trans_rollback_stmt(thd);
+        {
+          uint save_unsafe_rollback_flags=
+            thd->transaction.stmt.m_unsafe_rollback_flags;
+          (void) trans_rollback_stmt(thd);
+          thd->transaction.stmt.m_unsafe_rollback_flags=
+            save_unsafe_rollback_flags;
+        }
         /* Remove normal table without logging. Keep tables locked */
         if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 0, 1, 1))
           goto err;
