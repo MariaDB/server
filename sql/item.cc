@@ -2522,7 +2522,8 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
 
 /******************************/
 static
-void my_coll_agg_error(DTCollation &c1, DTCollation &c2, const char *fname)
+void my_coll_agg_error(const DTCollation &c1, const DTCollation &c2,
+                       const char *fname)
 {
   my_error(ER_CANT_AGGREGATE_2COLLATIONS,MYF(0),
            c1.collation->coll_name.str, c1.derivation_name(),
@@ -2605,10 +2606,17 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c,
 }
 
 
+/*
+  @param single_err  When nargs==1, use *single_err as the second aggregated
+                     collation when producing error message.
+*/
+
 bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
                                                  const LEX_CSTRING &fname,
                                                  Item **args, uint nargs,
-                                                 uint flags, int item_sep)
+                                                 uint flags, int item_sep,
+                                                 const Single_coll_err
+                                                 *single_err)
 {
   THD *thd= current_thd;
   if (thd->lex->is_ps_or_view_context_analysis())
@@ -2646,7 +2654,19 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
         args[0]= safe_args[0];
         args[item_sep]= safe_args[1];
       }
-      my_coll_agg_error(args, nargs, fname.str, item_sep);
+      if (nargs == 1 && single_err)
+      {
+        /*
+          Use *single_err to produce an error message mentioning two
+          collations.
+        */
+        if (single_err->first)
+          my_coll_agg_error(args[0]->collation, single_err->coll, fname.str);
+        else
+          my_coll_agg_error(single_err->coll, args[0]->collation, fname.str);
+      }
+      else
+        my_coll_agg_error(args, nargs, fname.str, item_sep);
       return TRUE;
     }
 
