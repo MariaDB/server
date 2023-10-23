@@ -1,0 +1,27 @@
+# This file contains test cases that use the memory leaks detection feature
+# provided by the cmake build option -DWITH_PROTECT_STATEMENT_MEMROOT
+
+--source include/not_embedded.inc
+# The cmake  option -DWITH_PROTECT_STATEMENT_MEMROOT is used only
+# for debug build
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-32369: Memory leak when executing PS for query with IN subquery
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10)) ENGINE=MYISAM;
+CREATE TABLE t2 (b VARCHAR(10) CHARACTER SET utf8) ENGINE=MYISAM;
+
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+
+PREPARE stmt FROM "SELECT t1.a FROM t1 WHERE t1.a IN (SELECT t2.b FROM t2)";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1, t2;
+

@@ -934,7 +934,27 @@ INSERT INTO t1 VALUES (2,11,11);
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 
--- echo # End of 10.4 tests
+--echo #
+--echo # MDEV-32018 Allow the setting of Auto_increment on FK referenced columns
+--echo #
+
+CREATE TABLE t1 (
+  id int unsigned NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE t2 (
+  id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  t1_id int unsigned DEFAULT NULL,
+  CONSTRAINT FK_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id)
+);
+
+ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
 
 --echo #
 --echo # MDEV-20729 Fix REFERENCES constraint in column definition

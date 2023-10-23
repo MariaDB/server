@@ -943,7 +943,8 @@ public:
                     already has received some signal or closed
                     signal slot.
   */
-  void init(MDL_context_owner *arg) { m_owner= arg; }
+  void init(MDL_context_owner *arg) { m_owner= arg; reset(); }
+  void reset() { m_deadlock_overweight= 0; }
 
   void set_needs_thr_lock_abort(bool needs_thr_lock_abort)
   {
@@ -1052,7 +1053,7 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
   LF_PINS *m_pins;
-  uint m_deadlock_overweight= 0;
+  uint m_deadlock_overweight;
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
