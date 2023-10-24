@@ -781,9 +781,9 @@ void Timestamp::round_or_set_max(uint dec, int *warn)
 {
   DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   if (add_nanoseconds_usec(msec_round_add[dec]) &&
-      (ulonglong) tv_sec++ >= TIMESTAMP_MAX_VALUE)
+      tv_sec++ >= TIMESTAMP_MAX_VALUE)
   {
-    tv_sec= (time_t) TIMESTAMP_MAX_VALUE;
+    tv_sec= TIMESTAMP_MAX_VALUE;
     tv_usec= TIME_MAX_SECOND_PART;
     *warn|= MYSQL_TIME_WARN_OUT_OF_RANGE;
   }
