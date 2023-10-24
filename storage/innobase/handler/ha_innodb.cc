@@ -17416,18 +17416,12 @@ innodb_stopword_table_validate(
 
 extern void buf_resize_start();
 
-/** Update the system variable innodb_buffer_pool_size using the "saved"
-value. This function is registered as a callback with MySQL.
-@param[in]	save	immediate result from check function */
 static
-void
-innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
+void innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*,const void*)
 {
-	snprintf(export_vars.innodb_buffer_pool_resize_status,
-	        sizeof(export_vars.innodb_buffer_pool_resize_status),
-		"Buffer pool resize requested");
-
-	buf_resize_start();
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  buf_resize_start();
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** The latest assigned innodb_ft_aux_table name */

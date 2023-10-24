@@ -9,6 +9,17 @@ WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 variable_value>0
 1
 SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SELECT variable_value INTO @old FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DATA';
+SELECT @old > variable_value `expect 0` FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DATA';
+expect 0
+0
+SET GLOBAL innodb_buffer_pool_size=@@GLOBAL.innodb_buffer_pool_size;
+SELECT @old > variable_value `expect 0` FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DATA';
+expect 0
+1
 DROP TABLE t;
 SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;
 SET GLOBAL innodb_max_dirty_pages_pct_lwm = @save_pct_lwm;

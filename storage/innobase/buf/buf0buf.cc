@@ -1536,6 +1536,7 @@ struct find_interesting_trx
 inline void buf_pool_t::resize()
 {
   ut_ad(this == &buf_pool);
+  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
 
 	bool		warning = false;
 
@@ -1878,25 +1879,73 @@ calc_buf_pool_size:
 	return;
 }
 
+inline void buf_pool_t::garbage_collect()
+{
+  mysql_mutex_assert_owner(&mutex);
+  lru_hp.set(nullptr);
+
+  for (buf_page_t *bpage= UT_LIST_GET_LAST(LRU), *prev; bpage; bpage= prev)
+  {
+    prev= UT_LIST_GET_PREV(LRU, bpage);
+    auto state= bpage->state();
+    ut_ad(state >= buf_page_t::FREED);
+    ut_ad(bpage->in_LRU_list);
+
+    /* We try to free any pages that can be freed without writing out
+    anything. */
+    switch (bpage->oldest_modification()) {
+    case 0:
+    try_to_evict:
+      buf_LRU_free_page(bpage, true);
+      continue;
+    case 1:
+      break;
+    default:
+      if (state >= buf_page_t::UNFIXED)
+        continue;
+    }
+
+    if (state < buf_page_t::READ_FIX && bpage->lock.u_lock_try(true))
+    {
+      ut_ad(!bpage->is_io_fixed());
+      const lsn_t oldest_modification= bpage->oldest_modification();
+      switch (oldest_modification) {
+      case 1:
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        buf_pool.delete_from_flush_list(bpage);
+        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+        /* fall through */
+      case 0:
+        bpage->lock.u_unlock(true);
+        goto try_to_evict;
+      default:
+        if (bpage->state() < buf_page_t::UNFIXED &&
+            oldest_modification <= log_sys.get_flushed_lsn())
+          release_freed_page(bpage);
+        else
+          bpage->lock.u_unlock(true);
+      }
+    }
+  }
+
+#if defined MADV_FREE || defined _WIN32
+  /* FIXME: Issue fewer calls for larger contiguous blocks of
+  memory. For now, we assume that this is acceptable, because this
+  code should be executed rarely. */
+  for (buf_page_t *bpage= UT_LIST_GET_FIRST(free); bpage;
+       bpage= UT_LIST_GET_NEXT(list, bpage))
+# ifdef MADV_FREE
+    madvise(bpage->frame, srv_page_size, MADV_FREE);
+# elif defined _WIN32
+    DiscardVirtualMemory(bpage->frame, srv_page_size);
+# endif
+#endif
+}
+
 /** Thread pool task invoked by innodb_buffer_pool_size changes. */
 static void buf_resize_callback(void *)
 {
-  DBUG_ENTER("buf_resize_callback");
-  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
-  mysql_mutex_lock(&buf_pool.mutex);
-  const auto size= srv_buf_pool_size;
-  const bool work= srv_buf_pool_old_size != size;
-  mysql_mutex_unlock(&buf_pool.mutex);
-
-  if (work)
-    buf_pool.resize();
-  else
-  {
-    std::ostringstream sout;
-    sout << "Size did not change: old size = new size = " << size;
-    buf_resize_status(sout.str().c_str());
-  }
-  DBUG_VOID_RETURN;
+  buf_pool.resize();
 }
 
 /* Ensure that task does not run in parallel, by setting max_concurrency to 1 for the thread group */
@@ -1906,7 +1955,21 @@ static tpool::waitable_task buf_resize_task(buf_resize_callback,
 
 void buf_resize_start()
 {
-	srv_thread_pool->submit_task(&buf_resize_task);
+  mysql_mutex_lock(&buf_pool.mutex);
+
+  if (srv_buf_pool_old_size != srv_buf_pool_size)
+  {
+    mysql_mutex_unlock(&buf_pool.mutex);
+    snprintf(export_vars.innodb_buffer_pool_resize_status,
+             sizeof export_vars.innodb_buffer_pool_resize_status,
+             "Buffer pool resize requested");
+    srv_thread_pool->submit_task(&buf_resize_task);
+  }
+  else
+  {
+    buf_pool.garbage_collect();
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
 }
 
 void buf_resize_shutdown()
