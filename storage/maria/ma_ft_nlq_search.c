@@ -111,11 +111,11 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
   while (!r && gweight)
   {
     if (key.data_length &&
-        ha_compare_text(aio->charset,
-                        info->last_key.data+1,
+        ha_compare_word(aio->charset,
+                        info->last_key.data + 1,
                         info->last_key.data_length +
                         info->last_key.ref_length - extra - 1,
-                        key.data+1, key.data_length-1, 0))
+                        key.data + 1, key.data_length - 1))
      break;
 
     if (subkeys.i < 0)

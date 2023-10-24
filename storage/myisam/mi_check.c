@@ -3957,9 +3957,9 @@ static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a)
   }
   get_key_full_length_rdonly(val_off, ft_buf->lastkey);
 
-  if (ha_compare_text(sort_param->seg->charset,
-                      ((uchar *)a)+1,a_len-1,
-                      (uchar*) ft_buf->lastkey+1,val_off-1, 0)==0)
+  if (ha_compare_word(sort_param->seg->charset,
+                      ((uchar *)a) + 1, a_len - 1,
+                      (uchar*) ft_buf->lastkey + 1, val_off - 1) == 0)
   {
     if (!ft_buf->buf) /* store in second-level tree */
     {

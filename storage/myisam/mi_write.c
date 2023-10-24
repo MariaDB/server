@@ -542,7 +542,9 @@ int _mi_insert(register MI_INFO *info, register MI_KEYDEF *keyinfo,
       get_key_length(alen,a);
       DBUG_ASSERT(info->ft1_to_ft2==0);
       if (alen == blen &&
-          ha_compare_text(keyinfo->seg->charset, a, alen, b, blen, 0)==0)
+          ha_compare_word(keyinfo->seg->charset,
+                          a, alen,
+                          b, blen) == 0)
       {
         /* yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)
