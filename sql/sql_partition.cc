@@ -2482,7 +2482,7 @@ char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
                                         HA_CREATE_INFO *create_info,
                                         Alter_info *alter_info)
 {
-  Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
+  Sql_mode_save_for_frm_handling sql_mode_save(thd);
   char *res= generate_partition_syntax(thd, part_info, buf_length,
                                              true, create_info, alter_info);
   DBUG_EXECUTE_IF("generate_partition_syntax_for_frm",
