@@ -133,7 +133,7 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 struct my_timeval
 {
   longlong tv_sec;
-  long tv_usec;
+  ulong tv_usec;
 };
 
 
