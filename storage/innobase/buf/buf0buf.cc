@@ -742,6 +742,219 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 
 #ifndef UNIV_INNOCHECKSUM
 
+#ifdef __linux__
+#include <poll.h>
+#include <fstream>
+
+/** Memory Pressure
+
+based off https://www.kernel.org/doc/html/latest/accounting/psi.html#pressure-interface
+and https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#memory */
+class mem_pressure
+{
+  /* triggers + pipe */
+  struct pollfd m_fds[3];
+  nfds_t m_num_fds;
+  int m_pipe[2]= {-1, -1};
+
+  std::thread m_thd;
+  /* mem pressure garbarge collection resticted to interval */
+  static constexpr ulonglong max_interval_us= 60*1000000;
+public:
+  mem_pressure() : m_num_fds(0) {}
+
+  bool setup()
+  {
+    static_assert(array_elements(m_fds) == (array_elements(m_triggers) + 1),
+                  "insufficient fds");
+    std::string memcgroup{"/sys/fs/cgroup"};
+    std::string cgroup;
+    {
+      std::ifstream selfcgroup("/proc/self/cgroup");
+      std::getline(selfcgroup, cgroup, '\n');
+    }
+
+    cgroup.erase(0, 3); // Remove "0::"
+    memcgroup+= cgroup + "/memory.pressure";
+
+    m_num_fds= 0;
+    for (auto trig= std::begin(m_triggers); trig!= std::end(m_triggers); ++trig)
+    {
+      if ((m_fds[m_num_fds].fd=
+             open(memcgroup.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC)) < 0)
+      {
+        switch (errno) {
+        case EPERM:
+        /* https://lore.kernel.org/all/CAMw=ZnQ56cm4Txgy5EhGYvR+Jt4s-KVgoA9_65HKWVMOXp7a9A@mail.gmail.com/T/#m3bd2a73c5ee49965cb73a830b1ccaa37ccf4e427 */
+          sql_print_information("InnoDB: Failed to initialize memory pressure EPERM, "
+                                "file permissions.");
+          break;
+        default:
+          sql_print_information("InnoDB: Failed to initialize memory pressure: %s",
+                                strerror(errno));
+        }
+        shutdown();
+        return false;
+      }
+      my_register_filename(m_pipe[0], memcgroup.c_str(), FILE_BY_OPEN, 0, MYF(0));
+      ssize_t slen= strlen(*trig);
+      if (write(m_fds[m_num_fds].fd, *trig, slen) < slen)
+      {
+        sql_print_warning("InnoDB: Failed create trigger for memory pressure \"%s\"", *trig);
+        my_close(m_fds[m_num_fds].fd, MYF(MY_WME));
+        continue;
+      }
+      m_fds[m_num_fds].events= POLLPRI;
+      m_num_fds++;
+    }
+    if (m_num_fds < 1)
+      return false;
+
+    if (pipe2(m_pipe, O_CLOEXEC | O_DIRECT))
+    {
+      sql_print_warning("InnoDB: No memory pressure - can't create pipe");
+      shutdown();
+      return false;
+    }
+    my_register_filename(m_pipe[0], "mem_pressure_read", FILE_BY_DUP, 0, MYF(0));
+    my_register_filename(m_pipe[1], "mem_pressure_write", FILE_BY_DUP, 0, MYF(0));
+    m_fds[m_num_fds].fd= m_pipe[0];
+    m_fds[m_num_fds].events= POLLIN;
+    m_num_fds++;
+    m_thd= std::thread(pressure_routine, this);
+    return true;
+  }
+
+  void shutdown()
+  {
+    while (m_num_fds)
+    {
+      m_num_fds--;
+      my_close(m_fds[m_num_fds].fd, MYF(MY_WME));
+      m_fds[m_num_fds].fd= -1;
+    }
+    /* note m_pipe[0] closed in above loop */
+    if (m_pipe[1] >= 0)
+    {
+      my_close(m_pipe[1], MYF(MY_WME));
+      m_pipe[1]= -1;
+    }
+  }
+
+  static void pressure_routine(mem_pressure *m);
+
+#ifdef UNIV_DEBUG
+  void trigger_collection()
+  {
+    const char c= 'G';
+    if (m_pipe[1] >=0 && write(m_pipe[1], &c, 1) < 1)
+      sql_print_information("InnoDB: (Debug) Failed to trigger memory pressure");
+    else /* assumed failed to meet intialization criteria, so trigger directy */
+      buf_pool.garbage_collect();
+  }
+#endif
+
+  void quit()
+  {
+    const char c= 'Q';
+    if (m_num_fds && write(m_pipe[1], &c, 1) < 1)
+      sql_print_warning("InnoDB: Failed to write memory pressure quit message");
+  }
+
+  void join()
+  {
+    if (m_thd.joinable())
+    {
+      quit();
+      m_thd.join();
+    }
+  }
+
+  static const char* const m_triggers[2];
+};
+
+
+/*
+  ref: https://docs.kernel.org/accounting/psi.html
+  maximum window size (second number) 10 seconds.
+  window size in multiples of 2 second interval required (for Unprivileged)
+  Time is in usec.
+*/
+const char* const mem_pressure::m_triggers[]=
+  {"some 5000000 10000000", /* 5s out of 10s */
+   "full 10000 2000000"}; /* 10ms out of 2s */
+
+static mem_pressure mem_pressure_obj;
+
+void mem_pressure::pressure_routine(mem_pressure *m)
+{
+  DBUG_ASSERT(m == &mem_pressure_obj);
+  if (my_thread_init())
+  {
+    m->shutdown();
+    return;
+  }
+
+  ulonglong last= microsecond_interval_timer() - max_interval_us;
+  while (1)
+  {
+    if (poll(&m->m_fds[0], m->m_num_fds, -1) < 0)
+    {
+      if (errno == EINTR)
+        continue;
+      else
+      {
+        sql_print_warning("InnoDB: memory pressure poll error %s",
+                          strerror(errno));
+        break;
+      }
+    }
+    for (pollfd &p : st_::span<pollfd>(m->m_fds, m->m_num_fds))
+    {
+      if (p.revents & POLLPRI)
+      {
+        ulonglong now= microsecond_interval_timer();
+        if ((now - last) > max_interval_us)
+        {
+          last= now;
+          buf_pool.garbage_collect();
+        }
+      }
+
+      if (p.revents & POLLIN)
+      {
+        char c= '\0';
+        /* signal to quit */
+        if (read(p.fd, &c, 1) >=0)
+          switch (c) {
+          case 'Q':
+            goto shutdown;
+#ifdef UNIV_DEBUG
+          case 'G':
+            buf_pool.garbage_collect();
+#endif
+          }
+      }
+    }
+  }
+shutdown:
+  m->shutdown();
+
+  my_thread_end();
+}
+
+/** Initialize mem pressure. */
+ATTRIBUTE_COLD void buf_mem_pressure_detect_init()
+{
+  mem_pressure_obj.setup();
+}
+
+ATTRIBUTE_COLD void buf_mem_pressure_shutdown()
+{
+  mem_pressure_obj.join();
+}
+#endif /* __linux__ */
+
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
 /** Enable buffers to be dumped to core files
 
@@ -1099,6 +1312,10 @@ bool buf_pool_t::create()
   chunk_t::map_ref= chunk_t::map_reg;
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
   btr_search_sys_create();
+
+#ifdef __linux__
+  buf_mem_pressure_detect_init();
+#endif
   ut_ad(is_initialised());
   return false;
 }
@@ -1536,6 +1753,7 @@ struct find_interesting_trx
 inline void buf_pool_t::resize()
 {
   ut_ad(this == &buf_pool);
+  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
 
 	bool		warning = false;
 
@@ -1878,6 +2096,100 @@ calc_buf_pool_size:
 	return;
 }
 
+#ifdef __linux__
+inline void buf_pool_t::garbage_collect()
+{
+  mysql_mutex_lock(&mutex);
+  size_t freed= 0;
+
+#ifdef BTR_CUR_HASH_ADAPT
+  /* buf_LRU_free_page() will temporarily release and reacquire
+  buf_pool.mutex for invoking btr_search_drop_page_hash_index(). Thus,
+  we must protect ourselves with the hazard pointer. */
+rescan:
+#else
+  lru_hp.set(nullptr);
+#endif
+  for (buf_page_t *bpage= UT_LIST_GET_LAST(LRU), *prev; bpage; bpage= prev)
+  {
+    prev= UT_LIST_GET_PREV(LRU, bpage);
+#ifdef BTR_CUR_HASH_ADAPT
+    lru_hp.set(prev);
+#endif
+    auto state= bpage->state();
+    ut_ad(state >= buf_page_t::FREED);
+    ut_ad(bpage->in_LRU_list);
+
+    /* We try to free any pages that can be freed without writing out
+    anything. */
+    switch (bpage->oldest_modification()) {
+    case 0:
+    try_to_evict:
+      if (buf_LRU_free_page(bpage, true))
+      {
+      evicted:
+        freed++;
+#ifdef BTR_CUR_HASH_ADAPT
+        bpage= prev;
+        prev= lru_hp.get();
+        if (!prev && bpage)
+          goto rescan;
+#endif
+      }
+      continue;
+    case 1:
+      break;
+    default:
+      if (state >= buf_page_t::UNFIXED)
+        continue;
+    }
+
+    if (state < buf_page_t::READ_FIX && bpage->lock.u_lock_try(true))
+    {
+      ut_ad(!bpage->is_io_fixed());
+      lsn_t oldest_modification= bpage->oldest_modification();
+      switch (oldest_modification) {
+      case 1:
+        mysql_mutex_lock(&flush_list_mutex);
+        oldest_modification= bpage->oldest_modification();
+        if (oldest_modification)
+        {
+          ut_ad(oldest_modification == 1);
+          delete_from_flush_list(bpage);
+        }
+        mysql_mutex_unlock(&flush_list_mutex);
+        /* fall through */
+      case 0:
+        bpage->lock.u_unlock(true);
+        goto try_to_evict;
+      default:
+        if (bpage->state() < buf_page_t::UNFIXED &&
+            oldest_modification <= log_sys.get_flushed_lsn())
+        {
+          release_freed_page(bpage);
+          goto evicted;
+        }
+        else
+          bpage->lock.u_unlock(true);
+      }
+    }
+  }
+
+#if defined MADV_FREE
+  /* FIXME: Issue fewer calls for larger contiguous blocks of
+  memory. For now, we assume that this is acceptable, because this
+  code should be executed rarely. */
+  for (buf_page_t *bpage= UT_LIST_GET_FIRST(free); bpage;
+       bpage= UT_LIST_GET_NEXT(list, bpage))
+    madvise(bpage->frame, srv_page_size, MADV_FREE);
+#endif
+  mysql_mutex_unlock(&mutex);
+  sql_print_information("InnoDB: Memory pressure event freed %zu pages",
+                        freed);
+  return;
+}
+#endif /* __linux__ */
+
 /** Thread pool task invoked by innodb_buffer_pool_size changes. */
 static void buf_resize_callback(void *)
 {
@@ -1906,12 +2218,23 @@ static tpool::waitable_task buf_resize_task(buf_resize_callback,
 
 void buf_resize_start()
 {
-	srv_thread_pool->submit_task(&buf_resize_task);
+#if !defined(DBUG_OFF) && defined(__linux__)
+  DBUG_EXECUTE_IF("trigger_garbage_collection",
+  {
+    mem_pressure_obj.trigger_collection();
+  }
+  );
+#endif
+
+  srv_thread_pool->submit_task(&buf_resize_task);
 }
 
 void buf_resize_shutdown()
 {
-	buf_resize_task.wait();
+#ifdef __linux__
+  buf_mem_pressure_shutdown();
+#endif
+  buf_resize_task.wait();
 }
 
 
