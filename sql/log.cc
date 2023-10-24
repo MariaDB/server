@@ -6005,8 +6005,17 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
     /*
       Write pending event to the cache.
     */
+#ifndef DBUG_OFF
+    bool clear_dbug= false;
+#endif
     DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
-                    {DBUG_SET("+d,simulate_file_write_error");});
+                    {
+                      if (my_b_tell(&cache_data->cache_log) > 10000)
+                      {
+                        DBUG_SET("+d,simulate_file_write_error");
+                        clear_dbug= true;
+                      }
+                    });
     if (writer.write(pending))
     {
       set_write_error(thd, is_transactional);
@@ -6016,9 +6025,17 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
       delete pending;
       cache_data->set_pending(NULL);
       DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
-                      {DBUG_SET("-d,simulate_file_write_error");});
+                      {
+                        if (clear_dbug)
+                          DBUG_SET("-d,simulate_file_write_error");
+                      });
       DBUG_RETURN(1);
     }
+    DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
+                    {
+                      if (clear_dbug)
+                        DBUG_SET("-d,simulate_file_write_error");
+                    });
 
     delete pending;
   }
@@ -8337,51 +8354,83 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   binlog_cache_mngr *mngr= entry->cache_mngr;
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
 
-  if (write_gtid_event(entry->thd, false, entry->using_trx_cache, commit_id))
-    DBUG_RETURN(ER_ERROR_ON_WRITE);
+  bool do_stmt= entry->using_stmt_cache && !mngr->stmt_cache.empty();
+  bool do_trx= entry->using_trx_cache && !mngr->trx_cache.empty();
+  IO_CACHE *stmt_cache= mngr->get_binlog_cache_log(FALSE);
+  IO_CACHE *trx_cache= mngr->get_binlog_cache_log(TRUE);
 
-  if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
-      write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
+  if (likely(!( (do_stmt && stmt_cache->error) ||
+                (do_trx && trx_cache->error) )))
   {
-    entry->error_cache= &mngr->stmt_cache.cache_log;
-    DBUG_RETURN(ER_ERROR_ON_WRITE);
-  }
+    if (write_gtid_event(entry->thd, false, entry->using_trx_cache, commit_id))
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
 
-  if (entry->using_trx_cache && !mngr->trx_cache.empty())
-  {
-    DBUG_EXECUTE_IF("crash_before_writing_xid",
-                    {
-                      if ((write_cache(entry->thd,
-                                       mngr->get_binlog_cache_log(TRUE))))
-                        DBUG_PRINT("info", ("error writing binlog cache"));
-                      else
-                        flush_and_sync(0);
-
-                      DBUG_PRINT("info", ("crashing before writing xid"));
-                      DBUG_SUICIDE();
-                    });
-
-    if (write_cache(entry->thd, mngr->get_binlog_cache_log(TRUE)))
+    if (do_stmt &&
+        write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
     {
-      entry->error_cache= &mngr->trx_cache.cache_log;
+      entry->error_cache= &mngr->stmt_cache.cache_log;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
+
+    if (do_trx)
+    {
+      DBUG_EXECUTE_IF("crash_before_writing_xid",
+                      {
+                        if ((write_cache(entry->thd,
+                                         mngr->get_binlog_cache_log(TRUE))))
+                          DBUG_PRINT("info", ("error writing binlog cache"));
+                        else
+                          flush_and_sync(0);
+
+                        DBUG_PRINT("info", ("crashing before writing xid"));
+                        DBUG_SUICIDE();
+                      });
+
+      if (write_cache(entry->thd, mngr->get_binlog_cache_log(TRUE)))
+      {
+        entry->error_cache= &mngr->trx_cache.cache_log;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
+      }
+    }
+
+    DBUG_EXECUTE_IF("inject_error_writing_xid",
+                    {
+                      entry->error_cache= NULL;
+                      errno= 28;
+                      DBUG_RETURN(ER_ERROR_ON_WRITE);
+                    });
+
+    if (write_event(entry->end_event))
+    {
+      entry->error_cache= NULL;
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
+    status_var_add(entry->thd->status_var.binlog_bytes_written,
+                   entry->end_event->data_written);
   }
-
-  DBUG_EXECUTE_IF("inject_error_writing_xid",
-                  {
-                    entry->error_cache= NULL;
-                    errno= 28;
-                    DBUG_RETURN(ER_ERROR_ON_WRITE);
-                  });
-
-  if (write_event(entry->end_event))
+  else
   {
-    entry->error_cache= NULL;
-    DBUG_RETURN(ER_ERROR_ON_WRITE);
+    /*
+      If writing the IO_CACHE caused an error, we musn't flush it to the main
+      binlog, it's probably corrupt/truncated.
+
+      We clear the error (otherwise it would be interpreted as an error
+      _reading_ the IO_CACHE).
+
+      And generate an incident event, if one wasn't set already.
+    */
+    stmt_cache->error= trx_cache->error= 0;
+    if (!entry->incident_event)
+    {
+      Incident_log_event inc_ev(entry->thd, INCIDENT_LOST_EVENTS,
+                                &write_error_msg);
+      if (write_event(&inc_ev))
+      {
+        entry->error_cache= NULL;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
+      }
+    }
   }
-  status_var_add(entry->thd->status_var.binlog_bytes_written,
-                 entry->end_event->data_written);
 
   if (entry->incident_event)
   {
@@ -8392,12 +8441,12 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     }
   }
 
-  if (unlikely(mngr->get_binlog_cache_log(FALSE)->error))
+  if (unlikely(do_stmt && stmt_cache->error))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
-  if (unlikely(mngr->get_binlog_cache_log(TRUE)->error))  // Error on read
+  if (unlikely(do_trx && trx_cache->error))  // Error on read
   {
     entry->error_cache= &mngr->trx_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
