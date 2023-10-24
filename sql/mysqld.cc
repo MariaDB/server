@@ -8679,6 +8679,16 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     return 1;
   }
 
+#ifndef EMBEDDED_LIBRARY
+  if (validate_redirect_url(global_system_variables.redirect_url,
+                            strlen(global_system_variables.redirect_url)))
+  {
+    sql_print_error("Invalid redirect_url: %s",
+                    global_system_variables.redirect_url);
+    return 1;
+  }
+#endif
+
   if (opt_disable_networking)
     mysqld_port= mysqld_extra_port= 0;
 

@@ -6905,14 +6905,8 @@ static Sys_var_ulonglong Sys_max_session_mem_used(
  @retval false  The string is valid
  @retval true   The string is invalid
 */
-static bool sysvar_validate_redirect_url(sys_var *self, THD *thd,
-                                         set_var *var)
+export bool validate_redirect_url(char *str, size_t len)
 {
-  /* NULL is invalid. */
-  if (check_not_null(self, thd, var))
-    return true;
-  char *str= var->save_result.string_value.str;
-  size_t len= var->save_result.string_value.length;
   LEX_CSTRING mysql_prefix= {STRING_WITH_LEN("mysql://")};
   LEX_CSTRING maria_prefix= {STRING_WITH_LEN("mariadb://")};
   /* Empty string is valid */
@@ -6946,6 +6940,17 @@ static bool sysvar_validate_redirect_url(sys_var *self, THD *thd,
       return true;
   }
   return false;
+}
+
+static bool sysvar_validate_redirect_url(sys_var *self, THD *thd,
+                                         set_var *var)
+{
+  /* NULL is invalid. */
+  if (check_not_null(self, thd, var))
+    return true;
+  char *str= var->save_result.string_value.str;
+  size_t len= var->save_result.string_value.length;
+  return validate_redirect_url(str, len);
 }
 
 static Sys_var_charptr Sys_redirect_url(
