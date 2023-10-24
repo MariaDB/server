@@ -656,12 +656,9 @@ public:
     access_time= 0;
   }
 
-  void set_os_unused()
+  void set_os_unused() const
   {
     MEM_NOACCESS(frame, srv_page_size);
-#ifdef MADV_FREE
-    madvise(frame, srv_page_size, MADV_FREE);
-#endif
   }
 
   void set_os_used() const
@@ -1300,6 +1297,11 @@ public:
 
   /** Resize from srv_buf_pool_old_size to srv_buf_pool_size. */
   inline void resize();
+
+#ifdef __linux__
+  /** Collect garbage (release pages from the LRU list) */
+  inline void garbage_collect();
+#endif
 
   /** @return whether resize() is in progress */
   bool resize_in_progress() const
