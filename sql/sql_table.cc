@@ -2494,11 +2494,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     else
     {
+#ifdef WITH_WSREP
       if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton->db_type))
       {
         error= 1;
         goto err;
       }
+#endif
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
