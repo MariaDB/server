@@ -875,7 +875,18 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   page_t *frame= bpage->zip.data;
 
   if (status == buf_page_t::FREED)
+  {
+    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+    {
+      const lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
+                                        (FIL_PAGE_LSN + (frame ? frame
+                                                         : block->frame)));
+      ut_ad(lsn >= oldest_modification);
+      if (lsn > log_sys.get_flushed_lsn())
+        log_write_up_to(lsn, true);
+    }
     buf_pool.release_freed_page(&block->page);
+  }
   else
   {
     space->reacquire();

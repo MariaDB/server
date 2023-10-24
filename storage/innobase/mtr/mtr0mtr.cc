@@ -1027,7 +1027,8 @@ struct FindBlockX
   /** @return whether the block was not found x-latched */
   bool operator()(const mtr_memo_slot_t *slot) const
   {
-    return slot->object != &block || slot->type != MTR_MEMO_PAGE_X_FIX;
+    return slot->object != &block ||
+      (slot->type | MTR_MEMO_MODIFY) != MTR_MEMO_PAGE_X_MODIFY;
   }
 };
 
