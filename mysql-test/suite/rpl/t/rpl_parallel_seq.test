@@ -128,8 +128,51 @@ SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 
 SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 have been committed";
 
+# MDEV-31792 Assertion in MDL_context::acquire_lock upon parallel replication of CREATE SEQUENCE
+
+--let $iter = 3
+while ($iter)
+{
+--connection slave
+if (`select $iter > 1`)
+{
+  flush tables with read lock;
+}
+if (`select $iter = 1`)
+{
+  BEGIN /* slave local Trx */;
+   select count(*) from s3;
+}
+
+--connection master
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+# select may return non-deterministically, don't print its result
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit%"
+--source include/wait_condition.inc
+
+if (`select $iter > 1`)
+{
+  unlock tables;
+}
+if (`select $iter = 1`)
+{
+--connection slave
+rollback /* Trx */;
+}
+
+
+--source include/sync_with_master_gtid.inc
+
+--dec $iter
+}
+
+
 #
-# MDEV-29621/MDEV-31077 clean up.
+# MDEV-29621/MDEV-31077/MDEV-31792 clean up.
 #
 --connection slave
 --source include/stop_slave.inc
@@ -142,7 +185,7 @@ SET debug_sync = RESET;
 --source include/start_slave.inc
 
 --connection master
-DROP SEQUENCE s2;
+DROP SEQUENCE s2,s3;
 DROP TABLE ti;
 
 --sync_slave_with_master

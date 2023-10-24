@@ -959,7 +959,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view_query.length(0);
   is_query.length(0);
   {
-    Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
+    Sql_mode_save_for_frm_handling sql_mode_save(thd);
 
     lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
                                                  QT_ITEM_ORIGINAL_FUNC_NULLIF |
@@ -1427,35 +1427,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     lex_start(thd);
     lex->stmt_lex= old_lex;
 
-    sql_mode_t saved_mode= thd->variables.sql_mode;
-    /* switch off modes which can prevent normal parsing of VIEW
-      - MODE_REAL_AS_FLOAT            affect only CREATE TABLE parsing
-      + MODE_PIPES_AS_CONCAT          affect expression parsing
-      + MODE_ANSI_QUOTES              affect expression parsing
-      + MODE_IGNORE_SPACE             affect expression parsing
-      - MODE_IGNORE_BAD_TABLE_OPTIONS affect only CREATE/ALTER TABLE parsing
-      * MODE_ONLY_FULL_GROUP_BY       affect execution
-      * MODE_NO_UNSIGNED_SUBTRACTION  affect execution
-      - MODE_NO_DIR_IN_CREATE         affect table creation only
-      - MODE_POSTGRESQL               compounded from other modes
-      - MODE_ORACLE                   affects Item creation (e.g for CONCAT)
-      - MODE_MSSQL                    compounded from other modes
-      - MODE_DB2                      compounded from other modes
-      - MODE_MAXDB                    affect only CREATE TABLE parsing
-      - MODE_NO_KEY_OPTIONS           affect only SHOW
-      - MODE_NO_TABLE_OPTIONS         affect only SHOW
-      - MODE_NO_FIELD_OPTIONS         affect only SHOW
-      - MODE_MYSQL323                 affect only SHOW
-      - MODE_MYSQL40                  affect only SHOW
-      - MODE_ANSI                     compounded from other modes
-                                      (+ transaction mode)
-      ? MODE_NO_AUTO_VALUE_ON_ZERO    affect UPDATEs
-      + MODE_NO_BACKSLASH_ESCAPES     affect expression parsing
-    */
-    thd->variables.sql_mode&= ~(MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
-                                MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES |
-                                MODE_ORACLE);
-
+    Sql_mode_save_for_frm_handling sql_mode_save(thd);
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
@@ -1467,8 +1439,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if ((old_lex->sql_command == SQLCOM_SHOW_FIELDS) ||
         (old_lex->sql_command == SQLCOM_SHOW_CREATE))
         lex->sql_command= old_lex->sql_command;
-
-    thd->variables.sql_mode= saved_mode;
 
     if (dbchanged && mysql_change_db(thd, &old_db, TRUE))
       goto err;
