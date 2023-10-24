@@ -15,9 +15,11 @@
 #  MDEV-30260: Slave crashed:reload_acl_and_cache during shutdown
 #
 
+--source include/not_windows.inc
+--source include/have_debug.inc
+
 # Binlog format doesn't matter
 --source include/have_binlog_format_statement.inc
---source include/have_debug.inc
 --source include/master-slave.inc
 
 # For error test case which forces timeout

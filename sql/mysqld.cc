@@ -2096,15 +2096,24 @@ static void clean_up(bool print_message)
 static void wait_for_signal_thread_to_end()
 {
   uint i, n_waits= DBUG_EVALUATE("force_sighup_processing_timeout", 5, 100);
+  int err;
   /*
     Wait up to 10 seconds for signal thread to die. We use this mainly to
     avoid getting warnings that my_thread_end has not been called
   */
   for (i= 0; i < n_waits && signal_thread_in_use; i++)
   {
-    if (pthread_kill(signal_thread, MYSQL_KILL_SIGNAL) == ESRCH)
+    err= pthread_kill(signal_thread, MYSQL_KILL_SIGNAL);
+    if (err)
       break;
     my_sleep(100000); // Give it time to die, .1s per iteration
+  }
+
+  if (err && err != ESRCH)
+  {
+    sql_print_error("Failed to send kill signal to signal handler thread, "
+                    "pthread_kill() errno: %d",
+                    err);
   }
 
   if (i == n_waits)
