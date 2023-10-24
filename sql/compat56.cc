@@ -20,7 +20,7 @@
 #include "myisampack.h"
 #include "my_time.h"
 
-static const int my_max_usec_value[7]
+static const ulong my_max_usec_value[7]
 {
   0,
   900000,
@@ -412,7 +412,7 @@ void my_timestamp_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec)
       return;
     case 1:
     case 2:
-      tm->tv_usec= ((int) ptr[4]) * 10000;
+      tm->tv_usec= ((uint) ptr[4]) * 10000;
       break;
     case 3:
     case 4:
@@ -434,7 +434,7 @@ void my_timestamp_from_binary(struct timeval *tm, const uchar *ptr, uint dec)
 {
   my_timeval tmp;
   my_timestamp_from_binary(&tmp, ptr, dec);
-  tm->tv_sec= (long) tmp.tv_sec;
+  tm->tv_sec= (ulong) tmp.tv_sec;
   tm->tv_usec= tmp.tv_usec;
 }
 
