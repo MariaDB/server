@@ -1,5 +1,3 @@
-set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
-set global innodb_purge_rseg_truncate_frequency= 1;
 call mtr.add_suppression("need more HISTORY partitions");
 create table t (a int);
 delete history from t before system_time now();
@@ -210,7 +208,6 @@ insert into t1 values (1, 'c');
 delete from t1;
 alter table t1 add fulltext key(ftx);
 drop table t1;
-set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
 #
 # MDEV-28201 Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
 #

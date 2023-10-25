@@ -509,7 +509,6 @@ struct purge_coordinator_state
   size_t m_history_length;
   Atomic_counter<int> m_running;
 private:
-  ulint count;
   ulint n_use_threads;
   ulint n_threads;
 
@@ -1284,6 +1283,13 @@ bool srv_any_background_activity()
 
 static void purge_worker_callback(void*);
 static void purge_coordinator_callback(void*);
+static void purge_truncation_callback(void*)
+{
+  purge_sys.latch.rd_lock(SRW_LOCK_CALL);
+  const purge_sys_t::iterator head= purge_sys.head;
+  purge_sys.latch.rd_unlock();
+  head.free_history();
+}
 
 static tpool::task_group purge_task_group;
 tpool::waitable_task purge_worker_task(purge_worker_callback, nullptr,
@@ -1291,6 +1297,9 @@ tpool::waitable_task purge_worker_task(purge_worker_callback, nullptr,
 static tpool::task_group purge_coordinator_task_group(1);
 static tpool::waitable_task purge_coordinator_task
   (purge_coordinator_callback, nullptr, &purge_coordinator_task_group);
+static tpool::task_group purge_truncation_task_group(1);
+static tpool::waitable_task purge_truncation_task
+  (purge_truncation_callback, nullptr, &purge_truncation_task_group);
 
 static tpool::timer *purge_coordinator_timer;
 
@@ -1693,15 +1702,20 @@ fewer_threads:
     if (!history_size)
     {
       srv_dml_needed_delay= 0;
+      purge_truncation_task.wait();
       trx_purge_truncate_history();
     }
     else
     {
       ulint n_pages_handled= trx_purge(n_use_threads, history_size);
-      if (!(++count % srv_purge_rseg_truncate_frequency) ||
-          purge_sys.truncate.current ||
-          (srv_shutdown_state != SRV_SHUTDOWN_NONE && srv_fast_shutdown == 0))
+      if (purge_sys.truncate.current ||
+          srv_shutdown_state != SRV_SHUTDOWN_NONE)
+      {
+        purge_truncation_task.wait();
         trx_purge_truncate_history();
+      }
+      else
+        srv_thread_pool->submit_task(&purge_truncation_task);
       if (n_pages_handled)
         continue;
     }
@@ -1881,6 +1895,7 @@ static void srv_shutdown_purge_tasks()
     purge_thds.pop_front();
   }
   n_purge_thds= 0;
+  purge_truncation_task.wait();
 }
 
 /**********************************************************************//**

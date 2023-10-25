@@ -1,5 +1,3 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 connect  control_purge,localhost,root,,;
 connection default;
 CREATE TABLE t1 (
@@ -136,4 +134,3 @@ SPATIAL KEY (g6)
 ) ENGINE=InnoDB;
 DROP TABLE t1,t2;
 disconnect control_purge;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -19378,9 +19378,8 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
 
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   srv_purge_rseg_truncate_frequency,
-  PLUGIN_VAR_OPCMDARG,
-  "Dictates rate at which UNDO records are purged. Value N means"
-  " purge rollback segment(s) on every Nth iteration of purge invocation",
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,

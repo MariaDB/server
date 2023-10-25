@@ -10,9 +10,6 @@
 # Valgrind takes too much time on PB2 even in the --big-test runs.
 --source include/not_valgrind.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb ROW_FORMAT=COMPRESSED;
 
 # Insert enough values to let R-tree split.
@@ -61,4 +58,3 @@ SET debug_dbug = @saved_dbug;
 
 # Clean up.
 drop table t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

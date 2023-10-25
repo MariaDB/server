@@ -6,9 +6,6 @@
 --source include/innodb_row_format.inc
 --source include/count_sessions.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 connect (control_purge,localhost,root,,);
 connection default;
 
@@ -100,5 +97,3 @@ dec $index;
 
 disconnect control_purge;
 --source include/wait_until_count_sessions.inc
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
