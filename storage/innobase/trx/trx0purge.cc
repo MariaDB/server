@@ -127,10 +127,13 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 	/* Only the purge_coordinator_task will access this object
 	purge_sys.rseg_iter, or any of purge_sys.hdr_page_no,
 	purge_sys.tail.
-	The field purge_sys.head and purge_sys.view are only modified by
+	The field purge_sys.head and purge_sys.view are modified by
 	purge_sys_t::clone_end_view()
 	in the purge_coordinator_task
 	while holding exclusive purge_sys.latch.
+	The purge_sys.view may also be modified by
+	purge_sys_t::wake_if_not_active() while holding exclusive
+	purge_sys.latch.
 	The purge_sys.head may be read by
 	purge_truncation_callback(). */
 	ut_ad(last_trx_no == m_rsegs.trx_no);
