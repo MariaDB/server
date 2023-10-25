@@ -752,7 +752,10 @@ INSERT INTO t1 VALUES (TRUE, TRUE), (TRUE, FALSE), (FALSE, TRUE), (FALSE, FALSE)
 SELECT JSON_VALID(JSON_ARRAYAGG(a)) FROM t1;
 SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1;
 SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1 GROUP BY b;
+#enable after MDEV-32454 fix
+--disable_view_protocol
 SELECT JSON_ARRAYAGG(TRUE), JSON_ARRAYAGG(FALSE) FROM t1;
+--enable_view_protocol
 DROP TABLE t1;
 
 -- echo #
@@ -1029,9 +1032,12 @@ create table t1 (a varchar(254));
 insert into t1 values (concat('x64-', repeat('a', 60)));
 insert into t1 values (concat('x64-', repeat('b', 60)));
 insert into t1 values (concat('x64-', repeat('c', 60)));
+#enable after MDEV-32454 fix
+--disable_view_protocol
 --disable_ps2_protocol
 select json_arrayagg(a) from t1;
 --enable_ps2_protocol
+--enable_view_protocol
 drop table t1;
 SET group_concat_max_len= default;
 
@@ -1078,8 +1084,8 @@ DROP TABLE t2;
 --echo # MDEV-27018 IF and COALESCE lose "json" property
 --echo #
 
-SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
-SELECT json_object('a', coalesce(json_object('b', 'c')));
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f'))) as exp;
+SELECT json_object('a', coalesce(json_object('b', 'c'))) as exp;
 
 --echo #
 --echo # MDEV-26392: Crash with json_get_path_next and 10.5.12

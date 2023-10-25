@@ -1615,11 +1615,11 @@ DROP TABLE t2;
 #
 # MDEV-27018 IF and COALESCE lose "json" property
 #
-SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
-json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')))
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f'))) as exp;
+exp
 {"a": {"b": "c"}}
-SELECT json_object('a', coalesce(json_object('b', 'c')));
-json_object('a', coalesce(json_object('b', 'c')))
+SELECT json_object('a', coalesce(json_object('b', 'c'))) as exp;
+exp
 {"a": {"b": "c"}}
 #
 # MDEV-26392: Crash with json_get_path_next and 10.5.12
