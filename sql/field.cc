@@ -11174,7 +11174,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
      - If field is a BLOB (Which doesn't support normal DEFAULT)
 */
 
-bool Column_definition::has_default_expression()
+bool Column_definition::has_default_expression() const
 {
   return (default_value &&
           (!default_value->expr->basic_const_item() ||
