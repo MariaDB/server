@@ -74,9 +74,9 @@ const byte*
 trx_undo_rec_get_pars(
 /*==================*/
 	const trx_undo_rec_t*	undo_rec,	/*!< in: undo log record */
-	ulint*		type,		/*!< out: undo record type:
+	byte*		type,		/*!< out: undo record type:
 					TRX_UNDO_INSERT_REC, ... */
-	ulint*		cmpl_info,	/*!< out: compiler info, relevant only
+	byte*		cmpl_info,	/*!< out: compiler info, relevant only
 					for update type records */
 	bool*		updated_extern,	/*!< out: true if we updated an
 					externally stored fild */
