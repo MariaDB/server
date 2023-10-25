@@ -116,31 +116,16 @@ trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
 trx_undo_rec_t*
 trx_undo_get_prev_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
                       uint16_t offset, bool shared, mtr_t *mtr);
-/** Get the next record in an undo log.
-@param[in,out]  block   undo log page
-@param[in]      rec     undo record offset in the page
-@param[in]      page_no undo log header page number
-@param[in]      offset  undo log header offset on page
-@param[in,out]  mtr     mini-transaction
-@return undo log record, the page latched, NULL if none */
-trx_undo_rec_t*
-trx_undo_get_next_rec(const buf_block_t *&block, uint16_t rec,
-                      uint32_t page_no, uint16_t offset, mtr_t *mtr);
 
-/** Get the first record in an undo log.
-@param[in]      space   undo log header space
-@param[in]      page_no undo log header page number
-@param[in]      offset  undo log header offset on page
-@param[in]      mode    latching mode: RW_S_LATCH or RW_X_LATCH
-@param[out]     block   undo log page
-@param[in,out]  mtr     mini-transaction
-@param[out]     err     error code
-@return undo log record, the page latched
-@retval nullptr if none */
+/** Get the first undo log record on a page.
+@param[in]	block	undo log page
+@param[in]	page_no	undo log header page number
+@param[in]	offset	undo log header page offset
+@return	pointer to first record
+@retval	nullptr	if none exists */
 trx_undo_rec_t*
-trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
-                       uint16_t offset, ulint mode, const buf_block_t*& block,
-                       mtr_t *mtr, dberr_t *err);
+trx_undo_page_get_first_rec(const buf_block_t *block, uint32_t page_no,
+                            uint16_t offset);
 
 /** Initialize an undo log page.
 NOTE: This corresponds to a redo log record and must not be changed!

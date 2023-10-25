@@ -107,6 +107,15 @@ typedef	byte	trx_undo_rec_t;
 
 /* @} */
 
+/** Info required to purge a record */
+struct trx_purge_rec_t
+{
+  /** Undo log record, or nullptr (roll_ptr!=0 if the log can be skipped) */
+  const trx_undo_rec_t *undo_rec;
+  /** File pointer to undo_rec */
+  roll_ptr_t roll_ptr;
+};
+
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
 
 /** Number of std::unordered_map hash buckets expected to be needed

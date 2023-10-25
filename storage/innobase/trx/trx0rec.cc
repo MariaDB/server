@@ -2061,12 +2061,23 @@ trx_undo_get_undo_rec_low(
 
   mtr.start();
 
-  const buf_block_t* undo_page=
-    buf_page_get(page_id_t(rseg->space->id, page_no), 0, RW_S_LATCH, &mtr);
-
-  trx_undo_rec_t *undo_rec= undo_page
-    ? trx_undo_rec_copy(undo_page->page.frame + offset, heap)
-    : nullptr;
+  trx_undo_rec_t *undo_rec= nullptr;
+  if (const buf_block_t* undo_page=
+      buf_page_get(page_id_t(rseg->space->id, page_no), 0, RW_S_LATCH, &mtr))
+  {
+    undo_rec= undo_page->page.frame + offset;
+    const size_t end= mach_read_from_2(undo_rec);
+    if (UNIV_UNLIKELY(end <= offset ||
+                      end >= srv_page_size - FIL_PAGE_DATA_END))
+      undo_rec= nullptr;
+    else
+    {
+      size_t len{end - offset};
+      undo_rec=
+        static_cast<trx_undo_rec_t*>(mem_heap_dup(heap, undo_rec, len));
+      mach_write_to_2(undo_rec, len);
+    }
+  }
 
   mtr.commit();
   return undo_rec;
