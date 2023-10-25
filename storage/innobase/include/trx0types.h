@@ -109,6 +109,11 @@ typedef	byte	trx_undo_rec_t;
 
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
 
+/** Number of std::unordered_map hash buckets expected to be needed
+for table IDs in a purge batch. GNU libstdc++ would default to 1 and
+enlarge and rehash on demand. */
+static constexpr size_t TRX_PURGE_TABLE_BUCKETS= 128;
+
 /** The number of rollback segments; rollback segment id must fit in
 the 7 bits reserved for it in DB_ROLL_PTR. */
 static constexpr unsigned TRX_SYS_N_RSEGS= 128;
