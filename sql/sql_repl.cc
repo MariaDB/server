@@ -1823,13 +1823,19 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           {
             if (info->slave_gtid_strict_mode &&
                 event_gtid.seq_no > gtid->seq_no &&
-                !(gtid_entry->flags & slave_connection_state::START_OWN_SLAVE_POS))
+                !(gtid_entry->flags & slave_connection_state::START_OWN_SLAVE_POS) &&
+                !info->slave_gtid_ignore_duplicates)
             {
               /*
                 In strict mode, it is an error if the slave requests to start
                 in a "hole" in the master's binlog: a GTID that does not
                 exist, even though both the prior and subsequent seq_no exists
                 for same domain_id and server_id.
+
+                But in --gtid-ignore-duplicates this is relaxed, as this
+                implies that we trust the sequence numbers between different
+                server_id. Thus, we want to allow the slave to connect at the
+                "hole", which could eg. be a filtered event.
               */
               info->error= ER_GTID_START_FROM_BINLOG_HOLE;
               *error_gtid= *gtid;
