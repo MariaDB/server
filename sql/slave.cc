@@ -4303,8 +4303,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
-          rli->sql_thread_caught_up= false;
         }
+        rli->sql_thread_caught_up= false;
       }
 
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
