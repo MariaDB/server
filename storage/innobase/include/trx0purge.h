@@ -235,12 +235,12 @@ public:
   bool paused()
   { return m_paused != 0; }
 
-  /** Enable purge at startup. Not protected by latch; the main thread
-  will wait for purge_sys.enabled() in srv_start() */
+  /** Enable purge at startup. */
   void coordinator_startup()
   {
     ut_ad(!enabled());
     m_enabled.store(true, std::memory_order_relaxed);
+    wake_if_not_active();
   }
 
   /** Disable purge at shutdown */
@@ -319,6 +319,9 @@ public:
         clamp_low_limit_id(head.trx_no ? head.trx_no : tail.trx_no);
     latch.wr_unlock();
   }
+
+  /** Wake up the purge threads if there is work to do. */
+  void wake_if_not_active();
 
   /** Update end_view at the end of a purge batch.
   @param head   the new head of the purge queue */

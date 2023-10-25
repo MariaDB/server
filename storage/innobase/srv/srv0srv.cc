@@ -1301,12 +1301,10 @@ static tpool::task_group purge_truncation_task_group(1);
 static tpool::waitable_task purge_truncation_task
   (purge_truncation_callback, nullptr, &purge_truncation_task_group);
 
-static tpool::timer *purge_coordinator_timer;
-
 /** Wake up the purge threads if there is work to do. */
-void srv_wake_purge_thread_if_not_active()
+void purge_sys_t::wake_if_not_active()
 {
-  if (purge_sys.enabled() && !purge_sys.paused() &&
+  if (enabled() && !paused() && !purge_state.m_running &&
       (srv_undo_log_truncate || trx_sys.history_exists()) &&
       ++purge_state.m_running == 1)
     srv_thread_pool->submit_task(&purge_coordinator_task);
@@ -1389,8 +1387,8 @@ void purge_sys_t::resume()
    if (paused == 1)
    {
      ib::info() << "Resuming purge";
-     purge_state.m_running = 0;
-     srv_wake_purge_thread_if_not_active();
+     purge_state.m_running= 1;
+     srv_thread_pool->submit_task(&purge_coordinator_task);
      MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
    }
    latch.wr_unlock();
@@ -1535,8 +1533,7 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-  if (!purge_state.m_running)
-    srv_wake_purge_thread_if_not_active();
+  purge_sys.wake_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
   srv_sync_log_buffer_in_background();
   MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
@@ -1629,16 +1626,11 @@ inline void purge_coordinator_state::do_purge()
   ut_ad(!srv_read_only_mode);
   lazy_init();
   ut_ad(n_threads);
-  bool wakeup= false;
-
-  purge_coordinator_timer->disarm();
 
   while (purge_sys.enabled() && !purge_sys.paused())
   {
 loop:
-    wakeup= false;
     const auto now= my_interval_timer();
-    const auto sigcount= m_running;
 
     if (now - start_time >= 1000000)
     {
@@ -1683,10 +1675,7 @@ fewer_threads:
         lsn_hwm+= series[n_use_threads];
       }
       else if (n_use_threads == 1 && lsn_age_factor >= 100 - safety_net)
-      {
-        wakeup= true;
         break;
-      }
     }
     else if (n_threads > n_use_threads &&
              srv_max_purge_lag && m_history_length > srv_max_purge_lag)
@@ -1701,49 +1690,29 @@ fewer_threads:
 
     if (!history_size)
     {
+    no_history:
       srv_dml_needed_delay= 0;
+      purge_truncation_task.wait();
+      trx_purge_truncate_history();
+      break;
+    }
+
+    ulint n_pages_handled= trx_purge(n_use_threads, history_size);
+    if (!trx_sys.history_exists())
+      goto no_history;
+    if (purge_sys.truncate.current || srv_shutdown_state != SRV_SHUTDOWN_NONE)
+    {
       purge_truncation_task.wait();
       trx_purge_truncate_history();
     }
     else
-    {
-      ulint n_pages_handled= trx_purge(n_use_threads, history_size);
-      if (purge_sys.truncate.current ||
-          srv_shutdown_state != SRV_SHUTDOWN_NONE)
-      {
-        purge_truncation_task.wait();
-        trx_purge_truncate_history();
-      }
-      else
-        srv_thread_pool->submit_task(&purge_truncation_task);
-      if (n_pages_handled)
-        continue;
-    }
-
-    if (srv_dml_needed_delay);
-    else if (m_running == sigcount)
-    {
-      /* Purge was not woken up by srv_wake_purge_thread_if_not_active() */
-
-      /* The magic number 5000 is an approximation for the case where we have
-      cached undo log records which prevent truncate of rollback segments. */
-      wakeup= history_size >= 5000 ||
-        (history_size && history_size != trx_sys.history_size_approx());
+      srv_thread_pool->submit_task(&purge_truncation_task);
+    if (!n_pages_handled)
       break;
-    }
-
-    if (!trx_sys.history_exists())
-    {
-      srv_dml_needed_delay= 0;
-      break;
-    }
 
     if (!srv_purge_should_exit(history_size))
       goto loop;
   }
-
-  if (wakeup)
-    purge_coordinator_timer->set_time(10, 0);
 
   m_running= 0;
 }
@@ -1878,15 +1847,12 @@ static void purge_coordinator_callback(void*)
 void srv_init_purge_tasks()
 {
   purge_create_background_thds(srv_n_purge_threads);
-  purge_coordinator_timer= srv_thread_pool->create_timer
-    (purge_coordinator_callback, nullptr);
+  purge_sys.coordinator_startup();
 }
 
 static void srv_shutdown_purge_tasks()
 {
   purge_coordinator_task.disable();
-  delete purge_coordinator_timer;
-  purge_coordinator_timer= nullptr;
   purge_worker_task.wait();
   std::unique_lock<std::mutex> lk(purge_thd_mutex);
   while (!purge_thds.empty())
@@ -1944,7 +1910,7 @@ void srv_purge_shutdown()
     {
       history_size= trx_sys.history_size();
       ut_a(!purge_sys.paused());
-      srv_wake_purge_thread_if_not_active();
+      srv_thread_pool->submit_task(&purge_coordinator_task);
       purge_coordinator_task.wait();
     }
     purge_sys.coordinator_shutdown();
