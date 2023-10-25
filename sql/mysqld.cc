@@ -5365,7 +5365,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("date-format"),
       MARIADB_REMOVED_OPTION("datetime-format"),
       MARIADB_REMOVED_OPTION("time-format"),
-      MARIADB_REMOVED_OPTION("wsrep-causal-read"),
+      MARIADB_REMOVED_OPTION("wsrep-causal-reads"),
 
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
