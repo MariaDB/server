@@ -58,7 +58,35 @@
 #include "ddl_log.h"
 #include "debug.h"                     // debug_crash_here()
 #include <algorithm>
+#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+
+/** RAII class for temporarily enabling wsrep_ctas in the connection. */
+class Enable_wsrep_ctas_guard
+{
+ public:
+  /**
+    @param thd  - pointer to the context of connection in which
+                  wsrep_ctas mode needs to be enabled.
+    @param ctas - true if this is CREATE TABLE AS SELECT and
+                  wsrep_on
+  */
+  explicit Enable_wsrep_ctas_guard(THD *thd, const bool ctas)
+    : m_thd(thd)
+  {
+    if (ctas)
+      thd->wsrep_ctas= true;
+  }
+
+  ~Enable_wsrep_ctas_guard()
+  {
+    m_thd->wsrep_ctas= false;
+  }
+ private:
+  THD* m_thd;
+};
+
+#endif /* WITH_WSREP */
 #include "sql_debug.h"
 
 #ifdef _WIN32
@@ -1415,11 +1443,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     }
     else
     {
+#ifdef WITH_WSREP
       if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton))
       {
         error= 1;
         goto err;
       }
+#endif
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -11809,6 +11839,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #ifdef WITH_WSREP
   // If CREATE TABLE AS SELECT and wsrep_on
   const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+
+  // This will be used in THD::decide_logging_format if CTAS
+  Enable_wsrep_ctas_guard wsrep_ctas_guard(thd, wsrep_ctas);
 #endif
 
   if (unlikely(thd->is_fatal_error))
