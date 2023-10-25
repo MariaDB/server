@@ -109,7 +109,8 @@ struct TrxUndoRsegsIterator {
 	TrxUndoRsegsIterator();
 	/** Sets the next rseg to purge in purge_sys.
 	Executed in the purge coordinator thread.
-	@return whether anything is to be purged */
+	@retval false when nothing is to be purged
+	@retval true  when purge_sys.rseg->latch was locked */
 	inline bool set_next();
 
 private:
