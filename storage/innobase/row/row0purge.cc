@@ -48,6 +48,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "ha_innodb.h"
 #include "fil0fil.h"
 #include "debug_sync.h"
+#include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -114,7 +115,6 @@ row_purge_remove_clust_if_poss_low(
 
 	if (table_id) {
 retry:
-		purge_sys.check_stop_FTS();
 		dict_sys.lock(SRW_LOCK_CALL);
 		table = dict_sys.find_table(table_id);
 		if (!table) {
@@ -189,7 +189,6 @@ close_and_exit:
 			ibuf_delete_for_discarded_space(space_id);
 		}
 
-		purge_sys.check_stop_SYS();
 		mtr.start();
 		index->set_modified(mtr);
 
@@ -640,25 +639,12 @@ row_purge_del_mark(
   return result;
 }
 
-void purge_sys_t::wait_SYS()
-{
-  while (must_wait_SYS())
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-}
-
-void purge_sys_t::wait_FTS()
-{
-  while (must_wait_FTS())
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-}
-
 /** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
 whose old history can no longer be observed.
 @param[in,out]	node	purge node
 @param[in,out]	mtr	mini-transaction (will be started and committed) */
 static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
-retry:
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
 
@@ -694,17 +680,6 @@ retry:
 			ut_ad(!rec_get_deleted_flag(
 					rec, rec_offs_comp(offsets))
 			      || rec_is_alter_metadata(rec, *index));
-			switch (node->table->id) {
-			case DICT_TABLES_ID:
-			case DICT_COLUMNS_ID:
-			case DICT_INDEXES_ID:
-				if (purge_sys.must_wait_SYS()) {
-					mtr->commit();
-					purge_sys.check_stop_SYS();
-					goto retry;
-				}
-			}
-
 			DBUG_LOG("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));
@@ -1045,10 +1020,7 @@ row_purge_parse_undo_rec(
 	case TRX_UNDO_EMPTY:
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
-		/* These records do not store any transaction identifier.
-
-		FIXME: Update SYS_TABLES.ID on both DISCARD TABLESPACE
-		and IMPORT TABLESPACE to get rid of the repeated lookups! */
+		/* These records do not store any transaction identifier. */
 		node->trx_id = TRX_ID_MAX;
 		break;
 	default:
@@ -1064,57 +1036,29 @@ row_purge_parse_undo_rec(
 		break;
 	}
 
-	if (node->is_skipped(table_id)) {
+	auto &tables_entry= node->tables[table_id];
+	node->table = tables_entry.first;
+	if (!node->table) {
 		return false;
 	}
 
-	trx_id_t trx_id = TRX_ID_MAX;
-
-	if (node->retain_mdl(table_id)) {
-		ut_ad(node->table != NULL);
-		goto already_locked;
+#ifndef DBUG_OFF
+	if (MDL_ticket* mdl = tables_entry.second) {
+		static_cast<MDL_context*>(thd_mdl_context(current_thd))
+			->lock_warrant = mdl->get_ctx();
 	}
-
-try_again:
-	purge_sys.check_stop_FTS();
-
-	node->table = dict_table_open_on_id<true>(
-		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
-		&node->mdl_ticket);
-
-	if (node->table == reinterpret_cast<dict_table_t*>(-1)) {
-		/* purge stop signal */
-		goto try_again;
-	}
-
-	if (!node->table) {
-		/* The table has been dropped: no need to do purge and
-		release mdl happened as a part of open process itself */
-		goto err_exit;
-	}
-
-already_locked:
+#endif
 	ut_ad(!node->table->is_temporary());
 
 	clust_index = dict_table_get_first_index(node->table);
 
-	if (!clust_index || clust_index->is_corrupted()) {
+	if (clust_index->is_corrupted()) {
 		/* The table was corrupt in the data dictionary.
 		dict_set_corrupted() works on an index, and
 		we do not have an index to call it with. */
 		DBUG_ASSERT(table_id == node->table->id);
-		trx_id = node->table->def_trx_id;
-		if (!trx_id) {
-			trx_id = TRX_ID_MAX;
-		}
-
-err_exit:
-		node->close_table();
-		node->skip(table_id, trx_id);
 		return false;
 	}
-
-	node->last_table_id = table_id;
 
 	switch (type) {
 	case TRX_UNDO_INSERT_METADATA:
@@ -1265,19 +1209,19 @@ inline void purge_node_t::start()
   found_clust= false;
   rec_type= 0;
   cmpl_info= 0;
-  if (!purge_thd)
-    purge_thd= current_thd;
 }
 
 /** Reset the state at end
 @return the query graph parent */
-inline que_node_t *purge_node_t::end()
+inline que_node_t *purge_node_t::end(THD *thd)
 {
   DBUG_ASSERT(common.type == QUE_NODE_PURGE);
-  close_table();
   ut_ad(undo_recs.empty());
   ut_d(in_progress= false);
-  purge_thd= nullptr;
+  innobase_reset_background_thd(thd);
+#ifndef DBUG_OFF
+  static_cast<MDL_context*>(thd_mdl_context(thd))->lock_warrant= nullptr;
+#endif
   mem_heap_empty(heap);
   return common.parent;
 }
@@ -1305,7 +1249,7 @@ row_purge_step(
 		row_purge(node, purge_rec.undo_rec, thr);
 	}
 
-	thr->run_node = node->end();
+	thr->run_node = node->end(current_thd);
 	return(thr);
 }
 
