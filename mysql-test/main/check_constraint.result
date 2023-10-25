@@ -10,9 +10,9 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values (100,100);
 insert into t1 values (1,1);
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 insert into t1 values (20,1);
-ERROR 23000: CONSTRAINT `t1.b` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `b` failed for `test`.`t1`
 insert into t1 values (20,30);
 ERROR 23000: CONSTRAINT `min` failed for `test`.`t1`
 insert into t1 values (500,500);
@@ -60,7 +60,7 @@ t1	CREATE TABLE `t1` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values(105,105,105);
-ERROR 23000: CONSTRAINT `t1.c` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `c` failed for `test`.`t1`
 insert into t1 values(249,249,9);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 insert into t1 values(105,105,9);
@@ -145,7 +145,7 @@ ERROR HY000: Function or expression '@b' cannot be used in the CHECK clause of `
 create table t1 (a int check (a = 1));
 insert t1 values (1);
 insert t1 values (2);
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 insert t1 values (NULL);
 select * from t1;
 a
@@ -165,13 +165,13 @@ ERROR 22007: Truncated incorrect DECIMAL value: 'Ken'
 SHOW WARNINGS;
 Level	Code	Message
 Error	1292	Truncated incorrect DECIMAL value: 'Ken'
-Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
+Error	4025	CONSTRAINT `FirstName` failed for `test`.`t1`
 INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
 ERROR 22007: Truncated incorrect DECIMAL value: 'Ken'
 SHOW WARNINGS;
 Level	Code	Message
 Error	1292	Truncated incorrect DECIMAL value: 'Ken'
-Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
+Error	4025	CONSTRAINT `FirstName` failed for `test`.`t1`
 INSERT IGNORE INTO t1 VALUES (NULL, 'Ken');
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
@@ -197,31 +197,6 @@ EmployeeID	FirstName
 5	Ken
 6	Brian
 drop table t1;
-#
-# MDEV-16630: Ambiguous error message when check constraint
-#             matches table name
-#
-use test;
-drop table if exists t;
-create table t(a int, b int check(b>0),
-constraint b check(a<b), constraint a check(a>0),
-constraint x check (a>10));
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL CHECK (`b` > 0),
-  CONSTRAINT `b` CHECK (`a` < `b`),
-  CONSTRAINT `a` CHECK (`a` > 0),
-  CONSTRAINT `x` CHECK (`a` > 10)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-# Field constraint 'b' will fail
-insert into t values (-1, 0);
-ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
-# Table constraint 'b' will fail
-insert into t values (1,1);
-ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
-drop table t;
 create table t1 (a int auto_increment primary key, b int, check (b > 5));
 insert t1 (b) values (1);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`

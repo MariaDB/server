@@ -6,7 +6,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values (1);
 insert into t1 values (0);
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 drop table t1;
 create table t1 (a int, b int, check (a>b));
 show create table t1;
@@ -195,7 +195,7 @@ create table t1 (a text default(length(now())) check (length(a) > 1));
 insert into t1 values ();
 insert into t1 values ("ccc");
 insert into t1 values ("");
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 select * from t1;
 a
 19
