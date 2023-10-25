@@ -1955,21 +1955,7 @@ static tpool::waitable_task buf_resize_task(buf_resize_callback,
 
 void buf_resize_start()
 {
-  mysql_mutex_lock(&buf_pool.mutex);
-
-  if (srv_buf_pool_old_size != srv_buf_pool_size)
-  {
-    mysql_mutex_unlock(&buf_pool.mutex);
-    snprintf(export_vars.innodb_buffer_pool_resize_status,
-             sizeof export_vars.innodb_buffer_pool_resize_status,
-             "Buffer pool resize requested");
-    srv_thread_pool->submit_task(&buf_resize_task);
-  }
-  else
-  {
-    buf_pool.garbage_collect();
-    mysql_mutex_unlock(&buf_pool.mutex);
-  }
+	srv_thread_pool->submit_task(&buf_resize_task);
 }
 
 void buf_resize_shutdown()

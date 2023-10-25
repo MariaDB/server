@@ -24,18 +24,6 @@ SET GLOBAL innodb_max_dirty_pages_pct=0.0;
 
 # Without the MDEV-24917 fix, we would time out here.
 --source include/wait_condition.inc
-
-SELECT variable_value INTO @old FROM information_schema.global_status
-WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DATA';
-SELECT @old > variable_value `expect 0` FROM information_schema.global_status
-WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DATA';
-
-# Trim garbage from the buffer pool.
-SET GLOBAL innodb_buffer_pool_size=@@GLOBAL.innodb_buffer_pool_size;
-# After this, we may still have pages of temporary tables in the buffer pool.
-
-SELECT @old > variable_value `expect 0` FROM information_schema.global_status
-WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DATA';
 DROP TABLE t;
 
 SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;
