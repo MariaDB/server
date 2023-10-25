@@ -191,17 +191,17 @@ SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT, COUNT_STAR
 FROM performance_schema.events_statements_summary_by_digest
 ORDER BY DIGEST_TEXT;
 SCHEMA_NAME	DIGEST	DIGEST_TEXT	COUNT_STAR
-test	8b1406618d34996cd11d1796438c78b5	EXPLAIN SELECT * FROM `test` . `v1` 	1
-test	2c9e5d5b30d1690ba1a625afb4c42005	EXPLAIN SELECT * FROM `test` . `v1` WHERE `a` = ? 	1
-test	2265269dbe1b17d1f309a63b8e56933f	EXPLAIN SELECT * FROM `test` . `v1` WHERE `b` > ? 	1
-test	2df0babfc3c8ad27b4e3f99ad59bc938	EXPLAIN SELECT `a` , `b` FROM `test` . `v1` 	1
-test	8607297e7ffe77aa19a9d60812c5a8fd	EXPLAIN SELECT `b` , `a` FROM `test` . `v1` 	1
-test	9c94fee7865aa050201f6e67887fd0c8	SELECT * FROM `test` . `v1` 	1
-test	7c856ddf7b57d65f8124f39e8b81882e	SELECT * FROM `test` . `v1` WHERE `a` = ? 	1
-test	994b14d068c24edd8fd61b2f03663be2	SELECT * FROM `test` . `v1` WHERE `b` > ? 	1
-test	b3102e1f51878e35936d7d3fe2901839	SELECT `a` , `b` FROM `test` . `v1` 	1
-test	cb300dd6358987c5afe1a2b0022fdea0	SELECT `b` , `a` FROM `test` . `v1` 	1
-test	1b40b63f6a9dbffd146f0916fe4f5ed2	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
+test	6792f631a33c9aa30f74fc4a1ac00d0d	EXPLAIN SELECT * FROM `test` . `v1` 	1
+test	1a904f6e400d36fc3277347dc3dd7e3b	EXPLAIN SELECT * FROM `test` . `v1` WHERE `a` = ? 	1
+test	84b4a595b190b7b2be65930719a5f217	EXPLAIN SELECT * FROM `test` . `v1` WHERE `b` > ? 	1
+test	c2fbbef6771c0d94bc0bda68b083c2ee	EXPLAIN SELECT `a` , `b` FROM `test` . `v1` 	1
+test	89124df2148819b870c1d648f748b1ad	EXPLAIN SELECT `b` , `a` FROM `test` . `v1` 	1
+test	02270358998b539b9b11f709b372eda9	SELECT * FROM `test` . `v1` 	1
+test	e42e0a8f9dd70f815fd3b1323ae4d07d	SELECT * FROM `test` . `v1` WHERE `a` = ? 	1
+test	f549d4607e65f96ae2bc4dc4f70965dd	SELECT * FROM `test` . `v1` WHERE `b` > ? 	1
+test	d0ca89f87d46b19d6823e9c3d8fcc4f3	SELECT `a` , `b` FROM `test` . `v1` 	1
+test	3599e7d908d651cd2b3410656f0a9a85	SELECT `b` , `a` FROM `test` . `v1` 	1
+test	579dc8800f4005f131faf0202bfd383f	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
 DROP TABLE test.v1;
 CREATE VIEW test.v1 AS SELECT * FROM test.t1;
 EXPLAIN SELECT * from test.v1;
@@ -248,19 +248,19 @@ SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT, COUNT_STAR
 FROM performance_schema.events_statements_summary_by_digest
 ORDER BY DIGEST_TEXT;
 SCHEMA_NAME	DIGEST	DIGEST_TEXT	COUNT_STAR
-test	a68fd555281a14d2809c3105e9cb2c90	CREATE VIEW `test` . `v1` AS SELECT * FROM `test` . `t1` 	1
-test	4baff8f96e4b6ec6cdbfef5b9c7a8b12	DROP TABLE `test` . `v1` 	1
-test	8b1406618d34996cd11d1796438c78b5	EXPLAIN SELECT * FROM `test` . `v1` 	2
-test	2c9e5d5b30d1690ba1a625afb4c42005	EXPLAIN SELECT * FROM `test` . `v1` WHERE `a` = ? 	2
-test	2265269dbe1b17d1f309a63b8e56933f	EXPLAIN SELECT * FROM `test` . `v1` WHERE `b` > ? 	2
-test	2df0babfc3c8ad27b4e3f99ad59bc938	EXPLAIN SELECT `a` , `b` FROM `test` . `v1` 	2
-test	8607297e7ffe77aa19a9d60812c5a8fd	EXPLAIN SELECT `b` , `a` FROM `test` . `v1` 	2
-test	9c94fee7865aa050201f6e67887fd0c8	SELECT * FROM `test` . `v1` 	2
-test	7c856ddf7b57d65f8124f39e8b81882e	SELECT * FROM `test` . `v1` WHERE `a` = ? 	2
-test	994b14d068c24edd8fd61b2f03663be2	SELECT * FROM `test` . `v1` WHERE `b` > ? 	2
-test	df38ce7f6e35972efe5a4ec57e48bf4d	SELECT SCHEMA_NAME , `DIGEST` , `DIGEST_TEXT` , `COUNT_STAR` FROM `performance_schema` . `events_statements_summary_by_digest` ORDER BY `DIGEST_TEXT` 	1
-test	b3102e1f51878e35936d7d3fe2901839	SELECT `a` , `b` FROM `test` . `v1` 	2
-test	cb300dd6358987c5afe1a2b0022fdea0	SELECT `b` , `a` FROM `test` . `v1` 	2
-test	1b40b63f6a9dbffd146f0916fe4f5ed2	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
+test	1d9b60541940c07a0731da3a7e4b3710	CREATE VIEW `test` . `v1` AS SELECT * FROM `test` . `t1` 	1
+test	c3a18ebfa01b069ce0cbcf1d3c3a28fd	DROP TABLE `test` . `v1` 	1
+test	6792f631a33c9aa30f74fc4a1ac00d0d	EXPLAIN SELECT * FROM `test` . `v1` 	2
+test	1a904f6e400d36fc3277347dc3dd7e3b	EXPLAIN SELECT * FROM `test` . `v1` WHERE `a` = ? 	2
+test	84b4a595b190b7b2be65930719a5f217	EXPLAIN SELECT * FROM `test` . `v1` WHERE `b` > ? 	2
+test	c2fbbef6771c0d94bc0bda68b083c2ee	EXPLAIN SELECT `a` , `b` FROM `test` . `v1` 	2
+test	89124df2148819b870c1d648f748b1ad	EXPLAIN SELECT `b` , `a` FROM `test` . `v1` 	2
+test	02270358998b539b9b11f709b372eda9	SELECT * FROM `test` . `v1` 	2
+test	e42e0a8f9dd70f815fd3b1323ae4d07d	SELECT * FROM `test` . `v1` WHERE `a` = ? 	2
+test	f549d4607e65f96ae2bc4dc4f70965dd	SELECT * FROM `test` . `v1` WHERE `b` > ? 	2
+test	279f05780dfbf44c1b9c444c4a3d7f81	SELECT SCHEMA_NAME , `DIGEST` , `DIGEST_TEXT` , `COUNT_STAR` FROM `performance_schema` . `events_statements_summary_by_digest` ORDER BY `DIGEST_TEXT` 	1
+test	d0ca89f87d46b19d6823e9c3d8fcc4f3	SELECT `a` , `b` FROM `test` . `v1` 	2
+test	3599e7d908d651cd2b3410656f0a9a85	SELECT `b` , `a` FROM `test` . `v1` 	2
+test	579dc8800f4005f131faf0202bfd383f	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
 DROP VIEW test.v1;
 DROP TABLE test.t1;

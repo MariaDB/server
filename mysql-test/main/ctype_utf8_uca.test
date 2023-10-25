@@ -65,6 +65,14 @@ SET DEFAULT_STORAGE_ENGINE=HEAP;
 
 SET DEFAULT_STORAGE_ENGINE=DEFAULT;
 
+
+SET default_storage_engine=MyISAM;
+--source include/ctype_utf8mb3_uca_char.inc
+SET default_storage_engine=MEMORY;
+--source include/ctype_utf8mb3_uca_char.inc
+SET default_storage_engine=DEFAULT;
+
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

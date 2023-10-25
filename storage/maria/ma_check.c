@@ -5789,9 +5789,9 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
   }
   get_key_full_length_rdonly(val_off, ft_buf->lastkey);
 
-  if (ha_compare_text(sort_param->seg->charset,
-                      a+1,a_len-1,
-                      ft_buf->lastkey+1,val_off-1, 0)==0)
+  if (ha_compare_word(sort_param->seg->charset,
+                      a + 1, a_len - 1,
+                      ft_buf->lastkey + 1, val_off - 1) == 0)
   {
     uchar *p;
     if (!ft_buf->buf)                   /* store in second-level tree */

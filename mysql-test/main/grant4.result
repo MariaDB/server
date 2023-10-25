@@ -101,7 +101,6 @@ ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 
 ** SHOW INDEX FROM t6 will succeed because there exist a privilege on a column combination on t6.
 SHOW INDEX FROM t6;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t6	1	i	1	s1	A	NULL	NULL	NULL	YES	BTREE			NO
 ** CHECK TABLE requires any privilege on any column combination and should succeed for t6:
 CHECK TABLE t6;
 Table	Op	Msg_type	Msg_text
