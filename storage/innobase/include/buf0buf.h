@@ -1298,8 +1298,9 @@ public:
   /** Resize from srv_buf_pool_old_size to srv_buf_pool_size. */
   inline void resize();
 
-  /** Collect garbage (release pages from the LRU list) */
-  inline void garbage_collect();
+  /** Collect garbage (release pages from the LRU list)
+  @return number of blocks freed */
+  inline size_t garbage_collect();
 
   /** @return whether resize() is in progress */
   bool resize_in_progress() const
