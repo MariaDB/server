@@ -31,6 +31,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "srw_lock.h"
 
 #include <queue>
+#include <unordered_map>
 
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
@@ -127,6 +128,7 @@ private:
 /** The control structure used in the purge operation */
 class purge_sys_t
 {
+  friend TrxUndoRsegsIterator;
 public:
   /** latch protecting view, m_enabled */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
@@ -134,6 +136,8 @@ private:
   /** Read view at the start of a purge batch. Any encountered index records
   that are older than view will be removed. */
   ReadViewBase view;
+  /** whether the subsystem has been initialized */
+  bool m_initialized{false};
   /** whether purge is enabled; protected by latch and std::atomic */
   std::atomic<bool> m_enabled{false};
 public:
@@ -152,7 +156,34 @@ private:
   /** Read view at the end of a purge batch (copied from view). Any undo pages
   containing records older than end_view may be freed. */
   ReadViewBase end_view;
+
+  struct hasher
+  {
+    size_t operator()(const page_id_t &id) const { return size_t(id.raw()); }
+  };
+
+  using unordered_map =
+    std::unordered_map<const page_id_t, buf_block_t*, hasher,
+#if defined __GNUC__ && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+                       std::equal_to<page_id_t>
+                       /* GCC 4.8.5 would fail to find a matching allocator */
+#else
+                       std::equal_to<page_id_t>,
+                       ut_allocator<std::pair<const page_id_t, buf_block_t*>>
+#endif
+                       >;
+  /** map of buffer-fixed undo log pages processed during a purge batch */
+  unordered_map pages;
 public:
+  /** @return the number of processed undo pages */
+  size_t n_pages_handled() const { return pages.size(); }
+
+  /** Look up an undo log page.
+  @param id    undo page identifier
+  @return undo page
+  @retval nullptr in case the page is corrupted */
+  buf_block_t *get_page(page_id_t id);
+
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
 
@@ -188,6 +219,7 @@ public:
 					to purge */
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
+private:
 	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
 					log header, if dummy record */
@@ -202,7 +234,7 @@ public:
 	TrxUndoRsegsIterator
 			rseg_iter;	/*!< Iterator to get the next rseg
 					to process */
-
+public:
 	purge_pq_t	purge_queue;	/*!< Binary min-heap, ordered on
 					TrxUndoRsegs::trx_no. It is protected
 					by the pq_mutex */
@@ -216,17 +248,6 @@ public:
 		/** The undo tablespace that was last truncated */
 		fil_space_t*	last;
 	} truncate;
-
-	/** Heap for reading the undo log records */
-	mem_heap_t*	heap;
-  /**
-    Constructor.
-
-    Some members may require late initialisation, thus we just mark object as
-    uninitialised. Real initialisation happens in create().
-  */
-
-  purge_sys_t(): m_enabled(false), heap(nullptr) {}
 
   /** Create the instance */
   void create();
@@ -281,6 +302,32 @@ public:
   /** @return whether stop_SYS() is in effect */
   bool must_wait_FTS() const { return m_FTS_paused; }
 
+private:
+  /**
+  Get the next record to purge and update the info in the purge system.
+  @param roll_ptr           undo log pointer to the record
+  @return buffer-fixed reference to undo log record
+  @retval {nullptr,1} if the whole undo log can skipped in purge
+  @retval {nullptr,0} if nothing is left, or on corruption */
+  inline trx_purge_rec_t get_next_rec(roll_ptr_t roll_ptr);
+
+  /** Choose the next undo log to purge.
+  @return whether anything is to be purged */
+  bool choose_next_log();
+
+  /** Update the last not yet purged history log info in rseg when
+  we have purged a whole undo log. Advances also purge_trx_no
+  past the purged log. */
+  void rseg_get_next_history_log();
+
+public:
+  /**
+  Fetch the next undo log record from the history list to purge.
+  @return buffer-fixed reference to undo log record
+  @retval {nullptr,1} if the whole undo log can skipped in purge
+  @retval {nullptr,0} if nothing is left, or on corruption */
+  inline trx_purge_rec_t fetch_next_rec();
+
   /** Determine if the history of a transaction is purgeable.
   @param trx_id  transaction identifier
   @return whether the history is purgeable */
@@ -327,9 +374,10 @@ public:
   /** Wake up the purge threads if there is work to do. */
   void wake_if_not_active();
 
-  /** Update end_view at the end of a purge batch.
-  @param head   the new head of the purge queue */
-  inline void clone_end_view(const iterator &head);
+  /** Release undo pages and update end_view at the end of a purge batch.
+  @retval false when nothing is to be purged
+  @retval true  when purge_sys.rseg->latch was locked  */
+  inline void batch_cleanup(const iterator &head);
 
   struct view_guard
   {
