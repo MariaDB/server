@@ -5,10 +5,6 @@
 call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
 --enable_query_log
 
-# Ensure that the history list length will actually be decremented by purge.
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 CREATE TABLE t1 (
   a SERIAL, b CHAR(255) NOT NULL DEFAULT '', c BOOLEAN DEFAULT false,
   l LINESTRING NOT NULL DEFAULT ST_linefromtext('linestring(448 -689,
@@ -174,5 +170,3 @@ UNLOCK TABLES;
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

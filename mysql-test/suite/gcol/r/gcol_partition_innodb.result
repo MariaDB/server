@@ -1,6 +1,4 @@
 SET @@session.default_storage_engine = 'InnoDB';
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 drop table if exists t1;
 # Case 1. Partitioning by RANGE based on a non-stored generated column.
 CREATE TABLE t1 (
@@ -135,4 +133,3 @@ DROP FUNCTION IF EXISTS f1;
 DROP TRIGGER IF EXISTS trg1;
 DROP TRIGGER IF EXISTS trg2;
 set sql_warnings = 0;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

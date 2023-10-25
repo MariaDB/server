@@ -4,7 +4,6 @@ Variable_name	Value
 innodb_doublewrite	ON
 create table t1(f1 int not null, f2 int not null)engine=innodb;
 insert into t1 values (1, 1);
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 InnoDB		0 transactions not purged
 set GLOBAL innodb_log_checkpoint_now=1;
 # Make the first page dirty for undo tablespace

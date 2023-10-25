@@ -161,6 +161,9 @@ public:
 			return undo_no <= other.undo_no;
 		}
 
+		/** Free the undo pages up to this. */
+		dberr_t free_history() const;
+
 		/** trx_t::no of the committed transaction */
 		trx_id_t	trx_no;
 		/** The record number within the committed transaction's undo
@@ -172,7 +175,8 @@ public:
 	committed transaction. */
 	iterator	tail;
 	/** The head of the purge queue; any older undo logs of committed
-	transactions may be discarded (history list truncation). */
+	transactions may be discarded (history list truncation).
+	Protected by latch. */
 	iterator	head;
 	/*-----------------------------*/
 	bool		next_stored;	/*!< whether rseg holds the next record
@@ -316,8 +320,9 @@ public:
     latch.wr_unlock();
   }
 
-  /** Update end_view at the end of a purge batch. */
-  inline void clone_end_view();
+  /** Update end_view at the end of a purge batch.
+  @param head   the new head of the purge queue */
+  inline void clone_end_view(const iterator &head);
 
   struct view_guard
   {

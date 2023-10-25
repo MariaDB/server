@@ -1,5 +1,3 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 CREATE TABLE t1 (
 a SERIAL, b CHAR(255) NOT NULL DEFAULT '', c BOOLEAN DEFAULT false,
 l LINESTRING NOT NULL DEFAULT ST_linefromtext('linestring(448 -689,
@@ -169,4 +167,3 @@ page 5: N_RECS=0x0001
 UNLOCK TABLES;
 DROP TABLE t1;
 # End of 10.3 tests
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
