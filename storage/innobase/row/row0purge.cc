@@ -48,7 +48,6 @@ Created 3/14/1997 Heikki Tuuri
 #include "ha_innodb.h"
 #include "fil0fil.h"
 #include "debug_sync.h"
-#include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -748,7 +747,7 @@ row_purge_upd_exist_or_extern_func(
 	const que_thr_t*thr,		/*!< in: query thread */
 #endif /* UNIV_DEBUG */
 	purge_node_t*	node,		/*!< in: row purge node */
-	trx_undo_rec_t*	undo_rec)	/*!< in: record to purge */
+	const trx_undo_rec_t*	undo_rec)	/*!< in: record to purge */
 {
 	mem_heap_t*	heap;
 
@@ -1023,7 +1022,7 @@ static
 bool
 row_purge_parse_undo_rec(
 	purge_node_t*		node,
-	trx_undo_rec_t*		undo_rec,
+	const trx_undo_rec_t*	undo_rec,
 	que_thr_t*		thr,
 	bool*			updated_extern)
 {
@@ -1032,7 +1031,7 @@ row_purge_parse_undo_rec(
 	table_id_t	table_id;
 	roll_ptr_t	roll_ptr;
 	byte		info_bits;
-	ulint		type;
+	byte		type;
 
 	const byte* ptr = trx_undo_rec_get_pars(
 		undo_rec, &type, &node->cmpl_info,
@@ -1097,27 +1096,6 @@ try_again:
 already_locked:
 	ut_ad(!node->table->is_temporary());
 
-	switch (type) {
-	case TRX_UNDO_INSERT_METADATA:
-	case TRX_UNDO_INSERT_REC:
-		break;
-	default:
-		if (!node->table->n_v_cols || node->table->vc_templ
-		    || !dict_table_has_indexed_v_cols(node->table)) {
-			break;
-		}
-		/* Need server fully up for virtual column computation */
-		if (!mysqld_server_started) {
-
-			node->close_table();
-			if (srv_shutdown_state > SRV_SHUTDOWN_NONE) {
-				return(false);
-			}
-			std::this_thread::sleep_for(std::chrono::seconds(1));
-			goto try_again;
-		}
-	}
-
 	clust_index = dict_table_get_first_index(node->table);
 
 	if (!clust_index || clust_index->is_corrupted()) {
@@ -1133,15 +1111,16 @@ already_locked:
 err_exit:
 		node->close_table();
 		node->skip(table_id, trx_id);
-		return(false);
+		return false;
 	}
 
 	node->last_table_id = table_id;
 
-	if (type == TRX_UNDO_INSERT_METADATA) {
+	switch (type) {
+	case TRX_UNDO_INSERT_METADATA:
 		node->ref = &trx_undo_metadata;
-		return(true);
-	} else if (type == TRX_UNDO_EMPTY) {
+		return true;
+	case TRX_UNDO_EMPTY:
 		node->ref = nullptr;
 		return true;
 	}
@@ -1180,7 +1159,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 row_purge_record_func(
 	purge_node_t*	node,
-	trx_undo_rec_t*	undo_rec,
+	const trx_undo_rec_t*	undo_rec,
 #if defined UNIV_DEBUG || defined WITH_WSREP
 	const que_thr_t*thr,
 #endif /* UNIV_DEBUG || WITH_WSREP */
@@ -1251,7 +1230,7 @@ void
 row_purge(
 /*======*/
 	purge_node_t*	node,		/*!< in: row purge node */
-	trx_undo_rec_t*	undo_rec,	/*!< in: record to purge */
+	const trx_undo_rec_t*	undo_rec,	/*!< in: record to purge */
 	que_thr_t*	thr)		/*!< in: query thread */
 {
 	if (undo_rec != reinterpret_cast<trx_undo_rec_t*>(-1)) {
@@ -1283,9 +1262,9 @@ inline void purge_node_t::start()
   ref= nullptr;
   index= nullptr;
   update= nullptr;
-  found_clust= FALSE;
-  rec_type= ULINT_UNDEFINED;
-  cmpl_info= ULINT_UNDEFINED;
+  found_clust= false;
+  rec_type= 0;
+  cmpl_info= 0;
   if (!purge_thd)
     purge_thd= current_thd;
 }

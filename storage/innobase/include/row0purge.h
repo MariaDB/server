@@ -84,7 +84,7 @@ row_purge_step(
 struct trx_purge_rec_t
 {
   /** Record to purge */
-  trx_undo_rec_t *undo_rec;
+  const trx_undo_rec_t *undo_rec;
   /** File pointer to undo record */
   roll_ptr_t roll_ptr;
 };
@@ -99,8 +99,9 @@ struct purge_node_t{
 
 	undo_no_t	undo_no;/*!< undo number of the record */
 
-	ulint		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
+	byte		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
 				... */
+	byte		cmpl_info;/* compiler analysis info of an update */
 private:
 	/** latest unavailable table ID (do not bother looking up again) */
 	table_id_t	unavailable_table_id;
@@ -109,8 +110,6 @@ private:
 	trx_id_t	def_trx_id;
 public:
 	dict_table_t*	table;	/*!< table where purge is done */
-
-	ulint		cmpl_info;/* compiler analysis info of an update */
 
 	upd_t*		update;	/*!< update vector for a clustered index
 				record */

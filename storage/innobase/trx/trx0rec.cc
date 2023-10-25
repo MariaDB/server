@@ -484,9 +484,9 @@ const byte*
 trx_undo_rec_get_pars(
 /*==================*/
 	const trx_undo_rec_t*	undo_rec,	/*!< in: undo log record */
-	ulint*		type,		/*!< out: undo record type:
+	byte*		type,		/*!< out: undo record type:
 					TRX_UNDO_INSERT_REC, ... */
-	ulint*		cmpl_info,	/*!< out: compiler info, relevant only
+	byte*		cmpl_info,	/*!< out: compiler info, relevant only
 					for update type records */
 	bool*		updated_extern,	/*!< out: true if we updated an
 					externally stored fild */
@@ -503,7 +503,7 @@ trx_undo_rec_get_pars(
 	*type = type_cmpl & (TRX_UNDO_CMPL_INFO_MULT - 1);
 	ut_ad(*type >= TRX_UNDO_RENAME_TABLE);
 	ut_ad(*type <= TRX_UNDO_EMPTY);
-	*cmpl_info = type_cmpl / TRX_UNDO_CMPL_INFO_MULT;
+	*cmpl_info = byte(type_cmpl / TRX_UNDO_CMPL_INFO_MULT);
 
 	*undo_no = mach_read_next_much_compressed(&ptr);
 	*table_id = mach_read_next_much_compressed(&ptr);
@@ -2153,14 +2153,14 @@ trx_undo_prev_version_build(
 {
 	dtuple_t*	entry;
 	trx_id_t	rec_trx_id;
-	ulint		type;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
 	upd_t*		update;
+	byte		type;
 	byte		info_bits;
-	ulint		cmpl_info;
+	byte		cmpl_info;
 	bool		dummy_extern;
 	byte*		buf;
 

@@ -1081,8 +1081,8 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
 	byte		info_bits;
-	ulint		type;
-	ulint		cmpl_info;
+	byte		type;
+	byte		cmpl_info;
 	bool		dummy_extern;
 
 	ut_ad(node->trx->in_rollback);
