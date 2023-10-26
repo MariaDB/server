@@ -836,7 +836,6 @@ CHECK_CXX_SOURCE_COMPILES("
   "
   HAVE_SOLARIS_STYLE_GETHOST)
 
-SET(NO_ALARM 1 CACHE BOOL  "No need to use alarm to implement timeout")
 
 # As a consequence of ALARMs no longer being used, thread
 # notification for KILL must close the socket to wake up

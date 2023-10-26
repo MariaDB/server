@@ -38,7 +38,6 @@
 #include "my_sys.h"
 
 #include "events.h"
-#include <thr_alarm.h>
 #include "slave.h"
 #include "rpl_mi.h"
 #include "rpl_filter.h"
@@ -1735,10 +1734,6 @@ Sys_max_binlog_size(
 
 static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 {
-#ifndef EMBEDDED_LIBRARY
-  resize_thr_alarm(max_connections + extra_max_connections +
-                   global_system_variables.max_insert_delayed_threads + 10);
-#endif
   return false;
 }
 
@@ -6752,13 +6747,6 @@ static Sys_var_enum Sys_histogram_type(
        "JSON_HB - height-balanced, stored as JSON.",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
        histogram_types, DEFAULT(2));
-
-static Sys_var_mybool Sys_no_thread_alarm(
-       "debug_no_thread_alarm",
-       "Disable system thread alarm calls. Disabling it may be useful "
-       "in debugging or testing, never do it in production",
-       READ_ONLY GLOBAL_VAR(my_disable_thr_alarm), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_query_cache_strip_comments(
        "query_cache_strip_comments",
