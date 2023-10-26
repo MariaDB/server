@@ -397,16 +397,22 @@ private:
   /** Number of pending operations on the file.
   The tablespace cannot be freed while (n_pending & PENDING) != 0. */
   std::atomic<uint32_t> n_pending;
+  /** Flag in n_pending that indicates that the tablespace is about to be
+  deleted, and no further operations should be performed */
+  static constexpr uint32_t STOPPING_READS= 1U << 31;
   /** Flag in n_pending that indicates that the tablespace is being
   deleted, and no further operations should be performed */
-  static constexpr uint32_t STOPPING= 1U << 31;
+  static constexpr uint32_t STOPPING_WRITES= 1U << 30;
+  /** Flags in n_pending that indicate that the tablespace is being
+  deleted, and no further operations should be performed */
+  static constexpr uint32_t STOPPING= STOPPING_READS | STOPPING_WRITES;
   /** Flag in n_pending that indicates that the tablespace is a candidate
   for being closed, and fil_node_t::is_open() can only be trusted after
   acquiring fil_system.mutex and resetting the flag */
-  static constexpr uint32_t CLOSING= 1U << 30;
+  static constexpr uint32_t CLOSING= 1U << 29;
   /** Flag in n_pending that indicates that the tablespace needs fsync().
   This must be the least significant flag bit; @see release_flush() */
-  static constexpr uint32_t NEEDS_FSYNC= 1U << 29;
+  static constexpr uint32_t NEEDS_FSYNC= 1U << 28;
   /** The reference count */
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
   /** latch protecting all page allocation bitmap pages */
@@ -517,20 +523,19 @@ public:
   /** Close each file. Only invoked on fil_system.temp_space. */
   void close();
 
-  /** Note that operations on the tablespace must stop.
-  @return whether the operations were already stopped */
-  inline bool set_stopping_check();
   /** Note that operations on the tablespace must stop. */
   inline void set_stopping();
 
   /** Note that operations on the tablespace can resume after truncation */
   inline void clear_stopping();
 
-  /** Look up the tablespace and wait for pending operations to cease
-  @param id  tablespace identifier
-  @return tablespace
-  @retval nullptr if no tablespace was found */
-  static fil_space_t *check_pending_operations(ulint id);
+  /** Drop the tablespace and wait for any pending operations to cease
+  @param id               tablespace identifier
+  @param detached_handle  pointer to file to be closed later, or nullptr
+  @return tablespace to invoke fil_space_free() on
+  @retval nullptr if no tablespace was found, or it was deleted by
+  another concurrent thread */
+  static fil_space_t *drop(ulint id, pfs_os_file_t *detached_handle);
 
 private:
   MY_ATTRIBUTE((warn_unused_result))
@@ -554,12 +559,18 @@ public:
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference for I/O.
+  @param avoid   when these flags are set, nothing will be acquired
   @return whether the file is usable */
-  bool acquire()
+  bool acquire(uint32_t avoid= STOPPING | CLOSING)
   {
-    const auto flags= acquire_low(STOPPING | CLOSING) & (STOPPING | CLOSING);
+    const auto flags= acquire_low(avoid) & (avoid);
     return UNIV_LIKELY(!flags) || (flags == CLOSING && acquire_and_prepare());
   }
+
+  /** Acquire a tablespace reference for writing.
+  @param avoid   when these flags are set, nothing will be acquired
+  @return whether the file is writable */
+  bool acquire_for_write() { return acquire(STOPPING_WRITES | CLOSING); }
 
   /** Acquire another tablespace reference for I/O. */
   inline void reacquire();
@@ -577,12 +588,12 @@ public:
   void clear_flush()
   {
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
-    __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
+    static_assert(NEEDS_FSYNC == 1U << 28, "compatibility");
+    __asm__ __volatile__("lock btrl $28, %0" : "+m" (n_pending));
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    static_assert(NEEDS_FSYNC == 1U << 28, "compatibility");
     _interlockedbittestandreset(reinterpret_cast<volatile long*>
-                                (&n_pending), 29);
+                                (&n_pending), 28);
 #else
     n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
 #endif
@@ -593,12 +604,12 @@ private:
   void clear_closing()
   {
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    static_assert(CLOSING == 1U << 30, "compatibility");
-    __asm__ __volatile__("lock btrl $30, %0" : "+m" (n_pending));
+    static_assert(CLOSING == 1U << 29, "compatibility");
+    __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    static_assert(CLOSING == 1U << 30, "compatibility");
+    static_assert(CLOSING == 1U << 29, "compatibility");
     _interlockedbittestandreset(reinterpret_cast<volatile long*>
-                                (&n_pending), 30);
+                                (&n_pending), 29);
 #else
     n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 #endif
@@ -609,8 +620,10 @@ private:
 public:
   /** @return whether close() of the file handle has been requested */
   bool is_closing() const { return pending() & CLOSING; }
-  /** @return whether the tablespace is going to be dropped */
+  /** @return whether the tablespace is about to be dropped */
   bool is_stopping() const { return pending() & STOPPING; }
+  /** @return whether the tablespace is going to be dropped */
+  bool is_stopping_writes() const { return pending() & STOPPING_WRITES; }
   /** @return number of pending operations */
   bool is_ready_to_close() const
   { return (pending() & (PENDING | CLOSING)) == CLOSING; }
@@ -619,7 +632,7 @@ public:
   /** @return whether fsync() or similar is needed, and the tablespace is
   not being dropped  */
   bool needs_flush_not_stopping() const
-  { return (pending() & (NEEDS_FSYNC | STOPPING)) == NEEDS_FSYNC; }
+  { return (pending() & (NEEDS_FSYNC | STOPPING_WRITES)) == NEEDS_FSYNC; }
 
   uint32_t referenced() const { return pending() & PENDING; }
 private:
@@ -657,7 +670,7 @@ public:
                                               std::memory_order_relaxed))
     {
       ut_ad(n & PENDING);
-      if (n & (NEEDS_FSYNC | STOPPING))
+      if (n & (NEEDS_FSYNC | STOPPING_WRITES))
         return false;
     }
 
@@ -969,6 +982,11 @@ public:
   @return tablespace
   @retval nullptr if the tablespace is missing or inaccessible */
   static fil_space_t *get(ulint id);
+  /** Acquire a tablespace reference for writing.
+  @param id      tablespace identifier
+  @return tablespace
+  @retval nullptr if the tablespace is missing or inaccessible */
+  static fil_space_t *get_for_write(ulint id);
 
   /** Add/remove the free page in the freed ranges list.
   @param[in] offset     page number to be added
@@ -1592,52 +1610,27 @@ inline void fil_space_t::reacquire()
 #endif /* SAFE_MUTEX */
 }
 
-/** Note that operations on the tablespace must stop.
-@return whether the operations were already stopped */
-inline bool fil_space_t::set_stopping_check()
-{
-  mysql_mutex_assert_owner(&fil_system.mutex);
-#if (defined __clang_major__ && __clang_major__ < 10) || defined __APPLE_CC__
-  /* Only clang-10 introduced support for asm goto */
-  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
-#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-  static_assert(STOPPING == 1U << 31, "compatibility");
-  __asm__ goto("lock btsl $31, %0\t\njnc %l1" : : "m" (n_pending)
-               : "cc", "memory" : not_stopped);
-  return true;
-not_stopped:
-  return false;
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-  static_assert(STOPPING == 1U << 31, "compatibility");
-  return _interlockedbittestandset(reinterpret_cast<volatile long*>
-                                   (&n_pending), 31);
-#else
-  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
-#endif
-}
-
-/** Note that operations on the tablespace must stop.
-@return whether the operations were already stopped */
+/** Note that operations on the tablespace must stop. */
 inline void fil_space_t::set_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-  static_assert(STOPPING == 1U << 31, "compatibility");
-  __asm__ __volatile__("lock btsl $31, %0" : "+m" (n_pending));
+  static_assert(STOPPING_WRITES == 1U << 30, "compatibility");
+  __asm__ __volatile__("lock btsl $30, %0" : "+m" (n_pending));
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-  static_assert(STOPPING == 1U << 31, "compatibility");
-  _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 31);
+  static_assert(STOPPING_WRITES == 1U << 30, "compatibility");
+  _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 30);
 #else
-  n_pending.fetch_or(STOPPING, std::memory_order_relaxed);
+  n_pending.fetch_or(STOPPING_WRITES, std::memory_order_relaxed);
 #endif
 }
 
 inline void fil_space_t::clear_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  static_assert(STOPPING == 1U << 31, "compatibility");
-  ut_d(auto n=) n_pending.fetch_sub(STOPPING, std::memory_order_relaxed);
-  ut_ad(n & STOPPING);
+  static_assert(STOPPING_WRITES == 1U << 30, "compatibility");
+  ut_d(auto n=) n_pending.fetch_sub(STOPPING_WRITES, std::memory_order_relaxed);
+  ut_ad((n & STOPPING) == STOPPING_WRITES);
 }
 
 /** Flush pending writes from the file system cache to the file. */
