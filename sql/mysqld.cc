@@ -1788,7 +1788,8 @@ static void close_connections(void)
        i++)
     my_sleep(20000);
 
-  if (global_system_variables.log_warnings)
+  if (global_system_variables.log_warnings &&
+      DBUG_EVALUATE("only_kill_system_threads_no_loop", 0, 1))
     server_threads.iterate(warn_threads_active_after_phase_1);
 
 #ifdef WITH_WSREP
