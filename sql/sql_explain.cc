@@ -1907,6 +1907,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
       writer->add_member("r_unpack_time_ms");
       writer->add_double(jbuf_unpack_tracker.get_time_ms());
+      DBUG_EXECUTE_IF("analyze_print_r_unpack_ops",
+                      {
+                        writer->add_member("r_unpack_ops");
+                        writer->add_ull(jbuf_unpack_tracker.get_loops());
+                      });
     }
   }
 
