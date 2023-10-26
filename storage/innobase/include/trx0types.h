@@ -47,6 +47,7 @@ static const ulint TRX_SYS_SPACE = 0;
 static const ulint TRX_MAGIC_N = 91118598;
 
 constexpr uint innodb_purge_threads_MAX= 32;
+constexpr uint innodb_purge_batch_size_MAX= 5000;
 
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
@@ -107,7 +108,21 @@ typedef	byte	trx_undo_rec_t;
 
 /* @} */
 
+/** Info required to purge a record */
+struct trx_purge_rec_t
+{
+  /** Undo log record, or nullptr (roll_ptr!=0 if the log can be skipped) */
+  const trx_undo_rec_t *undo_rec;
+  /** File pointer to undo_rec */
+  roll_ptr_t roll_ptr;
+};
+
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
+
+/** Number of std::unordered_map hash buckets expected to be needed
+for table IDs in a purge batch. GNU libstdc++ would default to 1 and
+enlarge and rehash on demand. */
+static constexpr size_t TRX_PURGE_TABLE_BUCKETS= 128;
 
 /** The number of rollback segments; rollback segment id must fit in
 the 7 bits reserved for it in DB_ROLL_PTR. */

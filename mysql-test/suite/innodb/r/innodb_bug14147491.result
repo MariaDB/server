@@ -1,5 +1,4 @@
 # Ensure that purge will not crash on the table after we corrupt it.
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET GLOBAL innodb_fast_shutdown=0;
 # Create and populate the table to be corrupted
 set global innodb_file_per_table=ON;

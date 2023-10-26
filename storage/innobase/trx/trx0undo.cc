@@ -128,8 +128,8 @@ uint16_t trx_undo_page_get_start(const buf_block_t *block, uint32_t page_no,
 @param[in]	page_no	undo log header page number
 @param[in]	offset	undo log header page offset
 @return	pointer to first record
-@retval	NULL	if none exists */
-static trx_undo_rec_t*
+@retval	nullptr	if none exists */
+trx_undo_rec_t*
 trx_undo_page_get_first_rec(const buf_block_t *block, uint32_t page_no,
                             uint16_t offset)
 {
@@ -253,25 +253,6 @@ trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
   return block ? trx_undo_page_get_first_rec(block, page_no, offset) : nullptr;
 }
 
-/** Get the next record in an undo log.
-@param[in,out]  block   undo log page
-@param[in]      rec     undo record offset in the page
-@param[in]      page_no undo log header page number
-@param[in]      offset  undo log header offset on page
-@param[in,out]  mtr     mini-transaction
-@return undo log record, the page latched, NULL if none */
-trx_undo_rec_t*
-trx_undo_get_next_rec(const buf_block_t *&block, uint16_t rec,
-                      uint32_t page_no, uint16_t offset, mtr_t *mtr)
-{
-  if (trx_undo_rec_t *next= trx_undo_page_get_next_rec(block, rec, page_no,
-                                                       offset))
-    return next;
-
-  return trx_undo_get_next_rec_from_next_page(block, page_no, offset,
-                                              RW_S_LATCH, mtr);
-}
-
 /** Get the first record in an undo log.
 @param[in]      space   undo log header space
 @param[in]      page_no undo log header page number
@@ -282,7 +263,7 @@ trx_undo_get_next_rec(const buf_block_t *&block, uint16_t rec,
 @param[out]     err     error code
 @return undo log record, the page latched
 @retval nullptr if none */
-trx_undo_rec_t*
+static trx_undo_rec_t*
 trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                        uint16_t offset, ulint mode, const buf_block_t*& block,
                        mtr_t *mtr, dberr_t *err)
@@ -299,18 +280,13 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
-inline void UndorecApplier::assign_rec(const buf_block_t &block,
-                                       uint16_t offset)
+inline void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec)
 {
-  ut_ad(block.page.lock.have_s());
-  this->offset= offset;
-  this->undo_rec= trx_undo_rec_copy(block.page.frame + offset, heap);
-}
-
-inline void UndorecApplier::apply_undo_rec()
-{
+  undo_rec= rec;
   if (!undo_rec)
     return;
+  offset= page_offset(undo_rec);
+
   bool updated_extern= false;
   undo_no_t undo_no= 0;
   table_id_t table_id= 0;
@@ -382,14 +358,14 @@ ATTRIBUTE_COLD void trx_t::apply_log()
                                                      undo->hdr_offset);
     while (rec)
     {
-      log_applier.assign_rec(*block, page_offset(rec));
+      block->page.fix();
       mtr.commit();
-      log_applier.apply_undo_rec();
+      /* Since we are the only thread who could write to this undo page,
+      it is safe to dereference rec while only holding a buffer-fix. */
+      log_applier.apply_undo_rec(rec);
       mtr.start();
-      block= buf_page_get(log_applier.get_page_id(), 0, RW_S_LATCH, &mtr);
-      if (UNIV_UNLIKELY(!block))
-        goto func_exit;
-      rec= trx_undo_page_get_next_rec(block, log_applier.get_offset(),
+      mtr.page_lock(block, RW_S_LATCH);
+      rec= trx_undo_page_get_next_rec(block, page_offset(rec),
                                       page_id.page_no(), undo->hdr_offset);
     }
 
@@ -406,7 +382,6 @@ ATTRIBUTE_COLD void trx_t::apply_log()
       break;
     log_applier.assign_next(next_page_id);
   }
-func_exit:
   mtr.commit();
   apply_online_log= false;
 }
@@ -1262,8 +1237,8 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	ut_ad(rseg == trx->rsegs.m_redo.rseg);
 
 	if (rseg->needs_purge <= trx->id) {
-		/* trx_purge_truncate_history() compares
-		rseg->needs_purge <= head.trx_no
+		/* trx_purge_truncate_history() checks
+		purge_sys.sees(rseg.needs_purge)
 		so we need to compensate for that.
 		The rseg->needs_purge after crash
 		recovery would be at least trx->id + 1,

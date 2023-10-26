@@ -484,9 +484,9 @@ const byte*
 trx_undo_rec_get_pars(
 /*==================*/
 	const trx_undo_rec_t*	undo_rec,	/*!< in: undo log record */
-	ulint*		type,		/*!< out: undo record type:
+	byte*		type,		/*!< out: undo record type:
 					TRX_UNDO_INSERT_REC, ... */
-	ulint*		cmpl_info,	/*!< out: compiler info, relevant only
+	byte*		cmpl_info,	/*!< out: compiler info, relevant only
 					for update type records */
 	bool*		updated_extern,	/*!< out: true if we updated an
 					externally stored fild */
@@ -503,7 +503,7 @@ trx_undo_rec_get_pars(
 	*type = type_cmpl & (TRX_UNDO_CMPL_INFO_MULT - 1);
 	ut_ad(*type >= TRX_UNDO_RENAME_TABLE);
 	ut_ad(*type <= TRX_UNDO_EMPTY);
-	*cmpl_info = type_cmpl / TRX_UNDO_CMPL_INFO_MULT;
+	*cmpl_info = byte(type_cmpl / TRX_UNDO_CMPL_INFO_MULT);
 
 	*undo_no = mach_read_next_much_compressed(&ptr);
 	*table_id = mach_read_next_much_compressed(&ptr);
@@ -2061,12 +2061,23 @@ trx_undo_get_undo_rec_low(
 
   mtr.start();
 
-  const buf_block_t* undo_page=
-    buf_page_get(page_id_t(rseg->space->id, page_no), 0, RW_S_LATCH, &mtr);
-
-  trx_undo_rec_t *undo_rec= undo_page
-    ? trx_undo_rec_copy(undo_page->page.frame + offset, heap)
-    : nullptr;
+  trx_undo_rec_t *undo_rec= nullptr;
+  if (const buf_block_t* undo_page=
+      buf_page_get(page_id_t(rseg->space->id, page_no), 0, RW_S_LATCH, &mtr))
+  {
+    undo_rec= undo_page->page.frame + offset;
+    const size_t end= mach_read_from_2(undo_rec);
+    if (UNIV_UNLIKELY(end <= offset ||
+                      end >= srv_page_size - FIL_PAGE_DATA_END))
+      undo_rec= nullptr;
+    else
+    {
+      size_t len{end - offset};
+      undo_rec=
+        static_cast<trx_undo_rec_t*>(mem_heap_dup(heap, undo_rec, len));
+      mach_write_to_2(undo_rec, len);
+    }
+  }
 
   mtr.commit();
   return undo_rec;
@@ -2153,14 +2164,14 @@ trx_undo_prev_version_build(
 {
 	dtuple_t*	entry;
 	trx_id_t	rec_trx_id;
-	ulint		type;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
 	upd_t*		update;
+	byte		type;
 	byte		info_bits;
-	ulint		cmpl_info;
+	byte		cmpl_info;
 	bool		dummy_extern;
 	byte*		buf;
 
@@ -2335,7 +2346,7 @@ trx_undo_prev_version_build(
 	update vector to dtuple vrow */
 	if (v_status & TRX_UNDO_GET_OLD_V_VALUE) {
 		row_upd_replace_vcol((dtuple_t*)*vrow, index->table, update,
-				     false, NULL, NULL);
+				     false, nullptr, nullptr);
 	}
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG

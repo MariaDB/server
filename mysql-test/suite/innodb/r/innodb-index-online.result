@@ -437,6 +437,7 @@ COUNT(c22f)
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+SET GLOBAL innodb_max_purge_lag_wait=0;
 ALTER TABLE t1 ADD UNIQUE INDEX c3p5(c3(5));
 ERROR 23000: Duplicate entry 'NULL' for key 'c3p5'
 UPDATE t1 SET c3 = NULL WHERE c3 = '';

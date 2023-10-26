@@ -1,3 +1,7 @@
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connect  stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1)) Engine=InnoDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -143,6 +147,7 @@ ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log2';
 connection con1;
 disconnect con1;
+disconnect stop_purge;
 connection default;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;

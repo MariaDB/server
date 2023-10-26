@@ -1609,9 +1609,10 @@ and common table associated with the fts table.
 			already stopped*/
 void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
 {
-  dict_sys.lock(SRW_LOCK_CALL);
   if (!already_stopped)
     purge_sys.stop_FTS();
+
+  dict_sys.lock(SRW_LOCK_CALL);
 
   fts_table_t fts_table;
   char table_name[MAX_FULL_NAME_LEN];

@@ -255,6 +255,7 @@ SET @rowlog_decrypt_1=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 
+SET GLOBAL innodb_max_purge_lag_wait=0;
 # Accumulate and apply some modification log.
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt3 WAIT_FOR dml3_done';
 --error ER_MULTIPLE_PRI_KEY

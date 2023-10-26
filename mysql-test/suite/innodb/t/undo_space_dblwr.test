@@ -9,7 +9,6 @@ show variables like 'innodb_doublewrite';
 create table t1(f1 int not null, f2 int not null)engine=innodb;
 insert into t1 values (1, 1);
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 --source include/wait_all_purged.inc
 
 set GLOBAL innodb_log_checkpoint_now=1;
