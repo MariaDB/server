@@ -6798,15 +6798,21 @@ static Sys_var_mybool Sys_binlog_encryption(
        READ_ONLY GLOBAL_VAR(encrypt_binlog), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
-static const char *binlog_row_image_names[]= {"MINIMAL", "NOBLOB", "FULL", NullS};
+static const char *binlog_row_image_names[]=
+{
+  "MINIMAL", "NOBLOB", "FULL", "FULL_NODUP", NullS
+};
 static Sys_var_on_access<Sys_var_enum,
                          PRIV_SET_SYSTEM_VAR_BINLOG_ROW_IMAGE,
                          PRIV_SET_SYSTEM_VAR_BINLOG_ROW_IMAGE>
 Sys_binlog_row_image(
        "binlog_row_image",
-       "Controls whether rows should be logged in 'FULL', 'NOBLOB' or "
-       "'MINIMAL' formats. 'FULL', means that all columns in the before "
-       "and after image are logged. 'NOBLOB', means that mysqld avoids logging "
+       "Controls whether rows should be logged in 'FULL', 'FULL_NODUP', "
+       "'NOBLOB' or 'MINIMAL' formats. 'FULL', means that all columns in the "
+       "before and after image are logged. 'FULL_NODUP', means that all "
+       "columns are logged in before image, but only changed columns or all "
+       "columns of inserted record are logged in after image, "
+       "'NOBLOB', means that mysqld avoids logging "
        "blob columns whenever possible (eg, blob column was not changed or "
        "is not part of primary key). 'MINIMAL', means that a PK equivalent (PK "
        "columns or full row if there is no PK in the table) is logged in the "

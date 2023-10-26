@@ -7911,6 +7911,11 @@ void TABLE::mark_columns_needed_for_insert()
   if (vfield)
     mark_virtual_columns_for_write(TRUE);
   mark_columns_per_binlog_row_image();
+
+  /* FULL_NODUP is for replacing FULL mode, insert includes all columns. */
+  if (in_use->variables.binlog_row_image == BINLOG_ROW_IMAGE_FULL_NODUP)
+    rpl_write_set= read_set;
+
   if (check_constraints)
     mark_check_constraint_columns_for_read();
   DBUG_VOID_RETURN;
@@ -7980,6 +7985,11 @@ void TABLE::mark_columns_per_binlog_row_image()
         bitmap_set_all(read_set);
         /* Set of columns that should be written (all) */
         rpl_write_set= read_set;
+        break;
+      case BINLOG_ROW_IMAGE_FULL_NODUP:
+        bitmap_set_all(read_set);
+        // TODO: After MDEV-18432 we don't pass history rows, so remove this:
+        rpl_write_set= versioned() ? &s->all_set : write_set;
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /* Only write changed columns + not blobs */
