@@ -126,7 +126,6 @@
 /* Functions we may want to use. */
 #cmakedefine HAVE_ACCEPT4 1
 #cmakedefine HAVE_ACCESS 1
-#cmakedefine HAVE_ALARM 1
 #cmakedefine HAVE_ALLOCA 1
 #cmakedefine HAVE_BFILL 1
 #cmakedefine HAVE_INDEX 1
