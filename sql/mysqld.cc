@@ -1733,12 +1733,6 @@ static void close_connections(void)
     my_sleep(100);
 
   /*
-    If the signal thread is actively using server resources, let it finish
-    before killing any connections
-  */
-  wait_for_signal_thread_to_end();
-
-  /*
     First signal all threads that it's time to die
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
@@ -1767,7 +1761,8 @@ static void close_connections(void)
   DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",
                   my_sleep(500000););
 
-  Events::deinit();
+  if (Events::inited)
+    Events::stop();
   slave_prepare_for_shutdown();
   ack_receiver.stop();
 
@@ -1830,6 +1825,12 @@ static void close_connections(void)
     my_sleep(1000);
   }
   /* End of kill phase 2 */
+
+  /*
+    If the signal thread is actively using server resources, let it finish
+    before killing any connections
+  */
+  wait_for_signal_thread_to_end();
 
   DBUG_PRINT("quit",("close_connections thread"));
   DBUG_VOID_RETURN;
@@ -1986,6 +1987,7 @@ static void clean_up(bool print_message)
   if (use_slave_mask)
     my_bitmap_free(&slave_error_mask);
 #endif
+  Events::deinit();
   stop_handle_manager();
   release_ddl_log();
 
@@ -2118,8 +2120,9 @@ static void wait_for_signal_thread_to_end()
 
   if (i == n_waits)
   {
-    sql_print_warning(
-        "Signal handler thread did not exit in a timely manner.");
+    sql_print_warning("Signal handler thread did not exit in a timely manner. "
+                      "Continuing to wait for it to stop..");
+    pthread_join(signal_thread, NULL);
   }
 }
 #endif /*EMBEDDED_LIBRARY*/
