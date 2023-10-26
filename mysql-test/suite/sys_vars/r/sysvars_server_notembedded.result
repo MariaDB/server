@@ -495,11 +495,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_IMAGE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Controls whether rows should be logged in 'FULL', 'NOBLOB' or 'MINIMAL' formats. 'FULL', means that all columns in the before and after image are logged. 'NOBLOB', means that mysqld avoids logging blob columns whenever possible (eg, blob column was not changed or is not part of primary key). 'MINIMAL', means that a PK equivalent (PK columns or full row if there is no PK in the table) is logged in the before image, and only changed columns are logged in the after image. (Default: FULL).
+VARIABLE_COMMENT	Controls whether rows should be logged in 'FULL', 'FULL_NODUP', 'NOBLOB' or 'MINIMAL' formats. 'FULL', means that all columns in the before and after image are logged. 'FULL_NODUP', means that all columns are logged in before image, but only changed columns or all columns of inserted record are logged in after image, 'NOBLOB', means that mysqld avoids logging blob columns whenever possible (eg, blob column was not changed or is not part of primary key). 'MINIMAL', means that a PK equivalent (PK columns or full row if there is no PK in the table) is logged in the before image, and only changed columns are logged in the after image. (Default: FULL).
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	MINIMAL,NOBLOB,FULL
+ENUM_VALUE_LIST	MINIMAL,NOBLOB,FULL,FULL_NODUP
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_METADATA

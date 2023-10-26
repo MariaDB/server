@@ -149,7 +149,9 @@ enum enum_binlog_row_image {
   /** Whenever possible, before and after image contain all columns except blobs. */
   BINLOG_ROW_IMAGE_NOBLOB= 1,
   /** All columns in both before and after image. */
-  BINLOG_ROW_IMAGE_FULL= 2
+  BINLOG_ROW_IMAGE_FULL= 2,
+  /** All columns in before image, but only updated columns in after image */
+  BINLOG_ROW_IMAGE_FULL_NODUP= 3
 };
 
 
