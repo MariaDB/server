@@ -9413,6 +9413,11 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 
 bool Item_default_value::check_field_expression_processor(void *)
 {
+  return Item_default_value::update_func_default_processor(0);
+}
+
+bool Item_default_value::update_func_default_processor(void *)
+{
   field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
   return 0;
 }
