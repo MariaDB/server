@@ -26,7 +26,6 @@
 #include "keycaches.h"
 #include "my_json_writer.h"
 #include <hash.h>
-#include <thr_alarm.h>
 #include "sql_connect.h"
 #include "thread_cache.h"
 #if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
@@ -611,17 +610,6 @@ Open streams:  %10lu\n",
 	 my_file_opened,
 	 my_stream_opened);
 
-#ifndef DONT_USE_THR_ALARM
-  ALARM_INFO alarm_info;
-  thr_alarm_info(&alarm_info);
-  printf("\nAlarm status:\n\
-Active alarms:   %u\n\
-Max used alarms: %u\n\
-Next alarm time: %lu\n",
-	 alarm_info.active_alarms,
-	 alarm_info.max_used_alarms,
-	(ulong)alarm_info.next_alarm_time);
-#endif
   display_table_locks();
 #if defined(HAVE_MALLINFO2)
   struct mallinfo2 info = mallinfo2();

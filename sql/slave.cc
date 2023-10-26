@@ -36,7 +36,6 @@
 #include "rpl_filter.h"
 #include "repl_failsafe.h"
 #include "transaction.h"
-#include <thr_alarm.h>
 #include <my_dir.h>
 #include <sql_common.h>
 #include <errmsg.h>
@@ -1075,24 +1074,11 @@ terminate_slave_thread(THD *thd,
 
     mysql_mutex_lock(&thd->LOCK_thd_kill);
     mysql_mutex_lock(&thd->LOCK_thd_data);
-#ifndef DONT_USE_THR_ALARM
-    /*
-      Error codes from pthread_kill are:
-      EINVAL: invalid signal number (can't happen)
-      ESRCH: thread already killed (can happen, should be ignored)
-    */
-    int err __attribute__((unused))= pthread_kill(thd->real_id, thr_client_alarm);
-    DBUG_ASSERT(err != EINVAL);
-#endif
     thd->awake_no_mutex(NOT_KILLED);
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
 
-    /*
-      There is a small chance that slave thread might miss the first
-      alarm. To protect againts it, resend the signal until it reacts
-    */
     struct timespec abstime;
     set_timespec(abstime,2);
     error= mysql_cond_timedwait(term_cond, term_lock, &abstime);
