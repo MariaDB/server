@@ -23918,10 +23918,24 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   bool orig_cond_saved= false;
   int best_key= -1;
   bool changed_key= false;
+  THD *thd= tab->join->thd;
   DBUG_ENTER("test_if_skip_sort_order");
+
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array  trace_arr(thd, "test_if_skip_sort_order");
 
   /* Check that we are always called with first non-const table */
   DBUG_ASSERT(tab == tab->join->join_tab + tab->join->const_tables);
+
+  /* Sorting a single row can always be skipped */
+  if (tab->type == JT_EQ_REF ||
+      tab->type == JT_CONST  ||
+      tab->type == JT_SYSTEM)
+  {
+    Json_writer_object trace_skip(thd);
+    trace_skip.add("skipped", "single row access method");
+    DBUG_RETURN(1);
+  }
 
   /*
     Keys disabled by ALTER TABLE ... DISABLE KEYS should have already
