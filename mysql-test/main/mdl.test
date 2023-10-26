@@ -84,6 +84,7 @@ DROP TABLE t1,t3;
 --echo #
 --echo # MDEV-28820 MyISAM wrong server status flags
 --echo #
+--disable_service_connection
 # MyISAM alone doesn't start a transaction or takes transactional MDL
 create table t1 (a int);
 set autocommit=0;
@@ -119,6 +120,7 @@ disconnect foo;
 connection default;
 set autocommit=default;
 drop table t2;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.4 tests
