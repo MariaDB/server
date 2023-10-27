@@ -185,7 +185,12 @@ SET debug_sync = RESET;
 --source include/start_slave.inc
 
 --connection master
-DROP SEQUENCE s2,s3;
+# MDEV-32593 Assertion failure upon CREATE SEQUENCE
+BEGIN;
+INSERT INTO ti SET a=32593;
+CREATE SEQUENCE s4;
+
+DROP SEQUENCE s2,s3,s4;
 DROP TABLE ti;
 
 --sync_slave_with_master
