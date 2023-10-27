@@ -121,7 +121,10 @@ SET @@global.debug_dbug = "";
 SET @@global.gtid_strict_mode=0;
 include/start_slave.inc
 connection master;
-DROP SEQUENCE s2,s3;
+BEGIN;
+INSERT INTO ti SET a=32593;
+CREATE SEQUENCE s4;
+DROP SEQUENCE s2,s3,s4;
 DROP TABLE ti;
 connection slave;
 include/rpl_end.inc

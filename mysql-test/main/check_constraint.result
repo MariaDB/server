@@ -308,5 +308,15 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
+# MDEV-32586 incorrect error about cyclic reference about JSON type virtual column
+#
+create table t1 (a int, b json as (a));
+drop table t1;
+create table t1 (a int, b int as (a) check (b > 0));
+insert t1 (a) values (1);
+insert t1 (a) values (-1);
+ERROR 23000: CONSTRAINT `t1.b` failed for `test`.`t1`
+drop table t1;
+#
 # End of 10.4 tests
 #
