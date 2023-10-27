@@ -292,7 +292,7 @@ static int harvest_pins(LF_PINS *el, struct st_harvester *hv)
   {
     for (i= 0; i < LF_PINBOX_PINS; i++)
     {
-      void *p= el->pin[i];
+      void *p= my_atomic_loadptr((void **)&el->pin[i]);
       if (p)
         *hv->granary++= p;
     }
@@ -317,7 +317,7 @@ static int match_pins(LF_PINS *el, void *addr)
   LF_PINS *el_end= el+LF_DYNARRAY_LEVEL_LENGTH;
   for (; el < el_end; el++)
     for (i= 0; i < LF_PINBOX_PINS; i++)
-      if (el->pin[i] == addr)
+      if (my_atomic_loadptr((void **)&el->pin[i]) == addr)
         return 1;
   return 0;
 }
@@ -502,7 +502,8 @@ void *lf_alloc_new(LF_PINS *pins)
     {
       node= allocator->top;
      lf_pin(pins, 0, node);
-    } while (node != allocator->top && LF_BACKOFF());
+    } while (node != my_atomic_loadptr((void **)(char *)&allocator->top)
+             && LF_BACKOFF());
     if (!node)
     {
       node= (void *)my_malloc(allocator->element_size, MYF(MY_WME));
