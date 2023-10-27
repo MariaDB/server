@@ -1357,37 +1357,46 @@ bool Field::cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
 /*
   This handles all numeric and BIT data types.
 */ 
-bool Field::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                     const Item *item) const
+Data_type_compatibility
+Field::can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const
 {
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
   DBUG_ASSERT(cmp_type() != TIME_RESULT);
-  return item->cmp_type() != TIME_RESULT;
+  return item->cmp_type() != TIME_RESULT ?
+         Data_type_compatibility::OK :
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
 }
 
 
 /*
   This handles all numeric and BIT data types.
 */ 
-bool Field::can_optimize_group_min_max(const Item_bool_func *cond,
-                                       const Item *const_item) const
+Data_type_compatibility
+Field::can_optimize_group_min_max(const Item_bool_func *cond,
+                                  const Item *const_item) const
 {
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
   DBUG_ASSERT(cmp_type() != TIME_RESULT);
-  return const_item->cmp_type() != TIME_RESULT;
+  return const_item->cmp_type() != TIME_RESULT ?
+         Data_type_compatibility::OK :
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
 }
 
 
 /*
   This covers all numeric types, BIT
 */
-bool Field::can_optimize_range(const Item_bool_func *cond,
-                               const Item *item,
-                               bool is_eq_func) const
+Data_type_compatibility
+Field::can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const
 {
   DBUG_ASSERT(cmp_type() != TIME_RESULT);   // Handled in Field_temporal
   DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_str descendants
-  return item->cmp_type() != TIME_RESULT;
+  return item->cmp_type() != TIME_RESULT ?
+         Data_type_compatibility::OK :
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
 }
 
 
@@ -2051,10 +2060,32 @@ int Field::store_to_statistical_minmax_field(Field *field, String *val)
 }
 
 
-int Field::store_from_statistical_minmax_field(Field *stat_field, String *str)
+int Field::store_from_statistical_minmax_field(Field *stat_field, String *str,
+                                               MEM_ROOT *mem)
 {
   stat_field->val_str(str);
   return store_text(str->ptr(), str->length(), &my_charset_bin);
+}
+
+
+/*
+  Same as above, but store the string in the statistics mem_root to make it
+  easy to free everything by just freeing the mem_root.
+*/
+
+int Field_blob::store_from_statistical_minmax_field(Field *stat_field,
+                                                    String *str,
+                                                    MEM_ROOT *mem)
+{
+  String *tmp= stat_field->val_str(str);
+  uchar *ptr;
+  if (!(ptr= (uchar*) memdup_root(mem, tmp->ptr(), tmp->length())))
+  {
+    set_ptr((uint32) 0, NULL);
+    return 1;
+  }
+  set_ptr(tmp->length(), ptr);
+  return 0;
 }
 
 
@@ -5943,17 +5974,21 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
 }
 
 
-bool Field_temporal::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                              const Item *value) const
+Data_type_compatibility
+Field_temporal::can_optimize_keypart_ref(const Item_bool_func *cond,
+                                         const Item *value) const
 {
-  return true; // Field is of TIME_RESULT, which supersedes everything else.
+  // Field is of TIME_RESULT, which supersedes everything else.
+  return Data_type_compatibility::OK;
 }
 
 
-bool Field_temporal::can_optimize_group_min_max(const Item_bool_func *cond,
-                                                const Item *const_item) const
+Data_type_compatibility
+Field_temporal::can_optimize_group_min_max(const Item_bool_func *cond,
+                                           const Item *const_item) const
 {
-  return true; // Field is of TIME_RESULT, which supersedes everything else.
+  // Field is of TIME_RESULT, which supersedes everything else.
+  return Data_type_compatibility::OK;
 }
 
 
@@ -7448,43 +7483,52 @@ uint32 Field_longstr::max_data_length() const
 }
 
 
-bool
+Data_type_compatibility
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
-  return cmp_is_done_using_type_handler_of_this(cond, item) &&
-         charset() == cond->compare_collation();
+  return !cmp_is_done_using_type_handler_of_this(cond, item) ?
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
+         charset() != cond->compare_collation() ?
+         Data_type_compatibility::INCOMPATIBLE_COLLATION :
+         Data_type_compatibility::OK;
 }
 
 
-bool
+Data_type_compatibility
 Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
-  return cmp_is_done_using_type_handler_of_this(cond, item) &&
-         (charset() == cond->compare_collation() ||
-          cond->compare_collation()->state & MY_CS_BINSORT);
+  return !cmp_is_done_using_type_handler_of_this(cond, item) ?
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
+         (charset() != cond->compare_collation() &&
+          !(cond->compare_collation()->state & MY_CS_BINSORT)) ?
+         Data_type_compatibility::INCOMPATIBLE_COLLATION :
+         Data_type_compatibility::OK;
 }
 
 
-bool Field_longstr::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                             const Item *item) const
+Data_type_compatibility
+Field_longstr::can_optimize_keypart_ref(const Item_bool_func *cond,
+                                        const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
   return cmp_to_string_with_stricter_collation(cond, item);
 }
 
 
-bool Field_longstr::can_optimize_hash_join(const Item_bool_func *cond,
-                                           const Item *item) const
+Data_type_compatibility
+Field_longstr::can_optimize_hash_join(const Item_bool_func *cond,
+                                      const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
   return cmp_to_string_with_same_collation(cond, item);
 }
 
 
-bool Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
-                                               const Item *const_item) const
+Data_type_compatibility
+Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
+                                          const Item *const_item) const
 {
   /*
     Can't use indexes when comparing a string to a number or a date
@@ -7495,9 +7539,10 @@ bool Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
-bool Field_longstr::can_optimize_range(const Item_bool_func *cond,
-                                       const Item *item,
-                                       bool is_eq_func) const
+Data_type_compatibility
+Field_longstr::can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
 {
   return is_eq_func ?
          cmp_to_string_with_stricter_collation(cond, item) :
@@ -9717,24 +9762,27 @@ bool Field_num::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
-                                                   const Item *item) const
+Data_type_compatibility
+Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                              const Item *item) const
 {
   switch (item->cmp_type())
   {
   case TIME_RESULT:
-    return false;
+    return Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
   case INT_RESULT:
   case DECIMAL_RESULT:
   case REAL_RESULT:
-    return true;
+    return Data_type_compatibility::OK;
   case STRING_RESULT:
-    return charset() == cond->compare_collation();
+    return charset() == cond->compare_collation() ?
+           Data_type_compatibility::OK :
+           Data_type_compatibility::INCOMPATIBLE_COLLATION;
   case ROW_RESULT:
     DBUG_ASSERT(0);
     break;
   }
-  return false;
+  return Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
 }
 
 
@@ -11259,6 +11307,102 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
                       type_arg, value, db_name, table_name, field_name.str,
                       static_cast<ulong>(thd->get_stmt_da()->
                       current_row_for_warning()));
+}
+
+
+/*
+  Give warning for unusable key
+
+  Note that the caller is responsible to call it only under ther
+  right note_verbosity level
+*/
+
+void Field::raise_note_cannot_use_key_part(THD *thd,
+                                           uint keynr, uint part,
+                                           const LEX_CSTRING &op,
+                                           Item *value,
+                                           Data_type_compatibility reason)
+                                           const
+{
+  StringBuffer<128> value_buffer;
+  const LEX_CSTRING keyname= table->s->key_info[keynr].name;
+  size_t value_length;
+
+  value->print(&value_buffer, QT_EXPLAIN);
+  value_length= Well_formed_prefix(value_buffer.charset(),
+                                   value_buffer.ptr(),
+                                   MY_MIN(value_buffer.length(), 64)).length();
+  /*
+    We must use c_ptr() here for the 'T' argument as it only works with
+    zero terminated strings.
+  */
+  switch (reason){
+  case Data_type_compatibility::INCOMPATIBLE_COLLATION:
+    {
+      const LEX_CSTRING colf(charset()->coll_name);
+      const LEX_CSTRING colv(value->collation.collation->coll_name);
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR,
+                          "Cannot use key %`.*s part[%u] for lookup: "
+                          "%`.*s.%`.*s.%`.*s of collation %`.*s "
+                          "%.*s \"%.*T\" of collation %`.*s",
+                          (int) keyname.length, keyname.str,
+                          part,
+                          (int) table->s->db.length, table->s->db.str,
+                          (int) table->s->table_name.length,
+                          table->s->table_name.str,
+                          (int) field_name.length, field_name.str,
+                          (int) colf.length, colf.str,
+                          (int) op.length, op.str,
+                          (int) value_length, value_buffer.c_ptr_safe(),
+                          (int) colv.length, colv.str);
+    }
+    break;
+  case Data_type_compatibility::OK:
+    DBUG_ASSERT(0);
+    /* fall through */
+  case Data_type_compatibility::INCOMPATIBLE_DATA_TYPE:
+    {
+      const LEX_CSTRING dtypef(type_handler()->name().lex_cstring());
+      const LEX_CSTRING dtypev(value->type_handler()->name().lex_cstring());
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR,
+                          "Cannot use key %`.*s part[%u] for lookup: "
+                          "%`.*s.%`.*s.%`.*s of type %`.*s "
+                          "%.*s \"%.*T\" of type %`.*s",
+                          (int) keyname.length, keyname.str,
+                          part,
+                          (int) table->s->db.length, table->s->db.str,
+                          (int) table->s->table_name.length,
+                          table->s->table_name.str,
+                          (int) field_name.length, field_name.str,
+                          (int) dtypef.length, dtypef.str,
+                          (int) op.length, op.str,
+                          (int) value_length, value_buffer.c_ptr_safe(),
+                          (int) dtypev.length, dtypev.str);
+    }
+    break;
+  }
+}
+
+
+/*
+  Give warning for unusable key
+
+  Note that the caller is responsible to call it only under ther
+  right note_verbosity level
+*/
+
+void Field::raise_note_key_become_unused(THD *thd, const String &expr) const
+{
+  push_warning_printf(thd,
+    Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+    "Cannot use key parts with %`.*s.%`.*s.%`.*s "
+    "in the rewritten condition: %`.*s",
+    (int) table->s->db.length, table->s->db.str,
+    (int) table->s->table_name.length, table->s->table_name.str,
+    (int) field_name.length, field_name.str,
+    (int) expr.length(), expr.ptr());
 }
 
 

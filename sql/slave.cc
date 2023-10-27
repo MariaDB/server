@@ -3939,9 +3939,19 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       default:
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
-          rli->abort_slave= 1;
-          rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                      "Node has dropped from cluster");
+          /*
+            async replication thread should be stopped, if failure was
+            not due to optimistic parallel applying or if node
+            has dropped from cluster
+           */
+          if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
+              ((rli->mi->using_parallel() &&
+                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
+               wsrep_ready == 0)) {
+            rli->abort_slave= 1;
+            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                        "Node has dropped from cluster");
+          }
           break;
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -5393,6 +5403,19 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
+
+  /*
+    Reset errors for a clean start (otherwise, if the master is idle, the SQL
+    thread may execute no Query_log_event, so the error will remain even
+    though there's no problem anymore). Do not reset the master timestamp
+    (imagine the slave has caught everything, the STOP SLAVE and START SLAVE:
+    as we are not sure that we are going to receive a query, we want to
+    remember the last master timestamp (to say how many seconds behind we are
+    now.
+    But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
+  */
+  rli->clear_error();
+
   mysql_mutex_lock(&rli->run_lock);
   DBUG_ASSERT(!rli->slave_running);
   errmsg= 0;
@@ -5469,17 +5492,16 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->run_lock);
   mysql_cond_broadcast(&rli->start_cond);
 
-  /*
-    Reset errors for a clean start (otherwise, if the master is idle, the SQL
-    thread may execute no Query_log_event, so the error will remain even
-    though there's no problem anymore). Do not reset the master timestamp
-    (imagine the slave has caught everything, the STOP SLAVE and START SLAVE:
-    as we are not sure that we are going to receive a query, we want to
-    remember the last master timestamp (to say how many seconds behind we are
-    now.
-    But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
-  */
-  rli->clear_error();
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("delay_sql_thread_after_release_run_lock", {
+    const char act[]= "now "
+                      "signal sql_thread_run_lock_released "
+                      "wait_for sql_thread_continue";
+    DBUG_ASSERT(debug_sync_service);
+    DBUG_ASSERT(!debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+  };);
+#endif
+
   rli->parallel.reset();
 
   //tell the I/O thread to take relay_log_space_limit into account from now on

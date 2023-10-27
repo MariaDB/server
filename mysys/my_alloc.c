@@ -172,6 +172,9 @@ void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root, size_t block_size,
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
   mem_root->psi_key= key;
+#ifdef PROTECT_STATEMENT_MEMROOT
+  mem_root->read_only= 0;
+#endif
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
@@ -278,6 +281,10 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p", mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  DBUG_ASSERT(mem_root->read_only == 0);
+#endif
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
 		  {
@@ -553,6 +560,45 @@ void set_prealloc_root(MEM_ROOT *root, char *ptr)
   }
 }
 
+
+/*
+  Remember last MEM_ROOT block.
+
+  This allows one to free all new allocated blocks.
+*/
+
+USED_MEM *get_last_memroot_block(MEM_ROOT* root)
+{
+  return root->used ? root->used : root->pre_alloc;
+}
+
+/*
+  Free all newly allocated blocks
+*/
+
+void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block)
+{
+  USED_MEM *old, *next;
+  if (!root->used)
+    return;                                     /* Nothing allocated */
+  return;
+  /*
+    Free everying allocated up to, but not including, last_block.
+    However do not go past pre_alloc as we do not want to free
+    that one. This should not be a problem as in almost all normal
+    usage pre_alloc is last in the list.
+  */
+
+  for (next= root->used ;
+       next && next != last_block && next != root->pre_alloc ; )
+  {
+    old= next; next= next->next;
+    root_free(root, old, old->size);
+  }
+  root->used= next;
+  root->block_num= 4;
+  root->first_block_usage= 0;
+}
 
 /**
    Change protection for all blocks in the mem root

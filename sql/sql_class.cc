@@ -69,8 +69,6 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
-#else
-static inline bool wsrep_is_bf_aborted(THD* thd) { return false; }
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
 #include <mysql/psi/mysql_transaction.h>
@@ -1009,7 +1007,8 @@ void THD::raise_note(uint sql_errno)
 {
   DBUG_ENTER("THD::raise_note");
   DBUG_PRINT("enter", ("code: %d", sql_errno));
-  if (!(variables.option_bits & OPTION_SQL_NOTES))
+  if (!(variables.option_bits & OPTION_SQL_NOTES) ||
+      (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* msg= ER_THD(this, sql_errno);
   (void) raise_condition(sql_errno, "\0\0\0\0\0",
@@ -1023,7 +1022,8 @@ void THD::raise_note_printf(uint sql_errno, ...)
   char    ebuff[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("THD::raise_note_printf");
   DBUG_PRINT("enter",("code: %u", sql_errno));
-  if (!(variables.option_bits & OPTION_SQL_NOTES))
+  if (!(variables.option_bits & OPTION_SQL_NOTES) ||
+      (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* format= ER_THD(this, sql_errno);
   va_start(args, sql_errno);
@@ -1046,8 +1046,9 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
-  if (!(variables.option_bits & OPTION_SQL_NOTES) &&
-      (level == Sql_condition::WARN_LEVEL_NOTE))
+  if ((level == Sql_condition::WARN_LEVEL_NOTE) &&
+      (!(variables.option_bits & OPTION_SQL_NOTES) ||
+       (variables.note_verbosity == 0)))
     DBUG_RETURN(NULL);
 #ifdef WITH_WSREP
   /*
@@ -1724,7 +1725,9 @@ THD::~THD()
     lf_hash_put_pins(tdc_hash_pins);
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
+#if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
+#endif
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 
@@ -1739,7 +1742,7 @@ THD::~THD()
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
-    SAFEMALLOC_REPORT_MEMORY(thread_id);
+    SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id());
     DBUG_ASSERT(status_var.local_memory_used == 0 ||
                 !debug_assert_on_not_freed_memory);
   }
@@ -5887,7 +5890,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     The following is added to the old values as we are interested in the
     total complexity of the query
   */
-  inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
 }
@@ -5970,6 +5972,8 @@ void THD::set_examined_row_count(ha_rows count)
 void THD::inc_sent_row_count(ha_rows count)
 {
   m_sent_row_count+= count;
+  DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
+                  m_examined_row_count= (ULONGLONG_MAX - 1000000););
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
@@ -7843,6 +7847,7 @@ wait_for_commit::reinit()
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
   commit_started= false;
+  wakeup_blocked= false;
 #ifdef SAFE_MUTEX
   /*
     When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
@@ -8115,6 +8120,9 @@ void
 wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 {
   wait_for_commit *waiter;
+
+  if (unlikely(wakeup_blocked))
+    return;
 
   mysql_mutex_lock(&LOCK_wait_commit);
   wakeup_subsequent_commits_running= true;

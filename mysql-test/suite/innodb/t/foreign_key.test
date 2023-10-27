@@ -1071,11 +1071,52 @@ INSERT INTO t2 VALUES (1);
 --reap
 
 # Cleanup
---disconnect con1
 --connection default
 --disable_warnings
 DROP TABLE IF EXISTS t2, t1;
 --enable_warnings
+
+--echo #
+--echo # MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
+--echo #
+
+SET @freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+CREATE TABLE collections (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  collectionhash varchar(255) NOT NULL DEFAULT '0',
+  PRIMARY KEY (id),
+  UNIQUE KEY ix_collection_collectionhash (collectionhash)
+) ENGINE=InnoDB;
+CREATE TABLE binaries (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  collections_id int(11) unsigned NOT NULL DEFAULT 0,
+  binaryhash binary(16) NOT NULL DEFAULT '0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+  PRIMARY KEY (id),
+  UNIQUE KEY ix_binary_binaryhash (binaryhash),
+  CONSTRAINT FK_collections FOREIGN KEY (collections_id) REFERENCES collections (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO collections (id) VALUES (NULL);
+
+--connection con1
+INSERT INTO binaries (id,collections_id) VALUES (NULL,1);
+--send
+  REPLACE INTO collections (id) VALUES (NULL);
+
+--connection default
+--error 0,ER_LOCK_DEADLOCK,ER_NO_REFERENCED_ROW_2
+REPLACE INTO binaries (id) VALUES (NULL);
+
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE binaries, collections EXTENDED;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
+
+--disconnect con1
+
+# Cleanup
+DROP TABLE binaries, collections;
 
 --echo # End of 10.6 tests
 

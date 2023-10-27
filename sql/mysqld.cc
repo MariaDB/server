@@ -946,6 +946,7 @@ PSI_mutex_key key_LOCK_gtid_waiting;
 PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
+PSI_mutex_key key_TABLE_SHARE_LOCK_statistics;
 PSI_mutex_key key_LOCK_ack_receiver;
 
 PSI_mutex_key key_TABLE_SHARE_LOCK_rotation;
@@ -1017,6 +1018,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
   { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
+  { &key_TABLE_SHARE_LOCK_statistics, "TABLE_SHARE::LOCK_statistics", 0},
   { &key_TABLE_SHARE_LOCK_rotation, "TABLE_SHARE::LOCK_rotation", 0},
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
@@ -4445,6 +4447,9 @@ static int init_common_variables()
     sql_print_error("An error occurred while storing ignore_db_dirs to a hash.");
     return 1;
   }
+
+  if (tls_version & (VIO_TLSv1_0 + VIO_TLSv1_1))
+      sql_print_warning("TLSv1.0 and TLSv1.1 are insecure and should not be used for tls_version");
 
 #ifdef WITH_WSREP
   /*
@@ -9103,7 +9108,7 @@ static int test_if_case_insensitive(const char *dir_name)
                                buff, 0666, O_RDWR, MYF(0))) < 0)
   {
     if (!opt_abort)
-      sql_print_warning("Can't create test file %s", buff);
+      sql_print_warning("Can't create test file '%s' (Errcode: %M)", buff, my_errno);
     DBUG_RETURN(-1);
   }
   mysql_file_close(file, MYF(0));
@@ -9476,8 +9481,8 @@ PSI_memory_key key_memory_thd_transactions;
 PSI_memory_key key_memory_user_conn;
 PSI_memory_key key_memory_user_var_entry;
 PSI_memory_key key_memory_user_var_entry_value;
-
 PSI_memory_key key_memory_String_value;
+PSI_memory_key key_memory_WSREP;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9772,6 +9777,7 @@ static PSI_memory_info all_server_memory[]=
 //  { &key_memory_get_all_tables, "get_all_tables", 0},
 //  { &key_memory_fill_schema_schemata, "fill_schema_schemata", 0},
   { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
+  { &key_memory_WSREP, "wsrep", 0 }
 };
 
 /**

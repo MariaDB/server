@@ -7792,6 +7792,8 @@ next_item:
   {
     for (ulint i= 0; i < f->n_fields; i++)
     {
+      if (!f->referenced_index)
+        continue;
       if (f->referenced_index->fields[i].col == col)
       {
         my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0),
@@ -11528,7 +11530,7 @@ fail:
 	DEBUG_SYNC(m_user_thd, "innodb_alter_inplace_before_commit");
 
 	if (new_clustered) {
-		ut_ad(trx->has_logged());
+		ut_ad(trx->has_logged_persistent());
 		for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx;
 		     pctx++) {
 			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);

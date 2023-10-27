@@ -6695,7 +6695,7 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     DBUG_RETURN(error);
   }
 
-  if (m_curr_row == m_rows_buf && !invoke_triggers)
+  if (m_curr_row == m_rows_buf && !invoke_triggers && !table->s->long_unique_table)
   {
     /*
        This table has no triggers so we can do bulk insert.
@@ -6727,6 +6727,9 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
   DBUG_PRINT_BITSET("debug", "rpl_write_set: %s", table->rpl_write_set);
   DBUG_PRINT_BITSET("debug", "read_set:      %s", table->read_set);
+
+  if (table->s->long_unique_table)
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
 
   if (invoke_triggers &&
       unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
@@ -6835,7 +6838,14 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
        Now, record[1] should contain the offending row.  That
        will enable us to update it or, alternatively, delete it (so
        that we can insert the new row afterwards).
-     */
+    */
+    if (table->s->long_unique_table)
+    {
+      /* same as for REPLACE/ODKU */
+      table->move_fields(table->field, table->record[1], table->record[0]);
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
+      table->move_fields(table->field, table->record[0], table->record[1]);
+    }
 
     /*
       If row is incomplete we will use the record found to fill 
@@ -6845,6 +6855,8 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     {
       restore_record(table,record[1]);
       error= unpack_current_row(rgi);
+      if (table->s->long_unique_table)
+        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
     }
 
     DBUG_PRINT("debug",("preparing for update: before and after image"));
@@ -7984,6 +7996,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   thd_proc_info(thd, message);
   if (unlikely((error= unpack_current_row(rgi, &m_cols_ai))))
     goto err;
+  if (m_table->s->long_unique_table)
+    m_table->update_virtual_fields(m_table->file, VCOL_UPDATE_FOR_WRITE);
 
   /*
     Now we have the right row to update.  The old row (the one we're

@@ -462,6 +462,29 @@ SET DEBUG_SYNC="now SIGNAL con1_signal";
 connection con1;
 DROP TABLE t1;
 connection default;
+#
+#  MDEV-28122 Optimize table crash while applying online log
+#
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 CHAR(200), f4 CHAR(200),
+f5 VARCHAR(87), PRIMARY KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(6000, 6000, "InnoDB",
+"MariaDB", repeat('a', 87));
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+ALTER TABLE t1 FORCE;
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, "IDB", "MDB", repeat('a', 87) FROM seq_1_to_127;
+INSERT INTO t1 VALUES(128, 128, "IDB", "MDB", repeat('a', 86));
+INSERT INTO t1 VALUES(129, 129, "idb", "mdb", repeat('a', 2));
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 disconnect con1;
 SET GLOBAL innodb_monitor_enable  = default;

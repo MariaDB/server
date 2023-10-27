@@ -1,14 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2009, Google Inc.
 Copyright (c) 2017, 2022, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -358,6 +351,24 @@ public:
   /** @return end of resize_buf */
   inline const byte *resize_buf_end() const noexcept
   { return resize_buf + resize_target; }
+
+  /** Initialise the redo log subsystem. */
+  void create_low();
+  /** Initialise the redo log subsystem.
+  @return whether the initialisation succeeded */
+  bool create() { create_low(); return true; }
+
+  /** Attach a log file.
+  @return whether the memory allocation succeeded */
+  bool attach(log_file_t file, os_offset_t size);
+#else
+  /** Initialise the redo log subsystem.
+  @return whether the initialisation succeeded */
+  bool create();
+  /** Attach a log file. */
+  void attach_low(log_file_t file, os_offset_t size);
+  bool attach(log_file_t file, os_offset_t size)
+  { attach_low(file, size); return true; }
 #endif
 
 #if defined __linux__ || defined _WIN32
@@ -366,8 +377,6 @@ public:
 #endif
   /** Try to enable or disable durable writes (update log_write_through) */
   void set_write_through(bool write_through);
-
-  void attach(log_file_t file, os_offset_t size);
 
   void close_file();
 
@@ -424,9 +433,6 @@ public:
 
   /** Make previous write_buf() durable and update flushed_to_disk_lsn. */
   bool flush(lsn_t lsn) noexcept;
-
-  /** Initialise the redo log subsystem. */
-  void create();
 
   /** Shut down the redo log subsystem. */
   void close();
