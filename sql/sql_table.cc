@@ -11621,8 +11621,18 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
 
 #ifdef WITH_WSREP
+  bool wsrep_ctas= false;
   // If CREATE TABLE AS SELECT and wsrep_on
-  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+  if (WSREP(thd) && (select_lex->item_list.elements ||
+     // Only CTAS may be applied not using TOI.
+     (wsrep_thd_is_applying(thd) && !wsrep_thd_is_toi(thd))))
+  {
+    wsrep_ctas= true;
+
+    // MDEV-22232: Disable CTAS retry by setting the retry counter to the
+    // threshold value.
+    thd->wsrep_retry_counter= thd->variables.wsrep_retry_autocommit;
+  }
 
   // This will be used in THD::decide_logging_format if CTAS
   Enable_wsrep_ctas_guard wsrep_ctas_guard(thd, wsrep_ctas);

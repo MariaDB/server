@@ -1266,7 +1266,13 @@ bool wsrep_sync_wait(THD* thd, enum enum_sql_command command)
   return res;
 }
 
-void wsrep_keys_free(wsrep_key_arr_t* key_arr)
+typedef struct wsrep_key_arr
+{
+    wsrep_key_t* keys;
+    size_t       keys_len;
+} wsrep_key_arr_t;
+
+static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 {
     for (size_t i= 0; i < key_arr->keys_len; ++i)
     {
@@ -1516,18 +1522,30 @@ err:
 }
 
 /*
- * Prepare key list from db/table and table_list
+ * Prepare key list from db/table and table_list and append it to Wsrep
+ * with the given key type.
  *
  * Return zero in case of success, 1 in case of failure.
  */
-
-bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                      const char*       db,
-                                      const char*       table,
-                                      const TABLE_LIST* table_list,
-                                      wsrep_key_arr_t*  ka)
+int wsrep_append_table_keys(THD* thd,
+                            TABLE_LIST* first_table,
+                            TABLE_LIST* table_list,
+                            Wsrep_service_key_type key_type)
 {
-  return wsrep_prepare_keys_for_isolation(thd, db, table, table_list, NULL, ka);
+   wsrep_key_arr_t key_arr= {0, 0};
+   const char* db_name= first_table ? first_table->db.str : NULL;
+   const char* table_name= first_table ? first_table->table_name.str : NULL;
+   int rcode= wsrep_prepare_keys_for_isolation(thd, db_name, table_name,
+                                               table_list, NULL, &key_arr);
+
+   if (!rcode && key_arr.keys_len)
+   {
+     rcode= wsrep_thd_append_key(thd, key_arr.keys,
+                                 key_arr.keys_len, key_type);
+   }
+
+   wsrep_keys_free(&key_arr);
+   return rcode;
 }
 
 bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
