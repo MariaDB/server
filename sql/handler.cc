@@ -249,12 +249,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd)
 
 /** @brief
   Return the storage engine handlerton for the supplied name
-  
+
   SYNOPSIS
     ha_resolve_by_name(thd, name)
     thd         current thread
     name        name of storage engine
-  
+
   RETURN
     pointer to storage engine plugin handle
 */
@@ -275,7 +275,7 @@ redo:
     handlerton *hton= plugin_hton(plugin);
     if (hton && !(hton->flags & HTON_NOT_USER_SELECTABLE))
       return plugin;
-      
+
     /*
       unlocking plugin immediately after locking is relatively low cost.
     */
@@ -409,7 +409,7 @@ handler *get_ha_partition(partition_info *part_info)
   }
   else
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL),
              static_cast<int>(sizeof(ha_partition)));
   }
   DBUG_RETURN(((handler*) partition));
@@ -787,9 +787,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     }
   }
 
-  /* 
-    This is entirely for legacy. We will create a new "disk based" hton and a 
-    "memory" hton which will be configurable longterm. We should be able to 
+  /*
+    This is entirely for legacy. We will create a new "disk based" hton and a
+    "memory" hton which will be configurable longterm. We should be able to
     remove partition.
   */
   switch (hton->db_type) {
@@ -815,8 +815,8 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   DBUG_RETURN(ret);
 
 err_deinit:
-  /* 
-    Let plugin do its inner deinitialization as plugin->init() 
+  /*
+    Let plugin do its inner deinitialization as plugin->init()
     was successfully called before.
   */
   if (plugin->plugin->deinit)
@@ -854,7 +854,7 @@ int ha_end()
   int error= 0;
   DBUG_ENTER("ha_end");
 
-  /* 
+  /*
     This should be eventually based on the graceful shutdown flag.
     So if flag is equal to HA_PANIC_CLOSE, the deallocate
     the errors.
@@ -1602,7 +1602,7 @@ uint ha_count_rw_2pc(THD *thd, bool all)
   A helper function to evaluate if two-phase commit is mandatory.
   As a side effect, propagates the read-only/read-write flags
   of the statement transaction to its enclosing normal transaction.
-  
+
   If we have at least two engines with read-write changes we must
   run a two-phase commit. Otherwise we can run several independent
   commits as the only transactional engine has read-write changes
@@ -2828,7 +2828,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   if (info.commit_list)
     sql_print_information("Starting table crash recovery...");
 
-  for (info.len= MAX_XID_LIST_SIZE ; 
+  for (info.len= MAX_XID_LIST_SIZE ;
        info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
   {
     DBUG_EXECUTE_IF("min_xa_len", info.len = 16;);
@@ -2841,12 +2841,12 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
     DBUG_RETURN(1);
   }
 
-  plugin_foreach(NULL, xarecover_handlerton, 
+  plugin_foreach(NULL, xarecover_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, &info);
 
   my_free(info.list);
   if (info.found_foreign_xids)
-    sql_print_warning("Found %d prepared XA transactions", 
+    sql_print_warning("Found %d prepared XA transactions",
                       info.found_foreign_xids);
   if (info.dry_run && info.found_my_xids)
   {
@@ -3541,7 +3541,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     (void) extra(HA_EXTRA_NO_READCHECK);	// Not needed in SQL
 
     /* Allocate ref in thd or on the table's mem_root */
-    if (!(ref= (uchar*) alloc_root(mem_root ? mem_root : &table->mem_root, 
+    if (!(ref= (uchar*) alloc_root(mem_root ? mem_root : &table->mem_root,
                                    ALIGN_SIZE(ref_length)*2)))
     {
       ha_close();
@@ -3589,7 +3589,7 @@ int handler::ha_close(void)
   tracker= NULL;
   /* We use ref as way to check that open succeded */
   ref= 0;
-  
+
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_ASSERT(inited == NONE);
   DBUG_RETURN(close());
@@ -3683,6 +3683,7 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_read_map(buf, key, keypart_map, find_flag); })
@@ -3712,6 +3713,7 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(end_range == NULL);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, index, result,
     { result= index_read_idx_map(buf, index, key, keypart_map, find_flag); })
   increment_statistics(&SSV::ha_read_key_count);
@@ -3730,9 +3732,10 @@ int handler::ha_index_next(uchar * buf)
 {
   int result;
   DBUG_ENTER("handler::ha_index_next");
- DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
+  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_next(buf); })
@@ -3757,6 +3760,7 @@ int handler::ha_index_prev(uchar * buf)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_prev(buf); })
@@ -3777,6 +3781,7 @@ int handler::ha_index_first(uchar * buf)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_first(buf); })
@@ -3797,6 +3802,7 @@ int handler::ha_index_last(uchar * buf)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_last(buf); })
@@ -3817,6 +3823,7 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  DBUG_ASSERT(!pushed_idx_cond || buf == table->record[0]);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_next_same(buf, key, keylen); })
@@ -4328,7 +4335,7 @@ void handler::column_bitmaps_signal()
 
   SYNOPSIS
     get_auto_increment()
-    offset              
+    offset
     increment
     nb_desired_values   how many values we want
     first_value         (OUT) the first value reserved by the handler
@@ -4851,7 +4858,7 @@ bool handler::get_error_message(int error, String* buf)
 
 /**
   Check for incompatible collation changes.
-   
+
   @retval
     HA_ADMIN_NEEDS_UPGRADE   Table may have data requiring upgrade.
   @retval
@@ -4955,7 +4962,7 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
 
   if (unlikely((error= check_long_hash_compatibility())))
     return error;
-    
+
   return check_for_upgrade(check_opt);
 }
 
@@ -6166,7 +6173,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   }
 
   (void) closefrm(&table);
- 
+
 err:
   free_table_share(&share);
   DBUG_RETURN(error != 0);
@@ -6263,7 +6270,7 @@ int ha_change_key_cache_param(KEY_CACHE *key_cache)
 
 
 /**
-  Repartition key cache 
+  Repartition key cache
 */
 int ha_repartition_key_cache(KEY_CACHE *key_cache)
 {
@@ -6839,7 +6846,7 @@ int handler::read_range_first(const key_range *start_key,
                               start_key->keypart_map,
                               start_key->flag);
   if (result)
-    DBUG_RETURN((result == HA_ERR_KEY_NOT_FOUND) 
+    DBUG_RETURN((result == HA_ERR_KEY_NOT_FOUND)
 		? HA_ERR_END_OF_FILE
 		: result);
 

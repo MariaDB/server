@@ -1,0 +1,63 @@
+#
+# Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2023, MariaDB Corporation.
+#
+
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # test using Index Condition Pushdown for partitioned tables
+--echo #
+
+--echo # Test failure of ICP calls -> don't use ICP (MyISAM does not support
+--echo # ICP on BLOB indexes)
+
+CREATE TABLE t1 (a int PRIMARY KEY, b BLOB, c varchar(16) DEFAULT 'Filler...',
+INDEX (b(4), a)) ENGINE = MyISAM PARTITION BY HASH (a) PARTITIONS 3;
+
+SHOW CREATE TABLE t1;
+
+INSERT INTO t1 (a, b) VALUES (1, 0xdeadbeef), (2, "text filler"),
+(3, 'filler...'), (4, " more filler "), (5, "test text"), (6, "testing...");
+
+let $query= SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+eval $query;
+
+--echo Only MyISAM and InnoDB supports both INDEX and BLOBS...
+ALTER TABLE t1 ENGINE = InnoDB;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+eval $query;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  pk INT PRIMARY KEY,
+  a INT,
+  b INT,
+  c INT,
+  filler varchar(100),
+  key(a,b,c)
+) partition by hash(pk) partitions 4;
+
+INSERT INTO t1 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+EXPLAIN format=json SELECT * from t1 where a < 10 AND (b+1>3);
+
+DROP TABLE t1;
+
+CREATE TABLE t2 (
+  pk INT PRIMARY KEY,
+  a INT,
+  b INT,
+  c INT,
+  filler VARCHAR(100),
+  KEY(a,b,c)
+);
+INSERT INTO t2 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+EXPLAIN format=json SELECT * FROM t2 WHERE a < 10 AND (b+1>3);
+
+DROP TABLE t2;

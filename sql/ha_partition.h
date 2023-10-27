@@ -136,7 +136,7 @@ public:
       my_hash_free(&partition_name_hash);
     }
   }
-  
+
   bool init(uint num_parts);
 
   /**
@@ -447,6 +447,7 @@ private:
   List<Parts_share_refs> m_new_partitions_share_refs;
   /** Sorted array of partition ids in descending order of number of rows. */
   uint32 *m_part_ids_sorted_by_num_of_records;
+  bool m_icp_in_use;
   /* Compare function for my_qsort2, for reversed order. */
   static int compare_number_of_records(ha_partition *me,
                                        const uint32 *a,
@@ -1303,18 +1304,7 @@ public:
       The following code is not safe if you are using different
       storage engines or different index types per partition.
     */
-    ulong part_flags= m_file[0]->index_flags(inx, part, all_parts);
-
-    /*
-      The underlying storage engine might support Rowid Filtering. But
-      ha_partition does not forward the needed SE API calls, so the feature
-      will not be used.
-
-      Note: It's the same with IndexConditionPushdown, except for its variant
-      of IndexConditionPushdown+BatchedKeyAccess (that one works). Because of
-      that, we do not clear HA_DO_INDEX_COND_PUSHDOWN here.
-    */
-    return part_flags & ~HA_DO_RANGE_FILTER_PUSHDOWN;
+    return m_file[0]->index_flags(inx, part, all_parts);
   }
 
   /**
@@ -1354,6 +1344,20 @@ public:
     -------------------------------------------------------------------------
   */
   int cmp_ref(const uchar * ref1, const uchar * ref2) override;
+
+  /*
+    -------------------------------------------------------------------------
+    MODULE condition pushdown
+    -------------------------------------------------------------------------
+    cond_push
+    -------------------------------------------------------------------------
+  */
+
+  /* No support of engine condition pushdown yet! */
+  /* Only Index condition pushdown is supported currently. */
+  Item *idx_cond_push(uint keyno, Item* idx_cond) override;
+  void cancel_pushed_idx_cond() override;
+
   /*
     -------------------------------------------------------------------------
     MODULE auto increment

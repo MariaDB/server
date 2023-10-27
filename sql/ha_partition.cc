@@ -62,6 +62,9 @@
 #include "ddl_log.h"
 
 #include "debug_sync.h"
+#ifndef DBUG_OFF
+#include "sql_test.h"                        // print_where
+#endif
 
 /* First 4 bytes in the .par file is the number of 32-bit words in the file */
 #define PAR_WORD_SIZE 4
@@ -428,6 +431,7 @@ void ha_partition::init_handler_variables()
   part_share= NULL;
   m_new_partitions_share_refs.empty();
   m_part_ids_sorted_by_num_of_records= NULL;
+  m_icp_in_use= false;
   m_partitions_to_open= NULL;
 
   m_range_info= NULL;
@@ -5193,6 +5197,88 @@ void ha_partition::reset_copy_info()
   } while (*(++file_array));
 }
 
+/****************************************************************************
+                MODULE condition pushdown
+****************************************************************************/
+
+
+/**
+  Index condition pushdown registation
+  @param keyno     Key number for the condition
+  @param idx_cond  Item tree of the condition to test
+  @return Remainder of non handled condition
+  @note Only handles full condition or nothing at all. MyISAM and InnoDB
+  both only supports full or nothing.
+*/
+Item *ha_partition::idx_cond_push(uint keyno, Item* idx_cond)
+{
+  uint i;
+  Item *res;
+  DBUG_ENTER("ha_partition::idx_cond_push");
+  DBUG_EXECUTE("where", print_where(idx_cond, "cond", QT_ORDINARY););
+  DBUG_PRINT("info", ("keyno: %u, active_index: %u", keyno, active_index));
+  DBUG_ASSERT(!m_icp_in_use);
+
+  m_icp_in_use= true;
+
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+  {
+    res= m_file[i]->idx_cond_push(keyno, idx_cond);
+    if (res)
+    {
+      uint j;
+      /*
+        All partitions has the same structure, so if the first partition
+        succeeds, then the rest will also succeed.
+      */
+      DBUG_ASSERT(i == bitmap_get_first_set(&m_part_info->read_partitions));
+      /* Only supports entire index conditions or no conditions! */
+      DBUG_ASSERT(res == idx_cond);
+      if (res != idx_cond)
+        m_file[i]->cancel_pushed_idx_cond();
+      /* cancel previous calls. */
+      for (j= bitmap_get_first_set(&m_part_info->read_partitions);
+           j < i; // No need for cancel i, since no support
+           j= bitmap_get_next_set(&m_part_info->read_partitions, j))
+      {
+        m_file[j]->cancel_pushed_idx_cond();
+      }
+      DBUG_RETURN(idx_cond);
+    }
+  }
+  DBUG_ASSERT(pushed_idx_cond == NULL);
+  DBUG_ASSERT(pushed_idx_cond_keyno == MAX_KEY);
+  pushed_idx_cond= idx_cond;
+  pushed_idx_cond_keyno= keyno;
+  DBUG_PRINT("info", ("Index condition pushdown used for keyno: %u", keyno));
+  DBUG_RETURN(NULL);
+}
+
+
+/** Reset information about pushed index conditions */
+void ha_partition::cancel_pushed_idx_cond()
+{
+  uint i;
+  DBUG_ENTER("ha_partition::cancel_pushed_idx_cond");
+  if (!m_icp_in_use)
+    DBUG_VOID_RETURN;
+  if (pushed_idx_cond)
+  {
+    for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+         i < m_tot_parts;
+         i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    {
+      m_file[i]->cancel_pushed_idx_cond();
+    }
+    pushed_idx_cond= NULL;
+  }
+
+  pushed_idx_cond_keyno= MAX_KEY;
+  m_icp_in_use= false;
+  DBUG_VOID_RETURN;
+}
 
 
 /*
@@ -7957,34 +8043,42 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
                         i, m_index_scan_type));
     DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr + ORDERED_PART_NUM_OFFSET));
     uchar *rec_buf_ptr= part_rec_buf_ptr + ORDERED_REC_OFFSET;
+    uchar *read_buf;
     handler *file= m_file[i];
+
+    /* ICP relies on Item evaluation, which expects the row in record[0]. */
+    if (m_icp_in_use)
+      read_buf= table->record[0];
+    else
+      read_buf= rec_buf_ptr;
 
     switch (m_index_scan_type) {
     case partition_index_read:
-      error= file->ha_index_read_map(rec_buf_ptr,
+      error= file->ha_index_read_map(read_buf,
                                      m_start_key.key,
                                      m_start_key.keypart_map,
                                      m_start_key.flag);
       /* Caller has specified reverse_order */
       break;
     case partition_index_first:
-      error= file->ha_index_first(rec_buf_ptr);
+      error= file->ha_index_first(read_buf);
       reverse_order= FALSE;
       break;
     case partition_index_last:
-      error= file->ha_index_last(rec_buf_ptr);
+      error= file->ha_index_last(read_buf);
       reverse_order= TRUE;
       break;
     case partition_read_range:
     {
       /*
         This can only read record to table->record[0], as it was set when
-        the table was being opened. We have to memcpy data ourselves.
+        the table was being opened. We have to memcpy data ourselves. Unless
+        ICP is used, since then we must read into record[0].
       */
       error= file->read_range_first(m_start_key.key? &m_start_key: NULL,
                                     end_range, eq_range, TRUE);
-      if (likely(!error))
-        memcpy(rec_buf_ptr, table->record[0], m_rec_length);
+      if (likely(!error) && !m_icp_in_use)
+        memcpy(read_buf, table->record[0], m_rec_length);
       reverse_order= FALSE;
       break;
     }
@@ -8002,7 +8096,8 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       }
       if (likely(!error))
       {
-        memcpy(rec_buf_ptr, table->record[0], m_rec_length);
+        if (!m_icp_in_use)
+            memcpy(read_buf, table->record[0], m_rec_length);
         reverse_order= FALSE;
         m_stock_range_seq[i]= (((PARTITION_KEY_MULTI_RANGE *)
                                 m_range_info[i])->id);
@@ -8024,6 +8119,9 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       DBUG_ASSERT(FALSE);
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
+    /* When using ICP, copy record[0] to the priority queue for sorting. */
+    if (m_icp_in_use)
+      memcpy(rec_buf_ptr, read_buf, m_rec_length);
     if (likely(!error))
     {
       found= TRUE;
@@ -8193,12 +8291,22 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
         This partition is used and did return HA_ERR_KEY_NOT_FOUND
         in index_read_map.
       */
+      uchar *read_buf;
       curr_rec_buf= part_buf + ORDERED_REC_OFFSET;
-      error= m_file[i]->ha_index_next(curr_rec_buf);
+      /* ICP relies on Item evaluation, which expects the row in record[0]. */
+      if (m_icp_in_use)
+        read_buf= table->record[0];
+      else
+        read_buf= curr_rec_buf;
+
+      error= m_file[i]->ha_index_next(read_buf);
       /* HA_ERR_KEY_NOT_FOUND is not allowed from index_next! */
       DBUG_ASSERT(error != HA_ERR_KEY_NOT_FOUND);
       if (likely(!error))
       {
+        /* When using ICP, copy record[0] to the priority queue for sorting. */
+        if (m_icp_in_use)
+          memcpy(curr_rec_buf, read_buf, m_rec_length);
         DBUG_PRINT("info", ("partition queue_insert(1)"));
         queue_insert(&m_queue, part_buf);
       }
@@ -8246,6 +8354,7 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
   uint part_id= m_top_entry;
   uchar *part_rec_buf_ptr= queue_top(&m_queue);
   uchar *rec_buf= part_rec_buf_ptr + ORDERED_REC_OFFSET;
+  uchar *read_buf;
   handler *file;
 
   if (m_key_not_found)
@@ -8284,17 +8393,25 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
 
   file= m_file[part_id];
 
+  /* ICP relies on Item evaluation, which expects the row in record[0]. */
+  if (m_icp_in_use)
+    read_buf= table->record[0];
+  else
+    read_buf= rec_buf;
+
   if (m_index_scan_type == partition_read_range)
   {
     error= file->read_range_next();
     if (likely(!error))
     {
-      memcpy(rec_buf, table->record[0], m_rec_length);
+      /* Copy to priority queue for sorting. Unless ICP, which do it later. */
+      if (!m_icp_in_use)
+        memcpy(read_buf, table->record[0], m_rec_length);
       if (table->s->blob_fields)
       {
         Ordered_blob_storage **storage=
           *((Ordered_blob_storage ***) part_rec_buf_ptr);
-        swap_blobs(rec_buf, storage, false);
+        swap_blobs(read_buf, storage, false);
       }
     }
   }
@@ -8332,11 +8449,13 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
                            m_range_info[part_id])->id));
       DBUG_PRINT("info", ("m_mrr_range_current->id: %u",
                           m_mrr_range_current->id));
-      memcpy(rec_buf, table->record[0], m_rec_length);
+      /* Copy to priority queue for sorting. Unless ICP, which do it later. */
+      if (!m_icp_in_use)
+         memcpy(read_buf, table->record[0], m_rec_length);
       if (table->s->blob_fields)
       {
         Ordered_blob_storage **storage= *((Ordered_blob_storage ***) part_rec_buf_ptr);
-        swap_blobs(rec_buf, storage, false);
+        swap_blobs(read_buf, storage, false);
       }
       if (((PARTITION_KEY_MULTI_RANGE *) m_range_info[part_id])->id !=
           m_mrr_range_current->id)
@@ -8419,9 +8538,9 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
     }
   }
   else if (!is_next_same)
-    error= file->ha_index_next(rec_buf);
+    error= file->ha_index_next(read_buf);
   else
-    error= file->ha_index_next_same(rec_buf, m_start_key.key,
+    error= file->ha_index_next_same(read_buf, m_start_key.key,
                                     m_start_key.length);
 
   if (unlikely(error))
@@ -8441,6 +8560,10 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
     }
     DBUG_RETURN(error);
   }
+
+  /* When using ICP, copy record[0] to the priority queue for sorting. */
+  if (m_icp_in_use)
+    memcpy(rec_buf, read_buf, m_rec_length);
 
   if (!m_using_extended_keys)
   {
@@ -8480,8 +8603,15 @@ int ha_partition::handle_ordered_prev(uchar *buf)
   uint part_id= m_top_entry;
   uchar *rec_buf= queue_top(&m_queue) + ORDERED_REC_OFFSET;
   handler *file= m_file[part_id];
+  uchar *read_buf;
 
-  if (unlikely((error= file->ha_index_prev(rec_buf))))
+  /* ICP relies on Item evaluation, which expects the row in record[0]. */
+  if (m_icp_in_use)
+    read_buf= table->record[0];
+  else
+    read_buf= rec_buf;
+
+  if (unlikely((error= file->ha_index_prev(read_buf))))
   {
     if (error == HA_ERR_END_OF_FILE && m_queue.elements)
     {
@@ -8497,6 +8627,9 @@ int ha_partition::handle_ordered_prev(uchar *buf)
     }
     DBUG_RETURN(error);
   }
+  /* When using ICP, copy record[0] to the priority queue for sorting. */
+  if (m_icp_in_use)
+    memcpy(rec_buf, read_buf, m_rec_length);
   queue_replace_top(&m_queue);
   return_top_record(buf);
   DBUG_PRINT("info", ("Record returned from partition %u", m_top_entry));
@@ -8949,7 +9082,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
       m_file_sample= *file;
     name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
   } while (*(++file));
-  
+
 err_handler:
   return error;
 }

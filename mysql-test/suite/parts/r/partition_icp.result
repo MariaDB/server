@@ -1,0 +1,161 @@
+#
+# test using Index Condition Pushdown for partitioned tables
+#
+# Test failure of ICP calls -> don't use ICP (MyISAM does not support
+# ICP on BLOB indexes)
+CREATE TABLE t1 (a int PRIMARY KEY, b BLOB, c varchar(16) DEFAULT 'Filler...',
+INDEX (b(4), a)) ENGINE = MyISAM PARTITION BY HASH (a) PARTITIONS 3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` blob DEFAULT NULL,
+  `c` varchar(16) DEFAULT 'Filler...',
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`(4),`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`a`)
+PARTITIONS 3
+INSERT INTO t1 (a, b) VALUES (1, 0xdeadbeef), (2, "text filler"),
+(3, 'filler...'), (4, " more filler "), (5, "test text"), (6, "testing...");
+EXPLAIN SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	7	NULL	4	Using where
+EXPLAIN FORMAT=JSON SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.008957528,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["p0", "p1", "p2"],
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "7",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.008957528,
+          "filtered": 100,
+          "attached_condition": "t1.b >= 'te' and t1.a MOD 2"
+        }
+      }
+    ]
+  }
+}
+SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+a	HEX(b)
+5	746573742074657874
+1	DEADBEEF
+Only MyISAM and InnoDB supports both INDEX and BLOBS...
+ALTER TABLE t1 ENGINE = InnoDB;
+EXPLAIN SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	7	NULL	4	Using index condition; Using where
+EXPLAIN FORMAT=JSON SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01374248,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["p0", "p1", "p2"],
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "7",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01374248,
+          "filtered": 100,
+          "index_condition": "t1.a MOD 2",
+          "attached_condition": "t1.b >= 'te'"
+        }
+      }
+    ]
+  }
+}
+SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+a	HEX(b)
+5	746573742074657874
+1	DEADBEEF
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+a INT,
+b INT,
+c INT,
+filler varchar(100),
+key(a,b,c)
+) partition by hash(pk) partitions 4;
+INSERT INTO t1 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+EXPLAIN format=json SELECT * from t1 where a < 10 AND (b+1>3);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.011532081,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["p0", "p1", "p2", "p3"],
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 5,
+          "cost": 0.011532081,
+          "filtered": 100,
+          "index_condition": "t1.a < 10 and t1.b + 1 > 3"
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1;
+CREATE TABLE t2 (
+pk INT PRIMARY KEY,
+a INT,
+b INT,
+c INT,
+filler VARCHAR(100),
+KEY(a,b,c)
+);
+INSERT INTO t2 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+EXPLAIN format=json SELECT * FROM t2 WHERE a < 10 AND (b+1>3);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.011211636,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 8,
+          "cost": 0.011211636,
+          "filtered": 100,
+          "index_condition": "t2.a < 10 and t2.b + 1 > 3"
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t2;
