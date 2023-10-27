@@ -25,6 +25,10 @@
 # For error test case which forces timeout
 --connection slave
 set statement sql_log_bin=0 for call mtr.add_suppression("Signal handler thread did not exit in a timely manner");
+--source include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,try_force_segfault";
+--source include/start_slave.inc
 
 
 --echo #
@@ -45,6 +49,9 @@ insert into t1 values (1);
 wait
 EOF
 
+--echo # Waiting for mysig
+set debug_sync='now wait_for mysig';
+
 # Make a thread handle SIGHUP
 --let KILL_NODE_PIDFILE = `SELECT @@pid_file`
 --perl
@@ -56,9 +63,15 @@ EOF
   exit(0);
 EOF
 
+#--echo # Waiting for paused_reload_got_mi..
+#set debug_sync= "now wait_for paused_reload_got_mi";
+sleep 1; # Give time for MI to be gained by signal thread
+
 # While we are shutting down
 --send shutdown
 --reap
+
+#set debug_sync= "now signal continue_reload";
 
 --source include/wait_until_disconnected.inc
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
@@ -89,8 +102,11 @@ EOF
 --echo # takes longer than the timeout while processing the SIGHUP
 
 --connection slave
+--source include/stop_slave.inc
+set @@global.debug_dbug= @old_dbug;
 set @old_dbug= @@global.debug_dbug;
 set @@global.debug_dbug= "+d,force_sighup_processing_timeout";
+--source include/start_slave.inc
 
 --connection master
 insert into t1 values (1);

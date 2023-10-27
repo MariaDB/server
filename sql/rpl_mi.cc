@@ -2014,6 +2014,11 @@ bool Master_info_index::flush_all_relay_logs()
     mysql_mutex_unlock(&mi->sleep_lock);
     mysql_mutex_unlock(&LOCK_active_mi);
 
+    DBUG_EXECUTE_IF("try_force_segfault", {
+      my_sleep(
+          1500000); // We have the mi, but wait 1.5s for the server to shutdown
+    });
+
     mysql_mutex_lock(&mi->data_lock);
     error= rotate_relay_log(mi);
     mysql_mutex_unlock(&mi->data_lock);

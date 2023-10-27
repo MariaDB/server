@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "my_sys.h"
 #include "sql_priv.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command
@@ -1291,6 +1292,9 @@ int start_slave_threads(THD *thd,
 
 void slave_prepare_for_shutdown()
 {
+  //DBUG_EXECUTE_IF("try_force_segfault", {
+  //  my_sleep(500000); // Wait .5s to give time to sighup handler to get an MI
+  //});
   mysql_mutex_lock(&LOCK_active_mi);
   master_info_index->free_connections();
   mysql_mutex_unlock(&LOCK_active_mi);

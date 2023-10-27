@@ -195,6 +195,36 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
     else
     {
+      //// Here to dbug_sync
+      //DBUG_EXECUTE_IF("try_force_segfault", {
+      //  my_sleep(1500000); // We have the mi, but wait 1.5s for the server to shutdown
+      //  //THD *tmp_thd= 0;
+      //  ///*
+      //  //  If reload_acl_and_cache() is called from SIGHUP handler we have to
+      //  //  allocate temporary THD for execution of acl_reload()/grant_reload().
+      //  //*/
+      //  //if (likely(!thd) && (thd= (tmp_thd= new THD(next_thread_id()))))
+      //  //{
+      //  //  thd->thread_stack= (char *) &tmp_thd;
+      //  //  thd->store_globals();
+      //  //  set_current_thd(thd);
+      //  //}
+
+      //  //if (likely(thd))
+      //  //{
+      //  //  /*
+      //  //    Temporarily unlock data_lock so we can check-in with the IO thread
+      //  //  */
+      //  //  DBUG_ASSERT(!debug_sync_set_action(
+      //  //      thd, STRING_WITH_LEN("now SIGNAL paused_reload_got_mi WAIT_FOR "
+      //  //                           "continue_reload")));
+      //  //}
+      //  //if (likely(tmp_thd))
+      //  //{
+      //  //  delete tmp_thd;
+      //  //  thd= 0;
+      //  //}
+      //});
       mysql_mutex_lock(&mi->data_lock);
       if (rotate_relay_log(mi))
         *write_to_binlog= -1;
