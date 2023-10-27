@@ -1,6 +1,4 @@
 SET default_storage_engine= innodb;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # Bug 21922176 - PREBUILT->SEARCH_TUPLE CREATED WITHOUT INCLUDING
 # THE NUMBER OF VIRTUAL COLUMNS
@@ -194,7 +192,6 @@ ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col1 % col2)
 VIRTUAL, ADD UNIQUE index idx (col1), algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: INPLACE ADD or DROP of virtual columns cannot be combined with other ALTER TABLE actions. Try ALGORITHM=COPY
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 #
 # Bug 27122803 - BACKPORT FIX FOR BUG 25899959 TO MYSQL-5.7
 #

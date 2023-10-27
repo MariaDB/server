@@ -587,10 +587,10 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
 
     do
     {
-      ulint type;
+      byte type;
+      byte cmpl_info;
       undo_no_t undo_no;
       table_id_t table_id;
-      ulint cmpl_info;
       bool updated_extern;
 
       if (undo_block != block)

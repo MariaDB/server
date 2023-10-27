@@ -366,7 +366,10 @@ SELECT JSON_OBJECT("foo", "bar`bar") as ex;
 #
 # MDEV-13324 JSON_SET returns NULL instead of object.
 #
+#enable after MDEV-32454 fix
+--disable_view_protocol
 SELECT JSON_SET('{}', '$.age', 87);
+--enable_view_protocol
 
 #
 # MDEV-13104 Json functions.
