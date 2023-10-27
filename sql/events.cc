@@ -930,6 +930,8 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     We will need Event_db_repository anyway, even if the scheduler is
     disabled - to perform events DDL.
   */
+  DBUG_ASSERT(db_repository == 0);
+
   if (!(db_repository= new Event_db_repository))
   {
     res= TRUE; /* fatal error: request unireg_abort */

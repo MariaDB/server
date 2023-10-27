@@ -1427,9 +1427,6 @@ public:
   virtual int reset_sql(
     ulong sql_type
   ) = 0;
-  virtual bool need_lock_before_set_sql_for_exec(
-    ulong sql_type
-  ) = 0;
   virtual int set_sql_for_exec(
     ulong sql_type,
     int link_idx,

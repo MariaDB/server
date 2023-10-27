@@ -912,7 +912,8 @@ a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED))
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
-Note	1105	DBUG: types_compatible=no bisect=no
+Note	1105	DBUG: found a mix of UINT and SINT
+Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
 a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL)
 Warnings:
@@ -950,7 +951,8 @@ a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED))
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
-Note	1105	DBUG: types_compatible=no bisect=no
+Note	1105	DBUG: found a mix of UINT and SINT
+Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
 a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL)
 Warnings:
@@ -1624,7 +1626,8 @@ a	b
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
-Note	1105	DBUG: types_compatible=no bisect=no
+Note	1105	DBUG: found a mix of UINT and SINT
+Note	1105	DBUG: types_compatible=yes bisect=no
 DROP TABLE t1;
 #
 # MDEV-11554 Wrong result for CASE on a mixture of signed and unsigned expressions

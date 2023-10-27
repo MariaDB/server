@@ -411,6 +411,51 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 }
 
 
+/*
+  Iterate through arguments and compare them to the original arguments
+  in "old_args". If some argument was replaced:
+  - from Item_field pointing to an indexed Field
+  - to something else (for example, Item_func_conv_charset)
+  then we cannot use Field's indexes for range access any more.
+  Raise a note in this case.
+
+  Note, the number of arguments in "old_args" can be smaller than arg_count.
+  For example, for LIKE, BETWEEN, IN we pass only args[0] in old_args.
+
+  For a comparison predicate we pass both args[0] and args[1] to cover both:
+  - WHERE field=expr
+  - WHERE expr=field
+*/
+
+void Item_bool_func::raise_note_if_key_become_unused(THD *thd, const Item_args &old_args)
+{
+  if (!(thd->variables.note_verbosity & NOTE_VERBOSITY_UNUSABLE_KEYS))
+    return;
+
+  DBUG_ASSERT(old_args.argument_count() <= arg_count);
+  for (uint i= 0; i < old_args.argument_count(); i++)
+  {
+    if (args[i] != old_args.arguments()[i])
+    {
+      DBUG_ASSERT(old_args.arguments()[i]->fixed());
+      Item *real_item= old_args.arguments()[i]->real_item();
+      if (real_item->type() == Item::FIELD_ITEM)
+      {
+        Field *field= static_cast<Item_field*>(real_item)->field;
+        if (field->flags & PART_KEY_FLAG)
+        {
+          /*
+            It used to be Item_field (with indexes!) before the condition
+            rewrite. Now it's something else. Cannot use indexes any more.
+          */
+          field->raise_note_key_become_unused(thd, Print(this, QT_EXPLAIN));
+        }
+      }
+    }
+  }
+}
+
+
 bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
 {
   DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
@@ -458,7 +503,11 @@ bool Item_bool_rowready_func2::fix_length_and_dec(THD *thd)
   */
   if (!args[0] || !args[1])
     return FALSE;
-  return setup_args_and_comparator(current_thd, &cmp);
+  Item_args old_args(args[0], args[1]);
+  if (setup_args_and_comparator(thd, &cmp))
+    return true;
+  raise_note_if_key_become_unused(thd, old_args);
+  return false;
 }
 
 
@@ -2127,6 +2176,7 @@ bool Item_func_between::fix_length_and_dec(THD *thd)
   */
   if (!args[0] || !args[1] || !args[2])
     return TRUE;
+  Item_args old_predicant(args[0]);
   if (m_comparator.aggregate_for_comparison(Item_func_between::
                                             func_name_cstring(),
                                             args, 3, false))
@@ -2134,9 +2184,10 @@ bool Item_func_between::fix_length_and_dec(THD *thd)
     DBUG_ASSERT(thd->is_error());
     return TRUE;
   }
-
-  return m_comparator.type_handler()->
-    Item_func_between_fix_length_and_dec(this);
+  if (m_comparator.type_handler()->Item_func_between_fix_length_and_dec(this))
+    return true;
+  raise_note_if_key_become_unused(thd, old_predicant);
+  return false;
 }
 
 
@@ -4470,6 +4521,7 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
 
 bool Item_func_in::fix_length_and_dec(THD *thd)
 {
+  Item_args old_predicant(args[0]);
   uint found_types;
   m_comparator.set_handler(type_handler_varchar.type_handler_for_comparison());
   max_length= 1;
@@ -4478,6 +4530,42 @@ bool Item_func_in::fix_length_and_dec(THD *thd)
   {
     DBUG_ASSERT(thd->is_error()); // Must set error
     return TRUE;
+  }
+
+  if (!arg_types_compatible && comparator_count() == 2)
+  {
+    /*
+      Catch a special case: a mixture of signed and unsigned integer types.
+      in_longlong can handle such cases.
+
+      Note, prepare_predicant_and_values() aggregates this mixture as follows:
+      - signed+unsigned produce &type_handler_newdecimal.
+      - signed+signed or unsigned+unsigned produce &type_handler_slonglong
+      So we have extactly two distinct handlers.
+
+      The code below assumes that unsigned longlong is handled
+      by &type_handler_slonglong in comparison context,
+      which may change in the future to &type_handler_ulonglong.
+      The DBUG_ASSERT is needed to address this change here properly.
+    */
+    DBUG_ASSERT(type_handler_ulonglong.type_handler_for_comparison() ==
+                &type_handler_slonglong);
+    // Let's check if all arguments are of integer types
+    uint found_int_args= 0;
+    for (uint i= 0; i < arg_count; i++, found_int_args++)
+    {
+      if (args[i]->type_handler_for_comparison() != &type_handler_slonglong)
+        break;
+    }
+    if (found_int_args == arg_count)
+    {
+      // All arguments are integers. Switch to integer comparison.
+      arg_types_compatible= true;
+      DBUG_EXECUTE_IF("Item_func_in",
+                      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_UNKNOWN_ERROR, "DBUG: found a mix of UINT and SINT"););
+      m_comparator.set_handler(&type_handler_slonglong);
+    }
   }
 
   if (arg_types_compatible) // Bisection condition #1
@@ -4489,7 +4577,7 @@ bool Item_func_in::fix_length_and_dec(THD *thd)
   else
   {
     DBUG_ASSERT(m_comparator.cmp_type() != ROW_RESULT);
-    if ( fix_for_scalar_comparison_using_cmp_items(thd, found_types))
+    if (fix_for_scalar_comparison_using_cmp_items(thd, found_types))
       return TRUE;
   }
 
@@ -4498,6 +4586,7 @@ bool Item_func_in::fix_length_and_dec(THD *thd)
                   ER_UNKNOWN_ERROR, "DBUG: types_compatible=%s bisect=%s",
                   arg_types_compatible ? "yes" : "no",
                   array != NULL ? "yes" : "no"););
+  raise_note_if_key_become_unused(thd, old_predicant);
   return FALSE;
 }
 

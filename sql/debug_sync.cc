@@ -87,7 +87,9 @@ struct st_debug_sync_globals
   ulonglong             dsp_executed;           /* statistics */
   ulonglong             dsp_max_active;         /* statistics */
 
-  st_debug_sync_globals() : ds_signal_set(PSI_NOT_INSTRUMENTED, signal_key) {};
+  st_debug_sync_globals() :
+    ds_signal_set(PSI_NOT_INSTRUMENTED, signal_key),
+    dsp_hits (0), dsp_executed(0), dsp_max_active(0) {};
   ~st_debug_sync_globals()
   {
     clear_set();
@@ -163,7 +165,7 @@ struct st_debug_sync_globals
   }
 };
 
-static st_debug_sync_globals debug_sync_global; /* All globals in one object */
+static st_debug_sync_globals *debug_sync_global; /* All globals in one object */
 
 /**
   Callbacks from C files.
@@ -237,16 +239,19 @@ int debug_sync_init(void)
   init_debug_sync_psi_keys();
 #endif
 
+  if (!debug_sync_global)
+    debug_sync_global= new st_debug_sync_globals();
+
   if (opt_debug_sync_timeout)
   {
     int rc;
 
     /* Initialize the global variables. */
-    debug_sync_global.clear_set();
+    debug_sync_global->clear_set();
     if ((rc= mysql_cond_init(key_debug_sync_globals_ds_cond,
-                             &debug_sync_global.ds_cond, NULL)) ||
+                             &debug_sync_global->ds_cond, NULL)) ||
         (rc= mysql_mutex_init(key_debug_sync_globals_ds_mutex,
-                              &debug_sync_global.ds_mutex,
+                              &debug_sync_global->ds_mutex,
                               MY_MUTEX_INIT_FAST)))
       DBUG_RETURN(rc); /* purecov: inspected */
 
@@ -276,20 +281,24 @@ void debug_sync_end(void)
     debug_sync_C_callback_ptr= NULL;
 
     /* Destroy the global variables. */
-    debug_sync_global.clear_set();
-    mysql_cond_destroy(&debug_sync_global.ds_cond);
-    mysql_mutex_destroy(&debug_sync_global.ds_mutex);
+    debug_sync_global->clear_set();
+    mysql_cond_destroy(&debug_sync_global->ds_cond);
+    mysql_mutex_destroy(&debug_sync_global->ds_mutex);
 
     /* Print statistics. */
     {
       sql_print_information("Debug sync points hit:                   %lld",
-                            debug_sync_global.dsp_hits);
+                            debug_sync_global->dsp_hits);
       sql_print_information("Debug sync points executed:              %lld",
-                            debug_sync_global.dsp_executed);
+                            debug_sync_global->dsp_executed);
       sql_print_information("Debug sync points max active per thread: %lld",
-                            debug_sync_global.dsp_max_active);
+                            debug_sync_global->dsp_max_active);
     }
   }
+
+  delete debug_sync_global;
+  /* Just to be safe */
+  debug_sync_global= NULL;
 
   DBUG_VOID_RETURN;
 }
@@ -360,11 +369,11 @@ void debug_sync_init_thread(THD *thd)
 */
 static const char *get_signal_set_as_string()
 {
-  mysql_mutex_assert_owner(&debug_sync_global.ds_mutex);
+  mysql_mutex_assert_owner(&debug_sync_global->ds_mutex);
   size_t req_size= 1; // In case of empty set for the end '\0' char.
 
-  for (size_t i= 0; i < debug_sync_global.ds_signal_set.size(); i++)
-    req_size+= debug_sync_global.ds_signal_set.at(i)->length + 1;
+  for (size_t i= 0; i < debug_sync_global->ds_signal_set.size(); i++)
+    req_size+= debug_sync_global->ds_signal_set.at(i)->length + 1;
 
   char *buf= (char *) my_malloc(PSI_NOT_INSTRUMENTED, req_size, MYF(0));
   if (!buf)
@@ -372,11 +381,11 @@ static const char *get_signal_set_as_string()
   memset(buf, '\0', req_size);
 
   char *cur_pos= buf;
-  for (size_t i= 0; i < debug_sync_global.ds_signal_set.size(); i++)
+  for (size_t i= 0; i < debug_sync_global->ds_signal_set.size(); i++)
   {
-    const LEX_CSTRING *signal= debug_sync_global.ds_signal_set.at(i);
+    const LEX_CSTRING *signal= debug_sync_global->ds_signal_set.at(i);
     memcpy(cur_pos, signal->str, signal->length);
-    if (i != debug_sync_global.ds_signal_set.size() - 1)
+    if (i != debug_sync_global->ds_signal_set.size() - 1)
       cur_pos[signal->length]= ',';
     else
       cur_pos[signal->length] = '\0';
@@ -415,12 +424,24 @@ void debug_sync_end_thread(THD *thd)
     }
 
     /* Statistics. */
-    mysql_mutex_lock(&debug_sync_global.ds_mutex);
-    debug_sync_global.dsp_hits+=           ds_control->dsp_hits;
-    debug_sync_global.dsp_executed+=       ds_control->dsp_executed;
-    if (debug_sync_global.dsp_max_active < ds_control->dsp_max_active)
-      debug_sync_global.dsp_max_active=    ds_control->dsp_max_active;
-    mysql_mutex_unlock(&debug_sync_global.ds_mutex);
+    /*
+      Protect access with debug_sync_global->ds_mutex only if
+      it had been initialized.
+    */
+    if (debug_sync_C_callback_ptr)
+      mysql_mutex_lock(&debug_sync_global->ds_mutex);
+
+    debug_sync_global->dsp_hits+=           ds_control->dsp_hits;
+    debug_sync_global->dsp_executed+=       ds_control->dsp_executed;
+    if (debug_sync_global->dsp_max_active < ds_control->dsp_max_active)
+      debug_sync_global->dsp_max_active=    ds_control->dsp_max_active;
+
+    /*
+      Protect access with debug_sync_global->ds_mutex only if
+      it had been initialized.
+    */
+    if (debug_sync_C_callback_ptr)
+      mysql_mutex_unlock(&debug_sync_global->ds_mutex);
 
     my_free(ds_control);
     thd->debug_sync_control= NULL;
@@ -668,9 +689,9 @@ static void debug_sync_reset(THD *thd)
   ds_control->ds_active= 0;
 
   /* Clear the global signal. */
-  mysql_mutex_lock(&debug_sync_global.ds_mutex);
-  debug_sync_global.clear_set();
-  mysql_mutex_unlock(&debug_sync_global.ds_mutex);
+  mysql_mutex_lock(&debug_sync_global->ds_mutex);
+  debug_sync_global->clear_set();
+  mysql_mutex_unlock(&debug_sync_global->ds_mutex);
 
   DBUG_VOID_RETURN;
 }
@@ -1454,14 +1475,14 @@ uchar *debug_sync_value_ptr(THD *thd)
     static const char on[]= "ON - current signals: '";
 
     // Ensure exclusive access to debug_sync_global.ds_signal
-    mysql_mutex_lock(&debug_sync_global.ds_mutex);
+    mysql_mutex_lock(&debug_sync_global->ds_mutex);
 
     size_t lgt= sizeof(on) + 1; /* +1 as we'll have to append ' at the end. */
 
-    for (size_t i= 0; i < debug_sync_global.ds_signal_set.size(); i++)
+    for (size_t i= 0; i < debug_sync_global->ds_signal_set.size(); i++)
     {
       /* Assume each signal is separated by a comma, hence +1. */
-      lgt+= debug_sync_global.ds_signal_set.at(i)->length + 1;
+      lgt+= debug_sync_global->ds_signal_set.at(i)->length + 1;
     }
 
     char *vend;
@@ -1471,18 +1492,18 @@ uchar *debug_sync_value_ptr(THD *thd)
     {
       vend= value + lgt - 1; /* reserve space for '\0'. */
       vptr= debug_sync_bmove_len(value, vend, STRING_WITH_LEN(on));
-      for (size_t i= 0; i < debug_sync_global.ds_signal_set.size(); i++)
+      for (size_t i= 0; i < debug_sync_global->ds_signal_set.size(); i++)
       {
-        const LEX_CSTRING *s= debug_sync_global.ds_signal_set.at(i);
+        const LEX_CSTRING *s= debug_sync_global->ds_signal_set.at(i);
         vptr= debug_sync_bmove_len(vptr, vend, s->str, s->length);
-        if (i != debug_sync_global.ds_signal_set.size() - 1)
+        if (i != debug_sync_global->ds_signal_set.size() - 1)
           *(vptr++)= ',';
       }
       DBUG_ASSERT(vptr < vend);
       *(vptr++)= '\'';
       *vptr= '\0'; /* We have one byte reserved for the worst case. */
     }
-    mysql_mutex_unlock(&debug_sync_global.ds_mutex);
+    mysql_mutex_unlock(&debug_sync_global->ds_mutex);
   }
   else
   {
@@ -1554,7 +1575,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       threads just reads an old cached version of the signal.
     */
 
-    mysql_mutex_lock(&debug_sync_global.ds_mutex);
+    mysql_mutex_lock(&debug_sync_global->ds_mutex);
 
     if (action->signal.length())
     {
@@ -1566,15 +1587,15 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
          variable for each one. */
       while (!error && (pos= action->signal.strstr(",", 1, offset)) > 0)
       {
-        error= debug_sync_global.set_signal(action->signal.ptr() + offset,
-                                            pos - offset);
+        error= debug_sync_global->set_signal(action->signal.ptr() + offset,
+                                             pos - offset);
         offset= pos + 1;
       }
 
       if (error ||
           /* The last signal in the list. */
-          debug_sync_global.set_signal(action->signal.ptr() + offset,
-                                       action->signal.length() - offset))
+          debug_sync_global->set_signal(action->signal.ptr() + offset,
+                                        action->signal.length() - offset))
       {
         /*
           Error is reported by my_malloc().
@@ -1583,7 +1604,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         debug_sync_emergency_disable(); /* purecov: tested */
       }
       /* Wake threads waiting in a sync point. */
-      mysql_cond_broadcast(&debug_sync_global.ds_cond);
+      mysql_cond_broadcast(&debug_sync_global->ds_cond);
       DBUG_PRINT("debug_sync_exec", ("signal '%s'  at: '%s'",
                                      sig_emit, dsp_name));
     } /* end if (action->signal.length()) */
@@ -1610,8 +1631,8 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         old_mutex= thd->mysys_var->current_mutex;
         old_cond= thd->mysys_var->current_cond;
         restore_current_mutex = true;
-        thd->mysys_var->current_mutex= &debug_sync_global.ds_mutex;
-        thd->mysys_var->current_cond= &debug_sync_global.ds_cond;
+        thd->mysys_var->current_mutex= &debug_sync_global->ds_mutex;
+        thd->mysys_var->current_cond= &debug_sync_global->ds_cond;
       }
       else
         restore_current_mutex = false;
@@ -1640,13 +1661,13 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         The facility can become disabled when some thread cannot get
         the required dynamic memory allocated.
       */
-      while (!debug_sync_global.is_signalled(action->wait_for.ptr(),
-                                             action->wait_for.length()) &&
+      while (!debug_sync_global->is_signalled(action->wait_for.ptr(),
+                                              action->wait_for.length()) &&
              !(thd->killed & KILL_HARD_BIT) &&
              opt_debug_sync_timeout)
       {
-        error= mysql_cond_timedwait(&debug_sync_global.ds_cond,
-                                    &debug_sync_global.ds_mutex,
+        error= mysql_cond_timedwait(&debug_sync_global->ds_cond,
+                                    &debug_sync_global->ds_mutex,
                                     &abstime);
         // TODO turn this into a for loop printing.
         DBUG_EXECUTE("debug_sync", {
@@ -1668,7 +1689,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       }
 
       if (action->clear_event)
-        debug_sync_global.clear_signal(action->wait_for);
+        debug_sync_global->clear_signal(action->wait_for);
 
       DBUG_EXECUTE("debug_sync_exec",
                    if (thd->killed)
@@ -1688,7 +1709,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         protected mutex must always unlocked _before_ mysys_var->mutex
         is locked. (See comment in THD::exit_cond().)
       */
-      mysql_mutex_unlock(&debug_sync_global.ds_mutex);
+      mysql_mutex_unlock(&debug_sync_global->ds_mutex);
       if (restore_current_mutex)
       {
         mysql_mutex_lock(&thd->mysys_var->mutex);
@@ -1703,7 +1724,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
     else
     {
       /* In case we don't wait, we just release the mutex. */
-      mysql_mutex_unlock(&debug_sync_global.ds_mutex);
+      mysql_mutex_unlock(&debug_sync_global->ds_mutex);
     } /* end if (action->wait_for.length()) */
 
   } /* end if (action->execute) */

@@ -140,6 +140,16 @@ class sp_head :private Query_arena,
 
 protected:
   MEM_ROOT main_mem_root;
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    The following data member is wholly for debugging purpose.
+    It can be used for possible crash analysis to determine how many times
+    the stored routine was executed before the mem_root marked read_only
+    was requested for a memory chunk. Additionally, a value of this data
+    member is output to the log with DBUG_PRINT.
+  */
+  ulong executed_counter;
+#endif
 public:
   /** Possible values of m_flags */
   enum {
@@ -846,6 +856,11 @@ public:
       ip= NULL;
     return ip;
   }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  int has_all_instrs_executed();
+  void reset_instrs_executed_counter();
+#endif
 
   /* Add tables used by routine to the table list. */
   bool add_used_tables_to_table_list(THD *thd,

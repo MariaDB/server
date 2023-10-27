@@ -2859,6 +2859,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 set optimizer_switch=@tmp_os;
 drop table t1,t2,t3;
 #
+# MDEV-32388 MSAN / Valgrind errors in
+# Item_func_like::get_mm_leaf upon query from partitioned table
+#
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a LIKE '1';
+a
+1
+DROP TABLE t1;
+#
+# End of 10.6 tests
+#
+#
 # MDEV-31494 Server crashes in ha_partition::index_blocks /
 # get_key_scans_params
 #

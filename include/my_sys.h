@@ -161,6 +161,7 @@ extern my_thread_id (*sf_malloc_dbug_id)(void);
 
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
+extern MALLOC_SIZE_CB update_malloc_size;
 
 	/* defines when allocating data */
 extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
@@ -898,6 +899,8 @@ extern void free_root(MEM_ROOT *root, myf MyFLAGS);
 extern void set_prealloc_root(MEM_ROOT *root, char *ptr);
 extern void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                 size_t prealloc_size);
+extern USED_MEM *get_last_memroot_block(MEM_ROOT* root);
+extern void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block);
 extern void protect_root(MEM_ROOT *root, int prot);
 extern char *strdup_root(MEM_ROOT *root,const char *str);
 static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
@@ -906,6 +909,7 @@ static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
 }
 extern char *strmake_root(MEM_ROOT *root,const char *str,size_t len);
 extern void *memdup_root(MEM_ROOT *root,const void *str, size_t len);
+
 extern LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str);
 extern my_bool my_compress(uchar *, size_t *, size_t *);
 extern my_bool my_uncompress(uchar *, size_t , size_t *);

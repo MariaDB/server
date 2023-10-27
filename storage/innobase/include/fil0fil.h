@@ -1803,4 +1803,10 @@ void test_make_filepath();
 @return	block size */
 ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
+/** Check whether encryption key found
+@param crypt_data Encryption data
+@param f_name     File name
+@return encryption key found */
+bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name);
+
 #endif /* UNIV_INNOCHECKSUM */

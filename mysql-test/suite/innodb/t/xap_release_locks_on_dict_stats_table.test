@@ -1,0 +1,33 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+# Some memory is allocated in dict_stats_save() function for additional sync
+# point. The memory is allocated in current_thd->mem_root pool after
+# dict_stats_func() arranged new thd and freed after destroy_background_thd()
+# attached background thread thd to the current_thd. That's there are
+# different thread id's for memory allocation and deallocation, what causes
+# the following warnings. This is not an error because the memory is still
+# allocated and deallocated by the same thread in pool.
+call mtr.add_suppression("bytes freed by");
+
+SET @old_innodb_stats_persistent = @@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=1;
+CREATE TABLE t ENGINE=InnoDB AS SELECT 1;
+
+SET @old_debug_dbug = @@global.debug_dbug;
+
+XA START 'a';
+INSERT INTO mysql.innodb_index_stats SELECT '','' AS table_name,index_name,LAST_UPDATE,stat_name,0 AS stat_value,sample_size,stat_description FROM mysql.innodb_index_stats WHERE table_name='dummy' FOR UPDATE;  # Note the SELECT is empty
+SET GLOBAL debug_dbug = "+d,dict_stats_save_exit_notify";
+INSERT INTO t VALUES (1);
+XA END 'a';
+XA PREPARE 'a';
+
+# Locking queue validation will crash the server if the bug is not fixed
+SET DEBUG_SYNC="now WAIT_FOR dict_stats_save_finished";
+SET @@global.debug_dbug = @old_debug_dbug;
+SET DEBUG_SYNC="RESET";
+SET GLOBAL innodb_stats_persistent = @old_innodb_stats_persistent;
+XA COMMIT 'a';
+DROP TABLE t;

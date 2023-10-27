@@ -111,6 +111,9 @@ public:
       m_ip(ip),
       m_ctx(ctx),
       m_lineno(0)
+#ifdef PROTECT_STATEMENT_MEMROOT
+      , m_has_been_run(false)
+#endif
   {}
 
   virtual ~sp_instr()
@@ -207,6 +210,26 @@ public:
   {
     return nullptr;
   }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  bool has_been_run() const
+  {
+    return m_has_been_run;
+  }
+
+  void mark_as_run()
+  {
+    m_has_been_run= true;
+  }
+
+  void mark_as_not_run()
+  {
+    m_has_been_run= false;
+  }
+
+private:
+  bool m_has_been_run;
+#endif
 }; // class sp_instr : public Sql_alloc
 
 
