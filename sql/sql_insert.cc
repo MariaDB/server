@@ -84,6 +84,7 @@
 #include "debug_sync.h"
 
 #ifdef WITH_WSREP
+#include "wsrep_mysqld.h" /* wsrep_append_table_keys() */
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
 #endif /* WITH_WSREP */
 
@@ -4802,17 +4803,13 @@ bool select_create::send_eof()
                   thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
 
       /*
-        append table level exclusive key for CTAS
+        For CTAS, append table level exclusive key for created table
+        and table level shared key for selected table.
       */
-      wsrep_key_arr_t key_arr= {0, 0};
-      wsrep_prepare_keys_for_isolation(thd,
-                                       create_table->db.str,
-                                       create_table->table_name.str,
-                                       table_list,
-                                       &key_arr);
-      int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,
-                                      WSREP_SERVICE_KEY_EXCLUSIVE);
-      wsrep_keys_free(&key_arr);
+      int rcode= wsrep_append_table_keys(thd, create_table, table_list,
+              WSREP_SERVICE_KEY_EXCLUSIVE);
+      rcode= rcode || wsrep_append_table_keys(thd, nullptr, select_tables,
+              WSREP_SERVICE_KEY_SHARED);
       if (rcode)
       {
         DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
