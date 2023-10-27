@@ -386,7 +386,7 @@ ANALYZE
               "buffer_size": "256Kb",
               "join_type": "BNL",
               "r_filtered": 100,
-              "r_unpack_time_ms": 6.1e-4
+              "r_unpack_time_ms": "REPLACED"
             }
           }
         }
@@ -466,7 +466,7 @@ ANALYZE
                     "buffer_size": "256Kb",
                     "join_type": "BNL",
                     "r_filtered": 100,
-                    "r_unpack_time_ms": 5.8e-4
+                    "r_unpack_time_ms": "REPLACED"
                   }
                 }
               }
