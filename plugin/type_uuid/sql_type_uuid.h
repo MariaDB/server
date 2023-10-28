@@ -142,11 +142,11 @@ public:
     constexpr Segment(size_t memory_pos, size_t record_pos, size_t length)
      :m_memory_pos(memory_pos), m_record_pos(record_pos), m_length(length)
     { }
-    void memory_to_record(char *to, const char *from) const
+    void mem2rec(char *to, const char *from) const
     {
       memcpy(to + m_record_pos, from + m_memory_pos, m_length);
     }
-    void record_to_memory(char *to, const char * from) const
+    void rec2mem(char *to, const char * from) const
     {
       memcpy(to + m_memory_pos, from + m_record_pos, m_length);
     }
@@ -173,16 +173,24 @@ public:
     return segments[i];
   }
 
+  // version > 0 && version < 6 && variant != 0
+  static bool mem_need_swap(const char *s)
+  { return s[6] > 0 && s[6] < 0x60 && s[8] & 0x80; }
+
+  // s[6] & 0x80 && s[8] > 0: this means a swapped uuid
+  static bool rec_need_swap(const char *s)
+  { return s[6] & -s[8] & 0x80; }
+
   // Convert the in-memory representation to the in-record representation
   static void memory_to_record(char *to, const char *from)
   {
-    if (force_swap || (from[6] > 0 && from[6] < 0x60 && from[8] & 0x80))
+    if (force_swap || mem_need_swap(from))
     {
-      segment(0).memory_to_record(to, from);
-      segment(1).memory_to_record(to, from);
-      segment(2).memory_to_record(to, from);
-      segment(3).memory_to_record(to, from);
-      segment(4).memory_to_record(to, from);
+      segment(0).mem2rec(to, from);
+      segment(1).mem2rec(to, from);
+      segment(2).mem2rec(to, from);
+      segment(3).mem2rec(to, from);
+      segment(4).mem2rec(to, from);
     }
     else
       memcpy(to, from, binary_length());
@@ -191,13 +199,13 @@ public:
   // Convert the in-record representation to the in-memory representation
   static void record_to_memory(char *to, const char *from)
   {
-    if (force_swap || (from[6] & -from[8] & 0x80))
+    if (force_swap || rec_need_swap(from))
     {
-      segment(0).record_to_memory(to, from);
-      segment(1).record_to_memory(to, from);
-      segment(2).record_to_memory(to, from);
-      segment(3).record_to_memory(to, from);
-      segment(4).record_to_memory(to, from);
+      segment(0).rec2mem(to, from);
+      segment(1).rec2mem(to, from);
+      segment(2).rec2mem(to, from);
+      segment(3).rec2mem(to, from);
+      segment(4).rec2mem(to, from);
     }
     else
       memcpy(to, from, binary_length());
