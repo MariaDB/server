@@ -241,14 +241,20 @@ public:
   {
     DBUG_ASSERT(a.length == binary_length());
     DBUG_ASSERT(b.length == binary_length());
-    int res;
-    if ((res= segment(4).cmp_memory(a.str, b.str)) ||
-        (res= segment(3).cmp_memory(a.str, b.str)) ||
-        (res= segment(2).cmp_memory(a.str, b.str)) ||
-        (res= segment(1).cmp_memory(a.str, b.str)) ||
-        (res= segment(0).cmp_memory(a.str, b.str)))
-      return  res;
-    return 0;
+    bool swap_a= force_swap || mem_need_swap(a.str);
+    bool swap_b= force_swap || mem_need_swap(b.str);
+    if (swap_a && swap_b)
+    {
+      int res;
+      if ((res= segment(4).cmp_memory(a.str, b.str)) ||
+          (res= segment(3).cmp_memory(a.str, b.str)) ||
+          (res= segment(2).cmp_memory(a.str, b.str)) ||
+          (res= segment(1).cmp_memory(a.str, b.str)) ||
+          (res= segment(0).cmp_memory(a.str, b.str)))
+        return  res;
+      return 0;
+    }
+    return memcmp(a.str, b.str, binary_length());
   }
 
   static ulong KEY_pack_flags(uint column_nr)

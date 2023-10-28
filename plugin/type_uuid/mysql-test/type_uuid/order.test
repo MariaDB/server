@@ -36,6 +36,27 @@ select * from t2 left join t1 on (t1.a<=>t2.a);
 --sorted_result
 select * from t1 union select * from t2;
 
+--sorted_result
+select * from t1, t1 t where t1.b div 4 in (6,7) and t.b div 4 in (6,7) and t1.a > t.a;
+
 alter ignore table t2 force;
 
-drop table t1, t2;
+drop table t2;
+
+--echo #
+--echo # MDEV-31926 UUID v7 are compared incorrectly
+--echo #
+
+# for v6 and v7 string comparison should produce the same result.
+# Quoting the standard draft:
+#
+# 6.11.  Sorting
+#
+# UUIDv6 and UUIDv7 are designed so that implementations that require
+# sorting (e.g., database indexes) sort as opaque raw bytes, without
+# need for parsing or introspection.
+#
+--sorted_result
+select * from t1, t1 t where t1.b div 4 in (6,7) and t.b div 4 in (6,7) and concat(t1.a) > concat(t.a);
+
+drop table t1;
