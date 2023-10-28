@@ -3711,7 +3711,8 @@ ANALYZE
       "join_type": "BKA",
       "mrr_type": "Rowid-ordered scan",
       "attached_condition": "a.atp = 1",
-      "r_filtered": 100
+      "r_filtered": 100,
+      "r_unpack_time_ms": "REPLACED"
     },
     "block-nl-join": {
       "table": {
@@ -3735,7 +3736,8 @@ ANALYZE
       "join_type": "BKA",
       "mrr_type": "Rowid-ordered scan",
       "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",
-      "r_filtered": 40
+      "r_filtered": 40,
+      "r_unpack_time_ms": "REPLACED"
     }
   }
 }
