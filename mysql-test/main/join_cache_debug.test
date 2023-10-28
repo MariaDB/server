@@ -20,10 +20,9 @@ select
 FROM t1
      LEFT JOIN t2 ON t1.b = t2.b;
 
-SET @old_debug=@@debug_dbug;
-SET debug_dbug='+d,analyze_print_r_unpack_ops';
-
-let $q= analyze
+let $q=
+SET statement debug_dbug='+d,analyze_print_r_unpack_ops' for
+analyze
 format=json
 SELECT COUNT(*)
 FROM t1_t2
