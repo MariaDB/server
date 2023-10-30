@@ -24777,14 +24777,14 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                           tab->join->unit->
                                             lim.get_select_limit(),
                                           TRUE, TRUE, FALSE, FALSE);
-          if (res != SQL_SELECT::OK)
+          // if we cannot use quick select
+          if (res != SQL_SELECT::OK || !tab->select->quick)
           {
             if (res == SQL_SELECT::ERROR)
               *fatal_error= true;
             select->cond= save_cond;
             goto use_filesort;
           }
-          DBUG_ASSERT(tab->select->quick);
           tab->type= JT_ALL;
           tab->ref.key= -1;
           tab->ref.key_parts= 0;
