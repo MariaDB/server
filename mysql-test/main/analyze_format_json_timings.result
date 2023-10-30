@@ -47,7 +47,8 @@ X
       "r_loops": 1,
       "rows": 500,
       "r_rows": 500,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "attached_condition": "t1.a < 700 and t1.b is not null"
@@ -63,7 +64,8 @@ X
         "r_loops": 1,
         "rows": 500,
         "r_rows": 500,
-        "r_total_time_ms": "REPLACED",
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 20,
         "attached_condition": "t2.a < 100"
