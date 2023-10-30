@@ -758,6 +758,19 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
 
   if (s < UNFIXED)
   {
+    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+    {
+      const lsn_t lsn=
+        mach_read_from_8(my_assume_aligned<8>
+                         (FIL_PAGE_LSN + (zip.data ? zip.data : frame)));
+      ut_ad(lsn >= oldest_modification());
+      if (lsn > log_sys.get_flushed_lsn())
+      {
+        mysql_mutex_unlock(&buf_pool.mutex);
+        log_write_up_to(lsn, true);
+        mysql_mutex_lock(&buf_pool.mutex);
+      }
+    }
     buf_pool.release_freed_page(this);
     return false;
   }
