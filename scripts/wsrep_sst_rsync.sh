@@ -564,6 +564,7 @@ FILTER="-f '- /lost+found'
         -f '- /.Trashes'
         -f '- /.pid'
         -f '- /.conf'
+        -f '- /.snapshot/'
         -f '+ /wsrep_sst_binlog.tar'
         -f '- $ib_home_dir/ib_lru_dump'
         -f '- $ib_home_dir/ibdata*'
@@ -672,8 +673,12 @@ FILTER="-f '- /lost+found'
 
         cd "$DATA"
 
-        find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
-             -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
+        findopt='-L'
+        [ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
+
+        find $findopt . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
+             -not -name '.zfs' -not -name .snapshot -print0 \
+             | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials --ignore-times \
              --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \

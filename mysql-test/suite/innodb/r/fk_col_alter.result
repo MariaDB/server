@@ -91,4 +91,15 @@ CREATE TABLE t2 (b VARCHAR(8)) ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t2 MODIFY b VARCHAR(16), ADD KEY(b);
 DROP TABLE t1, t2;
+#
+#  MDEV-32337  Assertion `pos < table->n_def' failed
+#		in dict_table_get_nth_col
+#
+CREATE TABLE t (a INT, va INT AS (a), b INT, vb INT AS (b),
+c INT, vc INT AS (c), vf VARCHAR(16) AS (f),
+f VARCHAR(4)) ENGINE=InnoDB;
+ALTER TABLE t MODIFY f VARCHAR(8);
+ALTER TABLE t MODIFY vf VARCHAR(18);
+ERROR HY000: This is not yet supported for generated columns
+DROP TABLE t;
 # End of 10.4 tests

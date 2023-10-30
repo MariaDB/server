@@ -855,7 +855,8 @@ void spider_fields::free_conn_holder(
       }
     }
   }
-  conn_holder_arg->conn->conn_holder_for_direct_join = NULL;
+  if (conn_holder_arg->conn)
+    conn_holder_arg->conn->conn_holder_for_direct_join = NULL;
   DBUG_PRINT("info",("spider free conn_holder=%p", conn_holder_arg));
   spider_free(spider_current_trx, conn_holder_arg, MYF(0));
   DBUG_VOID_RETURN;

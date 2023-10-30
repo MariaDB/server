@@ -2,31 +2,29 @@
 # Testing of CASE
 #
 
-#remove this include after fix MDEV-27871
---source include/no_view_protocol.inc
 
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings
 
-select CASE "b" when "a" then 1 when "b" then 2 END;
-select CASE "c" when "a" then 1 when "b" then 2 END;
-select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END;
-select CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END;
-select CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END;
-select CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end;
-select CASE when 1=0 then "true" else "false" END;
-select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
-explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
-select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END;
-select (CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0;
-select (CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0;
-select case 1/0 when "a" then "true" else "false" END;
-select case 1/0 when "a" then "true" END;
-select (case 1/0 when "a" then "true" END) | 0;
-select (case 1/0 when "a" then "true" END) + 0.0;
-select case when 1>0 then "TRUE" else "FALSE" END;
-select case when 1<0 then "TRUE" else "FALSE" END;
+select CASE "b" when "a" then 1 when "b" then 2 END as exp;
+select CASE "c" when "a" then 1 when "b" then 2 END as exp;
+select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END as exp;
+select CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END as exp;
+select CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END as exp;
+select CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end as exp;
+select CASE when 1=0 then "true" else "false" END as exp;
+select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END as exp;
+explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END as exp;
+select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END as exp;
+select (CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0 as exp;
+select (CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0 as exp;
+select case 1/0 when "a" then "true" else "false" END as exp;
+select case 1/0 when "a" then "true" END as exp;
+select (case 1/0 when "a" then "true" END) | 0 as exp;
+select (case 1/0 when "a" then "true" END) + 0.0 as exp;
+select case when 1>0 then "TRUE" else "FALSE" END as exp;
+select case when 1<0 then "TRUE" else "FALSE" END as exp;
 
 #
 # Test bug when using GROUP BY on CASE
@@ -83,10 +81,10 @@ SELECT CASE _latin1'a' COLLATE latin1_general_ci
   END;
 
 SELECT 
-CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END,
-CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END,
-CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END,
-CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END
+CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END as e1,
+CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END as e2,
+CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END as e3,
+CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END as e4
 ;
 
 #
@@ -297,7 +295,7 @@ DROP TABLE t1;
 #
 
 # should not convert all values to time
-select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end;
+select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end as exp;
 select 'foo' in (time'10:00:00','0');
 
 create table t1 (a time);
@@ -308,7 +306,7 @@ select 'foo' in (a,'0') from t1;
 drop table t1;
 
 # first comparison should be as date, second as time
-select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end;
+select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end as exp;
 
 --echo #
 --echo # End of 10.2 test

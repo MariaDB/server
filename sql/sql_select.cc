@@ -5416,6 +5416,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   /* The following should be optimized to only clear critical things */
   bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
+  join->top_join_tab_count= table_count;
 
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
@@ -6019,8 +6020,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             join->cond_equal= &((Item_cond_and*) (join->conds))->m_cond_equal;
 
           s->quick=select->quick;
-          s->needed_reg=select->needed_reg;
           select->quick=0;
+          s->needed_reg=select->needed_reg;
           impossible_range= records == 0 && s->table->reginfo.impossible_range;
           if (join->thd->lex->sql_command == SQLCOM_SELECT &&
               optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
@@ -15725,12 +15726,17 @@ bool error_if_full_join(JOIN *join)
    build_range_rowid_filter()
 
    Build range rowid filter.  This function should only be called if
-   need_to_build_rowid_filter
-   is true
+   need_to_build_rowid_filter is true
+
+  @retval
+    0	ok
+  @retval
+    1	Error, transaction should be rolled back   
 */
 
-void JOIN_TAB::build_range_rowid_filter()
+bool JOIN_TAB::build_range_rowid_filter()
 {
+
   DBUG_ASSERT(need_to_build_rowid_filter && rowid_filter);
 
   /**
@@ -15746,8 +15752,8 @@ void JOIN_TAB::build_range_rowid_filter()
   Rowid_filter_tracker *rowid_tracker= rowid_filter->get_tracker();
   table->file->set_time_tracker(rowid_tracker->get_time_tracker());
   rowid_tracker->start_tracking(join->thd);
-
-  if (rowid_filter->build())
+  Rowid_filter::build_return_code build_rc= rowid_filter->build();
+  if (build_rc != Rowid_filter::SUCCESS)
   {
     /* Failed building rowid filter */
     clear_range_rowid_filter();
@@ -15755,7 +15761,9 @@ void JOIN_TAB::build_range_rowid_filter()
   need_to_build_rowid_filter= false;
   rowid_tracker->stop_tracking(join->thd);
   table->file->set_time_tracker(table_tracker);
+  return (build_rc == Rowid_filter::FATAL_ERROR);
 }
+
 
 
 /*
@@ -15831,7 +15839,6 @@ void JOIN_TAB::cleanup()
         */
         table->pos_in_table_list->table= NULL;
         free_tmp_table(join->thd, table);
-        table= NULL;
       }
       else
       {
@@ -15844,8 +15851,8 @@ void JOIN_TAB::cleanup()
           multiple times (it may be)
         */
         tmp->table= NULL;
-        table= NULL;
       }
+      table= NULL;
       DBUG_VOID_RETURN;
     }
     /*
@@ -17203,7 +17210,8 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
     Field *left_field= ((Item_field*) left_item)->field;
     Field *right_field= ((Item_field*) right_item)->field;
 
-    if (!left_field->eq_def(right_field))
+    if (!left_field->eq_def(right_field) &&
+        !fields_equal_using_narrowing(thd, left_field, right_field))
       return FALSE;
 
     /* Search for multiple equalities containing field1 and/or field2 */
@@ -23391,7 +23399,8 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   {
     if (unlikely(join_tab->need_to_build_rowid_filter))
     {
-      join_tab->build_range_rowid_filter();
+      if (join_tab->build_range_rowid_filter())
+        DBUG_RETURN(NESTED_LOOP_ERROR);
       /*
         We have to check join_tab->rowid_filter again as the above
         function may have cleared it in case of errors.
@@ -24396,7 +24405,10 @@ int join_init_read_record(JOIN_TAB *tab)
   }
 
   if (tab->need_to_build_rowid_filter)
-    tab->build_range_rowid_filter();
+  {
+    if (tab->build_range_rowid_filter())
+      return 1;  /* Fatal error */
+  }
 
   if (tab->filesort && tab->sort_table())     // Sort table.
     return 1;

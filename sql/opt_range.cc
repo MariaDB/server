@@ -9284,11 +9284,28 @@ SEL_ARG *Field_str::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
                                 const Item_bool_func *cond,
                                 scalar_comparison_op op, Item *value)
 {
+  int err;
   DBUG_ENTER("Field_str::get_mm_leaf");
   if (can_optimize_scalar_range(prm, key_part, cond, op, value) !=
       Data_type_compatibility::OK)
     DBUG_RETURN(0);
-  int err= value->save_in_field_no_warnings(this, 1);
+
+  {
+    /*
+      Do CharsetNarrowing if necessary
+      This means that we are temporary changing the character set of the
+      current key field to make key lookups possible.
+      This is needed when comparing an utf8mb3 key field with an utf8mb4 value.
+      See cset_narrowing.h for more details.
+    */
+    bool do_narrowing=
+      Utf8_narrow::should_do_narrowing(this, value->collation.collation);
+    Utf8_narrow narrow(this, do_narrowing);
+
+    err= value->save_in_field_no_warnings(this, 1);
+    narrow.stop();
+  }
+
   if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
     DBUG_RETURN(&null_element);
   if (err > 0)
