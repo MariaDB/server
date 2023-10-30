@@ -21,6 +21,7 @@ select * from t1;
 --error 12719
 select * from t2;
 drop table t0, t1, t2;
+eval drop server $srv;
 
 --disable_query_log
 --disable_result_log

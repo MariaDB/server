@@ -1,0 +1,9 @@
+connect(localhost,root,,test,MASTER_PORT,MASTER_SOCKET);
+connect without_ssl,localhost,root,,,,,TCP NOSSL;
+ERROR 08004: Connections using insecure transport are prohibited while --require_secure_transport=ON.
+connect with_ssl,localhost,root,,,,,TCP SSL;
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
+disconnect with_ssl;
+connection default;

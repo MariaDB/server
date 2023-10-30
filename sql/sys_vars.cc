@@ -1346,12 +1346,11 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_session_lexstring Sys_default_master_connection(
+static Sys_var_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
-       SESSION_ONLY(default_master_connection),
-       NO_CMD_LINE,
-       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection));
+       SESSION_ONLY(default_master_connection), NO_CMD_LINE, DEFAULT(""),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_master_connection));
 #endif
 
 static Sys_var_charptr_fscs Sys_init_file(
@@ -3970,7 +3969,7 @@ static Sys_var_set Sys_tls_version(
        "TLS protocol version for secure connections.",
        READ_ONLY GLOBAL_VAR(tls_version), CMD_LINE(REQUIRED_ARG),
        tls_version_names,
-       DEFAULT(VIO_TLSv1_1 | VIO_TLSv1_2 | VIO_TLSv1_3));
+       DEFAULT(VIO_TLSv1_2 | VIO_TLSv1_3));
 
 static Sys_var_mybool Sys_standard_compliant_cte(
        "standard_compliant_cte",
@@ -4654,10 +4653,13 @@ static Sys_var_bit Sys_sql_warnings(
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_sql_notes(
-       "sql_notes", "If set to 1, the default, warning_count is incremented each "
-       "time a Note warning is encountered. If set to 0, Note warnings are not "
-       "recorded. mysqldump has outputs to set this variable to 0 so that no "
-       "unnecessary increments occur when data is reloaded.",
+       "sql_notes",
+       "If set to 1, the default, warning_count is incremented "
+       "each time a Note warning is encountered. If set to 0, Note warnings "
+       "are not recorded. mysqldump has outputs to set this variable to 0 so "
+       "that no unnecessary increments occur when data is reloaded. "
+       "See also note_verbosity, which allows one to define with notes are "
+       "sent.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SQL_NOTES,
        DEFAULT(TRUE));
 
@@ -6528,7 +6530,7 @@ static const char *log_slow_filter_names[]=
 
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
+       "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
@@ -6620,14 +6622,35 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
+/*
+  Full is not needed below anymore as one can set all bits with '= ALL', but
+  we need it for compatiblity with earlier versions.
+*/
 static const char *log_slow_verbosity_names[]=
-{ "innodb", "query_plan", "explain", "engine", "full", 0};
+{ "innodb", "query_plan", "explain", "engine", "warnings", "full", 0};
 
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "Verbosity level for the slow log",
        SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
+
+static Sys_var_ulong Sys_log_slow_max_warnings(
+       "log_slow_max_warnings",
+       "Max numbers of warnings printed to slow query log per statement",
+       SESSION_VAR(log_slow_max_warnings), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1000), DEFAULT(10), BLOCK_SIZE(1));
+
+static const char *note_verbosity_names[]=
+{ "basic", "unusable_keys", "explain", 0};
+
+static Sys_var_set Sys_note_verbosity(
+       "note_verbosity",
+       "Verbosity level for note-warnings given to the user. "
+       "See also @@sql_notes.",
+       SESSION_VAR(note_verbosity), CMD_LINE(REQUIRED_ARG),
+       note_verbosity_names, DEFAULT(NOTE_VERBOSITY_NORMAL |
+                                     NOTE_VERBOSITY_EXPLAIN));
 
 static Sys_var_ulong Sys_join_cache_level(
        "join_cache_level",
@@ -6895,13 +6918,78 @@ static Sys_var_ulonglong Sys_max_session_mem_used(
        DEFAULT(LONGLONG_MAX), BLOCK_SIZE(1));
 
 #ifndef EMBEDDED_LIBRARY
+/**
+ Validate a redirect_url string.
+
+ A valid string is either empty, or of the format mysql://host[:port],
+ where host is an arbitrary string without any colon ':'.
+
+ @param  str    A string to validate
+ @param  len    Length of the string
+ @retval false  The string is valid
+ @retval true   The string is invalid
+*/
+export bool validate_redirect_url(char *str, size_t len)
+{
+  LEX_CSTRING mysql_prefix= {STRING_WITH_LEN("mysql://")};
+  LEX_CSTRING maria_prefix= {STRING_WITH_LEN("mariadb://")};
+  /* Empty string is valid */
+  if (len == 0)
+    return false;
+  const char* end= str + len;
+  if (!strncmp(str, mysql_prefix.str, mysql_prefix.length))
+    str+= mysql_prefix.length;
+  else if (!strncmp(str, maria_prefix.str, maria_prefix.length))
+    str+= maria_prefix.length;
+  else
+    return true;
+  /* Host name cannot be empty */
+  if (str == end)
+    return true;
+  /* Find the colon, if any */
+  while (str < end && *str != ':')
+    str++;
+  /* Found colon */
+  if (str < end)
+  {
+    /* Should have at least one number after the colon */
+    if (str + 1 == end)
+      return true;
+    int p= 0;
+    while (str < end && isdigit(*++str))
+      if ((p= p * 10 + (*str - '0')) > 65535)
+        return true;
+    /* Should be all numbers after the colon */
+    if (str < end)
+      return true;
+  }
+  return false;
+}
+
+static bool sysvar_validate_redirect_url(sys_var *self, THD *thd,
+                                         set_var *var)
+{
+  /* NULL is invalid. */
+  if (check_not_null(self, thd, var))
+    return true;
+  char *str= var->save_result.string_value.str;
+  size_t len= var->save_result.string_value.length;
+  return validate_redirect_url(str, len);
+}
+
+static Sys_var_charptr Sys_redirect_url(
+       "redirect_url",
+       "URL of another server to redirect clients to. "
+       "Empty string means no redirection",
+       SESSION_VAR(redirect_url), CMD_LINE(REQUIRED_ARG), DEFAULT(""),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(sysvar_validate_redirect_url));
 
 static Sys_var_sesvartrack Sys_track_session_sys_vars(
        "session_track_system_variables",
        "Track changes in registered system variables. ",
        CMD_LINE(REQUIRED_ARG),
        DEFAULT("autocommit,character_set_client,character_set_connection,"
-       "character_set_results,time_zone"));
+       "character_set_results,redirect_url,time_zone"));
 
 static bool update_session_track_schema(sys_var *self, THD *thd,
                                         enum_var_type type)
@@ -7021,8 +7109,15 @@ static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
        "optimizer_max_sel_arg_weight",
        "The maximum weight of the SEL_ARG graph. Set to 0 for no limit",
        SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_max_sel_args(
+       "optimizer_max_sel_args",
+       "The maximum number of SEL_ARG objects created when optimizing a range. "
+       "If more objects would be needed, the range will not be used by the "
+       "optimizer.",
+       SESSION_VAR(optimizer_max_sel_args), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(SEL_ARG::DEFAULT_MAX_SEL_ARGS), BLOCK_SIZE(1));
 
 static Sys_var_engine_optimizer_cost Sys_optimizer_disk_read_ratio(
   "optimizer_disk_read_ratio",

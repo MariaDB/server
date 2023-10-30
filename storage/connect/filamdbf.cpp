@@ -643,7 +643,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   {
   char c;
   int  rc;
-  int len;
+  int len= 0;
   MODE mode = Tdbp->GetMode();
 
   Buflen = Blksize;

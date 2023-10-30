@@ -13733,6 +13733,34 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 }
 
 
+#ifndef EMBEDDED_LIBRARY
+/**
+  Check that a client uses secure connection type in case the option
+  require_secure_transport is on.
+
+  @param thd                     thread handle
+
+  @return true in case the option require_secure_transport is on and the client
+          uses euther named pipe or unix socket or ssl, else return false
+*/
+
+static bool check_require_secured_transport(THD *thd)
+{
+  Vio *vio= thd->net.vio;
+  if (opt_require_secure_transport)
+  {
+    enum enum_vio_type type= vio_type(vio);
+
+    return
+      (type != VIO_TYPE_SSL) &&
+      (type != VIO_TYPE_NAMEDPIPE) &&
+      (type != VIO_TYPE_SOCKET);
+  }
+  return 0;
+}
+#endif
+
+
 /* the packet format is described in send_client_reply_packet() */
 static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
                                            uchar **buff, ulong pkt_len)
@@ -13801,6 +13829,22 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 			   pkt_len));
       return packet_error;
     }
+  }
+  /*
+    Check whether the option require_secure_transport is on and in case
+    it is true that the secured connection type is used, that is either
+    unix socket or named pipe or ssl is in use.
+  */
+  else if (check_require_secured_transport(thd))
+  {
+    Host_errors errors;
+
+    errors.m_ssl= 1;
+    inc_host_errors(mpvio->auth_info.thd->security_ctx->ip, &errors);
+    status_var_increment(thd->status_var.access_denied_errors);
+    my_error(ER_SECURE_TRANSPORT_REQUIRED, MYF(0));
+
+    return packet_error;
   }
 
   if (client_capabilities & CLIENT_PROTOCOL_41)

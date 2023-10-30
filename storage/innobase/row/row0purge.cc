@@ -566,13 +566,9 @@ bool row_purge_del_mark(purge_node_t *node)
 
     do
     {
-      const auto type= node->index->type;
-      if (type & (DICT_FTS | DICT_CORRUPT))
+      if (node->index->type & (DICT_FTS | DICT_CORRUPT))
         continue;
-      if (node->index->online_status > ONLINE_INDEX_CREATION)
-        continue;
-      if (UNIV_UNLIKELY(DICT_VIRTUAL & type) && !node->index->is_committed() &&
-          node->index->has_new_v_col())
+      if (!node->index->is_committed())
         continue;
       dtuple_t* entry= row_build_index_entry_low(node->row, nullptr,
                                                  node->index, heap,
@@ -721,20 +717,11 @@ row_purge_upd_exist_or_extern_func(
 	heap = mem_heap_create(1024);
 
 	do {
-		const auto type = node->index->type;
-
-		if (type & (DICT_FTS | DICT_CORRUPT)) {
+		if (node->index->type & (DICT_FTS | DICT_CORRUPT)) {
 			continue;
 		}
 
-		if (UNIV_UNLIKELY(DICT_VIRTUAL & type)
-		    && !node->index->is_committed()
-		    && node->index->has_new_v_col()) {
-			continue;
-		}
-
-		if (node->index->online_status
-		    > ONLINE_INDEX_CREATION) {
+		if (!node->index->is_committed()) {
 			continue;
 		}
 

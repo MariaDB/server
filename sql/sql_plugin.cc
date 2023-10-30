@@ -3278,7 +3278,12 @@ void plugin_thdvar_init(THD *thd)
   /* This and all other variable cleanups are here for COM_CHANGE_USER :( */
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.deinit(thd);
+  my_free(thd->variables.redirect_url);
+  thd->variables.redirect_url= 0;
 #endif
+  my_free((char*) thd->variables.default_master_connection.str);
+  thd->variables.default_master_connection.str= 0;
+  thd->variables.default_master_connection.length= 0;
 
   thd->variables= global_system_variables;
 
@@ -3301,9 +3306,19 @@ void plugin_thdvar_init(THD *thd)
   intern_plugin_unlock(NULL, old_enforced_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
 
+  thd->variables.default_master_connection.str=
+    my_strndup(key_memory_Sys_var_charptr_value,
+               global_system_variables.default_master_connection.str,
+               global_system_variables.default_master_connection.length,
+               MYF(MY_WME | MY_THREAD_SPECIFIC));
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.init(thd);
+  thd->variables.redirect_url=
+    my_strdup(key_memory_Sys_var_charptr_value,
+              global_system_variables.redirect_url,
+              MYF(MY_WME | MY_THREAD_SPECIFIC));
 #endif
+
   DBUG_VOID_RETURN;
 }
 
@@ -3371,7 +3386,12 @@ void plugin_thdvar_cleanup(THD *thd)
 
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.deinit(thd);
+  my_free(thd->variables.redirect_url);
+  thd->variables.redirect_url= 0;
 #endif
+  my_free((char*) thd->variables.default_master_connection.str);
+  thd->variables.default_master_connection.str= 0;
+  thd->variables.default_master_connection.length= 0;
 
   mysql_mutex_lock(&LOCK_plugin);
 

@@ -1349,9 +1349,6 @@ public:
   int reset_sql(
     ulong sql_type
   );
-  bool need_lock_before_set_sql_for_exec(
-    ulong sql_type
-  );
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,

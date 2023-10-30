@@ -5019,7 +5019,8 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                               open_tables function for this table
 */
 
-static int fill_schema_table_from_frm(THD *thd, TABLE *table,
+static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
+                                      TABLE *table,
                                       ST_SCHEMA_TABLE *schema_table,
                                       LEX_CSTRING *db_name,
                                       LEX_CSTRING *table_name,
@@ -5031,6 +5032,9 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
   TABLE_LIST table_list;
   uint res= 0;
   IdentBuffer<NAME_LEN> db_name_buff, table_name_buff;
+  Query_arena i_s_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  Query_arena backup_arena, *old_arena;
+  bool i_s_arena_active= false;
 
   bzero((char*) &table_list, sizeof(TABLE_LIST));
   bzero((char*) &tbl, sizeof(TABLE));
@@ -5101,6 +5105,11 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
     free_root(&tbl.mem_root, MYF(0));
     goto end;
   }
+
+  old_arena= thd->stmt_arena;
+  thd->stmt_arena= &i_s_arena;
+  thd->set_n_backup_active_arena(&i_s_arena, &backup_arena);
+  i_s_arena_active= true;
 
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
@@ -5183,7 +5192,16 @@ end:
     savepoint is safe.
   */
   DBUG_ASSERT(thd->open_tables == NULL);
+
   thd->mdl_context.rollback_to_savepoint(open_tables_state_backup->mdl_system_tables_svp);
+
+  if (i_s_arena_active)
+  {
+    thd->stmt_arena= old_arena;
+    thd->restore_active_arena(&i_s_arena, &backup_arena);
+    i_s_arena.free_items();
+  }
+
   if (!thd->is_fatal_error)
     thd->clear_error();
   return res;
@@ -5457,7 +5475,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
                 db_name != &INFORMATION_SCHEMA_NAME)
             {
-              if (!fill_schema_table_from_frm(thd, table, schema_table,
+              if (!fill_schema_table_from_frm(thd, &tmp_mem_root,
+                                              table, schema_table,
                                               db_name, table_name,
                                               &open_tables_state_backup,
                                               can_deadlock))
@@ -7040,7 +7059,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
     {
-      (void) read_statistics_for_tables(thd, tables);
+      (void) read_statistics_for_tables(thd, tables, false);
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_CONST |
