@@ -26203,12 +26203,15 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
   enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   bool result= 0;
+  key_part_map map= 1;
 
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-  for (store_key **copy=ref->key_copy ; *copy ; copy++)
+  for (store_key **copy=ref->key_copy ; *copy ; copy++, map <<= 1)
   {
+    while (map & ref->const_ref_part_map) // skip const ref parts
+      map <<= 1;                          // no store_key objects for them
     if ((*copy)->copy(thd) & 1 ||
-        (ref->null_rejecting && (*copy)->null_key))
+        ((ref->null_rejecting & map) && (*copy)->null_key))
     {
       result= 1;
       break;
