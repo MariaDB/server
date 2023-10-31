@@ -5286,7 +5286,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items,
-                                       uint nitems) const;
+                                       uint nitems) const override;
   bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
     const override
   {
