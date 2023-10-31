@@ -6,9 +6,6 @@
 --source ../../t/test_init.inc
 --enable_result_log
 --enable_query_log
-set @old_spider_disable_group_by_handler=@@spider_disable_group_by_handler;
-set spider_disable_group_by_handler=1;
-
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
 CREATE TABLE t1 (a INT);
@@ -21,7 +18,6 @@ SELECT a FROM t2 WHERE a IN ( SELECT a FROM t2 );
 
 DROP TABLE t1, t2;
 DROP SERVER srv;
-set spider_disable_group_by_handler=@old_spider_disable_group_by_handler;
 --disable_query_log
 --disable_result_log
 --source ../../t/test_deinit.inc
