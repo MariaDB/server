@@ -14,3 +14,14 @@ a
 b
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
+# MDEV-32517: Memory leak on running query in PS mode with condition
+#             that has 'ANY/SOME (subquery)' clause and any kind of
+#             the following comparisons '>', '>=', '<', '<=' '
+CREATE TABLE t1 (s1 CHAR(1)) ENGINE=MYISAM;
+INSERT INTO t1 VALUES ('a');
+SELECT * FROM t1 WHERE _utf8'a' > ANY (SELECT s1 FROM t1);
+s1
+SELECT * FROM t1 WHERE  _utf8'a' >= SOME ( SELECT s1 FROM t1 );
+s1
+a
+DROP TABLE t1;
