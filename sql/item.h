@@ -6727,7 +6727,7 @@ public:
   bool update_vcol_processor(void *) override { return false; }
   bool check_field_expression_processor(void *arg) override;
   bool check_func_default_processor(void *) override { return true; }
-  bool update_func_default_processor(void *arg);
+  bool update_func_default_processor(void *arg) override;
   bool register_field_in_read_map(void *arg) override;
   bool walk(Item_processor processor, bool walk_subquery, void *args) override
   {

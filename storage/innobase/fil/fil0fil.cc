@@ -1654,10 +1654,14 @@ void fil_close_tablespace(uint32_t id)
 	completely and permanently. */
 	while (buf_flush_list_space(space));
 
-	/* If the free is successful, the latch will be released there. */
-	if (!fil_space_free(id, true)) {
-		space->x_unlock();
+	space->x_unlock();
+	mysql_mutex_lock(&log_sys.mutex);
+	if (space->max_lsn != 0) {
+		ut_d(space->max_lsn = 0);
+		fil_system.named_spaces.remove(*space);
 	}
+	mysql_mutex_unlock(&log_sys.mutex);
+	fil_space_free_low(space);
 }
 
 /** Delete a tablespace and associated .ibd file.
