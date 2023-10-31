@@ -1194,19 +1194,26 @@ struct my_option xb_client_options[]= {
      GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"compress", OPT_XTRA_COMPRESS,
-     "This option was deprecated starting with MariaDB 10.1.31 and 10.2.13 "
-	 "as it relies on the no longer maintained QuickLZ library.",
+     "Compress individual backup files using the "
+     "specified compression algorithm. It uses no longer maintained QuickLZ "
+     "library hence this option was deprecated with MariaDB 10.1.31 and 10.2.13.",
      (G_PTR *) &xtrabackup_compress_alg, (G_PTR *) &xtrabackup_compress_alg, 0,
      GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"compress-threads", OPT_XTRA_COMPRESS_THREADS,
-     "This option was deprecated with --compress ",
+     "Number of threads for parallel data compression. The default value is "
+     "1. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (G_PTR *) &xtrabackup_compress_threads,
      (G_PTR *) &xtrabackup_compress_threads, 0, GET_UINT, REQUIRED_ARG, 1, 1,
      UINT_MAX, 0, 0, 0},
 
     {"compress-chunk-size", OPT_XTRA_COMPRESS_CHUNK_SIZE,
-     "This option was deprecated with --compress ",
+     "Size of working buffer(s) for compression threads in bytes. The default "
+     "value is 64K. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (G_PTR *) &xtrabackup_compress_chunk_size,
      (G_PTR *) &xtrabackup_compress_chunk_size, 0, GET_ULL, REQUIRED_ARG,
      (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
@@ -1326,7 +1333,10 @@ struct my_option xb_client_options[]= {
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"decompress", OPT_DECOMPRESS,
-     "This option was deprecated with --compress ",
+     "Decompresses all files with the .qp "
+     "extension in a backup previously made with the --compress option. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (uchar *) &opt_decompress, (uchar *) &opt_decompress, 0, GET_BOOL, NO_ARG,
      0, 0, 0, 0, 0, 0},
 
