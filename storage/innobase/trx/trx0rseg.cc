@@ -435,6 +435,50 @@ trx_undo_lists_init(trx_rseg_t* rseg, trx_id_t& max_trx_id,
 	return(size);
 }
 
+/** Compare different versions of the recovered binlog position to find the
+one that is current.
+ - Before MariaDB 10.3.5, a single position entry was stored in the TRX_SYS
+   page. Since 10.3.5, multiple entries are stored, one in each rolback segment.
+ - A running version number since MariaDB 10.4.32 is stored with each entry,
+   and identifies the most recent one.
+ - If version is not available, the binlog filename/offset is compared to
+   determine the most recent entry (this can fail if the binlog file is
+   renamed or RESET MASTER decreases the binlog index number, MDEV-22351.
+@param[in]	binlog_name	Binlog name saved in rseg
+@param[in]	binlog_offset   Binlog offset saved in rseg
+@param[in]	binlog_version	Binlog version number saved in rseg
+@return Whether the entry should be used over the previously restored entry.
+@retval	0	The new entry is less recent, do not use
+@retval	1	The new offset is more recent, but the binlog name is unchanged
+@retval	2	The new filename and offset is more recent */
+static
+int
+trx_rseg_binlog_pos_cmp(const char *binlog_name, uint64_t binlog_offset,
+			uint64_t binlog_version)
+{
+	if (!*binlog_name)
+		return 0;
+	if (!*trx_sys.recovered_binlog_filename)
+		return 2;
+	int cmp = strncmp(binlog_name, trx_sys.recovered_binlog_filename,
+			  TRX_RSEG_BINLOG_NAME_LEN);
+	int different_filename = (cmp != 0 ? 2 : 1);
+	if(trx_sys.recovered_binlog_is_legacy_pos)
+		return different_filename;
+	if (binlog_version > 0) {
+		return binlog_version > trx_sys.recovered_binlog_version.
+				load(std::memory_order_relaxed) ?
+			different_filename : 0;
+	}
+	/* Old MariaDB - compare binlog filename/offset
+	   to find the most recent entry. */
+	if (cmp < 0)
+		return 0;
+	if (cmp)
+		return 2;
+	return binlog_offset > trx_sys.recovered_binlog_offset;
+}
+
 /** Restore the state of a persistent rollback segment.
 @param[in,out]	rseg		persistent rollback segment
 @param[in,out]	max_trx_id	maximum observed transaction identifier
@@ -459,32 +503,23 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 				(rseg_header) + TRX_RSEG_BINLOG_NAME;
 			compile_time_assert(TRX_RSEG_BINLOG_NAME_LEN == sizeof
 					    trx_sys.recovered_binlog_filename);
-
-			/* Always prefer a position from rollback segment over
-			a legacy position from before version 10.3.5. */
-			int cmp = *trx_sys.recovered_binlog_filename &&
-				  !trx_sys.recovered_binlog_is_legacy_pos
-				? strncmp(binlog_name,
-					  trx_sys.recovered_binlog_filename,
-					  TRX_RSEG_BINLOG_NAME_LEN)
-				: 1;
-
-			if (cmp >= 0) {
-				uint64_t binlog_offset = mach_read_from_8(
-					rseg_header + TRX_RSEG_BINLOG_OFFSET);
-				if (cmp) {
-					memcpy(trx_sys.
-					       recovered_binlog_filename,
+			uint64_t binlog_offset = mach_read_from_8(
+				rseg_header + TRX_RSEG_BINLOG_OFFSET);
+			uint64_t binlog_version =
+				mach_read_from_8(rseg_header +
+						 TRX_RSEG_BINLOG_VERSION);
+			int choice = trx_rseg_binlog_pos_cmp(binlog_name,
+							     binlog_offset,
+							     binlog_version);
+			if (choice) {
+				trx_sys.recovered_binlog_version.store
+				    (binlog_version, std::memory_order_relaxed);
+				trx_sys.recovered_binlog_offset = binlog_offset;
+				trx_sys.recovered_binlog_is_legacy_pos= false;
+				if (choice > 1)
+					memcpy(trx_sys.recovered_binlog_filename,
 					       binlog_name,
 					       TRX_RSEG_BINLOG_NAME_LEN);
-					trx_sys.recovered_binlog_offset
-						= binlog_offset;
-				} else if (binlog_offset >
-					   trx_sys.recovered_binlog_offset) {
-					trx_sys.recovered_binlog_offset
-						= binlog_offset;
-				}
-				trx_sys.recovered_binlog_is_legacy_pos= false;
 			}
 
 #ifdef WITH_WSREP
@@ -572,6 +607,7 @@ trx_rseg_array_init()
 
 	*trx_sys.recovered_binlog_filename = '\0';
 	trx_sys.recovered_binlog_offset = 0;
+        trx_sys.recovered_binlog_version.store(0, std::memory_order_relaxed);
 	trx_sys.recovered_binlog_is_legacy_pos= false;
 #ifdef WITH_WSREP
 	trx_sys.recovered_wsrep_xid.null();
@@ -793,4 +829,18 @@ trx_rseg_update_binlog_offset(byte* rseg_header, const trx_t* trx, mtr_t* mtr)
 	if (memcmp(binlog_name, p, len)) {
 		mlog_write_string(p, binlog_name, len, mtr);
 	}
+
+	/* Write a running version number with the binlog position entry. The
+	highest version marks the most current binlog position entry to restore.
+	All commits that modify both InnoDB and binlog go through
+	innobase_commit_ordered() which runs under a global binlog mutex, so
+	a simple atomic counter will provide a correct version number. */
+#ifdef WITH_WSREP
+	compile_time_assert(TRX_RSEG_BINLOG_VERSION ==
+			    TRX_RSEG_WSREP_XID_DATA + XIDDATASIZE);
+#endif
+	mlog_write_ull(rseg_header + TRX_RSEG_BINLOG_VERSION,
+		       1 + trx_sys.recovered_binlog_version.fetch_add(1ULL,
+					std::memory_order_relaxed),
+		       mtr);
 }

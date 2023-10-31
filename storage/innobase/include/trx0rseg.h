@@ -237,6 +237,7 @@ If no binlog information is present, the first byte is NUL. */
 #define TRX_RSEG_BINLOG_NAME		TRX_RSEG_MAX_TRX_ID + 16
 /** Maximum length of binlog file name, including terminating NUL, in bytes */
 #define TRX_RSEG_BINLOG_NAME_LEN	512
+/** See also TRX_RSEG_BINLOG_VERSION, below. */
 
 #ifdef WITH_WSREP
 /** The offset to WSREP XID headers */
@@ -251,6 +252,11 @@ If no binlog information is present, the first byte is NUL. */
 /** WSREP XID data (XIDDATASIZE bytes) */
 #define TRX_RSEG_WSREP_XID_DATA		TRX_RSEG_WSREP_XID_INFO + 12
 #endif /* WITH_WSREP*/
+
+/** 8 byte binlog info version. The highest found version identifies which
+entry is the most recent one that should be recovered. If 0, then the
+version is not written (earlier MariaDB version). */
+#define TRX_RSEG_BINLOG_VERSION         TRX_RSEG_MAX_TRX_ID + 16 + 512 + 140
 
 /*-------------------------------------------------------------*/
 

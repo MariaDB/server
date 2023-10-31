@@ -19,7 +19,91 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
 --source include/search_pattern_in_file.inc
 --echo # expect FOUND
 
-DROP TABLE t;
+
+--echo *** Check that mariabackup restores the correct position.
+rmdir $basedir;
+INSERT INTO t VALUES (2);
+FLUSH BINARY LOGS;
+INSERT INTO t VALUES (3);
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir;
+CREATE TABLE t2 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
+--replace_result $basedir BASEDIR
+--disable_warnings
+eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+--enable_warnings
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+--disable_query_log
+eval SELECT
+  IF('$file'=file, "OK", CONCAT('Wrong file: ', file, ' expected: ', '$file')) AS file_ok,
+  IF('$pos'=pos, "OK", CONCAT('Wrong position: ', pos, ' expected: ', '$pos')) AS pos_ok
+  FROM t2;
+--enable_query_log
+
+
+--echo *** Check correct position after RESET MASTER.
+rmdir $basedir;
+INSERT INTO t VALUES (4);
+FLUSH BINARY LOGS;
+INSERT INTO t VALUES (5);
+RESET MASTER;
+INSERT INTO t VALUES (6);
+INSERT INTO t VALUES (7);
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir;
+TRUNCATE TABLE t2;
+--replace_result $basedir BASEDIR
+--disable_warnings
+eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+--enable_warnings
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+--disable_query_log
+eval SELECT
+  IF('$file'=file, "OK", CONCAT('Wrong file: ', file, ' expected: ', '$file')) AS file_ok,
+  IF('$pos'=pos, "OK", CONCAT('Wrong position: ', pos, ' expected: ', '$pos')) AS pos_ok
+  FROM t2;
+--enable_query_log
+
+
+--echo *** Check correct position after server restart.
+rmdir $basedir;
+--source include/restart_mysqld.inc
+INSERT INTO t VALUES (8);
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir;
+TRUNCATE TABLE t2;
+--replace_result $basedir BASEDIR
+--disable_warnings
+eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+--enable_warnings
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+--disable_query_log
+eval SELECT
+  IF('$file'=file, "OK", CONCAT('Wrong file: ', file, ' expected: ', '$file')) AS file_ok,
+  IF('$pos'=pos, "OK", CONCAT('Wrong position: ', pos, ' expected: ', '$pos')) AS pos_ok
+  FROM t2;
+--enable_query_log
+
+
+DROP TABLE t,t2;
 
 # Cleanup
 rmdir $basedir;
