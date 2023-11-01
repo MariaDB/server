@@ -10265,26 +10265,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                      &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
 
-  if (unlikely(error))
-  {
-    if (if_exists)
-    {
-      int tmp_errno= thd->get_stmt_da()->sql_errno();
-      if (tmp_errno == ER_NO_SUCH_TABLE)
-      {
-        /*
-          ALTER TABLE IF EXISTS was used on not existing table
-          We have to log the query on a slave as the table may be a shared one
-          from the master and we need to ensure that the next slave can see
-          the statement as this slave may not have the table shared
-        */
-        thd->clear_error();
-        DBUG_RETURN(log_and_ok(thd));
-      }
-    }
-    DBUG_RETURN(true);
-  }
-
   table= table_list->table;
 
 #ifdef WITH_WSREP
@@ -10293,7 +10273,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if we can support implementing storage engine.
   */
   if (WSREP(thd) && table && table->s->sequence &&
-      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info, used_engine))
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
     DBUG_RETURN(TRUE);
 
   if (WSREP(thd) &&
@@ -12538,12 +12518,10 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
               wsrep_check_sequence(thd, lex->create_info.seq_create_info, used_engine))
             DBUG_RETURN(true);
 
-          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
-                                         create_table->table_name.str,
-                                         first_table, &alter_info, NULL,
-                                         &create_info)
-	  {
-	    WSREP_WARN("CREATE TABLE isolation failure");
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+                                         first_table, &alter_info, NULL, &create_info)
+          {
+            WSREP_WARN("CREATE TABLE isolation failure");
             res= true;
             goto end_with_restore_list;
           }
