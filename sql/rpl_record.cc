@@ -315,6 +315,7 @@ static void convert_field(Field *f, Field *result_field, Field *conv_field)
    @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
  */
+
 int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
                uchar const *const row_data, MY_BITMAP const *cols,
                uchar const **const current_row_end,
@@ -349,7 +350,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
   st.next_null_byte();
   if (!rpl_data.is_online_alter())
   {
-    Field *result_field;
+    Field *result_field= 0;
     for (; i < colcnt && (result_field= table->field[i]); i++)
     {
       /*
