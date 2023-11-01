@@ -37,6 +37,11 @@ struct XID_STATE {
   void er_xaer_rmfail() const;
   XID *get_xid() const;
   enum xa_states get_state_code() const;
+  void set_state_code(enum xa_states val);
+  void set_cache_element_to_recovered();
+#ifndef DBUG_OFF
+  bool is_recovered();
+#endif
 };
 
 void xid_cache_init(void);
@@ -44,6 +49,7 @@ void xid_cache_free(void);
 bool xid_cache_insert(XID *xid);
 bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid);
 void xid_cache_delete(THD *thd, XID_STATE *xid_state);
+void xid_cache_delete(THD *thd);
 
 bool trans_xa_start(THD *thd);
 bool trans_xa_end(THD *thd);

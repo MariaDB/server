@@ -25,8 +25,6 @@ XA BEGIN 'x';
 DELETE FROM t1;
 XA END 'x';
 XA PREPARE 'x';
-Warnings:
-Warning	1030	Got error 131 "Command not supported by the engine" from storage engine Aria
 XA COMMIT 'x';
 SELECT * from t1;
 a
@@ -34,8 +32,6 @@ XA BEGIN 'x';
 INSERT INTO t1 VALUES (3),(4);
 XA END 'x';
 XA PREPARE 'x';
-Warnings:
-Warning	1030	Got error 131 "Command not supported by the engine" from storage engine Aria
 XA ROLLBACK 'x';
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back

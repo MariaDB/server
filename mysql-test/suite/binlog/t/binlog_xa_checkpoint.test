@@ -13,33 +13,28 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 #    Binlog checkpoint is not generated for the latest log until
 #    XA PREPARE returns, e.g OK to the client.
 
+--let $save_max_binlog_size= `SELECT @@global.max_binlog_size`
+set @@global.max_binlog_size=4096;
+--let $old_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
 
 # con1 will hang before doing commit checkpoint, blocking RESET MASTER.
 connect(con1,localhost,root,,);
-SET DEBUG_SYNC= "at_unlog_xa_prepare SIGNAL con1_ready WAIT_FOR con1_go";
 XA START '1';
-INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=1,b=repeat('b',@@global.max_binlog_size);
 XA END '1';
---send XA PREPARE '1';
-
+XA PREPARE '1';
 
 connection default;
-SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
-FLUSH LOGS;
-FLUSH LOGS;
-FLUSH LOGS;
+
+--let $wait_binlog_event= Rotate
+--source include/wait_for_binlog_checkpoint.inc
 
 --source include/show_binary_logs.inc
---let $binlog_file= master-bin.000004
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $binlog_start= 4
+--echo *** $binlog_file must show the checkpoint event with its name ***
+
 --source include/show_binlog_events.inc
-
-SET DEBUG_SYNC= "now SIGNAL con1_go";
-
-connection con1;
-reap;
---echo *** master-bin.000004 checkpoint must show up now ***
---source include/wait_for_binlog_checkpoint.inc
 
 # Todo: think about the error code returned, move to an appropriate test, or remove
 # connection default;
@@ -55,3 +50,4 @@ connection default;
 
 DROP TABLE t1;
 SET debug_sync = 'reset';
+--eval set @@global.max_binlog_size=$save_max_binlog_size
