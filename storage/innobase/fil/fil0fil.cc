@@ -1579,6 +1579,13 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
 
   if (space->purpose == FIL_TYPE_TABLESPACE)
   {
+    if (id >= srv_undo_space_id_start &&
+        id < srv_undo_space_id_start + srv_undo_tablespaces_open)
+    {
+      os_file_delete(innodb_data_file_key, space->chain.start->name);
+      goto deleted;
+    }
+
     /* Before deleting the file, persistently write a log record. */
     mtr_t mtr;
     mtr.start();
@@ -1600,6 +1607,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
     ut_free(cfg_name);
   }
 
+ deleted:
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(space == fil_space_get_by_id(id));
   pending=
@@ -1655,12 +1663,12 @@ void fil_close_tablespace(uint32_t id)
 	while (buf_flush_list_space(space));
 
 	space->x_unlock();
-        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	if (space->max_lsn != 0) {
 		ut_d(space->max_lsn = 0);
 		fil_system.named_spaces.remove(*space);
 	}
-        log_sys.latch.wr_unlock();
+	log_sys.latch.wr_unlock();
 	fil_space_free_low(space);
 }
 

@@ -34,6 +34,9 @@ LEFT JOIN t4 ON t3.c=1
 select '$js' as JSON;
 JSON
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
