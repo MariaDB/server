@@ -941,14 +941,15 @@ bool Item_field::register_field_in_write_map(void *arg)
 
   This is used by fix_vcol_expr() when a table is opened
 
-  We don't have to check fields that are marked as NO_DEFAULT_VALUE
-  as the upper level will ensure that all these will be given a value.
+  We don't have to check non-virtual fields that are marked as
+  NO_DEFAULT_VALUE as the upper level will ensure that all these
+  will be given a value.
 */
 
 bool Item_field::check_field_expression_processor(void *arg)
 {
   Field *org_field= (Field*) arg;
-  if (field->flags & NO_DEFAULT_VALUE_FLAG)
+  if (field->flags & NO_DEFAULT_VALUE_FLAG && !field->vcol_info)
     return 0;
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
@@ -9577,6 +9578,11 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 
 
 bool Item_default_value::check_field_expression_processor(void *)
+{
+  return Item_default_value::update_func_default_processor(0);
+}
+
+bool Item_default_value::update_func_default_processor(void *)
 {
   field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
   return 0;

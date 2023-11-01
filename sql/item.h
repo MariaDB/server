@@ -2336,6 +2336,7 @@ public:
   virtual bool check_handler_func_processor(void *arg) { return 0; }
   virtual bool check_field_expression_processor(void *arg) { return 0; }
   virtual bool check_func_default_processor(void *arg) { return 0; }
+  virtual bool update_func_default_processor(void *arg) { return 0; }
   /*
     Check if an expression value has allowed arguments, like DATE/DATETIME
     for date functions. Also used by partitioning code to reject
@@ -6727,6 +6728,7 @@ public:
   bool update_vcol_processor(void *) override { return false; }
   bool check_field_expression_processor(void *arg) override;
   bool check_func_default_processor(void *) override { return true; }
+  bool update_func_default_processor(void *arg) override;
   bool register_field_in_read_map(void *arg) override;
   bool walk(Item_processor processor, bool walk_subquery, void *args) override
   {

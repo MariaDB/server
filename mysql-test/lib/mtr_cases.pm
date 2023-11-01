@@ -154,7 +154,17 @@ sub collect_test_cases ($$$$) {
         {
 	  push (@$cases, @this_case);
 	}
-	else
+	elsif ($::opt_skip_not_found)
+        {
+          push @$cases, My::Test->new
+            (
+             name          => "$sname.$tname",
+             shortname     => $tname,
+             skip          => 1,
+             comment       => 'not found',
+            );
+        }
+        else
 	{
 	  mtr_error("Could not find '$tname' in '$sname' suite");
         }

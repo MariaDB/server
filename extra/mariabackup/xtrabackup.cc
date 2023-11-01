@@ -1887,7 +1887,7 @@ static int prepare_export()
       IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
-      " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
+      " --innodb-buffer-pool-size=%llu"
       " --console --skip-log-error --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -1901,7 +1901,7 @@ static int prepare_export()
       IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
-      " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
+      " --innodb-buffer-pool-size=%llu"
       " --console --log-error= --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,

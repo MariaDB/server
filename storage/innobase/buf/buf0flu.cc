@@ -1071,7 +1071,7 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
 
   for (ulint id_fold= id.fold(); id < high; ++id, ++id_fold)
   {
-    if (UNIV_UNLIKELY(space->is_stopping()))
+    if (UNIV_UNLIKELY(space->is_stopping_writes()))
     {
       if (bpage)
         bpage->lock.u_unlock(true);
@@ -1175,12 +1175,31 @@ static ulint buf_free_from_unzip_LRU_list_batch()
 	return(count);
 }
 
+/** Acquire a tablespace reference for writing.
+@param id      tablespace identifier
+@return tablespace
+@retval nullptr if the tablespace is missing or inaccessible */
+fil_space_t *fil_space_t::get_for_write(uint32_t id)
+{
+  mysql_mutex_lock(&fil_system.mutex);
+  fil_space_t *space= fil_space_get_by_id(id);
+  const uint32_t n= space ? space->acquire_low(STOPPING_WRITES) : 0;
+
+  if (n & STOPPING_WRITES)
+    space= nullptr;
+  else if ((n & CLOSING) && !space->prepare_acquired())
+    space= nullptr;
+
+  mysql_mutex_unlock(&fil_system.mutex);
+  return space;
+}
+
 /** Start writing out pages for a tablespace.
 @param id   tablespace identifier
 @return tablespace and number of pages written */
 static std::pair<fil_space_t*, uint32_t> buf_flush_space(const uint32_t id)
 {
-  if (fil_space_t *space= fil_space_t::get(id))
+  if (fil_space_t *space= fil_space_t::get_for_write(id))
     return {space, space->flush_freed(true)};
   return {nullptr, 0};
 }
@@ -1245,16 +1264,14 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
     ut_ad(state >= buf_page_t::FREED);
     ut_ad(bpage->in_LRU_list);
 
-    switch (bpage->oldest_modification()) {
-    case 0:
+    if (!bpage->oldest_modification())
+    {
     evict:
       if (state != buf_page_t::FREED &&
           (state >= buf_page_t::READ_FIX || (~buf_page_t::LRU_MASK & state)))
         continue;
       buf_LRU_free_page(bpage, true);
       ++n->evicted;
-      /* fall through */
-    case 1:
       if (UNIV_LIKELY(scanned & 31))
         continue;
       mysql_mutex_unlock(&buf_pool.mutex);
@@ -1270,7 +1287,11 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
       switch (bpage->oldest_modification()) {
       case 1:
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_pool.delete_from_flush_list(bpage);
+        if (ut_d(lsn_t lsn=) bpage->oldest_modification())
+        {
+          ut_ad(lsn == 1); /* It must be clean while we hold bpage->lock */
+          buf_pool.delete_from_flush_list(bpage);
+        }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         /* fall through */
       case 0:
@@ -1309,7 +1330,7 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
           goto no_space;
         }
       }
-      else if (space->is_stopping())
+      else if (space->is_stopping_writes())
       {
         space->release();
         space= nullptr;
@@ -1461,7 +1482,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
       else
         ut_ad(!space);
     }
-    else if (space->is_stopping())
+    else if (space->is_stopping_writes())
     {
       space->release();
       space= nullptr;
@@ -1593,7 +1614,7 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed)
   ulint max_n_flush= srv_io_capacity;
   ulint n_flush= 0;
 
-  bool acquired= space->acquire();
+  bool acquired= space->acquire_for_write();
   {
     const uint32_t written{space->flush_freed(acquired)};
     mysql_mutex_lock(&buf_pool.mutex);
@@ -1636,7 +1657,7 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed)
         buf_flush_discard_page(bpage);
       else
       {
-        if (space->is_stopping())
+        if (space->is_stopping_writes())
         {
           space->release();
           acquired= false;

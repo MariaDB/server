@@ -7706,6 +7706,50 @@ class Sql_mode_save
   sql_mode_t old_mode; // SQL mode saved at construction time.
 };
 
+
+/*
+  Save the current sql_mode. Switch off sql_mode flags which can prevent
+  normal parsing of VIEWs, expressions in generated columns.
+  Restore the old sql_mode on destructor.
+*/
+class Sql_mode_save_for_frm_handling: public Sql_mode_save
+{
+public:
+  Sql_mode_save_for_frm_handling(THD *thd)
+   :Sql_mode_save(thd)
+  {
+    /*
+      - MODE_REAL_AS_FLOAT            affect only CREATE TABLE parsing
+      + MODE_PIPES_AS_CONCAT          affect expression parsing
+      + MODE_ANSI_QUOTES              affect expression parsing
+      + MODE_IGNORE_SPACE             affect expression parsing
+      - MODE_IGNORE_BAD_TABLE_OPTIONS affect only CREATE/ALTER TABLE parsing
+      * MODE_ONLY_FULL_GROUP_BY       affect execution
+      * MODE_NO_UNSIGNED_SUBTRACTION  affect execution
+      - MODE_NO_DIR_IN_CREATE         affect table creation only
+      - MODE_POSTGRESQL               compounded from other modes
+      + MODE_ORACLE                   affects Item creation (e.g for CONCAT)
+      - MODE_MSSQL                    compounded from other modes
+      - MODE_DB2                      compounded from other modes
+      - MODE_MAXDB                    affect only CREATE TABLE parsing
+      - MODE_NO_KEY_OPTIONS           affect only SHOW
+      - MODE_NO_TABLE_OPTIONS         affect only SHOW
+      - MODE_NO_FIELD_OPTIONS         affect only SHOW
+      - MODE_MYSQL323                 affect only SHOW
+      - MODE_MYSQL40                  affect only SHOW
+      - MODE_ANSI                     compounded from other modes
+                                      (+ transaction mode)
+      ? MODE_NO_AUTO_VALUE_ON_ZERO    affect UPDATEs
+      + MODE_NO_BACKSLASH_ESCAPES     affect expression parsing
+      + MODE_EMPTY_STRING_IS_NULL     affect expression parsing
+    */
+    thd->variables.sql_mode&= ~(MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
+                                MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES |
+                                MODE_ORACLE | MODE_EMPTY_STRING_IS_NULL);
+  };
+};
+
+
 class Switch_to_definer_security_ctx
 {
  public:

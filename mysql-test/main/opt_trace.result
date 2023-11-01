@@ -540,9 +540,16 @@ select * from v2	{
                       }
                     ]
                   }
+<<<<<<< HEAD
                 },
                 {
                   "make_join_readinfo": []
+||||||| 5bf52ddac30
+=======
+                },
+                {
+                  "test_if_skip_sort_order": []
+>>>>>>> bb-10.11-release
                 }
               ]
             }
@@ -925,9 +932,16 @@ explain select * from v1	{
                       }
                     ]
                   }
+<<<<<<< HEAD
                 },
                 {
                   "make_join_readinfo": []
+||||||| 5bf52ddac30
+=======
+                },
+                {
+                  "test_if_skip_sort_order": []
+>>>>>>> bb-10.11-release
                 }
               ]
             }
@@ -1528,9 +1542,16 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                 }
               ]
             }
+<<<<<<< HEAD
           },
           {
             "make_join_readinfo": []
+||||||| 5bf52ddac30
+=======
+          },
+          {
+            "test_if_skip_sort_order": []
+>>>>>>> bb-10.11-release
           }
         ]
       }
@@ -1777,6 +1798,9 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                 }
               ]
             }
+          },
+          {
+            "test_if_skip_sort_order": []
           }
         ]
       }
@@ -1991,9 +2015,16 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                 }
               ]
             }
+<<<<<<< HEAD
           },
           {
             "make_join_readinfo": []
+||||||| 5bf52ddac30
+=======
+          },
+          {
+            "test_if_skip_sort_order": []
+>>>>>>> bb-10.11-release
           }
         ]
       }
@@ -2197,9 +2228,16 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                 }
               ]
             }
+<<<<<<< HEAD
           },
           {
             "make_join_readinfo": []
+||||||| 5bf52ddac30
+=======
+          },
+          {
+            "test_if_skip_sort_order": []
+>>>>>>> bb-10.11-release
           }
         ]
       }
@@ -2501,6 +2539,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             }
           },
           {
+<<<<<<< HEAD
             "make_join_readinfo": []
           },
           {
@@ -2535,7 +2574,75 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "index": "a_b",
                   "can_resolve_order": false,
                   "cause": "not usable index for the query"
+||||||| 5bf52ddac30
+            "reconsidering_access_paths_for_index_ordering": {
+              "clause": "ORDER BY",
+              "fanout": 1,
+              "read_time": 21.14342739,
+              "table": "t1",
+              "rows_estimation": 21,
+              "possible_keys": [
+                {
+                  "index": "a_a",
+                  "can_resolve_order": true,
+                  "direction": 1,
+                  "updated_limit": 47,
+                  "index_scan_time": 47,
+                  "usable": false,
+                  "cause": "cost"
+                },
+                {
+                  "index": "a_c",
+                  "can_resolve_order": true,
+                  "direction": 1,
+                  "updated_limit": 47,
+                  "range_scan_time": 4.331020747,
+                  "index_scan_time": 4.331020747,
+                  "records": 180,
+                  "chosen": true
+                },
+                {
+                  "index": "a_b",
+                  "can_resolve_order": false,
+                  "cause": "not usable index for the query"
+=======
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "ORDER BY",
+                  "fanout": 1,
+                  "read_time": 21.14342739,
+                  "table": "t1",
+                  "rows_estimation": 21,
+                  "possible_keys": [
+                    {
+                      "index": "a_a",
+                      "can_resolve_order": true,
+                      "direction": 1,
+                      "updated_limit": 47,
+                      "index_scan_time": 47,
+                      "usable": false,
+                      "cause": "cost"
+                    },
+                    {
+                      "index": "a_c",
+                      "can_resolve_order": true,
+                      "direction": 1,
+                      "updated_limit": 47,
+                      "range_scan_time": 4.331020747,
+                      "index_scan_time": 4.331020747,
+                      "records": 180,
+                      "chosen": true
+                    },
+                    {
+                      "index": "a_b",
+                      "can_resolve_order": false,
+                      "cause": "not usable index for the query"
+                    }
+                  ]
+>>>>>>> bb-10.11-release
                 }
+<<<<<<< HEAD
               ]
             }
           },
@@ -2571,8 +2678,107 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "rows": 180,
                     "cost": 0.223677504,
                     "cost_with_limit": 0.002574553,
+||||||| 5bf52ddac30
+              ]
+            }
+          },
+          {
+            "table": "t1",
+            "range_analysis": {
+              "table_scan": {
+                "rows": 1000,
+                "cost": 1.79769e308
+              },
+              "potential_range_indexes": [
+                {
+                  "index": "a_a",
+                  "usable": false,
+                  "cause": "not applicable"
+                },
+                {
+                  "index": "a_c",
+                  "usable": true,
+                  "key_parts": ["a", "c"]
+                },
+                {
+                  "index": "a_b",
+                  "usable": false,
+                  "cause": "not applicable"
+                }
+              ],
+              "setup_range_conditions": [],
+              "analyzing_range_alternatives": {
+                "range_scan_alternatives": [
+                  {
+                    "index": "a_c",
+                    "ranges": ["(1) <= (a) <= (1)"],
+                    "rowid_ordered": false,
+                    "using_mrr": false,
+                    "index_only": false,
+                    "rows": 180,
+                    "cost": 216.2943776,
+=======
+              },
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 1000,
+                    "cost": 1.79769e308
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "a_a",
+                      "usable": false,
+                      "cause": "not applicable"
+                    },
+                    {
+                      "index": "a_c",
+                      "usable": true,
+                      "key_parts": ["a", "c"]
+                    },
+                    {
+                      "index": "a_b",
+                      "usable": false,
+                      "cause": "not applicable"
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "a_c",
+                        "ranges": ["(1) <= (a) <= (1)"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 180,
+                        "cost": 216.2943776,
+                        "chosen": true
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "a_c",
+                      "rows": 180,
+                      "ranges": ["(1) <= (a) <= (1)"]
+                    },
+                    "rows_for_plan": 180,
+                    "cost_for_plan": 216.2943776,
+>>>>>>> bb-10.11-release
                     "chosen": true
                   }
+<<<<<<< HEAD
                 ],
                 "analyzing_roworder_intersect": {
                   "cause": "too few roworder scans"
@@ -2593,8 +2799,32 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "rows_for_plan": 180,
                 "cost_for_plan": 0.223677504,
                 "chosen": true
+||||||| 5bf52ddac30
+                ],
+                "analyzing_roworder_intersect": {
+                  "cause": "too few roworder scans"
+                },
+                "analyzing_index_merge_union": []
+              },
+              "group_index_range": {
+                "chosen": false,
+                "cause": "no group by or distinct"
+              },
+              "chosen_range_access_summary": {
+                "range_access_plan": {
+                  "type": "range_scan",
+                  "index": "a_c",
+                  "rows": 180,
+                  "ranges": ["(1) <= (a) <= (1)"]
+                },
+                "rows_for_plan": 180,
+                "cost_for_plan": 216.2943776,
+                "chosen": true
+=======
+                }
+>>>>>>> bb-10.11-release
               }
-            }
+            ]
           }
         ]
       }

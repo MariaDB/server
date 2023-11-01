@@ -992,7 +992,11 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                              table->s->db.str,
                                              table->s->table_name.str,
-                                             MDL_SHARED));
+                                             MDL_SHARED) ||
+              thd->mdl_context.is_lock_warrantee(MDL_key::TABLE,
+                                                 table->s->db.str,
+                                                 table->s->table_name.str,
+                                                 MDL_SHARED));
   table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
