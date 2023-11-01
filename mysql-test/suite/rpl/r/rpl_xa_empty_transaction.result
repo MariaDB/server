@@ -19,6 +19,8 @@ connection server_1;
 XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -53,13 +55,14 @@ connect con1,localhost,root,,;
 XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -92,6 +95,8 @@ connection server_1;
 XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -126,13 +131,14 @@ connect con1,localhost,root,,;
 XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -170,6 +176,8 @@ INSERT INTO ti VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -206,13 +214,14 @@ INSERT INTO ti VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -247,6 +256,8 @@ INSERT INTO ti VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -283,13 +294,14 @@ INSERT INTO ti VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -331,7 +343,11 @@ INSERT INTO tm VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -367,13 +383,14 @@ INSERT INTO tm VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -408,6 +425,8 @@ INSERT INTO tm VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -446,13 +465,14 @@ INSERT INTO tm VALUES (1),(1);;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -495,6 +515,8 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -533,13 +555,14 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -576,6 +599,8 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -614,13 +639,14 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -643,7 +669,8 @@ include/sync_with_master_gtid.inc
 #
 # Test Case 5: A mixed XA transaction consisting of one statement that
 # can successfully be rolled back (first statement), and another that
-# can not (second statement) should be binlogged
+# can not (second statement) should be binlogged similarly to the normal
+# transaction to reflect the 2nd statement.
 connection server_1;
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
@@ -665,7 +692,11 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -703,13 +734,14 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -746,6 +778,8 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -786,13 +820,14 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -818,7 +853,8 @@ set @@global.binlog_format = @sav_binlog_format;
 #
 # Test Case 6: A mixed XA transaction consisting of one statement that
 # cannot successfully be rolled back (first statement), and another that
-# can (second statement) should be binlogged
+# can (second statement) should be binlogged similarly to the normal
+# transaction to reflect the 1st statement.
 connection server_1;
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
@@ -840,7 +876,11 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -878,13 +918,14 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -921,6 +962,8 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -961,13 +1004,14 @@ INSERT INTO ti VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -992,7 +1036,7 @@ set @@binlog_format = @sav_binlog_format;
 set @@global.binlog_format = @sav_binlog_format;
 #
 # Test Case 7: An XA transaction consisting of two failed
-# non-transactional statements should be binlogged
+# non-transactional statements should be binlogged akin to 5,6.
 connection server_1;
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
@@ -1014,7 +1058,11 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -1052,13 +1100,14 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA COMMIT 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -1095,6 +1144,8 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -1135,13 +1186,14 @@ INSERT INTO tm VALUES (2),(2);;
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	x
 XA ROLLBACK 'x';;
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 include/save_master_gtid.inc
 FLUSH LOGS;
 # MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
@@ -1246,6 +1298,30 @@ include/start_slave.inc
 connection server_1;
 drop database db1;
 drop database db2;
+use test;
+connection server_1;
+create table t_not_in_binlog (a int) engine=innodb;
+flush logs;
+include/save_master_gtid.inc
+connect con1,localhost,root,,;
+call mtr.add_suppression("XAER_NOTA: Unknown XID");
+SET sql_log_bin=0;
+XA START 'a';
+insert into t_not_in_binlog set a=1;
+XA END 'a';
+XA PREPARE 'a';
+disconnect con1;
+connection server_1;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	1	0	a
+XA ROLLBACK 'a';
+drop table t_not_in_binlog;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
 connection server_1;
 include/rpl_end.inc
 # End of rpl_xa_empty_transaction.test

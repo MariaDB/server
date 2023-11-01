@@ -78,7 +78,7 @@ if ($use_disconnect)
     --source include/wait_until_count_sessions.inc
     XA RECOVER;
 
-    --error ER_XA_RBROLLBACK
+    --error ER_XAER_NOTA
     --eval XA $xa_completion_action 'x';
 }
 if (!$use_disconnect)

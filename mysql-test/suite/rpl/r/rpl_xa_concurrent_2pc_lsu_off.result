@@ -1,0 +1,633 @@
+include/master-slave.inc
+[connection master]
+#
+# Initialize test data
+connection slave;
+include/stop_slave.inc
+connection master;
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 values (-1, 0);
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @save_debug= @@GLOBAL.debug_dbug;
+set @save_par_thds= @@GLOBAL.slave_parallel_threads;
+set @save_par_mode= @@GLOBAL.slave_parallel_mode;
+set @@GLOBAL.slave_parallel_threads= 4;
+set @@GLOBAL.slave_parallel_mode= optimistic;
+set statement sql_log_bin=0 for call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+#
+# Test Case 1-COMMIT:
+# If two XA COMMIT transactions have different
+# XIDs, ensure both phases of both transactions all execute concurrently.
+#
+connection slave;
+set @@global.debug_dbug= "+d,stop_before_binlog_prepare,stop_after_binlog_prepare";
+connection master;
+set @@session.gtid_seq_no= 200 + (0 * 1000);
+XA START 'x1';
+insert into t1 values (0, 0);
+XA END 'x1';
+XA PREPARE 'x1';
+XA COMMIT 'x1';
+XA START 'x2';
+insert into t1 values (1, 0);
+XA END 'x2';
+XA PREPARE 'x2';
+XA COMMIT 'x2';
+connection slave;
+include/start_slave.inc
+must be \Empty
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+set debug_sync= "now signal binlog_xap";
+# Make a stop at a point where XA PREPARE (both) have completed (binlogged):
+set debug_sync= "now wait_for xa_prepare_binlogged";
+# prove XA-COMMIT 'x1' has completed too
+SELECT 'x1' = 'x1';
+'x1' = 'x1'
+1
+# cleanup: release the seq_no 200 XAP
+set debug_sync= "now signal continue_xap";
+# Proof of the full master-slave sync
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+connection slave;
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+#
+# Test Case 2-COMMIT:
+# Two concurrent 2-phase XA transactions with matching XIDs
+# should run one after the other.
+#
+connection slave;
+set @@global.debug_dbug= "+d,stop_before_binlog_prepare,stop_after_binlog_prepare";
+connection master;
+set @@session.gtid_seq_no= 300 + (0 * 1000);
+XA START 'x';
+insert into t1 values (2, 1);
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';
+XA START 'x';
+insert into t1 values (3, 2);
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+# states of workers at the first XAP near binlogging are expected to be as the following
+set debug_sync= "now signal binlog_xap";
+# Once the first XA PREPARE has binlogged..
+set debug_sync= "now wait_for xa_prepare_binlogged";
+SELECT 'x' = 'x';
+'x' = 'x'
+1
+# cleanup: signal XA PREPARE to leave the stage
+set debug_sync= "now signal continue_xap";
+# Proof of the full master-slave sync
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+connection slave;
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+#
+# Test Case 3-COMMIT (Error Case):
+# If an XA PREPARE errors while its
+# XA COMMIT is waiting on it, both phases should rollback
+# successfully. Note this tests both:
+#    a) XA COMMIT is waiting in group commit (first phase
+#       times out in DMLs)
+#    b) XA COMMIT is waiting in group commit, with another XAP
+#       with a duplicate XID waiting on it.
+# Case a)
+# Ensure slave is stopped
+connection slave;
+include/wait_for_slave_to_stop.inc
+set @save_lock_wait_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+set @save_trans_retries= @@GLOBAL.slave_transaction_retries;
+set @@global.innodb_lock_wait_timeout= 1;
+set @@global.slave_transaction_retries= 0;
+connection master;
+XA START 'x';
+update t1 set b=b+1 where a=-1;
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';
+include/save_master_gtid.inc
+connection slave1;
+BEGIN;
+select * from t1 where a=-1 for update;;
+a	b
+-1	0
+connection slave;
+include/start_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+connection slave;
+include/stop_slave_io.inc
+set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
+set @@global.slave_transaction_retries= @save_trans_retries;
+# Ensure on slave restart, we can re-execute the XA transaction
+include/start_slave.inc
+include/save_master_gtid.inc
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+# Case b)
+# Ensure slave is stopped
+connection slave;
+include/wait_for_slave_to_stop.inc
+set @save_lock_wait_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+set @save_trans_retries= @@GLOBAL.slave_transaction_retries;
+set @@global.innodb_lock_wait_timeout= 1;
+set @@global.slave_transaction_retries= 0;
+connection master;
+XA START 'x';
+update t1 set b=b+1 where a=-1;
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';
+XA START 'x';
+insert into t1 values (4, 0);
+XA END 'x';
+XA PREPARE 'x';
+include/save_master_gtid.inc
+XA COMMIT 'x';
+connection slave1;
+BEGIN;
+select * from t1 where a=-1 for update;;
+a	b
+-1	1
+connection slave;
+include/start_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+# There should not be any prepared rows seen by XA RECOVER
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+# Ensuring data from second XAP isn't visible..
+# ..done
+connection slave;
+include/stop_slave_io.inc
+set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
+set @@global.slave_transaction_retries= @save_trans_retries;
+# Ensure on slave restart, we can re-execute the XA transaction
+include/start_slave.inc
+include/save_master_gtid.inc
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+include/start_slave.inc
+# Ensuring data from second XAP is visible..
+# ..done
+# Cleanup
+connection slave;
+set debug_sync='RESET';
+set @@global.debug_dbug= @save_debug;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int primary key, b int) engine=innodb
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (-1, 0)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	XA START X'7831',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (0, 0)
+master-bin.000001	#	Query	#	#	XA END X'7831',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7831',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'7831',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'7832',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (1, 0)
+master-bin.000001	#	Query	#	#	XA END X'7832',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7832',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'7832',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (2, 1)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (3, 2)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=b+1 where a=-1
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=b+1 where a=-1
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (4, 0)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
+connection slave;
+include/sync_with_master_gtid.inc
+show binlog events in 'slave-bin.000001' from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid_list	2	#	[]
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
+include/stop_slave.inc
+set @@GLOBAL.slave_parallel_threads= @save_par_thds;
+set @@GLOBAL.slave_parallel_mode= @save_par_mode;
+include/start_slave.inc
+#
+# Initialize test data
+connection slave;
+include/stop_slave.inc
+connection master;
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 values (-1, 0);
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @save_debug= @@GLOBAL.debug_dbug;
+set @save_par_thds= @@GLOBAL.slave_parallel_threads;
+set @save_par_mode= @@GLOBAL.slave_parallel_mode;
+set @@GLOBAL.slave_parallel_threads= 4;
+set @@GLOBAL.slave_parallel_mode= optimistic;
+set statement sql_log_bin=0 for call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+#
+# Test Case 1-ROLLBACK:
+# If two XA ROLLBACK transactions have different
+# XIDs, ensure both phases of both transactions all execute concurrently.
+#
+connection slave;
+set @@global.debug_dbug= "+d,stop_before_binlog_prepare,stop_after_binlog_prepare";
+connection master;
+set @@session.gtid_seq_no= 200 + (1 * 1000);
+XA START 'x1';
+insert into t1 values (0, 0);
+XA END 'x1';
+XA PREPARE 'x1';
+XA ROLLBACK 'x1';
+XA START 'x2';
+insert into t1 values (1, 0);
+XA END 'x2';
+XA PREPARE 'x2';
+XA ROLLBACK 'x2';
+connection slave;
+include/start_slave.inc
+must be \Empty
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+set debug_sync= "now signal binlog_xap";
+# Make a stop at a point where XA PREPARE (both) have completed (binlogged):
+set debug_sync= "now wait_for xa_prepare_binlogged";
+# prove XA-ROLLBACK 'x1' has completed too
+SELECT 'x1' = 'x1';
+'x1' = 'x1'
+1
+# cleanup: release the seq_no 200 XAP
+set debug_sync= "now signal continue_xap";
+# Proof of the full master-slave sync
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+connection slave;
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+#
+# Test Case 2-ROLLBACK:
+# Two concurrent 2-phase XA transactions with matching XIDs
+# should run one after the other.
+#
+connection slave;
+set @@global.debug_dbug= "+d,stop_before_binlog_prepare,stop_after_binlog_prepare";
+connection master;
+set @@session.gtid_seq_no= 300 + (1 * 1000);
+XA START 'x';
+insert into t1 values (2, 1);
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';
+XA START 'x';
+insert into t1 values (3, 2);
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+# states of workers at the first XAP near binlogging are expected to be as the following
+set debug_sync= "now signal binlog_xap";
+# Once the first XA PREPARE has binlogged..
+set debug_sync= "now wait_for xa_prepare_binlogged";
+SELECT 'x' = 'x';
+'x' = 'x'
+1
+# cleanup: signal XA PREPARE to leave the stage
+set debug_sync= "now signal continue_xap";
+# Proof of the full master-slave sync
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+connection slave;
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+#
+# Test Case 3-ROLLBACK (Error Case):
+# If an XA PREPARE errors while its
+# XA ROLLBACK is waiting on it, both phases should rollback
+# successfully. Note this tests both:
+#    a) XA ROLLBACK is waiting in group commit (first phase
+#       times out in DMLs)
+#    b) XA ROLLBACK is waiting in group commit, with another XAP
+#       with a duplicate XID waiting on it.
+# Case a)
+# Ensure slave is stopped
+connection slave;
+include/wait_for_slave_to_stop.inc
+set @save_lock_wait_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+set @save_trans_retries= @@GLOBAL.slave_transaction_retries;
+set @@global.innodb_lock_wait_timeout= 1;
+set @@global.slave_transaction_retries= 0;
+connection master;
+XA START 'x';
+update t1 set b=b+1 where a=-1;
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';
+include/save_master_gtid.inc
+connection slave1;
+BEGIN;
+select * from t1 where a=-1 for update;;
+a	b
+-1	0
+connection slave;
+include/start_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+connection slave;
+include/stop_slave_io.inc
+set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
+set @@global.slave_transaction_retries= @save_trans_retries;
+# Ensure on slave restart, we can re-execute the XA transaction
+include/start_slave.inc
+include/save_master_gtid.inc
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+# Case b)
+# Ensure slave is stopped
+connection slave;
+include/wait_for_slave_to_stop.inc
+set @save_lock_wait_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+set @save_trans_retries= @@GLOBAL.slave_transaction_retries;
+set @@global.innodb_lock_wait_timeout= 1;
+set @@global.slave_transaction_retries= 0;
+connection master;
+XA START 'x';
+update t1 set b=b+1 where a=-1;
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';
+XA START 'x';
+insert into t1 values (4, 0);
+XA END 'x';
+XA PREPARE 'x';
+include/save_master_gtid.inc
+XA ROLLBACK 'x';
+connection slave1;
+BEGIN;
+select * from t1 where a=-1 for update;;
+a	b
+-1	0
+connection slave;
+include/start_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+# There should not be any prepared rows seen by XA RECOVER
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+# Ensuring data from second XAP isn't visible..
+# ..done
+connection slave;
+include/stop_slave_io.inc
+set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
+set @@global.slave_transaction_retries= @save_trans_retries;
+# Ensure on slave restart, we can re-execute the XA transaction
+include/start_slave.inc
+include/save_master_gtid.inc
+include/stop_slave.inc
+set @@global.debug_dbug= @save_debug;
+include/start_slave.inc
+# Ensuring data from second XAP is visible..
+# ..done
+# Cleanup
+connection slave;
+set debug_sync='RESET';
+set @@global.debug_dbug= @save_debug;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int primary key, b int) engine=innodb
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (-1, 0)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	XA START X'7831',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (0, 0)
+master-bin.000001	#	Query	#	#	XA END X'7831',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7831',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'7831',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'7832',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (1, 0)
+master-bin.000001	#	Query	#	#	XA END X'7832',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7832',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'7832',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (2, 1)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (3, 2)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=b+1 where a=-1
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=b+1 where a=-1
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (4, 0)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA COMMIT X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int primary key, b int) engine=innodb
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (-1, 0)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	XA START X'7831',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (0, 0)
+master-bin.000001	#	Query	#	#	XA END X'7831',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7831',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'7831',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'7832',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (1, 0)
+master-bin.000001	#	Query	#	#	XA END X'7832',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7832',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'7832',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (2, 1)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (3, 2)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=b+1 where a=-1
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=b+1 where a=-1
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'78',X'',1
+master-bin.000001	#	Gtid	#	#	XA START X'78',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (4, 0)
+master-bin.000001	#	Query	#	#	XA END X'78',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'78',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
+connection slave;
+include/sync_with_master_gtid.inc
+show binlog events in 'slave-bin.000001' from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid_list	2	#	[]
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
+include/stop_slave.inc
+set @@GLOBAL.slave_parallel_threads= @save_par_thds;
+set @@GLOBAL.slave_parallel_mode= @save_par_mode;
+include/start_slave.inc
+#
+# Test Case 5: If an XAP is skipped by the replica (e.g. by incorrectly
+# setting gtid_slave_pos), and only its XAC/XAR is tried to execute, the
+# replica should report ER_XAER_NOTA.
+connection master;
+create table t1 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+call mtr.add_suppression("XAER_NOTA: Unknown XID");
+include/stop_slave.inc
+change master to master_use_gtid = slave_pos;
+connection master;
+xa start '1';
+insert into t1 set a=1;
+xa end '1';
+xa prepare '1';
+xa rollback '1';
+insert into t1 set a=2;
+include/save_master_gtid.inc
+connection slave;
+set @save_gtid_slave_pos= @@global.gtid_slave_pos;
+SELECT CONCAT(domain_id,"-",server_id,"-", seq_no + 1)
+into @gtid_skip
+FROM mysql.gtid_slave_pos
+WHERE seq_no = (SELECT DISTINCT max(seq_no) FROM mysql.gtid_slave_pos) limit 1;
+set @@global.gtid_slave_pos = @gtid_skip;
+start slave;
+include/wait_for_slave_sql_error.inc [errno=1397]
+select count(*) = 2 % 2 as 'must be true' from t1;;
+must be true
+1
+include/stop_slave.inc
+set @@global.gtid_slave_pos = @save_gtid_slave_pos;
+show warnings;
+Level	Code	Message
+Warning	1947	Specified GTID <value> conflicts with the binary log which contains a more recent GTID <value>. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+change master to master_use_gtid = slave_pos;
+connection master;
+xa start '1';
+insert into t1 set a=1;
+xa end '1';
+xa prepare '1';
+xa commit '1';
+insert into t1 set a=2;
+include/save_master_gtid.inc
+connection slave;
+set @save_gtid_slave_pos= @@global.gtid_slave_pos;
+SELECT CONCAT(domain_id,"-",server_id,"-", seq_no + 1)
+into @gtid_skip
+FROM mysql.gtid_slave_pos
+WHERE seq_no = (SELECT DISTINCT max(seq_no) FROM mysql.gtid_slave_pos) limit 1;
+set @@global.gtid_slave_pos = @gtid_skip;
+start slave;
+include/wait_for_slave_sql_error.inc [errno=1397]
+select count(*) = 1 % 2 as 'must be true' from t1;;
+must be true
+1
+include/stop_slave.inc
+set @@global.gtid_slave_pos = @save_gtid_slave_pos;
+show warnings;
+Level	Code	Message
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection master;
+drop table t1;
+connection slave;
+include/rpl_end.inc
+# End of rpl_xa_concurrent_2pc.test
