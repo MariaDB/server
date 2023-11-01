@@ -5271,6 +5271,18 @@ SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' )
 f
 2019-01-01 00:00:00F}^i
 #
+# MDEV-31184 Remove parser tokens DECODE_MARIADB_SYM and DECODE_ORACLE_SYM
+#
+SELECT DECODE();
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
+SELECT DECODE(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
+SELECT DECODE(NULL,NULL);
+DECODE(NULL,NULL)
+NULL
+SELECT DECODE(NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
+#
 # End of 10.4 tests
 #
 #

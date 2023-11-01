@@ -528,7 +528,7 @@ static void buf_dblwr_check_page_lsn(const page_t* page, const fil_space_t& s)
 
 static void buf_dblwr_check_page_lsn(const buf_page_t &b, const byte *page)
 {
-  if (fil_space_t *space= fil_space_t::get(b.id().space()))
+  if (fil_space_t *space= fil_space_t::get_for_write(b.id().space()))
   {
     buf_dblwr_check_page_lsn(page, *space);
     space->release();
