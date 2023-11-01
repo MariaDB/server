@@ -5682,8 +5682,6 @@ void THD::set_examined_row_count(ha_rows count)
 void THD::inc_sent_row_count(ha_rows count)
 {
   m_sent_row_count+= count;
-  DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
-                  m_examined_row_count= (ULONGLONG_MAX - 1000000););
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
