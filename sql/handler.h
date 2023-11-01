@@ -5378,7 +5378,7 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
 
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);
-int ha_commit_or_rollback_by_xid(XID *xid, bool commit);
+int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd);
 int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
@@ -5515,5 +5515,12 @@ bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
+my_bool xacommit_handlerton(THD *unused1, plugin_ref plugin, void *arg);
+my_bool xarollback_handlerton(THD *unused1, plugin_ref plugin, void *arg);
+struct xahton_st {
+  XID *xid;
+  int result;
+};
+
 
 #endif /* HANDLER_INCLUDED */
