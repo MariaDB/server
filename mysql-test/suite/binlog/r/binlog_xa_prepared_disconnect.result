@@ -11,6 +11,8 @@ XA START   'trx1tmp';
 INSERT INTO tmp1 SET a=1;
 XA END     'trx1tmp';
 XA PREPARE 'trx1tmp';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -18,6 +20,8 @@ XA START   'trx2tmp';
 INSERT INTO tmp1 SET a=1;
 XA END     'trx2tmp';
 XA PREPARE 'trx2tmp';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -25,6 +29,8 @@ XA START   'trx3tmp';
 INSERT INTO tmp1 SET a=1;
 XA END     'trx3tmp';
 XA PREPARE 'trx3tmp';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connection default;
 XA COMMIT 'trx1tmp';
 ERROR XAE04: XAER_NOTA: Unknown XID
@@ -36,9 +42,6 @@ connection default;
 *** 3 prepared transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
 connection conn1tmp;
 disconnect conn1tmp;
 connection default;
@@ -52,6 +55,8 @@ a
 100
 XA END     'trx1ro';
 XA PREPARE 'trx1ro';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2ro';
 SELECT * from t ORDER BY a;
@@ -59,6 +64,8 @@ a
 100
 XA END     'trx2ro';
 XA PREPARE 'trx2ro';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3ro';
 SELECT * from t ORDER BY a;
@@ -66,14 +73,12 @@ a
 100
 XA END     'trx3ro';
 XA PREPARE 'trx3ro';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connection default;
 *** 4 prepared transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
 connection conn1ro;
 disconnect conn1ro;
 connection default;
@@ -84,23 +89,24 @@ connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1empty';
 XA END     'trx1empty';
 XA PREPARE 'trx1empty';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2empty';
 XA END     'trx2empty';
 XA PREPARE 'trx2empty';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3empty';
 XA END     'trx3empty';
 XA PREPARE 'trx3empty';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connection default;
 *** 5 prepared transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
 connection conn1empty;
 disconnect conn1empty;
 connection default;
@@ -480,6 +486,8 @@ XA START   'trx1tmp';
 INSERT INTO tmp1 SET a=1;
 XA END     'trx1tmp';
 XA PREPARE 'trx1tmp';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -487,6 +495,8 @@ XA START   'trx2tmp';
 INSERT INTO tmp1 SET a=1;
 XA END     'trx2tmp';
 XA PREPARE 'trx2tmp';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -494,6 +504,8 @@ XA START   'trx3tmp';
 INSERT INTO tmp1 SET a=1;
 XA END     'trx3tmp';
 XA PREPARE 'trx3tmp';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connection default;
 XA COMMIT 'trx1tmp';
 ERROR XAE04: XAER_NOTA: Unknown XID
@@ -505,9 +517,6 @@ connection default;
 *** 3 prepared transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
 connection conn1tmp;
 disconnect conn1tmp;
 connection default;
@@ -541,6 +550,8 @@ a
 100
 XA END     'trx1ro';
 XA PREPARE 'trx1ro';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2ro';
 SELECT * from t ORDER BY a;
@@ -568,6 +579,8 @@ a
 100
 XA END     'trx2ro';
 XA PREPARE 'trx2ro';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3ro';
 SELECT * from t ORDER BY a;
@@ -595,14 +608,12 @@ a
 100
 XA END     'trx3ro';
 XA PREPARE 'trx3ro';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connection default;
 *** 4 prepared transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
 connection conn1ro;
 disconnect conn1ro;
 connection default;
@@ -613,23 +624,24 @@ connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1empty';
 XA END     'trx1empty';
 XA PREPARE 'trx1empty';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2empty';
 XA END     'trx2empty';
 XA PREPARE 'trx2empty';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3empty';
 XA END     'trx3empty';
 XA PREPARE 'trx3empty';
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 connection default;
 *** 5 prepared transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
-1	LEN1	LEN2	TRX_N
 connection conn1empty;
 disconnect conn1empty;
 connection default;

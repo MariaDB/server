@@ -1998,7 +1998,7 @@ inline size_t serialize_with_xid(XID *xid, char *buf,
 
 
 /**
-  This function flushes the trx-cache upon commit.
+  This function flushes the trx-cache at commit or XA-PREPARE.
 
   @param thd                The thread whose transaction should be flushed
   @param cache_mngr         Pointer to the cache manager
@@ -2012,24 +2012,40 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
 {
   DBUG_ENTER("binlog_commit_flush_trx_cache");
 
-  const char query[]= "XA COMMIT ";
-  const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-  char buf[q_len + ser_buf_size]= "COMMIT";
-  size_t buflen= sizeof("COMMIT") - 1;
-
-  if (thd->lex->sql_command == SQLCOM_XA_COMMIT &&
-      thd->lex->xa_opt != XA_ONE_PHASE)
+  if (thd->lex->sql_command == SQLCOM_XA_PREPARE)
   {
-    DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
-    DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
-                XA_PREPARED);
+    XID *xid= thd->transaction->xid_state.get_xid();
+    cache_mngr->using_xa= FALSE;  // need not engine commit ordered
+    XA_prepare_log_event end_evt(thd, xid, FALSE);
 
-    buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                               buf, query, q_len);
+    DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all,
+                                   FALSE, TRUE, ro_1pc));
   }
-  Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
+  else
+  {
+    const char query[]= "XA COMMIT ";
+    const size_t q_len= sizeof(query) - 1; // do not count trailing 0
+    char buf[q_len + ser_buf_size]= "COMMIT";
+    size_t buflen= sizeof("COMMIT") - 1;
+    bool using_stmt_cache= true;
 
-  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE, ro_1pc));
+    if (thd->lex->sql_command == SQLCOM_XA_COMMIT &&
+        thd->lex->xa_opt != XA_ONE_PHASE)
+    {
+      DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
+      DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
+                  XA_PREPARED);
+
+      buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
+                                 buf, query, q_len);
+      cache_mngr->using_xa= TRUE;   // to take part in group commit
+      using_stmt_cache= false;
+    }
+    Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
+
+    DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all,
+                                   using_stmt_cache, TRUE, ro_1pc));
+  }
 }
 
 
@@ -2057,6 +2073,7 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
     if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
       buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
                                  buf, query, q_len);
+    cache_mngr->using_xa= TRUE;
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
@@ -2157,15 +2174,106 @@ inline bool is_preparing_xa(THD *thd)
     thd->lex->sql_command == SQLCOM_XA_PREPARE;
 }
 
+/**
+  Decide whether to log XA-Prepare into binary log for a prepared user XA
+  transaction that has at least one (callers must not invoke it otherwise)
+  rw engine branch.
+  Having no binlog branch it still may get logged as "empty" group of events
+  constisting of XA stanzas only for recovery purpose.
+  For that a binlog branch of the transaction is registered and
+  formally set to read-write. The branch deregistration will happen along
+  with that of engines branches.
 
-static int binlog_prepare(THD *thd, bool all)
+  @retval
+  -1   an error
+   1   when has binlog branch or XA-prepare is RW in engine
+   0   otherwise.
+*/
+inline int have_to_log_preparing_xa(THD *thd)
 {
-  /* Do nothing unless the transaction is a user XA. */
-  return is_preparing_xa(thd) ? binlog_commit(thd, all, FALSE) : 0;
+  int rc= has_binlog_hton(thd->transaction->all.ha_list);
+
+  if ((rc == 0 && opt_bin_log) &&
+      (!thd->slave_thread || thd->is_current_stmt_binlog_disabled()))
+  {
+#ifndef DBUG_OFF
+    uint rw_ha_count= 0;
+    for (Ha_trx_info * ha_info= thd->transaction->all.ha_list; ha_info;
+	 ha_info= ha_info->next())
+    {
+      if (ha_info->is_trx_read_write() && ha_info->ht()->prepare)
+	++rw_ha_count;
+    }
+    DBUG_ASSERT(rw_ha_count > 0);
+#endif
+    /*
+      Binlog-ignored db master and !log-slave-updates slave fall
+      in this block for binlog-based recovery.
+      The prepared XA is going to be logged as "empty".
+    */
+    THD_TRANS *ptr_trans= &thd->transaction->all;
+    thd->ha_data[binlog_hton->slot].ha_info[1].register_ha(ptr_trans,
+                                                           binlog_hton);
+    thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+    rc= 1;
+  }
+  if (rc == 1)
+  {
+    binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+    XID *xid= thd->transaction->xid_state.get_xid();
+    {
+      /*
+        Log the XA END event first.
+        We don't do that in trans_xa_end() as XA COMMIT ONE PHASE
+        is logged as simple BEGIN/COMMIT so the XA END should
+        not get to the log.
+      */
+      const char query[]= "XA END ";
+      const size_t q_len= sizeof(query) - 1; // do not count trailing 0
+      char buf[q_len + ser_buf_size];
+      size_t buflen;
+      binlog_cache_data *cache_data;
+      IO_CACHE *file;
+
+      memcpy(buf, query, q_len);
+      buflen= q_len +
+        strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
+      cache_data= cache_mngr->get_binlog_cache_data(true);
+      file= &cache_data->cache_log;
+      thd->lex->sql_command= SQLCOM_XA_END;
+      Query_log_event xa_end(thd, buf, buflen, true, false, true, 0);
+      if (unlikely(mysql_bin_log.write_event(&xa_end, cache_data, file)))
+      {
+        mysql_bin_log.set_write_error(thd, true);
+        rc= -1;
+      }
+      thd->lex->sql_command= SQLCOM_XA_PREPARE;
+    }
+  }
+  return rc;
 }
 
+/**
+  Does nothing in the normal transaction case.
+  In the user XA the image of the prepared transaction is binlogged.
+  @retval
+  0        as normal
+  non-zero as an error
+*/
+static int binlog_prepare(THD *thd, bool all)
+{
+  int rc= 0;
+  /* Do nothing unless the transaction is a user XA. */
+  if (is_preparing_xa(thd))
+  {
+    rc= have_to_log_preparing_xa(thd);
+    if (rc == 1)
+      rc= binlog_commit(thd, all, FALSE);
+  }
+  return rc;
+}
 
-int binlog_commit_by_xid(XID *xid)
+inline int binlog_complete_by_xid(handlerton *hton, XID *xid, bool is_commit)
 {
   int rc= 0;
   THD *thd= current_thd;
@@ -2176,8 +2284,9 @@ int binlog_commit_by_xid(XID *xid)
   }
 
   /* the asserted state can't be reachable with xa commit */
-  DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
-              thd->get_stmt_da()->sql_errno() != ER_XA_RBROLLBACK);
+  DBUG_ASSERT(!is_commit ||
+              (!thd->get_stmt_da()->is_error() ||
+               thd->get_stmt_da()->sql_errno() != ER_XA_RBROLLBACK));
   /*
     This is a recovered user xa transaction commit.
     Create a "temporary" binlog transaction to write the commit record
@@ -2187,47 +2296,44 @@ int binlog_commit_by_xid(XID *xid)
   trans.ha_list= NULL;
 
   thd->ha_data[binlog_tp.slot].ha_info[1].register_ha(&trans, &binlog_tp);
-  thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
-  (void) thd->binlog_setup_trx_data();
+  thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+  cache_mngr->using_xa= TRUE; // just as normal trx take part in group commit
 
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
-
-  rc= binlog_commit(thd, TRUE, FALSE);
+  rc= is_commit ?
+    binlog_commit(thd, TRUE, FALSE) : binlog_rollback(thd, TRUE);
   thd->ha_data[binlog_tp.slot].ha_info[1].reset();
 
   return rc;
 }
 
+int binlog_commit_by_xid(XID *xid)
+{
+  THD *thd= current_thd;
+
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
+
+  if (thd->is_current_stmt_binlog_disabled())
+  {
+    return thd->wait_for_prior_commit();
+  }
+  return binlog_complete_by_xid(xid, true);
+}
 
 int binlog_rollback_by_xid(XID *xid)
 {
   int rc= 0;
   THD *thd= current_thd;
 
-  if (thd->is_current_stmt_binlog_disabled())
-  {
-    return thd->wait_for_prior_commit();
-  }
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+              (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
 
   if (thd->get_stmt_da()->is_error() &&
       thd->get_stmt_da()->sql_errno() == ER_XA_RBROLLBACK)
     return rc;
 
-  THD_TRANS trans;
-  trans.ha_list= NULL;
-
-  thd->ha_data[binlog_tp.slot].ha_info[1].register_ha(&trans, &binlog_tp);
-  thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
-  (void) thd->binlog_setup_trx_data();
-
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
-              (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
-  rc= binlog_rollback(thd, TRUE);
-  thd->ha_data[binlog_tp.slot].ha_info[1].reset();
-
-  return rc;
+  return binlog_complete_by_xid(xid, false);
 }
-
 
 inline bool is_prepared_xa(THD *thd)
 {
@@ -2263,45 +2369,10 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 }
 
 
-/**
-  Specific log flusher invoked through log_xa_prepare().
-*/
-static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
-                                          binlog_cache_mngr *cache_mngr)
+inline bool is_binlog_read_write(THD *thd)
 {
-  XID *xid= thd->transaction->xid_state.get_xid();
-  {
-    // todo assert wsrep_simulate || is_open()
-
-    /*
-      Log the XA END event first.
-      We don't do that in trans_xa_end() as XA COMMIT ONE PHASE
-      is logged as simple BEGIN/COMMIT so the XA END should
-      not get to the log.
-    */
-    const char query[]= "XA END ";
-    const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-    char buf[q_len + ser_buf_size];
-    size_t buflen;
-    binlog_cache_data *cache_data;
-    IO_CACHE *file;
-
-    memcpy(buf, query, q_len);
-    buflen= q_len +
-      strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
-    cache_data= cache_mngr->get_binlog_cache_data(true);
-    file= &cache_data->cache_log;
-    thd->lex->sql_command= SQLCOM_XA_END;
-    Query_log_event xa_end(thd, buf, buflen, true, false, true, 0);
-    if (mysql_bin_log.write_event(&xa_end, cache_data, file))
-      return 1;
-    thd->lex->sql_command= SQLCOM_XA_PREPARE;
-  }
-
-  cache_mngr->using_xa= FALSE;
-  XA_prepare_log_event end_evt(thd, xid, FALSE);
-
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
+  return (thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
+          thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write());
 }
 
 
@@ -2368,44 +2439,40 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 #endif /* WITH_WSREP */
       error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
-  if (cache_mngr->trx_cache.empty() &&
-      (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
-       !(thd->ha_data[binlog_tp.slot].ha_info[1].is_started() &&
-         thd->ha_data[binlog_tp.slot].ha_info[1].is_trx_read_write())))
+  if (cache_mngr->trx_cache.empty() && !is_prepared_xa(thd) /* ! XA-COMMIT */)
   {
     /*
-      This is an empty transaction commit (both the regular and xa),
-      or such transaction xa-prepare or
-      either one's statement having no effect on the transactional cache
-      as any prior to it.
-      The empty xa-prepare sinks in only when binlog is read-only.
-    */
+      This is an empty transaction/statement commit (both the regular and xa),
+      or the xa transaction is running XA-COMPLETE in which case
+      its binlog branch must be read-write.
+     */
     cache_mngr->reset(false, true);
     THD_STAGE_INFO(thd, org_stage);
     DBUG_RETURN(error);
   }
+  else
+  {
+    // XA-commmit time empty cache is marked read-write for further logging
+    DBUG_ASSERT(!is_prepared_xa(thd) || is_binlog_read_write(thd));
+  }
 
   /*
-    We commit the transaction if:
+    We commit the transaction and log its changes if:
      - We are not in a transaction and committing a statement, or
-     - We are in a transaction and a full transaction is committed.
+     - We are in a transaction and a full transaction is committed;
+    We also log the trx cache of a being prepared XA transaction.
     Otherwise, we accumulate the changes.
   */
   if (likely(!error) && is_ending_transaction)
   {
-    bool is_xa_prepare= is_preparing_xa(thd);
-
-    error= is_xa_prepare ?
-      binlog_commit_flush_xa_prepare(thd, all, cache_mngr) :
-      binlog_commit_flush_trx_cache (thd, all, cache_mngr, ro_1pc);
-      // the user xa is unlogged on common exec path with the "empty" xa case
-      if (cache_mngr->need_unlog && !is_xa_prepare)
-      {
-        error=
-          mysql_bin_log.unlog(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
-                                                 cache_mngr->delayed_error), 1);
-        cache_mngr->need_unlog= false;
-      }
+    error= binlog_commit_flush_trx_cache (thd, all, cache_mngr, ro_1pc);
+    if (cache_mngr->need_unlog)
+    {
+      error=
+        mysql_bin_log.unlog(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
+                                               cache_mngr->delayed_error), 1);
+      cache_mngr->need_unlog= false;
+    }
   }
   else if (thd->lock)
   {
@@ -2468,16 +2535,16 @@ static int binlog_rollback(THD *thd, bool all)
   }
 
   if (!cache_mngr->trx_cache.has_incident() && cache_mngr->trx_cache.empty() &&
-      (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
-       !(thd->ha_data[binlog_tp.slot].ha_info[1].is_started() &&
-         thd->ha_data[binlog_tp.slot].ha_info[1].is_trx_read_write())))
+      (!is_prepared_xa(thd) /* || !is_binlog_read_write(thd) */))
   {
-    /*
-      The same comments apply as in the binlog commit method's branch.
-    */
+    // see a similar brach in the binlog commit
     cache_mngr->reset(false, true);
     thd->reset_binlog_for_next_statement();
     DBUG_RETURN(error);
+  }
+  else
+  {
+    DBUG_ASSERT(!is_prepared_xa(thd) || is_binlog_read_write(thd));
   }
   if (!wsrep_emulate_bin_log && Event_log::check_write_error(thd))
   {
@@ -2486,8 +2553,9 @@ static int binlog_rollback(THD *thd, bool all)
       this function was called. However, this must not happen as a rollback
       is written directly to the binary log. And in auto-commit mode, a single
       statement that is rolled back has the flag all == false.
+      An errored "all == true" XA-PREPARE can turn in this block though.
     */
-    DBUG_ASSERT(!all);
+    DBUG_ASSERT(!all || is_preparing_xa(thd));
     /*
       We reach this point if the effect of a statement did not properly get into
       a cache and need to be rolled back.
@@ -8512,7 +8580,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.all= all;
   entry.using_stmt_cache= using_stmt_cache;
   entry.using_trx_cache= using_trx_cache;
-  entry.need_unlog= is_preparing_xa(thd);
+  entry.need_unlog= 0;
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
   entry.end_event= end_ev;
@@ -10251,15 +10319,83 @@ TC_LOG::run_prepare_ordered(THD *thd, bool all)
   }
 }
 
+/*
+  The user XA completion in group commit.
+  The completion - XA-COMMIT or XA-ROLLBACK goes along one of two braches,
+  depending on which of native or external connection the operation is issued.
+*/
+inline void run_xa_complete_ordered(THD *thd)
+{
+  Ha_trx_info *ha_info= thd->transaction->all.ha_list;
 
+  if (!ha_info)
+  {
+    // slave or master's xa-"complete" external
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT ||
+                thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
+
+    XID *xid= thd->transaction->xid_state.get_xid();
+    bool commit= thd->lex->sql_command == SQLCOM_XA_COMMIT;
+    struct xahton_st xaop= { xid, 1 };
+
+    plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
+                   MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
+
+    return;
+  }
+  for (; ha_info; ha_info= ha_info->next())
+  {
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT ||
+                (thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+                 (thd->lex->sql_command == SQLCOM_PRELOAD_KEYS &&
+		  thd->get_stmt_da()->get_sql_errno() /* MDEV-32455 */)));
+
+    handlerton *ht= ha_info->ht();
+    if (ht == binlog_hton)
+      continue;
+    if (thd->lex->sql_command == SQLCOM_XA_COMMIT)
+    {
+      if (ht->commit_ordered)
+        ht->commit_ordered(ht, thd, true);
+    }
+    else
+    {
+      DBUG_ASSERT((thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+                   (thd->lex->sql_command == SQLCOM_PRELOAD_KEYS && thd->get_stmt_da()->get_sql_errno() /* MDEV-32455 */)) ||
+                  thd->transaction->xid_state.get_error() ==
+                  ER_XA_RBROLLBACK);
+
+      ht->rollback(ht, thd, true);
+    }
+  }
+}
+
+/*
+  The function executes the fast part of ordered commit in engine branches
+  for normal and XA transactions, as well as the entirety of XA rollback.
+*/
 void
 TC_LOG::run_commit_ordered(THD *thd, bool all)
 {
-  Ha_trx_info *ha_info=
-    all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
-
   mysql_mutex_assert_owner(&LOCK_commit_ordered);
-  for (; ha_info; ha_info= ha_info->next())
+
+  if (thd->transaction->xid_state.is_explicit_XA() &&
+      likely(thd->transaction->xid_state.get_state_code() != XA_ACTIVE))
+  {
+    DBUG_ASSERT(all);
+    run_xa_complete_ordered(thd);
+
+    return;
+  }
+  else
+  {
+    DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA() ||
+                thd->transaction->xid_state.get_error() > 0);
+  }
+
+  for (Ha_trx_info *ha_info= all ?
+         thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
+       ha_info; ha_info= ha_info->next())
   {
     transaction_participant *ht= ha_info->ht();
     if (!ht->commit_ordered)
@@ -10273,7 +10409,6 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
     DEBUG_SYNC(thd, "commit_after_run_commit_ordered");
   }
 }
-
 
 int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
                                bool need_prepare_ordered,
@@ -11389,49 +11524,6 @@ int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
   */
   DBUG_RETURN(BINLOG_COOKIE_GET_ERROR_FLAG(cookie));
 }
-
-static bool write_empty_xa_prepare(THD *thd, binlog_cache_mngr *cache_mngr)
-{
-  return binlog_commit_flush_xa_prepare(thd, true, cache_mngr);
-}
-
-int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
-{
-  DBUG_ASSERT(is_preparing_xa(thd));
-
-  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
-  int cookie= 0;
-
-  if (!cache_mngr->need_unlog)
-  {
-    Ha_trx_info *ha_info;
-    uint rw_count= ha_count_rw_all(thd, &ha_info);
-    bool rc= false;
-
-    /*
-      This transaction has not been binlogged as indicated by need_unlog.
-      Such exceptional cases include transactions with no effect to engines,
-      e.g REPLACE that does not change the dat but still the Engine
-      transaction branch claims to be rw, and few more.
-      In all such cases an empty XA-prepare group of events is bin-logged.
-    */
-    if (rw_count > 0)
-    {
-      /* an empty XA-prepare event group is logged */
-      rc= write_empty_xa_prepare(thd, cache_mngr); // normally gains need_unlog
-      trans_register_ha(thd, true, &binlog_tp, 0); // do it for future commmit
-      thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
-    }
-    if (rw_count == 0 || !cache_mngr->need_unlog)
-      return rc;
-  }
-
-  cookie= BINLOG_COOKIE_MAKE(cache_mngr->binlog_id, cache_mngr->delayed_error);
-  cache_mngr->need_unlog= false;
-
-  return unlog(cookie, 1);
-}
-
 
 void
 TC_LOG_BINLOG::commit_checkpoint_notify(void *cookie)

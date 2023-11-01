@@ -59,6 +59,8 @@ xa start 'ro_2';
 select count(*) into @s2 from t1;
 xa end 'ro_2';
 xa prepare 'ro_2';;
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect master_ro_2;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -68,6 +70,8 @@ select 1;
 1
 xa end 'ro_1';
 xa prepare 'ro_1';;
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect master_ro_1;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -75,6 +79,8 @@ xa start 'ro_2';
 select count(*) into @s2 from t1;
 xa end 'ro_2';
 xa prepare 'ro_2';;
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect master_ro_2;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -84,17 +90,17 @@ select 1;
 1
 xa end 'ro_1';
 xa prepare 'ro_1';;
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect master_ro_1;
-*** 2 prepared xa:s must be in the list:
+*** Zero prepared xa:s must be in the list:
 connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-1	4	0	ro_1
-1	4	0	ro_2
 *** Zero prepared xa:s must be in the list:
 xa recover;
 formatID	gtrid_length	bqual_length	data
-*** At the end of read-only section gtid list has 0 more compare with previous check:
+*** At the end of the above read-only section gtid list must not change from the previous check:
 flush logs;
 show binlog events in 'master-bin.000003' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -114,6 +120,9 @@ connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
 1	12	0	rw_no_binlog
+set @@session.sql_log_bin = 0;
+xa $complete '$xid';
+set @@session.sql_log_bin = 1;
 *** Zero must be in the list:
 connection master;
 xa recover;
@@ -122,7 +131,7 @@ formatID	gtrid_length	bqual_length	data
 flush logs;
 show binlog events in 'master-bin.000004' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000004	#	Gtid_list	1	#	[0-1-13]
+master-bin.000004	#	Gtid_list	1	#	[0-1-12]
 connection master;
 create table t3 (a int) engine=innodb;
 *** the disconnected prepare case
@@ -162,7 +171,7 @@ formatID	gtrid_length	bqual_length	data
 flush logs;
 show binlog events in 'master-bin.000005' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000005	#	Gtid_list	1	#	[0-1-18]
+master-bin.000005	#	Gtid_list	1	#	[0-1-17]
 create table tm (a int) engine=myisam;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -170,6 +179,8 @@ xa start 'rw_myisam';
 insert into tm set a=1;
 xa end 'rw_myisam';
 xa prepare 'rw_myisam';;
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect master_rw_myisam;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -177,20 +188,30 @@ xa start 'rw_myisam';
 insert into tm set a=1;
 xa end 'rw_myisam';
 xa prepare 'rw_myisam';;
+Warnings:
+Note	4183	Found to be read-only XA transaction is rolled back
 disconnect master_rw_myisam;
 *** rw_myisam prepared must be in the list:
 connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-1	9	0	rw_myisam
 *** Zero prepared xa:s must be in the list:
 xa recover;
 formatID	gtrid_length	bqual_length	data
-*** At the end of MyISAM "xa" section gtid list has 7 more compare with previous check:
+*** At the end of MyISAM "xa" section gtid list has 3 more compare with previous check:
 flush logs;
 show binlog events in 'master-bin.000006' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000006	#	Gtid_list	1	#	[0-1-25]
+master-bin.000006	#	Gtid_list	1	#	[0-1-20]
+set @@session.sql_log_bin = OFF;
+connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
+xa start 'skip_binlog';
+insert into t2 values(1);
+xa end 'skip_binlog';
+xa prepare 'skip_binlog';;
+xa $complete '$xid';
+set @@session.sql_log_bin = ON;
+disconnect master_skip_binlog;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
 set @@session.sql_log_bin = OFF;
 xa start 'skip_binlog';
@@ -215,7 +236,7 @@ formatID	gtrid_length	bqual_length	data
 flush logs;
 show binlog events in 'master-bin.000007' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000007	#	Gtid_list	1	#	[0-1-25]
+master-bin.000007	#	Gtid_list	1	#	[0-1-22]
 connection slave;
 include/sync_with_master_gtid.inc
 connection master;

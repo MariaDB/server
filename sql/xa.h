@@ -39,6 +39,9 @@ struct XID_STATE {
   void er_xaer_rmfail() const;
   XID *get_xid() const;
   enum xa_states get_state_code() const;
+#ifndef DBUG_OFF
+  uint get_error();
+#endif
 };
 
 void xid_cache_init(void);

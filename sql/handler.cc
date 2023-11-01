@@ -1534,9 +1534,15 @@ int ha_prepare(THD *thd)
 
   if (ha_info)
   {
-    for (; ha_info; ha_info= ha_info->next())
+    int err;
+    bool is_rw;
+
+    for (is_rw= false; ha_info; ha_info= ha_info->next())
     {
       transaction_participant *ht= ha_info->ht();
+
+      if (ht == &binlog_tp)
+        continue;
       if (ht->prepare)
       {
         if (unlikely(prepare_or_error(ht, thd, all)))
@@ -1546,6 +1552,7 @@ int ha_prepare(THD *thd)
           error=1;
           break;
         }
+	is_rw= is_rw || ha_info->is_trx_read_write();
       }
       else
       {
@@ -1556,17 +1563,25 @@ int ha_prepare(THD *thd)
 
       }
     }
-
-    DEBUG_SYNC(thd, "at_unlog_xa_prepare");
-
-    if (tc_log->unlog_xa_prepare(thd, all))
+    // engine read-only must proceed into binlogging by slave applier
+    if (!is_rw && !thd->rgi_slave)
+    {
+      goto ro_xa;
+    }
+    else if (binlog_tp.prepare && (err= prepare_or_error(&binlog_tp, thd, all)))
     {
       ha_rollback_trans(thd, all);
-      error=1;
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
+      goto err;
     }
   }
-  else if (thd->rgi_slave)
+  else
   {
+ro_xa:
+    if (!thd->rgi_slave)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_XA_RDONLY, ER_THD(thd, ER_XA_RDONLY));
     /*
       Slave threads will always process XA COMMITs in the binlog handler (see
       MDEV-25616 and MDEV-30423), so if this is a slave thread preparing a
@@ -1582,6 +1597,7 @@ int ha_prepare(THD *thd)
     thd->transaction->xid_state.set_rollback_only();
   }
 
+err:
   DBUG_RETURN(error);
 }
 
@@ -2170,7 +2186,7 @@ static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
   return !rw_trans;
 }
 
-static bool has_binlog_hton(Ha_trx_info *ha_info)
+bool has_binlog_hton(Ha_trx_info *ha_info)
 {
   bool rc;
   for (rc= false; ha_info && !rc; ha_info= ha_info->next())
@@ -2336,11 +2352,22 @@ int ha_rollback_trans(THD *thd, bool all)
     if (is_real_trans)                          /* not a statement commit */
       thd->stmt_map.close_transient_cursors();
 
+    int err;
+    bool has_binlog= has_binlog_hton(ha_info);
+
+    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK ||
+                thd->transaction->xid_state.is_explicit_XA());
+
+    if (has_binlog && (err= binlog_hton->rollback(binlog_hton, thd, all)))
+    {
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
+    }
     for (; ha_info; ha_info= ha_info_next)
     {
-      int err;
       transaction_participant *ht= ha_info->ht();
-      if ((err= ht->rollback(thd, all)))
+      if ((ht != binlog_hton) &&
+          (err= ht->rollback(ht, thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -2427,14 +2454,9 @@ int ha_rollback_trans(THD *thd, bool all)
 }
 
 
-struct xahton_st {
-  XID *xid;
-  int result;
-};
-
-static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
+bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  if (hton->recover)
+  if (hton->recover && hton != &binlog_tp)
   {
     hton->commit_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
@@ -2442,9 +2464,9 @@ static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
   return FALSE;
 }
 
-static bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
+bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  if (hton->recover)
+  if (hton->recover && hton != &binlog_tp)
   {
     hton->rollback_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
@@ -2453,22 +2475,28 @@ static bool xarollback_handlerton(THD *, transaction_participant *hton, void *ar
 }
 
 
-int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
+int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd)
 {
-  struct xahton_st xaop;
-  xaop.xid= xid;
-  xaop.result= 1;
+  struct xahton_st xaop= { xid, 1 };
+  bool skip_binlog= thd->is_current_stmt_binlog_disabled();
 
-  /*
-    When the binlogging service is enabled complete the transaction
-    by it first.
-  */
-  if (commit)
-    binlog_commit_by_xid(xid);
+  if (!skip_binlog)
+  {
+    // when binlog is ON start from its transaction branch
+    if (commit)
+      binlog_commit_by_xid(&binlog_tp, xid);
+    else
+      binlog_rollback_by_xid(&binlog_tp, xid);
+  }
   else
-    binlog_rollback_by_xid(xid);
-
-  tp_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton, &xaop);
+  {
+    int rc= thd->wait_for_prior_commit();
+    if (!rc)
+    {
+      tp_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
+                 &xaop);
+    }
+  }
 
   return xaop.result;
 }

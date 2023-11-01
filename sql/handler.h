@@ -5715,7 +5715,7 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
 
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);
-int ha_commit_or_rollback_by_xid(XID *xid, bool commit);
+int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd);
 int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
@@ -5851,6 +5851,13 @@ inline void Cost_estimate::reset(handler *file)
   reset();
   avg_io_cost= file->DISK_READ_COST * file->DISK_READ_RATIO;
 }
+bool xacommit_handlerton(THD *unused1,  transaction_participant *hton, void *arg);
+bool xarollback_handlerton(THD *unused1, transaction_participant *hton, void *arg);
+struct xahton_st {
+  XID *xid;
+  int result;
+};
+bool has_binlog_hton(Ha_trx_info *ha_info);
 
 int get_select_field_pos(Alter_info *alter_info, bool versioned);
 
