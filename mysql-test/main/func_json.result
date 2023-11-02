@@ -1646,5 +1646,16 @@ SELECT JSON_OBJECTAGG('\\', 1);
 JSON_OBJECTAGG('\\', 1)
 {"\\":1}
 #
+# MDEV-24784 JSON_ARRAYAGG charset issue
+#
+set names utf8;
+select json_arrayagg('ä'), json_objectagg(1, 'ä');
+json_arrayagg('ä')	json_objectagg(1, 'ä')
+["ä"]	{"1":"ä"}
+set names latin1;
+select json_arrayagg('ä'), json_objectagg(1, 'ä');
+json_arrayagg('ä')	json_objectagg(1, 'ä')
+["ä"]	{"1":"ä"}
+#
 # End of 10.5 tests
 #
