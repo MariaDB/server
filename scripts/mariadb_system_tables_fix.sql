@@ -64,14 +64,16 @@ ALTER TABLE tables_priv ENGINE=Aria transactional=1;
 ALTER TABLE columns_priv ENGINE=Aria transactional=1;
 ALTER TABLE roles_mapping ENGINE=Aria transactional=1;
 ALTER TABLE plugin ENGINE=Aria transactional=1;
-ALTER TABLE servers ENGINE=Aria transactional=1;
+ALTER TABLE servers ENGINE=Aria transactional=1,
+  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 ALTER TABLE time_zone_name ENGINE=Aria transactional=1;
 ALTER TABLE time_zone ENGINE=Aria transactional=1;
 ALTER TABLE time_zone_transition ENGINE=Aria transactional=1;
 ALTER TABLE time_zone_transition_type ENGINE=Aria transactional=1;
 ALTER TABLE time_zone_leap_second ENGINE=Aria transactional=1;
 ALTER TABLE proc ENGINE=Aria transactional=1;
-ALTER TABLE event ENGINE=Aria transactional=1;
+ALTER TABLE event ENGINE=Aria transactional=1,
+  DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
 
 -- The following tables doesn't have to be transactional
@@ -218,6 +220,12 @@ ALTER TABLE user
   MODIFY User char(128) binary NOT NULL default '',
   ENGINE=Aria, CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
 
+ALTER TABLE plugin
+  MODIFY name varchar(64) COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
+  MODIFY dl varchar(128) COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
+  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+
+
 # In MySQL 5.7.6 the Password column is removed. Recreate it to preserve the number
 # of columns MariaDB expects in the user table.
 ALTER TABLE user
@@ -321,11 +329,6 @@ ALTER TABLE slow_log
   MODIFY sql_text MEDIUMTEXT NOT NULL,
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
 SET GLOBAL log_slow_query = @old_log_state;
-
-ALTER TABLE plugin
-  MODIFY name varchar(64) COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
-  MODIFY dl varchar(128) COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
-  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 
 #
 # Detect whether we had Create_view_priv
@@ -486,11 +489,11 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             'SIMULTANEOUS_ASSIGNMENT',
                             'TIME_ROUND_FRACTIONAL'
                             ) DEFAULT '' NOT NULL,
-                 DEFAULT CHARACTER SET utf8mb3;
+                 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 
 # Correct the character set and collation
 # Reset some fields after the conversion
-ALTER TABLE proc CONVERT TO CHARACTER SET utf8mb3,
+ALTER TABLE proc CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
                   MODIFY db char(64) binary DEFAULT '' NOT NULL,
                   MODIFY definer varchar(384) binary DEFAULT '' NOT NULL,
                   MODIFY comment text binary NOT NULL;
@@ -576,13 +579,13 @@ UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhos
 SET @hadEventPriv := 0;
 SELECT @hadEventPriv :=1 FROM user WHERE Event_priv IS NOT NULL;
 
-ALTER TABLE user ADD Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
-ALTER TABLE user MODIFY Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
+ALTER TABLE user ADD Event_priv enum('N','Y') character set utf8mb3 COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_user_priv;
+ALTER TABLE user MODIFY Event_priv enum('N','Y') character set utf8mb3 COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_user_priv;
 
 UPDATE user SET Event_priv=Super_priv WHERE @hadEventPriv = 0;
 
-ALTER TABLE db ADD Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL;
-ALTER TABLE db MODIFY Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL;
+ALTER TABLE db ADD Event_priv enum('N','Y') character set utf8mb3 COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE db MODIFY Event_priv enum('N','Y') character set utf8mb3 COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
 
 #
 # EVENT table
@@ -628,17 +631,29 @@ ALTER TABLE event MODIFY sql_mode
                             'SIMULTANEOUS_ASSIGNMENT',
                             'TIME_ROUND_FRACTIONAL'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
-ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8mb3 NOT NULL default '';
+ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL default '';
 ALTER TABLE event MODIFY db  CHAR(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '';
+
+ALTER TABLE event MODIFY interval_field
+                          enum('YEAR','QUARTER','MONTH','DAY','HOUR',
+                               'MINUTE','WEEK','SECOND','MICROSECOND',
+                               'YEAR_MONTH','DAY_HOUR','DAY_MINUTE',
+                               'DAY_SECOND','HOUR_MINUTE','HOUR_SECOND',
+                               'MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND',
+                               'MINUTE_MICROSECOND','SECOND_MICROSECOND'
+                          ) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL;
+
 ALTER TABLE event MODIFY comment CHAR(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '';
 
+ALTER TABLE event MODIFY on_completion enum('DROP','PRESERVE')
+      CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'DROP';
 
 ALTER TABLE event ADD COLUMN originator INT UNSIGNED NOT NULL AFTER comment;
 ALTER TABLE event MODIFY COLUMN originator INT UNSIGNED NOT NULL;
 
 ALTER TABLE event MODIFY COLUMN status ENUM('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL default 'ENABLED';
 
-ALTER TABLE event ADD COLUMN time_zone char(64) CHARACTER SET latin1
+ALTER TABLE event ADD COLUMN time_zone char(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci
         NOT NULL DEFAULT 'SYSTEM' AFTER originator;
 
 ALTER TABLE event ADD character_set_client

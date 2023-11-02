@@ -865,7 +865,7 @@ String *Item_func_json_quote::val_str(String *str)
 bool Item_func_json_unquote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb3_general_ci,
-                DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+                DERIVATION_CAST, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_char_length() * collation.collation->mbmaxlen;
   set_maybe_null();
   return FALSE;

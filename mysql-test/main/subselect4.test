@@ -2289,7 +2289,7 @@ set names 'utf8mb4';
 EXPLAIN
 SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
 
-set names 'utf8';
+set names utf8 collate utf8_general_ci;
 --echo #
 --echo # IN predicate to IN subquery is performed as materialization is llowed
 --echo # The character set on the inner side is a proper subset of the outer side

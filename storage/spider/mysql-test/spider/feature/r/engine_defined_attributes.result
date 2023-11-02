@@ -93,7 +93,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `a` int(11) NOT NULL,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=1
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=1
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 ERROR HY000: Table 'auto_test_local.tbl_a' is read only
 SELECT * FROM tbl_a;
@@ -251,7 +251,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `a` int(11) NOT NULL,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=1
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=1
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 ERROR HY000: Table 'auto_test_local.tbl_a' is read only
 SELECT * FROM tbl_a;
@@ -270,7 +270,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `a` int(11) NOT NULL,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=1
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=1
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 ERROR HY000: Table 'auto_test_local.tbl_a' is read only
 ALTER TABLE tbl_a READ_ONLY=0;
@@ -281,7 +281,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `a` int(11) NOT NULL,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=0
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci `REMOTE_SERVER`='s_2_1' `REMOTE_TABLE`='tbl_a' `READ_ONLY`=0
 SELECT * FROM tbl_a;
 a	b
 1	aaa

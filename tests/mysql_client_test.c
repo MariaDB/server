@@ -17438,7 +17438,7 @@ static void test_bug30472()
   DIE_UNLESS(strcmp(character_set_name_4, "utf8mb3") == 0);
   DIE_UNLESS(strcmp(character_set_client_4, "utf8mb3") == 0);
   DIE_UNLESS(strcmp(character_set_results_4, "utf8mb3") == 0);
-  DIE_UNLESS(strcmp(collation_connnection_4, "utf8mb3_general_ci") == 0);
+  DIE_UNLESS(strcmp(collation_connnection_4, "utf8mb3_uca1400_ai_ci") == 0);
 
   /* That's it. Cleanup. */
 
@@ -20532,7 +20532,7 @@ static void test_mdev14454()
 {
   myheader("test_mdev14454");
   test_mdev14454_internal("SET NAMES latin1", 8, "test\xFF");
-  test_mdev14454_internal("SET NAMES utf8", 33, "test\xC3\xBF");
+  test_mdev14454_internal("SET NAMES utf8 COLLATE utf8_general_ci", 33, "test\xC3\xBF");
 }
 
 

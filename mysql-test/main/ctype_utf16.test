@@ -34,7 +34,7 @@ select hex(_utf16 0x113344);
 # low byte. The second character is THREE-PER-M, U+2004,
 # which contains 0x20 in the high byte.
 
-CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf16;
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf16 COLLATE utf16_general_ci;
 INSERT INTO t1 VALUES (_koi8r 0xF2, _koi8r 0xF2), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 SELECT hex(word2) FROM t1 ORDER BY word2;
@@ -830,8 +830,8 @@ SET NAMES utf8;
 set collation_connection=utf16_general_ci;
 --source include/weight_string.inc
 --source include/weight_string_euro.inc
-select hex(weight_string(_utf16 0xD800DC00));
-select hex(weight_string(_utf16 0xD800DC01));
+select hex(weight_string(_utf16 0xD800DC00 COLLATE utf16_general_ci));
+select hex(weight_string(_utf16 0xD800DC01 COLLATE utf16_general_ci));
 --source include/weight_string_l1.inc
 
 set collation_connection=utf16_bin;
@@ -894,7 +894,8 @@ SET NAMES utf8, character_set_connection=utf16;
 --echo #
 CREATE TABLE t1 (
   id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  a VARCHAR(10) CHARACTER SET utf16, KEY(a,id)
+  a VARCHAR(10) CHARACTER SET utf16 COLLATE utf16_general_ci,
+  KEY(a,id)
 );
 INSERT INTO t1 (a) VALUES (_utf8mb4 0x61);
 INSERT INTO t1 (a) VALUES (_utf8mb4 0xC280),(_utf8mb4 0xDFBF);

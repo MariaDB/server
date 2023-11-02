@@ -20,7 +20,7 @@ mariadb_backup_history	CREATE TABLE `mariadb_backup_history` (
   `format` enum('file','tar','xbstream') DEFAULT NULL,
   `compressed` enum('Y','N') DEFAULT NULL,
   PRIMARY KEY (`uuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SELECT COUNT(*) FROM mysql.mariadb_backup_history;
 COUNT(*)
 1

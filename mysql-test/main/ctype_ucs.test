@@ -34,7 +34,7 @@ drop table t1;
 # which contains 0x20 in the high byte.
 #
 
-CREATE TABLE t1 (word VARCHAR(64) CHARACTER SET ucs2, word2 CHAR(64) CHARACTER SET ucs2);
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
 INSERT INTO t1 VALUES (_koi8r'ò',_koi8r'ò'), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 SELECT hex(word2) FROM t1 ORDER BY word2;

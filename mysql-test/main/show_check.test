@@ -710,7 +710,7 @@ CREATE FUNCTION f1() RETURNS INT RETURN 1;
 
 # Test.
 
-set names utf8;
+set names utf8 collate utf8_general_ci;
 
 --echo -- Here we enable metadata just to check that the collation of the
 --echo -- resultset is non-binary for string type. This should be changed

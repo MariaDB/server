@@ -62,7 +62,7 @@ INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
 INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
-SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 class	ch	ch RLIKE class
 [[:alpha:]]	1	0
 [[:alpha:]]	A	1
@@ -436,7 +436,7 @@ CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_REPLACE('abc','b','x');
@@ -739,7 +739,7 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_SUBSTR('abc','b');

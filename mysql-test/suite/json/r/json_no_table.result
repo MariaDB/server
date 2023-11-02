@@ -3622,3 +3622,18 @@ GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
 FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
 j
 [null, null, null, null, "1", "2"]
+#
+# Start of 11.4 tests
+#
+#
+# MDEV-25829 Change default collation to utf8mb4_1400_ai_ci
+#
+SELECT
+JSON_UNQUOTE("String"),
+COERCIBILITY(JSON_UNQUOTE("String")),
+COLLATION(JSON_UNQUOTE("String"));
+JSON_UNQUOTE("String")	COERCIBILITY(JSON_UNQUOTE("String"))	COLLATION(JSON_UNQUOTE("String"))
+String	4	utf8mb3_general_ci
+#
+# End of 11.4 tests
+#

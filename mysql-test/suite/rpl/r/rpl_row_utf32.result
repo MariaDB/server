@@ -40,7 +40,7 @@ include/wait_for_slave_sql_error.inc [errno=1677]
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1 ORDER BY a;
 a
@@ -67,7 +67,7 @@ include/wait_for_slave_sql_error.inc [errno=1677]
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(1) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` char(1) CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1 ORDER BY a;
 a

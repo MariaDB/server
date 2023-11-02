@@ -1041,7 +1041,7 @@ name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
   )
 ) AS jt;
 collation(name)
-utf8mb4_general_ci
+utf8mb4_uca1400_ai_ci
 SELECT collation(name)
 FROM json_table('[{"name":"Jeans"}]', '$[*]'
   COLUMNS(
@@ -1121,7 +1121,7 @@ name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
 ) AS jt;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
 DROP VIEW v1;
 CREATE VIEW v1 AS
 SELECT * FROM

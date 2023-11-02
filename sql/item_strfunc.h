@@ -2016,7 +2016,7 @@ public:
   Item_func_expr_str_metadata(THD *thd, Item *a): Item_str_func(thd, a) { }
   bool fix_length_and_dec(THD *thd) override
   {
-     collation.set(system_charset_info_for_i_s);
+     collation.set(system_charset_info_for_i_s, DERIVATION_SYSCONST);
      max_length= 64 * collation.collation->mbmaxlen; // should be enough
      base_flags&= ~item_base_t::MAYBE_NULL;
      return FALSE;

@@ -1,0 +1,52 @@
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+--source include/ctype_special_chars.inc
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+
+--echo #
+--echo # Start of 5.6 tests
+--echo #
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+
+--echo #
+--echo # End of 5.6 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+#
+# Testing regexp
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+--source include/ctype_regex.inc
+--source include/ctype_regex_utf8.inc
+
+#
+# MDEV-7149 Constant condition propagation erroneously applied for LIKE
+#
+--source include/ctype_like_cond_propagation.inc
+--source include/ctype_like_cond_propagation_utf8_german.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

@@ -878,7 +878,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 create table t1 (a mediumtext character set latin1);
 alter table t1 convert to character set utf8;
@@ -886,7 +886,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 End of 5.0 tests
 drop table if exists t1, t2, t3;
@@ -1353,7 +1353,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1365,7 +1365,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL DEFAULT 2
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1377,7 +1377,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1390,7 +1390,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 #
 # BUG#27788685: NO WARNING WHEN TRUNCATING A STRING WITH DATA LOSS
@@ -2201,7 +2201,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-15308

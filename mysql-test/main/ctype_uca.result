@@ -6479,6 +6479,9 @@ c
 ch
 drop table t1;
 set collation_connection=ucs2_unicode_ci;
+#
+# Bug#31081 server crash in regexp function
+#
 drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2

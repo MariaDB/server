@@ -1840,7 +1840,7 @@ CREATE TABLE t1 (
   db varchar(254) NOT NULL DEFAULT '',
   PRIMARY KEY (id),
   UNIQUE KEY db (db)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 INSERT INTO t1 (db) VALUES ('mysqltest1'),('mysqltest2'),('mysqltest3'),('mysqltest4');
 
 --disable_warnings
