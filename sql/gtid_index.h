@@ -136,6 +136,10 @@
 class Gtid_index_base
 {
 public:
+  /* +4 for ".idx" prefix. */
+  static constexpr size_t GTID_INDEX_FILENAME_MAX_SIZE= FN_REFLEN+4;
+
+protected:
   enum enum_page_flags {
     /* Set for a leaf node page, cleared for an interior node page. */
     PAGE_FLAG_IS_LEAF= 1,
@@ -161,8 +165,6 @@ public:
   static constexpr uchar GTID_INDEX_VERSION_MINOR= 0;
   static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 16;
   static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 8;
-  /* +4 for ".idx" prefix. */
-  static constexpr size_t GTID_INDEX_FILENAME_MAX_SIZE= FN_REFLEN+4;
 
 #ifdef _MSC_VER
 /*
@@ -195,8 +197,11 @@ public:
     void reset();
   };
 
+public:
   static void make_gtid_index_file_name(char *out_name, size_t bufsize,
                                         const char *base_filename);
+
+protected:
   int update_gtid_state(rpl_binlog_state_base *state,
                         const rpl_gtid *gtid_list, uint32 gtid_count);
   Node_page *alloc_page();
@@ -211,6 +216,7 @@ public:
   rpl_gtid *gtid_buffer;
   uint32 gtid_buffer_alloc;
   size_t page_size;
+public:
   char index_file_name[GTID_INDEX_FILENAME_MAX_SIZE];
 
 protected:
@@ -221,7 +227,7 @@ protected:
 
 class Gtid_index_writer : public Gtid_index_base
 {
-public:
+private:
   const uint32 gtid_threshold;
   const my_off_t offset_min_threshold;
   const my_off_t offset_max_threshold;
@@ -238,25 +244,31 @@ public:
     void reset();
   };
 
+public:
   static void gtid_index_init();
   static void gtid_index_cleanup();
+protected:
+  friend class Gtid_index_reader;
   static void lock_gtid_index() { mysql_mutex_lock(&gtid_index_mutex); }
   static void unlock_gtid_index() { mysql_mutex_unlock(&gtid_index_mutex); }
   static const Gtid_index_writer *find_hot_index(const char *file_name);
 
+public:
   Gtid_index_writer(const char *filename, uint32 offset,
                     rpl_binlog_state_base *binlog_state,
                     uint32 opt_page_size, uint32 opt_sparse,
                     my_off_t opt_span_min, my_off_t opt_span_max);
   virtual ~Gtid_index_writer();
-  void insert_in_hot_index();
-  void remove_from_hot_index();
   void process_gtid(uint32 offset, const rpl_gtid *gtid);
   int process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
                                rpl_gtid **out_gtid_list,
                                uint32 *out_gtid_count);
   int async_update(uint32 event_offset, rpl_gtid *gtid_list, uint32 gtid_count);
   void close();
+
+private:
+  void insert_in_hot_index();
+  void remove_from_hot_index();
   uint32 write_current_node(uint32 level, bool is_root);
   int reserve_space(Index_node *n, size_t bytes);
   int do_write_record(uint32 level, uint32 event_offset,
@@ -325,6 +337,7 @@ public:
                       uint32 *out_gtid_count);
   rpl_gtid *search_gtid_list();
 
+private:
   int search_cmp_offset(uint32 offset, rpl_binlog_state_base *state);
   int search_cmp_gtid_pos(uint32 offset, rpl_binlog_state_base *state);
   int do_index_search(uint32 *out_offset, uint32 *out_gtid_count);
