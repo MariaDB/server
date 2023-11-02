@@ -98,6 +98,8 @@ public:
     struct queue_item *new_item;
 
     new_item= (struct queue_item *) my_malloc(sizeof(struct queue_item), MYF(0));
+    if (!new_item)
+      return;
 
     new_item->payload= payload;
 
@@ -291,7 +293,11 @@ public:
   {
     DBUG_ASSERT(!current);
     if (unlikely(enabled))
-      current= new QUERY_PROFILE(this, initial_state);
+    {
+      QUERY_PROFILE *new_profile= new QUERY_PROFILE(this, initial_state);
+      if (new_profile)
+        current= new_profile;
+    }
   }
 
   void discard_current_query();
