@@ -284,7 +284,7 @@ id	name	val
 32	mn	63616161616161616161616161616161
 32	mx	63616161616161616161616161616161
 32	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci;
 INSERT INTO t1 (a) VALUES (_ucs2 0x0425),(_ucs2 0x045F);
 INSERT INTO t1 (a) VALUES (_ucs2 0x2525),(_ucs2 0x5F5F);
 SELECT * FROM v1;
@@ -1021,7 +1021,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -1903,7 +1903,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -2638,7 +2638,7 @@ id	name	val
 36	mn	5F5F
 36	mx	5F5F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -3520,7 +3520,7 @@ id	name	val
 36	mn	5F5F
 36	mx	5F5F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	

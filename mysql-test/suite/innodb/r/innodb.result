@@ -2265,7 +2265,7 @@ t1	CREATE TABLE `t1` (
   KEY `t` (`t`(5))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-create table t1 (v char(10) character set utf8);
+create table t1 (v char(10) character set utf8 collate utf8_general_ci);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2322,7 +2322,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET sql_mode = default;

@@ -103,8 +103,8 @@ ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER 
 --disable_warnings
 UPDATE IGNORE t2 SET u=a, a2=u;
 --enable_warnings
-SELECT s as unassigned_code FROM t2 WHERE u='?';
-DELETE FROM t2 WHERE u='?';
+SELECT s as unassigned_code FROM t2 WHERE u=binary'?';
+DELETE FROM t2 WHERE u=binary'?';
 # Make sure there are no euckr->utf8->euckr roundtrip problems
 SELECT count(*) as roundtrip_problem_chars FROM t2 WHERE hex(a) <> hex(a2);
 SELECT s, hex(a), hex(u), hex(a2) FROM t2 ORDER BY s;

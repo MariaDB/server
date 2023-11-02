@@ -2244,7 +2244,7 @@ FE80
 DELETE FROM t2 WHERE a='?';
 ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER SET euckr;
 UPDATE IGNORE t2 SET u=a, a2=u;
-SELECT s as unassigned_code FROM t2 WHERE u='?';
+SELECT s as unassigned_code FROM t2 WHERE u=binary'?';
 unassigned_code
 A2E8
 A2E9
@@ -7626,7 +7626,7 @@ FEFB
 FEFC
 FEFD
 FEFE
-DELETE FROM t2 WHERE u='?';
+DELETE FROM t2 WHERE u=binary'?';
 SELECT count(*) as roundtrip_problem_chars FROM t2 WHERE hex(a) <> hex(a2);
 roundtrip_problem_chars
 0

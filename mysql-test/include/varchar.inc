@@ -216,7 +216,7 @@ drop table t1;
 create table t1 (v varchar(10), c char(10), t text, key(v(5)), key(c(5)), key(t(5)));
 show create table t1;
 drop table t1;
-create table t1 (v char(10) character set utf8);
+create table t1 (v char(10) character set utf8 collate utf8_general_ci);
 show create table t1;
 drop table t1;
 

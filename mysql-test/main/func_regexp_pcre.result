@@ -32,9 +32,9 @@ SELECT 'à' RLIKE '\\x{00C0}' COLLATE utf8_bin;
 SELECT 'À' RLIKE '\\x{00C0}' COLLATE utf8_bin;
 'À' RLIKE '\\x{00C0}' COLLATE utf8_bin
 1
-CREATE TABLE t1 (s VARCHAR(10) CHARACTER SET utf8);
+CREATE TABLE t1 (s VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_general_ci);
 INSERT INTO t1 VALUES ('a'),('A');
-CREATE TABLE t2 (p VARCHAR(10) CHARACTER SET utf8);
+CREATE TABLE t2 (p VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_general_ci);
 INSERT INTO t2 VALUES ('a'),('(?i)a'),('(?-i)a'),('A'),('(?i)A'),('(?-i)A');
 SELECT s,p,s RLIKE p, s COLLATE utf8_bin RLIKE p FROM t1,t2 ORDER BY BINARY s, BINARY p;
 s	p	s RLIKE p	s COLLATE utf8_bin RLIKE p
@@ -51,8 +51,8 @@ a	(?i)a	1	1
 a	A	1	0
 a	a	1	1
 DROP TABLE t1,t2;
-CREATE TABLE t1 (ch VARCHAR(22)) CHARACTER SET utf8;
-CREATE TABLE t2 (class VARCHAR(32)) CHARACTER SET utf8;
+CREATE TABLE t1 (ch VARCHAR(22)) CHARACTER SET utf8 COLLATE utf8_general_ci;
+CREATE TABLE t2 (class VARCHAR(32)) CHARACTER SET utf8 COLLATE utf8_general_ci;
 INSERT INTO t1 VALUES ('Я'),('Σ'),('A'),('À');
 INSERT INTO t1 VALUES ('я'),('σ'),('a'),('à');
 INSERT INTO t1 VALUES ('㐗'),('갷'),('ප');
@@ -436,7 +436,7 @@ CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_REPLACE('abc','b','x');
@@ -739,7 +739,7 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_SUBSTR('abc','b');

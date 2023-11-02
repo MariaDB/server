@@ -11,7 +11,7 @@ Table	Create Table
 memos	CREATE TABLE `memos` (
   `content` varchar(32) DEFAULT NULL,
   FULLTEXT KEY `content_index` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SELECT * FROM memos WHERE MATCH(content) AGAINST("groonga");
 content
 Starting Groonga...

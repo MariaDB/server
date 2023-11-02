@@ -40,7 +40,7 @@ select hex(_utf32 X'103344');
 # which contains 0x20 in the high byte.
 #
 
-CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf32;
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf32 COLLATE utf32_general_ci;
 INSERT INTO t1 VALUES (_koi8r 0xF2, _koi8r 0xF2), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 SELECT hex(word2) FROM t1 ORDER BY word2;
@@ -99,7 +99,7 @@ SET character_set_connection=utf32;
 
 SET NAMES utf8;
 SET character_set_connection=utf32;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32 COLLATE utf32_general_ci);
 INSERT INTO t1 VALUES ('фыва'),('Фыва'),('фЫва'),('фыВа'),('фывА'),('ФЫВА');
 INSERT INTO t1 VALUES ('фывапролдж'),('Фывапролдж'),('фЫвапролдж'),('фыВапролдж');
 INSERT INTO t1 VALUES ('фывАпролдж'),('фываПролдж'),('фывапРолдж'),('фывапрОлдж');
@@ -950,8 +950,8 @@ set sql_mode=default;
 set collation_connection=utf32_general_ci;
 --source include/weight_string.inc
 --source include/weight_string_euro.inc
-select hex(weight_string(_utf32 0x10000));
-select hex(weight_string(_utf32 0x10001));
+select hex(weight_string(_utf32 0x10000 collate utf32_general_ci));
+select hex(weight_string(_utf32 0x10001 collate utf32_general_ci));
 --source include/weight_string_l1.inc
 
 set collation_connection=utf32_bin;
@@ -1017,11 +1017,11 @@ SET NAMEs utf8, character_set_connection=utf32;
 --echo # MDEV-8419 utf32: compare broken bytes as "greater than any non-broken character"
 --echo #
 # Make sure that all non-BMP characters are compared as equal
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32, KEY(a));
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32 COLLATE utf32_general_ci, KEY(a));
 INSERT INTO t1 VALUES (0x10000),(0x10001),(0x10002);
 SELECT COUNT(DISTINCT a) FROM t1;
 DROP TABLE t1;
-SELECT _utf32 0x10001=_utf32 0x10002;
+SELECT _utf32 0x10001=_utf32 0x10002 COLLATE utf32_general_ci;
 
 --echo #
 --echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)

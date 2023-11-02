@@ -710,7 +710,7 @@ CREATE FUNCTION f1() RETURNS INT RETURN 1;
 
 # Test.
 
-set names utf8;
+set names utf8 collate utf8_general_ci;
 
 --echo -- Here we enable metadata just to check that the collation of the
 --echo -- resultset is non-binary for string type. This should be changed
@@ -1005,7 +1005,7 @@ CREATE TABLE t1 (
  Provincia varchar(255) default NULL,
  Poblacion varchar(255) default NULL,
  PRIMARY KEY  (Codigo)
-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 --enable_metadata
 show create table t1;
 --disable_metadata

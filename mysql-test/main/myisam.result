@@ -1675,7 +1675,7 @@ t1	CREATE TABLE `t1` (
   KEY `t` (`t`(5))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-create table t1 (v char(10) character set utf8);
+create table t1 (v char(10) character set utf8 collate utf8_general_ci);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1725,7 +1725,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
-create table t1 (v varchar(65530) character set utf8);
+create table t1 (v varchar(65530) character set utf8 collate utf8_general_ci);
 Warnings:
 Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
@@ -2405,7 +2405,7 @@ c2 CHAR(10) DEFAULT NULL,
 c3 VARCHAR(10) NOT NULL,
 KEY (c1),
 KEY (c2)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 PACK_KEYS=0;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE utf8_general_ci PACK_KEYS=0;
 
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Packed

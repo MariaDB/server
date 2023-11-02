@@ -2493,6 +2493,14 @@ EXPLAIN EXTENDED SELECT
   CONVERT('a' USING binary),
   BINARY'a';
 
+--vertical_results
+SELECT
+  coercibility(collation('a')),
+  coercibility(charset('a')),
+  coercibility(user()),
+  coercibility(database());
+--horizontal_results
+
 --echo #
 --echo # End of 11.4 tests
 --echo #

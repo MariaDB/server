@@ -47,6 +47,26 @@ fts_string_dup(
 }
 
 /******************************************************************//**
+Duplicate a string with lower case conversion */
+UNIV_INLINE
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,			/*!< in: the character set */
+	const fts_string_t&	src,		/*!< in: src string */
+	mem_heap_t*		heap)		/*!< in: heap to use */
+{
+	size_t nbytes = src.f_len * cs->casedn_multiply();
+	fts_string_t dst;
+	dst.f_str = (byte*)mem_heap_alloc(heap, nbytes + 1);
+	dst.f_len = cs->cset->casedn(cs, (const char *) src.f_str, src.f_len,
+					(char *) dst.f_str, nbytes);
+	dst.f_str[dst.f_len] = 0;
+	dst.f_n_char = src.f_n_char;
+	return dst;
+}
+
+/******************************************************************//**
 Compare two fts_trx_row_t doc_ids.
 @return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
 UNIV_INLINE

@@ -241,15 +241,6 @@ thd_lock_wait_timeout(
 			the global innodb_lock_wait_timeout */
 
 /******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*	p1,		/*!< in: key */
-	const void*	p2);		/*!< in: node */
-
-/******************************************************************//**
 Returns true if transaction should be flagged as read-only.
 @return true if the thd is marked as read-only */
 bool

@@ -31,7 +31,7 @@ SET NAMES utf8;
 
 CREATE TABLE users (
   id int PRIMARY KEY
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 ALTER TABLE users
   ADD COLUMN 名前 text,
   ADD FULLTEXT INDEX (名前);

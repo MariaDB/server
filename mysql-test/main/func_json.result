@@ -414,6 +414,13 @@ select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld f
 fld
 {"foo": "{\"bar\": \"abc\"}", "qux": "abc"}
 {"foo": "{\"bar\": \"def\"}", "qux": "def"}
+create table t2 as select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1 limit 0;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `fld` varchar(39) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t2;
 drop table t1;
 select json_object("a", json_object("b", "abcd"));
 json_object("a", json_object("b", "abcd"))

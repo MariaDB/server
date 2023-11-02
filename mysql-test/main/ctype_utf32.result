@@ -47,7 +47,7 @@ hex(_utf32 X'3344')
 select hex(_utf32 X'103344');
 hex(_utf32 X'103344')
 00103344
-CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf32;
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf32 COLLATE utf32_general_ci;
 INSERT INTO t1 VALUES (_koi8r 0xF2, _koi8r 0xF2), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 hex(word)
@@ -100,8 +100,8 @@ RPAD(_utf32 X'0420',10,_utf32 X'0421') r;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `l` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL,
-  `r` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `l` varchar(10) CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL,
+  `r` varchar(10) CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select hex(l), hex(r) from t1;
 hex(l)	hex(r)
@@ -240,7 +240,7 @@ select 'AMZ'like 'A%M%Z';
 1
 SET NAMES utf8;
 SET character_set_connection=utf32;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32 COLLATE utf32_general_ci);
 INSERT INTO t1 VALUES ('фыва'),('Фыва'),('фЫва'),('фыВа'),('фывА'),('ФЫВА');
 INSERT INTO t1 VALUES ('фывапролдж'),('Фывапролдж'),('фЫвапролдж'),('фыВапролдж');
 INSERT INTO t1 VALUES ('фывАпролдж'),('фываПролдж'),('фывапРолдж'),('фывапрОлдж');
@@ -509,7 +509,7 @@ create table t1 (a enum('x','y','z') character set utf32);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` enum('x','y','z') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
@@ -523,7 +523,7 @@ alter table t1 change a a enum('x','y','z','d','e','ä','ö','ü') character set
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('D');
 insert into t1 values ('E ');
@@ -545,7 +545,7 @@ create table t1 (a set ('x','y','z','ä','ö','ü') character set utf32);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
@@ -1291,14 +1291,14 @@ Note	1246	Converting column 'a' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` mediumtext CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a varchar(250) character set utf32 primary key);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(250) CHARACTER SET utf32 COLLATE utf32_general_ci NOT NULL,
+  `a` varchar(250) CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -1528,11 +1528,11 @@ s4 LONGTEXT CHARACTER SET utf32
 SET NAMES utf8mb4, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	s1	s1	252	255	0	Y	16	0	60
-def	test	t1	t1	s2	s2	252	65535	0	Y	16	0	60
-def	test	t1	t1	s3	s3	252	16777215	0	Y	16	0	60
-def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	60
-def					HEX(s1)	253	8160	0	Y	0	0	45
+def	test	t1	t1	s1	s1	252	255	0	Y	16	0	160
+def	test	t1	t1	s2	s2	252	65535	0	Y	16	0	160
+def	test	t1	t1	s3	s3	252	16777215	0	Y	16	0	160
+def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	160
+def					HEX(s1)	253	8160	0	Y	0	0	224
 s1	s2	s3	s4	HEX(s1)
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
@@ -1546,17 +1546,17 @@ s1	s2	s3	s4	HEX(s1)
 SET NAMES utf8mb4;
 SELECT *, HEX(s1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	s1	s1	252	252	0	Y	16	0	45
-def	test	t1	t1	s2	s2	252	65532	0	Y	16	0	45
-def	test	t1	t1	s3	s3	252	16777212	0	Y	16	0	45
-def	test	t1	t1	s4	s4	252	4294967292	0	Y	16	0	45
-def					HEX(s1)	253	8160	0	Y	0	0	45
+def	test	t1	t1	s1	s1	252	252	0	Y	16	0	224
+def	test	t1	t1	s2	s2	252	65532	0	Y	16	0	224
+def	test	t1	t1	s3	s3	252	16777212	0	Y	16	0	224
+def	test	t1	t1	s4	s4	252	4294967292	0	Y	16	0	224
+def					HEX(s1)	253	8160	0	Y	0	0	224
 s1	s2	s3	s4	HEX(s1)
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CONCAT(s1)` varchar(255) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `CONCAT(s1)` varchar(255) CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
 #
@@ -1933,11 +1933,11 @@ hex(weight_string(cast(_latin1 0x808080 as char), 5, 4, 0xC0))
 select hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0));
 hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0))
 20AC20AC20AC00200020002000200020002000200020002000
-select hex(weight_string(_utf32 0x10000));
-hex(weight_string(_utf32 0x10000))
+select hex(weight_string(_utf32 0x10000 collate utf32_general_ci));
+hex(weight_string(_utf32 0x10000 collate utf32_general_ci))
 FFFD
-select hex(weight_string(_utf32 0x10001));
-hex(weight_string(_utf32 0x10001))
+select hex(weight_string(_utf32 0x10001 collate utf32_general_ci));
+hex(weight_string(_utf32 0x10001 collate utf32_general_ci))
 FFFD
 select @@collation_connection;
 @@collation_connection
@@ -2287,14 +2287,14 @@ SET optimizer_switch=@save_optimizer_switch;
 #
 # MDEV-8419 utf32: compare broken bytes as "greater than any non-broken character"
 #
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32, KEY(a));
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32 COLLATE utf32_general_ci, KEY(a));
 INSERT INTO t1 VALUES (0x10000),(0x10001),(0x10002);
 SELECT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 1
 DROP TABLE t1;
-SELECT _utf32 0x10001=_utf32 0x10002;
-_utf32 0x10001=_utf32 0x10002
+SELECT _utf32 0x10001=_utf32 0x10002 COLLATE utf32_general_ci;
+_utf32 0x10001=_utf32 0x10002 COLLATE utf32_general_ci
 1
 #
 # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
@@ -2902,13 +2902,13 @@ ALTER TABLE t1 CHANGE a a ENUM('aa') CHARACTER SET utf32;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('慡') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` enum('慡') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` enum('a','b') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SET NAMES utf8;
@@ -2922,8 +2922,8 @@ c2 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT 'a',
-  `c2` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT 'a'
+  `c1` enum('a','b') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT 'a',
+  `c2` enum('a','b') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT 'a'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (

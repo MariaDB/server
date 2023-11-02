@@ -6407,29 +6407,6 @@ innobase_fts_text_cmp(
 }
 
 /******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*     p1,		/*!< in: key */
-	const void*     p2)		/*!< in: node */
-{
-	const CHARSET_INFO*	charset = (const CHARSET_INFO*) cs;
-	const fts_string_t*	s1 = (const fts_string_t*) p1;
-	const fts_string_t*	s2 = (const fts_string_t*) p2;
-	ulint			newlen;
-
-	my_casedn_str(charset, (char*) s2->f_str);
-
-	newlen = strlen((const char*) s2->f_str);
-
-	return(ha_compare_text(
-		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(newlen), 0));
-}
-
-/******************************************************************//**
 Get the first character's code position for FTS index partition. */
 ulint
 innobase_strnxfrm(

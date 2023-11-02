@@ -260,7 +260,7 @@ CREATE TABLE mysqltest.my_socket_summary_by_instance (
   MAX_TIMER_MISC            DECIMAL(60,0) NOT NULL,
   pk VARCHAR(20),
   PRIMARY KEY(pk, EVENT_NAME, OBJECT_INSTANCE_BEGIN)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 
 
 # The CAST(... AS DECIMAL(60,0)) prevents errors which might show up in case

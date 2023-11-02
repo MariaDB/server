@@ -2274,8 +2274,8 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
-SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
-SET @@session.character_set_collations=''/*!*/;
+SET @@session.character_set_client=utf8mb3,@@session.collation_connection=2048,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -5284,8 +5284,8 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
-SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
-SET @@session.character_set_collations=''/*!*/;
+SET @@session.character_set_client=utf8mb3,@@session.collation_connection=2048,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -5685,8 +5685,8 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
-SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
-SET @@session.character_set_collations=''/*!*/;
+SET @@session.character_set_client=utf8mb3,@@session.collation_connection=2048,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -5701,7 +5701,7 @@ c_1_n INT -- row number
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
-SET @@session.character_set_collations=''/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 CREATE TABLE t2 (
 c_2_1 DATE,
 c_2_2 VARCHAR(255),
@@ -5714,7 +5714,7 @@ c_2_n INT -- row number
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
-SET @@session.character_set_collations=''/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 CREATE TABLE t3 (
 c_3_1 DATE,
 c_3_2 VARCHAR(255),
@@ -6326,8 +6326,8 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
-SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
-SET @@session.character_set_collations=''/*!*/;
+SET @@session.character_set_client=utf8mb3,@@session.collation_connection=2048,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (

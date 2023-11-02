@@ -7951,7 +7951,7 @@ ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+  `a` enum('a','b') CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SET NAMES utf8;

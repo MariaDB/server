@@ -38,7 +38,7 @@ hex(_utf16 0x3344)
 select hex(_utf16 0x113344);
 hex(_utf16 0x113344)
 00113344
-CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf16;
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf16 COLLATE utf16_general_ci;
 INSERT INTO t1 VALUES (_koi8r 0xF2, _koi8r 0xF2), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 hex(word)
@@ -101,8 +101,8 @@ RPAD(_utf16 X'0420',10,_utf16 X'0421') r;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `l` varchar(10) CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL,
-  `r` varchar(10) CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL
+  `l` varchar(10) CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL,
+  `r` varchar(10) CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select hex(l), hex(r) from t1;
 hex(l)	hex(r)
@@ -510,7 +510,7 @@ create table t1 (a enum('x','y','z') character set utf16);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z') CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL
+  `a` enum('x','y','z') CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
@@ -524,7 +524,7 @@ alter table t1 change a a enum('x','y','z','d','e','ä','ö','ü') character set
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL
+  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('D');
 insert into t1 values ('E ');
@@ -546,7 +546,7 @@ create table t1 (a set ('x','y','z','ä','ö','ü') character set utf16);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL
+  `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
@@ -1294,14 +1294,14 @@ Note	1246	Converting column 'a' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL
+  `a` mediumtext CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a varchar(250) character set utf16 primary key);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(250) CHARACTER SET utf16 COLLATE utf16_general_ci NOT NULL,
+  `a` varchar(250) CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -1515,11 +1515,11 @@ s4 LONGTEXT CHARACTER SET utf16
 SET NAMES utf8, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	s1	s1	252	255	0	Y	16	0	54
-def	test	t1	t1	s2	s2	252	65535	0	Y	16	0	54
-def	test	t1	t1	s3	s3	252	16777215	0	Y	16	0	54
-def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	54
-def					HEX(s1)	253	6120	0	Y	0	0	33
+def	test	t1	t1	s1	s1	252	255	0	Y	16	0	101
+def	test	t1	t1	s2	s2	252	65535	0	Y	16	0	101
+def	test	t1	t1	s3	s3	252	16777215	0	Y	16	0	101
+def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	101
+def					HEX(s1)	253	6120	0	Y	0	0	192
 s1	s2	s3	s4	HEX(s1)
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
@@ -1533,17 +1533,17 @@ s1	s2	s3	s4	HEX(s1)
 SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	s1	s1	252	381	0	Y	16	0	33
-def	test	t1	t1	s2	s2	252	98301	0	Y	16	0	33
-def	test	t1	t1	s3	s3	252	25165821	0	Y	16	0	33
-def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	33
-def					HEX(s1)	253	6120	0	Y	0	0	33
+def	test	t1	t1	s1	s1	252	381	0	Y	16	0	192
+def	test	t1	t1	s2	s2	252	98301	0	Y	16	0	192
+def	test	t1	t1	s3	s3	252	25165821	0	Y	16	0	192
+def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	192
+def					HEX(s1)	253	6120	0	Y	0	0	192
 s1	s2	s3	s4	HEX(s1)
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CONCAT(s1)` varchar(255) CHARACTER SET utf16 COLLATE utf16_general_ci DEFAULT NULL
+  `CONCAT(s1)` varchar(255) CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
 #
@@ -1834,11 +1834,11 @@ hex(weight_string(cast(_latin1 0x808080 as char), 5, 4, 0xC0))
 select hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0));
 hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0))
 20AC20AC20AC00200020002000200020002000200020002000
-select hex(weight_string(_utf16 0xD800DC00));
-hex(weight_string(_utf16 0xD800DC00))
+select hex(weight_string(_utf16 0xD800DC00 COLLATE utf16_general_ci));
+hex(weight_string(_utf16 0xD800DC00 COLLATE utf16_general_ci))
 FFFD
-select hex(weight_string(_utf16 0xD800DC01));
-hex(weight_string(_utf16 0xD800DC01))
+select hex(weight_string(_utf16 0xD800DC01 COLLATE utf16_general_ci));
+hex(weight_string(_utf16 0xD800DC01 COLLATE utf16_general_ci))
 FFFD
 select @@collation_connection;
 @@collation_connection
@@ -2190,7 +2190,8 @@ SET optimizer_switch=@save_optimizer_switch;
 #
 CREATE TABLE t1 (
 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-a VARCHAR(10) CHARACTER SET utf16, KEY(a,id)
+a VARCHAR(10) CHARACTER SET utf16 COLLATE utf16_general_ci,
+KEY(a,id)
 );
 INSERT INTO t1 (a) VALUES (_utf8mb4 0x61);
 INSERT INTO t1 (a) VALUES (_utf8mb4 0xC280),(_utf8mb4 0xDFBF);

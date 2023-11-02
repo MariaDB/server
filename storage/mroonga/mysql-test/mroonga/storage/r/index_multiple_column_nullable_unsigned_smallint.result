@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
   `c2` smallint(5) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx1` (`c1`,`c2`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO t1 (c1, c2) VALUES
 (1999, 12),
 (2000, 11),

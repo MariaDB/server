@@ -762,10 +762,10 @@ WHERE col_1_text = REPEAT("c", 4000) AND col_2_text = REPEAT("o", 4000);
 col_1_text = REPEAT("क", 4000)
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 DELETE FROM worklog5743 WHERE col_1_text = REPEAT("b", 4000);
-SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743;
+SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743 ORDER BY col_1_text;
 col_1_text = REPEAT("क", 4000)
-0
 1
+0
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743 (
 col_1_text TEXT(4000) , col_2_text TEXT(4000) ,

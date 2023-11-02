@@ -1641,9 +1641,10 @@ fts_query_match_phrase_terms(
 			token = static_cast<const fts_string_t*>(
 				ib_vector_get_const(tokens, i));
 
-			fts_string_dup(&cmp_str, &match, heap);
+			cmp_str = fts_string_dup_casedn(phrase->charset,
+							match, heap);
 
-			result = innobase_fts_text_case_cmp(
+			result = innobase_fts_text_cmp(
 				phrase->charset, token, &cmp_str);
 
 			/* Skip the rest of the tokens if this one doesn't
@@ -1797,9 +1798,9 @@ fts_query_match_phrase_add_word_for_parser(
 		token = static_cast<const fts_string_t*>(
 			ib_vector_get_const(tokens, phrase_param->token_index));
 
-		fts_string_dup(&cmp_str, &match, heap);
+		cmp_str = fts_string_dup_casedn(phrase->charset, match, heap);
 
-		result = innobase_fts_text_case_cmp(
+		result = innobase_fts_text_cmp(
 			phrase->charset, token, &cmp_str);
 
 		if (result == 0) {
@@ -1938,9 +1939,10 @@ fts_query_match_phrase(
 				break;
 			}
 
-			fts_string_dup(&cmp_str, &match, heap);
+			cmp_str = fts_string_dup_casedn(phrase->charset,
+							match, heap);
 
-			if (innobase_fts_text_case_cmp(
+			if (innobase_fts_text_cmp(
 				phrase->charset, first, &cmp_str) == 0) {
 
 				/* This is the case for the single word

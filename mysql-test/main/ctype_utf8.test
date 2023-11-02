@@ -24,7 +24,7 @@ drop database if exists mysqltest;
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
-set names utf8;
+set names utf8 collate utf8_general_ci;
 
 select left(_utf8 0xD0B0D0B1D0B2,1);
 select right(_utf8 0xD0B0D0B2D0B2,1);
@@ -81,7 +81,7 @@ SELECT 'a\0' < 'a ' collate utf8_bin;
 SELECT 'a\t' < 'a' collate utf8_bin;
 SELECT 'a\t' < 'a ' collate utf8_bin;
 
-CREATE TABLE t1 (a char(10) character set utf8 not null);
+CREATE TABLE t1 (a char(10) character set utf8 collate utf8_general_ci not null);
 INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
 SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
 DROP TABLE t1;
@@ -207,7 +207,7 @@ drop table t1;
 #
 # Testing regexp
 #
-set names utf8;
+set names utf8 collate utf8_general_ci;
 --source include/ctype_regex.inc
 --source include/ctype_regex_utf8.inc
 
@@ -223,7 +223,7 @@ DROP TABLE t1;
 # ENUM and SET multibyte fields computed their length wronly 
 # when converted into a char field
 set names utf8;
-create table t1 (a enum('aaaa','проба') character set utf8);
+create table t1 (a enum('aaaa','проба') character set utf8 collate utf8_general_ci);
 show create table t1;
 insert into t1 values ('проба');
 select * from t1;
@@ -335,7 +335,7 @@ drop table t1;
 # Check HEAP+HASH, case insensitive collation
 #
 create table t1 (
-c char(10) character set utf8,
+c char(10) character set utf8 collate utf8_general_ci,
 unique key a using hash (c(1))
 ) engine=heap;
 show create table t1;
@@ -359,7 +359,7 @@ drop table t1;
 # Check HEAP+BTREE, case insensitive collation
 #
 create table t1 (
-c char(10) character set utf8,
+c char(10) character set utf8 collate utf8_general_ci,
 unique key a using btree (c(1))
 ) engine=heap;
 show create table t1;
@@ -383,7 +383,7 @@ drop table t1;
 # Check BDB, case insensitive collation
 #
 create table t1 (
-c char(10) character set utf8,
+c char(10) character set utf8 collate utf8_general_ci,
 unique key a (c(1))
 ) engine=innodb;
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
@@ -664,8 +664,8 @@ drop table t1;
 # Test for calculate_interval_lengths() function
 #
 create table t1 (
-  a enum('петя','вася','анюта') character set utf8 not null default 'анюта',
-  b set('петя','вася','анюта') character set utf8 not null default 'анюта'
+  a enum('петя','вася','анюта') character set utf8 collate utf8_general_ci not null default 'анюта',
+  b set('петя','вася','анюта') character set utf8 collate utf8_general_ci not null default 'анюта'
 );
 create table t2 select concat(a,_utf8'') as a, concat(b,_utf8'')as b from t1;
 show create table t2;
@@ -919,7 +919,7 @@ DROP TABLE t1;
 #
 # Bug#17313: N'xxx' and _utf8'xxx' are not equivalent
 #
-CREATE TABLE t1 (item varchar(255)) default character set utf8;
+CREATE TABLE t1 (item varchar(255)) default character set utf8 collate utf8_general_ci;
 INSERT INTO t1 VALUES (N'\\');
 INSERT INTO t1 VALUES (_utf8'\\');
 INSERT INTO t1 VALUES (N'Cote d\'Ivoire');
@@ -1183,9 +1183,9 @@ SET CHARACTER SET utf8;
 SHOW VARIABLES LIKE 'character\_set\_%';
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 USE crashtest;
-CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8;
+CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 INSERT INTO crashtest VALUES ('35'), ('36'), ('37');
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8) COLLATE utf8_general_ci;
 INSERT INTO crashtest VALUES ('-1000');
 -- disable_query_log
 -- disable_result_log
@@ -1193,7 +1193,7 @@ ANALYZE TABLE crashtest;
 -- enable_result_log
 -- enable_query_log
 EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8) COLLATE utf8_general_ci;
 DROP TABLE crashtest;
 DROP DATABASE crashtest;
 USE test;
@@ -1326,7 +1326,7 @@ drop table if exists t1;
 drop table if exists t1;
 drop view if exists v1, v2;
 --enable_warnings
-set names utf8;
+set names utf8 collate utf8_general_ci;
 create table t1(col1 varchar(12) character set utf8 collate utf8_unicode_ci);
 insert into t1 values('t1_val');
 create view v1 as select 'v1_val' as col1;
@@ -1530,7 +1530,7 @@ CREATE TABLE t1 (
   Tape TINYTEXT,
   PRIMARY KEY (clipid),
   KEY tape(Tape(255))
-) CHARACTER SET=utf8;
+) CHARACTER SET=utf8 COLLATE utf8_general_ci;
 ALTER TABLE t1 ADD mos TINYINT DEFAULT 0 AFTER clipid;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -1568,17 +1568,17 @@ DROP TABLE t1;
 --echo # Bug#52520 Difference in tinytext utf column metadata
 --echo #
 CREATE TABLE t1 (
-  s1 TINYTEXT CHARACTER SET utf8,
-  s2 TEXT CHARACTER SET utf8,
-  s3 MEDIUMTEXT CHARACTER SET utf8,
-  s4 LONGTEXT CHARACTER SET utf8
+  s1 TINYTEXT CHARACTER SET utf8 COLLATE utf8_general_ci,
+  s2 TEXT CHARACTER SET utf8 COLLATE utf8_general_ci,
+  s3 MEDIUMTEXT CHARACTER SET utf8 COLLATE utf8_general_ci,
+  s4 LONGTEXT CHARACTER SET utf8 COLLATE utf8_general_ci
 );
 --enable_metadata
-SET NAMES utf8, @@character_set_results=NULL;
+SET NAMES utf8 COLLATE utf8_general_ci, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
-SET NAMES utf8;
+SET NAMES utf8 COLLATE utf8_general_ci;
 SELECT *, HEX(s1) FROM t1;
 --disable_metadata
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
@@ -1586,7 +1586,7 @@ SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
 
 
-SET NAMES utf8;
+SET NAMES utf8 COLLATE utf8_general_ci;
 --source include/ctype_numconv.inc
 
 --echo #
@@ -1668,7 +1668,7 @@ DROP TABLE t1, t2;
 --echo #
 --echo # MDEV-8630 Datetime value dropped in "INSERT ... SELECT ... ON DUPLICATE KEY"
 --echo #
-SET NAMES utf8;
+SET NAMES utf8 COLLATE utf8_general_ci;
 CREATE TABLE t1 (id2 int, ts timestamp not null);
 INSERT INTO t1 VALUES (1,'2012-06-11 15:17:34'),(2,'2012-06-11 15:18:24');
 CREATE TABLE t2 AS SELECT
@@ -1761,7 +1761,7 @@ SET sql_mode=default;
 --echo # WL#3664 WEIGHT_STRING
 --echo #
 
-set names utf8;
+set names utf8 collate utf8_general_ci;
 --source include/weight_string.inc
 --source include/weight_string_euro.inc
 --source include/weight_string_l1.inc
@@ -1794,7 +1794,7 @@ set max_sort_length=default;
 
 SET NAMES utf8 COLLATE utf8_bin;
 --source include/ctype_like_cond_propagation.inc
-SET NAMES utf8;
+SET NAMES utf8 collate utf8_general_ci;
 --source include/ctype_like_cond_propagation.inc
 --source include/ctype_like_cond_propagation_utf8_german.inc
 
@@ -1863,7 +1863,7 @@ DROP TABLE t1;
 --echo #
 --echo #  MDEV-6694 Illegal mix of collation with a PS parameter
 --echo #
-SET NAMES utf8;
+SET NAMES utf8 COLLATE utf8_general_ci;
 CREATE TABLE t1 (a INT, b VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES (1,'a');
 SELECT CONCAT(b,IF(a,'b','b')) FROM t1;
@@ -1902,7 +1902,7 @@ DROP VIEW v1;
 #
 # MDEV-13118 Wrong results with LOWER and UPPER and subquery
 #
-SET NAMES utf8;
+SET NAMES utf8 COLLATE utf8_general_ci;
 --source include/ctype_mdev13118.inc
 
 
@@ -2138,7 +2138,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 SET NAMES latin1;
-CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT CONCAT('ß'));
 SET NAMES utf8;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (DEFAULT);
@@ -2154,7 +2154,7 @@ SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
 SET NAMES utf8;
-CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT CONCAT('ß'));
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a) FROM t1;
