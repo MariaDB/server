@@ -1142,7 +1142,7 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
 
 #ifdef WITH_WSREP
   if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT &&
-      wsrep_locked_seqno != WSREP_SEQNO_UNDEFINED)
+      thd->wsrep_desynced_backup_stage)
   {
     Wsrep_server_state& server_state= Wsrep_server_state::instance();
     if (server_state.state() == Wsrep_server_state::s_donor ||
@@ -1159,8 +1159,10 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
       WSREP_DEBUG("unlock_global_read_lock: waiting for flow control for %s",
                   wsrep_thd_query(thd));
       server_state.resume_and_resync();
+      DEBUG_SYNC(thd, "wsrep_unlock_global_read_lock_after_resume_and_resync");
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     }
+    thd->wsrep_desynced_backup_stage= false;
   }
 #endif /* WITH_WSREP */
 
@@ -1217,11 +1219,13 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
        server_state.state() != Wsrep_server_state::s_synced))
   {
     paused_seqno= server_state.pause();
+    thd->wsrep_desynced_backup_stage= true;
   }
   else if (WSREP_NNULL(thd) &&
            server_state.state() == Wsrep_server_state::s_synced)
   {
     paused_seqno= server_state.desync_and_pause();
+    thd->wsrep_desynced_backup_stage= true;
   }
   else
   {
@@ -1232,6 +1236,7 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   {
     wsrep_locked_seqno= paused_seqno.get();
   }
+  DEBUG_SYNC(thd, "wsrep_global_read_lock_block_commit_after_pause");
 #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);
 }

@@ -1,56 +1,85 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
+--source include/have_debug_sync.inc
 
---write_file $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.1);
-DROP table t1;
-CREATE table t1 as SELECT SLEEP(0.2);
-CREATE table t2 as SELECT SLEEP(0.2);
-CREATE table t3 as SELECT SLEEP(0.2);
-CREATE table t4 as SELECT SLEEP(0.2);
-CREATE table t5 as SELECT SLEEP(0.2);
-CREATE table t6 as SELECT SLEEP(0.2);
-CREATE table t7 as SELECT SLEEP(0.2);
-CREATE table t8 as SELECT SLEEP(0.2);
-CREATE table t9 as SELECT SLEEP(0.2);
-DROP table t1;
-DROP table t2;
-DROP table t3;
-DROP table t4;
-DROP table t5;
-DROP table t6;
-DROP table t7;
-DROP table t8;
-DROP table t9;
-EOF
+#
+# To have real concurrent CTAS this test uses DEBUG_SYNC
+#
 
-let $run=10;
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
-while($run)
-{
-  --error 0,1
-  exec $MYSQL --user=root --host=127.0.0.1 --port=$NODE_MYPORT_1 test \
-         < $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql & \
-       $MYSQL --user=root --host=127.0.0.1 --port=$NODE_MYPORT_2 test \
-         < $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql;
-  dec $run;
-}
+--connection node_1
+#
+# Send CTAS it will block before open_tables call
+#
+SET DEBUG_SYNC = 'wsrep_create_table_as_select WAIT_FOR continue';
+--send CREATE table t1 as SELECT SLEEP(0.1);
 
---remove_file $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql
+--connection node_1a
+#
+# Wait for CTAS to block
+#
+--echo # Wait until CTAS is on debug sync point
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: wsrep_create_table_as_select'
+--source include/wait_condition.inc
+
+--connection node_1b
+#
+# Block node_1 applier
+#
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_apply_cb';
+
+#
+# Send concurrent CTAS it will block on applier
+#
+--connection node_2
+--send CREATE table t1 as SELECT SLEEP(0.2);
+
+#
+# Wait until second CTAS is blocked
+#
+--connection node_1b
+SET SESSION debug_sync = 'now WAIT_FOR sync.wsrep_apply_cb_reached';
+
+--echo # Signal first CTAS to continue and wait until CTAS has executed
+SET DEBUG_SYNC= 'now SIGNAL continue';
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Creating table	CREATE table t1 as SELECT SLEEP(0.1)'
+--source include/wait_condition.inc
+#
+# Release second CTAS and cleanup
+#
+SET GLOBAL debug_dbug= '';
+SET DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
+#
+# Wait until second CTAS continues
+#
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point: now%'
+--source include/wait_condition.inc
+#
+# Wait until second CTAS finishes
+#
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Creating table	CREATE table t1 as SELECT SLEEP(0.2)'
+--source include/wait_condition.inc
+#
+# Cleanup
+#
+--connection node_1b
+SET DEBUG_SYNC= 'RESET';
+#
+# Verify that at least one is successful
+#
+--connection node_2
+--reap
+
+--connection node_1
+--error 0,ER_TABLE_EXISTS_ERROR,ER_QUERY_INTERRUPTED
+--reap
+DROP TABLE t1;
+
 
 --source include/galera_end.inc
 --echo # End of test

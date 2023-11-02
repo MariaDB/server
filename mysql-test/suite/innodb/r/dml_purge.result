@@ -1,10 +1,7 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # MDEV-12288 Reset DB_TRX_ID when the history is removed,
 # to speed up MVCC
 #
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
 ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
 InnoDB		0 transactions not purged
@@ -49,4 +46,3 @@ a	b	c
 1	2	NULL
 3	-3	NULL
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

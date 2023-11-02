@@ -1,0 +1,46 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+call mtr.add_suppression("Checksum mismatch in the first page of file");
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+show variables like 'innodb_doublewrite';
+create table t1(f1 int not null, f2 int not null)engine=innodb;
+insert into t1 values (1, 1);
+
+--source include/wait_all_purged.inc
+
+set GLOBAL innodb_log_checkpoint_now=1;
+--source ../include/no_checkpoint_start.inc
+
+--echo # Make the first page dirty for undo tablespace
+set global innodb_saved_page_number_debug = 0;
+set global innodb_fil_make_page_dirty_debug = 1;
+
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+
+sleep 1;
+--let CLEANUP_IF_CHECKPOINT=drop table t1;
+--source ../include/no_checkpoint_end.inc
+
+perl;
+use IO::Handle;
+my $fname= "$ENV{'MYSQLD_DATADIR'}/undo001";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+die unless open(FILE, "+<", $fname);
+sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+substr($page, 49, 4) = pack("N", 1000);
+sysseek(FILE, 0, 0)||die "Unable to seek $fname\n";
+die unless syswrite(FILE, $page, $page_size) == $page_size;
+close FILE;
+EOF
+
+--source include/start_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Checksum mismatch in the first page of file;
+--source include/search_pattern_in_file.inc
+
+check table t1;
+drop table t1;

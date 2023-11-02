@@ -8,6 +8,7 @@ connection server_1;
 # Slaves which simulate an error will produce a timeout on the primary
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
+call mtr.add_suppression("Got an error reading communication packets");
 # Suppress slave errors related to the simulated error
 connection server_2;
 call mtr.add_suppression("reply failed");

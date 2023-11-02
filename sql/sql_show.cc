@@ -6957,12 +6957,25 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     if (show_table->file)
     {
       (void) read_statistics_for_tables(thd, tables, false);
-      show_table->file->info(HA_STATUS_VARIABLE |
-                             HA_STATUS_NO_LOCK |
-                             HA_STATUS_CONST |
-                             HA_STATUS_TIME);
+      show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
+                             HA_STATUS_CONST | HA_STATUS_TIME);
       set_statistics_for_table(thd, show_table);
     }
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    bool need_column_checks= false;
+    /* we know that the table or at least some of the columns have
+       necessary privileges, but the caller didn't pass down the GRANT_INFO
+       object, so we have to rediscover everything again :( */
+    if (!(thd->col_access & TABLE_ACLS))
+    {
+      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
+
+      if (!(tables->grant.privilege & TABLE_ACLS))
+        need_column_checks= true;
+    }
+#endif
+
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
       if ((key_info->flags & HA_INVISIBLE_KEY) &&
@@ -6971,6 +6984,26 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       KEY_PART_INFO *key_part= key_info->key_part;
       LEX_CSTRING *str;
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      if (need_column_checks)
+      {
+        uint j;
+        for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
+        {
+          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+                                        table_name->str,
+                                        key_part->field->field_name.str);
+
+          if (!access)
+            break;
+        }
+        if (j != key_info->user_defined_key_parts)
+          continue;
+        key_part= key_info->key_part;
+      }
+#endif
+
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
         if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
@@ -7287,19 +7320,31 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   }
   else if (!tables->view)
   {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    /* need any non-SELECT privilege on the table or any of its columns */
+    const privilege_t need= TABLE_ACLS & ~SELECT_ACL;
+    if (!(thd->col_access & need))
+    {
+      /* we know that the table or at least some of the columns have
+         necessary privileges, but the caller didn't pass down the GRANT_INFO
+         object, so we have to rediscover everything again :( */
+      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
+
+      if (!(tables->grant.all_privilege() & need))
+        DBUG_RETURN(0);
+    }
+#endif
+
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
-    show_table->file->info(HA_STATUS_VARIABLE |
-                           HA_STATUS_NO_LOCK |
+    show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
-      if (i != primary_key && !(key_info->flags & HA_NOSAME))
-        continue;
-
-      if (i == primary_key && !strcmp(key_info->name.str, primary_key_name.str))
+      if (i == primary_key && !strcmp(key_info->name.str,
+                                      primary_key_name.str))
       {
         if (store_constraints(thd, table, db_name, table_name,
                               key_info->name.str, key_info->name.length,
@@ -7316,16 +7361,14 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
     }
 
     // Table check constraints
-    for ( uint i = 0; i < show_table->s->table_check_constraints; i++ )
+    for (uint i = 0; i < show_table->s->table_check_constraints; i++)
     {
-        Virtual_column_info *check = show_table->check_constraints[ i ];
+        Virtual_column_info *check = show_table->check_constraints[i];
 
-        if ( store_constraints( thd, table, db_name, table_name, check->name.str,
-                                check->name.length,
-                                STRING_WITH_LEN( "CHECK" ) ) )
-        {
-            DBUG_RETURN( 1 );
-        }
+        if (store_constraints(thd, table, db_name, table_name,
+                              check->name.str, check->name.length,
+                              STRING_WITH_LEN("CHECK")))
+          DBUG_RETURN(1);
     }
 
     show_table->file->get_foreign_key_list(thd, &f_key_list);
@@ -7336,7 +7379,7 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
       if (store_constraints(thd, table, db_name, table_name,
                             f_key_info->foreign_id->str,
                             strlen(f_key_info->foreign_id->str),
-                            "FOREIGN KEY", 11))
+                            STRING_WITH_LEN("FOREIGN KEY")))
         DBUG_RETURN(1);
     }
   }
@@ -7464,8 +7507,7 @@ store_key_column_usage(TABLE *table, const LEX_CSTRING *db_name,
 }
 
 
-static int get_schema_key_column_usage_record(THD *thd,
-					      TABLE_LIST *tables,
+static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
 					      TABLE *table, bool res,
 					      const LEX_CSTRING *db_name,
 					      const LEX_CSTRING *table_name)
@@ -7486,29 +7528,59 @@ static int get_schema_key_column_usage_record(THD *thd,
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
-    show_table->file->info(HA_STATUS_VARIABLE |
-                           HA_STATUS_NO_LOCK |
+    show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    bool need_column_checks= false;
+    /* we know that the table or at least some of the columns have
+       necessary privileges, but the caller didn't pass down the GRANT_INFO
+       object, so we have to rediscover everything again :( */
+    if (!(thd->col_access & TABLE_ACLS))
+    {
+      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
+
+      if (!(tables->grant.privilege & TABLE_ACLS))
+        need_column_checks= true;
+    }
+#endif
+
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
       if (i != primary_key && !(key_info->flags & HA_NOSAME))
         continue;
       uint f_idx= 0;
       KEY_PART_INFO *key_part= key_info->key_part;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      if (need_column_checks)
+      {
+        uint j;
+        for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
+        {
+          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+                                        table_name->str,
+                                        key_part->field->field_name.str);
+
+          if (!access)
+            break;
+        }
+        if (j != key_info->user_defined_key_parts)
+          continue;
+        key_part= key_info->key_part;
+      }
+#endif
+
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
-        if (key_part->field)
-        {
-          f_idx++;
-          restore_record(table, s->default_values);
-          store_key_column_usage(table, db_name, table_name,
-                                 key_info->name.str, key_info->name.length,
-                                 key_part->field->field_name.str,
-                                 key_part->field->field_name.length,
-                                 (longlong) f_idx);
-          if (schema_table_store_record(thd, table))
-            DBUG_RETURN(1);
-        }
+        f_idx++;
+        restore_record(table, s->default_values);
+        store_key_column_usage(table, db_name, table_name,
+                               key_info->name.str, key_info->name.length,
+                               key_part->field->field_name.str,
+                               key_part->field->field_name.length,
+                               (longlong) f_idx);
+        if (schema_table_store_record(thd, table))
+          DBUG_RETURN(1);
       }
     }
 
@@ -7522,6 +7594,23 @@ static int get_schema_key_column_usage_record(THD *thd,
       List_iterator_fast<LEX_CSTRING> it(f_key_info->foreign_fields),
         it1(f_key_info->referenced_fields);
       uint f_idx= 0;
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      if (need_column_checks)
+      {
+        while ((r_info= it1++))
+        {
+          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+                                        table_name->str, r_info->str);
+
+          if (!access)
+            break;
+        }
+        if (!it1.at_end())
+          continue;
+        it1.rewind();
+      }
+#endif
       while ((f_info= it++))
       {
         r_info= it1++;
@@ -8294,9 +8383,23 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
   {
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
-    show_table->file->info(HA_STATUS_VARIABLE |
-                           HA_STATUS_NO_LOCK |
+    show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    /* need any non-SELECT privilege on the table or any of its columns */
+    const privilege_t need= TABLE_ACLS & ~SELECT_ACL;
+    if (!(thd->col_access & need))
+    {
+      /* we know that the table or at least some of the columns have
+         necessary privileges, but the caller didn't pass down the GRANT_INFO
+         object, so we have to rediscover everything again :( */
+      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
+
+      if (!(tables->grant.all_privilege() & need))
+        DBUG_RETURN(0);
+    }
+#endif
 
     show_table->file->get_foreign_key_list(thd, &f_key_list);
     FOREIGN_KEY_INFO *f_key_info;
@@ -8312,8 +8415,28 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       table->field[3]->store(STRING_WITH_LEN("def"), cs);
       table->field[4]->store(f_key_info->referenced_db->str, 
                              f_key_info->referenced_db->length, cs);
-      table->field[10]->store(f_key_info->referenced_table->str,
-                             f_key_info->referenced_table->length, cs);
+      bool show_ref_table= true;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    /* need any non-SELECT privilege on the table or any of its columns */
+    if (!(thd->col_access & need))
+    {
+      TABLE_LIST table_acl_check;
+      bzero((char*) &table_acl_check, sizeof(table_acl_check));
+      table_acl_check.db= *f_key_info->referenced_db;
+      table_acl_check.table_name= *f_key_info->referenced_table;
+      table_acl_check.grant.privilege= thd->col_access;
+      check_grant(thd, SELECT_ACL, &table_acl_check, 0, 1, 1);
+
+      if (!(table_acl_check.grant.all_privilege() & need))
+        show_ref_table= false;
+    }
+#endif
+      if (show_ref_table)
+      {
+        table->field[10]->set_notnull();
+        table->field[10]->store(f_key_info->referenced_table->str,
+                               f_key_info->referenced_table->length, cs);
+      }
       if (f_key_info->referenced_key_name)
       {
         table->field[5]->store(f_key_info->referenced_key_name->str,
@@ -9864,7 +9987,7 @@ ST_FIELD_INFO referential_constraints_fields_info[]=
   Column("UPDATE_RULE",               Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("DELETE_RULE",               Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("TABLE_NAME",                Name(),    NOT_NULL, OPEN_FULL_TABLE),
-  Column("REFERENCED_TABLE_NAME",     Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("REFERENCED_TABLE_NAME",     Name(),    NULLABLE, OPEN_FULL_TABLE),
   CEnd()
 };
 

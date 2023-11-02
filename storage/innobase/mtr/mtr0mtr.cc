@@ -585,7 +585,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(space.is_being_truncated);
-  ut_ad(space.is_stopping());
+  ut_ad(space.is_stopping_writes());
   space.clear_stopping();
   space.is_being_truncated= false;
   mysql_mutex_unlock(&fil_system.mutex);
@@ -597,14 +597,8 @@ void mtr_t::commit_shrink(fil_space_t &space)
 /** Commit a mini-transaction that is deleting or renaming a file.
 @param space   tablespace that is being renamed or deleted
 @param name    new file name (nullptr=the file will be deleted)
-@param detached_handle if detached_handle != nullptr and if space is detached
-                       during the function execution the file handle if its
-                       node will be set to OS_FILE_CLOSED, and the previous
-                       value of the file handle will be assigned to the
-                       address, pointed by detached_handle.
 @return whether the operation succeeded */
-bool mtr_t::commit_file(fil_space_t &space, const char *name,
-    pfs_os_file_t *detached_handle)
+bool mtr_t::commit_file(fil_space_t &space, const char *name)
 {
   ut_ad(is_active());
   ut_ad(!high_level_read_only);
@@ -654,7 +648,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
   m_latch_ex= false;
 
   char *old_name= space.chain.start->name;
-  bool success;
+  bool success= true;
 
   if (name)
   {
@@ -667,37 +661,6 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
       old_name= new_name;
     mysql_mutex_unlock(&fil_system.mutex);
     ut_free(old_name);
-  }
-  else
-  {
-    /* Remove any additional files. */
-    if (char *cfg_name= fil_make_filepath(old_name,
-					  fil_space_t::name_type{}, CFG,
-                                          false))
-    {
-      os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
-      ut_free(cfg_name);
-    }
-
-    if (FSP_FLAGS_HAS_DATA_DIR(space.flags))
-      RemoteDatafile::delete_link_file(space.name());
-
-    /* Remove the directory entry. The file will actually be deleted
-    when our caller closes the handle. */
-    os_file_delete(innodb_data_file_key, old_name);
-
-    mysql_mutex_lock(&fil_system.mutex);
-    /* Sanity checks after reacquiring fil_system.mutex */
-    ut_ad(&space == fil_space_get_by_id(space.id));
-    ut_ad(!space.referenced());
-    ut_ad(space.is_stopping());
-
-    pfs_os_file_t handle = fil_system.detach(&space, true);
-    if (detached_handle)
-      *detached_handle = handle;
-    mysql_mutex_unlock(&fil_system.mutex);
-
-    success= true;
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
