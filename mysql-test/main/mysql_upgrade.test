@@ -514,7 +514,7 @@ rename table mysql.global_priv_bak to mysql.global_priv;
 set @orig_sql_safe_updates = @@GLOBAL.sql_safe_updates;
 set global sql_safe_updates=ON;
 --exec $MYSQL_UPGRADE --force 2>&1
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 set global sql_safe_updates=@orig_sql_safe_updates;
 
 --echo # End of 10.4 tests
