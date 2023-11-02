@@ -3246,7 +3246,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
                           new (thd->mem_root)
                           Item_func_isnotnull(thd,
                                               new (thd->mem_root)
-                                              Item_direct_ref(thd,
+                                              Item_ref(thd,
                                                               &unit->outer_select()->context,
                                                               optimizer->arguments(),
                                                               (char *)"<no matter>",
@@ -3270,7 +3270,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
             push_front(new (thd->mem_root)
                        Item_func_isnotnull(thd,
                                            new (thd->mem_root)
-                                           Item_direct_ref(thd,
+                                           Item_ref(thd,
                                                            &unit->outer_select()->context,
                                                            optimizer->arguments()[0]->addr((int)i),
                                                            (char *)"<no matter>",
