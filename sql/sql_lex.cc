@@ -10448,7 +10448,7 @@ bool st_select_lex::save_item_list_names(THD *thd)
   while ((item= li++))
   {
     if (unlikely(orig_names_of_item_list_elems->push_back(
-                        new Lex_ident_sys(item->name.str, item->name.length))))
+          new Lex_ident_sys(item->name.str, item->name.length), thd->mem_root)))
     {
       if (arena)
         thd->restore_active_arena(arena, &backup);
