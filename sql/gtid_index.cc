@@ -828,7 +828,7 @@ int
 Gtid_index_reader::next_page()
 {
   if (!read_page->next)
-    return 1;
+    return give_error("Corrupt index, short index node");
   read_page= read_page->next;
   read_ptr= read_page->flag_ptr + 8;
   return 0;
@@ -917,7 +917,7 @@ Gtid_index_reader::open_index_file(const char *binlog_filename)
   build_index_filename(binlog_filename);
   if ((index_file= mysql_file_open(key_file_gtid_index, index_file_name,
                                    O_RDONLY|O_BINARY, MYF(0))) < 0)
-    return 1;
+    return 1;    // No error for missing index (eg. upgrade)
 
   file_open= true;
   if (read_file_header())
@@ -988,7 +988,10 @@ Gtid_index_reader::do_index_search_root(uint32 *out_offset,
       break;
 
     if (compare_state.load_nolock(&current_state))
+    {
+      give_error("Out of memory allocating GTID list");
       return -1;
+    }
     uint32 child_ptr;
     if (get_child_ptr(&child_ptr))
       return -1;
@@ -1058,7 +1061,10 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
     update_gtid_state(&current_state, gtid_list, gtid_count);
   current_offset= offset;
   if (compare_state.load_nolock(&current_state))
+  {
+    give_error("Out of memory allocating GTID state");
     return -1;
+  }
   int cmp= (this->*search_cmp_function)(offset, &compare_state);
   if (cmp < 0)
     return 0;  // Search position is before start of index.
@@ -1161,14 +1167,14 @@ Gtid_index_reader::read_file_header_cold()
       mysql_file_read(index_file, buf,
                       GTID_INDEX_FILE_HEADER_SIZE + GTID_INDEX_PAGE_HEADER_SIZE,
                       MYF(MY_NABP)))
-    return 1;
+    return give_error("Error reading page from index file");
   if (memcmp(&buf[0], GTID_INDEX_MAGIC, sizeof(GTID_INDEX_MAGIC)))
-    return 1;
+    return give_error("Corrupt index file, magic not found in header");
   version_major= buf[8];
   version_minor= buf[9];
   /* We cannot safely read a major version we don't know about. */
   if (version_major > GTID_INDEX_VERSION_MAJOR)
-    return 1;
+    return give_error("Incompatible index file, version too high");
   page_size= uint4korr(&buf[12]);
 
   /*
@@ -1191,7 +1197,7 @@ Gtid_index_reader::read_file_header_cold()
                                             MY_SEEK_END, MYF(0)) ||
         mysql_file_read(index_file, buf2, GTID_INDEX_PAGE_HEADER_SIZE,
                         MYF(MY_NABP)))
-      return 1;
+      return give_error("Error reading root page from index file");
     flags= buf2[0];
     has_root_node= ((flags & needed_flags) == needed_flags);
   }
@@ -1234,17 +1240,17 @@ Gtid_index_reader::read_root_node_cold()
   */
   if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(int32)page_size,
                                           MY_SEEK_END, MYF(0)))
-    return 1;
+    return give_error("Error seeking index file");
 
   for (;;)
   {
     Node_page *page= alloc_page();
     if (!page)
-      return 1;
+      return give_error("Error allocating memory for index page");
     if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
     {
       my_free(page);
-      return 1;
+      return give_error("Error reading page from index file");
     }
     if (mysql_file_tell(index_file, MYF(0)) == page_size)
       page->flag_ptr= &page->page[GTID_INDEX_FILE_HEADER_SIZE];
@@ -1254,12 +1260,12 @@ Gtid_index_reader::read_root_node_cold()
     n->first_page= page;
     uchar flags= page->page[0];
     if (unlikely(!(flags & PAGE_FLAG_ROOT)))
-      return 1;                        // Corrupt index, no start of root node
+      return give_error("Corrupt or truncated index, no root node found");
     if (!(flags & PAGE_FLAG_IS_CONT))
       break;                           // Found start of root node
     if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(int32)(2*page_size),
                                             MY_SEEK_CUR, MYF(0)))
-      return 1;
+      return give_error("Error seeking index file for multi-page root node");
   }
 
   read_page= n->first_page;
@@ -1286,7 +1292,7 @@ Gtid_index_reader::read_node(uint32 page_ptr)
       if (hot_level <= 0)
       {
         DBUG_ASSERT(0 /* Should be no child pointer to follow on leaf page. */);
-        return 1;
+        return give_error("Corrupt hot index (child pointer on leaf page");
       }
       DBUG_ASSERT(n == hot_writer->nodes[hot_level]);
       --hot_level;
@@ -1310,13 +1316,13 @@ int
 Gtid_index_reader::read_node_hot()
 {
   if (hot_writer->error_state)
-    return 1;
+    return give_error("Cannot access hot index");
   n= hot_writer->nodes[hot_level];
   read_page= n->first_page;
   /* The writer should allocate pages for all nodes. */
   DBUG_ASSERT(read_page != nullptr);
   if (!read_page)
-    return 1;
+    return give_error("Page not available in hot index");
   read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
@@ -1327,7 +1333,7 @@ Gtid_index_reader::read_node_cold(uint32 page_ptr)
 {
   if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, (page_ptr-1)*page_size,
                                           MY_SEEK_SET, MYF(0)))
-    return 1;
+    return give_error("Error seeking index file");
 
   bool file_header= (page_ptr == 1);
   cold_node.reset();
@@ -1337,11 +1343,11 @@ Gtid_index_reader::read_node_cold(uint32 page_ptr)
   {
     Node_page *page= alloc_page();
     if (!page)
-      return 1;
+      return give_error("Error allocating memory for index page");
     if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
     {
       my_free(page);
-      return 1;
+      return give_error("Error reading page from index file");
     }
     page->flag_ptr= &page->page[file_header ? GTID_INDEX_FILE_HEADER_SIZE : 0];
     file_header= false;
