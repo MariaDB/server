@@ -3351,7 +3351,7 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
           push_front(new (thd->mem_root)
                      Item_func_isnotnull(thd,
                                          new (thd->mem_root)
-                                         Item_direct_ref(thd,
+                                         Item_ref(thd,
                                                          &unit->outer_select()->context,
                                                          left_exp_ref,
                                                          no_matter_name,
@@ -3369,7 +3369,7 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
             push_front(new (thd->mem_root)
                        Item_func_isnotnull(thd,
                                            new (thd->mem_root)
-                                           Item_direct_ref(thd,
+                                           Item_ref(thd,
                                                            &unit->outer_select()->context,
                                                            left_exp->addr(i),
                                                            no_matter_name,

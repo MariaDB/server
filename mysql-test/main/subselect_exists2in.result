@@ -796,6 +796,21 @@ INSERT INTO t3 VALUES (4),(6);
 SELECT * FROM t1, ( SELECT * FROM t2 ) alias WHERE NOT EXISTS ( SELECT * FROM t3 WHERE c = b ) AND a = b;
 a	b
 drop table t1, t2, t3;
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (1),(5);
+CREATE TABLE t2 ( b INT ) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 ( c INT );
+INSERT INTO t3 VALUES (4),(5);
+SELECT *
+FROM
+t1,
+( SELECT * FROM t2 ) alias
+WHERE
+NOT EXISTS ( SELECT * FROM t3 WHERE c = b ) AND a = b;
+a	b
+1	1
+DROP TABLE t1, t2, t3;
 #
 # MDEV-3906: Server crashes in Dependency_marker::visit_field
 # on 2nd execution of PS with exists_to_in and NOT EXISTS subquery
