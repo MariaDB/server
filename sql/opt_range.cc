@@ -3153,6 +3153,8 @@ SQL_SELECT::test_quick_select(THD *thd,
     if (best_trp)
     {
       records= best_trp->records;
+      if (records == 0)
+        returnval= IMPOSSIBLE_RANGE;
       if (!(quick= best_trp->make_quick(&param, TRUE)) || quick->init())
       {
         delete quick;
@@ -3160,13 +3162,8 @@ SQL_SELECT::test_quick_select(THD *thd,
       }
       else
         quick->group_by_optimization_used= group_by_optimization_used;
-      if (quick && records)
-        returnval= OK;
     }
     possible_keys= param.possible_keys;
-
-  if (!records)
-    returnval= IMPOSSIBLE_RANGE;
 
   free_mem:
     if (unlikely(quick && best_trp && thd->trace_started()))
