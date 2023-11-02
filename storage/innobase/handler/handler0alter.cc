@@ -7695,6 +7695,7 @@ bool check_col_is_in_fk_indexes(
 
   for (const auto &a : add_fk)
   {
+    if (!a->foreign_index) continue;
     for (ulint i= 0; i < a->n_fields; i++)
     {
       if (a->foreign_index->fields[i].col == col)
