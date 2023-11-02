@@ -650,7 +650,6 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
       top->status= Event_parse_data::DISABLED;
     DBUG_PRINT("info", ("event %s status is %d", top->name.str, top->status));
 
-    top->execution_count++;
     (*event_name)->dropped= top->dropped;
     /*
       Save new values of last_executed timestamp and event status on stack
