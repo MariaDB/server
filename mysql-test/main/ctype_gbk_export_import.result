@@ -49,7 +49,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a1` text NOT NULL,
-  `a2` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `a2` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
   `b1` blob NOT NULL,
   `eol` text NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=gbk COLLATE=gbk_chinese_ci

@@ -2764,7 +2764,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-set names 'utf8';
+set names utf8 collate utf8_general_ci;
 #
 # IN predicate to IN subquery is performed as materialization is llowed
 # The character set on the inner side is a proper subset of the outer side

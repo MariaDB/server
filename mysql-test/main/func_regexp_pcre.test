@@ -43,7 +43,8 @@ INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
 INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
-SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+# Use "ORDER BY BINARY" to avoid dependency on the default utf8 collation
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 DROP TABLE t1, t2;
 
 # Checking that UCP is disabled by default for binary data

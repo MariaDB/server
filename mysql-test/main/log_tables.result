@@ -288,7 +288,7 @@ ON UPDATE CURRENT_TIMESTAMP,
 `server_id` int(10) unsigned NOT NULL,
 `command_type` varchar(64) NOT NULL,
 `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log';
 CREATE TABLE `slow_log` (
 `start_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 ON UPDATE CURRENT_TIMESTAMP,
@@ -304,7 +304,7 @@ ON UPDATE CURRENT_TIMESTAMP,
 `sql_text` mediumtext NOT NULL,
 `thread_id` BIGINT(21) UNSIGNED NOT NULL,
 `rows_affected` bigint(20) unsigned NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 set global general_log='ON';
 set global slow_query_log='ON';
 use test;

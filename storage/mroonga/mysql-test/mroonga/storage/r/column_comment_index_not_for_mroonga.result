@@ -8,5 +8,5 @@ Table	Create Table
 bugs	CREATE TABLE `bugs` (
   `id` int(10) unsigned DEFAULT NULL,
   KEY `id` (`id`) COMMENT 'ID search is required.'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE bugs;

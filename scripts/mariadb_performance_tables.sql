@@ -47,7 +47,7 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-SET @cmd= "CREATE DATABASE performance_schema character set utf8mb3";
+SET @cmd= "CREATE DATABASE performance_schema character set utf8mb3 collate utf8mb3_general_ci";
 
 SET @str = IF(@broken_pfs = 0, @cmd, 'SET @dummy = 0');
 PREPARE stmt FROM @str;

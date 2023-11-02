@@ -1643,7 +1643,7 @@ binlog-stmt-cache-size 32768
 block-encryption-mode aes-128-ecb
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE
-character-set-collations 
+character-set-collations utf8mb3=uca1400_ai_ci,utf8mb4=uca1400_ai_ci,ucs2=uca1400_ai_ci,utf16=uca1400_ai_ci,utf32=uca1400_ai_ci
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/
 chroot (No default value)

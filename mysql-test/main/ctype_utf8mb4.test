@@ -10,6 +10,16 @@
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 
+#
+# Remove the 'utf8mb3=xxx' and 'utf8mb4=xxx' substrings
+# from @@character_set_collations to change the default
+# utf8mb3 and utf8mb4 collations to the hard-coded defaults
+# utf8mb3_general_ci and utf8mb4_general_ci
+#
+SET character_set_collations= REGEXP_REPLACE(@@character_set_collations, '(utf8mb[34]=[a-z0-9_]*)', '');
+SELECT @@character_set_collations;
+
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -53,32 +63,6 @@ select _utf8mb4 0xD0B0D0B1D0B2 like concat(_utf8mb4'%',_utf8mb4 0xD0B1,_utf8mb4 
 select convert(_latin1'Günter André' using utf8mb4) like CONVERT(_latin1'GÜNTER%' USING utf8mb4);
 select CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4) LIKE CONVERT(_koi8r'÷áóñ' USING utf8mb4);
 select CONVERT(_koi8r'÷áóñ' USING utf8mb4) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4);
-
-#
-# Check the following:
-# "a"  == "a "
-# "a\0" < "a"
-# "a\0" < "a "
-
-SELECT 'a' = 'a ';
-SELECT 'a\0' < 'a';
-SELECT 'a\0' < 'a ';
-SELECT 'a\t' < 'a';
-SELECT 'a\t' < 'a ';
-
-#
-# The same for binary collation
-#
-SELECT 'a' = 'a ' collate utf8mb4_bin;
-SELECT 'a\0' < 'a' collate utf8mb4_bin;
-SELECT 'a\0' < 'a ' collate utf8mb4_bin;
-SELECT 'a\t' < 'a' collate utf8mb4_bin;
-SELECT 'a\t' < 'a ' collate utf8mb4_bin;
-
-CREATE TABLE t1 (a char(10) character set utf8mb4 not null);
-INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
-SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
-DROP TABLE t1;
 
 #
 # Fix this, it should return 1:
@@ -197,13 +181,6 @@ select * from t1 where a = 'b';
 select * from t1 where a = 'b' and a = 'b';
 select * from t1 where a = 'b' and a != 'b';
 drop table t1;
-
-#
-# Testing regexp
-#
-set names utf8mb4;
---source include/ctype_regex.inc
---source include/ctype_regex_utf8.inc
 
 #
 # Bug #4555
@@ -1879,24 +1856,6 @@ DROP TABLE t1;
 --echo # End of 5.5 tests
 --echo #
 
-
---echo #
---echo # WL#3664 WEIGHT_STRING
---echo #
-
-set names utf8mb4;
---source include/weight_string.inc
---source include/weight_string_euro.inc
---source include/weight_string_l1.inc
-
-set @@collation_connection=utf8mb4_bin;
---source include/weight_string.inc
---source include/weight_string_euro.inc
---source include/weight_string_l1.inc
-
---echo #
---echo # End of 5.6 tests
---echo #
 
 --echo #
 --echo # Start of 10.0 tests

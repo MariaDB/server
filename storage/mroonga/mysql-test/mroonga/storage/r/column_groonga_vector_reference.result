@@ -14,7 +14,7 @@ bugs	CREATE TABLE `bugs` (
   `id` int(10) unsigned NOT NULL,
   `tags` varchar(128) DEFAULT '' COMMENT 'flags "COLUMN_VECTOR", type "tags"',
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO bugs (id, tags) VALUES (1, "Linux MySQL groonga");
 SELECT * FROM bugs;
 id	tags

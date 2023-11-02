@@ -12,5 +12,5 @@ bugs	CREATE TABLE `bugs` (
   `tag` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `tag` (`tag`) COMMENT 'Tag search is required.'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='engine "InnoDB"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='engine "InnoDB"'
 DROP TABLE bugs;

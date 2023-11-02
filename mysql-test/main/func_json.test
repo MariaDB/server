@@ -187,6 +187,16 @@ create table t1 (c VARCHAR(8)) DEFAULT CHARSET=latin1;
 insert into t1 values ('abc'),('def');
  
 select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1;
+select json_unquote(json_object('bar', c)) as c1 from t1;
+select
+  collation(json_unquote(json_object('bar', c))) as coll_json_unquote,
+  coercibility(json_unquote(json_object('bar', c))) as coer_json_unquote,
+  coercibility('bar') as coer_literal
+from t1 limit 1;
+
+create table t2 as select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1 limit 0;
+show create table t2;
+drop table t2;
 drop table t1;
 
 

@@ -5293,7 +5293,7 @@ RETURN CONCAT(']]>, ', c1, '!');
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="BUG52792">
 	<routines>
-		<routine Function="straße" sql_mode="" character_set_client="utf8mb3" collation_connection="utf8mb3_general_ci" Database_Collation="latin1_swedish_ci">
+		<routine Function="straße" sql_mode="" character_set_client="utf8mb3" collation_connection="utf8mb3_uca1400_ai_ci" Database_Collation="latin1_swedish_ci">
 <![CDATA[
 CREATE DEFINER=`root`@`localhost` FUNCTION `straße`(c1 CHAR(20)) RETURNS char(50) CHARSET latin1 COLLATE latin1_swedish_ci
     DETERMINISTIC
@@ -5501,11 +5501,11 @@ SHOW TRIGGERS FROM bug25717383;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 trig
 one	INSERT	tab
-one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci
 SHOW EVENTS FROM bug25717383;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 bug25717383	event
-one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci
 SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
        ORDER BY ROUTINE_NAME;
@@ -5524,11 +5524,11 @@ SHOW TRIGGERS FROM bug25717383;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 trig
 one	INSERT	tab
-one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci
 SHOW EVENTS FROM bug25717383;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 bug25717383	event
-one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci
 SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
        ORDER BY ROUTINE_NAME;
@@ -5557,7 +5557,7 @@ ALTER DATABASE `a\"'``b` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb3 */ ;
 /*!50003 SET character_set_results = utf8mb3 */ ;
-/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
+/*!50003 SET collation_connection  = utf8mb3_uca1400_ai_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 BEGIN END ;;
@@ -5598,14 +5598,14 @@ CREATE VIEW nonunique_table_view_name AS SELECT 1;
 ##################################################
 # --compact --databases db1 db2
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */;
 
 USE `db1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `basetable` (
   `id` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `basetable` VALUES
 (5),
@@ -5614,7 +5614,7 @@ INSERT INTO `basetable` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_name` (
   `i3` smallint(6) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci INSERT_METHOD=LAST UNION=(`basetable`);
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci INSERT_METHOD=LAST UNION=(`basetable`);
 /*!40101 SET character_set_client = @saved_cs_client */;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
@@ -5622,7 +5622,7 @@ SET character_set_client = utf8;
  1 AS `1` */;
 SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */;
 
 USE `db2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -5630,7 +5630,7 @@ USE `db2`;
 CREATE TABLE `nonunique_table_name` (
   `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `i1` (`i1`)
-) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_name` VALUES
 (1),
@@ -5639,7 +5639,7 @@ INSERT INTO `nonunique_table_name` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_view_name` VALUES
 (3),
@@ -5652,7 +5652,7 @@ USE `db1`;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb3 */;
 /*!50001 SET character_set_results     = utf8mb3 */;
-/*!50001 SET collation_connection      = utf8mb3_general_ci */;
+/*!50001 SET collation_connection      = utf8mb3_uca1400_ai_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `nonunique_table_view_name` AS select 1 AS `1` */;
@@ -5670,7 +5670,7 @@ USE `db2`;
 CREATE TABLE `nonunique_table_name` (
   `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `i1` (`i1`)
-) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_name` VALUES
 (1),
@@ -5679,7 +5679,7 @@ INSERT INTO `nonunique_table_name` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_view_name` VALUES
 (3),
@@ -5688,7 +5688,7 @@ INSERT INTO `nonunique_table_view_name` VALUES
 ##################################################
 # --compact --delayed-insert --no-data-med=0 --databases db2 db1
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */;
 
 USE `db2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -5696,7 +5696,7 @@ USE `db2`;
 CREATE TABLE `nonunique_table_name` (
   `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `i1` (`i1`)
-) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT  DELAYED INTO `nonunique_table_name` VALUES
 (1),
@@ -5705,20 +5705,20 @@ INSERT  DELAYED INTO `nonunique_table_name` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_view_name` VALUES
 (3),
 (4);
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */;
 
 USE `db1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `basetable` (
   `id` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT  DELAYED INTO `basetable` VALUES
 (5),
@@ -5727,7 +5727,7 @@ INSERT  DELAYED INTO `basetable` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_name` (
   `i3` smallint(6) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci INSERT_METHOD=LAST UNION=(`basetable`);
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci INSERT_METHOD=LAST UNION=(`basetable`);
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_name` VALUES
 (5),
@@ -5747,7 +5747,7 @@ USE `db1`;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb3 */;
 /*!50001 SET character_set_results     = utf8mb3 */;
-/*!50001 SET collation_connection      = utf8mb3_general_ci */;
+/*!50001 SET collation_connection      = utf8mb3_uca1400_ai_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `nonunique_table_view_name` AS select 1 AS `1` */;
@@ -5840,7 +5840,7 @@ USE `test`;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb3 */ ;
 /*!50003 SET character_set_results = utf8mb3 */ ;
-/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
+/*!50003 SET collation_connection  = utf8mb3_uca1400_ai_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 /*!50032 DROP TRIGGER IF EXISTS tt1_t1 */;
@@ -6501,7 +6501,7 @@ use test2;
 SHOW CREATE PACKAGE pkg;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
 pkg	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg" AS
-END	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+END	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci
 DROP DATABASE test1;
 DROP DATABASE test2;
 SET sql_mode=@save_sql_mode;
@@ -6627,7 +6627,7 @@ DELIMITER ;;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;;
 /*!50003 SET character_set_client  = utf8mb3 */ ;;
 /*!50003 SET character_set_results = utf8mb3 */ ;;
-/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;;
+/*!50003 SET collation_connection  = utf8mb3_uca1400_ai_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = '' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
@@ -6647,7 +6647,7 @@ DELIMITER ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb3 */ ;
 /*!50003 SET character_set_results = utf8mb3 */ ;
-/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
+/*!50003 SET collation_connection  = utf8mb3_uca1400_ai_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` FUNCTION `f2`() RETURNS int(11)
 return 2 ;;
