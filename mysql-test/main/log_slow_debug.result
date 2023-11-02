@@ -231,15 +231,18 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL log_output= "TABLE";
 SET GLOBAL slow_query_log= ON;
 SET SESSION long_query_time= 0;
-SET GLOBAL debug_dbug="+d,debug_huge_number_of_examined_rows";
+SET debug_dbug="+d,debug_huge_number_of_examined_rows";
 SELECT * FROM tab_MDEV_30820 ORDER BY 1;
 ID	A
 1	0
 2	0
-SET GLOBAL debug_dbug=@old_dbug;
+SET debug_dbug=@old_dbug;
 SET @@long_query_time= @old_long_query_time;
 SET @@global.log_output= @old_log_output;
 SET @@global.slow_query_log= @old_slow_query_log;
+SELECT rows_examined, sql_text from mysql.slow_log where sql_text like "SELECT%FROM tab_MDEV_30820%";
+rows_examined	sql_text
+18446744073708551615	SELECT * FROM tab_MDEV_30820 ORDER BY 1
 drop table tab_MDEV_30820;
 #
 # End of 10.4 test
