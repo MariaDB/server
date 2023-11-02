@@ -6360,7 +6360,7 @@ int spider_panic(
 /*
   Create or fix the system tables. See spd_init_query.h for the details.
 */
-bool spider_init_system_tables()
+bool spider_init_system_tables(LEX_STRING *queries, uint size)
 {
   DBUG_ENTER("spider_init_system_tables");
 
@@ -6376,15 +6376,13 @@ bool spider_init_system_tables()
     DBUG_RETURN(TRUE);
   }
 
-  const int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
-  for (int i= 0; i < size; i++)
+  for (uint i= 0; i < size; i++)
   {
-    const LEX_STRING *query= &spider_init_queries[i];
+    const LEX_STRING *query= &queries[i];
     if (mysql_real_query(mysql, query->str, query->length))
     {
-      fprintf(stderr,
-              "[ERROR] SPIDER plugin initialization failed at '%s' by '%s'\n",
-              query->str, mysql_error(mysql));
+      sql_print_error("SPIDER: plugin initialization failed at '%s' by '%s'\n",
+                      query->str, mysql_error(mysql));
 
       mysql_close(mysql);
       DBUG_RETURN(TRUE);
@@ -6401,6 +6399,17 @@ bool spider_init_system_tables()
   DBUG_RETURN(FALSE);
 }
 
+/* This is only called from ha_signal_ddl_recovery_done() in
+init_server_components(). In particular, it means spider has been
+partially initialised in plugin_init(). Here we complete the
+initialisation with the alter table init queries. */
+static int spider_ddl_recovery_done(handlerton*)
+{
+  return spider_init_system_tables(spider_init_alter_table_queries,
+                                   sizeof(spider_init_alter_table_queries) /
+                                   sizeof(spider_init_alter_table_queries[0]));
+}
+
 int spider_db_init(
   void *p
 ) {
@@ -6408,6 +6417,7 @@ int spider_db_init(
   uint dbton_id = 0;
   uchar addr[6];
   handlerton *spider_hton = (handlerton *)p;
+  extern my_bool plugins_are_initialized;
   DBUG_ENTER("spider_db_init");
 
   const LEX_CSTRING aria_name={STRING_WITH_LEN("Aria")};
@@ -6420,16 +6430,6 @@ int spider_db_init(
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
@@ -6449,6 +6449,7 @@ int spider_db_init(
   spider_hton->show_status = spider_show_status;
   spider_hton->create_group_by = spider_create_group_by_handler;
   spider_hton->table_options= spider_table_option_list;
+  spider_hton->signal_ddl_recovery_done= spider_ddl_recovery_done;
 
   if (my_gethwaddr((uchar *) addr))
   {
@@ -6497,10 +6498,6 @@ int spider_db_init(
 
   if (pthread_attr_init(&spider_pt_attr))
     goto error_pt_attr_init;
-/*
-  if (pthread_attr_setdetachstate(&spider_pt_attr, PTHREAD_CREATE_DETACHED))
-    goto error_pt_attr_setstate;
-*/
 
   if (mysql_mutex_init(spd_key_mutex_tbl,
     &spider_tbl_mutex, MY_MUTEX_INIT_FAST))
@@ -6667,10 +6664,20 @@ int spider_db_init(
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
   }
 
-  if (spider_init_system_tables())
-  {
+  if (spider_init_system_tables(
+        spider_init_queries,
+        sizeof(spider_init_queries) / sizeof(spider_init_queries[0])))
     goto error_system_table_creation;
-  }
+
+  /* If plugin_init() has already been called, it implies ddl recovery
+  is done, thus we can safely execute ALTER TABLE init queries.
+  Otherwise it is deferred to the spider_ddl_recovery_done()
+  callback. */
+  if (plugins_are_initialized &&
+      spider_init_system_tables(spider_init_alter_table_queries,
+                                sizeof(spider_init_alter_table_queries) /
+                                sizeof(spider_init_alter_table_queries[0])))
+    goto error_system_table_creation;
 
   if (!(spider_table_sts_threads = (SPIDER_THREAD *)
     spider_bulk_malloc(NULL, 256, MYF(MY_WME | MY_ZEROFILL),
