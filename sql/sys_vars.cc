@@ -1384,7 +1384,7 @@ static Sys_var_bit Sys_log_slow_slave_statements(
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
-       "Log some not critical warnings to the general log file."
+       "Log some non critical warnings to the error log."
        "Value can be between 0 and 11. Higher values mean more verbosity",
        SESSION_VAR(log_warnings),
        CMD_LINE(OPT_ARG, 'W'),
@@ -5199,7 +5199,7 @@ static Sys_var_uint Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
+get_master_info_ulonglong_value(THD *thd) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5207,7 +5207,7 @@ get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
   if ((mi= get_master_info(&thd->variables.default_master_connection,
                            Sql_condition::WARN_LEVEL_WARN)))
   {
-    res= *((ulonglong*) (((uchar*) mi) + master_info_offset));
+    res= (mi->*mi_accessor_func)();
     mi->release();
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -5277,7 +5277,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
        "sql_slave_skip_counter", "Skip the next N events from the master log",
        SESSION_VAR(slave_skip_counter), NO_CMD_LINE,
-       MASTER_INFO_VAR(rli.slave_skip_counter),
+       &Master_info::get_slave_skip_counter,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        ON_UPDATE(update_slave_skip_counter));
 
@@ -5293,7 +5293,7 @@ static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
        "relay log will be rotated automatically when the size exceeds this "
        "value.  If 0 at startup, it's set to max_binlog_size",
        SESSION_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
-       MASTER_INFO_VAR(rli.max_relay_log_size),
+       &Master_info::get_max_relay_log_size,
        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
        ON_UPDATE(update_max_relay_log_size));
 
