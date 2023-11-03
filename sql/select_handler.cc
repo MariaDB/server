@@ -200,3 +200,18 @@ void select_handler::print_error(int error, myf errflag)
 {
   my_error(ER_GET_ERRNO, MYF(0), error, hton_name(ht)->str);
 }
+
+select_pushdown_type select_handler::get_pushdown_type()
+{
+  /*
+    In the case of single SELECT select_lex is initialized and lex_unit==NULL,
+    in the case of whole UNIT select_lex == NULL and lex_unit is initialized,
+    in the case of partial pushdown both select_lex and lex_unit
+      are initialized
+  */
+  if(!lex_unit)
+    return select_pushdown_type::SINGLE_SELECT;
+
+  return select_lex ? select_pushdown_type::PART_OF_UNIT :
+                      select_pushdown_type::WHOLE_UNIT;
+}

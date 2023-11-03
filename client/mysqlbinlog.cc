@@ -3422,8 +3422,13 @@ int main(int argc, char** argv)
 
   if (tmpdir.list)
     free_tmpdir(&tmpdir);
-  if (result_file && result_file != stdout)
-    my_fclose(result_file, MYF(0));
+  if (result_file)
+  {
+    if (result_file != stdout)
+      my_fclose(result_file, MYF(0));
+    else
+      fflush(result_file);
+  }
 
   /*
     Ensure the GTID state is correct. If not, end in error.

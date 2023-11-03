@@ -1,0 +1,61 @@
+SELECT @@wsrep_on;
+@@wsrep_on
+1
+SET @wsrep_sst_method_saved = @@global.wsrep_sst_method;
+/* test currently supported methods */
+SET GLOBAL wsrep_sst_method=DEFAULT;
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+rsync
+SET GLOBAL wsrep_sst_method='rsync';
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+rsync
+SET GLOBAL wsrep_sst_method='mysqldump';
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+mysqldump
+SET GLOBAL wsrep_sst_method='mariabackup';
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+mariabackup
+SET GLOBAL wsrep_sst_method='backup';
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+backup
+SET GLOBAL wsrep_sst_method='backup1.sh';
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+backup1.sh
+SET GLOBAL wsrep_sst_method='my method';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'my method'
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+backup1.sh
+SHOW WARNINGS;
+Level	Code	Message
+Error	1231	Variable 'wsrep_sst_method' can't be set to the value of 'my method'
+SET GLOBAL wsrep_sst_method='/method';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of '/method'
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+backup1.sh
+SHOW WARNINGS;
+Level	Code	Message
+Error	1231	Variable 'wsrep_sst_method' can't be set to the value of '/method'
+SET GLOBAL wsrep_sst_method='method!';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'method!'
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+backup1.sh
+SHOW WARNINGS;
+Level	Code	Message
+Error	1231	Variable 'wsrep_sst_method' can't be set to the value of 'method!'
+SET GLOBAL wsrep_sst_method='method;';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'method;'
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+backup1.sh
+SHOW WARNINGS;
+Level	Code	Message
+Error	1231	Variable 'wsrep_sst_method' can't be set to the value of 'method;'

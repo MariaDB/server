@@ -202,8 +202,10 @@ wait/io/table/sql/handler	23
 wait/lock/table/sql/handler	24
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	18	TABLE	test	t1
-wait/lock/table/sql/handler	29	TABLE	test	t3
+wait/io/table/sql/handler	8	TABLE	test	t1
+wait/lock/table/sql/handler	10	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+wait/lock/table/sql/handler	14	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
@@ -260,8 +262,10 @@ wait/io/table/sql/handler	23
 wait/lock/table/sql/handler	24
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	18	TABLE	test	t1
-wait/lock/table/sql/handler	29	TABLE	test	t3
+wait/io/table/sql/handler	8	TABLE	test	t1
+wait/lock/table/sql/handler	10	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+wait/lock/table/sql/handler	14	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
@@ -324,8 +328,10 @@ wait/io/table/sql/handler	23
 wait/lock/table/sql/handler	24
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	18	TABLE	test	t1
-wait/lock/table/sql/handler	29	TABLE	test	t3
+wait/io/table/sql/handler	8	TABLE	test	t1
+wait/lock/table/sql/handler	10	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+wait/lock/table/sql/handler	14	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
@@ -423,8 +429,10 @@ wait/io/table/sql/handler	23
 wait/lock/table/sql/handler	24
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	18	TABLE	test	t1
-wait/lock/table/sql/handler	29	TABLE	test	t3
+wait/io/table/sql/handler	8	TABLE	test	t1
+wait/lock/table/sql/handler	10	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+wait/lock/table/sql/handler	14	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
@@ -492,8 +500,10 @@ wait/io/table/sql/handler	23
 wait/lock/table/sql/handler	24
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	18	TABLE	test	t1
-wait/lock/table/sql/handler	29	TABLE	test	t3
+wait/io/table/sql/handler	8	TABLE	test	t1
+wait/lock/table/sql/handler	10	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+wait/lock/table/sql/handler	14	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
@@ -603,8 +613,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	48
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	41	TABLE	test	t1
-wait/lock/table/sql/handler	78	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	20	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	28	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -677,8 +689,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	48
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	41	TABLE	test	t1
-wait/lock/table/sql/handler	78	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	20	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	28	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -800,8 +814,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	48
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	41	TABLE	test	t1
-wait/lock/table/sql/handler	78	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	20	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	28	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -875,8 +891,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -947,8 +965,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1019,8 +1039,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1088,8 +1110,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1156,8 +1180,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1223,8 +1249,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1289,8 +1317,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1357,8 +1387,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1424,8 +1456,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1491,8 +1525,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1558,8 +1594,10 @@ wait/io/table/sql/handler	71
 wait/lock/table/sql/handler	56
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	17	11	6	11	2	4	0
@@ -1625,8 +1663,10 @@ wait/io/table/sql/handler	0
 wait/lock/table/sql/handler	0
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
-wait/lock/table/sql/handler	45	TABLE	test	t1
-wait/lock/table/sql/handler	82	TABLE	test	t3
+wait/io/table/sql/handler	21	TABLE	test	t1
+wait/lock/table/sql/handler	24	TABLE	test	t1
+wait/io/table/sql/handler	50	TABLE	test	t3
+wait/lock/table/sql/handler	32	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	0	0	0	0	0	0	0

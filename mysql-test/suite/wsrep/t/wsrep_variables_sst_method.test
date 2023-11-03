@@ -1,0 +1,50 @@
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+
+SELECT @@wsrep_on;
+
+SET @wsrep_sst_method_saved = @@global.wsrep_sst_method;
+
+/* test currently supported methods */
+SET GLOBAL wsrep_sst_method=DEFAULT;
+SELECT @@global.wsrep_sst_method;
+
+SET GLOBAL wsrep_sst_method='rsync';
+SELECT @@global.wsrep_sst_method;
+
+SET GLOBAL wsrep_sst_method='mysqldump';
+SELECT @@global.wsrep_sst_method;
+
+SET GLOBAL wsrep_sst_method='mariabackup';
+SELECT @@global.wsrep_sst_method;
+
+SET GLOBAL wsrep_sst_method='backup';
+SELECT @@global.wsrep_sst_method;
+
+SET GLOBAL wsrep_sst_method='backup1.sh';
+SELECT @@global.wsrep_sst_method;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_sst_method='my method';
+SELECT @@global.wsrep_sst_method;
+SHOW WARNINGS;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_sst_method='/method';
+SELECT @@global.wsrep_sst_method;
+SHOW WARNINGS;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_sst_method='method!';
+SELECT @@global.wsrep_sst_method;
+SHOW WARNINGS;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_sst_method='method;';
+SELECT @@global.wsrep_sst_method;
+SHOW WARNINGS;
+
+
+--disable_query_log
+SET @@global.wsrep_sst_method = @wsrep_sst_method_saved;
+--enable_query_log

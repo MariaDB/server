@@ -6,7 +6,6 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 let PAGE_SIZE=`select @@innodb_page_size`;
 
 CREATE TABLE t1(a INT) row_format=redundant engine=innoDB;
