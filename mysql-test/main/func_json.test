@@ -3655,7 +3655,9 @@ SELECT JSON_SCHEMA_VALID(@schema, '-#');
 SET @schema_array= '{"type":"array"}';
 SELECT JSON_SCHEMA_VALID(@schema_array, '[');
 
+--disable_view_protocol
 SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
+--enable_view_protocol
 
 SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
 
