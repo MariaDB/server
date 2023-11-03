@@ -4,4 +4,4 @@
 select * from mysql.plugin;
 name	dl
 create table t (c int) Engine=SPIDER;
-drop table t;
+ERROR 42000: Unknown storage engine 'SPIDER'

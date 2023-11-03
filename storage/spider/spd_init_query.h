@@ -244,6 +244,9 @@ static LEX_STRING spider_init_queries[] = {
 };
 
 static LEX_STRING spider_init_alter_table_queries[] = {
+  {C_STRING_WITH_LEN(
+    "foo;"
+  )},
 /*
   If tables already exist and their definition differ
   from the latest ones, we fix them here.

@@ -3,5 +3,5 @@
 --echo #
 # A simple test that tests plugin-load-add=ha_spider
 select * from mysql.plugin;
+--error ER_UNKNOWN_STORAGE_ENGINE
 create table t (c int) Engine=SPIDER;
-drop table t;
