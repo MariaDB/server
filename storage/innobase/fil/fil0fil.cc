@@ -1678,6 +1678,8 @@ fil_space_t *fil_space_t::drop(ulint id, pfs_os_file_t *detached_handle)
   mysql_mutex_unlock(&fil_system.mutex);
   if (detached_handle)
     *detached_handle = handle;
+  else
+    os_file_close(handle);
   return space;
 }
 
