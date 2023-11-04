@@ -9414,8 +9414,17 @@ bool Lex_order_limit_lock::set_to(SELECT_LEX *sel)
           "CUBE/ROLLUP", "ORDER BY");
       return TRUE;
     }
+    for (ORDER *order= order_list->first; order; order= order->next)
+      (*order->item)->walk(&Item::change_context_processor, FALSE,
+                           &sel->context);
     sel->order_list= *(order_list);
   }
+  if (limit.select_limit)
+    limit.select_limit->walk(&Item::change_context_processor, FALSE,
+                             &sel->context);
+  if (limit.offset_limit)
+    limit.offset_limit->walk(&Item::change_context_processor, FALSE,
+                             &sel->context);
   sel->is_set_query_expr_tail= true;
   return FALSE;
 }
