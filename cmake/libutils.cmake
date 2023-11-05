@@ -89,7 +89,7 @@ MACRO(CREATE_EXPORTS_FILE VAR TARGET API_FUNCTIONS)
     CONFIGURE_FILE_CONTENT(${CONTENT} ${EXPORTS})
     # Avoid "function redeclared as variable" error
     # when using gcc/clang option -flto(link time optimization)
-    IF(" ${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS} " MATCHES " -flto")
+    IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
       SET_SOURCE_FILES_PROPERTIES(${EXPORTS} PROPERTIES COMPILE_FLAGS "-fno-lto")
     ENDIF()
     SET(${VAR} ${EXPORTS})
