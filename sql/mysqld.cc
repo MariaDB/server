@@ -7551,7 +7551,7 @@ SHOW_VAR status_vars[]= {
   SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_avg_wait_time", &SHOW_FNAME(avg_net_wait_time)),
   {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
-  {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_slave_status",  &rpl_semi_sync_enabled),
   {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
 #endif /* HAVE_REPLICATION */
 #ifdef HAVE_QUERY_CACHE

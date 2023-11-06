@@ -28,7 +28,7 @@ set global rpl_semi_sync_slave_enabled= 0;
 # Main test of semi-sync replication start here
 #
 connection master;
-set global rpl_semi_sync_master_timeout= 60000;
+set global rpl_semi_sync_master_timeout= 2000;
 [ default state of semi-sync on master should be OFF ]
 show variables like 'rpl_semi_sync_master_enabled';
 Variable_name	Value
@@ -163,11 +163,15 @@ connection slave;
 # Test semi-sync master will switch OFF after one transaction
 # timeout waiting for slave reply.
 #
+connection master;
+show status like "Rpl_semi_sync_master_status";
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
 connection slave;
 include/stop_slave.inc
 connection master;
 include/kill_binlog_dump_threads.inc
-set global rpl_semi_sync_master_timeout= 5000;
+set global rpl_semi_sync_master_timeout= 2000;
 [ master status should be ON ]
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value

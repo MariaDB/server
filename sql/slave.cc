@@ -4978,6 +4978,15 @@ connected:
          we're in fact receiving nothing.
       */
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
+
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("pause_before_io_read_event",
+                      {
+                        DBUG_ASSERT(!debug_sync_set_action( thd, STRING_WITH_LEN(
+     "now signal io_thread_at_read_event wait_for io_thread_continue_read_event")));
+                        DBUG_SET("-d,pause_before_io_read_event");
+                      };);
+#endif
       event_len= read_event(mysql, mi, &suppress_warnings, &network_read_len);
       if (check_io_slave_killed(mi, NullS))
         goto err;
@@ -5077,7 +5086,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK))
+      if (repl_semisync_slave.get_slave_enabled() && (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
         /*
           We deliberately ignore the error in slave_reply, such error should
@@ -6625,7 +6634,7 @@ dbug_gtid_accept:
     */
     mi->do_accept_own_server_id=
       (s_id == global_system_variables.server_id &&
-       rpl_semi_sync_slave_enabled && opt_gtid_strict_mode &&
+       repl_semisync_slave.get_slave_enabled() && opt_gtid_strict_mode &&
        mi->using_gtid != Master_info::USE_GTID_NO &&
         !mysql_bin_log.check_strict_gtid_sequence(event_gtid.domain_id,
                                                   event_gtid.server_id,

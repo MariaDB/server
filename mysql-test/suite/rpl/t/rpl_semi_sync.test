@@ -12,10 +12,26 @@ let $engine_type= InnoDB;
 
 # Suppress warnings that might be generated during the test
 connection master;
+
+# Make a thread handle SIGHUP
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+  my $mysqld_pid = `cat $pid_filename`;
+  chomp($mysqld_pid);
+  system("kill -HUP $mysqld_pid");
+  exit(0);
+EOF
+
 call mtr.add_suppression("Timeout waiting for reply of binlog");
 call mtr.add_suppression("Read semi-sync reply");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 call mtr.add_suppression("mysqld: Got an error reading communication packets");
+--disable_query_log
+set @old_log_warnings= @@global.log_warnings;
+set global log_warnings=9;
+--enable_query_log
 connection slave;
 # While 'Current_Pos' exists as an option for Using_Gtd, keeping these
 # events in the binlog will update gtid_binlog_pos, and the later calls to
@@ -27,6 +43,10 @@ call mtr.add_suppression("Master server does not support semi-sync");
 call mtr.add_suppression("Semi-sync slave .* reply");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
 set sql_log_bin=1;
+--disable_query_log
+set @old_log_warnings= @@global.log_warnings;
+set global log_warnings=9;
+--enable_query_log
 connection master;
 
 # wait for dying connections (if any) to disappear
@@ -58,7 +78,7 @@ set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
 
-set global rpl_semi_sync_master_timeout= 60000; # 60s
+set global rpl_semi_sync_master_timeout= 2000; # 2s
 
 echo [ default state of semi-sync on master should be OFF ];
 show variables like 'rpl_semi_sync_master_enabled';
@@ -202,12 +222,16 @@ sync_slave_with_master;
 --echo # Test semi-sync master will switch OFF after one transaction
 --echo # timeout waiting for slave reply.
 --echo #
+
+connection master;
+show status like "Rpl_semi_sync_master_status";
+
 connection slave;
 source include/stop_slave.inc;
 
 connection master;
 --source include/kill_binlog_dump_threads.inc
-set global rpl_semi_sync_master_timeout= 5000;
+set global rpl_semi_sync_master_timeout= 2000;
 
 # The first semi-sync check should be on because after slave stop,
 # there are no transactions on the master.
@@ -239,8 +263,8 @@ show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
-# Semi-sync status on master is now OFF, so all these transactions
-# will be replicated asynchronously.
+# Semi-sync status on master is now ON, but there are no slaves attached,
+# so all these transactions will be replicated asynchronously.
 delete from t1 where a=10;
 delete from t1 where a=9;
 delete from t1 where a=8;
@@ -374,6 +398,9 @@ let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
 
+sync_slave_with_master;
+connection master;
+
 replace_result $engine_type ENGINE_TYPE;
 eval create table t1 (a int) engine = $engine_type;
 insert into t1 values (1);
@@ -420,6 +447,10 @@ connection master;
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
+
+sync_slave_with_master;
+connection master;
+
 echo [ master semi-sync should be ON ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
@@ -522,8 +553,14 @@ change master to master_user='root',master_password='';
 source include/start_slave.inc;
 
 connection master;
+--disable_query_log
+set global log_warnings=@old_log_warnings;
+--enable_query_log
 drop table t1;
 sync_slave_with_master;
+--disable_query_log
+set global log_warnings=@old_log_warnings;
+--enable_query_log
 
 connection master;
 drop user rpl@127.0.0.1;

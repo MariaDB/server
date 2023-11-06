@@ -3033,8 +3033,13 @@ err:
 
   if (info->thd->killed == KILL_SLAVE_SAME_ID)
   {
-    info->errmsg= "A slave with the same server_uuid/server_id as this slave "
-                  "has connected to the master";
+    /*
+      Note that the text is limited to 64 characters in errmsg-utf8 in
+      ER_ABORTING_CONNECTION.
+    */
+    info->errmsg=
+      "A slave with the same server_uuid/server_id is already "
+      "connected";
     info->error= ER_SLAVE_SAME_ID;
   }
 
@@ -3408,6 +3413,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   @retval 0 success
   @retval 1 error
 */
+
 int reset_slave(THD *thd, Master_info* mi)
 {
   MY_STAT stat_area;
@@ -3505,8 +3511,6 @@ int reset_slave(THD *thd, Master_info* mi)
   else if (global_system_variables.log_warnings > 1)
     sql_print_information("Deleted Master_info file '%s'.", fname);
 
-  if (rpl_semi_sync_slave_enabled)
-    repl_semisync_slave.reset_slave(mi);
 err:
   mi->unlock_slave_threads();
   if (unlikely(error))
@@ -3553,22 +3557,72 @@ static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
 }
 
 
-void kill_zombie_dump_threads(uint32 slave_server_id)
+/**
+  Try to kill running dump threads
+
+  @result 0   ok
+  @result 1   old slave thread exists and does not want to die
+*/
+
+bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id)
 {
   kill_callback_arg arg(slave_server_id);
   server_threads.iterate(kill_callback, &arg);
 
-  if (arg.thd)
+  if (!arg.thd)
+    return 0;
+
+  /*
+    Here we do not call kill_one_thread() as
+    it will be slow because it will iterate through the list
+    again. We just to do kill the thread ourselves.
+  */
+
+  arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+  arg.thd->abort_current_cond_wait(true);
+
+  ack_receiver.remove_slave(arg.thd);
+  mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
+  mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
+
+  /*
+    Wait up to 10 seconds for kill of dump thread, trying every 1/10 of
+    second.
+  */
+  for (uint i= 10*10;
+       --i > 0  && !thd->killed;
+       i++)
   {
+    arg.thd= 0;
+    server_threads.iterate(kill_callback, &arg);
+    if (!arg.thd)
+      return 0;
     /*
-      Here we do not call kill_one_thread() as
-      it will be slow because it will iterate through the list
-      again. We just to do kill the thread ourselves.
+      It is possible for multiple dump threads to need to die, so if this is
+      a new dump thread that isn't killed, and we are also still not killed,
+      then kill it. If we are killed, then simply skip and eventually die.
     */
-    arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+    if (!arg.thd->is_killed() && !thd->is_killed())
+    {
+      arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+      arg.thd->abort_current_cond_wait(true);
+      ack_receiver.remove_slave(arg.thd);
+    }
     mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
     mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
+    my_sleep(1000000L / 10);                // Wait 1/10 of a second
   }
+  /*
+    We where not able to kill the dump thread.
+
+    Remove in any case the slave from the Ack_receive() to
+    ensure we do not two copies from the same slave in it.
+    This is safe to do as it only removes the slave from the
+    if it is still there. If the dump thread would eventually
+    call it again, no harm is done.
+  */
+  ack_receiver.remove_slave(arg.thd);
+  return 1;
 }
 
 /**

@@ -18,6 +18,8 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 
+connection master;
+sync_slave_with_master;
 --source include/stop_slave.inc
 --echo # Test slave with no capability gets dummy event, which is ignored.
 set @old_dbug= @@global.debug_dbug;
