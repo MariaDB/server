@@ -248,7 +248,7 @@ public:
   static void gtid_index_init();
   static void gtid_index_cleanup();
 protected:
-  friend class Gtid_index_reader;
+  friend class Gtid_index_reader_hot;
   static void lock_gtid_index() { mysql_mutex_lock(&gtid_index_mutex); }
   static void unlock_gtid_index() { mysql_mutex_unlock(&gtid_index_mutex); }
   static const Gtid_index_writer *find_hot_index(const char *file_name);
@@ -337,26 +337,21 @@ public:
                       uint32 *out_gtid_count);
   rpl_gtid *search_gtid_list();
 
-private:
+protected:
   int search_cmp_offset(uint32 offset, rpl_binlog_state_base *state);
   int search_cmp_gtid_pos(uint32 offset, rpl_binlog_state_base *state);
-  int do_index_search(uint32 *out_offset, uint32 *out_gtid_count);
+  virtual int do_index_search(uint32 *out_offset, uint32 *out_gtid_count);
   int do_index_search_root(uint32 *out_offset, uint32 *out_gtid_count);
   int do_index_search_leaf(bool current_state_updated,
                            uint32 *out_offset, uint32 *out_gtid_count);
   int next_page();
   int find_bytes(uint32 num_bytes);
-  int get_child_ptr(uint32 *out_child_ptr);
+  virtual int get_child_ptr(uint32 *out_child_ptr);
   int get_offset_count(uint32 *out_offset, uint32 *out_gtid_count);
   int get_gtid_list(rpl_gtid *out_gtid_list, uint32 count);
-  int read_file_header();
-  int read_file_header_hot();
-  int read_file_header_cold();
-  int read_root_node();
-  int read_root_node_hot();
-  int read_root_node_cold();
-  int read_node(uint32 page_ptr);
-  int read_node_hot();
+  virtual int read_file_header();
+  virtual int read_root_node();
+  virtual int read_node(uint32 page_ptr);
   int read_node_cold(uint32 page_ptr);
   int give_error(const char *msg) override;
 
@@ -365,8 +360,6 @@ private:
   Index_node_base cold_node;
   /* n points to either cold node or hot node in writer. */
   Index_node_base *n;
-  /* Pointer to the writer object, if we're reading a hot index. */
-  const Gtid_index_writer *hot_writer;
   int (Gtid_index_reader::* search_cmp_function)(uint32, rpl_binlog_state_base *);
   slave_connection_state *in_search_gtid_pos;
   Node_page *read_page;
@@ -374,13 +367,37 @@ private:
   File index_file;
   uint32 current_offset;
   uint32 in_search_offset;
-  /* The level we are currently reading in the hot writer .*/
-  uint32 hot_level;
   bool file_open;
   bool index_valid;
   bool has_root_node;
   uchar version_major;
   uchar version_minor;
+};
+
+
+/*
+   Sub-class of Gtid_index_reader that can additionally access in-memory "hot"
+   pages of the index, which are partially filled pages of the current binlog
+   file, not yet written to disk.
+*/
+class Gtid_index_reader_hot : public Gtid_index_reader
+{
+public:
+  Gtid_index_reader_hot();
+  virtual ~Gtid_index_reader_hot() { }
+
+private:
+  int do_index_search(uint32 *out_offset, uint32 *out_gtid_count) override;
+  int get_child_ptr(uint32 *out_child_ptr) override;
+  int read_file_header() override;
+  int read_root_node() override;
+  int read_node(uint32 page_ptr) override;
+  int read_node_hot();
+
+  /* Pointer to the writer object, if we're reading a hot index. */
+  const Gtid_index_writer *hot_writer;
+  /* The level we are currently reading in the hot writer .*/
+  uint32 hot_level;
 };
 
 #endif  /* GTID_INDEX_H */
