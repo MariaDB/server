@@ -1054,6 +1054,13 @@ multi_delete::initialize_tables(JOIN *join)
   {
     TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
     tables_to_delete_from|= tbl->table->map;
+
+    /*
+      Ensure that filesort re-reads the row from the engine before
+      delete is called.
+    */
+    join->map2table[tbl->table->tablenr]->keep_current_rowid= true;
+
     if (delete_while_scanning &&
         unique_table(thd, tbl, join->tables_list, 0))
     {

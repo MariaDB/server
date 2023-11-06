@@ -667,4 +667,31 @@ select *from t1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-32212 DELETE with ORDER BY and semijoin optimization causing crash
+--echo #
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (c1 INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c2 INT) ENGINE=InnoDB;
+INSERT INTO t1 values (1),(2),(3),(4),(5),(6);
+INSERT INTO t2 values (2);
+
+DELETE FROM t1 WHERE c1 IN (select c2 from t2);
+select * from t1;
+truncate t1;
+truncate t2;
+INSERT INTO t1 values (1),(2),(3),(4),(5),(6);
+INSERT INTO t2 values (2);
+--echo check sj optimization with order-by
+analyze DELETE FROM t1 WHERE c1 IN (select c2 from t2) ORDER BY c1;
+select * from t1;
+truncate t2;
+INSERT INTO t2 values (3);
+--echo disallows sj optimization
+analyze DELETE FROM t1 WHERE c1 IN (select c2 from t2) ORDER BY c1 limit 1;
+select * from t1;
+
+DROP TABLE t1, t2;
+
 --echo End of 11.1 tests
