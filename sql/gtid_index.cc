@@ -755,7 +755,7 @@ int Gtid_index_writer::give_error(const char *msg)
 
 
 Gtid_index_reader::Gtid_index_reader()
-  : n(nullptr), hot_writer(nullptr), index_file(-1),
+  : n(nullptr), index_file(-1),
     file_open(false), index_valid(false), has_root_node(false),
     version_major(0), version_minor(0)
 {
@@ -828,7 +828,7 @@ int
 Gtid_index_reader::next_page()
 {
   if (!read_page->next)
-    return give_error("Corrupt index, short index node");
+    return 1;
   read_page= read_page->next;
   read_ptr= read_page->flag_ptr + 8;
   return 0;
@@ -848,20 +848,7 @@ int
 Gtid_index_reader::get_child_ptr(uint32 *out_child_ptr)
 {
   if (find_bytes(8))
-  {
-    /*
-      If reading hot index, EOF or zero child ptr means the child pointer has
-      not yet been written. A zero out_child_ptr makes read_node() read the
-      hot node for the child.
-    */
-    if (hot_writer)
-    {
-      *out_child_ptr= 0;
-      return 0;
-    }
-    else
-      return 1;
-  }
+      return give_error("Corrupt index, short index node");
   *out_child_ptr= (uint32)uint8korr(read_ptr);
   read_ptr+= 8;
   return 0;
@@ -874,9 +861,6 @@ Gtid_index_reader::get_child_ptr(uint32 *out_child_ptr)
   Returns:
      0  ok
      1  EOF, no more data in this node
-    -1  error
-
-  ToDo: I don't think this can actually return error? Only EOF.
 */
 int
 Gtid_index_reader::get_offset_count(uint32 *out_offset, uint32 *out_gtid_count)
@@ -895,13 +879,14 @@ Gtid_index_reader::get_offset_count(uint32 *out_offset, uint32 *out_gtid_count)
   return 0;
 }
 
+
 int
 Gtid_index_reader::get_gtid_list(rpl_gtid *out_gtid_list, uint32 count)
 {
   for (uint32 i= 0; i < count; ++i)
   {
     if (find_bytes(16))
-      return 1;
+      return give_error("Corrupt index, short index node");
     out_gtid_list[i].domain_id= uint4korr(read_ptr);
     out_gtid_list[i].server_id= uint4korr(read_ptr + 4);
     out_gtid_list[i].seq_no= uint8korr(read_ptr + 8);
@@ -914,6 +899,7 @@ Gtid_index_reader::get_gtid_list(rpl_gtid *out_gtid_list, uint32 count)
 int
 Gtid_index_reader::open_index_file(const char *binlog_filename)
 {
+  close_index_file();
   build_index_filename(binlog_filename);
   if ((index_file= mysql_file_open(key_file_gtid_index, index_file_name,
                                    O_RDONLY|O_BINARY, MYF(0))) < 0)
@@ -938,31 +924,12 @@ Gtid_index_reader::close_index_file()
 
 
 int
-Gtid_index_reader::do_index_search(uint32 *out_offset,
-                                   uint32 *out_gtid_count)
+Gtid_index_reader::do_index_search(uint32 *out_offset, uint32 *out_gtid_count)
 {
-  /* Check for a "hot" index. */
-  Gtid_index_writer::lock_gtid_index();
-  hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
-  if (!hot_writer)
-  {
-    Gtid_index_writer::unlock_gtid_index();
-    /*
-      Check the index file header (and index end) again, in case it was
-      hot when open_index_file() was called, but became cold in the meantime.
-    */
-    if (!has_root_node && read_file_header_cold())
-      return -1;
-  }
+  if (!has_root_node)
+    return -1;
 
-  int res= do_index_search_root(out_offset, out_gtid_count);
-
-  if (hot_writer)
-  {
-    hot_writer= nullptr;
-    Gtid_index_writer::unlock_gtid_index();
-  }
-  return res;
+  return do_index_search_root(out_offset, out_gtid_count);
 }
 
 
@@ -995,15 +962,12 @@ Gtid_index_reader::do_index_search_root(uint32 *out_offset,
     uint32 child_ptr;
     if (get_child_ptr(&child_ptr))
       return -1;
-    DBUG_ASSERT(hot_writer || child_ptr != 0);
 
     /* Scan over the keys in the node to find the child pointer to follow */
     for (;;)
     {
       uint32 offset, gtid_count;
       int res= get_offset_count(&offset, &gtid_count);
-      if (res < 0)
-        return -1;
       if (res == 1)   // EOF?
       {
         /* Follow the right-most child pointer. */
@@ -1045,8 +1009,6 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
 {
   uint32 offset, gtid_count;
   int res= get_offset_count(&offset, &gtid_count);
-  if (res < 0)
-    return -1;
   if (res == 1)  // EOF?
     DBUG_ASSERT(0 /* ToDo handle gtid_count==0 / EOF */);
   rpl_gtid *gtid_list= gtid_list_buffer(gtid_count);
@@ -1074,8 +1036,6 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
   {
     uint32 offset, gtid_count;
     int res= get_offset_count(&offset, &gtid_count);
-    if (res < 0)
-      return -1;
     if (res == 1)  // EOF?
     {
       /* Reached end of leaf, last key is the one searched for. */
@@ -1108,59 +1068,16 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
 }
 
 
+/*
+  Read the file header and check that it's valid and that the format is not
+  too new a version for us to be able to read it.
+*/
 int
 Gtid_index_reader::read_file_header()
 {
-  index_valid= false;
   if (!file_open)
     return 1;
 
-  Gtid_index_writer::lock_gtid_index();
-  hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
-  if (!hot_writer)
-    Gtid_index_writer::unlock_gtid_index();
-
-  int res;
-  if (hot_writer && hot_writer->max_level == 0)
-  {
-    /*
-      No pages from the hot index have been written to disk, there's just a
-      single incomplete node at level 0.
-      We have to read the file header from the in-memory page.
-    */
-    res= read_file_header_hot();
-  }
-  else
-    res= read_file_header_cold();
-
-  if (hot_writer)
-  {
-    hot_writer= nullptr;
-    Gtid_index_writer::unlock_gtid_index();
-  }
-  return res;
-}
-
-
-int
-Gtid_index_reader::read_file_header_hot()
-{
-  /* Hot index, no need to check the GTID_INDEX_MAGIC or version. */
-  uchar *p= hot_writer->nodes[0]->first_page->page;
-  page_size= uint4korr(p + 12);
-  has_root_node= false;
-  index_valid= true;
-  return 0;
-}
-
-
-int
-Gtid_index_reader::read_file_header_cold()
-{
-  /*
-    Read the file header and check that it's valid and that the format is not
-    too new a version for us to be able to read it.
-  */
   uchar buf[GTID_INDEX_FILE_HEADER_SIZE + GTID_INDEX_PAGE_HEADER_SIZE];
 
   if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, 0, MY_SEEK_SET, MYF(0)) ||
@@ -1209,29 +1126,9 @@ Gtid_index_reader::read_file_header_cold()
 int
 Gtid_index_reader::read_root_node()
 {
-  if (!index_valid)
+  if (!index_valid || !has_root_node)
     return 1;
 
-  if (hot_writer)
-    return read_root_node_hot();
-  else if (has_root_node)
-    return read_root_node_cold();
-  else
-    return 1;
-}
-
-
-int
-Gtid_index_reader::read_root_node_hot()
-{
-  hot_level= hot_writer->max_level;
-  return read_node_hot();
-}
-
-
-int
-Gtid_index_reader::read_root_node_cold()
-{
   cold_node.reset();
   n= &cold_node;
   /*
@@ -1277,54 +1174,10 @@ Gtid_index_reader::read_root_node_cold()
 int
 Gtid_index_reader::read_node(uint32 page_ptr)
 {
-  if (!index_valid || (!page_ptr && !hot_writer))
+  DBUG_ASSERT(page_ptr != 0 /* No zero child pointers in on-disk pages. */);
+  if (!index_valid || !page_ptr)
     return 1;
-
-  if (hot_writer)
-  {
-    if (!page_ptr)
-    {
-      /*
-        The "hot" index is only partially written. Not yet written child pages
-        are indicated by zero child pointers. Such child pages are found from
-        the list of active nodes in the writer.
-      */
-      if (hot_level <= 0)
-      {
-        DBUG_ASSERT(0 /* Should be no child pointer to follow on leaf page. */);
-        return give_error("Corrupt hot index (child pointer on leaf page");
-      }
-      DBUG_ASSERT(n == hot_writer->nodes[hot_level]);
-      --hot_level;
-      return read_node_hot();
-    }
-
-    /*
-      We started searching the "hot" index, but now we've reached a "cold"
-      part of the index that's already fully written. So leave the "hot index"
-      mode and continue reading pages from the on-disk index from here.
-    */
-    hot_writer= nullptr;
-    Gtid_index_writer::unlock_gtid_index();
-  }
-
   return read_node_cold(page_ptr);
-}
-
-
-int
-Gtid_index_reader::read_node_hot()
-{
-  if (hot_writer->error_state)
-    return give_error("Cannot access hot index");
-  n= hot_writer->nodes[hot_level];
-  read_page= n->first_page;
-  /* The writer should allocate pages for all nodes. */
-  DBUG_ASSERT(read_page != nullptr);
-  if (!read_page)
-    return give_error("Page not available in hot index");
-  read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
-  return 0;
 }
 
 
@@ -1373,4 +1226,172 @@ int Gtid_index_reader::give_error(const char *msg)
                         "fallback to slower sequential binlog scan. "
                         "Error is: %s", msg);
   return 1;
+}
+
+
+Gtid_index_reader_hot::Gtid_index_reader_hot()
+  : hot_writer(nullptr)
+{
+}
+
+
+int
+Gtid_index_reader_hot::get_child_ptr(uint32 *out_child_ptr)
+{
+  if (find_bytes(8))
+  {
+    /*
+      If reading hot index, EOF or zero child ptr means the child pointer has
+      not yet been written. A zero out_child_ptr makes read_node() read the
+      hot node for the child.
+    */
+    if (hot_writer)
+    {
+      *out_child_ptr= 0;
+      return 0;
+    }
+    return give_error("Corrupt index, short index node");
+  }
+  *out_child_ptr= (uint32)uint8korr(read_ptr);
+  read_ptr+= 8;
+  return 0;
+}
+
+
+int
+Gtid_index_reader_hot::do_index_search(uint32 *out_offset,
+                                       uint32 *out_gtid_count)
+{
+  /* Check for a "hot" index. */
+  Gtid_index_writer::lock_gtid_index();
+  hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
+  if (!hot_writer)
+  {
+    Gtid_index_writer::unlock_gtid_index();
+    /*
+      Check the index file header (and index end) again, in case it was
+      hot when open_index_file() was called, but became cold in the meantime.
+    */
+    if (!has_root_node && Gtid_index_reader::read_file_header())
+      return -1;
+  }
+
+  int res= do_index_search_root(out_offset, out_gtid_count);
+
+  if (hot_writer)
+  {
+    hot_writer= nullptr;
+    Gtid_index_writer::unlock_gtid_index();
+  }
+  return res;
+}
+
+
+int
+Gtid_index_reader_hot::read_file_header()
+{
+  if (!file_open)
+    return 1;
+
+  Gtid_index_writer::lock_gtid_index();
+  hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
+  if (!hot_writer)
+    Gtid_index_writer::unlock_gtid_index();
+
+  int res;
+  if (hot_writer && hot_writer->max_level == 0)
+  {
+    /*
+      No pages from the hot index have been written to disk, there's just a
+      single incomplete node at level 0.
+      We have to read the file header from the in-memory page.
+    */
+    uchar *p= hot_writer->nodes[0]->first_page->page;
+    page_size= uint4korr(p + 12);
+    has_root_node= false;
+    index_valid= true;
+    res= 0;
+  }
+  else
+    res= Gtid_index_reader::read_file_header();
+
+  if (hot_writer)
+  {
+    hot_writer= nullptr;
+    Gtid_index_writer::unlock_gtid_index();
+  }
+  return res;
+}
+
+
+int
+Gtid_index_reader_hot::read_root_node()
+{
+  if (!index_valid)
+    return 1;
+
+  if (hot_writer)
+  {
+    hot_level= hot_writer->max_level;
+    return read_node_hot();
+  }
+  if (has_root_node)
+  {
+    return Gtid_index_reader::read_root_node();
+  }
+  return 1;
+}
+
+
+int
+Gtid_index_reader_hot::read_node(uint32 page_ptr)
+{
+  if (!index_valid || (!page_ptr && !hot_writer))
+    return 1;
+
+  if (hot_writer)
+  {
+    if (!page_ptr)
+    {
+      /*
+        The "hot" index is only partially written. Not yet written child pages
+        are indicated by zero child pointers. Such child pages are found from
+        the list of active nodes in the writer.
+      */
+      if (hot_level <= 0)
+      {
+        DBUG_ASSERT(0 /* Should be no child pointer to follow on leaf page. */);
+        return give_error("Corrupt hot index (child pointer on leaf page");
+      }
+      DBUG_ASSERT(n == hot_writer->nodes[hot_level]);
+      --hot_level;
+      return read_node_hot();
+    }
+
+    /*
+      We started searching the "hot" index, but now we've reached a "cold"
+      part of the index that's already fully written. So leave the "hot index"
+      mode and continue reading pages from the on-disk index from here.
+    */
+    hot_writer= nullptr;
+    Gtid_index_writer::unlock_gtid_index();
+  }
+
+  return read_node_cold(page_ptr);
+}
+
+
+int
+Gtid_index_reader_hot::read_node_hot()
+{
+  if (hot_writer->error_state)
+    return give_error("Cannot access hot index");
+  n= hot_writer->nodes[hot_level];
+  read_page= n->first_page;
+  /* The writer should allocate pages for all nodes. */
+  DBUG_ASSERT(read_page != nullptr);
+  if (!read_page)
+    return give_error("Page not available in hot index");
+  read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
+  return 0;
 }

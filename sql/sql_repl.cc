@@ -1289,7 +1289,7 @@ end:
  */
 static int
 gtid_check_binlog_file(slave_connection_state *state,
-                       Gtid_index_reader *reader,
+                       Gtid_index_reader_hot *reader,
                        const binlog_file_entry *list,
                        bool *found_in_index, uint32 *out_start_seek,
                        uint32 *found_count,
@@ -1403,7 +1403,7 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
   binlog_file_entry *list;
   Gtid_list_log_event *glev= NULL;
   const char *errormsg= NULL;
-  Gtid_index_reader *reader= NULL;
+  Gtid_index_reader_hot *reader= NULL;
   *found_in_index= false;
 
   init_alloc_root(PSI_INSTRUMENT_ME, &memroot,
@@ -1416,7 +1416,7 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
   }
 
   if (opt_binlog_gtid_index)
-    reader= new Gtid_index_reader();
+    reader= new Gtid_index_reader_hot();
 
   while (list)
   {
@@ -1527,14 +1527,14 @@ static bool
 gtid_index_lookup_pos(const char *name, uint32 offset, uint32 *out_start_seek,
                       slave_connection_state *out_gtid_state)
 {
-  Gtid_index_reader *reader= nullptr;
+  Gtid_index_reader_hot *reader= nullptr;
   bool opened= false;
   bool found= false;
   uint32 found_offset, found_gtid_count;
   rpl_gtid *found_gtids;
   int res;
 
-  if (!(reader= new Gtid_index_reader()) ||
+  if (!(reader= new Gtid_index_reader_hot()) ||
       reader->open_index_file(name))
     goto err;
   opened= true;
