@@ -58,49 +58,67 @@ extern const char *optimizer_switch_names[];
 
 static inline void output_core_info()
 {
-  /* proc is optional on some BSDs so it can't hurt to look */
-#if defined(HAVE_READLINK) && !defined(__APPLE__) && !defined(__FreeBSD__)
+#ifndef _WIN32
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
+  if ((fd= open("/etc/os-release", O_RDONLY)) >= 0)
+  {
+    char *endline= buff;
+    ssize_t remain_len= len= read(fd, buff, sizeof(buff));
+    close(fd);
+    /* Take first 3 lines of this file, enough for distro and version only */
+    for (size_t num_lines= 0;
+         num_lines < 3 && remain_len > 0;
+         num_lines++, endline++, remain_len--)
+    {
+      endline= (char *) memchr(endline, '\n', remain_len);
+      remain_len= buff + len - endline;
+    }
+    len= endline - buff;
+    if (len > 0)
+      my_safe_printf_stderr("Operating System information:\n%.*s\n", (int) len, buff);
+  }
+#endif
+  /* proc is optional on some BSDs so it can't hurt to look */
+#if defined(HAVE_READLINK) && !defined(__APPLE__) && !defined(__FreeBSD__)
   if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
   {
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
-  if ((fd= open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/self/limits", O_RDONLY)) >= 0)
   {
     my_safe_printf_stderr("Resource Limits:\n");
-    while ((len= read(fd, (uchar*)buff, sizeof(buff))) > 0)
+    while ((len= read(fd, buff, sizeof(buff))) > 0)
     {
       my_write_stderr(buff, len);
     }
     close(fd);
   }
 #ifdef __linux__
-  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY)) >= 0)
   {
-    len= read(fd, (uchar*)buff, sizeof(buff));
-    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+    len= read(fd, buff, sizeof(buff));
     close(fd);
+    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
   }
   if ((fd= open("/proc/version", O_RDONLY)) >= 0)
   {
-    len= read(fd, (uchar*)buff, sizeof(buff));
-    my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
+    len= read(fd, buff, sizeof(buff));
     close(fd);
+    my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
   }
 #endif
 #elif defined(__APPLE__) || defined(__FreeBSD__)
-  char buff[PATH_MAX];
-  size_t len = sizeof(buff);
-  if (sysctlbyname("kern.corefile", buff, &len, NULL, 0) == 0)
+  size_t slen = sizeof(buff);
+  if (sysctlbyname("kern.corefile", buff, &slen, NULL, 0) == 0)
   {
-    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+    my_safe_printf_stderr("Core pattern: %.*s\n", (int) slen, buff);
   }
-  if (sysctlbyname("kern.version", buff, &len, NULL, 0) == 0)
+  if (sysctlbyname("kern.version", buff, &slen, NULL, 0) == 0)
   {
-    my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
+    my_safe_printf_stderr("Kernel version: %.*s\n", (int) slen, buff);
   }
 #elif defined(HAVE_GETCWD)
   char buff[80];
