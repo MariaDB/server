@@ -425,6 +425,8 @@ Gtid_index_writer::write_current_node(uint32 level, bool is_root)
       *(p->flag_ptr) |= PAGE_FLAG_ROOT;
     if (likely(!p->next))
       *(p->flag_ptr) |= PAGE_FLAG_LAST;
+    int4store(p->page + page_size - CHECKSUM_LEN,
+              my_checksum(0, p->page, page_size - CHECKSUM_LEN));
     if (mysql_file_write(index_file, p->page, page_size, MYF(MY_NABP)))
     {
       give_error("Error writing index page");
@@ -457,7 +459,8 @@ Gtid_index_writer::reserve_space(Index_node *n, size_t bytes)
 {
   DBUG_ASSERT(bytes <= page_size);
   if (likely(n->current_page) &&
-      likely(n->current_ptr - n->current_page->page + bytes <= page_size))
+      likely(n->current_ptr - n->current_page->page + bytes <=
+             (page_size - CHECKSUM_LEN)))
     return 0;
   /* Not enough room, allocate a spill page. */
   Node_page *page= alloc_page();
@@ -512,8 +515,6 @@ Gtid_index_writer::do_write_record(uint32 level,
 
   Adding a child pointer shouldn't spill to a new page, code must make sure that
   there is always room for the final child pointer in current non-leaf node.
-
-  ToDo: A child pointer is 8 bytes for now to preserve 8-byte alignment.
 */
 int
 Gtid_index_writer::add_child_ptr(uint32 level, my_off_t node_offset)
@@ -521,13 +522,14 @@ Gtid_index_writer::add_child_ptr(uint32 level, my_off_t node_offset)
   DBUG_ASSERT(level <= max_level);
   DBUG_ASSERT(node_offset > 0);
   Index_node *n= nodes[level];
-  if (reserve_space(n, 8))
+  if (reserve_space(n, 4))
     return 1;
   DBUG_ASSERT(n->current_page);
-  DBUG_ASSERT((size_t)(n->current_ptr - n->current_page->page + 8) <= page_size);
+  DBUG_ASSERT((size_t)(n->current_ptr - n->current_page->page + 4) <=
+              page_size - CHECKSUM_LEN);
 
-  int8store(n->current_ptr, node_offset);
-  n->current_ptr+= 8;
+  int4store(n->current_ptr, node_offset);
+  n->current_ptr+= 4;
   return 0;
 }
 
@@ -603,7 +605,7 @@ Gtid_index_writer::write_record(uint32 event_offset,
         index to not see NULL pointers, and we will need the page later anyway
         to put at least one child pointer to the level below.
       */
-      if (reserve_space(n, 8))
+      if (reserve_space(n, 4))
         return 1;
     }
     gtid_list= new_gtid_list;
@@ -625,7 +627,7 @@ Gtid_index_writer::check_room(uint32 level, uint32 gtid_count)
     Make sure we use at least 1/2 a page of room after the initial record,
     setting a flag to allocate a spill page later if needed.
   */
-  size_t avail= page_size - (n->current_ptr - n->current_page->page);
+  size_t avail= page_size - CHECKSUM_LEN - (n->current_ptr - n->current_page->page);
   if (n->num_records==1 && avail < page_size/2)
   {
     n->force_spill_page= true;
@@ -634,9 +636,9 @@ Gtid_index_writer::check_room(uint32 level, uint32 gtid_count)
   if (n->force_spill_page)
     return true;
   size_t needed= 8 + 16*gtid_count;
-  /* Non-leaf pages need extra 8 bytes for a child pointer. */
+  /* Non-leaf pages need extra 4 bytes for a child pointer. */
   if (level > 0)
-    needed+= 8;
+    needed+= 4;
   return needed <= avail;
 }
 
@@ -675,7 +677,7 @@ Gtid_index_writer::alloc_level_if_missing(uint32 level)
   comes after the global file header.
   Format:
     0    flags.
-    1-7  unused padding/reserved.
+    1-3  unused padding/reserved.
 
   The argument FIRST denotes if this is the first page (if false it is a
   continuation page).
@@ -709,11 +711,11 @@ Gtid_index_writer::init_header(Node_page *page, bool is_leaf, bool is_first)
   page->flag_ptr= p;
   *p++= flags;
   /* Padding/reserved. */
-  p+= 7;
+  p+= 3;
   DBUG_ASSERT(p == page->page +
               (is_file_header ? GTID_INDEX_FILE_HEADER_SIZE : 0) +
               GTID_INDEX_PAGE_HEADER_SIZE);
-  DBUG_ASSERT((size_t)(p - page->page) < page_size);
+  DBUG_ASSERT((size_t)(p - page->page) < page_size - CHECKSUM_LEN);
   return p;
 }
 
@@ -830,7 +832,7 @@ Gtid_index_reader::next_page()
   if (!read_page->next)
     return 1;
   read_page= read_page->next;
-  read_ptr= read_page->flag_ptr + 8;
+  read_ptr= read_page->flag_ptr + 4;
   return 0;
 }
 
@@ -838,7 +840,8 @@ Gtid_index_reader::next_page()
 int
 Gtid_index_reader::find_bytes(uint32 num_bytes)
 {
-  if (read_ptr - read_page->page + num_bytes <= (my_ptrdiff_t)page_size)
+  if (read_ptr - read_page->page + num_bytes <=
+      (my_ptrdiff_t)(page_size - CHECKSUM_LEN))
     return 0;
   return next_page();
 }
@@ -847,10 +850,10 @@ Gtid_index_reader::find_bytes(uint32 num_bytes)
 int
 Gtid_index_reader::get_child_ptr(uint32 *out_child_ptr)
 {
-  if (find_bytes(8))
+  if (find_bytes(4))
       return give_error("Corrupt index, short index node");
-  *out_child_ptr= (uint32)uint8korr(read_ptr);
-  read_ptr+= 8;
+  *out_child_ptr= (uint32)uint4korr(read_ptr);
+  read_ptr+= 4;
   return 0;
 }
 
@@ -1094,6 +1097,25 @@ Gtid_index_reader::read_file_header()
     return give_error("Incompatible index file, version too high");
   page_size= uint4korr(&buf[12]);
 
+  /* Verify checksum integrity of page_size and major/minor version. */
+  uint32 crc= my_checksum(0, buf, sizeof(buf));
+  uchar *buf3= (uchar *)
+    my_malloc(PSI_INSTRUMENT_ME, page_size - sizeof(buf), MYF(0));
+  if (!buf3)
+    return give_error("Error allocating memory for index page");
+  int res= 0;
+  if (mysql_file_read(index_file, buf3, page_size - sizeof(buf), MYF(MY_NABP)))
+    res= give_error("Error reading page from index file");
+  else
+  {
+    crc= my_checksum(crc, buf3, page_size - sizeof(buf) - CHECKSUM_LEN);
+    if (crc != uint4korr(buf3 + page_size - sizeof(buf) - CHECKSUM_LEN))
+      res= give_error("Corrupt page, invalid checksum");
+  }
+  my_free(buf3);
+  if (res)
+    return res;
+
   /*
     Check that there is a valid root node at the end of the file.
     If there is not, the index may be a "hot index" that is currently being
@@ -1117,9 +1139,45 @@ Gtid_index_reader::read_file_header()
       return give_error("Error reading root page from index file");
     flags= buf2[0];
     has_root_node= ((flags & needed_flags) == needed_flags);
+    /* No need to verify checksum here, will be done by read_root_node(). */
   }
   index_valid= true;
   return 0;
+}
+
+
+int
+Gtid_index_reader::verify_checksum(Gtid_index_base::Node_page *page)
+{
+  uint32 calc_checksum= my_checksum(0, page->page, page_size - CHECKSUM_LEN);
+  uint32 read_checksum= uint4korr(page->page + page_size - CHECKSUM_LEN);
+  if (calc_checksum != read_checksum)
+    return give_error("Corrupt page, invalid checksum");
+  return 0;
+}
+
+
+Gtid_index_base::Node_page *
+Gtid_index_reader::alloc_and_read_page()
+{
+  Node_page *page= alloc_page();
+  if (!page)
+  {
+    give_error("Error allocating memory for index page");
+    return nullptr;
+  }
+  if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
+  {
+    my_free(page);
+    give_error("Error reading page from index file");
+    return nullptr;
+  }
+  if (verify_checksum(page))
+  {
+    my_free(page);
+    return nullptr;
+  }
+  return page;
 }
 
 
@@ -1141,14 +1199,9 @@ Gtid_index_reader::read_root_node()
 
   for (;;)
   {
-    Node_page *page= alloc_page();
+    Node_page *page= alloc_and_read_page();
     if (!page)
-      return give_error("Error allocating memory for index page");
-    if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
-    {
-      my_free(page);
-      return give_error("Error reading page from index file");
-    }
+      return 1;
     if (mysql_file_tell(index_file, MYF(0)) == page_size)
       page->flag_ptr= &page->page[GTID_INDEX_FILE_HEADER_SIZE];
     else
@@ -1194,14 +1247,9 @@ Gtid_index_reader::read_node_cold(uint32 page_ptr)
   Node_page **next_ptr_ptr= &n->first_page;
   for (;;)
   {
-    Node_page *page= alloc_page();
+    Node_page *page= alloc_and_read_page();
     if (!page)
-      return give_error("Error allocating memory for index page");
-    if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
-    {
-      my_free(page);
-      return give_error("Error reading page from index file");
-    }
+      return 1;
     page->flag_ptr= &page->page[file_header ? GTID_INDEX_FILE_HEADER_SIZE : 0];
     file_header= false;
     /* Insert the page at the end of the list. */
@@ -1238,7 +1286,7 @@ Gtid_index_reader_hot::Gtid_index_reader_hot()
 int
 Gtid_index_reader_hot::get_child_ptr(uint32 *out_child_ptr)
 {
-  if (find_bytes(8))
+  if (find_bytes(4))
   {
     /*
       If reading hot index, EOF or zero child ptr means the child pointer has
@@ -1252,8 +1300,8 @@ Gtid_index_reader_hot::get_child_ptr(uint32 *out_child_ptr)
     }
     return give_error("Corrupt index, short index node");
   }
-  *out_child_ptr= (uint32)uint8korr(read_ptr);
-  read_ptr+= 8;
+  *out_child_ptr= (uint32)uint4korr(read_ptr);
+  read_ptr+= 4;
   return 0;
 }
 
