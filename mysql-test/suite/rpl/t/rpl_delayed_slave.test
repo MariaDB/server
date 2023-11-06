@@ -189,6 +189,12 @@ eval CHANGE MASTER TO MASTER_DELAY = $time2;
 --enable_query_log
 --source include/start_slave.inc
 
+# Ensure that slave has started properly
+--connection master
+INSERT INTO t1 VALUES ('Syncing slave', 5);
+--save_master_pos
+--sync_slave_with_master
+
 --connection master
 INSERT INTO t1 VALUES (delay_on_slave(1), 6);
 --save_master_pos
