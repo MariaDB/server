@@ -392,13 +392,6 @@ static dberr_t srv_undo_delete_old_tablespaces()
 
   DBUG_EXECUTE_IF("after_deleting_old_undo_success", return DB_ERROR;);
 
-  for (uint32_t i= 0; i < srv_undo_tablespaces_open; ++i)
-  {
-    char name[OS_FILE_MAX_PATH];
-    snprintf(name, sizeof name, "%s/undo%03" PRIu32, srv_undo_dir, i + 1);
-    os_file_delete_if_exists(innodb_data_file_key, name, nullptr);
-  }
-
   return DB_SUCCESS;
 }
 
