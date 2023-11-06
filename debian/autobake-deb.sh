@@ -122,10 +122,6 @@ in
     # there is intentionally no customizations whatsoever.
     ;;
   # Ubuntu
-  "bionic")
-    remove_rocksdb_tools
-    [ "$architecture" != amd64 ] && disable_pmem
-    ;&
   "focal")
     replace_uring_with_aio
     ;&
