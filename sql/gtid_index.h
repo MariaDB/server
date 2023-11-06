@@ -87,7 +87,31 @@
 
     Offset  Size  Description
        0      1   Flags
-       1      7   Padding/unused
+       1      3   Padding/unused
+
+  The last 4 bytes of each page is a 32-bit CRC.
+
+  An interior node is a sequence of
+    <child ptr> <key> <child ptr> <key> ... <key> <child ptr>
+  while a leaf node has only keys.
+
+  A child pointer is stored as 4 byte integer. The first page is 1, so that
+  0 can be used to denote "not present".
+
+  Format of a key:
+
+    Offset  Size  Description
+      0       4   Number of GTIDs in the key, plus 1. Or 0 for EOF.
+      4       4   Binlog file offset
+      8       4   Domain_id of first GTID
+     12       4   Server_id of first GTID
+     16       8   Seq_no of first GTID
+     ...          and so on for each GTID in the key.
+
+  A node typically fits in one page. But if the GTID state is very big (or
+  the page size very small), multiple pages may be used. When a node is split,
+  it can be split after a child pointer or before or after a GTID, but not
+  elsewhere.
 
   Here is an example index file in schematic form:
 
@@ -164,7 +188,8 @@ protected:
   static constexpr uchar GTID_INDEX_VERSION_MAJOR= 1;
   static constexpr uchar GTID_INDEX_VERSION_MINOR= 0;
   static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 16;
-  static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 8;
+  static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 4;
+  static constexpr size_t CHECKSUM_LEN= 4;
 
 #ifdef _MSC_VER
 /*
@@ -350,6 +375,8 @@ protected:
   int get_offset_count(uint32 *out_offset, uint32 *out_gtid_count);
   int get_gtid_list(rpl_gtid *out_gtid_list, uint32 count);
   virtual int read_file_header();
+  int verify_checksum(Node_page *page);
+  Node_page *alloc_and_read_page();
   virtual int read_root_node();
   virtual int read_node(uint32 page_ptr);
   int read_node_cold(uint32 page_ptr);
