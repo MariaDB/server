@@ -221,7 +221,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
   mysql_mutex_assert_not_owner(&gtid_index_mutex);
 
   ++pending_gtid_count;
-  if (unlikely(pending_state.update_nolock(gtid, false)))
+  if (unlikely(pending_state.update_nolock(gtid)))
   {
     lock_gtid_index();
     give_error("Out of memory processing GTID for binlog GTID index");
@@ -307,10 +307,6 @@ Gtid_index_writer::close()
   {
     if (mysql_file_sync(index_file, MYF(0)))
       give_error("Error syncing index file to disk");
-    else
-    {
-      // ToDo: something with binlog checkpoints or something to mark that now this index file need no longer be crash recovered. Or alternatively, crash recovery at startup could scan binlog index files (even if no crashed main binlog), and just recover any that are not with a clean root page at the end (PAGE_FLAG_ROOT | PAGE_FLAG_LAST).
-    }
   }
 
   mysql_file_close(index_file, MYF(0));
@@ -562,7 +558,6 @@ Gtid_index_writer::write_record(uint32 event_offset,
   {
     Index_node *n= nodes[level];
     if (update_gtid_state(&n->state, gtid_list, gtid_count))
-      /* ToDo: Something that doesn't call my_error() here? */
       return give_error("Out of memory updating the local GTID state");
 
     if (check_room(level, gtid_count))
@@ -586,7 +581,7 @@ Gtid_index_writer::write_record(uint32 event_offset,
     if (alloc_level_if_missing(level+1) ||
         add_child_ptr(level+1, node_ptr))
       return 1;
-    uint32 new_count= n->state.count_nolock();  /* ToDo faster count op? */
+    uint32 new_count= n->state.count_nolock();
     rpl_gtid *new_gtid_list= gtid_list_buffer(new_count);
     if (new_count > 0 && !new_gtid_list)
       return 1;
@@ -725,7 +720,7 @@ Gtid_index_base::update_gtid_state(rpl_binlog_state_base *state,
                                    const rpl_gtid *gtid_list, uint32 gtid_count)
 {
   for (uint32 i= 0; i < gtid_count; ++i)
-    if (state->update_nolock(&gtid_list[i], false))
+    if (state->update_nolock(&gtid_list[i]))
       return 1;
   return 0;
 }
@@ -940,8 +935,6 @@ int
 Gtid_index_reader::do_index_search_root(uint32 *out_offset,
                                         uint32 *out_gtid_count)
 {
-  /* ToDo: if hot index, take the mutex. */
-
   current_state.reset_nolock();
   compare_state.reset_nolock();
   /*
@@ -984,7 +977,6 @@ Gtid_index_reader::do_index_search_root(uint32 *out_offset,
           get_gtid_list(gtid_list, gtid_count) ||
           get_child_ptr(&child2_ptr))
         return -1;
-      /* ToDo: Handling of hot index, child2 is empty. */
       if (update_gtid_state(&compare_state, gtid_list, gtid_count))
         return -1;
       int cmp= (this->*search_cmp_function)(offset, &compare_state);
@@ -1012,8 +1004,12 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
 {
   uint32 offset, gtid_count;
   int res= get_offset_count(&offset, &gtid_count);
-  if (res == 1)  // EOF?
-    DBUG_ASSERT(0 /* ToDo handle gtid_count==0 / EOF */);
+  if (res == 1)
+  {
+    DBUG_ASSERT(0);
+    give_error("Corrupt index; empty leaf node");
+    return -1;
+  }
   rpl_gtid *gtid_list= gtid_list_buffer(gtid_count);
   if ((gtid_count > 0 && !gtid_list) ||
       get_gtid_list(gtid_list, gtid_count))
