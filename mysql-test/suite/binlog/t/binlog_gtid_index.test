@@ -189,4 +189,20 @@ eval SELECT BINLOG_GTID_POS('$file', $pos) = @gtid_pos AS Gtid_Lookup_Ok;
 --enable_query_log
 SHOW STATUS LIKE 'binlog_gtid_index_%';
 
+--echo *** Test BINLOG_GTID_POS() with too-large offset.
+# New binlog to skip the now corrupted one.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO t1 VALUES (401);
+INSERT INTO t1 VALUES (402);
+--echo +++ Test the hot index.
+--replace_result $file FILE
+eval SELECT BINLOG_GTID_POS('$file', 100000000);
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--echo +++ Test the cold index.
+--replace_result $file FILE
+eval SELECT BINLOG_GTID_POS('$file', 100000000);
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+
 DROP TABLE t1;
