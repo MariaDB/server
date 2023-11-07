@@ -217,6 +217,7 @@ extern ulonglong thd_startup_options;
 extern my_thread_id global_thread_id;
 extern ulong binlog_cache_use, binlog_cache_disk_use;
 extern ulong binlog_stmt_cache_use, binlog_stmt_cache_disk_use;
+extern ulong binlog_gtid_index_hit, binlog_gtid_index_miss;
 extern ulong aborted_threads, aborted_connects, aborted_connects_preauth;
 extern ulong delayed_insert_timeout;
 extern ulong delayed_insert_limit, delayed_queue_size;
