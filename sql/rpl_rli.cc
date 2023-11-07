@@ -1559,7 +1559,7 @@ Relay_log_info::update_relay_log_state(rpl_gtid *gtid_list, uint32 count)
   int res= 0;
   while (count)
   {
-    if (relay_log_state.update_nolock(gtid_list, false))
+    if (relay_log_state.update_nolock(gtid_list))
       res= 1;
     ++gtid_list;
     --count;

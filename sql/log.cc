@@ -11560,7 +11560,7 @@ bool Recovery_context::reset_truncate_coord(my_off_t pos)
   for (uint i= 0; i < gtid_maybe_to_truncate->elements(); i++)
   {
     rpl_gtid gtid= gtid_maybe_to_truncate->at(i);
-    if (rpl_global_gtid_binlog_state.update_nolock(&gtid, false))
+    if (rpl_global_gtid_binlog_state.update_nolock(&gtid))
       return true;
   }
   gtid_maybe_to_truncate->clear();
@@ -12005,7 +12005,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 
         recover_gtid_index_process(gtid_index_recover, end_pos,
                                    (Gtid_log_event *)ev);
-        if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid, false))
+        if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid))
           goto err2;
         ctx.last_gtid_valid= false;
       }

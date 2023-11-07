@@ -1952,7 +1952,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           }
         });
 
-      if (info->until_binlog_state.update_nolock(&event_gtid, false))
+      if (info->until_binlog_state.update_nolock(&event_gtid))
       {
         info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed in internal GTID book-keeping: Out of memory";

@@ -331,7 +331,7 @@ struct rpl_binlog_state_base
   void free();
   bool load_nolock(struct rpl_gtid *list, uint32 count);
   bool load_nolock(rpl_binlog_state_base *orig_state);
-  int update_nolock(const struct rpl_gtid *gtid, bool strict);
+  int update_nolock(const struct rpl_gtid *gtid);
   int alloc_element_nolock(const rpl_gtid *gtid);
   uint32 count_nolock();
   int get_gtid_list_nolock(rpl_gtid *gtid_list, uint32 list_size);

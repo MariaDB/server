@@ -1589,7 +1589,7 @@ rpl_binlog_state_base::load_nolock(struct rpl_gtid *list, uint32 count)
   reset_nolock();
   for (i= 0; i < count; ++i)
   {
-    if (update_nolock(&(list[i]), false))
+    if (update_nolock(&(list[i])))
     {
       res= true;
       break;
@@ -1616,10 +1616,10 @@ rpl_binlog_state_base::load_nolock(rpl_binlog_state_base *orig_state)
       const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(h2, j);
       if (gtid == last_gtid)
         continue;
-      if (update_nolock(gtid, false))
+      if (update_nolock(gtid))
         return true;
     }
-    if (likely(last_gtid) && update_nolock(last_gtid, false))
+    if (likely(last_gtid) && update_nolock(last_gtid))
       return true;
   }
 
@@ -1633,10 +1633,13 @@ rpl_binlog_state_base::load_nolock(rpl_binlog_state_base *orig_state)
   If the (domain_id, server_id) pair already exists, then the new GTID replaces
   the old one for that domain id. Else a new entry is inserted.
 
+  Note that rpl_binlog_state_base::update_nolock() does not call my_error()
+  for out-of-memory, caller must do that if needed (eg. ER_OUT_OF_RESOURCES).
+
   Returns 0 for ok, 1 for error.
 */
 int
-rpl_binlog_state_base::update_nolock(const struct rpl_gtid *gtid, bool strict)
+rpl_binlog_state_base::update_nolock(const struct rpl_gtid *gtid)
 {
   element *elem;
 
@@ -1644,13 +1647,6 @@ rpl_binlog_state_base::update_nolock(const struct rpl_gtid *gtid, bool strict)
                                        (const uchar *)(&gtid->domain_id),
                                        sizeof(gtid->domain_id))))
   {
-    if (strict && elem->last_gtid && elem->last_gtid->seq_no >= gtid->seq_no)
-    {
-      my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), gtid->domain_id,
-               gtid->server_id, gtid->seq_no, elem->last_gtid->domain_id,
-               elem->last_gtid->server_id, elem->last_gtid->seq_no);
-      return 1;
-    }
     if (elem->seq_no_counter < gtid->seq_no)
       elem->seq_no_counter= gtid->seq_no;
     if (!elem->update_element(gtid))
@@ -1659,7 +1655,6 @@ rpl_binlog_state_base::update_nolock(const struct rpl_gtid *gtid, bool strict)
   else if (!alloc_element_nolock(gtid))
     return 0;
 
-  my_error(ER_OUT_OF_RESOURCES, MYF(0));
   return 1;
 }
 
@@ -1671,9 +1666,9 @@ rpl_binlog_state_base::alloc_element_nolock(const rpl_gtid *gtid)
   rpl_gtid *lookup_gtid;
 
   /* First time we see this domain_id; allocate a new element. */
-  elem= (element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*elem), MYF(MY_WME));
+  elem= (element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*elem), MYF(0));
   lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
-                                     MYF(MY_WME));
+                                     MYF(0));
   if (elem && lookup_gtid)
   {
     elem->domain_id= gtid->domain_id;
@@ -1860,6 +1855,8 @@ rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
   mysql_mutex_lock(&LOCK_binlog_state);
   bool res= load_nolock(list, count);
   mysql_mutex_unlock(&LOCK_binlog_state);
+  if (res)
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
   return res;
 }
 
@@ -1867,7 +1864,7 @@ rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
 static int rpl_binlog_state_load_cb(rpl_gtid *gtid, void *data)
 {
   rpl_binlog_state *self= (rpl_binlog_state *)data;
-  return self->update_nolock(gtid, false);
+  return self->update_nolock(gtid);
 }
 
 
@@ -1879,7 +1876,10 @@ rpl_binlog_state::load(rpl_slave_state *slave_pos)
   mysql_mutex_lock(&LOCK_binlog_state);
   reset_nolock();
   if (slave_pos->iterate(rpl_binlog_state_load_cb, this, NULL, 0, false))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     res= true;
+  }
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;
 }
@@ -1888,9 +1888,34 @@ rpl_binlog_state::load(rpl_slave_state *slave_pos)
 int
 rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
 {
-  int res;
+  int res= 0;
+  element *elem;
+
   mysql_mutex_lock(&LOCK_binlog_state);
-  res= update_nolock(gtid, strict);
+  if ((elem= (element *)my_hash_search(&hash,
+                                       (const uchar *)(&gtid->domain_id),
+                                       sizeof(gtid->domain_id))))
+  {
+    if (strict && elem->last_gtid && elem->last_gtid->seq_no >= gtid->seq_no)
+    {
+      my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), gtid->domain_id,
+               gtid->server_id, gtid->seq_no, elem->last_gtid->domain_id,
+               elem->last_gtid->server_id, elem->last_gtid->seq_no);
+      res= 1;
+    }
+    else
+    {
+      if (elem->seq_no_counter < gtid->seq_no)
+        elem->seq_no_counter= gtid->seq_no;
+      if (elem->update_element(gtid))
+        res= 1;
+    }
+  }
+  else if (alloc_element_nolock(gtid))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    res= 1;
+  }
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;
 }
@@ -2127,7 +2152,7 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
     p= buf;
     end= buf + len;
     if (gtid_parser_helper(&p, end, &gtid) ||
-        update_nolock(&gtid, false))
+        update_nolock(&gtid))
     {
       res= 1;
       break;
