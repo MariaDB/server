@@ -244,7 +244,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
   count= pending_state.count_nolock();
   DBUG_ASSERT(count > 0 /* Since we just updated with a GTID. */);
   gtid_list= (rpl_gtid *)
-    my_malloc(PSI_INSTRUMENT_ME, count*sizeof(*gtid_list), MYF(0));
+    my_malloc(key_memory_binlog_gtid_index, count*sizeof(*gtid_list), MYF(0));
   if (unlikely(!gtid_list))
   {
     give_error("Out of memory allocating GTID list for binlog GTID index");
@@ -386,7 +386,7 @@ Gtid_index_base::gtid_list_buffer(uint32 count)
   if (gtid_buffer_alloc >= count)
     return gtid_buffer;
   rpl_gtid *new_buffer= (rpl_gtid *)
-    my_malloc(PSI_INSTRUMENT_ME, count*sizeof(*new_buffer), MYF(0));
+    my_malloc(key_memory_binlog_gtid_index, count*sizeof(*new_buffer), MYF(0));
   if (!new_buffer)
   {
     give_error("Out of memory allocating buffer for GTID list");
@@ -657,7 +657,7 @@ Gtid_index_writer::alloc_level_if_missing(uint32 level)
   if (!node)
     return give_error("Out of memory allocating new node");
   Index_node **new_nodes= (Index_node **)
-    my_realloc(PSI_INSTRUMENT_ME, nodes, (level+1)*sizeof(*nodes),
+    my_realloc(key_memory_binlog_gtid_index, nodes, (level+1)*sizeof(*nodes),
                MYF(MY_ALLOW_ZERO_PTR|MY_ZEROFILL));
   if (!new_nodes)
   {
@@ -734,7 +734,7 @@ Gtid_index_base::update_gtid_state(rpl_binlog_state_base *state,
 Gtid_index_base::Node_page *Gtid_index_base::alloc_page()
 {
   Node_page *new_node= (Node_page *)
-    my_malloc(PSI_INSTRUMENT_ME,
+    my_malloc(key_memory_binlog_gtid_index,
               sizeof(Node_page) + page_size,
               MYF(MY_ZEROFILL));
   if (!new_node)
@@ -1100,7 +1100,7 @@ Gtid_index_reader::read_file_header()
   /* Verify checksum integrity of page_size and major/minor version. */
   uint32 crc= my_checksum(0, buf, sizeof(buf));
   uchar *buf3= (uchar *)
-    my_malloc(PSI_INSTRUMENT_ME, page_size - sizeof(buf), MYF(0));
+    my_malloc(key_memory_binlog_gtid_index, page_size - sizeof(buf), MYF(0));
   if (!buf3)
     return give_error("Error allocating memory for index page");
   int res= 0;
