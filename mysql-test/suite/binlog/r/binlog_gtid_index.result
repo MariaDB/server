@@ -114,4 +114,25 @@ SHOW STATUS LIKE 'binlog_gtid_index_%';
 Variable_name	Value
 Binlog_gtid_index_hit	1
 Binlog_gtid_index_miss	3
+*** Test BINLOG_GTID_POS() with too-large offset.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+INSERT INTO t1 VALUES (401);
+INSERT INTO t1 VALUES (402);
++++ Test the hot index.
+SELECT BINLOG_GTID_POS('FILE', 100000000);
+BINLOG_GTID_POS('FILE', 100000000)
+NULL
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	2
+Binlog_gtid_index_miss	3
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
++++ Test the cold index.
+SELECT BINLOG_GTID_POS('FILE', 100000000);
+BINLOG_GTID_POS('FILE', 100000000)
+NULL
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	3
+Binlog_gtid_index_miss	3
 DROP TABLE t1;
