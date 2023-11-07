@@ -24,7 +24,9 @@ static const uchar GTID_INDEX_MAGIC[8]= {
   'M', 'D', 'B', 'B', 'L', 'I', 'D', 'X'
 };
 
+#ifndef MYSQL_CLIENT
 Gtid_index_writer *Gtid_index_writer::hot_index_list= nullptr;
+
 /* gtid_index_mutex is inited in MYSQL_LOG::init_pthread_objects(). */
 mysql_mutex_t Gtid_index_writer::gtid_index_mutex;
 
@@ -312,6 +314,7 @@ Gtid_index_writer::close()
   mysql_file_close(index_file, MYF(0));
   index_file= (File)-1;
 }
+#endif
 
 
 Gtid_index_base::Index_node_base::Index_node_base()
@@ -395,6 +398,7 @@ Gtid_index_base::gtid_list_buffer(uint32 count)
 }
 
 
+#ifndef MYSQL_CLIENT
 Gtid_index_writer::Index_node::Index_node(uint32 level_)
   : num_records(0), level(level_), force_spill_page(false)
 {
@@ -713,6 +717,7 @@ Gtid_index_writer::init_header(Node_page *page, bool is_leaf, bool is_first)
   DBUG_ASSERT((size_t)(p - page->page) < page_size - CHECKSUM_LEN);
   return p;
 }
+#endif
 
 
 int
@@ -738,6 +743,7 @@ Gtid_index_base::Node_page *Gtid_index_base::alloc_page()
 }
 
 
+#ifndef MYSQL_CLIENT
 int Gtid_index_writer::give_error(const char *msg)
 {
   if (!error_state)
@@ -749,6 +755,7 @@ int Gtid_index_writer::give_error(const char *msg)
   }
   return 1;
 }
+#endif
 
 
 Gtid_index_reader::Gtid_index_reader()
@@ -1273,6 +1280,7 @@ int Gtid_index_reader::give_error(const char *msg)
 }
 
 
+#ifndef MYSQL_CLIENT
 Gtid_index_reader_hot::Gtid_index_reader_hot()
   : hot_writer(nullptr)
 {
@@ -1439,3 +1447,4 @@ Gtid_index_reader_hot::read_node_hot()
   read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
+#endif

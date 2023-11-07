@@ -403,7 +403,11 @@ struct slave_connection_state
   void reset() { my_hash_reset(&hash); }
   int load(const char *slave_request, size_t len);
   int load(const rpl_gtid *gtid_list, uint32 count);
+
+#ifndef MYSQL_CLIENT
   int load(rpl_slave_state *state, rpl_gtid *extra_gtids, uint32 num_extra);
+#endif
+
   rpl_gtid *find(uint32 domain_id);
   entry *find_entry(uint32 domain_id);
   int update(const rpl_gtid *in_gtid);

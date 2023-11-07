@@ -221,6 +221,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
   }
   mysql_free_result(mysql_store_result(mysql));
   rpl_semi_sync_slave_status= 1;
+  mi->is_semisync_connection= true;
 
   return 0;
 }

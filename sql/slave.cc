@@ -5137,6 +5137,10 @@ err:
   thd->reset_db(&null_clex_str);
   if (mysql)
   {
+    //if (mi->is_semisync_connection)
+    //{
+      raise(SIGINT);
+    //}
     /*
       Here we need to clear the active VIO before closing the
       connection with the master.  The reason is that THD::awake()

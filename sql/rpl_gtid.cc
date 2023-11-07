@@ -1092,6 +1092,8 @@ static int rpl_gtid_cmp_cb(const void *id1, const void *id2)
   return 0;
 }
 
+#endif
+
 /* Format the specified gtid and store it in the given string buffer. */
 bool
 rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
@@ -1108,6 +1110,9 @@ rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
     dest->append('-') ||
     dest->append_ulonglong(gtid->seq_no);
 }
+
+
+#ifndef MYSQL_CLIENT
 
 /*
   Sort the given gtid list based on domain_id and store them in the specified
@@ -1334,213 +1339,6 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
 
 #endif
 
-/*
-  Parse a GTID at the start of a string, and update the pointer to point
-  at the first character after the parsed GTID.
-
-  Returns 0 on ok, non-zero on parse error.
-*/
-static int
-gtid_parser_helper(const char **ptr, const char *end, rpl_gtid *out_gtid)
-{
-  char *q;
-  const char *p= *ptr;
-  uint64 v1, v2, v3;
-  int err= 0;
-
-  q= (char*) end;
-  v1= (uint64)my_strtoll10(p, &q, &err);
-  if (err != 0 || v1 > (uint32)0xffffffff || q == end || *q != '-')
-    return 1;
-  p= q+1;
-  q= (char*) end;
-  v2= (uint64)my_strtoll10(p, &q, &err);
-  if (err != 0 || v2 > (uint32)0xffffffff || q == end || *q != '-')
-    return 1;
-  p= q+1;
-  q= (char*) end;
-  v3= (uint64)my_strtoll10(p, &q, &err);
-  if (err != 0)
-    return 1;
-
-  out_gtid->domain_id= (uint32) v1;
-  out_gtid->server_id= (uint32) v2;
-  out_gtid->seq_no= v3;
-  *ptr= q;
-  return 0;
-}
-
-rpl_gtid *
-gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
-{
-  const char *p= const_cast<char *>(str);
-  const char *end= p + str_len;
-  uint32 len= 0, alloc_len= 5;
-  rpl_gtid *list= NULL;
-
-  for (;;)
-  {
-    rpl_gtid gtid;
-
-    if (len >= (((uint32)1 << 28)-1) || gtid_parser_helper(&p, end, &gtid))
-    {
-      my_free(list);
-      return NULL;
-    }
-    if ((!list || len >= alloc_len) &&
-        !(list=
-          (rpl_gtid *)my_realloc(PSI_INSTRUMENT_ME, list,
-                                 (alloc_len= alloc_len*2) * sizeof(rpl_gtid),
-                                 MYF(MY_FREE_ON_ERROR|MY_ALLOW_ZERO_PTR))))
-      return NULL;
-    list[len++]= gtid;
-
-    if (p == end)
-      break;
-    if (*p != ',')
-    {
-      my_free(list);
-      return NULL;
-    }
-    ++p;
-  }
-  *out_len= len;
-  return list;
-}
-
-#ifndef MYSQL_CLIENT
-
-/*
-  Update the slave replication state with the GTID position obtained from
-  master when connecting with old-style (filename,offset) position.
-
-  If RESET is true then all existing entries are removed. Otherwise only
-  domain_ids mentioned in the STATE_FROM_MASTER are changed.
-
-  Returns 0 if ok, non-zero if error.
-*/
-int
-rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
-                      bool reset, bool in_statement)
-{
-  const char *end= state_from_master + len;
-
-  mysql_mutex_assert_not_owner(&LOCK_slave_state);
-  if (reset)
-  {
-    if (truncate_state_table(thd))
-      return 1;
-    truncate_hash();
-  }
-  if (state_from_master == end)
-    return 0;
-  for (;;)
-  {
-    rpl_gtid gtid;
-    uint64 sub_id;
-    void *hton= NULL;
-
-    if (gtid_parser_helper(&state_from_master, end, &gtid) ||
-        !(sub_id= next_sub_id(gtid.domain_id)) ||
-        record_gtid(thd, &gtid, sub_id, false, in_statement, &hton) ||
-        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, hton, NULL))
-      return 1;
-    if (state_from_master == end)
-      break;
-    if (*state_from_master != ',')
-      return 1;
-    ++state_from_master;
-  }
-  return 0;
-}
-
-
-bool
-rpl_slave_state::is_empty()
-{
-  uint32 i;
-  bool result= true;
-
-  mysql_mutex_lock(&LOCK_slave_state);
-  for (i= 0; i < hash.records; ++i)
-  {
-    element *e= (element *)my_hash_element(&hash, i);
-    if (e->list)
-    {
-      result= false;
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_slave_state);
-
-  return result;
-}
-
-
-void
-rpl_slave_state::free_gtid_pos_tables(struct rpl_slave_state::gtid_pos_table *list)
-{
-  struct gtid_pos_table *cur, *next;
-
-  cur= list;
-  while (cur)
-  {
-    next= cur->next;
-    my_free(cur);
-    cur= next;
-  }
-}
-
-
-/*
-  Replace the list of available mysql.gtid_slave_posXXX tables with a new list.
-  The caller must be holding LOCK_slave_state. Additionally, this function
-  must only be called while all SQL threads are stopped.
-*/
-void
-rpl_slave_state::set_gtid_pos_tables_list(rpl_slave_state::gtid_pos_table *new_list,
-                                          rpl_slave_state::gtid_pos_table *default_entry)
-{
-  mysql_mutex_assert_owner(&LOCK_slave_state);
-  auto old_list= gtid_pos_tables.load(std::memory_order_relaxed);
-  gtid_pos_tables.store(new_list, std::memory_order_release);
-  default_gtid_pos_table.store(default_entry, std::memory_order_release);
-  free_gtid_pos_tables(old_list);
-}
-
-
-void
-rpl_slave_state::add_gtid_pos_table(rpl_slave_state::gtid_pos_table *entry)
-{
-  mysql_mutex_assert_owner(&LOCK_slave_state);
-  entry->next= gtid_pos_tables.load(std::memory_order_relaxed);
-  gtid_pos_tables.store(entry, std::memory_order_release);
-}
-
-
-struct rpl_slave_state::gtid_pos_table *
-rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
-                                      rpl_slave_state::gtid_pos_table_state state)
-{
-  struct gtid_pos_table *p;
-  char *allocated_str;
-
-  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &p, sizeof(*p),
-                       &allocated_str, table_name->length+1, NULL))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*p) + table_name->length+1));
-    return NULL;
-  }
-  memcpy(allocated_str, table_name->str, table_name->length+1); // Also copy '\0'
-  p->next = NULL;
-  p->table_hton= hton;
-  p->table_name.str= allocated_str;
-  p->table_name.length= table_name->length;
-  p->state= state;
-  return p;
-}
-
-
 void
 rpl_binlog_state_base::init()
 {
@@ -1577,6 +1375,48 @@ rpl_binlog_state_base::free()
 rpl_binlog_state_base::~rpl_binlog_state_base()
 {
   free();
+}
+
+/* Helper functions for update. */
+int
+rpl_binlog_state_base::element::update_element(const rpl_gtid *gtid)
+{
+  rpl_gtid *lookup_gtid;
+
+  /*
+    By far the most common case is that successive events within same
+    replication domain have the same server id (it changes only when
+    switching to a new master). So save a hash lookup in this case.
+  */
+  if (likely(last_gtid && last_gtid->server_id == gtid->server_id))
+  {
+    last_gtid->seq_no= gtid->seq_no;
+    return 0;
+  }
+
+  lookup_gtid= (rpl_gtid *)
+    my_hash_search(&hash, (const uchar *)&gtid->server_id,
+                           sizeof(gtid->server_id));
+  if (lookup_gtid)
+  {
+    lookup_gtid->seq_no= gtid->seq_no;
+    last_gtid= lookup_gtid;
+    return 0;
+  }
+
+  /* Allocate a new GTID and insert it. */
+  lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
+                                     MYF(MY_WME));
+  if (!lookup_gtid)
+    return 1;
+  memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
+  if (my_hash_insert(&hash, (const uchar *)lookup_gtid))
+  {
+    my_free(lookup_gtid);
+    return 1;
+  }
+  last_gtid= lookup_gtid;
+  return 0;
 }
 
 
@@ -1814,6 +1654,482 @@ rpl_binlog_state_base::is_before_pos(slave_connection_state *pos)
 }
 
 
+
+/*
+  Parse a GTID at the start of a string, and update the pointer to point
+  at the first character after the parsed GTID.
+
+  Returns 0 on ok, non-zero on parse error.
+*/
+static int
+gtid_parser_helper(const char **ptr, const char *end, rpl_gtid *out_gtid)
+{
+  char *q;
+  const char *p= *ptr;
+  uint64 v1, v2, v3;
+  int err= 0;
+
+  q= (char*) end;
+  v1= (uint64)my_strtoll10(p, &q, &err);
+  if (err != 0 || v1 > (uint32)0xffffffff || q == end || *q != '-')
+    return 1;
+  p= q+1;
+  q= (char*) end;
+  v2= (uint64)my_strtoll10(p, &q, &err);
+  if (err != 0 || v2 > (uint32)0xffffffff || q == end || *q != '-')
+    return 1;
+  p= q+1;
+  q= (char*) end;
+  v3= (uint64)my_strtoll10(p, &q, &err);
+  if (err != 0)
+    return 1;
+
+  out_gtid->domain_id= (uint32) v1;
+  out_gtid->server_id= (uint32) v2;
+  out_gtid->seq_no= v3;
+  *ptr= q;
+  return 0;
+}
+
+rpl_gtid *
+gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
+{
+  const char *p= const_cast<char *>(str);
+  const char *end= p + str_len;
+  uint32 len= 0, alloc_len= 5;
+  rpl_gtid *list= NULL;
+
+  for (;;)
+  {
+    rpl_gtid gtid;
+
+    if (len >= (((uint32)1 << 28)-1) || gtid_parser_helper(&p, end, &gtid))
+    {
+      my_free(list);
+      return NULL;
+    }
+    if ((!list || len >= alloc_len) &&
+        !(list=
+          (rpl_gtid *)my_realloc(PSI_INSTRUMENT_ME, list,
+                                 (alloc_len= alloc_len*2) * sizeof(rpl_gtid),
+                                 MYF(MY_FREE_ON_ERROR|MY_ALLOW_ZERO_PTR))))
+      return NULL;
+    list[len++]= gtid;
+
+    if (p == end)
+      break;
+    if (*p != ',')
+    {
+      my_free(list);
+      return NULL;
+    }
+    ++p;
+  }
+  *out_len= len;
+  return list;
+}
+
+slave_connection_state::slave_connection_state()
+{
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
+               sizeof(rpl_gtid::domain_id), NULL, my_free, HASH_UNIQUE);
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
+}
+
+
+slave_connection_state::~slave_connection_state()
+{
+  my_hash_free(&hash);
+  delete_dynamic(&gtid_sort_array);
+}
+
+
+/*
+  Create a hash from the slave GTID state that is sent to master when slave
+  connects to start replication.
+
+  The state is sent as <GTID>,<GTID>,...,<GTID>, for example:
+
+     0-2-112,1-4-1022
+
+  The state gives for each domain_id the GTID to start replication from for
+  the corresponding replication stream. So domain_id must be unique.
+
+  Returns 0 if ok, non-zero if error due to malformed input.
+
+  Note that input string is built by slave server, so it will not be incorrect
+  unless bug/corruption/malicious server. So we just need basic sanity check,
+  not fancy user-friendly error message.
+*/
+
+int
+slave_connection_state::load(const char *slave_request, size_t len)
+{
+  const char *p, *end;
+  uchar *rec;
+  rpl_gtid *gtid;
+  const entry *e;
+
+  reset();
+  p= slave_request;
+  end= slave_request + len;
+  if (p == end)
+    return 0;
+  for (;;)
+  {
+    if (!(rec= (uchar *)my_malloc(PSI_INSTRUMENT_ME, sizeof(entry), MYF(MY_WME))))
+      return 1;
+    gtid= &((entry *)rec)->gtid;
+    if (gtid_parser_helper(&p, end, gtid))
+    {
+      my_free(rec);
+      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+      return 1;
+    }
+    if ((e= (const entry *)
+         my_hash_search(&hash, (const uchar *)(&gtid->domain_id),
+                        sizeof(gtid->domain_id))))
+    {
+      my_error(ER_DUPLICATE_GTID_DOMAIN, MYF(0), gtid->domain_id,
+               gtid->server_id, (ulonglong)gtid->seq_no, e->gtid.domain_id,
+               e->gtid.server_id, (ulonglong)e->gtid.seq_no, gtid->domain_id);
+      my_free(rec);
+      return 1;
+    }
+    ((entry *)rec)->flags= 0;
+    if (my_hash_insert(&hash, rec))
+    {
+      my_free(rec);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return 1;
+    }
+    if (p == end)
+      break;                                         /* Finished. */
+    if (*p != ',')
+    {
+      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+      return 1;
+    }
+    ++p;
+  }
+
+  return 0;
+}
+
+
+int
+slave_connection_state::load(const rpl_gtid *gtid_list, uint32 count)
+{
+  uint32 i;
+
+  reset();
+  for (i= 0; i < count; ++i)
+    if (update(&gtid_list[i]))
+      return 1;
+  return 0;
+}
+
+
+#ifndef MYSQL_CLIENT
+static int
+slave_connection_state_load_cb(rpl_gtid *gtid, void *data)
+{
+  slave_connection_state *state= (slave_connection_state *)data;
+  return state->update(gtid);
+}
+
+
+/*
+  Same as rpl_slave_state::tostring(), but populates a slave_connection_state
+  instead.
+*/
+int
+slave_connection_state::load(rpl_slave_state *state,
+                             rpl_gtid *extra_gtids, uint32 num_extra)
+{
+  reset();
+  return state->iterate(slave_connection_state_load_cb, this,
+                        extra_gtids, num_extra, false);
+}
+#endif
+
+
+slave_connection_state::entry *
+slave_connection_state::find_entry(uint32 domain_id)
+{
+  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id),
+                                  sizeof(domain_id));
+}
+
+
+rpl_gtid *
+slave_connection_state::find(uint32 domain_id)
+{
+  entry *e= find_entry(domain_id);
+  if (!e)
+    return NULL;
+  return &e->gtid;
+}
+
+
+int
+slave_connection_state::update(const rpl_gtid *in_gtid)
+{
+  entry *e;
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
+  if (rec)
+  {
+    e= (entry *)rec;
+    e->gtid= *in_gtid;
+    return 0;
+  }
+
+  if (!(e= (entry *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*e), MYF(MY_WME))))
+    return 1;
+  e->gtid= *in_gtid;
+  e->flags= 0;
+  if (my_hash_insert(&hash, (uchar *)e))
+  {
+    my_free(e);
+    return 1;
+  }
+
+  return 0;
+}
+
+
+void
+slave_connection_state::remove(const rpl_gtid *in_gtid)
+{
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
+#ifdef DBUG_ASSERT_EXISTS
+  bool err;
+  rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
+  DBUG_ASSERT(rec /* We should never try to remove not present domain_id. */);
+  DBUG_ASSERT(slave_gtid->server_id == in_gtid->server_id);
+  DBUG_ASSERT(slave_gtid->seq_no == in_gtid->seq_no);
+  err= 
+#endif
+    my_hash_delete(&hash, rec);
+  DBUG_ASSERT(!err);
+}
+
+
+void
+slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
+{
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
+  if (rec)
+    my_hash_delete(&hash, rec);
+}
+
+
+int
+slave_connection_state::to_string(String *out_str)
+{
+  out_str->length(0);
+  return append_to_string(out_str);
+}
+
+
+int
+slave_connection_state::append_to_string(String *out_str)
+{
+  uint32 i;
+  bool first;
+
+  first= true;
+  for (i= 0; i < hash.records; ++i)
+  {
+    const entry *e= (const entry *)my_hash_element(&hash, i);
+    if (rpl_slave_state_tostring_helper(out_str, &e->gtid, &first))
+      return 1;
+  }
+  return 0;
+}
+
+
+int
+slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
+{
+  uint32 i, pos;
+
+  pos= 0;
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e;
+    if (pos >= list_size)
+      return 1;
+    e= (entry *)my_hash_element(&hash, i);
+    memcpy(&gtid_list[pos++], &e->gtid, sizeof(e->gtid));
+  }
+
+  return 0;
+}
+
+
+/*
+  Check if the GTID position has been reached, for mysql_binlog_send().
+
+  The position has not been reached if we have anything in the state, unless
+  it has either the START_ON_EMPTY_DOMAIN flag set (which means it does not
+  belong to this master at all), or the START_OWN_SLAVE_POS (which means that
+  we start on an old position from when the server was a slave with
+  --log-slave-updates=0).
+*/
+bool
+slave_connection_state::is_pos_reached()
+{
+  uint32 i;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e= (entry *)my_hash_element(&hash, i);
+    if (!(e->flags & (START_OWN_SLAVE_POS|START_ON_EMPTY_DOMAIN)))
+      return false;
+  }
+
+  return true;
+}
+
+#ifndef MYSQL_CLIENT
+
+/*
+  Update the slave replication state with the GTID position obtained from
+  master when connecting with old-style (filename,offset) position.
+
+  If RESET is true then all existing entries are removed. Otherwise only
+  domain_ids mentioned in the STATE_FROM_MASTER are changed.
+
+  Returns 0 if ok, non-zero if error.
+*/
+int
+rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
+                      bool reset, bool in_statement)
+{
+  const char *end= state_from_master + len;
+
+  mysql_mutex_assert_not_owner(&LOCK_slave_state);
+  if (reset)
+  {
+    if (truncate_state_table(thd))
+      return 1;
+    truncate_hash();
+  }
+  if (state_from_master == end)
+    return 0;
+  for (;;)
+  {
+    rpl_gtid gtid;
+    uint64 sub_id;
+    void *hton= NULL;
+
+    if (gtid_parser_helper(&state_from_master, end, &gtid) ||
+        !(sub_id= next_sub_id(gtid.domain_id)) ||
+        record_gtid(thd, &gtid, sub_id, false, in_statement, &hton) ||
+        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, hton, NULL))
+      return 1;
+    if (state_from_master == end)
+      break;
+    if (*state_from_master != ',')
+      return 1;
+    ++state_from_master;
+  }
+  return 0;
+}
+
+
+bool
+rpl_slave_state::is_empty()
+{
+  uint32 i;
+  bool result= true;
+
+  mysql_mutex_lock(&LOCK_slave_state);
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    if (e->list)
+    {
+      result= false;
+      break;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_slave_state);
+
+  return result;
+}
+
+
+void
+rpl_slave_state::free_gtid_pos_tables(struct rpl_slave_state::gtid_pos_table *list)
+{
+  struct gtid_pos_table *cur, *next;
+
+  cur= list;
+  while (cur)
+  {
+    next= cur->next;
+    my_free(cur);
+    cur= next;
+  }
+}
+
+
+/*
+  Replace the list of available mysql.gtid_slave_posXXX tables with a new list.
+  The caller must be holding LOCK_slave_state. Additionally, this function
+  must only be called while all SQL threads are stopped.
+*/
+void
+rpl_slave_state::set_gtid_pos_tables_list(rpl_slave_state::gtid_pos_table *new_list,
+                                          rpl_slave_state::gtid_pos_table *default_entry)
+{
+  mysql_mutex_assert_owner(&LOCK_slave_state);
+  auto old_list= gtid_pos_tables.load(std::memory_order_relaxed);
+  gtid_pos_tables.store(new_list, std::memory_order_release);
+  default_gtid_pos_table.store(default_entry, std::memory_order_release);
+  free_gtid_pos_tables(old_list);
+}
+
+
+void
+rpl_slave_state::add_gtid_pos_table(rpl_slave_state::gtid_pos_table *entry)
+{
+  mysql_mutex_assert_owner(&LOCK_slave_state);
+  entry->next= gtid_pos_tables.load(std::memory_order_relaxed);
+  gtid_pos_tables.store(entry, std::memory_order_release);
+}
+
+
+struct rpl_slave_state::gtid_pos_table *
+rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
+                                      rpl_slave_state::gtid_pos_table_state state)
+{
+  struct gtid_pos_table *p;
+  char *allocated_str;
+
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &p, sizeof(*p),
+                       &allocated_str, table_name->length+1, NULL))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*p) + table_name->length+1));
+    return NULL;
+  }
+  memcpy(allocated_str, table_name->str, table_name->length+1); // Also copy '\0'
+  p->next = NULL;
+  p->table_hton= hton;
+  p->table_name.str= allocated_str;
+  p->table_name.length= table_name->length;
+  p->state= state;
+  return p;
+}
+
+
+
 void rpl_binlog_state::init()
 {
   rpl_binlog_state_base::init();
@@ -1957,48 +2273,6 @@ end:
   return res;
 }
 
-
-/* Helper functions for update. */
-int
-rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
-{
-  rpl_gtid *lookup_gtid;
-
-  /*
-    By far the most common case is that successive events within same
-    replication domain have the same server id (it changes only when
-    switching to a new master). So save a hash lookup in this case.
-  */
-  if (likely(last_gtid && last_gtid->server_id == gtid->server_id))
-  {
-    last_gtid->seq_no= gtid->seq_no;
-    return 0;
-  }
-
-  lookup_gtid= (rpl_gtid *)
-    my_hash_search(&hash, (const uchar *)&gtid->server_id,
-                           sizeof(gtid->server_id));
-  if (lookup_gtid)
-  {
-    lookup_gtid->seq_no= gtid->seq_no;
-    last_gtid= lookup_gtid;
-    return 0;
-  }
-
-  /* Allocate a new GTID and insert it. */
-  lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
-                                     MYF(MY_WME));
-  if (!lookup_gtid)
-    return 1;
-  memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
-  if (my_hash_insert(&hash, (const uchar *)lookup_gtid))
-  {
-    my_free(lookup_gtid);
-    return 1;
-  }
-  last_gtid= lookup_gtid;
-  return 0;
-}
 
 
 /*
@@ -2473,270 +2747,6 @@ end:
   DBUG_RETURN(errmsg);
 }
 
-slave_connection_state::slave_connection_state()
-{
-  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
-               offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(rpl_gtid::domain_id), NULL, my_free, HASH_UNIQUE);
-  my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
-}
-
-
-slave_connection_state::~slave_connection_state()
-{
-  my_hash_free(&hash);
-  delete_dynamic(&gtid_sort_array);
-}
-
-
-/*
-  Create a hash from the slave GTID state that is sent to master when slave
-  connects to start replication.
-
-  The state is sent as <GTID>,<GTID>,...,<GTID>, for example:
-
-     0-2-112,1-4-1022
-
-  The state gives for each domain_id the GTID to start replication from for
-  the corresponding replication stream. So domain_id must be unique.
-
-  Returns 0 if ok, non-zero if error due to malformed input.
-
-  Note that input string is built by slave server, so it will not be incorrect
-  unless bug/corruption/malicious server. So we just need basic sanity check,
-  not fancy user-friendly error message.
-*/
-
-int
-slave_connection_state::load(const char *slave_request, size_t len)
-{
-  const char *p, *end;
-  uchar *rec;
-  rpl_gtid *gtid;
-  const entry *e;
-
-  reset();
-  p= slave_request;
-  end= slave_request + len;
-  if (p == end)
-    return 0;
-  for (;;)
-  {
-    if (!(rec= (uchar *)my_malloc(PSI_INSTRUMENT_ME, sizeof(entry), MYF(MY_WME))))
-      return 1;
-    gtid= &((entry *)rec)->gtid;
-    if (gtid_parser_helper(&p, end, gtid))
-    {
-      my_free(rec);
-      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
-      return 1;
-    }
-    if ((e= (const entry *)
-         my_hash_search(&hash, (const uchar *)(&gtid->domain_id),
-                        sizeof(gtid->domain_id))))
-    {
-      my_error(ER_DUPLICATE_GTID_DOMAIN, MYF(0), gtid->domain_id,
-               gtid->server_id, (ulonglong)gtid->seq_no, e->gtid.domain_id,
-               e->gtid.server_id, (ulonglong)e->gtid.seq_no, gtid->domain_id);
-      my_free(rec);
-      return 1;
-    }
-    ((entry *)rec)->flags= 0;
-    if (my_hash_insert(&hash, rec))
-    {
-      my_free(rec);
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      return 1;
-    }
-    if (p == end)
-      break;                                         /* Finished. */
-    if (*p != ',')
-    {
-      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
-      return 1;
-    }
-    ++p;
-  }
-
-  return 0;
-}
-
-
-int
-slave_connection_state::load(const rpl_gtid *gtid_list, uint32 count)
-{
-  uint32 i;
-
-  reset();
-  for (i= 0; i < count; ++i)
-    if (update(&gtid_list[i]))
-      return 1;
-  return 0;
-}
-
-
-static int
-slave_connection_state_load_cb(rpl_gtid *gtid, void *data)
-{
-  slave_connection_state *state= (slave_connection_state *)data;
-  return state->update(gtid);
-}
-
-
-/*
-  Same as rpl_slave_state::tostring(), but populates a slave_connection_state
-  instead.
-*/
-int
-slave_connection_state::load(rpl_slave_state *state,
-                             rpl_gtid *extra_gtids, uint32 num_extra)
-{
-  reset();
-  return state->iterate(slave_connection_state_load_cb, this,
-                        extra_gtids, num_extra, false);
-}
-
-
-slave_connection_state::entry *
-slave_connection_state::find_entry(uint32 domain_id)
-{
-  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id),
-                                  sizeof(domain_id));
-}
-
-
-rpl_gtid *
-slave_connection_state::find(uint32 domain_id)
-{
-  entry *e= find_entry(domain_id);
-  if (!e)
-    return NULL;
-  return &e->gtid;
-}
-
-
-int
-slave_connection_state::update(const rpl_gtid *in_gtid)
-{
-  entry *e;
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
-                             sizeof(in_gtid->domain_id));
-  if (rec)
-  {
-    e= (entry *)rec;
-    e->gtid= *in_gtid;
-    return 0;
-  }
-
-  if (!(e= (entry *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*e), MYF(MY_WME))))
-    return 1;
-  e->gtid= *in_gtid;
-  e->flags= 0;
-  if (my_hash_insert(&hash, (uchar *)e))
-  {
-    my_free(e);
-    return 1;
-  }
-
-  return 0;
-}
-
-
-void
-slave_connection_state::remove(const rpl_gtid *in_gtid)
-{
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
-                             sizeof(in_gtid->domain_id));
-#ifdef DBUG_ASSERT_EXISTS
-  bool err;
-  rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
-  DBUG_ASSERT(rec /* We should never try to remove not present domain_id. */);
-  DBUG_ASSERT(slave_gtid->server_id == in_gtid->server_id);
-  DBUG_ASSERT(slave_gtid->seq_no == in_gtid->seq_no);
-  err= 
-#endif
-    my_hash_delete(&hash, rec);
-  DBUG_ASSERT(!err);
-}
-
-
-void
-slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
-{
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
-                             sizeof(in_gtid->domain_id));
-  if (rec)
-    my_hash_delete(&hash, rec);
-}
-
-
-int
-slave_connection_state::to_string(String *out_str)
-{
-  out_str->length(0);
-  return append_to_string(out_str);
-}
-
-
-int
-slave_connection_state::append_to_string(String *out_str)
-{
-  uint32 i;
-  bool first;
-
-  first= true;
-  for (i= 0; i < hash.records; ++i)
-  {
-    const entry *e= (const entry *)my_hash_element(&hash, i);
-    if (rpl_slave_state_tostring_helper(out_str, &e->gtid, &first))
-      return 1;
-  }
-  return 0;
-}
-
-
-int
-slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
-{
-  uint32 i, pos;
-
-  pos= 0;
-  for (i= 0; i < hash.records; ++i)
-  {
-    entry *e;
-    if (pos >= list_size)
-      return 1;
-    e= (entry *)my_hash_element(&hash, i);
-    memcpy(&gtid_list[pos++], &e->gtid, sizeof(e->gtid));
-  }
-
-  return 0;
-}
-
-
-/*
-  Check if the GTID position has been reached, for mysql_binlog_send().
-
-  The position has not been reached if we have anything in the state, unless
-  it has either the START_ON_EMPTY_DOMAIN flag set (which means it does not
-  belong to this master at all), or the START_OWN_SLAVE_POS (which means that
-  we start on an old position from when the server was a slave with
-  --log-slave-updates=0).
-*/
-bool
-slave_connection_state::is_pos_reached()
-{
-  uint32 i;
-
-  for (i= 0; i < hash.records; ++i)
-  {
-    entry *e= (entry *)my_hash_element(&hash, i);
-    if (!(e->flags & (START_OWN_SLAVE_POS|START_ON_EMPTY_DOMAIN)))
-      return false;
-  }
-
-  return true;
-}
 
 
 /*

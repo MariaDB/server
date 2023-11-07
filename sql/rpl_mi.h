@@ -390,6 +390,8 @@ class Master_info : public Slave_reporting_capability
     gtid_binlog_pos into gtid_slave_pos.
   */
   bool is_demotion= false;
+
+  bool is_semisync_connection= false;
 };
 
 struct start_alter_thd_args

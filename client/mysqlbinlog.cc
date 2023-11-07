@@ -48,6 +48,7 @@
 #include "my_dir.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 #include "rpl_gtid.h"
+#include "gtid_index.h"
 #include "sql_string.h"   // needed for Rpl_filter
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
@@ -67,6 +68,7 @@ extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t l
 #define key_memory_rpl_filter 0
 
 Rpl_filter *binlog_filter= 0;
+Gtid_index_reader *index_reader= NULL;
 
 #define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
@@ -3795,3 +3797,4 @@ struct encryption_service_st encryption_handler=
 #include "rpl_filter.cc"
 #include "compat56.cc"
 #include "rpl_gtid.cc"
+//#include "gtid_index.cc"
