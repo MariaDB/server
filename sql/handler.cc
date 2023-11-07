@@ -776,6 +776,25 @@ void ha_drop_database(char* path)
 }
 
 
+struct binlog_pos { const char *name; uint64_t offset; };
+
+static my_bool reset_binlog_pos(THD *, plugin_ref plugin, void *pos)
+{
+  const binlog_pos *p= static_cast<const binlog_pos*>(pos);
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->reset_binlog_pos)
+    hton->reset_binlog_pos(p->name, p->offset);
+  return FALSE;
+}
+
+
+void ha_reset_binlog_pos(const char *name, uint64_t offset)
+{
+  binlog_pos pos{name, offset};
+  plugin_foreach(NULL, reset_binlog_pos, MYSQL_STORAGE_ENGINE_PLUGIN, &pos);
+}
+
+
 static my_bool checkpoint_state_handlerton(THD *unused1, plugin_ref plugin,
                                            void *disable)
 {

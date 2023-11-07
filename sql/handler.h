@@ -1438,6 +1438,7 @@ struct handlerton
                             enum_binlog_command binlog_command,
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
+   void (*reset_binlog_pos)(const char *name, uint64_t pos);
 
    void (*abort_transaction)(handlerton *hton, THD *bf_thd,
 			    THD *victim_thd, my_bool signal);
@@ -4940,6 +4941,7 @@ void ha_close_connection(THD* thd);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
 bool ha_flush_logs(handlerton *db_type);
 void ha_drop_database(char* path);
+void ha_reset_binlog_pos(const char *name, uint64_t offset);
 void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path,

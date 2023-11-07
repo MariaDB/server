@@ -304,6 +304,10 @@ up to which replication has proceeded.
 void
 trx_rseg_update_binlog_offset(byte* rseg_header, const trx_t* trx, mtr_t* mtr);
 
+/** Reset all persistent information for recovering
+trx_sys.recovered_binlog_filename and trx_sys.recovered_binlog_offset. */
+void trx_rseg_reset_binlog_pos(const char *name, uint64_t pos);
+
 #include "trx0rseg.inl"
 
 #endif
