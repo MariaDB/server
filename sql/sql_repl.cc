@@ -1349,12 +1349,13 @@ gtid_check_binlog_file(slave_connection_state *state,
     goto end;
   }
 
-  if (reader && !reader->open_index_file(buf))
+  if (likely(reader && !reader->open_index_file(buf)))
   {
     int lookup= reader->search_gtid_pos(state, out_start_seek, found_count);
     reader->close_index_file();
     if (lookup >= 0)
     {
+      statistic_increment(binlog_gtid_index_hit, &LOCK_status);
       if (lookup == 0)
         res= 1;
       else
@@ -1370,6 +1371,7 @@ gtid_check_binlog_file(slave_connection_state *state,
       the binlog file and scan it from the beginning.
     */
   }
+  statistic_increment(binlog_gtid_index_miss, &LOCK_status);
 
   bzero((char*) &cache, sizeof(cache));
   if (unlikely((file= open_binlog(&cache, buf, out_errormsg)) == (File)-1))
@@ -1568,11 +1570,18 @@ gtid_index_lookup_pos(const char *name, uint32 offset, uint32 *out_start_seek,
 
   if (!(reader= new Gtid_index_reader_hot()) ||
       reader->open_index_file(name))
+  {
+    statistic_increment(binlog_gtid_index_miss, &LOCK_status);
     goto err;
+  }
   opened= true;
   res= reader->search_offset(offset, &found_offset, &found_gtid_count);
   if (res <= 0)
+  {
+    statistic_increment(binlog_gtid_index_miss, &LOCK_status);
     goto err;
+  }
+  statistic_increment(binlog_gtid_index_hit, &LOCK_status);
 
   /* We found the position, initialize the state from the index. */
   found_gtids= reader->search_gtid_list();

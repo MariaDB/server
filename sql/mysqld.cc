@@ -503,6 +503,7 @@ ulong malloc_calls;
 ulong specialflag=0;
 ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
+ulong binlog_gtid_index_hit= 0, binlog_gtid_index_miss= 0;
 ulong max_connections, max_connect_errors;
 uint max_password_errors;
 ulong extra_max_connections;
@@ -7430,6 +7431,8 @@ SHOW_VAR status_vars[]= {
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Binlog_cache_disk_use",    (char*) &binlog_cache_disk_use,  SHOW_LONG},
   {"Binlog_cache_use",         (char*) &binlog_cache_use,       SHOW_LONG},
+  {"Binlog_gtid_index_hit",    (char*) &binlog_gtid_index_hit, SHOW_LONG},
+  {"Binlog_gtid_index_miss",   (char*) &binlog_gtid_index_miss, SHOW_LONG},
   {"Binlog_stmt_cache_disk_use",(char*) &binlog_stmt_cache_disk_use,  SHOW_LONG},
   {"Binlog_stmt_cache_use",    (char*) &binlog_stmt_cache_use,       SHOW_LONG},
   {"Binlog_disk_use",          (char*) &show_binlog_space_total, SHOW_SIMPLE_FUNC},
@@ -7856,6 +7859,7 @@ static int mysql_init_variables(void)
   delayed_insert_errors= thread_created= 0;
   specialflag= 0;
   binlog_cache_use=  binlog_cache_disk_use= 0;
+  binlog_gtid_index_hit= binlog_gtid_index_miss= 0;
   max_used_connections= slow_launch_threads = 0;
   max_used_connections_time= 0;
   mysqld_user= mysqld_chroot= opt_init_file= opt_bin_logname = 0;
