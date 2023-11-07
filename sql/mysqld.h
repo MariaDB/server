@@ -461,6 +461,7 @@ extern PSI_memory_key key_memory_user_var_entry_value;
 extern PSI_memory_key key_memory_Slave_job_group_group_relay_log_name;
 extern PSI_memory_key key_memory_Relay_log_info_group_relay_log_name;
 extern PSI_memory_key key_memory_binlog_cache_mngr;
+extern PSI_memory_key key_memory_binlog_gtid_index;
 extern PSI_memory_key key_memory_Row_data_memory_memory;
 extern PSI_memory_key key_memory_errmsgs;
 extern PSI_memory_key key_memory_Event_queue_element_for_exec_names;

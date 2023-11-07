@@ -9368,6 +9368,7 @@ PSI_memory_key key_memory_acl_cache;
 PSI_memory_key key_memory_acl_mem;
 PSI_memory_key key_memory_acl_memex;
 PSI_memory_key key_memory_binlog_cache_mngr;
+PSI_memory_key key_memory_binlog_gtid_index;
 PSI_memory_key key_memory_binlog_pos;
 PSI_memory_key key_memory_binlog_recover_exec;
 PSI_memory_key key_memory_binlog_statement_buffer;
@@ -9607,6 +9608,7 @@ static PSI_memory_info all_server_memory[]=
 //  { &key_memory_Slave_job_group_group_relay_log_name, "Slave_job_group::group_relay_log_name", 0},
   { &key_memory_Relay_log_info_group_relay_log_name, "Relay_log_info::group_relay_log_name", 0},
   { &key_memory_binlog_cache_mngr, "binlog_cache_mngr", 0},
+  { &key_memory_binlog_gtid_index, "binlog_gtid_index", 0},
   { &key_memory_Row_data_memory_memory, "Row_data_memory::memory", 0},
 //  { &key_memory_Gtid_set_to_string, "Gtid_set::to_string", 0},
 //  { &key_memory_Gtid_state_to_string, "Gtid_state::to_string", 0},
