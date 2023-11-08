@@ -5240,6 +5240,14 @@ static int init_server_components()
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
   }
 
+  /* Plugin initialisation done here should defer any ALTER TABLE
+  queries to after the ddl recovery is done, in the
+  signal_ddl_recovery_done() callback called by
+  ha_signal_ddl_recovery_done(). As such, between the plugin_init()
+  call and the ha_signal_ddl_recovery_done() call below only things
+  related to prepare for recovery should be done and nothing else, and
+  definitely not anything assuming that all plugins have been
+  initialised. */
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
                   (opt_abort ? PLUGIN_INIT_SKIP_INITIALIZATION : 0)))

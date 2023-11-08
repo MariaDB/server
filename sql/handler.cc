@@ -998,7 +998,7 @@ static my_bool signal_ddl_recovery_done(THD *, plugin_ref plugin, void *)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->signal_ddl_recovery_done)
-    (hton->signal_ddl_recovery_done)(hton);
+    return (hton->signal_ddl_recovery_done)(hton);
   return 0;
 }
 
@@ -1006,8 +1006,9 @@ static my_bool signal_ddl_recovery_done(THD *, plugin_ref plugin, void *)
 void ha_signal_ddl_recovery_done()
 {
   DBUG_ENTER("ha_signal_ddl_recovery_done");
-  plugin_foreach(NULL, signal_ddl_recovery_done, MYSQL_STORAGE_ENGINE_PLUGIN,
-                 NULL);
+  plugin_foreach_with_mask(NULL, signal_ddl_recovery_done,
+                           MYSQL_STORAGE_ENGINE_PLUGIN, PLUGIN_IS_READY, NULL,
+                           /*reap_on_fail=*/TRUE);
   DBUG_VOID_RETURN;
 }
 

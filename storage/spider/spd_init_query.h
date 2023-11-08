@@ -193,6 +193,57 @@ static LEX_STRING spider_init_queries[] = {
     "  primary key (db_name, table_name, key_seq)"
     ") engine=MyISAM default charset=utf8 collate=utf8_bin"
   )},
+  {C_STRING_WITH_LEN(
+    "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
+  )},
+  /* Install UDFs. If udf is not initialised, then install by
+  inserting into mysql.func */
+  {C_STRING_WITH_LEN(
+    "if @win_plugin = 0 then"
+    "  begin not atomic"
+    "    declare exit handler for 1041, 1123"
+    "      replace into mysql.func values"
+    "        ('spider_direct_sql', 2, 'ha_spider.so', 'function'),"
+    "        ('spider_bg_direct_sql', 2, 'ha_spider.so', 'aggregate'),"
+    "        ('spider_ping_table', 2, 'ha_spider.so', 'function'),"
+    "        ('spider_copy_tables', 2, 'ha_spider.so', 'function'),"
+    "        ('spider_flush_table_mon_cache', 2, 'ha_spider.so', 'function');"
+    "    create function if not exists spider_direct_sql returns int"
+    "      soname 'ha_spider.so';"
+    "    create aggregate function if not exists spider_bg_direct_sql returns int"
+    "      soname 'ha_spider.so';"
+    "    create function if not exists spider_ping_table returns int"
+    "      soname 'ha_spider.so';"
+    "    create function if not exists spider_copy_tables returns int"
+    "      soname 'ha_spider.so';"
+    "    create function if not exists spider_flush_table_mon_cache returns int"
+    "      soname 'ha_spider.so';"
+    "  end;"
+    "else"
+    "  begin not atomic"
+    "    declare exit handler for 1041, 1123"
+    "      replace into mysql.func values"
+    "        ('spider_direct_sql', 2, 'ha_spider.dll', 'function'),"
+    "        ('spider_bg_direct_sql', 2, 'ha_spider.dll', 'aggregate'),"
+    "        ('spider_ping_table', 2, 'ha_spider.dll', 'function'),"
+    "        ('spider_copy_tables', 2, 'ha_spider.dll', 'function'),"
+    "        ('spider_flush_table_mon_cache', 2, 'ha_spider.dll', 'function');"
+    "    create function if not exists spider_direct_sql returns int"
+    "      soname 'ha_spider.dll';"
+    "    create aggregate function if not exists spider_bg_direct_sql returns int"
+    "      soname 'ha_spider.dll';"
+    "    create function if not exists spider_ping_table returns int"
+    "      soname 'ha_spider.dll';"
+    "    create function if not exists spider_copy_tables returns int"
+    "      soname 'ha_spider.dll';"
+    "    create function if not exists spider_flush_table_mon_cache returns int"
+    "      soname 'ha_spider.dll';"
+    "  end;"
+    "end if;"
+   )}
+};
+
+static LEX_STRING spider_init_alter_table_queries[] = {
 /*
   If tables already exist and their definition differ
   from the latest ones, we fix them here.
@@ -692,53 +743,5 @@ static LEX_STRING spider_init_queries[] = {
     "alter table mysql.spider_xa_member"
     "  add column if not exists driver char(64) default null after filedsn,"
     "  algorithm=copy, lock=shared;"
-  )},
-  {C_STRING_WITH_LEN(
-    "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
-  )},
-  /* Install UDFs. If udf is not initialised, then install by
-  inserting into mysql.func */
-  {C_STRING_WITH_LEN(
-    "if @win_plugin = 0 then"
-    "  begin not atomic"
-    "    declare exit handler for 1041, 1123"
-    "      replace into mysql.func values"
-    "        ('spider_direct_sql', 2, 'ha_spider.so', 'function'),"
-    "        ('spider_bg_direct_sql', 2, 'ha_spider.so', 'aggregate'),"
-    "        ('spider_ping_table', 2, 'ha_spider.so', 'function'),"
-    "        ('spider_copy_tables', 2, 'ha_spider.so', 'function'),"
-    "        ('spider_flush_table_mon_cache', 2, 'ha_spider.so', 'function');"
-    "    create function if not exists spider_direct_sql returns int"
-    "      soname 'ha_spider.so';"
-    "    create aggregate function if not exists spider_bg_direct_sql returns int"
-    "      soname 'ha_spider.so';"
-    "    create function if not exists spider_ping_table returns int"
-    "      soname 'ha_spider.so';"
-    "    create function if not exists spider_copy_tables returns int"
-    "      soname 'ha_spider.so';"
-    "    create function if not exists spider_flush_table_mon_cache returns int"
-    "      soname 'ha_spider.so';"
-    "  end;"
-    "else"
-    "  begin not atomic"
-    "    declare exit handler for 1041, 1123"
-    "      replace into mysql.func values"
-    "        ('spider_direct_sql', 2, 'ha_spider.dll', 'function'),"
-    "        ('spider_bg_direct_sql', 2, 'ha_spider.dll', 'aggregate'),"
-    "        ('spider_ping_table', 2, 'ha_spider.dll', 'function'),"
-    "        ('spider_copy_tables', 2, 'ha_spider.dll', 'function'),"
-    "        ('spider_flush_table_mon_cache', 2, 'ha_spider.dll', 'function');"
-    "    create function if not exists spider_direct_sql returns int"
-    "      soname 'ha_spider.dll';"
-    "    create aggregate function if not exists spider_bg_direct_sql returns int"
-    "      soname 'ha_spider.dll';"
-    "    create function if not exists spider_ping_table returns int"
-    "      soname 'ha_spider.dll';"
-    "    create function if not exists spider_copy_tables returns int"
-    "      soname 'ha_spider.dll';"
-    "    create function if not exists spider_flush_table_mon_cache returns int"
-    "      soname 'ha_spider.dll';"
-    "  end;"
-    "end if;"
-   )}
+  )}
 };

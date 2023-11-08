@@ -2512,7 +2512,8 @@ wsrep_error_label:
 
 
 bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
-                       int type, uint state_mask, void *arg)
+                              int type, uint state_mask, void *arg,
+                              bool reap_on_fail)
 {
   size_t idx, total= 0;
   struct st_plugin_int *plugin;
@@ -2555,9 +2556,15 @@ bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
 
   for (idx= 0; idx < total; idx++)
   {
-    /* It will stop iterating on first engine error when "func" returns TRUE */
+    /* It will stop iterating on first engine error or mark DELETED if
+    reap_on_fail is true when "func" returns TRUE. */
     if ((res= func(thd, plugins[idx], arg)))
+    {
+      if (reap_on_fail)
+        plugin_ref_to_int(plugins[idx])->state= PLUGIN_IS_DELETED;
+      else
         break;
+    }
   }
 
   plugin_unlock_list(0, plugins, total);

@@ -1509,7 +1509,7 @@ struct handlerton
                        const LEX_CUSTRING *version, ulonglong create_id);
 
   /* Called for all storage handlers after ddl recovery is done */
-  void (*signal_ddl_recovery_done)(handlerton *hton);
+  int (*signal_ddl_recovery_done)(handlerton *hton);
 
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
