@@ -187,9 +187,10 @@ public:
   /* Delete/update statistics in EITS tables */
   void apply_statistics_deletes_renames(THD *thd, TABLE *table);
 
+#ifndef WITH_WSREP
 private:
-#ifdef WITH_WSREP
-  /* wsrep patch needs to peak the algorithm clause used in ALTER statement
+#else
+  /* wsrep patch needs to pick the algorithm clause used in ALTER statement
      in order to see if ALTER statement needs to be rewritten for replication
   */
 public:
