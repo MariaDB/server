@@ -2,10 +2,6 @@
 # Test of cast function
 #
 
-#remove this include after fix MDEV-27871
-# discuss what to do with "set names binary"
---source include/no_view_protocol.inc
-
 # For TIME->DATETIME conversion
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 
@@ -27,41 +23,41 @@ select cast(null as double(5,2));
 select cast(12.444 as double);
 select cast(cast("20:01:01" as time) as datetime);
 select cast(cast("8:46:06.23434" AS time) as decimal(32,10));
-select cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6));
+select cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6)) as exp;
 
 --echo #
 --echo # Check handling of cast with microseconds
 --echo #
-select cast(cast(20010203101112.121314 as double) as datetime);
-select cast(cast(010203101112.12 as double) as datetime);
-select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime);
-select cast(20010203101112.121314 as datetime);
-select cast(110203101112.121314 as datetime);
-select cast(cast(010203101112.12 as double) as datetime);
+select cast(cast(20010203101112.121314 as double) as datetime) as exp;
+select cast(cast(010203101112.12 as double) as datetime) as exp;
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime) as exp;
+select cast(20010203101112.121314 as datetime) as exp;
+select cast(110203101112.121314 as datetime) as exp;
+select cast(cast(010203101112.12 as double) as datetime) as exp;
 
-select cast("2011-02-03 10:11:12.123456" as datetime);
-select cast("2011-02-03 10:11:12.123456" as datetime(0));
-select cast("2011-02-03 10:11:12.123456" as datetime(5));
-select cast("2011-02-03 10:11:12.123456" as datetime(6));
-select cast("2011-02-03 10:11:12" as datetime(6));
-select cast(cast(20010203101112.5 as double) as datetime(1));
-select cast(cast(010203101112.12 as double) as datetime(2));
-select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6));
-select cast(20010203101112.121314 as datetime(6));
-select cast(110203101112.121314 as datetime(6));
-select cast(cast(010203101112.12 as double) as datetime(6));
+select cast("2011-02-03 10:11:12.123456" as datetime) as exp;
+select cast("2011-02-03 10:11:12.123456" as datetime(0)) as exp;
+select cast("2011-02-03 10:11:12.123456" as datetime(5)) as exp;
+select cast("2011-02-03 10:11:12.123456" as datetime(6)) as exp;
+select cast("2011-02-03 10:11:12" as datetime(6)) as exp;
+select cast(cast(20010203101112.5 as double) as datetime(1)) as exp;
+select cast(cast(010203101112.12 as double) as datetime(2)) as exp;
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6)) as exp;
+select cast(20010203101112.121314 as datetime(6)) as exp;
+select cast(110203101112.121314 as datetime(6)) as exp;
+select cast(cast(010203101112.12 as double) as datetime(6)) as exp;
 
-select cast("2011-02-03 10:11:12.123456" as time);
-select cast("2011-02-03 10:11:12.123456" as time(6));
-select cast("10:11:12.123456" as time);
-select cast("10:11:12.123456" as time(0));
-select cast("10:11:12.123456" as time(5));
-select cast("10:11:12.123456" as time(6));
-select cast("10:11:12" as time(6));
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time);
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6));
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time);
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6));
+select cast("2011-02-03 10:11:12.123456" as time) as exp;
+select cast("2011-02-03 10:11:12.123456" as time(6)) as exp;
+select cast("10:11:12.123456" as time) as exp;
+select cast("10:11:12.123456" as time(0)) as exp;
+select cast("10:11:12.123456" as time(5)) as exp;
+select cast("10:11:12.123456" as time(6)) as exp;
+select cast("10:11:12" as time(6)) as exp;
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time) as exp;
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6)) as exp;
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time) as exp;
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6)) as exp;
 
 #
 # Bug #28250: Run-Time Check Failure #3 - The variable 'value' is being used 
@@ -162,7 +158,10 @@ select cast(1 as double(64,63));
 #
 set names binary;
 select cast(_latin1'test' as char character set latin2);
+#enable after MDEV-32461 fix
+--disable_view_protocol
 select cast(_koi8r'тест' as char character set cp1251);
+--enable_view_protocol
 create table t1 select cast(_koi8r'тест' as char character set cp1251) as t;
 show create table t1;
 drop table t1;
@@ -170,6 +169,8 @@ drop table t1;
 #
 # CAST to CHAR with/without length
 #
+#enable after MDEV-32461 fix
+--disable_view_protocol
 select
   cast(_latin1'ab'  AS char)    as c1,
   cast(_latin1'a '  AS char)    as c2,
@@ -177,6 +178,7 @@ select
   cast(_latin1'a  ' AS char(2)) as c4,
   hex(cast(_latin1'a'   AS char(2))) as c5;
 select cast(1000 as CHAR(3));
+--enable_view_protocol
 
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 select
@@ -237,12 +239,15 @@ select cast("1:2:3" as TIME) = "1:02:03";
 #
 CREATE TABLE t1 (a enum ('aac','aab','aaa') not null);
 INSERT INTO t1 VALUES ('aaa'),('aab'),('aac');
+#enable after MDEV-32461 fix
+--disable_view_protocol
 # these two should be in enum order
 SELECT a, CAST(a AS CHAR) FROM t1 ORDER BY CAST(a AS UNSIGNED) ;
 SELECT a, CAST(a AS CHAR(3)) FROM t1 ORDER BY CAST(a AS CHAR(2)), a;
 # these two should be in alphabetic order
 SELECT a, CAST(a AS UNSIGNED) FROM t1 ORDER BY CAST(a AS CHAR) ;
 SELECT a, CAST(a AS CHAR(2)) FROM t1 ORDER BY CAST(a AS CHAR(3)), a;
+--enable_view_protocol
 DROP TABLE t1;
 
 #
@@ -344,9 +349,12 @@ select cast(NULL as decimal(6)) as t1;
 # Bug #17903: cast to char results in binary
 #
 set names latin1;
+#enable after MDEV-32461 fix
+--disable_view_protocol
 select hex(cast('a' as char(2) binary));
 select hex(cast('a' as binary(2)));
 select hex(cast('a' as char(2) binary));
+--enable_view_protocol
 
 #
 # Bug#29898: Item_date_typecast::val_int doesn't reset the null_value flag.
@@ -476,11 +484,14 @@ drop table t1;
 #
 # CAST (... BINARY)
 #
+#enable after MDEV-32461 fix
+--disable_view_protocol
 select collation(cast("a" as char(10) binary));
 select collation(cast("a" as char(10) charset utf8 binary));
 select collation(cast("a" as char(10) ascii binary));
 select collation(cast("a" as char(10) binary charset utf8));
 select collation(cast("a" as char(10) binary ascii));
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-11030 Assertion `precision > 0' failed in decimal_bin_size
@@ -762,7 +773,10 @@ INSERT INTO t1 VALUES (-1.0);
 SELECT * FROM t1;
 DROP TABLE t1;
 
+#enable after MDEV-32461 fix
+--disable_view_protocol
 SELECT CAST(-1e0 AS UNSIGNED);
+--enable_view_protocol
 CREATE TABLE t1 (a BIGINT UNSIGNED);
 INSERT INTO t1 VALUES (-1e0);
 SELECT * FROM t1;

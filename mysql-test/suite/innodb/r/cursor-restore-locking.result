@@ -1,5 +1,3 @@
-SET @save_freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE t (a int PRIMARY KEY, b int NOT NULL UNIQUE) engine = InnoDB, STATS_PERSISTENT=0;
 InnoDB		0 transactions not purged
 connect prevent_purge,localhost,root,,;
@@ -40,4 +38,3 @@ disconnect con_del_2;
 connection default;
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_freq;

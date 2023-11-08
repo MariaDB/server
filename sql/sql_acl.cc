@@ -5446,6 +5446,15 @@ public:
 };
 
 
+privilege_t GRANT_INFO::all_privilege()
+{
+  return (grant_table_user ? grant_table_user->cols : NO_ACL) |
+         (grant_table_role ? grant_table_role->cols : NO_ACL) |
+         (grant_public ?  grant_public->cols : NO_ACL) |
+         privilege;
+}
+
+
 void GRANT_NAME::set_user_details(const char *h, const char *d,
                                   const char *u, const char *t,
                                   bool is_routine)
@@ -8460,8 +8469,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (!(~t_ref->grant.privilege & want_access))
       continue;
 
-    if ((want_access&= ~(t_ref->grant.aggregate_cols() |
-                         t_ref->grant.privilege)))
+    if ((want_access&= ~t_ref->grant.all_privilege()))
     {
       goto err;                                 // impossible
     }
@@ -8517,6 +8525,7 @@ inline privilege_t GRANT_INFO::aggregate_cols()
          (grant_table_role ?  grant_table_role->cols : NO_ACL) |
          (grant_public ?  grant_public->cols : NO_ACL);
 }
+
 
 void GRANT_INFO::refresh(const Security_context *sctx,
                          const char *db, const char *table)

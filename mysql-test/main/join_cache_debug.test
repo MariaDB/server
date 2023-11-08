@@ -1,0 +1,43 @@
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-32351: Significant slowdown for query with many outer joins
+--echo #
+CREATE TABLE t1 (b int NOT NULL, PRIMARY KEY (b)) ENGINE=MYISAM;
+INSERT INTO t1 select seq from seq_1_to_10000;
+CREATE TABLE t2 (b int NOT NULL, d varchar(255), KEY (b)) ENGINE=MYISAM ;
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+CREATE TABLE t3 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM ;
+INSERT INTO t3 select seq from seq_1_to_3000;
+CREATE TABLE t4 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM;
+INSERT INTO t4 select seq from seq_1_to_3000;
+ANALYZE TABLE t1,t2,t3,t4;
+
+create table t1_t2 as
+select 
+  t1.b as t1_b, t2.b as t2_b, t2.d as t2_d
+FROM t1
+     LEFT JOIN t2 ON t1.b = t2.b;
+
+let $q=
+SET statement debug_dbug='+d,analyze_print_r_unpack_ops' for
+analyze
+format=json
+SELECT COUNT(*)
+FROM t1_t2
+     LEFT JOIN t3 ON t2_d = t3.c
+     LEFT JOIN t4 ON t3.c=1;
+
+echo $q;
+let $js=`$q`;
+
+--source include/analyze-format.inc
+evalp select '$js' as JSON;
+
+--echo # This must show 3000, not 30000000:
+evalp select json_extract('$js', '\$**.r_unpack_ops') as R_UNPACK_OPS;
+SET debug_dbug=@old_debug;
+
+drop table t1,t2,t3,t4;
+drop table t1_t2;

@@ -356,6 +356,9 @@ typedef struct st_grant_info
                      const char *table);
   inline privilege_t aggregate_privs();
   inline privilege_t aggregate_cols();
+
+  /* OR table and all column privileges */
+  privilege_t all_privilege();
 } GRANT_INFO;
 
 enum tmp_table_type

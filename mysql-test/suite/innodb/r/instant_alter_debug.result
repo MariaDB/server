@@ -1,5 +1,3 @@
-SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
@@ -521,7 +519,6 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 # End of 10.5 tests
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
