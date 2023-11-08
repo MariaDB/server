@@ -69,95 +69,95 @@ cast(cast("20:01:01" as time) as datetime)
 select cast(cast("8:46:06.23434" AS time) as decimal(32,10));
 cast(cast("8:46:06.23434" AS time) as decimal(32,10))
 84606.0000000000
-select cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6));
-cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6))
+select cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6)) as exp;
+exp
 20110405084606.000000
 #
 # Check handling of cast with microseconds
 #
-select cast(cast(20010203101112.121314 as double) as datetime);
-cast(cast(20010203101112.121314 as double) as datetime)
+select cast(cast(20010203101112.121314 as double) as datetime) as exp;
+exp
 2001-02-03 10:11:12
-select cast(cast(010203101112.12 as double) as datetime);
-cast(cast(010203101112.12 as double) as datetime)
+select cast(cast(010203101112.12 as double) as datetime) as exp;
+exp
 2001-02-03 10:11:12
-select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime);
-cast(cast(20010203101112.121314 as decimal(32,6)) as datetime)
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime) as exp;
+exp
 2001-02-03 10:11:12
-select cast(20010203101112.121314 as datetime);
-cast(20010203101112.121314 as datetime)
+select cast(20010203101112.121314 as datetime) as exp;
+exp
 2001-02-03 10:11:12
-select cast(110203101112.121314 as datetime);
-cast(110203101112.121314 as datetime)
+select cast(110203101112.121314 as datetime) as exp;
+exp
 2011-02-03 10:11:12
-select cast(cast(010203101112.12 as double) as datetime);
-cast(cast(010203101112.12 as double) as datetime)
+select cast(cast(010203101112.12 as double) as datetime) as exp;
+exp
 2001-02-03 10:11:12
-select cast("2011-02-03 10:11:12.123456" as datetime);
-cast("2011-02-03 10:11:12.123456" as datetime)
+select cast("2011-02-03 10:11:12.123456" as datetime) as exp;
+exp
 2011-02-03 10:11:12
-select cast("2011-02-03 10:11:12.123456" as datetime(0));
-cast("2011-02-03 10:11:12.123456" as datetime(0))
+select cast("2011-02-03 10:11:12.123456" as datetime(0)) as exp;
+exp
 2011-02-03 10:11:12
-select cast("2011-02-03 10:11:12.123456" as datetime(5));
-cast("2011-02-03 10:11:12.123456" as datetime(5))
+select cast("2011-02-03 10:11:12.123456" as datetime(5)) as exp;
+exp
 2011-02-03 10:11:12.12345
-select cast("2011-02-03 10:11:12.123456" as datetime(6));
-cast("2011-02-03 10:11:12.123456" as datetime(6))
+select cast("2011-02-03 10:11:12.123456" as datetime(6)) as exp;
+exp
 2011-02-03 10:11:12.123456
-select cast("2011-02-03 10:11:12" as datetime(6));
-cast("2011-02-03 10:11:12" as datetime(6))
+select cast("2011-02-03 10:11:12" as datetime(6)) as exp;
+exp
 2011-02-03 10:11:12.000000
-select cast(cast(20010203101112.5 as double) as datetime(1));
-cast(cast(20010203101112.5 as double) as datetime(1))
+select cast(cast(20010203101112.5 as double) as datetime(1)) as exp;
+exp
 2001-02-03 10:11:12.5
-select cast(cast(010203101112.12 as double) as datetime(2));
-cast(cast(010203101112.12 as double) as datetime(2))
+select cast(cast(010203101112.12 as double) as datetime(2)) as exp;
+exp
 2001-02-03 10:11:12.12
-select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6));
-cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6))
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6)) as exp;
+exp
 2001-02-03 10:11:12.121314
-select cast(20010203101112.121314 as datetime(6));
-cast(20010203101112.121314 as datetime(6))
+select cast(20010203101112.121314 as datetime(6)) as exp;
+exp
 2001-02-03 10:11:12.121314
-select cast(110203101112.121314 as datetime(6));
-cast(110203101112.121314 as datetime(6))
+select cast(110203101112.121314 as datetime(6)) as exp;
+exp
 2011-02-03 10:11:12.121314
-select cast(cast(010203101112.12 as double) as datetime(6));
-cast(cast(010203101112.12 as double) as datetime(6))
+select cast(cast(010203101112.12 as double) as datetime(6)) as exp;
+exp
 2001-02-03 10:11:12.120000
-select cast("2011-02-03 10:11:12.123456" as time);
-cast("2011-02-03 10:11:12.123456" as time)
+select cast("2011-02-03 10:11:12.123456" as time) as exp;
+exp
 10:11:12
-select cast("2011-02-03 10:11:12.123456" as time(6));
-cast("2011-02-03 10:11:12.123456" as time(6))
+select cast("2011-02-03 10:11:12.123456" as time(6)) as exp;
+exp
 10:11:12.123456
-select cast("10:11:12.123456" as time);
-cast("10:11:12.123456" as time)
+select cast("10:11:12.123456" as time) as exp;
+exp
 10:11:12
-select cast("10:11:12.123456" as time(0));
-cast("10:11:12.123456" as time(0))
+select cast("10:11:12.123456" as time(0)) as exp;
+exp
 10:11:12
-select cast("10:11:12.123456" as time(5));
-cast("10:11:12.123456" as time(5))
+select cast("10:11:12.123456" as time(5)) as exp;
+exp
 10:11:12.12345
-select cast("10:11:12.123456" as time(6));
-cast("10:11:12.123456" as time(6))
+select cast("10:11:12.123456" as time(6)) as exp;
+exp
 10:11:12.123456
-select cast("10:11:12" as time(6));
-cast("10:11:12" as time(6))
+select cast("10:11:12" as time(6)) as exp;
+exp
 10:11:12.000000
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time);
-cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time)
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time) as exp;
+exp
 08:46:06
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6));
-cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6))
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6)) as exp;
+exp
 08:46:06.000000
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time);
-cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time)
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time) as exp;
+exp
 08:46:06
-select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6));
-cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6))
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6)) as exp;
+exp
 08:46:06.123456
 select cast(NULL as unsigned), cast(1/0 as unsigned);
 cast(NULL as unsigned)	cast(1/0 as unsigned)

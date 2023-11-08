@@ -868,12 +868,9 @@ public:
   {
     m_index= 0;
     m_target_bound= 0;
+    m_cursor_offset= 0;
     m_direction= 0;
     m_implicit_cursor= false;
-  }
-  void init(const Lex_for_loop_st &other)
-  {
-    *this= other;
   }
   bool is_for_loop_cursor() const { return m_target_bound == NULL; }
   bool is_for_loop_explicit_cursor() const

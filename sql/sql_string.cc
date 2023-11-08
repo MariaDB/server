@@ -659,24 +659,6 @@ bool String::append_parenthesized(long nr, int radix)
 }
 
 
-bool String::append_with_prefill(const char *s,uint32 arg_length,
-		 uint32 full_length, char fill_char)
-{
-  int t_length= arg_length > full_length ? arg_length : full_length;
-
-  if (realloc_with_extra_if_needed(str_length + t_length))
-    return TRUE;
-  t_length= full_length - arg_length;
-  if (t_length > 0)
-  {
-    bfill(Ptr+str_length, t_length, fill_char);
-    str_length=str_length + t_length;
-  }
-  append(s, arg_length);
-  return FALSE;
-}
-
-
 int Binary_string::strstr(const char *search, uint32 search_length, uint32 offset) const
 {
   if (search_length + offset <= str_length)

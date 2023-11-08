@@ -1,8 +1,8 @@
 SET sql_mode=ORACLE;
 SELECT DECODE(10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE(10,10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE(10,10,'x10');
 DECODE(10,10,'x10')
 x10
@@ -35,9 +35,9 @@ DROP TABLE decode;
 # MDEV-13863 sql_mode=ORACLE: DECODE does not treat two NULLs as equivalent
 #
 SELECT DECODE(10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE(10,10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE_ORACLE(10);
 ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
 SELECT DECODE_ORACLE(10,10);

@@ -162,6 +162,8 @@ public:
 
 class Create_field;
 extern bool prepare_sequence_fields(THD *thd, List<Create_field> *fields);
-extern bool check_sequence_fields(LEX *lex, List<Create_field> *fields);
+extern bool check_sequence_fields(LEX *lex, List<Create_field> *fields,
+                                  const LEX_CSTRING db,
+                                  const LEX_CSTRING table_name);
 extern bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list);
 #endif /* SQL_SEQUENCE_INCLUDED */

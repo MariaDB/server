@@ -3055,7 +3055,7 @@ wait_again:
 		if (err == DB_SUCCESS) {
 			new_table->fts->cache->synced_doc_id = max_doc_id;
 
-		        /* Update the max value as next FTS_DOC_ID */
+			/* Update the max value as next FTS_DOC_ID */
 			if (max_doc_id >= new_table->fts->cache->next_doc_id) {
 				new_table->fts->cache->next_doc_id =
 					max_doc_id + 1;

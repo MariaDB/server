@@ -1060,10 +1060,8 @@ row_upd_replace_vcol(
 	bool	is_undo_log = true;
 
 	/* We will read those unchanged (but indexed) virtual columns in */
-	if (ptr != NULL) {
-		const byte*	end_ptr;
-
-		end_ptr = ptr + mach_read_from_2(ptr);
+	if (ptr) {
+		const byte* const end_ptr = ptr + mach_read_from_2(ptr);
 		ptr += 2;
 
 		while (ptr != end_ptr) {
@@ -1189,7 +1187,7 @@ row_upd_replace(
 		*ext = NULL;
 	}
 
-	row_upd_replace_vcol(row, table, update, true, NULL, NULL);
+	row_upd_replace_vcol(row, table, update, true, nullptr, nullptr);
 }
 
 /***********************************************************//**
