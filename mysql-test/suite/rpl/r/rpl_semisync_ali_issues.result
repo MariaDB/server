@@ -196,7 +196,7 @@ Variable_name	Value
 Rpl_semi_sync_master_clients	0
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
-Rpl_semi_sync_master_status	OFF
+Rpl_semi_sync_master_status	ON
 connection slave;
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc

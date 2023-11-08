@@ -1058,8 +1058,10 @@ retry:
 	  {					/* Probably in MIT threads */
 	    if (retry_count++ < net->retry_count)
 	      continue;
-	    EXTRA_DEBUG_fprintf(stderr, "%s: read looped with error %d, aborting thread\n",
-		    my_progname,vio_errno(net->vio));
+	    EXTRA_DEBUG_fprintf(stderr, "%s: read looped with error %d on "
+                                "file %lld, aborting thread\n",
+                                my_progname, vio_errno(net->vio),
+                                (longlong) vio_fd(net->vio));
 	  }
 #ifndef MYSQL_SERVER
 	  if (length != 0 && vio_errno(net->vio) == SOCKET_EINTR)

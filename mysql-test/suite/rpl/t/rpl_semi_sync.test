@@ -51,7 +51,7 @@ set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
 
-set global rpl_semi_sync_master_timeout= 60000; # 60s
+set global rpl_semi_sync_master_timeout= 2000; # 2s
 
 echo [ default state of semi-sync on master should be OFF ];
 show variables like 'rpl_semi_sync_master_enabled';
@@ -195,12 +195,16 @@ sync_slave_with_master;
 --echo # Test semi-sync master will switch OFF after one transaction
 --echo # timeout waiting for slave reply.
 --echo #
+
+connection master;
+show status like "Rpl_semi_sync_master_status";
+
 connection slave;
 source include/stop_slave.inc;
 
 connection master;
 --source include/kill_binlog_dump_threads.inc
-set global rpl_semi_sync_master_timeout= 5000;
+set global rpl_semi_sync_master_timeout= 2000;
 
 # The first semi-sync check should be on because after slave stop,
 # there are no transactions on the master.
@@ -232,8 +236,8 @@ show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
-# Semi-sync status on master is now OFF, so all these transactions
-# will be replicated asynchronously.
+# Semi-sync status on master is now ON, but there are no slaves attached,
+# so all these transactions will be replicated asynchronously.
 delete from t1 where a=10;
 delete from t1 where a=9;
 delete from t1 where a=8;
@@ -367,6 +371,9 @@ let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
 
+sync_slave_with_master;
+connection master;
+
 replace_result $engine_type ENGINE_TYPE;
 eval create table t1 (a int) engine = $engine_type;
 insert into t1 values (1);
@@ -413,6 +420,10 @@ connection master;
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
+
+sync_slave_with_master;
+connection master;
+
 echo [ master semi-sync should be ON ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';

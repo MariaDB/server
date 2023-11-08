@@ -45,7 +45,7 @@ public:
    */
   int init_object();
 
-  bool get_slave_enabled() {
+  inline bool get_slave_enabled() {
     return m_slave_enabled;
   }
 
@@ -53,7 +53,7 @@ public:
     m_slave_enabled = enabled;
   }
 
-  bool is_delay_master(){
+  inline bool is_delay_master(){
     return m_delay_master;
   }
 
@@ -104,8 +104,7 @@ private:
 
 
 /* System and status variables for the slave component */
-extern my_bool rpl_semi_sync_slave_enabled;
-extern my_bool rpl_semi_sync_slave_status;
+extern my_bool global_rpl_semi_sync_slave_enabled;
 extern ulong rpl_semi_sync_slave_trace_level;
 extern Repl_semi_sync_slave repl_semisync_slave;
 
@@ -113,4 +112,7 @@ extern char rpl_semi_sync_slave_delay_master;
 extern unsigned int rpl_semi_sync_slave_kill_conn_timeout;
 extern unsigned long long rpl_semi_sync_slave_send_ack;
 
+extern int rpl_semi_sync_enabled(THD *thd, SHOW_VAR *var, void *buff,
+                                 system_status_var *status_var,
+                                 enum_var_type scope);
 #endif /* SEMISYNC_SLAVE_H */
