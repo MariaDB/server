@@ -4809,6 +4809,16 @@ connected:
          we're in fact receiving nothing.
       */
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("pause_before_io_read_event", {
+    DBUG_ASSERT(!debug_sync_set_action(
+        thd, STRING_WITH_LEN(
+                 "now signal io_thread_at_read_event wait_for io_thread_continue_read_event")));
+    DBUG_SET("-d,pause_before_io_read_event");
+  };);
+#endif
+
       event_len= read_event(mysql, mi, &suppress_warnings, &network_read_len);
       if (check_io_slave_killed(mi, NullS))
         goto err;
