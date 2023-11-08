@@ -37,6 +37,10 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+#-- Enable semi-sync on master
+connection server_1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
@@ -53,10 +57,6 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
-#-- Enable semi-sync on master
-connection server_1;
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
-set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Wait for master to recognize semi-sync slaves
 connection server_1;
 #-- Master should have semi-sync enabled with 2 connections
@@ -94,7 +94,7 @@ Variable_name	Value
 Rpl_semi_sync_master_yes_tx	1
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
-Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_no_tx	4
 connection server_1_con2;
 # Check logs to ensure shutdown was delayed
 FOUND 1 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
@@ -154,6 +154,10 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+#-- Enable semi-sync on master
+connection server_1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_timeout= 500;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
@@ -170,10 +174,6 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
-#-- Enable semi-sync on master
-connection server_1;
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
-set @@global.rpl_semi_sync_master_timeout= 500;
 #-- Wait for master to recognize semi-sync slaves
 connection server_1;
 #-- Master should have semi-sync enabled with 2 connections
@@ -272,6 +272,10 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+#-- Enable semi-sync on master
+connection server_1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
@@ -288,10 +292,6 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
-#-- Enable semi-sync on master
-connection server_1;
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
-set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Wait for master to recognize semi-sync slaves
 connection server_1;
 #-- Master should have semi-sync enabled with 2 connections
@@ -396,6 +396,10 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+#-- Enable semi-sync on master
+connection server_1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
@@ -412,10 +416,6 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
-#-- Enable semi-sync on master
-connection server_1;
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
-set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Wait for master to recognize semi-sync slaves
 connection server_1;
 #-- Master should have semi-sync enabled with 2 connections
