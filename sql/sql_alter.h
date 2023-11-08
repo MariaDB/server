@@ -107,9 +107,10 @@ public:
   List<const char>              partition_names;
   // Number of partitions.
   uint                          num_parts;
+#ifndef WITH_WSREP
 private:
-#ifdef WITH_WSREP
-  /* wsrep patch needs to peak the algorithm clause used in ALTER statement
+#else
+  /* wsrep patch needs to pick the algorithm clause used in ALTER statement
      in order to see if ALTER statement needs to be rewritten for replication
   */
 public:

@@ -7,4 +7,3 @@ log_bin=binlog
 [mysqld.2]
 log_slave_updates=ON
 log_bin=binlog
-
