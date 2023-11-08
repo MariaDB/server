@@ -1483,11 +1483,11 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
 }
 
 static bool wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
-                                                Alter_info* alter_info,
+                                                const Alter_info* alter_info,
                                                 wsrep_key_arr_t* ka)
 {
   Key *key;
-  List_iterator<Key> key_iterator(alter_info->key_list);
+  List_iterator<Key> key_iterator(const_cast<Alter_info*>(alter_info)->key_list);
   while ((key= key_iterator++))
   {
     if (key->type == Key::FOREIGN_KEY)
@@ -1635,12 +1635,12 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 
 wsrep::key_array
 wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
-                                    Alter_info* alter_info)
+                                    const Alter_info* alter_info)
 
 {
   wsrep::key_array ret;
   Key *key;
-  List_iterator<Key> key_iterator(alter_info->key_list);
+  List_iterator<Key> key_iterator(const_cast<Alter_info*>(alter_info)->key_list);
   while ((key= key_iterator++))
   {
     if (key->type == Key::FOREIGN_KEY)
@@ -1662,8 +1662,8 @@ wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
 wsrep::key_array wsrep_prepare_keys_for_toi(const char* db,
                                             const char* table,
                                             const TABLE_LIST* table_list,
-                                            Alter_info* alter_info,
-                                            wsrep::key_array* fk_tables)
+                                            const Alter_info* alter_info,
+                                            const wsrep::key_array* fk_tables)
 {
   wsrep::key_array ret;
   if (db || table)
@@ -1759,8 +1759,8 @@ static int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
   if (log_query.append(STRING_WITH_LEN("ALTER "))
       || append_definer(thd, &log_query, &(thd->lex->definer->user), &(thd->lex->definer->host))
       || log_query.append(thd->lex->stmt_definition_begin,
-                           thd->lex->stmt_definition_end -
-                           thd->lex->stmt_definition_begin))
+                          thd->lex->stmt_definition_end -
+                          thd->lex->stmt_definition_begin))
   {
     WSREP_WARN("events alter string failed: schema: %s, query: %s",
                thd->get_db(), thd->query());
@@ -1772,7 +1772,7 @@ static int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
 }
 
 static int wsrep_alter_table_query(THD *thd, uchar** buf, size_t* buf_len,
-                                   Alter_info *alter_info)
+                                   const Alter_info *alter_info)
 {
   String log_query;
   log_query.append(thd->query());
@@ -1781,11 +1781,11 @@ static int wsrep_alter_table_query(THD *thd, uchar** buf, size_t* buf_len,
      if user has specified the alter algorithm by session variable alter_algorithm
      and the ALTER statement does not contain ALGORITHM= clause, then
      build for replication new ALTER query with the ALGORITHM clause
-   */
+  */
   if (thd->variables.alter_algorithm  != Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
       alter_info->requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_NONE)
   {
-    if (log_query.append(" ,") ||
+    if (log_query.append(", ") ||
         log_query.append(alter_info->algorithm_clause(thd)))
     {
       WSREP_WARN("alter table string failed: schema: %s, query: %s",
@@ -2094,7 +2094,8 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
 }
 
-static int wsrep_TOI_event_buf(THD* thd, uchar** buf, size_t* buf_len, Alter_info *alter_info)
+static int wsrep_TOI_event_buf(THD* thd, uchar** buf, size_t* buf_len,
+                               const Alter_info *alter_info)
 {
   int err;
   switch (thd->lex->sql_command)
@@ -2169,7 +2170,8 @@ fail:
  */
 static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                            const TABLE_LIST* table_list,
-                           Alter_info* alter_info, wsrep::key_array* fk_tables)
+                           const Alter_info* alter_info,
+                           const wsrep::key_array* fk_tables)
 {
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
 
@@ -2333,7 +2335,8 @@ static void wsrep_RSU_end(THD *thd)
 
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
-                             Alter_info* alter_info, wsrep::key_array* fk_tables)
+                             const Alter_info* alter_info,
+                             const wsrep::key_array* fk_tables)
 {
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   const killed_state killed = thd->killed;

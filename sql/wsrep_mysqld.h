@@ -324,7 +324,8 @@ struct TABLE_LIST;
 class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
-                             Alter_info* alter_info= NULL, wsrep::key_array *fk_tables=NULL);
+                             const Alter_info* alter_info= NULL,
+                             const wsrep::key_array *fk_tables=NULL);
 
 void wsrep_to_isolation_end(THD *thd);
 
