@@ -26,7 +26,6 @@ call mtr.add_suppression("Table .*bug16720368.* is corrupted");
 -- echo #
 
 SET GLOBAL innodb_file_per_table=1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 

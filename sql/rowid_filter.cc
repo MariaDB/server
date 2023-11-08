@@ -539,8 +539,11 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
     range filter and place into the filter the rowids / primary keys
     read from key tuples when doing this scan.
   @retval
-    false  on success
-    true   otherwise
+    Rowid_filter::SUCCESS          on success
+    Rowid_filter::NON_FATAL_ERROR  the error which does not require transaction
+                                   rollback
+    Rowid_filter::FATAL_ERROR      the error which does require transaction
+                                   rollback
 
   @note
     The function assumes that the quick select object to perform
@@ -553,9 +556,9 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
     purposes to facilitate a lazy building of the filter.
 */
 
-bool Range_rowid_filter::fill()
+Rowid_filter::build_return_code Range_rowid_filter::build()
 {
-  int rc= 0;
+  build_return_code rc= SUCCESS;
   handler *file= table->file;
   THD *thd= table->in_use;
   QUICK_RANGE_SELECT* quick= (QUICK_RANGE_SELECT*) select->quick;
@@ -576,18 +579,34 @@ bool Range_rowid_filter::fill()
   table->file->ha_start_keyread(quick->index);
 
   if (quick->init() || quick->reset())
-    rc= 1;
-
-  while (!rc)
+    rc= FATAL_ERROR;
+  else
   {
-    rc= quick->get_next();
-    if (thd->killed)
-      rc= 1;
-    if (!rc)
+    for (;;)
     {
+      int quick_get_next_result= quick->get_next();
+      if (thd->killed)
+      {
+        rc= FATAL_ERROR;
+        break;
+      }
+      if (quick_get_next_result != 0)
+      {
+        rc= (quick_get_next_result == HA_ERR_END_OF_FILE ? SUCCESS
+                                                        : FATAL_ERROR);
+        /*
+          The error state has been set by file->print_error(res, MYF(0)) call
+          inside quick->get_next() call, in Mrr_simple_index_reader::get_next()
+        */
+        DBUG_ASSERT(rc == SUCCESS || thd->is_error());
+        break;
+      }
       file->position(quick->record);
-      if (container->add(NULL, (char*) file->ref))
-        rc= 1;
+      if (container->add(NULL, (char *) file->ref))
+      {
+        rc= NON_FATAL_ERROR;
+        break;
+      }
       else
         tracker->increment_container_elements_count();
     }
@@ -602,10 +621,9 @@ bool Range_rowid_filter::fill()
   file->in_range_check_pushed_down= in_range_check_pushed_down_save;
   tracker->report_container_buff_size(table->file->ref_length);
 
-  if (rc != HA_ERR_END_OF_FILE)
-    return 1;
-  table->file->rowid_filter_is_active= true;
-  return 0;
+  if (rc == SUCCESS)
+    table->file->rowid_filter_is_active= true;
+  return rc;
 }
 
 

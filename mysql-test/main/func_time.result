@@ -9,8 +9,8 @@ period_add("9602",-12)	period_diff(199505,"9404")
 select now()-now(),weekday(curdate())-weekday(now()),unix_timestamp()-unix_timestamp(now());
 now()-now()	weekday(curdate())-weekday(now())	unix_timestamp()-unix_timestamp(now())
 0	0	0
-select from_unixtime(unix_timestamp("1994-03-02 10:11:12")),from_unixtime(unix_timestamp("1994-03-02 10:11:12"),"%Y-%m-%d %h:%i:%s"),from_unixtime(unix_timestamp("1994-03-02 10:11:12"))+0;
-from_unixtime(unix_timestamp("1994-03-02 10:11:12"))	from_unixtime(unix_timestamp("1994-03-02 10:11:12"),"%Y-%m-%d %h:%i:%s")	from_unixtime(unix_timestamp("1994-03-02 10:11:12"))+0
+select from_unixtime(unix_timestamp("1994-03-02 10:11:12")) as e1,from_unixtime(unix_timestamp("1994-03-02 10:11:12"),"%Y-%m-%d %h:%i:%s") as e2,from_unixtime(unix_timestamp("1994-03-02 10:11:12"))+0 as e3;
+e1	e2	e3
 1994-03-02 10:11:12	1994-03-02 10:11:12	19940302101112
 select sec_to_time(9001),sec_to_time(9001)+0,time_to_sec("15:12:22"),
 sec_to_time(time_to_sec("0:30:47")/6.21);
@@ -45,20 +45,20 @@ Warning	1292	Truncated incorrect seconds value: '99999999999999999999999999999'
 select now()-curdate()*1000000-curtime();
 now()-curdate()*1000000-curtime()
 0
-select strcmp(current_timestamp(),concat(current_date()," ",current_time()));
-strcmp(current_timestamp(),concat(current_date()," ",current_time()))
+select strcmp(current_timestamp(),concat(current_date()," ",current_time())) as exp;
+exp
 0
-select strcmp(localtime(),concat(current_date()," ",current_time()));
-strcmp(localtime(),concat(current_date()," ",current_time()))
+select strcmp(localtime(),concat(current_date()," ",current_time())) as exp;
+exp
 0
-select strcmp(localtimestamp(),concat(current_date()," ",current_time()));
-strcmp(localtimestamp(),concat(current_date()," ",current_time()))
+select strcmp(localtimestamp(),concat(current_date()," ",current_time())) as exp;
+exp
 0
-select date_format("1997-01-02 03:04:05", "%M %W %D %Y %y %m %d %h %i %s %w");
-date_format("1997-01-02 03:04:05", "%M %W %D %Y %y %m %d %h %i %s %w")
+select date_format("1997-01-02 03:04:05", "%M %W %D %Y %y %m %d %h %i %s %w") as exp;
+exp
 January Thursday 2nd 1997 97 01 02 03 04 05 4
-select date_format("1997-01-02", concat("%M %W %D ","%Y %y %m %d %h %i %s %w"));
-date_format("1997-01-02", concat("%M %W %D ","%Y %y %m %d %h %i %s %w"))
+select date_format("1997-01-02", concat("%M %W %D ","%Y %y %m %d %h %i %s %w")) as exp;
+exp
 January Thursday 2nd 1997 97 01 02 12 00 00 4
 select dayofmonth("1997-01-02"),dayofmonth(19970323);
 dayofmonth("1997-01-02")	dayofmonth(19970323)
@@ -179,11 +179,11 @@ time_format(131415,'%H|%I|%k|%l|%i|%p|%r|%S|%T')	date_format(19980131131415,'%H|
 select time_format(010015,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(19980131010015,'%H|%I|%k|%l|%i|%p|%r|%S|%T');
 time_format(010015,'%H|%I|%k|%l|%i|%p|%r|%S|%T')	date_format(19980131010015,'%H|%I|%k|%l|%i|%p|%r|%S|%T')
 01|01|1|1|00|AM|01:00:15 AM|15|01:00:15	01|01|1|1|00|AM|01:00:15 AM|15|01:00:15
-select date_format(concat('19980131',131415),'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w');
-date_format(concat('19980131',131415),'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w')
+select date_format(concat('19980131',131415),'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w') as exp;
+exp
 13|01|13|1|14|PM|01:14:15 PM|15|13:14:15| January|Saturday|31st|1998|98|Sat|Jan|031|01|31|01|15|6
-select date_format(19980021000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w');
-date_format(19980021000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w')
+select date_format(19980021000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w') as exp;
+exp
 NULL
 select date_add("1997-12-31 23:59:59",INTERVAL 1 SECOND);
 date_add("1997-12-31 23:59:59",INTERVAL 1 SECOND)
@@ -297,14 +297,14 @@ date_add("1997-12-31 23:59:59",INTERVAL "10000:1" DAY_HOUR)
 select date_add("1997-12-31 23:59:59",INTERVAL "-100 1" YEAR_MONTH);
 date_add("1997-12-31 23:59:59",INTERVAL "-100 1" YEAR_MONTH)
 1897-11-30 23:59:59
-select date_add("1997-12-31 23:59:59",INTERVAL "10000:99:99" HOUR_SECOND);
-date_add("1997-12-31 23:59:59",INTERVAL "10000:99:99" HOUR_SECOND)
+select date_add("1997-12-31 23:59:59",INTERVAL "10000:99:99" HOUR_SECOND) as exp;
+exp
 1999-02-21 17:40:38
-select date_add("1997-12-31 23:59:59",INTERVAL " -10000 99:99" DAY_MINUTE);
-date_add("1997-12-31 23:59:59",INTERVAL " -10000 99:99" DAY_MINUTE)
+select date_add("1997-12-31 23:59:59",INTERVAL " -10000 99:99" DAY_MINUTE) as exp;
+exp
 1970-08-11 19:20:59
-select date_add("1997-12-31 23:59:59",INTERVAL "10000 99:99:99" DAY_SECOND);
-date_add("1997-12-31 23:59:59",INTERVAL "10000 99:99:99" DAY_SECOND)
+select date_add("1997-12-31 23:59:59",INTERVAL "10000 99:99:99" DAY_SECOND) as exp;
+exp
 2025-05-23 04:40:38
 select "1997-12-31 23:59:59" + INTERVAL 1 SECOND;
 "1997-12-31 23:59:59" + INTERVAL 1 SECOND
@@ -427,11 +427,11 @@ quarter
 SELECT EXTRACT(QUARTER FROM '2004-12-15') AS quarter;
 quarter
 4
-SELECT DATE_SUB(str_to_date('9999-12-31 00:01:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE);
-DATE_SUB(str_to_date('9999-12-31 00:01:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE)
+SELECT DATE_SUB(str_to_date('9999-12-31 00:01:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE) as exp;
+exp
 9999-12-31 00:00:00
-SELECT DATE_ADD(str_to_date('9999-12-30 23:59:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE);
-DATE_ADD(str_to_date('9999-12-30 23:59:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE)
+SELECT DATE_ADD(str_to_date('9999-12-30 23:59:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE) as exp;
+exp
 9999-12-31 00:00:00
 SELECT "1900-01-01 00:00:00" + INTERVAL 2147483648 SECOND;
 "1900-01-01 00:00:00" + INTERVAL 2147483648 SECOND
@@ -439,8 +439,8 @@ SELECT "1900-01-01 00:00:00" + INTERVAL 2147483648 SECOND;
 SELECT "1900-01-01 00:00:00" + INTERVAL "1:2147483647" MINUTE_SECOND;
 "1900-01-01 00:00:00" + INTERVAL "1:2147483647" MINUTE_SECOND
 1968-01-20 03:15:07
-SELECT "1900-01-01 00:00:00" + INTERVAL "100000000:214748364700" MINUTE_SECOND;
-"1900-01-01 00:00:00" + INTERVAL "100000000:214748364700" MINUTE_SECOND
+SELECT "1900-01-01 00:00:00" + INTERVAL "100000000:214748364700" MINUTE_SECOND as exp;
+exp
 8895-03-27 22:11:40
 SELECT "1900-01-01 00:00:00" + INTERVAL 1<<37 SECOND;
 "1900-01-01 00:00:00" + INTERVAL 1<<37 SECOND
@@ -466,8 +466,8 @@ SELECT "1900-01-01 00:00:00" + INTERVAL 1<<30 HOUR;
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
-SELECT "1900-01-01 00:00:00" + INTERVAL "1000000000:214748364700" MINUTE_SECOND;
-"1900-01-01 00:00:00" + INTERVAL "1000000000:214748364700" MINUTE_SECOND
+SELECT "1900-01-01 00:00:00" + INTERVAL "1000000000:214748364700" MINUTE_SECOND as exp;
+exp
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
@@ -856,14 +856,14 @@ last_day("1997-12-1")+0
 select last_day("1997-12-1")+0.0;
 last_day("1997-12-1")+0.0
 19971231.0
-select strcmp(date_sub(localtimestamp(), interval 3 hour), utc_timestamp())=0;
-strcmp(date_sub(localtimestamp(), interval 3 hour), utc_timestamp())=0
+select strcmp(date_sub(localtimestamp(), interval 3 hour), utc_timestamp())=0 as exp;
+exp
 1
-select strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%T"), utc_time())=0;
-strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%T"), utc_time())=0
+select strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%T"), utc_time())=0 as exp;
+exp
 1
-select strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%Y-%m-%d"), utc_date())=0;
-strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%Y-%m-%d"), utc_date())=0
+select strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%Y-%m-%d"), utc_date())=0 as exp;
+exp
 1
 select strcmp(date_format(utc_timestamp(),"%T"), utc_time())=0;
 strcmp(date_format(utc_timestamp(),"%T"), utc_time())=0
@@ -1239,8 +1239,8 @@ set time_zone= @@global.time_zone;
 select str_to_date('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE;
 str_to_date('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE
 22:10:00
-select str_to_date("1997-00-04 22:23:00","%Y-%m-%D") + interval 10 minute;
-str_to_date("1997-00-04 22:23:00","%Y-%m-%D") + interval 10 minute
+select str_to_date("1997-00-04 22:23:00","%Y-%m-%D") + interval 10 minute as exp;
+exp
 NULL
 Warnings:
 Warning	1292	Truncated incorrect date value: '1997-00-04 22:23:00'
@@ -1310,8 +1310,8 @@ DATE_ADD(20071108,         INTERVAL 1 DAY)
 select LAST_DAY('2007-12-06 08:59:19.05') - INTERVAL 1 SECOND;
 LAST_DAY('2007-12-06 08:59:19.05') - INTERVAL 1 SECOND
 2007-12-30 23:59:59
-select date_add('1000-01-01 00:00:00', interval '1.03:02:01.05' day_microsecond);
-date_add('1000-01-01 00:00:00', interval '1.03:02:01.05' day_microsecond)
+select date_add('1000-01-01 00:00:00', interval '1.03:02:01.05' day_microsecond) as exp;
+exp
 1000-01-02 03:02:01.050000
 select date_add('1000-01-01 00:00:00', interval '1.02' day_microsecond);
 date_add('1000-01-01 00:00:00', interval '1.02' day_microsecond)
@@ -1756,8 +1756,8 @@ UNIX_TIMESTAMP('2015-06-00')
 NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '2015-06-00'
-SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'));
-UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'))
+SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s')) as exp;
+exp
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '0000-00-00 10:30:30' for function str_to_date
@@ -1775,8 +1775,8 @@ UNIX_TIMESTAMP('2015-06-00')
 NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '2015-06-00'
-SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'));
-UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'))
+SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s')) as exp;
+exp
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '0000-00-00 10:30:30' for function str_to_date
@@ -1847,8 +1847,8 @@ cast('131415.123e0' as time)
 NULL
 Warnings:
 Warning	1292	Incorrect time value: '131415.123e0'
-select cast('2010-01-02 03:04:05' as datetime) between null and '2010-01-02 03:04:04';
-cast('2010-01-02 03:04:05' as datetime) between null and '2010-01-02 03:04:04'
+select cast('2010-01-02 03:04:05' as datetime) between null and '2010-01-02 03:04:04' as exp;
+exp
 0
 select least(time('1:2:3'), '01:02:04', null) div 1;
 least(time('1:2:3'), '01:02:04', null) div 1
@@ -1902,8 +1902,9 @@ f2
 0
 drop table t1;
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
-select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow');
-convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow')
+select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06'
+as datetime)), 'UTC', 'Europe/Moscow') as exp;
+exp
 NULL
 SET timestamp=DEFAULT;
 create table t1 (f1 integer, f2 date);
@@ -1972,17 +1973,17 @@ SET timestamp=UNIX_TIMESTAMP('2014-06-01 10:20:30');
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time));
 greatest(cast("0-0-0" as date), cast("10:20:05" as time))
 2014-06-01 10:20:05
-select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00';
-greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00'
+select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00' as exp;
+exp
 0
-select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01';
-greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01'
+select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01' as exp;
+exp
 0
-select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01 10:20:05';
-greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01 10:20:05'
+select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01 10:20:05' as exp;
+exp
 1
-select cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6));
-cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6))
+select cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6)) as exp;
+exp
 2014-06-01 10:20:05.000000
 SET timestamp=DEFAULT;
 select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010');
@@ -3016,66 +3017,66 @@ Warning	1292	Truncated incorrect time value: '-1441:00:00'
 #
 CREATE TABLE t1 (d DATE);
 INSERT INTO t1 VALUES ('2005-07-20'),('2012-12-21');
-SELECT REPLACE( ADDDATE( d, INTERVAL 0.6732771076944444 HOUR_SECOND ), '2', 'x' ) FROM t1;
-REPLACE( ADDDATE( d, INTERVAL 0.6732771076944444 HOUR_SECOND ), '2', 'x' )
+SELECT REPLACE( ADDDATE( d, INTERVAL 0.6732771076944444 HOUR_SECOND ), '2', 'x' ) as exp FROM t1;
+exp
 NULL
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 Warning	1441	Datetime function: datetime field overflow
-SELECT REPLACE( ADDDATE( d, INTERVAL '0.6732771076944444' HOUR_SECOND ), '2', 'x' ) FROM t1;
-REPLACE( ADDDATE( d, INTERVAL '0.6732771076944444' HOUR_SECOND ), '2', 'x' )
+SELECT REPLACE( ADDDATE( d, INTERVAL '0.6732771076944444' HOUR_SECOND ), '2', 'x' ) as exp FROM t1;
+exp
 NULL
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 Warning	1441	Datetime function: datetime field overflow
-SELECT CAST(ADDDATE( d, INTERVAL 6732771076944444 SECOND) AS CHAR) FROM t1;
-CAST(ADDDATE( d, INTERVAL 6732771076944444 SECOND) AS CHAR)
+SELECT CAST(ADDDATE( d, INTERVAL 6732771076944444 SECOND) AS CHAR) as exp FROM t1;
+exp
 NULL
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 Warning	1441	Datetime function: datetime field overflow
-SELECT CAST(ADDDATE( d, INTERVAL '67327710769444:44' HOUR_SECOND) AS CHAR) FROM t1;
-CAST(ADDDATE( d, INTERVAL '67327710769444:44' HOUR_SECOND) AS CHAR)
+SELECT CAST(ADDDATE( d, INTERVAL '67327710769444:44' HOUR_SECOND) AS CHAR) as exp FROM t1;
+exp
 NULL
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 Warning	1441	Datetime function: datetime field overflow
-SELECT CAST(ADDDATE( d, INTERVAL '673277107694:44:44' HOUR_SECOND) AS CHAR) FROM t1;
-CAST(ADDDATE( d, INTERVAL '673277107694:44:44' HOUR_SECOND) AS CHAR)
+SELECT CAST(ADDDATE( d, INTERVAL '673277107694:44:44' HOUR_SECOND) AS CHAR) as exp FROM t1;
+exp
 NULL
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 Warning	1441	Datetime function: datetime field overflow
 DROP TABLE t1;
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '3652423:23:59:59' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '3652423:23:59:59' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '3652423:23:59:59' DAY_SECOND) as exp;
+exp
 9999-12-31 23:59:59
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:59:59' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:59:59' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:59:59' DAY_SECOND) as exp;
+exp
 9999-12-31 23:59:59
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:59' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:59' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:59' DAY_SECOND) as exp;
+exp
 9999-12-31 23:59:59
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:0:315569433599' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '0:0:0:315569433599' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:0:315569433599' DAY_SECOND) as exp;
+exp
 9999-12-31 23:59:59
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '3652423:0:0:315569433559' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '3652423:0:0:315569433559' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '3652423:0:0:315569433559' DAY_SECOND) as exp;
+exp
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:0:315569433559' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:0:315569433559' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:0:315569433559' DAY_SECOND) as exp;
+exp
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
-SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND);
-ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND)
+SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND) as exp;
+exp
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
@@ -3098,8 +3099,8 @@ NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 DROP TABLE t1;
-SELECT CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR));
-CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR))
+SELECT CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR)) as exp;
+exp
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow

@@ -4817,10 +4817,13 @@ byte *recv_dblwr_t::find_page(const page_id_t page_id,
     if (page_get_page_no(page) != page_id.page_no() ||
         page_get_space_id(page) != page_id.space())
       continue;
-    uint32_t flags= mach_read_from_4(
-      FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-    if (!fil_space_t::is_valid_flags(flags, page_id.space()))
-      continue;
+    if (page_id.page_no() == 0)
+    {
+      uint32_t flags= mach_read_from_4(
+        FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+      if (!fil_space_t::is_valid_flags(flags, page_id.space()))
+        continue;
+    }
 
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
     if (lsn <= max_lsn ||

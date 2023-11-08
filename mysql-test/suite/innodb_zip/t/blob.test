@@ -5,9 +5,6 @@
 --echo # failed in mtr_t::write(), btr_free_externally_stored_field()
 --echo #
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 CREATE TABLE t1 (c TEXT, f2 INT PRIMARY KEY, f3 INT UNIQUE)
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 
@@ -26,4 +23,3 @@ REPLACE INTO t1 SELECT * FROM t1;
 
 DROP TABLE t1;
 SET GLOBAL innodb_compression_level = @level;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

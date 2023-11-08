@@ -31,6 +31,13 @@ connection slave;
 # Compare the tables on master and slave.
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
+set statement sql_log_bin=0 for call mtr.add_suppression("Read semi-sync reply magic number error");
+SET @save_debug_master= @@global.debug;
+SET GLOBAL debug_dbug="+d,semisync_corrupt_magic";
+insert into t1 values (11);
+connection slave;
+connection master;
+SET GLOBAL debug_dbug= @save_debug_master;
 drop table t1;
 connection slave;
 set global rpl_semi_sync_slave_enabled = OFF;

@@ -13,7 +13,6 @@ call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operation
 --enable_query_log
 
 SET GLOBAL innodb_undo_log_truncate = 0;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
@@ -53,7 +52,6 @@ connection default;
 let $trx_before= `SHOW ENGINE INNODB STATUS`;
 let $trx_before= `select substr('$trx_before',9)+2`;
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc

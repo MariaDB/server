@@ -883,7 +883,10 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
   int error= 0;
   DBUG_ENTER("mysql_alter_db");
 
-  if (lock_schema_name(thd, db->str))
+  char dbnorm_buffer[SAFE_NAME_LEN + 1];
+  const char *dbnorm= normalize_db_name(db->str, dbnorm_buffer,
+                                        sizeof(dbnorm_buffer));
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(TRUE);
 
   /* 
@@ -1934,8 +1937,12 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   new_db.str= old_db->str + MYSQL50_TABLE_NAME_PREFIX_LENGTH;
   new_db.length= old_db->length - MYSQL50_TABLE_NAME_PREFIX_LENGTH;
 
+  char dbnorm_buffer_old[SAFE_NAME_LEN + 1];
+  const char *old_dbnorm= normalize_db_name(old_db->str, dbnorm_buffer_old,
+                                            sizeof(dbnorm_buffer_old));
+
   /* Lock the old name, the new name will be locked by mysql_create_db().*/
-  if (lock_schema_name(thd, old_db->str))
+  if (lock_schema_name(thd, old_dbnorm))
     DBUG_RETURN(1);
 
   /*

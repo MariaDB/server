@@ -272,15 +272,6 @@ NOT FOUND /# Note.*Cannot use key.*varchar.*10.*int/ in log_slow_debug-3.log
 set @@global.slow_query_log_file= @org_slow_query_log_file;
 DROP TABLE t1;
 #
-# Clean up
-#
-SET SESSION debug_dbug=@saved_dbug;
-TRUNCATE mysql.slow_log;
-SET @@global.slow_query_log= @org_slow_query_log;
-SET @@global.log_output= @org_log_output;
-SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
-DROP PROCEDURE show_slow_log;
-#
 # MDEV-30820: slow log Rows_examined out of range
 #
 CREATE TABLE `tab_MDEV_30820` (
@@ -309,3 +300,12 @@ drop table tab_MDEV_30820;
 #
 # End of 10.4 test
 #
+#
+# Clean up
+#
+SET SESSION debug_dbug=@saved_dbug;
+TRUNCATE mysql.slow_log;
+SET @@global.slow_query_log= @org_slow_query_log;
+SET @@global.log_output= @org_log_output;
+SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
+DROP PROCEDURE show_slow_log;
