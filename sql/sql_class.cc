@@ -4706,7 +4706,7 @@ extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
     if (unlikely(apc_target->have_apc_requests()))
     {
       if (thd == current_thd)
-        apc_target->process_apc_requests();
+        apc_target->process_apc_requests(false);
     }
     return THD_IS_NOT_KILLED;
   }
