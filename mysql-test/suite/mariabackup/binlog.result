@@ -5,4 +5,53 @@ Variable_name	Value
 log_bin	ON
 FOUND 1 /Last binlog file .*, position .*/ in current_test
 # expect FOUND
-DROP TABLE t;
+*** Check that mariabackup restores the correct position.
+INSERT INTO t VALUES (2);
+FLUSH BINARY LOGS;
+INSERT INTO t VALUES (3);
+CREATE TABLE t2 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
+LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+file_ok	pos_ok
+OK	OK
+*** Check correct position after RESET MASTER.
+INSERT INTO t VALUES (4);
+FLUSH BINARY LOGS;
+INSERT INTO t VALUES (5);
+RESET MASTER;
+INSERT INTO t VALUES (6);
+INSERT INTO t VALUES (7);
+TRUNCATE TABLE t2;
+LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+file_ok	pos_ok
+OK	OK
+*** Check correct position after server restart.
+# restart
+INSERT INTO t VALUES (8);
+TRUNCATE TABLE t2;
+LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+file_ok	pos_ok
+OK	OK
+*** Check correct position after rename binlog basename.
+# restart: --log-bin=000-bin
+INSERT INTO t VALUES (9);
+TRUNCATE TABLE t2;
+LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+file_ok	pos_ok
+OK	OK
+*** Check correct position after delete binlog files and restart
+# restart
+TRUNCATE TABLE t2;
+LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t2 FIELDS ESCAPED BY '' (file, pos);
+UPDATE t2 SET file= REPLACE(REPLACE(file, './', ''), '.\\', '');
+file_ok	pos_ok
+OK	OK
+DROP TABLE t,t2;

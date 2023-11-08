@@ -826,3 +826,52 @@ trx_rseg_update_binlog_offset(byte* rseg_header, const trx_t* trx, mtr_t* mtr)
 		mlog_write_string(p, binlog_name, len, mtr);
 	}
 }
+
+void trx_rseg_reset_binlog_pos(const char *name, uint64_t pos)
+{
+  mtr_t mtr;
+  /* Invalidate the information on the TRX_SYS page. */
+  mtr.start();
+  if (buf_block_t *sys= trx_sysf_get(&mtr, true))
+  {
+    byte *magic= TRX_SYS + TRX_SYS_MYSQL_LOG_INFO +
+      TRX_SYS_MYSQL_LOG_MAGIC_N_FLD + sys->frame;
+    if (mach_read_from_4(magic))
+      mlog_memset(magic,
+                  TRX_SYS_MYSQL_LOG_NAME + TRX_SYS_MYSQL_LOG_NAME_LEN, 0,
+                  &mtr);
+
+    const uint32_t page_no= trx_sysf_rseg_get_page_no(sys, 0);
+    if (page_no != FIL_NULL)
+    {
+      const uint32_t space_id= trx_sysf_rseg_get_space(sys, 0);
+      ut_ad(space_id == TRX_SYS_SPACE);
+      buf_block_t *block= buf_page_get(page_id_t(space_id, page_no),
+                                       0, RW_X_LATCH, &mtr);
+      mlog_write_ull(TRX_RSEG + TRX_RSEG_BINLOG_OFFSET + block->frame,
+                     pos, &mtr);
+      byte *p= TRX_RSEG + TRX_RSEG_BINLOG_NAME + block->frame;
+      const size_t len= strlen(name) + 1;
+      if (memcmp(name, p, len))
+        mlog_write_string(p, reinterpret_cast<const byte*>(name), len, &mtr);
+    }
+
+    /* Invalidate the information in the other rollback segment headers. */
+    for (ulint rseg_id= 1; rseg_id < TRX_SYS_N_RSEGS; rseg_id++)
+    {
+      const uint32_t page_no= trx_sysf_rseg_get_page_no(sys, rseg_id);
+      if (page_no != FIL_NULL)
+      {
+        const uint32_t space_id= trx_sysf_rseg_get_space(sys, rseg_id);
+        buf_block_t *block= buf_page_get(page_id_t(space_id, page_no),
+                                         0, RW_X_LATCH, &mtr);
+        byte *name= TRX_RSEG + TRX_RSEG_BINLOG_NAME + block->frame;
+        if (*name)
+          mlog_write_ulint(name, 0, MLOG_1BYTE, &mtr);
+      }
+    }
+  }
+  mtr.commit();
+  /* Durably write the change. */
+  log_write_up_to(mtr.commit_lsn(), true);
+}

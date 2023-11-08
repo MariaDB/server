@@ -5429,9 +5429,13 @@ static int init_server_components()
     mysql_mutex_lock(log_lock);
     error= mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0, 0,
                               WRITE_CACHE, max_binlog_size, 0, TRUE);
-    mysql_mutex_unlock(log_lock);
     if (unlikely(error))
+    {
+      mysql_mutex_unlock(log_lock);
       unireg_abort(1);
+    }
+    ha_reset_binlog_pos(mysql_bin_log.get_log_fname(), BIN_LOG_HEADER_SIZE);
+    mysql_mutex_unlock(log_lock);
   }
 
 #ifdef HAVE_REPLICATION

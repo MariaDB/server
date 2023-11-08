@@ -4331,6 +4331,10 @@ err:
   if (!is_relay_log)
   {
     xid_count_per_binlog *b;
+
+    if (!error)
+      ha_reset_binlog_pos(get_log_fname(), BIN_LOG_HEADER_SIZE);
+
     /*
       Remove all entries in the xid_count list except the last.
       Normally we will just be deleting all the entries that we waited for to
