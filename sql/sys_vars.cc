@@ -3478,13 +3478,6 @@ static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
   return false;
 }
 
-static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
-                                                   enum_var_type type)
-{
-  repl_semisync_master.check_and_switch();
-  return false;
-}
-
 static Sys_var_on_access_global<Sys_var_mybool,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED>
 Sys_semisync_master_enabled(
@@ -3511,12 +3504,11 @@ static Sys_var_on_access_global<Sys_var_mybool,
                   PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE>
 Sys_semisync_master_wait_no_slave(
        "rpl_semi_sync_master_wait_no_slave",
-       "Wait until timeout when no semi-synchronous replication slave "
-       "available (enabled by default).",
+       "Wait until timeout when no semi-synchronous replication slave is "
+       "available.",
        GLOBAL_VAR(rpl_semi_sync_master_wait_no_slave),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_master_wait_no_slave));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TRACE_LEVEL>
@@ -3542,13 +3534,6 @@ Sys_semisync_master_wait_point(
        repl_semisync_wait_point, DEFAULT(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
-
-static bool fix_rpl_semi_sync_slave_enabled(sys_var *self, THD *thd,
-                                            enum_var_type type)
-{
-  repl_semisync_slave.set_slave_enabled(rpl_semi_sync_slave_enabled != 0);
-  return false;
-}
 
 static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
                                                 enum_var_type type)
@@ -3577,10 +3562,9 @@ static Sys_var_on_access_global<Sys_var_mybool,
 Sys_semisync_slave_enabled(
        "rpl_semi_sync_slave_enabled",
        "Enable semi-synchronous replication slave (disabled by default).",
-       GLOBAL_VAR(rpl_semi_sync_slave_enabled),
+       GLOBAL_VAR(global_rpl_semi_sync_slave_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_slave_enabled));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL>

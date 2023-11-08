@@ -29,6 +29,7 @@ struct Slave :public ilink
 #ifdef HAVE_POLL
   uint m_fds_index;
 #endif
+  bool active;
   my_socket sock_fd() const { return vio.mysql_socket.fd; }
   uint server_id() const { return thd->variables.server_id; }
 };
@@ -96,15 +97,20 @@ public:
   {
     m_trace_level= trace_level;
   }
+  bool running()
+  {
+    return m_status != ST_DOWN;
+  }
+
 private:
   enum status {ST_UP, ST_DOWN, ST_STOPPING};
-  uint8 m_status;
+  enum status m_status;
   /*
     Protect m_status, m_slaves_changed and m_slaves. ack thread and other
     session may access the variables at the same time.
   */
   mysql_mutex_t m_mutex;
-  mysql_cond_t m_cond;
+  mysql_cond_t m_cond, m_cond_reply;
   /* If slave list is updated(add or remove). */
   bool m_slaves_changed;
 
@@ -116,7 +122,7 @@ private:
   Ack_receiver& operator=(const Ack_receiver &ack_receiver);
 
   void set_stage_info(const PSI_stage_info &stage);
-  void wait_for_slave_connection();
+  void wait_for_slave_connection(THD *thd);
 };
 
 
@@ -157,6 +163,7 @@ public:
     m_fds.clear();
     while ((slave= it++))
     {
+      slave->active= 1;
       pollfd poll_fd;
       poll_fd.fd= slave->sock_fd();
       poll_fd.events= POLLIN;
@@ -207,6 +214,7 @@ public:
     uint fds_index= 0;
 
     FD_ZERO(&m_init_fds);
+    m_max_fd= INVALID_SOCKET;
     while ((slave= it++))
     {
       my_socket socket_id= slave->sock_fd();
@@ -217,11 +225,13 @@ public:
         sql_print_error("Semisync slave socket fd is %u. "
                         "select() cannot handle if the socket fd is "
                         "greater than %u (FD_SETSIZE).", socket_id, FD_SETSIZE);
-        return 0;
+        it.remove();
+        continue;
       }
 #endif //_WIN32
       FD_SET(socket_id, &m_init_fds);
       fds_index++;
+      slave->active= 1;
     }
     return fds_index;
   }

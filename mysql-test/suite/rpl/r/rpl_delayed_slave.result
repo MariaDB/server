@@ -67,6 +67,9 @@ include/stop_slave.inc
 # CHANGE MASTER TO MASTER_DELAY = 2*T
 include/start_slave.inc
 connection master;
+INSERT INTO t1 VALUES ('Syncing slave', 5);
+connection slave;
+connection master;
 INSERT INTO t1 VALUES (delay_on_slave(1), 6);
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave

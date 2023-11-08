@@ -24,6 +24,11 @@ let $log_error_file= `SELECT @@GLOBAL.log_error`;
 --connection server_1
 --save_master_pos
 
+--echo #-- Enable semi-sync on master
+--connection server_1
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+--eval set @@global.rpl_semi_sync_master_timeout= $semisync_timeout
+
 echo #-- Enable semi-sync on slaves
 let slave_last= 3;
 --let i= 2
@@ -39,11 +44,6 @@ while (`SELECT $i <= $slave_last`)
 
   --inc $i
 }
-
---echo #-- Enable semi-sync on master
---connection server_1
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
---eval set @@global.rpl_semi_sync_master_timeout= $semisync_timeout
 
 --echo #-- Wait for master to recognize semi-sync slaves
 --connection server_1

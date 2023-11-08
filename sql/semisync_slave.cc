@@ -20,20 +20,9 @@
 
 Repl_semi_sync_slave repl_semisync_slave;
 
-my_bool rpl_semi_sync_slave_enabled= 0;
-
+my_bool global_rpl_semi_sync_slave_enabled= 0;
 char rpl_semi_sync_slave_delay_master;
-my_bool rpl_semi_sync_slave_status= 0;
 ulong rpl_semi_sync_slave_trace_level;
-
-/*
-  indicate whether or not the slave should send a reply to the master.
-
-  This is set to true in repl_semi_slave_read_event if the current
-  event read is the last event of a transaction. And the value is
-  checked in repl_semi_slave_queue_event.
-*/
-bool semi_sync_need_reply= false;
 unsigned int rpl_semi_sync_slave_kill_conn_timeout;
 unsigned long long rpl_semi_sync_slave_send_ack = 0;
 
@@ -44,13 +33,25 @@ int Repl_semi_sync_slave::init_object()
   m_init_done = true;
 
   /* References to the parameter works after set_options(). */
-  set_slave_enabled(rpl_semi_sync_slave_enabled);
+  set_slave_enabled(global_rpl_semi_sync_slave_enabled);
   set_trace_level(rpl_semi_sync_slave_trace_level);
   set_delay_master(rpl_semi_sync_slave_delay_master);
   set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
-
   return result;
 }
+
+static bool local_semi_sync_enabled;
+
+int rpl_semi_sync_enabled(THD *thd, SHOW_VAR *var, void *buff,
+                          system_status_var *status_var,
+                          enum_var_type scope)
+{
+  local_semi_sync_enabled= repl_semisync_slave.get_slave_enabled();
+  var->type= SHOW_BOOL;
+  var->value= (char*) &local_semi_sync_enabled;
+  return 0;
+}
+
 
 int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
                                                  unsigned long total_len,
@@ -61,12 +62,12 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
   int read_res = 0;
   DBUG_ENTER("Repl_semi_sync_slave::slave_read_sync_header");
 
-  if (rpl_semi_sync_slave_status)
+  if (get_slave_enabled())
   {
     if (DBUG_EVALUATE_IF("semislave_corrupt_log", 0, 1)
         && header[0] == k_packet_magic_num)
     {
-      semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
+      bool semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
       *payload_len = total_len - 2;
       *payload     = header + 2;
 
@@ -85,7 +86,9 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
                       "len: %lu", total_len);
       read_res = -1;
     }
-  } else {
+  }
+  else
+  {
     *payload= header;
     *payload_len= total_len;
   }
@@ -93,9 +96,23 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
   DBUG_RETURN(read_res);
 }
 
-int Repl_semi_sync_slave::slave_start(Master_info *mi)
+/*
+  Set default semisync variables and print some replication info to the log
+
+  Note that the main setup is done in request_transmit()
+*/
+
+void Repl_semi_sync_slave::slave_start(Master_info *mi)
 {
-  bool semi_sync= get_slave_enabled();
+
+  /*
+    Set semi_sync_enabled at slave start. This is not changed until next
+    slave start or reconnect.
+  */
+  bool semi_sync= global_rpl_semi_sync_slave_enabled;
+
+  set_slave_enabled(semi_sync);
+  mi->semi_sync_reply_enabled= 0;
 
   sql_print_information("Slave I/O thread: Start %s replication to\
  master '%s@%s:%d' in log '%s' at position %lu",
@@ -104,29 +121,28 @@ int Repl_semi_sync_slave::slave_start(Master_info *mi)
 			const_cast<char *>(mi->master_log_name),
                         (unsigned long)(mi->master_log_pos));
 
-  if (semi_sync && !rpl_semi_sync_slave_status)
-    rpl_semi_sync_slave_status= 1;
-
   /*clear the counter*/
   rpl_semi_sync_slave_send_ack= 0;
-  return 0;
 }
 
-int Repl_semi_sync_slave::slave_stop(Master_info *mi)
+void Repl_semi_sync_slave::slave_stop(Master_info *mi)
 {
   if (get_slave_enabled())
     kill_connection(mi->mysql);
 
-  if (rpl_semi_sync_slave_status)
-    rpl_semi_sync_slave_status= 0;
-
-  return 0;
+  set_slave_enabled(0);
 }
 
-int Repl_semi_sync_slave::reset_slave(Master_info *mi)
+void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
 {
-  return 0;
+  /*
+    Start semi-sync either if it globally enabled or if was enabled
+    before the reconnect.
+  */
+  if (global_rpl_semi_sync_slave_enabled || get_slave_enabled())
+    slave_start(mi);
 }
+
 
 void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
 {
@@ -194,34 +210,44 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
       !(res= mysql_store_result(mysql)))
   {
     sql_print_error("Execution failed on master: %s, error :%s", query, mysql_error(mysql));
+    set_slave_enabled(0);
     return 1;
   }
 
   row= mysql_fetch_row(res);
   if (DBUG_EVALUATE_IF("master_not_support_semisync", 1, 0)
-      || !row)
+      || (!row || ! row[1]))
   {
     /* Master does not support semi-sync */
-    sql_print_warning("Master server does not support semi-sync, "
-                      "fallback to asynchronous replication");
-    rpl_semi_sync_slave_status= 0;
+    if (!row)
+      sql_print_warning("Master server does not support semi-sync, "
+                        "fallback to asynchronous replication");
+    set_slave_enabled(0);
     mysql_free_result(res);
     return 0;
   }
+  if (!strcmp(row[1], "ON"))
+    sql_print_information("Slave has semi-sync enabled but master server does "
+                          "not. Semi-sync will be activated when master "
+                          " enables it");
   mysql_free_result(res);
 
   /*
    Tell master dump thread that we want to do semi-sync
-   replication
+   replication. This is done by setting a thread local variable in
+   the master connection.
   */
   query= "SET @rpl_semi_sync_slave= 1";
   if (mysql_real_query(mysql, query, (ulong)strlen(query)))
   {
-    sql_print_error("Set 'rpl_semi_sync_slave=1' on master failed");
+    sql_print_error("%s on master failed", query);
+    set_slave_enabled(0);
     return 1;
   }
+  mi->semi_sync_reply_enabled= 1;
+  /* Inform net_server that pkt_nr can come out of order */
+  mi->mysql->net.pkt_nr_can_be_reset= 1;
   mysql_free_result(mysql_store_result(mysql));
-  rpl_semi_sync_slave_status= 1;
 
   return 0;
 }
@@ -231,46 +257,48 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
   MYSQL* mysql= mi->mysql;
   const char *binlog_filename= const_cast<char *>(mi->master_log_name);
   my_off_t binlog_filepos= mi->master_log_pos;
-
   NET *net= &mysql->net;
   uchar reply_buffer[REPLY_MAGIC_NUM_LEN
                      + REPLY_BINLOG_POS_LEN
                      + REPLY_BINLOG_NAME_LEN];
   int reply_res = 0;
   size_t name_len = strlen(binlog_filename);
-
   DBUG_ENTER("Repl_semi_sync_slave::slave_reply");
+  DBUG_ASSERT(get_slave_enabled() && mi->semi_sync_reply_enabled);
 
-  if (rpl_semi_sync_slave_status && semi_sync_need_reply)
+  /* Prepare the buffer of the reply. */
+  reply_buffer[REPLY_MAGIC_NUM_OFFSET] = k_packet_magic_num;
+  int8store(reply_buffer + REPLY_BINLOG_POS_OFFSET, binlog_filepos);
+  memcpy(reply_buffer + REPLY_BINLOG_NAME_OFFSET,
+         binlog_filename,
+         name_len + 1 /* including trailing '\0' */);
+
+  DBUG_PRINT("semisync", ("%s: reply (%s, %lu)",
+                          "Repl_semi_sync_slave::slave_reply",
+                          binlog_filename, (ulong)binlog_filepos));
+
+  /*
+    We have to do a net_clear() as with semi-sync the slave_reply's are
+    interleaved with data from the master and then the net->pkt_nr
+    cannot be kept in sync. Better to start pkt_nr from 0 again.
+  */
+  net_clear(net, 0);
+  /* Send the reply. */
+  reply_res = my_net_write(net, reply_buffer,
+                           name_len + REPLY_BINLOG_NAME_OFFSET);
+  if (!reply_res)
   {
-    /* Prepare the buffer of the reply. */
-    reply_buffer[REPLY_MAGIC_NUM_OFFSET] = k_packet_magic_num;
-    int8store(reply_buffer + REPLY_BINLOG_POS_OFFSET, binlog_filepos);
-    memcpy(reply_buffer + REPLY_BINLOG_NAME_OFFSET,
-           binlog_filename,
-           name_len + 1 /* including trailing '\0' */);
-
-    DBUG_PRINT("semisync", ("%s: reply (%s, %lu)",
-                            "Repl_semi_sync_slave::slave_reply",
-                            binlog_filename, (ulong)binlog_filepos));
-
-    net_clear(net, 0);
-    /* Send the reply. */
-    reply_res = my_net_write(net, reply_buffer,
-                             name_len + REPLY_BINLOG_NAME_OFFSET);
-    if (!reply_res)
-    {
-      reply_res = DBUG_EVALUATE_IF("semislave_failed_net_flush", 1, net_flush(net));
-      if (reply_res)
-        sql_print_error("Semi-sync slave net_flush() reply failed");
-      rpl_semi_sync_slave_send_ack++;
-    }
+    reply_res= DBUG_EVALUATE_IF("semislave_failed_net_flush", 1,
+                                net_flush(net));
+    if (reply_res)
+      sql_print_error("Semi-sync slave net_flush() reply failed");
     else
-    {
-      sql_print_error("Semi-sync slave send reply failed: %s (%d)",
-                      net->last_error, net->last_errno);
-    }
+      rpl_semi_sync_slave_send_ack++;
   }
-
+  else
+  {
+    sql_print_error("Semi-sync slave send reply failed: %s (%d)",
+                    net->last_error, net->last_errno);
+  }
   DBUG_RETURN(reply_res);
 }

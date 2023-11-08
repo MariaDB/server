@@ -4,6 +4,7 @@ connection slave;
 include/stop_slave.inc
 connection master;
 call mtr.add_suppression("Timeout waiting for reply of binlog*");
+call mtr.add_suppression("Master server does not read semi-sync messages*");
 set global rpl_semi_sync_master_enabled = ON;
 SET @@GLOBAL.rpl_semi_sync_master_timeout=100;
 create table t1 (i int);
@@ -15,7 +16,7 @@ SET GLOBAL debug_dbug="+d,semislave_failed_net_flush";
 include/start_slave.inc
 connection master;
 connection slave;
-"Assert that the net_fulsh() reply failed is present in slave error log.
+"Assert that the net_flush() reply failed is present in slave error log.
 FOUND 1 /Semi-sync slave net_flush\(\) reply failed/ in mysqld.2.err
 "Assert that Slave IO thread is up and running."
 SHOW STATUS LIKE 'Slave_running';

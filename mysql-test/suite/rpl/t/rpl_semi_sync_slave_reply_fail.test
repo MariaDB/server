@@ -31,6 +31,7 @@
 
 --connection master
 call mtr.add_suppression("Timeout waiting for reply of binlog*");
+call mtr.add_suppression("Master server does not read semi-sync messages*");
 --let $sav_timeout_master=`SELECT @@GLOBAL.rpl_semi_sync_master_timeout`
 set global rpl_semi_sync_master_enabled = ON;
 SET @@GLOBAL.rpl_semi_sync_master_timeout=100;
@@ -54,7 +55,7 @@ if(!$log_error_)
     # does not know the location of its .err log, use default location
     let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
 }
---echo "Assert that the net_fulsh() reply failed is present in slave error log.
+--echo "Assert that the net_flush() reply failed is present in slave error log.
 --let SEARCH_FILE=$log_error_
 --let SEARCH_PATTERN=Semi-sync slave net_flush\(\) reply failed
 --source include/search_pattern_in_file.inc
