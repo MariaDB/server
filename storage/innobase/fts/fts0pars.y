@@ -31,15 +31,15 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0tlex.h"
 #include "fts0pars.h"
 #include <my_sys.h>
-
 extern	int fts_lexer(YYSTYPE*, fts_lexer_t*);
 extern	int fts_blexer(YYSTYPE*, yyscan_t);
 extern	int fts_tlexer(YYSTYPE*, yyscan_t);
-
-
-
+#ifdef __GNUC__
+# pragma GCC diagnostic ignored "-Wpragmas"
+# pragma GCC diagnostic ignored "-Wunknown-warning-option"
+# pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#endif
 extern int ftserror(const char* p);
-
 /* Required for reentrant parser */
 #define ftslex	fts_lexer
 

@@ -126,4 +126,31 @@ SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t2 MODIFY b VARCHAR(16), ADD KEY(b);
 --error ER_BAD_TABLE_ERROR
 DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-32337  Assertion `pos < table->n_def' failed
+--echo #		in dict_table_get_nth_col
+--echo #
+CREATE TABLE t (a INT, va INT AS (a), b INT, vb INT AS (b),
+		c INT, vc INT AS (c), vf VARCHAR(16) AS (f),
+		f VARCHAR(4)) ENGINE=InnoDB;
+ALTER TABLE t MODIFY f VARCHAR(8);
+# Altering the virtual column is not supported
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+ALTER TABLE t MODIFY vf VARCHAR(18);
+DROP TABLE t;
+
+--echo #
+--echo #  MDEV-32527 Server aborts during alter operation
+--echo #	when table doesn't have foreign index
+--echo #
+CREATE TABLE t1 (f1 INT NOT NULL, INDEX(f1)) ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL, f2 VARCHAR(100) DEFAULT NULL,
+                INDEX idx(f1, f2),
+                FOREIGN KEY(f1) REFERENCES t1(f1))ENGINE=INNODB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t2 DROP INDEX idx;
+ALTER TABLE t2 MODIFY f2 VARCHAR(1023);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+DROP TABLE t2, t1;
 --echo # End of 10.4 tests

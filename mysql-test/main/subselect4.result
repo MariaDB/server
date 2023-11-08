@@ -309,8 +309,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -325,8 +325,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -341,8 +341,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -357,8 +357,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -1759,7 +1759,7 @@ CREATE TABLE t3 ( f1 int NOT NULL , f2 int) ;
 INSERT INTO t3 VALUES (0,0), (0,0);
 EXPLAIN SELECT STRAIGHT_JOIN (
 SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-);
+) as exp;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
@@ -1767,10 +1767,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 SELECT STRAIGHT_JOIN (
 SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-);
-(
-SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-)
+) as exp;
+exp
 NULL
 drop table t1, t2, t3;
 #                                                                                                                                                     
@@ -2658,8 +2656,8 @@ SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='subquery_cache=off';
 CREATE TABLE t1 (a INT,b INT);
 INSERT INTO t1 VALUES (0,0),(0,0);
-SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
-(SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b))
+SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) as exp FROM t1 AS t1o;
+exp
 0
 SET @@optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1;
@@ -2812,17 +2810,8 @@ WHERE t1_outer.id <> id
 FROM
 t1 AS t1_outer
 GROUP BY f
-);
-1 IN (
-SELECT
-(SELECT COUNT(id)
-FROM t1
-WHERE t1_outer.id <> id
-) AS f
-FROM
-t1 AS t1_outer
-GROUP BY f
-)
+) as exp;
+exp
 1
 SELECT
 1 IN (
@@ -2834,17 +2823,8 @@ WHERE t1_outer.id <> id
 FROM
 t1 AS t1_outer
 GROUP BY 1
-);
-1 IN (
-SELECT
-(SELECT COUNT(id)
-FROM t1
-WHERE t1_outer.id <> id
-) AS f
-FROM
-t1 AS t1_outer
-GROUP BY 1
-)
+) as exp;
+exp
 1
 DROP TABLE t1;
 #
@@ -3207,4 +3187,34 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	100	
 drop table t0, t1, t2;
+#
+# MDEV-32320: Server crashes at TABLE::add_tmp_key
+#
+select
+( ( 'x' , 1.000000 ) , 1 )
+IN
+(SELECT
+'x' , 'x'
+ WHERE ( 'x' )
+UNION
+SELECT 1 , 'x'
+ HAVING 1 != 1
+) as T;
+ERROR 21000: Operand should contain 2 column(s)
+SELECT
+EXISTS (
+WITH x ( x ) AS ( SELECT 1 )
+SELECT NULL
+WHERE ( 1 , 1 ) =
+(SELECT
+1 , ( ( x , 1.000000 ) , 1 )
+IN
+(SELECT 'x' , 'x' WHERE ( ( 'x' ) )
+UNION
+SELECT 1 , x HAVING 1 != 1
+)
+FROM x
+)
+);
+ERROR 21000: Operand should contain 2 column(s)
 # End of 10.4 tests

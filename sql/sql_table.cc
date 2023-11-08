@@ -57,7 +57,35 @@
 #include "tztime.h"
 #include "sql_insert.h"                        // binlog_drop_table
 #include <algorithm>
+#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+
+/** RAII class for temporarily enabling wsrep_ctas in the connection. */
+class Enable_wsrep_ctas_guard
+{
+ public:
+  /**
+    @param thd  - pointer to the context of connection in which
+                  wsrep_ctas mode needs to be enabled.
+    @param ctas - true if this is CREATE TABLE AS SELECT and
+                  wsrep_on
+  */
+  explicit Enable_wsrep_ctas_guard(THD *thd, const bool ctas)
+    : m_thd(thd)
+  {
+    if (ctas)
+      thd->wsrep_ctas= true;
+  }
+
+  ~Enable_wsrep_ctas_guard()
+  {
+    m_thd->wsrep_ctas= false;
+  }
+ private:
+  THD* m_thd;
+};
+
+#endif /* WITH_WSREP */
 #include "sql_debug.h"
 
 #ifdef __WIN__
@@ -2466,11 +2494,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     else
     {
+#ifdef WITH_WSREP
       if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton->db_type))
       {
         error= 1;
         goto err;
       }
+#endif
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -3616,7 +3646,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     /* The user specified fields: check that structure is ok */
-    if (check_sequence_fields(thd->lex, &alter_info->create_list))
+    if (check_sequence_fields(thd->lex, &alter_info->create_list,
+                              alter_info->db, alter_info->table_name))
       DBUG_RETURN(TRUE);
   }
 
@@ -5243,7 +5274,13 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
           Rollback the empty transaction started in mysql_create_table()
           call to open_and_lock_tables() when we are using LOCK TABLES.
         */
-        (void) trans_rollback_stmt(thd);
+        {
+          uint save_unsafe_rollback_flags=
+            thd->transaction->stmt.m_unsafe_rollback_flags;
+          (void) trans_rollback_stmt(thd);
+          thd->transaction->stmt.m_unsafe_rollback_flags=
+            save_unsafe_rollback_flags;
+        }
         /* Remove normal table without logging. Keep tables locked */
         if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 0, 1, 1))
           goto err;
@@ -5463,7 +5500,14 @@ int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
     if (res)
     {
       DBUG_ASSERT(thd->is_error());
-      /* Drop the table as it wasn't completely done */
+      /*
+        Drop the new table, we were not completely done.
+
+        Temporarily modify table_list to avoid dropping source sequence
+        in CREATE TABLE LIKE <SEQUENCE>.
+      */
+      TABLE_LIST *tail= table_list->next_local;
+      table_list->next_local= NULL;
       if (!mysql_rm_table_no_locks(thd, table_list, 1,
                                    create_info->tmp_table(),
                                    false, true /* Sequence*/,
@@ -5477,6 +5521,7 @@ int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
         */
         res= 2;
       }
+      table_list->next_local= tail;
     }
   }
 
@@ -5488,12 +5533,15 @@ int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
 
 @param thd    thread handle
 @param seq    sequence definition
-@retval 0     failure
-@retval 1     success
+@retval false success
+@retval true  failure
 */
 bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
 {
     enum legacy_db_type db_type;
+
+    DBUG_ASSERT(WSREP(thd));
+
     if (thd->lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
     {
       db_type= thd->lex->create_info.db_type->db_type;
@@ -5508,7 +5556,7 @@ bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
     if (db_type != DB_TYPE_INNODB)
     {
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "Galera cluster does support only InnoDB sequences");
+               "non-InnoDB sequences in Galera cluster");
       return(true);
     }
 
@@ -5519,8 +5567,7 @@ bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
         seq->cache)
     {
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "In Galera if you use CACHE you should set INCREMENT BY 0"
-	       " to behave correctly in a cluster");
+               "CACHE without INCREMENT BY 0 in Galera cluster");
       return(true);
     }
 
@@ -9437,8 +9484,7 @@ enum fk_column_change_type
   @retval FK_COLUMN_NO_CHANGE    No significant changes are to be done on
                                  foreign key columns.
   @retval FK_COLUMN_DATA_CHANGE  ALTER TABLE might result in value
-                                 change in foreign key column (and
-                                 foreign_key_checks is on).
+                                 change in foreign key column.
   @retval FK_COLUMN_RENAMED      Foreign key column is renamed.
   @retval FK_COLUMN_DROPPED      Foreign key column is dropped.
 */
@@ -9474,7 +9520,18 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
+      /*
+        Field_{num|decimal}::is_equal evaluates to IS_EQUAL_NO where
+        the new_field adds an AUTO_INCREMENT flag on a column due to a
+	limitation in MyISAM/ARIA. For the purposes of FK determination
+        it doesn't matter if AUTO_INCREMENT is there or not.
+      */
+      const uint flags= new_field->flags;
+      new_field->flags&= ~AUTO_INCREMENT_FLAG;
+      const bool equal_result= old_field->is_equal(*new_field);
+      new_field->flags= flags;
+
+      if ((equal_result == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
@@ -10153,13 +10210,21 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table= table_list->table;
 
 #ifdef WITH_WSREP
+  /*
+    If this ALTER TABLE is actually SEQUENCE we need to check
+    if we can support implementing storage engine.
+  */
+  if (WSREP(thd) && table && table->s->sequence &&
+      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info))
+    DBUG_RETURN(TRUE);
+
   if (WSREP(thd) &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
        thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
       !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()->db_type))
     DBUG_RETURN(true);
-#endif
+#endif /* WITH_WSREP */
 
   DEBUG_SYNC(thd, "alter_table_after_open_tables");
 
@@ -12082,6 +12147,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   int res= 0;
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+  ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
   if (used_engine)
   {
@@ -12120,6 +12186,14 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     copy.
   */
   Alter_info alter_info(lex->alter_info, thd->mem_root);
+
+#ifdef WITH_WSREP
+  // If CREATE TABLE AS SELECT and wsrep_on
+  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+
+  // This will be used in THD::decide_logging_format if CTAS
+  Enable_wsrep_ctas_guard wsrep_ctas_guard(thd, wsrep_ctas);
+#endif
 
   if (unlikely(thd->is_fatal_error))
   {
@@ -12197,15 +12271,17 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #endif
 
 #ifdef WITH_WSREP
-  if (select_lex->item_list.elements && // With SELECT
-      WSREP(thd) && thd->variables.wsrep_trx_fragment_size > 0)
+  if (wsrep_ctas)
   {
-    my_message(
+    if (thd->variables.wsrep_trx_fragment_size > 0)
+    {
+      my_message(
         ER_NOT_ALLOWED_COMMAND,
         "CREATE TABLE AS SELECT is not supported with streaming replication",
         MYF(0));
-    res= 1;
-    goto end_with_restore_list;
+      res= 1;
+      goto end_with_restore_list;
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -12235,7 +12311,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
      */
     if (thd->query_name_consts && mysql_bin_log.is_open() &&
-        thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        binlog_format == BINLOG_FORMAT_STMT &&
         !mysql_bin_log.is_query_in_union(thd, thd->query_id))
     {
       List_iterator_fast<Item> it(select_lex->item_list);
@@ -12312,6 +12388,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       /* Store reference to table in case of LOCK TABLES */
       create_info.table= create_table->table;
 
+      DEBUG_SYNC(thd, "wsrep_create_table_as_select");
+
       /*
         select_create is currently not re-execution friendly and
         needs to be created for every execution of a PS/SP.
@@ -12370,13 +12448,18 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
              !create_info.tmp_table()))
         {
 #ifdef WITH_WSREP
+          if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
+              wsrep_check_sequence(thd, lex->create_info.seq_create_info))
+            DBUG_RETURN(true);
+
           WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
                                          create_table->table_name.str,
                                          first_table, &alter_info, NULL,
                                          &create_info)
 	  {
 	    WSREP_WARN("CREATE TABLE isolation failure");
-	    DBUG_RETURN(true);
+            res= true;
+            goto end_with_restore_list;
 	  }
 #endif /* WITH_WSREP */
         }

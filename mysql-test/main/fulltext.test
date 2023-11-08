@@ -693,11 +693,10 @@ DROP TABLE t1;
 CREATE TABLE t1 (f VARCHAR(8));
 INSERT INTO t1 VALUES ('foo'),('bar');
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) );
---enable_view_protocol
+SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN
+BOOLEAN MODE ) ) as exp;
 SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE )) as f1, MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) as f2 from t1 ;
+
 explain extended
 SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE )) as f1, MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) as f2 from t1 ;
 

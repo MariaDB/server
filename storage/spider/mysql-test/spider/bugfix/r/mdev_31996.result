@@ -1,0 +1,47 @@
+for master_1
+for child2
+for child3
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+set session spider_delete_all_rows_type=0;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+delete from t1;
+drop table t1, t2;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+insert ignore into t1 values (42), (378);
+select * from t1;
+c
+42
+378
+delete from t1;
+select * from t1;
+c
+drop table t1, t2;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+truncate t1;
+drop table t1, t2;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+insert ignore into t1 values (42), (378);
+select * from t1;
+c
+42
+378
+truncate t1;
+select * from t1;
+c
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test tmp
+#

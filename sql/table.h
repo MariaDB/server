@@ -345,6 +345,9 @@ typedef struct st_grant_info
     want_privilege(NO_ACL),
     orig_want_privilege(NO_ACL)
   { }
+
+  /* OR table and all column privileges */
+  privilege_t all_privilege();
 } GRANT_INFO;
 
 enum tmp_table_type

@@ -309,6 +309,7 @@ typedef struct st_join_table {
   Table_access_tracker *tracker;
 
   Table_access_tracker *jbuf_tracker;
+  Time_and_counter_tracker *jbuf_unpack_tracker;
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -541,7 +542,7 @@ typedef struct st_join_table {
   /* Becomes true just after the used range filter has been built / filled */
   bool is_rowid_filter_built;
 
-  void build_range_rowid_filter_if_needed();
+  bool build_range_rowid_filter_if_needed();
 
   void cleanup();
   inline bool is_using_loose_index_scan()

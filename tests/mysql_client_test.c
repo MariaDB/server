@@ -20055,8 +20055,10 @@ static void test_bug17512527()
 static void test_compressed_protocol()
 {
   MYSQL *mysql_local;
+  MYSQL_STMT *stmt;
   char query[4096], *end;
   int i;
+  int rc;
   myheader("test_compressed_protocol");
 
   if (!(mysql_local= mysql_client_init(NULL)))
@@ -20079,13 +20081,33 @@ static void test_compressed_protocol()
   for (i=0 ; i < 2 ; i++)
   {
     MYSQL_RES *res;
-
-    int rc= mysql_real_query(mysql, query, (int) (end-query));
+    rc= mysql_real_query(mysql, query, (int) (end-query));
     myquery(rc);
     res= mysql_store_result(mysql);
     DBUG_ASSERT(res != 0);
     mysql_free_result(res);
   }
+
+  /*
+    Special compression protocol feature - it can pack
+    multiple protocol commands inside the same compression packet.
+
+    mariadbclient does it when MYSQL_STMT is reused in multiple
+    mysql_stmt_prepare() calls. It sends then COM_STMT_CLOSE and
+    COM_STMT_PREPARE together in a single compression packet.
+
+    Let's test, how server can handle that. There can be bugs
+    (MDEV-28561)
+  */
+  stmt= mysql_stmt_init(mysql_local);
+  check_stmt(stmt);
+  for (i= 0; i < 2; i++)
+  {
+    rc= mysql_stmt_prepare(stmt, "DO 1", -1);
+    myquery(rc);
+  }
+  rc= mysql_stmt_close(stmt);
+  myquery(rc);
 
   mysql_close(mysql_local);
 }

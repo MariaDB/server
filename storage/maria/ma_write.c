@@ -893,8 +893,10 @@ ChangeSet@1.2562, 2008-04-09 07:41:40+02:00, serg@janus.mylan +9 -0
       get_key_length(alen,a);
       DBUG_ASSERT(info->ft1_to_ft2==0);
       if (alen == blen &&
-          ha_compare_text(keyinfo->seg->charset, a, alen,
-                          b, blen, 0) == 0)
+          ha_compare_char_varying(keyinfo->seg->charset,
+                                  a, alen,
+                                  b, blen,
+                                  FALSE/*b_is_prefix*/) == 0)
       {
         /* Yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)

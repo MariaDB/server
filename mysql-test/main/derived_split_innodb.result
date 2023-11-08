@@ -468,7 +468,8 @@ ANALYZE
             "buffer_size": "1Kb",
             "join_type": "BNL",
             "attached_condition": "trigcond(t11.col1 = t10.col1)",
-            "r_filtered": 10
+            "r_filtered": 10,
+            "r_unpack_time_ms": "REPLACED"
           }
         }
       }
