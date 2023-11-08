@@ -7489,6 +7489,27 @@ ERROR HY000: Illegal parameter data types row and boolean for operation '='
 # End of 10.4 tests
 #
 #
+# MDEV-32656: ASAN errors in base_list_iterator::next /
+# setup_table_map upon 2nd execution of PS
+# (10.6 part)
+#
+CREATE TABLE t1 (id BIGINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (b INT);
+INSERT INTO t3 VALUES (3),(4);
+insert into t2 select (('e','e') IN (SELECT v1.id, v1.id FROM v1 JOIN t3));
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'e'
+Warning	1292	Truncated incorrect DECIMAL value: 'e'
+drop view v1;
+drop table t1, t2, t3;
+#
+# End of 10.6 tests
+#
+#
 # MDEV-19714: JOIN::pseudo_bits_cond is not visible in EXPLAIN FORMAT=JSON
 #
 CREATE TABLE t1 ( a INT );
