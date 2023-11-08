@@ -3606,7 +3606,7 @@ public:
       return TRUE;
     }
     if (apc_target.have_apc_requests())
-      apc_target.process_apc_requests(); 
+      apc_target.process_apc_requests(false);
     return FALSE;
   }
 
