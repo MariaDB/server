@@ -41,14 +41,14 @@ TRUNCATE TABLE t2;
 ERROR HY000: Table 't2' is read only
 TRUNCATE TABLE t3;
 ERROR HY000: Table 't3' is read only
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --skip-innodb-fast-shutdown
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 TRUNCATE TABLE t3;
 corrupted SYS_TABLES.MIX_LEN for test/t1
 corrupted SYS_TABLES.MIX_LEN for test/t2
 corrupted SYS_TABLES.MIX_LEN for test/t3
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --skip-innodb-fast-shutdown
 TRUNCATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine
 TRUNCATE TABLE t2;

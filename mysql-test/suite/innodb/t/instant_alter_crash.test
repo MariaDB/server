@@ -36,7 +36,6 @@ COMMIT;
 disconnect ddl;
 --source include/start_mysqld.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
 SELECT * FROM t2;
 BEGIN;
@@ -64,9 +63,6 @@ COMMIT;
 disconnect ddl;
 --source include/start_mysqld.inc
 
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 SELECT * FROM t1;
 SELECT * FROM t2;
 BEGIN;
@@ -93,8 +89,6 @@ COMMIT;
 --source include/kill_mysqld.inc
 disconnect ddl;
 --source include/start_mysqld.inc
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN= \[Note\] InnoDB: Rolled back recovered transaction ;

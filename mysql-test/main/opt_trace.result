@@ -543,6 +543,9 @@ select * from v2	{
                 },
                 {
                   "make_join_readinfo": []
+                },
+                {
+                  "test_if_skip_sort_order": []
                 }
               ]
             }
@@ -928,6 +931,9 @@ explain select * from v1	{
                 },
                 {
                   "make_join_readinfo": []
+                },
+                {
+                  "test_if_skip_sort_order": []
                 }
               ]
             }
@@ -1531,6 +1537,9 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
           },
           {
             "make_join_readinfo": []
+          },
+          {
+            "test_if_skip_sort_order": []
           }
         ]
       }
@@ -1757,26 +1766,30 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
             "make_join_readinfo": []
           },
           {
-            "reconsidering_access_paths_for_index_ordering": {
-              "clause": "GROUP BY",
-              "table": "t1",
-              "rows_estimation": 1,
-              "filesort_cost": 4.579083e-5,
-              "read_cost": 0.001804223,
-              "filesort_type": "priority_queue with addon fields",
-              "fanout": 1,
-              "possible_keys": [
-                {
-                  "index": "a",
-                  "can_resolve_order": true,
-                  "direction": 1,
-                  "rows_to_examine": 7,
-                  "range_scan": false,
-                  "scan_cost": 0.001758432,
-                  "chosen": true
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "GROUP BY",
+                  "table": "t1",
+                  "rows_estimation": 1,
+                  "filesort_cost": 4.579083e-5,
+                  "read_cost": 0.001804223,
+                  "filesort_type": "priority_queue with addon fields",
+                  "fanout": 1,
+                  "possible_keys": [
+                    {
+                      "index": "a",
+                      "can_resolve_order": true,
+                      "direction": 1,
+                      "rows_to_examine": 7,
+                      "range_scan": false,
+                      "scan_cost": 0.001758432,
+                      "chosen": true
+                    }
+                  ]
                 }
-              ]
-            }
+              }
+            ]
           }
         ]
       }
@@ -1994,6 +2007,9 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
           },
           {
             "make_join_readinfo": []
+          },
+          {
+            "test_if_skip_sort_order": []
           }
         ]
       }
@@ -2200,6 +2216,9 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
           },
           {
             "make_join_readinfo": []
+          },
+          {
+            "test_if_skip_sort_order": []
           }
         ]
       }
@@ -2504,97 +2523,101 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             "make_join_readinfo": []
           },
           {
-            "reconsidering_access_paths_for_index_ordering": {
-              "clause": "ORDER BY",
-              "table": "t1",
-              "rows_estimation": 41,
-              "filesort_cost": 9.387121e-4,
-              "read_cost": 0.052317883,
-              "filesort_type": "priority_queue with addon fields",
-              "fanout": 1,
-              "possible_keys": [
-                {
-                  "index": "c",
-                  "can_resolve_order": true,
-                  "direction": 1,
-                  "rows_to_examine": 24,
-                  "range_scan": false,
-                  "scan_cost": 0.030403398,
-                  "chosen": true
-                },
-                {
-                  "index": "a_c",
-                  "can_resolve_order": true,
-                  "direction": 1,
-                  "rows_to_examine": 4.390243902,
-                  "range_scan": true,
-                  "scan_cost": 0.023415994,
-                  "chosen": true
-                },
-                {
-                  "index": "a_b",
-                  "can_resolve_order": false,
-                  "cause": "not usable index for the query"
+            "test_if_skip_sort_order": [
+              {
+                "reconsidering_access_paths_for_index_ordering": {
+                  "clause": "ORDER BY",
+                  "table": "t1",
+                  "rows_estimation": 41,
+                  "filesort_cost": 9.387121e-4,
+                  "read_cost": 0.052317883,
+                  "filesort_type": "priority_queue with addon fields",
+                  "fanout": 1,
+                  "possible_keys": [
+                    {
+                      "index": "c",
+                      "can_resolve_order": true,
+                      "direction": 1,
+                      "rows_to_examine": 24,
+                      "range_scan": false,
+                      "scan_cost": 0.030403398,
+                      "chosen": true
+                    },
+                    {
+                      "index": "a_c",
+                      "can_resolve_order": true,
+                      "direction": 1,
+                      "rows_to_examine": 4.390243902,
+                      "range_scan": true,
+                      "scan_cost": 0.023415994,
+                      "chosen": true
+                    },
+                    {
+                      "index": "a_b",
+                      "can_resolve_order": false,
+                      "cause": "not usable index for the query"
+                    }
+                  ]
                 }
-              ]
-            }
-          },
-          {
-            "table": "t1",
-            "range_analysis": {
-              "potential_range_indexes": [
-                {
-                  "index": "c",
-                  "usable": false,
-                  "cause": "not applicable"
-                },
-                {
-                  "index": "a_c",
-                  "usable": true,
-                  "key_parts": ["a", "c"]
-                },
-                {
-                  "index": "a_b",
-                  "usable": false,
-                  "cause": "not applicable"
-                }
-              ],
-              "setup_range_conditions": [],
-              "analyzing_range_alternatives": {
-                "range_scan_alternatives": [
-                  {
-                    "index": "a_c",
-                    "ranges": ["(1) <= (a) <= (1)"],
-                    "rowid_ordered": false,
-                    "using_mrr": false,
-                    "index_only": false,
-                    "rows": 180,
-                    "cost": 0.223677504,
-                    "cost_with_limit": 0.002574553,
+              },
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "potential_range_indexes": [
+                    {
+                      "index": "c",
+                      "usable": false,
+                      "cause": "not applicable"
+                    },
+                    {
+                      "index": "a_c",
+                      "usable": true,
+                      "key_parts": ["a", "c"]
+                    },
+                    {
+                      "index": "a_b",
+                      "usable": false,
+                      "cause": "not applicable"
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "a_c",
+                        "ranges": ["(1) <= (a) <= (1)"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 180,
+                        "cost": 0.223677504,
+                        "cost_with_limit": 0.002574553,
+                        "chosen": true
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "a_c",
+                      "rows": 180,
+                      "ranges": ["(1) <= (a) <= (1)"]
+                    },
+                    "rows_for_plan": 180,
+                    "cost_for_plan": 0.223677504,
                     "chosen": true
                   }
-                ],
-                "analyzing_roworder_intersect": {
-                  "cause": "too few roworder scans"
-                },
-                "analyzing_index_merge_union": []
-              },
-              "group_index_range": {
-                "chosen": false,
-                "cause": "no group by or distinct"
-              },
-              "chosen_range_access_summary": {
-                "range_access_plan": {
-                  "type": "range_scan",
-                  "index": "a_c",
-                  "rows": 180,
-                  "ranges": ["(1) <= (a) <= (1)"]
-                },
-                "rows_for_plan": 180,
-                "cost_for_plan": 0.223677504,
-                "chosen": true
+                }
               }
-            }
+            ]
           }
         ]
       }

@@ -242,7 +242,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
-    srv_wake_purge_thread_if_not_active();
+    purge_sys.wake_if_not_active();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -2052,8 +2052,6 @@ static void innodb_ddl_recovery_done(handlerton*)
     if (srv_start_after_restore && !high_level_read_only)
       drop_garbage_tables_after_restore();
     srv_init_purge_tasks();
-    purge_sys.coordinator_startup();
-    srv_wake_purge_thread_if_not_active();
   }
 }
 
@@ -6390,9 +6388,9 @@ innobase_fts_text_cmp(
 	const fts_string_t*	s1 = (const fts_string_t*) p1;
 	const fts_string_t*	s2 = (const fts_string_t*) p2;
 
-	return(ha_compare_text(
-		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(s2->f_len), 0));
+	return(ha_compare_word(charset,
+		s1->f_str, static_cast<uint>(s1->f_len),
+		s2->f_str, static_cast<uint>(s2->f_len)));
 }
 
 /******************************************************************//**
@@ -6413,9 +6411,9 @@ innobase_fts_text_case_cmp(
 
 	newlen = strlen((const char*) s2->f_str);
 
-	return(ha_compare_text(
-		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(newlen), 0));
+	return(ha_compare_word(charset,
+		s1->f_str, static_cast<uint>(s1->f_len),
+		s2->f_str, static_cast<uint>(newlen)));
 }
 
 /******************************************************************//**
@@ -6460,11 +6458,11 @@ innobase_fts_text_cmp_prefix(
 	const fts_string_t*	s2 = (const fts_string_t*) p2;
 	int			result;
 
-	result = ha_compare_text(
-		charset, s2->f_str, static_cast<uint>(s2->f_len),
-		s1->f_str, static_cast<uint>(s1->f_len), 1);
+	result = ha_compare_word_prefix(charset,
+		s2->f_str, static_cast<uint>(s2->f_len),
+		s1->f_str, static_cast<uint>(s1->f_len));
 
-	/* We switched s1, s2 position in ha_compare_text. So we need
+	/* We switched s1, s2 position in the above call. So we need
 	to negate the result */
 	return(-result);
 }
@@ -16213,7 +16211,7 @@ innodb_show_status(
 		DBUG_RETURN(0);
 	}
 
-	srv_wake_purge_thread_if_not_active();
+	purge_sys.wake_if_not_active();
 
 	/* We let the InnoDB Monitor to output at most MAX_STATUS_SIZE
 	bytes of text. */
@@ -18806,9 +18804,9 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
   "Number of UNDO log pages to purge in one batch from the history list.",
   NULL, NULL,
-  300,			/* Default setting */
+  1000,			/* Default setting */
   1,			/* Minimum value */
-  5000, 0);		/* Maximum value */
+  innodb_purge_batch_size_MAX, 0);
 
 extern void srv_update_purge_thread_count(uint n);
 
@@ -19388,16 +19386,15 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
 
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   srv_purge_rseg_truncate_frequency,
-  PLUGIN_VAR_OPCMDARG,
-  "Dictates rate at which UNDO records are purged. Value N means"
-  " purge rollback segment(s) on every Nth iteration of purge invocation",
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
                                             void*, const void *save)
 {
   if ((srv_undo_log_truncate= *static_cast<const my_bool*>(save)))
-    srv_wake_purge_thread_if_not_active();
+    purge_sys.wake_if_not_active();
 }
 
 static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
@@ -20028,30 +20025,6 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
 	return mysql_table;
-}
-
-/** Only used by the purge thread
-@param[in,out]	table       table whose virtual column template to be built */
-TABLE* innobase_init_vc_templ(dict_table_t* table)
-{
-	DBUG_ENTER("innobase_init_vc_templ");
-
-	ut_ad(table->vc_templ == NULL);
-
-	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
-
-	ut_ad(mysql_table);
-	if (!mysql_table) {
-		DBUG_RETURN(NULL);
-	}
-
-	dict_vcol_templ_t* vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-
-	dict_sys.lock(SRW_LOCK_CALL);
-	table->vc_templ = vc_templ;
-	innobase_build_v_templ(mysql_table, table, vc_templ, nullptr, true);
-	dict_sys.unlock();
-	DBUG_RETURN(mysql_table);
 }
 
 /** Change dbname and table name in table->vc_templ.

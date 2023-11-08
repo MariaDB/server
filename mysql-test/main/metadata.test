@@ -4,9 +4,6 @@
 #View protocol gives slightly different metadata
 --source include/no_view_protocol.inc
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
 --enable_metadata
 # PS protocol gives slightly different metadata
 --disable_ps_protocol
@@ -127,7 +124,9 @@ drop table t1;
 drop view v1,v2,v3;
 --disable_metadata
 
-# End of 4.1 tests
+--echo #
+--echo # End of 4.1 tests
+--echo #
 
 #
 # Bug #28492: subselect returns LONG in >5.0.24a and LONGLONG in <=5.0.24a
@@ -189,7 +188,9 @@ SELECT f1 FROM v1 va;
 DROP VIEW v1;
 DROP TABLE t1;
 
---echo End of 5.0 tests
+--echo #
+--echo # End of 5.0 tests
+--echo #
 
 # Verify that column metadata is correct for all possible data types.
 # Originally about BUG#42980 "Client doesn't set NUM_FLAG for DECIMAL"
@@ -485,3 +486,7 @@ SELECT @b1:=10, @b2:=@b2:=111111111111;
 CREATE TABLE t1 AS SELECT @b1:=10, @b2:=111111111111;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

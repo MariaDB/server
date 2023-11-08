@@ -34,6 +34,8 @@
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 #include "filesort.h"
 
+#include "cset_narrowing.h"
+
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1U
@@ -590,7 +592,7 @@ typedef struct st_join_table {
   /* True if the plan requires a rowid filter and it's not built yet */
   bool need_to_build_rowid_filter;
 
-  void build_range_rowid_filter();
+  bool build_range_rowid_filter();
   void clear_range_rowid_filter();
 
   void cleanup();
@@ -2033,7 +2035,14 @@ public:
   {
     enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
     Use_relaxed_field_copy urfc(to_field->table->in_use);
+
+    /* If needed, perform CharsetNarrowing for making ref access lookup keys. */
+    Utf8_narrow do_narrow(to_field, do_cset_narrowing);
+
     store_key_result result= copy_inner();
+
+    do_narrow.stop();
+
     thd->count_cuted_fields= org_count_cuted_fields;
     return result;
   }
@@ -2042,6 +2051,12 @@ public:
   Field *to_field;				// Store data here
   uchar *null_ptr;
   uchar err;
+
+  /*
+    This is set to true if we need to do Charset Narrowing when making a lookup
+    key.
+  */
+  bool do_cset_narrowing= false;
 
   virtual enum store_key_result copy_inner()=0;
 };
@@ -2062,6 +2077,7 @@ class store_key_field: public store_key
     if (to_field)
     {
       copy_field.set(to_field,from_field,0);
+      setup_charset_narrowing();
     }
   }  
 
@@ -2072,6 +2088,15 @@ class store_key_field: public store_key
   {
     copy_field.set(to_field, fld_item->field, 0);
     field_name= fld_item->full_name();
+    setup_charset_narrowing();
+  }
+
+  /* Setup CharsetNarrowing if necessary */
+  void setup_charset_narrowing()
+  {
+    do_cset_narrowing=
+      Utf8_narrow::should_do_narrowing(copy_field.to_field,
+                                            copy_field.from_field->charset());
   }
 
  protected: 
@@ -2112,7 +2137,12 @@ public:
     :store_key(thd, to_field_arg, ptr,
 	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null() ?
 	       &err : (uchar*) 0, length), item(item_arg), use_value(val)
-  {}
+  {
+    /* Setup CharsetNarrowing to be done if necessary */
+    do_cset_narrowing=
+      Utf8_narrow::should_do_narrowing(to_field,
+                                       item->collation.collation);
+  }
   store_key_item(store_key &arg, Item *new_item, bool val)
     :store_key(arg), item(new_item), use_value(val)
   {}
@@ -2500,7 +2530,7 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
 extern bool test_if_ref(Item *, 
                  Item_field *left_item,Item *right_item);
 
-inline bool optimizer_flag(THD *thd, ulonglong flag)
+inline bool optimizer_flag(const THD *thd, ulonglong flag)
 { 
   return (thd->variables.optimizer_switch & flag);
 }

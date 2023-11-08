@@ -449,7 +449,8 @@ Datafile::validate_for_recovery()
 			return DB_SUCCESS; /* empty file */
 		}
 
-		if (restore_from_doublewrite()) {
+		if (recv_sys.dblwr.restore_first_page(
+			m_space_id, m_filepath, m_handle)) {
 			return m_defer ? err : DB_CORRUPTION;
 		}
 
@@ -747,60 +748,6 @@ Datafile::find_space_id()
 	}
 
 	return(DB_CORRUPTION);
-}
-
-
-/** Restore the first page of the tablespace from
-the double write buffer.
-@return whether the operation failed */
-bool
-Datafile::restore_from_doublewrite()
-{
-	if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
-		return true;
-	}
-
-	/* Find if double write buffer contains page_no of given space id. */
-	const page_id_t	page_id(m_space_id, 0);
-	const byte*	page = recv_sys.dblwr.find_page(page_id);
-
-	if (!page) {
-		/* If the first page of the given user tablespace is not there
-		in the doublewrite buffer, then the recovery is going to fail
-		now. Hence this is treated as an error. */
-
-		ib::error()
-			<< "Corrupted page " << page_id
-			<< " of datafile '" << m_filepath
-			<< "' could not be found in the doublewrite buffer.";
-		return(true);
-	}
-
-	uint32_t flags = mach_read_from_4(
-		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-
-	if (!fil_space_t::is_valid_flags(flags, m_space_id)) {
-		flags = fsp_flags_convert_from_101(flags);
-		/* recv_dblwr_t::validate_page() inside find_page()
-		checked this already. */
-		ut_ad(flags != UINT32_MAX);
-		/* The flags on the page should be converted later. */
-	}
-
-	ulint physical_size = fil_space_t::physical_size(flags);
-
-	ut_a(page_get_page_no(page) == page_id.page_no());
-
-	ib::info() << "Restoring page " << page_id
-		<< " of datafile '" << m_filepath
-		<< "' from the doublewrite buffer. Writing "
-		<< ib::bytes_iec{physical_size} << " into file '"
-		<< m_filepath << "'";
-
-	return(os_file_write(
-			IORequestWrite,
-			m_filepath, m_handle, page, 0, physical_size)
-	       != DB_SUCCESS);
 }
 
 /** Read an InnoDB Symbolic Link (ISL) file by name.

@@ -1,6 +1,5 @@
 SET GLOBAL
 innodb_file_per_table=OFF,
-innodb_purge_rseg_truncate_frequency=1,
 innodb_immediate_scrub_data_uncompressed=ON;
 Warnings:
 Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
