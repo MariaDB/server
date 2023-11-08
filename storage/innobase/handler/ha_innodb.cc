@@ -2080,7 +2080,7 @@ all_fail:
   ut_d(purge_sys.resume_FTS());
 }
 
-static void innodb_ddl_recovery_done(handlerton*)
+static int innodb_ddl_recovery_done(handlerton*)
 {
   ut_ad(!ddl_recovery_done);
   ut_d(ddl_recovery_done= true);
@@ -2093,6 +2093,7 @@ static void innodb_ddl_recovery_done(handlerton*)
     purge_sys.coordinator_startup();
     srv_wake_purge_thread_if_not_active();
   }
+  return 0;
 }
 
 /********************************************************************//**
