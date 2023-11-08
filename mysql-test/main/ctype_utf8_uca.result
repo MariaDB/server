@@ -832,6 +832,20 @@ DROP TABLE t1;
 EXECUTE IMMEDIATE REPLACE(
 'CREATE TABLE t1 ( '
   ' a CHAR(20) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)))',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a CHAR(20) COLLATE <COLLATION>,'
   'UNIQUE(a(3)) USING HASH)',
 '<COLLATION>', @@collation_connection);
 SHOW CREATE TABLE t1;
@@ -906,6 +920,145 @@ INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
 SET DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET default_storage_engine=MyISAM;
+#
+# MDEV-30048 Prefix keys for CHAR work differently for MyISAM vs InnoDB
+# 
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(2))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(100))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+#
+# MDEV-30050 Inconsistent results of DISTINCT with NOPAD
+#
+CREATE TABLE t1 (c CHAR(100) COLLATE utf8mb3_unicode_nopad_ci);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+SET big_tables=0;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SELECT DISTINCT c FROM t1;
+c
+ss
+ß
+SET big_tables=1;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SELECT DISTINCT c FROM t1;
+c
+ss
+ß
+DROP TABLE t1;
+SET big_tables=DEFAULT;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SET default_storage_engine=MEMORY;
+#
+# MDEV-30048 Prefix keys for CHAR work differently for MyISAM vs InnoDB
+# 
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(2))
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(100))
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+DROP TABLE t1;
+#
+# MDEV-30050 Inconsistent results of DISTINCT with NOPAD
+#
+CREATE TABLE t1 (c CHAR(100) COLLATE utf8mb3_unicode_nopad_ci);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss'),('ß');
+SET big_tables=0;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SELECT DISTINCT c FROM t1;
+c
+ss
+ß
+SET big_tables=1;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SELECT DISTINCT c FROM t1;
+c
+ss
+ß
+DROP TABLE t1;
+SET big_tables=DEFAULT;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SET default_storage_engine=DEFAULT;
 #
 # End of 10.4 tests
 #

@@ -608,11 +608,25 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   if (check_grant(thd, priv_needed, first_table, FALSE, UINT_MAX, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
+    /*
+      It makes sense to set auto_increment_* to defaults in TOI operations.
+      Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
+      TOI statement and auto inc variables for wsrep replication is constructed
+      there. Variables are reset back in THD::reset_for_next_command() before
+      processing of next command.
+    */
+    if (wsrep_auto_increment_control)
+    {
+      thd->variables.auto_increment_offset = 1;
+      thd->variables.auto_increment_increment = 1;
+    }
+
     wsrep::key_array keys;
     wsrep_append_fk_parent_table(thd, first_table, &keys);
 
@@ -627,18 +641,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
       DBUG_RETURN(TRUE);
     }
 
-    /*
-      It makes sense to set auto_increment_* to defaults in TOI operations.
-      Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
-      TOI statement and auto inc variables for wsrep replication is constructed
-      there. Variables are reset back in THD::reset_for_next_command() before
-      processing of next command.
-    */
-    if (wsrep_auto_increment_control)
-    {
-      thd->variables.auto_increment_offset = 1;
-      thd->variables.auto_increment_increment = 1;
-    }
+    DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
   }
 #endif
 

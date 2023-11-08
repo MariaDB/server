@@ -3348,6 +3348,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     if (extra_engines > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE;
   }
+
+  DBUG_ASSERT(thd_arg->lex->sql_command != SQLCOM_CREATE_SEQUENCE ||
+              (flags2 & FL_DDL) || thd_arg->in_multi_stmt_transaction_mode());
 }
 
 

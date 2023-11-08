@@ -2320,5 +2320,18 @@ SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' )
 
 
 --echo #
+--echo # MDEV-31184 Remove parser tokens DECODE_MARIADB_SYM and DECODE_ORACLE_SYM
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE(NULL);
+SELECT DECODE(NULL,NULL);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE(NULL, NULL, NULL);
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

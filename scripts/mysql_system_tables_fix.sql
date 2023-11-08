@@ -25,6 +25,7 @@
 # adding a 'SHOW WARNINGS' after the statement.
 
 set sql_mode='';
+set sql_safe_updates='OFF';
 set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 set alter_algorithm='DEFAULT';

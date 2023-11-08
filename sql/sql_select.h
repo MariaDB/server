@@ -547,7 +547,7 @@ typedef struct st_join_table {
   /* Becomes true just after the used range filter has been built / filled */
   bool is_rowid_filter_built;
 
-  void build_range_rowid_filter_if_needed();
+  bool build_range_rowid_filter_if_needed();
 
   void cleanup();
   inline bool is_using_loose_index_scan()

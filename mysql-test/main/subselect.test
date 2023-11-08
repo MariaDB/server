@@ -1174,6 +1174,7 @@ DROP TABLE t1;
 # Bug#2198 SELECT INTO OUTFILE (with Sub-Select) Problem
 #
 
+--disable_service_connection
 --disable_ps2_protocol
 create table t1 (a int, b decimal(13, 3));
 insert into t1 values (1, 0.123);
@@ -1188,6 +1189,7 @@ eval load data infile "$outfile_rel" into table t1;
 select * from t1;
 drop table t1;
 --enable_ps2_protocol
+--enable_service_connection
 
 #
 # Bug#2479 dependant subquery with limit crash

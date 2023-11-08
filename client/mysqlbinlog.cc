@@ -3196,8 +3196,13 @@ int main(int argc, char** argv)
 
   if (tmpdir.list)
     free_tmpdir(&tmpdir);
-  if (result_file && result_file != stdout)
-    my_fclose(result_file, MYF(0));
+  if (result_file)
+  {
+    if (result_file != stdout)
+      my_fclose(result_file, MYF(0));
+    else
+      fflush(result_file);
+  }
   cleanup();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);

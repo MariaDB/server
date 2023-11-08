@@ -1313,18 +1313,10 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   unsigned_flag= value->unsigned_flag;
   /*
-    If the subquery has no tables (1) and is not a UNION (2), like:
-
-      (SELECT subq_value)
-
+    If the subquery always returns a row, like "(SELECT subq_value)"
     then its NULLability is the same as subq_value's NULLability.
-
-    (1): A subquery that uses a table will return NULL when the table is empty.
-    (2): A UNION subquery will return NULL if it produces a "Subquery returns
-         more than one row" error.
   */
-  if (engine->no_tables() &&
-      engine->engine_type() != subselect_engine::UNION_ENGINE)
+  if (engine->always_returns_one_row())
     set_maybe_null(engine->may_be_null());
   else
   {
@@ -1334,6 +1326,32 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   return FALSE;
 }
 
+
+
+/*
+  @brief
+     Check if we can guarantee that this engine will always produce exactly one
+     row.
+
+  @detail
+    Check if the subquery is just
+
+      (SELECT value)
+
+    Then we can guarantee we always return one row.
+    Selecting from tables may produce more than one row.
+    HAVING, WHERE or ORDER BY/LIMIT clauses may cause no rows to be produced.
+*/
+
+bool subselect_single_select_engine::always_returns_one_row() const
+{
+  st_select_lex *params= select_lex->master_unit()->global_parameters();
+  return no_tables() &&
+         !params->limit_params.select_limit &&
+         !params->limit_params.offset_limit &&
+         !select_lex->where &&
+         !select_lex->having;
+}
 
 /**
   Add an expression cache for this subquery if it is needed
@@ -2565,10 +2583,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
-      if (select_lex->ref_pointer_array[i]->
-          check_cols(left_expr->element_index(i)->cols()))
-        DBUG_RETURN(true);
-
       Item *item_eq=
         new (thd->mem_root)
         Item_func_eq(thd, new (thd->mem_root)
@@ -2635,9 +2649,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
-      if (select_lex->ref_pointer_array[i]->
-          check_cols(left_expr->element_index(i)->cols()))
-        DBUG_RETURN(true);
       item= new (thd->mem_root)
         Item_func_eq(thd,
                      new (thd->mem_root)
@@ -4790,7 +4801,7 @@ subselect_uniquesubquery_engine::change_result(Item_subselect *si,
   @retval
     FALSE there are some tables in subquery
 */
-bool subselect_single_select_engine::no_tables()
+bool subselect_single_select_engine::no_tables() const
 {
   return(select_lex->table_list.elements == 0);
 }
@@ -4820,7 +4831,7 @@ bool subselect_single_select_engine::may_be_null()
   @retval
     FALSE there are some tables in subquery
 */
-bool subselect_union_engine::no_tables()
+bool subselect_union_engine::no_tables() const
 {
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
@@ -4840,7 +4851,7 @@ bool subselect_union_engine::no_tables()
     FALSE there are some tables in subquery
 */
 
-bool subselect_uniquesubquery_engine::no_tables()
+bool subselect_uniquesubquery_engine::no_tables() const
 {
   /* returning value is correct, but this method should never be called */
   DBUG_ASSERT(FALSE);
@@ -5841,7 +5852,7 @@ void subselect_hash_sj_engine::exclude()
   DBUG_ASSERT(FALSE);
 }
 
-bool subselect_hash_sj_engine::no_tables()
+bool subselect_hash_sj_engine::no_tables() const
 {
   DBUG_ASSERT(FALSE);
   return FALSE;
