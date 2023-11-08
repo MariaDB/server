@@ -2,10 +2,10 @@
 --source include/have_innodb.inc
 
 #
-# Test 
+# Test
 #
 
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB; 
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
 set global wsrep_on=OFF;
 reset master;
@@ -18,9 +18,11 @@ set global wsrep_on=ON;
 
 --connection node_1
 ALTER TABLE t1 ADD COLUMN f2 INTEGER, ALGORITHM=INSTANT;
+--replace_column 1 LOG_NAME 2 POS 4 SERVER_ID 5 END_LOG_POS
 show binlog events limit 1 offset 4;
 
 --connection node_2
+--replace_column 1 LOG_NAME 2 POS 4 SERVER_ID 5 END_LOG_POS
 show binlog events limit 1 offset 4;
 
 
@@ -39,9 +41,11 @@ set global wsrep_on=ON;
 --connection node_1
 SET SESSION alter_algorithm='INSTANT';
 ALTER TABLE t1 ADD COLUMN f3 INTEGER;
+--replace_column 1 LOG_NAME 2 POS 4 SERVER_ID 5 END_LOG_POS
 show binlog events limit 1 offset 4;
 
 --connection node_2
+--replace_column 1 LOG_NAME 2 POS 4 SERVER_ID 5 END_LOG_POS
 show binlog events limit 1 offset 4;
 
 
@@ -60,9 +64,11 @@ set global wsrep_on=ON;
 --connection node_1
 SET SESSION alter_algorithm='INSTANT';
 ALTER TABLE t1 ADD COLUMN f4 INTEGER, ALGORITHM=COPY;
+--replace_column 1 LOG_NAME 2 POS 4 SERVER_ID 5 END_LOG_POS
 show binlog events limit 1 offset 4;
 
 --connection node_2
+--replace_column 1 LOG_NAME 2 POS 4 SERVER_ID 5 END_LOG_POS
 show binlog events limit 1 offset 4;
 
 
@@ -78,5 +84,3 @@ set global wsrep_on=ON;
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
-
-
