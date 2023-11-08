@@ -333,6 +333,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       !(*item)->with_sum_func())
   {
     TABLE *table= field->table;
+    Use_relaxed_field_copy urfc(thd);
     MY_BITMAP *old_maps[2] = { NULL, NULL };
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */
     bool save_field_value;
@@ -351,7 +352,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
                        !(field->table->status & STATUS_NO_RECORD));
     if (save_field_value)
       orig_field_val= field->val_int();
-    if (!(*item)->save_in_field_no_warnings(field, 1) && !field->is_null())
+    if (!(*item)->save_in_field(field, 1) && !field->is_null())
     {
       int field_cmp= 0;
       // If item is a decimal value, we must reject it if it was truncated.
