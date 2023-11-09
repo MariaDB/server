@@ -3551,7 +3551,7 @@ row_merge_sort(
 	*/
 #ifndef __sun__
 	/* Progress report only for "normal" indexes. */
-	if (dup && !(dup->index->type & DICT_FTS)) {
+	if (update_progress) {
 		thd_progress_init(trx->mysql_thd, 1);
 	}
 #endif /* __sun__ */
@@ -3568,7 +3568,7 @@ row_merge_sort(
 		show processlist progress field */
 		/* Progress report only for "normal" indexes. */
 #ifndef __sun__
-		if (dup && !(dup->index->type & DICT_FTS)) {
+		if (update_progress) {
 			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
 		}
 #endif /* __sun__ */
@@ -3598,7 +3598,7 @@ row_merge_sort(
 
 	/* Progress report only for "normal" indexes. */
 #ifndef __sun__
-	if (dup && !(dup->index->type & DICT_FTS)) {
+	if (update_progress) {
 		thd_progress_end(trx->mysql_thd);
 	}
 #endif /* __sun__ */
@@ -5330,7 +5330,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
   }
 
   err= row_merge_sort(trx, &dup, file,
-                      m_block, &m_tmpfd, true, 0, 0,
+                      m_block, &m_tmpfd, false, 0, 0,
                       m_crypt_block, table->space_id, nullptr);
   if (err != DB_SUCCESS)
     goto func_exit;
