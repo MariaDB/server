@@ -12134,6 +12134,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     cur_log= &log;
     recover_gtid_index_end(gtid_index_recover);
     gtid_index_recover= NULL;
+    cur_log= &log;
 
     /*
       If the last binlog checkpoint event points to an older log, we have to
