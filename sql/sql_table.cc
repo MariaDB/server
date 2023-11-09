@@ -7538,6 +7538,14 @@ bool mysql_compare_tables(TABLE *table,
 	(uint) (field->flags & NOT_NULL_FLAG))
       DBUG_RETURN(false);
 
+    if (field->vcol_info)
+    {
+      if (!tmp_new_field->field->vcol_info)
+        DBUG_RETURN(false);
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info))
+        DBUG_RETURN(false);
+    }
+
     /*
       mysql_prepare_alter_table() clears HA_OPTION_PACK_RECORD bit when
       preparing description of existing table. In ALTER TABLE it is later
