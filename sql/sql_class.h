@@ -5643,8 +5643,6 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
-  ilist<online_alter_cache_data> online_alter_cache_list;
-
   bool sql_parser(LEX *old_lex, LEX *lex,
                   char *str, uint str_len, bool stmt_prepare_mode);
 

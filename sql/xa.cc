@@ -78,7 +78,7 @@ public:
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
   enum xa_states xa_state;
-  XID xid;
+  XA_data xid;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -140,6 +140,7 @@ public:
   {
     XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
     element->m_state= 0;
+    new(&element->xid) XA_data();
   }
   static void lf_alloc_destructor(uchar *ptr)
   {
@@ -179,6 +180,11 @@ void XID_STATE::set_error(uint error)
     xid_cache_element->rm_error= error;
 }
 
+void XID_STATE::set_online_alter_cache(Online_alter_cache_list *cache)
+{
+  if (is_explicit_XA())
+    xid_cache_element->xid.online_alter_cache= cache;
+}
 
 void XID_STATE::er_xaer_rmfail() const
 {
@@ -646,7 +652,7 @@ bool trans_xa_commit(THD *thd)
       DBUG_ASSERT(!xid_state.xid_cache_element);
 
       xid_state.xid_cache_element= xs;
-      ha_commit_or_rollback_by_xid(thd->lex->xid, !res);
+      ha_commit_or_rollback_by_xid(&xs->xid, !res);
       if (!res && thd->is_error())
       {
         // hton completion error retains xs/xid in the cache,
@@ -826,7 +832,7 @@ bool trans_xa_rollback(THD *thd)
       DBUG_ASSERT(!xid_state.xid_cache_element);
 
       xid_state.xid_cache_element= xs;
-      ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
+      ha_commit_or_rollback_by_xid(&xs->xid, 0);
       if (!res && thd->is_error())
       {
         goto _end_external_xid;

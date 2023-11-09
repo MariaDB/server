@@ -641,10 +641,6 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
 
-  int error= online_alter_savepoint_set(thd, name);
-  if (unlikely(error))
-    DBUG_RETURN(error);
-
   newsv->prev= thd->transaction->savepoints;
   thd->transaction->savepoints= newsv;
 
@@ -703,8 +699,6 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
-
-  res= res || online_alter_savepoint_rollback(thd, name);
 
   thd->transaction->savepoints= sv;
 

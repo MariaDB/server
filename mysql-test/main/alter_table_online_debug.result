@@ -1,3 +1,4 @@
+set global default_storage_engine= innodb;
 set default_storage_engine= innodb;
 connect  con2, localhost, root,,;
 connection default;
@@ -289,7 +290,7 @@ set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
 alter table t1 add b int NULL, algorithm= copy, lock= none;
 connection con2;
 insert into t1 values (1),(2),(3),(4),(5),(6);
-ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+Got one of the listed errors
 select * from t1;
 a
 1
@@ -496,6 +497,7 @@ a	b	UNIX_TIMESTAMP(row_start)	UNIX_TIMESTAMP(row_end)
 6	77	1.000000	2147483647.999999
 alter table t1 drop system versioning, algorithm= copy, lock= none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: DROP SYSTEM VERSIONING. Try LOCK=SHARED
+drop table t1;
 #
 # Test ROLLBACK TO SAVEPOINT
 #
@@ -582,7 +584,7 @@ set debug_sync= 'reset';
 drop table t1;
 drop table t2;
 drop table t3;
-create table t1 (a char(6), b int) engine=innodb;
+create table t1 (a char(6), b int);
 insert t1 values ('abcde1',1),('abcde2',2);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
@@ -838,7 +840,7 @@ a	b
 drop table t1;
 set debug_sync= 'reset';
 ## CHECK, UPDATE
-create table t1 (a int) engine=innodb;
+create table t1 (a int);
 insert t1 values (1),(2),(3),(4);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
@@ -863,7 +865,7 @@ a
 14
 drop table t1;
 ## DEFAULT, UPDATE
-create table t1 (a int) engine=innodb;
+create table t1 (a int);
 insert t1 values (1),(2),(3),(4);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
@@ -892,7 +894,7 @@ a	b
 drop table t1;
 set debug_sync= 'reset';
 ## VCOL + CHECK
-create table t1 (a int) engine=innodb;
+create table t1 (a int);
 insert t1 values (1),(2),(3),(4);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
@@ -939,8 +941,8 @@ connection default;
 drop table t1;
 set debug_sync= reset;
 ###
-create table t1 (a text, unique(a)) engine=innodb;
-create table t2 (b text, unique(b)) engine=innodb;
+create table t1 (a text, unique(a));
+create table t2 (b text, unique(b));
 insert into t2 values (null),(null);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
@@ -958,7 +960,7 @@ set debug_sync= reset;
 #
 # MDEV-29038 XA assertions failing in binlog_rollback and binlog_commit
 #
-create table t (a int) engine=innodb;
+create table t (a int);
 insert into t values (1);
 xa begin 'xid';
 set debug_sync= 'now wait_for downgraded';
@@ -1303,7 +1305,7 @@ drop table t;
 # Test that correct fields are marked as explicit:
 # Drop a, reorder b, add new column with default.
 #
-create table t (a int primary key, b int) engine=innodb;
+create table t (a int primary key, b int);
 insert into t values (1, 1), (2, 2), (3, 3);
 set debug_sync= "alter_table_copy_end signal copy wait_for goon";
 alter table t drop primary key, drop a,
@@ -1334,7 +1336,7 @@ c	x
 3	123456
 drop table t;
 # Test that all the fields are unpacked.
-create table t (a int, b int) engine=innodb;
+create table t (a int, b int);
 insert into t values (NULL, 123), (NULL, 456);
 set debug_sync= "alter_table_copy_end signal copy wait_for goon";
 alter table t drop a, add primary key(b), algorithm=copy;
@@ -1456,6 +1458,224 @@ connection default;
 set old_mode= @old_old_mode;
 drop table t1;
 set debug_sync= reset;
+#
+# MDEV-32100 Online ALTER TABLE ends with 1032 under some isolation levels
+#
+create table iso_levels(id int, level text);
+INSERT iso_levels VALUES (0, "READ UNCOMMITTED"),
+(1, "READ COMMITTED"),
+(2, "REPEATABLE READ"),
+(3, "SERIALIZABLE");
+create table t1 (a int, b int, key(b));
+connection con2;
+insert into t1 values (1,1),(null,null),(3,3),(4,null),(null,5);
+connection default;
+set session transaction isolation level SERIALIZABLE;
+set debug_sync= "alter_table_online_downgraded signal downgraded wait_for goalters";
+alter table t1 force, algorithm=copy;
+connection con2;
+set debug_sync= "now wait_for downgraded";
+delete from t1 where b is null;
+set debug_sync= "now signal goalters";
+connection default;
+drop table t1;
+create table t1 (a int, b int, key(b));
+connection con2;
+insert into t1 values (1,1),(null,null),(3,3),(4,null),(null,5);
+connection default;
+set session transaction isolation level REPEATABLE READ;
+set debug_sync= "alter_table_online_downgraded signal downgraded wait_for goalters";
+alter table t1 force, algorithm=copy;
+connection con2;
+set debug_sync= "now wait_for downgraded";
+delete from t1 where b is null;
+set debug_sync= "now signal goalters";
+connection default;
+drop table t1;
+create table t1 (a int, b int, key(b));
+connection con2;
+insert into t1 values (1,1),(null,null),(3,3),(4,null),(null,5);
+connection default;
+set session transaction isolation level READ COMMITTED;
+set debug_sync= "alter_table_online_downgraded signal downgraded wait_for goalters";
+alter table t1 force, algorithm=copy;
+connection con2;
+set debug_sync= "now wait_for downgraded";
+delete from t1 where b is null;
+set debug_sync= "now signal goalters";
+connection default;
+drop table t1;
+create table t1 (a int, b int, key(b));
+connection con2;
+insert into t1 values (1,1),(null,null),(3,3),(4,null),(null,5);
+connection default;
+set session transaction isolation level READ UNCOMMITTED;
+set debug_sync= "alter_table_online_downgraded signal downgraded wait_for goalters";
+alter table t1 force, algorithm=copy;
+connection con2;
+set debug_sync= "now wait_for downgraded";
+delete from t1 where b is null;
+set debug_sync= "now signal goalters";
+connection default;
+drop table t1;
+set debug_sync= reset;
+drop table iso_levels;
+# MDEV-32126 Assertion fails upon online ALTER and binary log enabled
+create temporary table tmp (id int, primary key(id)) engine=innodb;
+create table t1 (a int, b text);
+create table t2 (a int, b int, c char(8), d text, unique(a));
+insert into t2 values (1,1,'f','e'),(1000,1000,'c','b');
+connection default;
+set debug_sync= 'alter_table_online_before_lock signal go_trx wait_for go_alter';
+alter table t2 force, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for go_trx';
+start transaction;
+insert into t1 values (3,'a');
+insert into t2 values (3,3,'a','x'), (3,3,'a','x');
+ERROR 23000: Duplicate entry '3' for key 'a'
+insert into t2 values (3,3,'a','x');
+commit;
+set debug_sync= 'now signal go_alter';
+connection default;
+truncate t2;
+set @@binlog_format=mixed;
+connection con2;
+start transaction;
+create temporary table tmp (id int, primary key(id));
+insert into t1 values (1, repeat('x',8000)),(2, repeat('x',8000));
+update t2 set b = null order by b limit 2;
+insert into t1 values (3, repeat('x',8000));
+delete from t1;
+insert into t2 values (1,1,'f','e'),(1000,1000,'c','b');
+commit;
+connection default;
+set debug_sync= 'alter_table_online_before_lock signal go_trx wait_for go_alter';
+alter table t2 force, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for go_trx';
+start transaction;
+drop temporary table if exists tmp;
+insert into t2 values (3,3,'a','x'), (3,3,'a','x');
+ERROR 23000: Duplicate entry '3' for key 'a'
+insert into t2 values (3,3,'a','x');
+commit;
+set debug_sync= 'now signal go_alter';
+connection default;
+drop table t1, t2;
+set @@binlog_format=default;
+set debug_sync= reset;
+# MDEV-32444 Data from orphaned XA transaction is lost after online alter
+create table t (a int primary key);
+insert into t values (1);
+# XA commit
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+update t set a = 2 where a = 1;
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection con2;
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a
+2
+# XA rollback
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x2';
+insert into t values (53);
+xa end 'x2';
+xa prepare 'x2';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection con2;
+set debug_sync= 'now wait_for xa_detach';
+xa rollback 'x2';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a
+2
+# XA transaction is left uncommitted
+# end then is rollbacked after alter fails
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+for alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'xuncommitted';
+insert into t values (3);
+xa end 'xuncommitted';
+xa prepare 'xuncommitted';
+set debug_sync= 'now signal go';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set debug_sync= 'now wait_for xa_detach';
+xa rollback 'xuncommitted';
+select * from t;
+a
+2
+# Same, but commit
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+for alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'committed_later';
+insert into t values (3);
+xa end 'committed_later';
+xa prepare 'committed_later';
+set debug_sync= 'now signal go';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'committed_later';
+select * from t;
+a
+2
+3
+# Commit, but error in statement, and there is some stmt data to rollback
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connect con1, localhost, root,,;
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+insert into t values (4), (3);
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+insert into t values (5);
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+disconnect con1;
+connection con2;
+set debug_sync= 'now wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a
+2
+3
+5
+connect con1, localhost, root,,;
+connection default;
+drop table t;
+set debug_sync= reset;
+set global default_storage_engine= MyISAM;
 disconnect con1;
 disconnect con2;
 #

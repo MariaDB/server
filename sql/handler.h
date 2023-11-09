@@ -557,6 +557,7 @@ enum legacy_db_type
   DB_TYPE_BLACKHOLE_DB=19,
   DB_TYPE_PARTITION_DB=20,
   DB_TYPE_BINLOG=21,
+  DB_TYPE_ONLINE_ALTER=22,
   DB_TYPE_PBXT=23,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_S3=41,
@@ -889,6 +890,7 @@ typedef ulonglong my_xid; // this line is the same as in log_event.h
 #define COMPATIBLE_DATA_YES 0
 #define COMPATIBLE_DATA_NO  1
 
+
 /**
   struct xid_t is binary compatible with the XID structure as
   in the X/Open CAE Specification, Distributed Transaction Processing:
@@ -971,6 +973,12 @@ struct xid_t {
   }
 };
 typedef struct xid_t XID;
+
+struct Online_alter_cache_list;
+struct XA_data: XID
+{
+  Online_alter_cache_list *online_alter_cache= NULL;
+};
 
 /*
   Enumerates a sequence in the order of
@@ -1096,6 +1104,7 @@ enum ha_stat_type { HA_ENGINE_STATUS, HA_ENGINE_LOGS, HA_ENGINE_MUTEX };
 extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
 struct handlerton;
+
 #define view_pseudo_hton ((handlerton *)1)
 
 /*
@@ -1915,7 +1924,6 @@ struct THD_TRANS
   }
 
 };
-
 
 /**
   Either statement transaction or normal transaction - related

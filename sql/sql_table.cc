@@ -95,6 +95,7 @@ class Enable_wsrep_ctas_guard
 #endif /* WITH_WSREP */
 
 #include "sql_debug.h"
+#include "scope.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -10295,6 +10296,12 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   {
     table_list->lock_type= TL_READ;
   }
+
+  enum_tx_isolation iso_level_initial= thd->tx_isolation;
+  SCOPE_EXIT([thd, iso_level_initial](){
+    thd->tx_isolation= iso_level_initial;
+  });
+  thd->tx_isolation= ISO_REPEATABLE_READ;
 
   DEBUG_SYNC(thd, "alter_table_before_open_tables");
 
