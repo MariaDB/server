@@ -5481,13 +5481,15 @@ int spider_free_share(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         do_delete_thd = TRUE;
       }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->stat,
-        FALSE
-      );
+      /*
+        spider_sys_insert_or_update_table_sts(
+          thd,
+          share->lgtm_tblhnd_share->table_name,
+          share->lgtm_tblhnd_share->table_name_length,
+          &share->stat,
+          FALSE
+        );
+       */
     }
     if (
       share->crd_init &&
@@ -5502,14 +5504,16 @@ int spider_free_share(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         do_delete_thd = TRUE;
       }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields,
-        FALSE
-      );
+      /*
+        spider_sys_insert_or_update_table_crd(
+          thd,
+          share->lgtm_tblhnd_share->table_name,
+          share->lgtm_tblhnd_share->table_name_length,
+          share->cardinality,
+          share->table_share->fields,
+          FALSE
+        );
+       */
     }
     spider_free_share_alloc(share);
     my_hash_delete(&spider_open_tables, (uchar*) share);
