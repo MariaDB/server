@@ -1,9 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
-SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 --echo # Bug #12429576 - Test an assertion failure on purge.
 CREATE TABLE t1_purge (
 A int,
@@ -114,4 +111,3 @@ SHOW CREATE TABLE t12963823;
 
 -- source include/wait_all_purged.inc
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge, t12637786, t12963823;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

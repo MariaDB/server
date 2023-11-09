@@ -1630,7 +1630,6 @@ bool JOIN_CACHE::put_record()
 bool JOIN_CACHE::get_record()
 { 
   bool res;
-  ANALYZE_START_TRACKING(thd(), join_tab->jbuf_unpack_tracker);
   uchar *prev_rec_ptr= 0;
   if (with_length)
     pos+= size_of_rec_len;
@@ -1646,7 +1645,6 @@ bool JOIN_CACHE::get_record()
     if (prev_cache)
       prev_cache->get_record_by_pos(prev_rec_ptr);
   }
-  ANALYZE_STOP_TRACKING(thd(), join_tab->jbuf_unpack_tracker);
   return res; 
 }
 
@@ -2062,10 +2060,11 @@ bool JOIN_CACHE::skip_if_matched()
       - In the case of a semi-nest the match flag may be in two states
         {MATCH_NOT_FOUND, MATCH_FOUND}. The record is skipped if the flag is set
         to MATCH_FOUND.
-      - In the case of a outer join nest when not_exists optimization is applied
-        the match may be in three states {MATCH_NOT_FOUND, MATCH_IMPOSSIBLE,
-        MATCH_FOUND. The record is skipped if the flag is set to MATCH_FOUND or
-        to MATCH_IMPOSSIBLE.
+      - In the case of an outer join the match may be in three states
+        {MATCH_NOT_FOUND, MATCH_IMPOSSIBLE, MATCH_FOUND}.
+        If not_exists optimization is applied the record is skipped when
+        the flag is set to MATCH_FOUND or to MATCH_IMPOSSIBLE. Otherwise
+        the record is skipped only when the flag is set to MATCH_IMPOSSIBLE.
 
     If the record is skipped the value of 'pos' is set to point to the position
     right after the record.
@@ -2088,13 +2087,13 @@ bool JOIN_CACHE::skip_if_not_needed_match()
   if (prev_cache)
     offset+= prev_cache->get_size_of_rec_offset();
 
-  if (!join_tab->check_only_first_match())
-    return FALSE;
-
   match_fl= get_match_flag_by_pos(pos+offset);
   skip= join_tab->first_sj_inner_tab ?
-        match_fl == MATCH_FOUND :           // the case of semi-join
-        match_fl != MATCH_NOT_FOUND;        // the case of outer-join
+          match_fl == MATCH_FOUND :           // the case of semi-join
+          not_exists_opt_is_applicable &&
+          join_tab->table->reginfo.not_exists_optimize ?
+            match_fl != MATCH_NOT_FOUND :     // the case of not exist opt
+            match_fl == MATCH_IMPOSSIBLE;
 
   if (skip)
   {
@@ -2351,8 +2350,12 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   if ((rc= join_tab_execution_startup(join_tab)) < 0)
     goto finish2;
 
-  if (join_tab->need_to_build_rowid_filter)
-    join_tab->build_range_rowid_filter();
+  if (join_tab->need_to_build_rowid_filter && 
+      join_tab->build_range_rowid_filter())
+  {
+    rc= NESTED_LOOP_ERROR;
+    goto finish2;
+  }
 
   /* Prepare to retrieve all records of the joined table */
   if (unlikely((error= join_tab_scan->open())))
@@ -2393,7 +2396,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
         as candidates for matches.
       */
 
-      bool not_exists_opt_is_applicable= true;
+      not_exists_opt_is_applicable= true;
       if (check_only_first_match && join_tab->first_inner)
       {
         /*
@@ -2418,8 +2421,9 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
         }
       }
 
-      if (!check_only_first_match ||
-	  (join_tab->first_inner && !not_exists_opt_is_applicable) ||
+      if ((!join_tab->on_precond &&
+           (!check_only_first_match ||
+            (join_tab->first_inner && !not_exists_opt_is_applicable))) ||
           !skip_next_candidate_for_match(rec_ptr))
       {
         ANALYZE_START_TRACKING(join->thd, join_tab->jbuf_unpack_tracker);

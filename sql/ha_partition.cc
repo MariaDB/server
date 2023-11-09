@@ -6150,6 +6150,9 @@ int ha_partition::common_first_last(uchar *buf)
 {
   int error;
 
+  if (table->all_partitions_pruned_away)
+    return HA_ERR_END_OF_FILE; // No rows matching WHERE
+
   if (unlikely((error= partition_scan_set_up(buf, FALSE))))
     return error;
   if (!m_ordered_scan_ongoing &&

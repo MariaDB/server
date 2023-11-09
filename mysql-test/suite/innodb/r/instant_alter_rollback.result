@@ -47,11 +47,8 @@ CREATE TABLE foo(a INT PRIMARY KEY) ENGINE=InnoDB;
 # Kill the server
 disconnect to_be_killed;
 # restart
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 DROP TABLE foo;
 InnoDB		0 transactions not purged
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;
 SELECT * FROM empty;
 id	c2	d1
 SELECT * FROM once;

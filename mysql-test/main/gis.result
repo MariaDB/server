@@ -463,8 +463,8 @@ gc	geometrycollection	YES		NULL
 gm	geometry	YES		NULL	
 fid	int(11)	NO		NULL	
 DROP TABLE t1;
-SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))));
-AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))))
+SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)')))) as exp;
+exp
 POINT(1 4)
 explain extended SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -696,11 +696,11 @@ ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (pointfromtext('point(1,1)'));
 ERROR 23000: Column 'fl' cannot be null
 drop table t1;
-select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000))));
-(asWKT(geomfromwkb((0x000000000140240000000000004024000000000000))))
+select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000)))) as exp;
+exp
 POINT(10 10)
-select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))));
-(asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))))
+select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440)))) as exp;
+exp
 POINT(10 10)
 create table t1 (g GEOMETRY);
 select * from t1;
@@ -1135,30 +1135,30 @@ NULL
 select envelope(0x0100000000030000000100000000000010);
 envelope(0x0100000000030000000100000000000010)
 NULL
-select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
-geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1)
+select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1) as exp;
+exp
 NULL
-select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
-geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1)
+select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1) as exp;
+exp
 NULL
 #
 # MDEV-4296 Assertion `n_linear_rings > 0' fails in Gis_polygon::centroid_xy
 #
-SELECT Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) )));
-Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) )))
+SELECT Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) ))) as exp;
+exp
 NULL
 #
 # MDEV-4295 Server crashes in get_point on a query with Area, AsBinary, MultiPoint
 #
-SELECT Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2))));
-Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2))))
+SELECT Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2)))) as exp;
+exp
 NULL
 End of 5.1 tests
-select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))'));
-ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))'))
+select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))')) as exp;
+exp
 1.5
-select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))'));
-ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))'))
+select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))')) as exp;
+exp
 160
 DROP DATABASE IF EXISTS gis_ogs;
 CREATE DATABASE gis_ogs;
@@ -1369,16 +1369,16 @@ FROM road_segments
 WHERE fid = 102;
 AsText(EndPoint(centerline))
 POINT(44 31)
-SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) as exp 
 FROM named_places 
 WHERE name = 'Goose Island';
-IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
+exp
 1
 # Conformance Item T20 
-SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) as exp 
 FROM named_places 
 WHERE name = 'Goose Island';
-IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
+exp
 1
 # Conformance Item T21 
 SELECT GLength(centerline) 
@@ -1477,11 +1477,10 @@ Area(shores)
 8
 # Conformance Item T37 
 SELECT ST_Equals(boundary, 
-PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) 
+PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) as exp 
 FROM named_places 
 WHERE name = 'Goose Island';
-ST_Equals(boundary, 
-PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1))
+exp
 1
 # Conformance Item T38 
 SELECT ST_Disjoint(centerlines, boundary) 
@@ -1519,11 +1518,11 @@ AND divided_routes.name = 'Route 75';
 Crosses(road_segments.centerline, divided_routes.centerlines)
 1
 # Conformance Item T43 
-SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) 
+SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) as exp 
 FROM road_segments, divided_routes 
 WHERE road_segments.fid = 102 
 AND divided_routes.name = 'Route 75';
-ST_Intersects(road_segments.centerline, divided_routes.centerlines)
+exp
 1
 # Conformance Item T44 
 SELECT ST_Contains(forests.boundary, named_places.boundary) 
@@ -1594,21 +1593,15 @@ select st_distance(geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                                             -95.9673057475387 36.1344478941074,
                                             -95.9673063519371 36.134484524621,
                                             -95.9673049102515 36.1343976584193)'),
-geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)')) ;
-st_distance(geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
-                                            -95.9673057475387 36.1344478941074,
-                                            -95.9673063519371 36.134484524621,
-                         
+geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)')) as exp ;
+exp
 0.008148695928146028
 select st_distance(geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)'),
 geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                            -95.9673057475387 36.1344478941074,
                            -95.9673063519371 36.134484524621,
-                           -95.9673049102515 36.1343976584193) ')) ;
-st_distance(geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)'),
-geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
-                           -95.9673057475387 36.1344478941074,
-                           -95.9673063519371 36.
+                           -95.9673049102515 36.1343976584193) ')) as exp ;
+exp
 0.008148695928146028
 #
 # MDEV-4310 geometry function equals hangs forever.
@@ -1670,13 +1663,13 @@ ENVELOPE(0x0100000000030000000100000000000010)
 NULL
 #should not crash
 SELECT
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1)
+GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1) as exp;
+exp
 NULL
 #should not crash
 SELECT
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1)
+GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1) as exp;
+exp
 NULL
 #
 # MDEV-3819 missing constraints for spatial column types
@@ -1685,8 +1678,8 @@ create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
 ERROR 22007: Incorrect POINT value: 'POLYGON((1 1,2 2,2 1,1 1))' for column `test`.`t1`.`pt` at row 1
 drop table t1;
-SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
-st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
+SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100)) as exp;
+exp
 GEOMETRYCOLLECTION EMPTY
 CREATE VIEW v1 AS SELECT POINT(1,1) AS p;
 SHOW CREATE VIEW v1;
@@ -1824,14 +1817,14 @@ drop table t1;
 select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
 ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'))
 1
-select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
-ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'))
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)')) as exp;
+exp
 0
 #
 # MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
 #
-SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
-ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')))
+SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))'))) as exp;
+exp
 NULL
 #
 # MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations

@@ -3,10 +3,6 @@
 
 SET default_storage_engine= innodb;
 
-# Ensure that the history list length will actually be decremented by purge.
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 --echo #
 --echo # Bug 21922176 - PREBUILT->SEARCH_TUPLE CREATED WITHOUT INCLUDING
 --echo # THE NUMBER OF VIRTUAL COLUMNS
@@ -226,7 +222,6 @@ ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col1 % col2)
 VIRTUAL, ADD UNIQUE index idx (col1), algorithm=inplace;
 
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo #
 --echo # Bug 27122803 - BACKPORT FIX FOR BUG 25899959 TO MYSQL-5.7

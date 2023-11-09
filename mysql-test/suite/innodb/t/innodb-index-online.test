@@ -365,6 +365,8 @@ SELECT
 connection con1;
 SELECT COUNT(c22f) FROM t1;
 CHECK TABLE t1;
+# Avoid a strange DEBUG_SYNC timeout on c3p5_created.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 
 # Create a column prefix index.
 --error ER_DUP_ENTRY

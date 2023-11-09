@@ -2081,7 +2081,7 @@ return_null:
 String *Item_func_json_array_insert::val_str(String *str)
 {
   json_engine_t je;
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= args[0]->val_str(&tmp_js);
   uint n_arg, n_path;
   THD *thd= current_thd;
 
@@ -5155,8 +5155,21 @@ String* Item_func_json_array_intersect::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
 
-  json_engine_t je2, res_je;
-  String *js2= args[1]->val_json(&tmp_js2);
+  json_engine_t je2, res_je, je1;
+  String *js2= args[1]->val_json(&tmp_js2), *js1= args[0]->val_json(&tmp_js1);
+
+  if (parse_for_each_row)
+  {
+    if (args[0]->null_value)
+      goto null_return;
+    if (hash_inited)
+      my_hash_free(&items);
+    if (root_inited)
+      free_root(&hash_root, MYF(0));
+    root_inited= false;
+    hash_inited= false;
+    prepare_json_and_create_hash(&je1, js1);
+  }
 
   if (null_value || args[1]->null_value)
     goto null_return;
@@ -5197,18 +5210,10 @@ null_return:
   return NULL;
 }
 
-bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
+void Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
 {
-  json_engine_t je1;
-  String *js1= args[0]->val_json(&tmp_js1);
-
-  if (args[0]->null_value)
-  {
-    null_value= true;
-    return FALSE;
-  }
-  json_scan_start(&je1, js1->charset(), (const uchar *) js1->ptr(),
-                  (const uchar *) js1->ptr() + js1->length());
+  json_scan_start(je1, js->charset(), (const uchar *) js->ptr(),
+                  (const uchar *) js->ptr() + js->length());
   /*
     Scan value uses the hash table to get the intersection of two arrays.
   */
@@ -5217,18 +5222,40 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
     init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
-  if (json_read_value(&je1) || je1.value_type != JSON_VALUE_ARRAY ||
-      create_hash(&je1, &items, hash_inited, &hash_root))
+  if (json_read_value(je1) || je1->value_type != JSON_VALUE_ARRAY ||
+      create_hash(je1, &items, hash_inited, &hash_root))
+    {
+      if (je1->s.error)
+        report_json_error(js, je1, 0);
+      null_value= 1;
+    }
+
+    max_length= (args[0]->max_length < args[1]->max_length) ?
+                 args[0]->max_length : args[1]->max_length;
+}
+
+bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
+{
+  json_engine_t je1;
+  String *js1;
+
+  if (!args[0]->const_item())
   {
-    if (je1.s.error)
-      report_json_error(js1, &je1, 0);
-    null_value= 1;
-    return FALSE;
+    if (args[1]->const_item())
+    {
+      std::swap(args[0], args[1]);
+    }
+    else
+    {
+      parse_for_each_row= true;
+      goto end;
+    }
   }
 
-  max_length= (args[0]->max_length < args[1]->max_length) ?
-               args[0]->max_length : args[1]->max_length;
+  js1= args[0]->val_json(&tmp_js1);
+  prepare_json_and_create_hash(&je1, js1);
 
+end:
   set_maybe_null();
   return FALSE;
 }

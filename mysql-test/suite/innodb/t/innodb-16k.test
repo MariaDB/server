@@ -16,9 +16,7 @@ SELECT variable_value FROM information_schema.global_status
 --echo #         varies depending on number of fields and other overhead.
 
 SET SESSION innodb_strict_mode = ON;
-SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET @save_level=@@GLOBAL.innodb_compression_level;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SET GLOBAL innodb_compression_level=1;
 
 # Compressed table: compressBound() for the s390x DFLTCC instruction
@@ -458,7 +456,6 @@ DROP TABLE t1;
 
 --source include/wait_all_purged.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SET GLOBAL innodb_compression_level=@save_level;
 
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;

@@ -460,26 +460,8 @@ static srv_sys_t	srv_sys;
 struct purge_coordinator_state
 {
   /** Snapshot of the last history length before the purge call.*/
-  size_t m_history_length;
+  size_t history_size;
   Atomic_counter<int> m_running;
-private:
-  ulint count;
-  ulint n_use_threads;
-  ulint n_threads;
-
-  ulint lsn_lwm;
-  ulint lsn_hwm;
-  ulonglong start_time;
-  ulint lsn_age_factor;
-
-  static constexpr ulint adaptive_purge_threshold= 20;
-  static constexpr ulint safety_net= 20;
-  ulint series[innodb_purge_threads_MAX + 1];
-
-  inline void compute_series();
-  inline void lazy_init();
-  void refresh(bool full);
-
 public:
   inline void do_purge();
 };
@@ -1111,6 +1093,13 @@ bool srv_any_background_activity()
 
 static void purge_worker_callback(void*);
 static void purge_coordinator_callback(void*);
+static void purge_truncation_callback(void*)
+{
+  purge_sys.latch.rd_lock(SRW_LOCK_CALL);
+  const purge_sys_t::iterator head= purge_sys.head;
+  purge_sys.latch.rd_unlock();
+  head.free_history();
+}
 
 static tpool::task_group purge_task_group;
 tpool::waitable_task purge_worker_task(purge_worker_callback, nullptr,
@@ -1118,55 +1107,48 @@ tpool::waitable_task purge_worker_task(purge_worker_callback, nullptr,
 static tpool::task_group purge_coordinator_task_group(1);
 static tpool::waitable_task purge_coordinator_task
   (purge_coordinator_callback, nullptr, &purge_coordinator_task_group);
-
-static tpool::timer *purge_coordinator_timer;
+static tpool::task_group purge_truncation_task_group(1);
+static tpool::waitable_task purge_truncation_task
+  (purge_truncation_callback, nullptr, &purge_truncation_task_group);
 
 /** Wake up the purge threads if there is work to do. */
-void srv_wake_purge_thread_if_not_active()
+void purge_sys_t::wake_if_not_active()
 {
-  if (purge_sys.enabled() && !purge_sys.paused() &&
+  if (enabled() && !paused() && !purge_state.m_running &&
       (srv_undo_log_truncate || trx_sys.history_exists()) &&
       ++purge_state.m_running == 1)
     srv_thread_pool->submit_task(&purge_coordinator_task);
 }
 
 /** @return whether the purge tasks are active */
-bool purge_sys_t::running() const
+bool purge_sys_t::running()
 {
   return purge_coordinator_task.is_running();
 }
 
-/** Suspend purge in data dictionary tables */
-void purge_sys_t::stop_SYS()
+void purge_sys_t::stop_FTS()
 {
   latch.rd_lock(SRW_LOCK_CALL);
-  ++m_SYS_paused;
+  m_FTS_paused++;
   latch.rd_unlock();
+  while (m_active)
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
 {
-  for (;;)
+  latch.wr_lock(SRW_LOCK_CALL);
+
+  if (!enabled())
   {
-    latch.wr_lock(SRW_LOCK_CALL);
-
-    if (!enabled())
-    {
-      /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
-      ut_ad(!srv_undo_sources);
-      latch.wr_unlock();
-      return;
-    }
-
-    ut_ad(srv_n_purge_threads > 0);
-
-    if (!must_wait_SYS())
-      break;
-
+    /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
+    ut_ad(!srv_undo_sources);
     latch.wr_unlock();
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    return;
   }
+
+  ut_ad(srv_n_purge_threads > 0);
 
   const auto paused= m_paused++;
 
@@ -1183,9 +1165,8 @@ void purge_sys_t::stop()
 /** Resume purge in data dictionary tables */
 void purge_sys_t::resume_SYS(void *)
 {
-  ut_d(const auto s=)
-  purge_sys.m_SYS_paused--;
-  ut_ad(s);
+  ut_d(auto paused=) purge_sys.m_SYS_paused--;
+  ut_ad(paused);
 }
 
 /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
@@ -1207,8 +1188,8 @@ void purge_sys_t::resume()
    if (paused == 1)
    {
      ib::info() << "Resuming purge";
-     purge_state.m_running = 0;
-     srv_wake_purge_thread_if_not_active();
+     purge_state.m_running= 1;
+     srv_thread_pool->submit_task(&purge_coordinator_task);
      MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
    }
    latch.wr_unlock();
@@ -1302,8 +1283,7 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-  if (!purge_state.m_running)
-    srv_wake_purge_thread_if_not_active();
+  purge_sys.wake_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
   srv_sync_log_buffer_in_background();
   MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
@@ -1380,201 +1360,79 @@ static bool srv_task_execute()
 
 static void purge_create_background_thds(int );
 
-std::mutex purge_thread_count_mtx;
+/** Flag which is set, whenever innodb_purge_threads changes. */
+static Atomic_relaxed<bool> srv_purge_thread_count_changed;
+
+static std::mutex purge_thread_count_mtx;
 void srv_update_purge_thread_count(uint n)
 {
 	std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
 	ut_ad(n > 0);
 	ut_ad(n <= innodb_purge_threads_MAX);
 	srv_n_purge_threads = n;
-	srv_purge_thread_count_changed = 1;
+	srv_purge_thread_count_changed = true;
 }
-
-Atomic_counter<int> srv_purge_thread_count_changed;
 
 inline void purge_coordinator_state::do_purge()
 {
   ut_ad(!srv_read_only_mode);
-  lazy_init();
-  ut_ad(n_threads);
-  bool wakeup= false;
 
-  purge_coordinator_timer->disarm();
+  if (!purge_sys.enabled() || purge_sys.paused())
+    return;
 
-  while (purge_sys.enabled() && !purge_sys.paused())
+  uint n_threads;
+
   {
-loop:
-    wakeup= false;
-    const auto now= my_interval_timer();
-    const auto sigcount= m_running;
+    std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
+    n_threads= srv_n_purge_threads;
+    srv_purge_thread_count_changed= false;
+    goto first_loop;
+  }
 
-    if (now - start_time >= 1000000)
-    {
-      refresh(false);
-      start_time= now;
-    }
-
-    const auto old_activity_count= srv_sys.activity_count;
-    const auto history_size= trx_sys.history_size();
-
+  do
+  {
     if (UNIV_UNLIKELY(srv_purge_thread_count_changed))
     {
       /* Read the fresh value of srv_n_purge_threads, reset
-      the changed flag. Both are protected by purge_thread_count_mtx.
-
-      This code does not run concurrently, it is executed
-      by a single purge_coordinator thread, and no races
-      involving srv_purge_thread_count_changed are possible. */
+      the changed flag. Both are protected by purge_thread_count_mtx. */
       {
         std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
-        n_threads= n_use_threads= srv_n_purge_threads;
-        srv_purge_thread_count_changed= 0;
-      }
-      refresh(true);
-      start_time= now;
-    }
-    else if (history_size > m_history_length)
-    {
-      /* dynamically adjust the purge thread based on redo log fill factor */
-      if (n_use_threads < n_threads && lsn_age_factor < lsn_lwm)
-      {
-more_threads:
-        ++n_use_threads;
-        lsn_hwm= lsn_lwm;
-        lsn_lwm-= series[n_use_threads];
-      }
-      else if (n_use_threads > 1 && lsn_age_factor >= lsn_hwm)
-      {
-fewer_threads:
-        --n_use_threads;
-        lsn_lwm= lsn_hwm;
-        lsn_hwm+= series[n_use_threads];
-      }
-      else if (n_use_threads == 1 && lsn_age_factor >= 100 - safety_net)
-      {
-        wakeup= true;
-        break;
+        n_threads= srv_n_purge_threads;
+        srv_purge_thread_count_changed= false;
       }
     }
-    else if (n_threads > n_use_threads &&
-             srv_max_purge_lag && m_history_length > srv_max_purge_lag)
-      goto more_threads;
-    else if (n_use_threads > 1 && old_activity_count == srv_sys.activity_count)
-      goto fewer_threads;
+  first_loop:
+    ut_ad(n_threads);
 
-    ut_ad(n_use_threads);
-    ut_ad(n_use_threads <= n_threads);
-
-    m_history_length= history_size;
+    history_size= trx_sys.history_size();
 
     if (!history_size)
     {
+    no_history:
       srv_dml_needed_delay= 0;
+      purge_truncation_task.wait();
+      trx_purge_truncate_history();
+      break;
+    }
+
+    ulint n_pages_handled= trx_purge(n_threads, history_size);
+    if (!trx_sys.history_exists())
+      goto no_history;
+    if (purge_sys.truncate.current || srv_shutdown_state != SRV_SHUTDOWN_NONE)
+    {
+      purge_truncation_task.wait();
       trx_purge_truncate_history();
     }
     else
-    {
-      ulint n_pages_handled= trx_purge(n_use_threads, history_size);
-      if (!(++count % srv_purge_rseg_truncate_frequency) ||
-          purge_sys.truncate.current ||
-          (srv_shutdown_state != SRV_SHUTDOWN_NONE && srv_fast_shutdown == 0))
-        trx_purge_truncate_history();
-      if (n_pages_handled)
-        continue;
-    }
-
-    if (srv_dml_needed_delay);
-    else if (m_running == sigcount)
-    {
-      /* Purge was not woken up by srv_wake_purge_thread_if_not_active() */
-
-      /* The magic number 5000 is an approximation for the case where we have
-      cached undo log records which prevent truncate of rollback segments. */
-      wakeup= history_size >= 5000 ||
-        (history_size && history_size != trx_sys.history_size_approx());
+      srv_thread_pool->submit_task(&purge_truncation_task);
+    if (!n_pages_handled)
       break;
-    }
-
-    if (!trx_sys.history_exists())
-    {
-      srv_dml_needed_delay= 0;
-      break;
-    }
-
-    if (!srv_purge_should_exit(history_size))
-      goto loop;
   }
-
-  if (wakeup)
-    purge_coordinator_timer->set_time(10, 0);
+  while (purge_sys.enabled() && !purge_sys.paused() &&
+         !srv_purge_should_exit(history_size));
 
   m_running= 0;
 }
-
-inline void purge_coordinator_state::compute_series()
-{
-  ulint points= n_threads;
-  memset(series, 0, sizeof series);
-  constexpr ulint spread= 100 - adaptive_purge_threshold - safety_net;
-
-  /* We distribute spread across n_threads,
-  e.g.: spread of 60 is distributed across n_threads=4 as: 6+12+18+24 */
-
-  const ulint additional_points= (points * (points + 1)) / 2;
-  if (spread % additional_points == 0)
-  {
-    /* Arithmetic progression is possible. */
-    const ulint delta= spread / additional_points;
-    ulint growth= delta;
-    do
-    {
-      series[points--]= growth;
-      growth += delta;
-    }
-    while (points);
-    return;
-  }
-
-  /* Use average distribution to spread across the points */
-  const ulint delta= spread / points;
-  ulint total= 0;
-  do
-  {
-    series[points--]= delta;
-    total+= delta;
-  }
-  while (points);
-
-  for (points= 1; points <= n_threads && total++ < spread; )
-    series[points++]++;
-}
-
-inline void purge_coordinator_state::lazy_init()
-{
-  if (n_threads)
-    return;
-  n_threads= n_use_threads= srv_n_purge_threads;
-  refresh(true);
-  start_time= my_interval_timer();
-}
-
-void purge_coordinator_state::refresh(bool full)
-{
-  if (full)
-  {
-    compute_series();
-    lsn_lwm= adaptive_purge_threshold;
-    lsn_hwm= adaptive_purge_threshold + series[n_threads];
-  }
-
-  log_sys.latch.rd_lock(SRW_LOCK_CALL);
-  const lsn_t last= log_sys.last_checkpoint_lsn,
-    max_age= log_sys.max_checkpoint_age;
-  log_sys.latch.rd_unlock();
-
-  lsn_age_factor= ulint(((log_sys.get_lsn() - last) * 100) / max_age);
-}
-
 
 static std::list<THD*> purge_thds;
 static std::mutex purge_thd_mutex;
@@ -1641,15 +1499,12 @@ static void purge_coordinator_callback(void*)
 void srv_init_purge_tasks()
 {
   purge_create_background_thds(innodb_purge_threads_MAX);
-  purge_coordinator_timer= srv_thread_pool->create_timer
-    (purge_coordinator_callback, nullptr);
+  purge_sys.coordinator_startup();
 }
 
 static void srv_shutdown_purge_tasks()
 {
   purge_coordinator_task.disable();
-  delete purge_coordinator_timer;
-  purge_coordinator_timer= nullptr;
   purge_worker_task.wait();
   std::unique_lock<std::mutex> lk(purge_thd_mutex);
   while (!purge_thds.empty())
@@ -1658,6 +1513,7 @@ static void srv_shutdown_purge_tasks()
     purge_thds.pop_front();
   }
   n_purge_thds= 0;
+  purge_truncation_task.wait();
 }
 
 /**********************************************************************//**
@@ -1700,13 +1556,16 @@ void srv_purge_shutdown()
   if (purge_sys.enabled())
   {
     if (!srv_fast_shutdown && !opt_bootstrap)
+    {
+      srv_purge_batch_size= innodb_purge_batch_size_MAX;
       srv_update_purge_thread_count(innodb_purge_threads_MAX);
+    }
     size_t history_size= trx_sys.history_size();
     while (!srv_purge_should_exit(history_size))
     {
       history_size= trx_sys.history_size();
       ut_a(!purge_sys.paused());
-      srv_wake_purge_thread_if_not_active();
+      srv_thread_pool->submit_task(&purge_coordinator_task);
       purge_coordinator_task.wait();
     }
     purge_sys.coordinator_shutdown();

@@ -34,10 +34,78 @@ DROP TABLE t1;
 
 --sync_slave_with_master
 
+--echo #
+--echo # MDEV-32249 strings/ctype-ucs2.c:2336: my_vsnprintf_utf32: Assertion `(n
+--echo #
+
+--echo #
+--echo # Testing with VARCHAR
+--echo #
+
+-- connection slave
+-- source include/stop_slave.inc
+SET GLOBAL SLAVE_TYPE_CONVERSIONS= '';
+-- source include/start_slave.inc
+
+--connection master
+CREATE TABLE t1 (a INT);
+
+--sync_slave_with_master
+ALTER TABLE t1 MODIFY a VARCHAR(1) CHARACTER SET utf32;
+
+--connection master
+INSERT INTO t1 VALUES (1);
+
+--connection slave
+# ER_SLAVE_CONVERSION_FAILED
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 ORDER BY a;
+SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;
+START SLAVE;
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+--echo #
+--echo # Testing with CHAR
+--echo #
+
+-- connection slave
+-- source include/stop_slave.inc
+SET GLOBAL SLAVE_TYPE_CONVERSIONS= '';
+-- source include/start_slave.inc
+
+--connection master
+CREATE TABLE t1 (a INT);
+
+--sync_slave_with_master
+ALTER TABLE t1 MODIFY a CHAR(1) CHARACTER SET utf32;
+
+--connection master
+INSERT INTO t1 VALUES (1);
+
+--connection slave
+# ER_SLAVE_CONVERSION_FAILED
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 ORDER BY a;
+SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;
+START SLAVE;
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
 # assertion: the slave woul hit an/several assertions:
 #            before and during slave conversion procedure
 #            Now that is fixed, it wont.
 
+-- connection slave
 SET GLOBAL SLAVE_TYPE_CONVERSIONS= @saved_slave_type_conversions;
 -- source include/stop_slave.inc
 -- source include/start_slave.inc

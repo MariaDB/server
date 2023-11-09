@@ -1,5 +1,3 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @saved_include_delete_marked = @@GLOBAL.innodb_stats_include_delete_marked;
 SET GLOBAL innodb_stats_include_delete_marked = ON;
 SET @saved_traditional = @@GLOBAL.innodb_stats_traditional;
@@ -105,4 +103,3 @@ DROP TABLE t1,t2;
 SET GLOBAL innodb_stats_include_delete_marked = @saved_include_delete_marked;
 SET GLOBAL innodb_stats_traditional = @saved_traditional;
 SET GLOBAL innodb_stats_modified_counter = @saved_modified_counter;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
