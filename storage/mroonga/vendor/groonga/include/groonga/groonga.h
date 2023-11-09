@@ -1640,8 +1640,9 @@ GRN_API int grn_charlen(grn_ctx *ctx, const char *str, const char *end);
 GRN_API grn_rc grn_ctx_push(grn_ctx *ctx, grn_obj *obj);
 GRN_API grn_obj *grn_ctx_pop(grn_ctx *ctx);
 
-GRN_API int grn_obj_columns(grn_ctx *ctx, grn_obj *table,
-                            const char *str, unsigned int str_size, grn_obj *res);
+GRN_API grn_rc grn_obj_columns(grn_ctx *ctx, grn_obj *table,
+                               const char *str, unsigned int str_size,
+                               grn_obj *res);
 
 GRN_API grn_rc grn_load(grn_ctx *ctx, grn_content_type input_type,
                         const char *table, unsigned int table_len,

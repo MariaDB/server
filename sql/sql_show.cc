@@ -1074,7 +1074,8 @@ public:
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
                   m_sctx->host_or_ip,
-                  m_top_view->get_db_name(), m_top_view->get_table_name());
+                  m_top_view->get_db_name().str,
+                  m_top_view->get_table_name().str);
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1119,8 +1120,8 @@ public:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER_THD(thd, ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
+                          m_top_view->get_db_name().str,
+                          m_top_view->get_table_name().str);
       is_handled= TRUE;
       break;
 
@@ -1409,7 +1410,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     db_access= acl_get_all3(sctx, dbname->str, FALSE) |
                sctx->master_access;
 
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
+  if (!(db_access & DB_ACLS) && check_grant_db(sctx, *dbname))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -4531,7 +4532,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
 
 static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
-                     LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
+                     LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
@@ -5337,13 +5338,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(thd, db_name->str))) ||
+          (!thd->col_access && check_grant_db(sctx, *db_name))) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, 0))
+        acl_get_all3(sctx, db_name->str, false))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
-      int res= make_table_name_list(thd, &table_names, lex,
+      int res= make_table_name_list(thd, &table_names,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
         continue;
@@ -5541,7 +5542,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_all3(sctx, db_name->str, false) ||
-        !check_grant_db(thd, db_name->str))
+        !check_grant_db(sctx, *db_name))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
@@ -6161,8 +6162,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     ulonglong col_access=
-      get_column_grant(thd, &tables->grant, db_name->str, table_name->str,
-                       field->field_name.str) & COL_ACLS;
+        get_column_grant(thd, &tables->grant, *db_name, *table_name,
+                         field->field_name) & COL_ACLS;
 
     if (!col_access && !tables->schema_table)
       continue;
@@ -6604,7 +6605,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   if (!full_access)
     full_access= !strcmp(sp_user, definer.str);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     DBUG_RETURN(0);
 
   proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
@@ -6723,7 +6724,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   if (!full_access)
     full_access= !strcmp(sp_user, definer.str);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     return 0;
 
   if (!is_show_command(thd) ||
