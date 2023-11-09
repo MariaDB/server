@@ -786,3 +786,62 @@ with system versioning,
 modify row_start varchar(8);
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `row_start` and `row_end`
 drop table t1;
+#
+# MDEV-20545 Assertion (col.vers_sys_end()) upon inplace ALTER with virtual columns
+#
+create table t1 (
+a int,
+va int as (a) virtual,
+b int,
+vb int as (b) virtual,
+c int,
+vc int as (c) virtual,
+d int,
+e int,
+index(va)
+) engine=innodb with system versioning;
+replace into t1 () values (),();
+set statement system_versioning_alter_history=keep for alter table t1 drop e;
+alter table t1 algorithm=inplace, drop system versioning;
+drop table t1;
+#
+# MDEV-20765 Assertion (type.vers_sys_end()) upon inplace ALTER with virtual columns
+#
+create table t1 (
+a int,
+b int as (a) virtual,
+c int,
+d int as (c) virtual,
+e int,
+f int as (e) virtual,
+g int,
+h int,
+i int,
+index(d),
+key(h),
+foreign key (g) references t1 (h)
+) engine=innodb with system versioning;
+set system_versioning_alter_history= keep;
+alter table t1 drop column i;
+insert into t1 (g,h) values (1,1);
+drop table t1;
+#
+# MDEV-29034 Assertion (o->ind == vers_start) upon inplace ALTER with virtual columns
+#
+create table b (
+pk integer auto_increment,
+col_int_key integer,
+col_varchar_key varchar(1),
+o bit, n bit,
+h float as ( n + 2 ) virtual,
+v bit,
+primary key (pk),
+key (col_varchar_key, col_int_key)
+) engine = innodb;
+set `system_versioning_alter_history`= keep;
+alter table `b` add system versioning;
+alter table `b` add column if not exists ( w bit, v serial );
+Warnings:
+Note	1060	Duplicate column name 'v'
+alter table `b` add column if not exists ( p bit );
+drop table `b`;

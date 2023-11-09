@@ -1612,6 +1612,16 @@ public:
     return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
+  bool vers_sys_start() const
+  {
+    return flags & VERS_ROW_START;
+  }
+
+  bool vers_sys_end() const
+  {
+    return flags & VERS_ROW_END;
+  }
+
   bool vers_update_unversioned() const
   {
     return flags & VERS_UPDATE_UNVERSIONED_FLAG;
