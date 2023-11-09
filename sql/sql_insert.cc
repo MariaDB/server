@@ -579,7 +579,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
       Open tables used for sub-selects or in stored functions, will also
       cache these functions.
     */
-    if (open_and_lock_tables(thd, table_list->next_global, TRUE, 0))
+    if (table_list->next_global &&
+        open_and_lock_tables(thd, table_list->next_global, TRUE, 0))
     {
       end_delayed_insert(thd);
       error= TRUE;
@@ -2632,6 +2633,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   /* Copy the TABLE object. */
   copy= new (copy_tmp) TABLE;
   *copy= *table;
+  copy->vcol_refix_list.empty();
+  copy->mem_root= *client_thd->mem_root;
 
   /* We don't need to change the file handler here */
   /* Assign the pointers for the field pointers array and the record. */
