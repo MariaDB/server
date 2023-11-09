@@ -223,9 +223,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
   ++pending_gtid_count;
   if (unlikely(pending_state.update_nolock(gtid)))
   {
-    lock_gtid_index();
     give_error("Out of memory processing GTID for binlog GTID index");
-    unlock_gtid_index();
     return 1;
   }
   /*
@@ -924,6 +922,7 @@ Gtid_index_reader::close_index_file()
 int
 Gtid_index_reader::do_index_search(uint32 *out_offset, uint32 *out_gtid_count)
 {
+  /* In cold index, we require a complete index with a valid root node. */
   if (!has_root_node)
     return -1;
 
