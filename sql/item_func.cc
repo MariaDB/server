@@ -72,6 +72,9 @@ bool check_reserved_words(const LEX_CSTRING *name)
   return FALSE;
 }
 
+void pause_execution(THD *thd, double timeout);
+static int do_pause(THD *thd, Interruptible_wait *timed_cond,
+                    mysql_cond_t *cond, double timeout);
 
 /**
    Test if the sum of arguments overflows the ulonglong range.
@@ -4612,32 +4615,7 @@ longlong Item_func_sleep::val_int()
   if (timeout < 0.00001)
     return 0;
 
-  timed_cond.set_timeout((ulonglong) (timeout * 1000000000.0));
-
-  mysql_cond_init(key_item_func_sleep_cond, &cond, NULL);
-  mysql_mutex_lock(&LOCK_item_func_sleep);
-
-  THD_STAGE_INFO(thd, stage_user_sleep);
-  thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
-  thd->mysys_var->current_cond=  &cond;
-
-  error= 0;
-  thd_wait_begin(thd, THD_WAIT_SLEEP);
-  while (!thd->killed)
-  {
-    error= timed_cond.wait(&cond, &LOCK_item_func_sleep);
-    if (error == ETIMEDOUT || error == ETIME)
-      break;
-    error= 0;
-  }
-  thd_wait_end(thd);
-  mysql_mutex_unlock(&LOCK_item_func_sleep);
-  mysql_mutex_lock(&thd->mysys_var->mutex);
-  thd->mysys_var->current_mutex= 0;
-  thd->mysys_var->current_cond=  0;
-  mysql_mutex_unlock(&thd->mysys_var->mutex);
-
-  mysql_cond_destroy(&cond);
+  error= do_pause(thd, &timed_cond, &cond, timeout);
 
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sleep_inject_query_done_debug_sync", {
@@ -7357,4 +7335,44 @@ void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr)
         ((Item_func*) item)->functype() == Item_func::ROWNUM_FUNC)
       ((Item_func_rownum*) item)->store_pointer_to_row_counter(ptr);
   }
+}
+
+static int do_pause(THD *thd, Interruptible_wait *timed_cond, mysql_cond_t *cond, double timeout)
+{
+  int error= 0;
+  timed_cond->set_timeout((ulonglong) (timeout * 1000000000.0));
+
+  mysql_cond_init(key_item_func_sleep_cond, cond, NULL);
+  mysql_mutex_lock(&LOCK_item_func_sleep);
+
+  THD_STAGE_INFO(thd, stage_user_sleep);
+  thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
+  thd->mysys_var->current_cond=  cond;
+
+  thd_wait_begin(thd, THD_WAIT_SLEEP);
+  while (!thd->killed)
+  {
+    error= timed_cond->wait(cond, &LOCK_item_func_sleep);
+    if (error == ETIMEDOUT || error == ETIME)
+      break;
+    error= 0;
+  }
+  thd_wait_end(thd);
+  mysql_mutex_unlock(&LOCK_item_func_sleep);
+  mysql_mutex_lock(&thd->mysys_var->mutex);
+  thd->mysys_var->current_mutex= 0;
+  thd->mysys_var->current_cond=  0;
+  mysql_mutex_unlock(&thd->mysys_var->mutex);
+
+  mysql_cond_destroy(cond);
+
+  return error;
+}
+
+void pause_execution(THD *thd, double timeout)
+{
+  Interruptible_wait timed_cond(thd);
+  mysql_cond_t cond;
+
+  do_pause(thd, &timed_cond, &cond, timeout);
 }
