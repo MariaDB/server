@@ -5585,8 +5585,8 @@ public:
 */
 class Spvar_definition: public Column_definition
 {
-  Qualified_column_ident *m_column_type_ref; // for %TYPE
-  Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
+  const Qualified_column_ident *m_column_type_ref; // for %TYPE
+  Table_ident *m_table_rowtype_ref;                // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
@@ -5619,11 +5619,11 @@ public:
            !is_table_rowtype_ref() &&
            !is_cursor_rowtype_ref();
   }
-  Qualified_column_ident *column_type_ref() const
+  const Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;
   }
-  void set_column_type_ref(Qualified_column_ident *ref)
+  void set_column_type_ref(const Qualified_column_ident *ref)
   {
     m_column_type_ref= ref;
   }

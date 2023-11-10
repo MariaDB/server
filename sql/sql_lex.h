@@ -3972,9 +3972,9 @@ public:
                                                        Item *def,
                                                        const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
-                                                     Qualified_column_ident *ref,
-                                                     Item *def,
-                                                     const LEX_CSTRING &expr_str);
+                                              const Qualified_column_ident *ref,
+                                              Item *def,
+                                              const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
                                                  const LEX_CSTRING &name,
                                                  Item *def,

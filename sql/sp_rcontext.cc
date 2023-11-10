@@ -226,7 +226,8 @@ check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
 /**
   This method implementation is very close to fill_schema_table_by_open().
 */
-bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
+bool Qualified_column_ident::resolve_type_ref(THD *thd,
+                                              Column_definition *def) const
 {
   Open_tables_backup open_tables_state_backup;
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);

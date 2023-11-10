@@ -6715,9 +6715,9 @@ LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
 
 bool
 LEX::sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
-                                                   Qualified_column_ident *ref,
-                                                   Item *def,
-                                                   const LEX_CSTRING &expr_str)
+                                              const Qualified_column_ident *ref,
+                                              Item *def,
+                                              const LEX_CSTRING &expr_str)
 {
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
@@ -6757,7 +6757,7 @@ LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
 
   if (t->field_def.is_column_type_ref())
   {
-    Qualified_column_ident *tmp= t->field_def.column_type_ref();
+    const Qualified_column_ident *tmp= t->field_def.column_type_ref();
     return sp_variable_declarations_column_type_finalize(thd, nvars, tmp,
                                                          default_value,
                                                          expr_str);
