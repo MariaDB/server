@@ -7040,7 +7040,10 @@ int spider_get_sts(
       !error_num ||
       (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
     )
-    need_to_get = FALSE;
+    {
+      abort();
+      need_to_get = FALSE;
+    }
   }
 
   if (need_to_get)

@@ -266,6 +266,7 @@ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 --echo
 --echo 2.15
 --echo select table with range scan
+select count(*) from mysql.spider_table_sts;
 TRUNCATE TABLE ta_l;
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
