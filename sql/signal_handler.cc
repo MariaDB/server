@@ -71,20 +71,40 @@ static inline void output_core_info()
                           (int) len, buff);
   }
 #ifdef __FreeBSD__
-  if ((fd= open("/proc/curproc/rlimit", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/curproc/rlimit", O_RDONLY)) >= 0)
 #else
-  if ((fd= open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/self/limits", O_RDONLY)) >= 0)
 #endif
   {
-    my_safe_printf_stderr("Resource Limits:\n");
-    while ((len= read(fd, (uchar*)buff, sizeof(buff))) > 0)
-    {
-      my_write_stderr(buff, len);
-    }
+    char *endline= buff;
+    ssize_t remain_len= len= read(fd, buff, sizeof(buff));
     close(fd);
+    my_safe_printf_stderr("Resource Limits (excludes unlimited resources):\n");
+    /* first line, header */
+    endline= (char *) memchr(buff, '\n', remain_len);
+    if (endline)
+    {
+      endline++;
+      remain_len= buff + len - endline;
+      my_safe_printf_stderr("%.*s", (int) (endline - buff), buff);
+
+      while (remain_len > 27)
+      {
+        char *newendline= (char *) memchr(endline, '\n', remain_len);
+	if (!newendline)
+          break;
+        *newendline= '\0';
+        newendline++;
+        if (endline[26] != 'u') /* skip unlimited limits */
+          my_safe_printf_stderr("%s\n", endline);
+
+        remain_len-= newendline - endline;
+        endline= newendline;
+      }
+    }
   }
 #ifdef __linux__
-  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY)) >= 0)
   {
     len= read(fd, (uchar*)buff, sizeof(buff));
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
