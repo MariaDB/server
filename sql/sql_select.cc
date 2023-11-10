@@ -5358,6 +5358,7 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
     if (error == SQL_SELECT::IMPOSSIBLE_RANGE)
     {
       table->reginfo.impossible_range=1;
+      *quick_count= 0;
       DBUG_RETURN(false);
     }
     if (unlikely(error == SQL_SELECT::ERROR))

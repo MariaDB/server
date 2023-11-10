@@ -3625,7 +3625,7 @@ public:
       return TRUE;
     }
     if (apc_target.have_apc_requests())
-      apc_target.process_apc_requests(); 
+      apc_target.process_apc_requests(false);
     return FALSE;
   }
 
@@ -7859,11 +7859,13 @@ public:
 
 
 class Use_relaxed_field_copy: public Sql_mode_save,
-                              public Check_level_instant_set
+                              public Check_level_instant_set,
+                              public Abort_on_warning_instant_set
 {
 public:
   Use_relaxed_field_copy(THD *thd) :
-      Sql_mode_save(thd), Check_level_instant_set(thd, CHECK_FIELD_IGNORE)
+      Sql_mode_save(thd), Check_level_instant_set(thd, CHECK_FIELD_IGNORE),
+      Abort_on_warning_instant_set(thd, 0)
   {
     thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
     thd->variables.sql_mode|= MODE_INVALID_DATES;
