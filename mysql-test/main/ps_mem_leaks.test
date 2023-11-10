@@ -58,4 +58,15 @@ DEALLOCATE PREPARE stmt;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-32733: Two JSON related tests running in PS mode fail on server
+--echo #              built with -DWITH_PROTECT_STATEMENT_MEMROOT=YES
+--echo #
+PREPARE stmt FROM "select json_contains_path('{\"key1\":1}', 'oNE', '$.key2[1]') as exp";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
 --echo # End of 10.4 tests
