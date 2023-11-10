@@ -5163,8 +5163,6 @@ int spider_free_share(
 ) {
   DBUG_ENTER("spider_free_share");
   pthread_mutex_lock(&spider_tbl_mutex);
-  bool do_delete_thd = false;
-  THD *thd = current_thd;
   if (!--share->use_count)
   {
     spider_free_sts_thread(share);
@@ -5180,47 +5178,6 @@ int spider_free_share(
       spider_table_remove_share_from_crd_thread(share);
       spider_free_spider_object_for_share(&share->crd_spider);
     }
-    if (
-      share->sts_init &&
-      share->table_share->tmp_table == NO_TMP_TABLE &&
-      spider_param_store_last_sts(share->store_last_sts)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->stat
-      );
-    }
-    if (
-      share->crd_init &&
-      share->table_share->tmp_table == NO_TMP_TABLE &&
-      spider_param_store_last_crd(share->store_last_crd)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields
-      );
-    }
     spider_free_share_alloc(share);
     my_hash_delete(&spider_open_tables, (uchar*) share);
     pthread_mutex_destroy(&share->crd_mutex);
@@ -5229,8 +5186,6 @@ int spider_free_share(
     free_root(&share->mem_root, MYF(0));
     spider_free(spider_current_trx, share, MYF(0));
   }
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
   pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
