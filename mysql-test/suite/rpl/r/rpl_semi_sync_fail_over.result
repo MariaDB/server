@@ -43,7 +43,8 @@ SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
 # Kill the server
 connection server_2;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
-stop slave;
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
 include/assert.inc [Table t1 should have 2 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
@@ -57,7 +58,7 @@ connection server_2;
 set global rpl_semi_sync_master_enabled = 1;
 set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
 connection server_1;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS, master_connect_retry=1;
 set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 include/start_slave.inc
@@ -121,7 +122,8 @@ SET DEBUG_SYNC= "now WAIT_FOR eof_reached";
 # Kill the server
 connection server_1;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
-stop slave;
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
 include/assert.inc [Table t1 should have 5 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
@@ -135,7 +137,7 @@ connection server_1;
 set global rpl_semi_sync_master_enabled = 1;
 set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
 connection server_2;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS, master_connect_retry=1;
 set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 include/start_slave.inc
@@ -200,7 +202,8 @@ SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
 # Kill the server
 connection server_2;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
-stop slave;
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
 include/assert.inc [Table t1 should have 7 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
@@ -214,7 +217,7 @@ connection server_2;
 set global rpl_semi_sync_master_enabled = 1;
 set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
 connection server_1;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS, master_connect_retry=1;
 set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 include/start_slave.inc

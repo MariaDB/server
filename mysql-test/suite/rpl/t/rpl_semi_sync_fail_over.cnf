@@ -6,8 +6,10 @@
 log-slave-updates
 gtid-strict-mode=1
 sync-binlog=1
+master_retry_count=2
 
 [mysqld.2]
 log-slave-updates
 gtid-strict-mode=1
 sync-binlog=1
+master_retry_count=2
