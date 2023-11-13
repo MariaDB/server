@@ -161,7 +161,10 @@ connection master;
 # - Check number of semi-sync replicas - 2 should be connected
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 2;
+--echo #
+--echo # Waiting for 2 clients..
 source include/wait_for_status_var.inc;
+--echo # .. got them
 show status like 'Rpl_semi_sync_master_clients';
 --replace_column 3 'SLAVE_PORT'
 --replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
@@ -759,7 +762,7 @@ SET debug_sync='now SIGNAL reply_ack_to_master';
 let $show_statement= SHOW REPLICA HOSTS;
 let $field= Gtid_State_Ack;
 let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 0;
+let $wait_for_all= 1;
 source include/wait_show_condition.inc;
 
 # Here we will not check the since primary may or may not receive the get ACK
@@ -776,7 +779,7 @@ connection master;
 let $show_statement= SHOW REPLICA HOSTS;
 let $field= Gtid_State_Ack;
 let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 0;
+let $wait_for_all= 1;
 source include/wait_show_condition.inc;
 --replace_column 3 'SLAVE_PORT'
 --replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT

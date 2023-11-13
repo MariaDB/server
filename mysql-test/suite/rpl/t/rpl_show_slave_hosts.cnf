@@ -2,16 +2,19 @@
 
 [mysqld.1]
 server_id=1
+log-warnings=9
 
 [mysqld.2]
 server_id=2
 report-host=
 report-user=
+log-warnings=9
 
 [mysqld.3]
 server_id=3
 report-host=slave2
 slave-net-timeout=5
+log-warnings=9
 
 [ENV]
 SLAVE_MYPORT2=		@mysqld.3.port
