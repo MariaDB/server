@@ -54,7 +54,7 @@ MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)
 TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c)
-TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB} tpool)
 
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c)
 SET_SOURCE_FILES_PROPERTIES(mysqlimport.c PROPERTIES COMPILE_FLAGS "-DTHREADS")

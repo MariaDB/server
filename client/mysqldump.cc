@@ -62,6 +62,9 @@
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
+#include <tpool.h>
+#include <tpool_structs.h>
+
 /* Exit codes */
 
 #define EX_USAGE 1
