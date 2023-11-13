@@ -6761,7 +6761,7 @@ static char *primary_key_fields(const char *table_name)
   {
     char *end;
     /* result (terminating \0 is already in result_length) */
-    result= my_malloc(PSI_NOT_INSTRUMENTED, result_length + 10, MYF(MY_WME));
+    result= (char *)my_malloc(PSI_NOT_INSTRUMENTED, result_length + 10, MYF(MY_WME));
     if (!result)
     {
       fprintf(stderr, "Error: Not enough memory to store ORDER BY clause\n");
