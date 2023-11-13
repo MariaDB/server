@@ -714,5 +714,31 @@ DELIMITER ;$$
 --horizontal_results
 
 --echo #
+--echo # MDEV-32645 CAST(AS UNSIGNED) fails with --view-protocol
+--echo #
+
+SELECT
+  CAST(-1e0 AS UNSIGNED),
+  CAST(--2e0 AS UNSIGNED),
+  CAST(---3e0 AS UNSIGNED),
+  CAST(----4e0 AS UNSIGNED);
+
+EXPLAIN EXTENDED SELECT
+  CAST(-1e0 AS UNSIGNED),
+  CAST(--2e0 AS UNSIGNED),
+  CAST(---3e0 AS UNSIGNED),
+  CAST(----4e0 AS UNSIGNED);
+
+CREATE VIEW v1 AS SELECT
+  CAST(-1e0 AS UNSIGNED),
+  CAST(--2e0 AS UNSIGNED),
+  CAST(---3e0 AS UNSIGNED),
+  CAST(----4e0 AS UNSIGNED);
+
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
