@@ -40,6 +40,7 @@ static unsigned long long size_limit;
 static unsigned int rotations;
 static char rotate;
 static char warnings;
+static char with_db_and_thread_info;
 
 static unsigned int count;
 LOGGER_HANDLE *logfile;
@@ -73,6 +74,12 @@ static MYSQL_SYSVAR_BOOL(warnings, warnings,
                          "Warnings. If set to 0, warnings are not logged.",
                          NULL, NULL, 1);
 
+static MYSQL_SYSVAR_BOOL(with_db_and_thread_info, with_db_and_thread_info,
+       PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+       "Show details about thread id and database name in the log",
+       NULL, NULL,
+       0);
+
 static struct st_mysql_sys_var* vars[] = {
     MYSQL_SYSVAR(rate),
     MYSQL_SYSVAR(size_limit),
@@ -80,6 +87,7 @@ static struct st_mysql_sys_var* vars[] = {
     MYSQL_SYSVAR(rotate),
     MYSQL_SYSVAR(filename),
     MYSQL_SYSVAR(warnings),
+    MYSQL_SYSVAR(with_db_and_thread_info),
     NULL
 };
 
@@ -103,12 +111,24 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
 
       count = 0;
       (void) localtime_r(&event_time, &t);
-      logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d "
+      if (with_db_and_thread_info)
+      {
+        logger_printf(logfile, "%llu %s %04d-%02d-%02d %2d:%02d:%02d "
+                      "%s %s %d: %s : %s \n",
+              event->general_thread_id, event->database.str, t.tm_year + 1900,
+              t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
+              event->general_user, type, event->general_error_code,
+              event->general_command, event->general_query);
+      }
+      else
+      {
+        logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d "
                       "%s %s %d: %s : %s\n",
-                    t.tm_year + 1900, t.tm_mon + 1,
-                    t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
-                    event->general_user, type, event->general_error_code,
-                    event->general_command, event->general_query);
+              t.tm_year + 1900, t.tm_mon + 1,
+              t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
+              event->general_user, type, event->general_error_code,
+              event->general_command, event->general_query);
+      }
     }
   }
 }
@@ -167,7 +187,7 @@ maria_declare_plugin(sql_errlog)
   0x0100,
   NULL,
   vars,
-  "1.0",
+  "1.1",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
