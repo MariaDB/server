@@ -3632,6 +3632,15 @@ void Item_int::print(String *str, enum_query_type query_type)
 }
 
 
+void Item_bool::print(String *str, enum_query_type query_type)
+{
+  if (value)
+    str->append(STRING_WITH_LEN("true"));
+  else
+    str->append(STRING_WITH_LEN("false"));
+}
+
+
 Item *Item_bool::neg_transformer(THD *thd)
 {
   value= !value;

@@ -20,8 +20,6 @@ select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000
 
 select json_array();
 select json_array(1);
-#enable after fix MDEV-28649
---disable_view_protocol
 select json_array(1, "text", false, null);
 
 select json_array_append('["a", "b"]', '$', FALSE);

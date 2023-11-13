@@ -5219,7 +5219,7 @@ public:
 };
 
 
-class Type_handler_bool: public Type_handler_long
+class Type_handler_bool: public Type_handler_tiny
 {
   static const Name m_name_bool;
 public:
@@ -5227,6 +5227,13 @@ public:
   bool is_bool_type() const { return true; }
   void Item_update_null_value(Item *item) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const;
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
 };
 
 

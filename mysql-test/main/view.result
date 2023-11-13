@@ -1371,7 +1371,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `b` from `test`.`t3` left join (`test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t3`.`a`)) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `b` from `test`.`t3` left join (`test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t3`.`a`)) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where true
 create view v1 (a) as select a from t1;
 create view v2 (a) as select a from t2;
 create view v4 (a,b) as select v1.a as a, v2.a as b from v1 left join v2 on (v1.a=v2.a);
@@ -1386,7 +1386,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `b` from `test`.`t3` left join (`test`.`t1` left join (`test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`)) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `b` from `test`.`t3` left join (`test`.`t1` left join (`test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`)) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where true
 prepare stmt1 from "select * from t3 left join v4 on (t3.a = v4.a);";
 execute stmt1;
 a	a	b
@@ -3224,42 +3224,42 @@ ISNULL(d)
 from table_24532;
 describe view_24532_a;
 Field	Type	Null	Key	Default	Extra
-a IS TRUE	int(1)	NO		0	
-a IS NOT TRUE	int(1)	NO		0	
-a IS FALSE	int(1)	NO		0	
-a IS NOT FALSE	int(1)	NO		0	
-a IS UNKNOWN	int(1)	NO		0	
-a IS NOT UNKNOWN	int(1)	NO		0	
-a is NULL	int(1)	NO		0	
-a IS NOT NULL	int(1)	NO		0	
-ISNULL(a)	int(1)	NO		0	
-b IS TRUE	int(1)	NO		0	
-b IS NOT TRUE	int(1)	NO		0	
-b IS FALSE	int(1)	NO		0	
-b IS NOT FALSE	int(1)	NO		0	
-b IS UNKNOWN	int(1)	NO		0	
-b IS NOT UNKNOWN	int(1)	NO		0	
-b is NULL	int(1)	NO		0	
-b IS NOT NULL	int(1)	NO		0	
-ISNULL(b)	int(1)	NO		0	
-c IS TRUE	int(1)	NO		0	
-c IS NOT TRUE	int(1)	NO		0	
-c IS FALSE	int(1)	NO		0	
-c IS NOT FALSE	int(1)	NO		0	
-c IS UNKNOWN	int(1)	NO		0	
-c IS NOT UNKNOWN	int(1)	NO		0	
-c is NULL	int(1)	NO		0	
-c IS NOT NULL	int(1)	NO		0	
-ISNULL(c)	int(1)	NO		0	
-d IS TRUE	int(1)	NO		0	
-d IS NOT TRUE	int(1)	NO		0	
-d IS FALSE	int(1)	NO		0	
-d IS NOT FALSE	int(1)	NO		0	
-d IS UNKNOWN	int(1)	NO		0	
-d IS NOT UNKNOWN	int(1)	NO		0	
-d is NULL	int(1)	NO		0	
-d IS NOT NULL	int(1)	NO		0	
-ISNULL(d)	int(1)	NO		0	
+a IS TRUE	tinyint(1)	NO		0	
+a IS NOT TRUE	tinyint(1)	NO		0	
+a IS FALSE	tinyint(1)	NO		0	
+a IS NOT FALSE	tinyint(1)	NO		0	
+a IS UNKNOWN	tinyint(1)	NO		0	
+a IS NOT UNKNOWN	tinyint(1)	NO		0	
+a is NULL	tinyint(1)	NO		0	
+a IS NOT NULL	tinyint(1)	NO		0	
+ISNULL(a)	tinyint(1)	NO		0	
+b IS TRUE	tinyint(1)	NO		0	
+b IS NOT TRUE	tinyint(1)	NO		0	
+b IS FALSE	tinyint(1)	NO		0	
+b IS NOT FALSE	tinyint(1)	NO		0	
+b IS UNKNOWN	tinyint(1)	NO		0	
+b IS NOT UNKNOWN	tinyint(1)	NO		0	
+b is NULL	tinyint(1)	NO		0	
+b IS NOT NULL	tinyint(1)	NO		0	
+ISNULL(b)	tinyint(1)	NO		0	
+c IS TRUE	tinyint(1)	NO		0	
+c IS NOT TRUE	tinyint(1)	NO		0	
+c IS FALSE	tinyint(1)	NO		0	
+c IS NOT FALSE	tinyint(1)	NO		0	
+c IS UNKNOWN	tinyint(1)	NO		0	
+c IS NOT UNKNOWN	tinyint(1)	NO		0	
+c is NULL	tinyint(1)	NO		0	
+c IS NOT NULL	tinyint(1)	NO		0	
+ISNULL(c)	tinyint(1)	NO		0	
+d IS TRUE	tinyint(1)	NO		0	
+d IS NOT TRUE	tinyint(1)	NO		0	
+d IS FALSE	tinyint(1)	NO		0	
+d IS NOT FALSE	tinyint(1)	NO		0	
+d IS UNKNOWN	tinyint(1)	NO		0	
+d IS NOT UNKNOWN	tinyint(1)	NO		0	
+d is NULL	tinyint(1)	NO		0	
+d IS NOT NULL	tinyint(1)	NO		0	
+ISNULL(d)	tinyint(1)	NO		0	
 create view view_24532_b as
 select
 a IS TRUE,
@@ -3273,13 +3273,13 @@ if(ifnull(a, 1), 1, 0) as old_isnotfalse
 from table_24532;
 describe view_24532_b;
 Field	Type	Null	Key	Default	Extra
-a IS TRUE	int(1)	NO		0	
+a IS TRUE	tinyint(1)	NO		0	
 old_istrue	int(1)	NO		0	
-a IS NOT TRUE	int(1)	NO		0	
+a IS NOT TRUE	tinyint(1)	NO		0	
 old_isnottrue	int(1)	NO		0	
-a IS FALSE	int(1)	NO		0	
+a IS FALSE	tinyint(1)	NO		0	
 old_isfalse	int(1)	NO		0	
-a IS NOT FALSE	int(1)	NO		0	
+a IS NOT FALSE	tinyint(1)	NO		0	
 old_isnotfalse	int(1)	NO		0	
 show create view view_24532_b;
 View	Create View	character_set_client	collation_connection
@@ -6712,7 +6712,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `t1`.`a` from `t1` where `t1`.`a` < 2) then 1 end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `t1`.`a` from `t1` where `t1`.`a` < 2) then true end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 testcase
 1

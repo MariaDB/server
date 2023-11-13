@@ -7757,6 +7757,21 @@ Field *Type_handler_tiny::
 }
 
 
+Field *Type_handler_bool::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_bool(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name,
+               f_is_zerofill(attr->pack_flag) != 0,
+               f_is_dec(attr->pack_flag) == 0);
+}
+
+
 Field *Type_handler_short::
   make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
                             const LEX_CSTRING *name,

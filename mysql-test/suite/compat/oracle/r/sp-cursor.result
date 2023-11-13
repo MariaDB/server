@@ -159,10 +159,10 @@ $$
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE "t2" (
-  "c%ISOPEN" int(1) NOT NULL,
+  "c%ISOPEN" tinyint(1) NOT NULL,
   "c%ROWCOUNT" bigint(21) DEFAULT NULL,
-  "c%FOUND" int(1) DEFAULT NULL,
-  "c%NOTFOUND" int(1) DEFAULT NULL
+  "c%FOUND" tinyint(1) DEFAULT NULL,
+  "c%NOTFOUND" tinyint(1) DEFAULT NULL
 )
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -943,9 +943,9 @@ CLOSE c;
 END;
 $$
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c%ISOPEN	3	1	1	N	32897	0	63
-def					c%NOTFOUND	3	1	0	Y	32896	0	63
-def					c%FOUND	3	1	0	Y	32896	0	63
+def					c%ISOPEN	1	1	1	N	32897	0	63
+def					c%NOTFOUND	1	1	0	Y	32896	0	63
+def					c%FOUND	1	1	0	Y	32896	0	63
 def					c%ROWCOUNT	8	21	1	Y	32896	0	63
 c%ISOPEN	c%NOTFOUND	c%FOUND	c%ROWCOUNT
 1	NULL	NULL	0

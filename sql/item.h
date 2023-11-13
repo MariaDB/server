@@ -4278,6 +4278,7 @@ public:
       predicate at various condition optimization stages in sql_select.
     */
   }
+  void print(String *str, enum_query_type query_type);
 };
 
 
