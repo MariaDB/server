@@ -121,6 +121,9 @@ public:
            bound
         5. But some of the IN-equalities aren't (so this can't be handled by 
            FirstMatch strategy)
+        6. This is NOT a temporary table with a distinct key on a BLOB field,
+           the NULL bits for the BLOB field first up in the key break the
+           grouping requirement.
     */
     best_loose_scan_cost= DBL_MAX;
     if (!join->emb_sjm_nest && s->emb_sj_nest &&                        // (1)
@@ -131,6 +134,11 @@ public:
         !(remaining_tables & 
           s->emb_sj_nest->nested_join->sj_corr_tables) &&               // (4)
         remaining_tables & s->emb_sj_nest->nested_join->sj_depends_on &&// (5)
+        !(s->table->s->tmp_table == INTERNAL_TMP_TABLE &&               // (6) 
+          s->table->distinct &&
+          s->table->key_info->flags & HA_UNIQUE_HASH &&
+          s->table->key_info->key_part->type == HA_KEYTYPE_BINARY &&
+          s->table->key_info->key_part->key_type == FIELDFLAG_BINARY) &&
         optimizer_flag(join->thd, OPTIMIZER_SWITCH_LOOSE_SCAN))
     {
       /* This table is an LooseScan scan candidate */

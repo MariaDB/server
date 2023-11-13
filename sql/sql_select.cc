@@ -15501,7 +15501,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     if (tab->bush_children)
     {
       if (setup_sj_materialization_part2(tab))
-        return TRUE;
+        DBUG_RETURN(TRUE);
     }
 
     TABLE *table=tab->table;
@@ -15524,9 +15524,10 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 
     if (tab->loosescan_match_tab)
     {
+      DBUG_ASSERT(tab->loosescan_key_len);
       if (!(tab->loosescan_buf= (uchar*)join->thd->alloc(tab->
                                                          loosescan_key_len)))
-        return TRUE; /* purecov: inspected */
+        DBUG_RETURN(TRUE);
       tab->sorted= TRUE;
     }
     table->status=STATUS_NO_RECORD;
@@ -21842,6 +21843,7 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->key_type=FIELDFLAG_BINARY;
       m_key_part_info->type=    HA_KEYTYPE_BINARY;
       m_key_part_info->fieldnr= m_key_part_info->field->field_index + 1;
+      m_key_part_info->store_length= m_key_part_info->length;
       m_key_part_info++;
     }
     /* Create a distinct key over the columns we are going to return */

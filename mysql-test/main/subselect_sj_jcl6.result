@@ -3353,6 +3353,43 @@ SELECT * FROM t1 WHERE a IN (SELECT b FROM t2 JOIN t1);
 a
 DROP TABLE t1, t2;
 set optimizer_search_depth= @tmp_28871;
+#
+#     MDEV-31793 LooseScan join on derived table crashes
+#
+DROP TABLE if exists t1,t2;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+CREATE TABLE t1 (id int, a int, KEY (a), KEY (id))
+engine=innodb STATS_AUTO_RECALC=0;
+INSERT INTO t1 VALUES  (1, 1), (2, 1), (3, 1), (4, 1);
+CREATE TABLE t2 (id2 int,  b TEXT) engine=innodb STATS_AUTO_RECALC=0;
+INSERT INTO t2 VALUES (1,'F'),( 2,'D'),(3,''), (3,NULL),( 4,'F'),( 5,'Q');
+SET SESSION OPTIMIZER_WHERE_COST=1.0;
+SET GLOBAL OPTIMIZER_ROW_COPY_COST=1.0;
+set optimizer_switch='firstmatch=off,materialization=off,loosescan=on';
+explain SELECT id, a 
+FROM t1 JOIN t2 ON id = id2 
+WHERE t1.id IN 
+(SELECT dt.id FROM (SELECT id, a, b  FROM t1 JOIN t2 ON id = id2 limit 1000)dt);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	id	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived3>	ref	key1,distinct_key	key1	5	test.t1.id	2	Start temporary; End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	Using where
+3	DERIVED	t1	ref	id	id	5	test.t2.id2	4	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+SELECT id, a 
+FROM t1 JOIN t2 ON id = id2 
+WHERE t1.id IN 
+(SELECT dt.id FROM (SELECT id, a, b  FROM t1 JOIN t2 ON id = id2 limit 1000)dt);
+id	a
+1	1
+2	1
+3	1
+3	1
+4	1
+SET GLOBAL OPTIMIZER_ROW_COPY_COST=default;
+SET SESSION OPTIMIZER_WHERE_COST=default;
+DROP TABLE t1,t2;
 set optimizer_switch=@subselect_sj_tmp;
 #
 # BUG#49129: Wrong result with IN-subquery with join_cache_level=6 and firstmatch=off
