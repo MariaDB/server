@@ -1,0 +1,18 @@
+--source include/not_embedded.inc
+
+if (!$SQL_ERRLOG_SO) {
+  skip No SQL_ERROR_LOG plugin;
+}
+
+show variables like 'sql_error_log%';
+set global sql_error_log_rate=1;
+--error ER_NO_SUCH_TABLE
+select * from t_doesnt_exist;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+--let SEARCH_FILE= $MYSQLD_DATADIR/sql_errors.log
+--let LINES_TO_READ=1
+--replace_regex /[1-9]* test [1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [^E]*/THREAD_ID DATABASE_NAME TIME HOSTNAME /
+--source include/read_head.inc
+
+remove_file $MYSQLD_DATADIR/sql_errors.log;
