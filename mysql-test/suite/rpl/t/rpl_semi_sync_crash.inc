@@ -65,8 +65,9 @@ if ($case == 3)
 --let $slave_param_value= Slave has read all relay log; waiting for more updates
 source include/wait_for_slave_param.inc;
 
-#--error 2003
-stop slave;
+--let $slave_io_errno=2003
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_sql.inc
 
 --let $assert_cond= COUNT(*) = $expected_rows_on_slave FROM t1
 --let $assert_text= Table t1 should have $expected_rows_on_slave rows.
@@ -106,7 +107,7 @@ if (`select $server_to_crash = 2`)
 {
  --let $master_port=$SERVER_MYPORT_1
 }
-evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS, master_connect_retry=1;
 set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 --source include/start_slave.inc
