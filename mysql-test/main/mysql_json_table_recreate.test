@@ -88,3 +88,39 @@ from mysql_json_test_big;
 drop table tempty;
 drop table mysql_json_test;
 drop table mysql_json_test_big;
+
+--echo #
+--echo # MDEV-32790: Output result in show create table
+--echo #             for mysql_json type should be longtext
+--echo #
+
+create table t1(j json);
+show create table t1;
+drop table t1;
+create table t1(j mysql_json);
+show create table t1;
+drop table t1;
+# `json` type should not have character set and collation other than utf8mb4_bin
+--error ER_PARSE_ERROR
+create table `testjson` (
+  `t` json /* JSON from MySQL 5.7*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+# By removing character set from `json` field query should work and
+# expand to `longtext` with characterset
+create table `testjson` (
+  `t` json /* JSON from MySQL 5.7*/ COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+show create table testjson;
+drop table testjson;
+
+# `longtext` that is alias can have character set
+create table `testjson` (
+  `t` longtext /* JSON from MySQL 5.7 */ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+show create table testjson;
+drop table testjson;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
