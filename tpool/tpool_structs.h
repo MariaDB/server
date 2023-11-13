@@ -158,13 +158,18 @@ public:
   }
 
   /** Wait until cache is full.*/
-  void wait()
+  void wait(std::unique_lock<std::mutex> &lk)
   {
-    std::unique_lock<std::mutex> lk(m_mtx);
     m_waiters++;
     while(!is_full())
       m_cv.wait(lk);
     m_waiters--;
+  }
+
+  void wait()
+  {
+    std::unique_lock<std::mutex> lk(m_mtx);
+    wait(lk);
   }
 
   /**
@@ -178,7 +183,6 @@ public:
 
   void resize(size_t count)
   {
-    mysql_mutex_assert_owner(&m_mtx);
     assert(is_full());
     m_base.resize(count);
     m_cache.resize(count);

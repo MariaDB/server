@@ -105,10 +105,10 @@ public:
 		return m_cache.contains(aiocb);
 	}
 
-	/* Wait for completions of all AIO operations */
-	void wait(mysql_mutex_t &m)
+	/** Wait for completions of all AIO operations */
+	void wait(std::unique_lock<std::mutex> &lk)
 	{
-		m_cache.wait(m);
+		m_cache.wait(lk);
 	}
 
 	void wait()
@@ -3630,9 +3630,8 @@ more concurrent threads via thread_group setting.
 int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
 {
   /* Lock the slots, and wait until all current IOs finish.*/
-  auto &lk_read= read_slots->mutex(), &lk_write= write_slots->mutex();
-  mysql_mutex_lock(&lk_read);
-  mysql_mutex_lock(&lk_write);
+  std::unique_lock<std::mutex> lk_read(read_slots->mutex());
+  std::unique_lock<std::mutex> lk_write(write_slots->mutex());
 
   read_slots->wait(lk_read);
   write_slots->wait(lk_write);
@@ -3660,9 +3659,6 @@ int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
     read_slots->resize(max_read_events, static_cast<int>(n_reader_threads));
     write_slots->resize(max_write_events, static_cast<int>(n_writer_threads));
   }
-
-  mysql_mutex_unlock(&lk_read);
-  mysql_mutex_unlock(&lk_write);
   return ret;
 }
 
