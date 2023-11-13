@@ -9654,7 +9654,8 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     a single record and with a single column. Thus, like
     a column value, it could always have IMPLICIT derivation.
    */
-  e->update_hash((void*) val, val_len, type, charset,
+  e->update_hash((void*) val, val_len,
+                 Type_handler::get_handler_by_result_type(type), charset,
                  (flags & User_var_log_event::UNSIGNED_F));
   if (!is_deferred())
     free_root(thd->mem_root, 0);

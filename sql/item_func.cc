@@ -55,6 +55,7 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
+#include "sql_type_json.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
@@ -4554,7 +4555,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
       by Item_func_get_user_var (because that's not necessary).
     */
     entry->used_query_id=current_thd->query_id;
-    entry->type=STRING_RESULT;
+    entry->type_handler= &type_handler_long_blob;
     memcpy((char*) entry->name.str, name->str, name->length+1);
     if (my_hash_insert(hash,(uchar*) entry))
     {
@@ -4601,6 +4602,7 @@ end:
 
 bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
 {
+  const Type_handler *th;
   DBUG_ASSERT(fixed == 0);
   /* fix_fields will call Item_func_set_user_var::fix_length_and_dec */
   if (Item_func::fix_fields(thd, ref) || set_entry(thd, TRUE))
@@ -4625,26 +4627,34 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
                              default_charset() : args[0]->collation.collation);
   collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-  switch (args[0]->result_type()) {
-  case STRING_RESULT:
-  case TIME_RESULT:
-    set_handler(type_handler_long_blob.
-                type_handler_adjusted_to_max_octet_length(max_length,
-                                                          collation.collation));
-    break;
-  case REAL_RESULT:
-    set_handler(&type_handler_double);
-    break;
-  case INT_RESULT:
-    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
-    break;
-  case DECIMAL_RESULT:
-    set_handler(&type_handler_newdecimal);
-    break;
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-    set_handler(&type_handler_row);
-    break;
+  th= args[0]->type_handler();
+  if (th == &type_handler_geometry ||
+      th == &type_handler_json_longtext ||
+      th == &type_handler_bool)
+    set_handler(th);
+  else
+  {
+    switch (args[0]->result_type()) {
+    case STRING_RESULT:
+    case TIME_RESULT:
+      set_handler(type_handler_long_blob.
+                  type_handler_adjusted_to_max_octet_length(max_length,
+                                                            collation.collation));
+      break;
+    case REAL_RESULT:
+      set_handler(&type_handler_double);
+      break;
+    case INT_RESULT:
+      set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
+      break;
+    case DECIMAL_RESULT:
+      set_handler(&type_handler_newdecimal);
+      break;
+    case ROW_RESULT:
+      DBUG_ASSERT(0);
+      set_handler(&type_handler_row);
+      break;
+    }
   }
   if (thd->lex->current_select)
   {
@@ -4751,7 +4761,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 
 bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-            Item_result type, CHARSET_INFO *cs,
+            const Type_handler *th, CHARSET_INFO *cs,
             bool unsigned_arg)
 {
   if (set_null)
@@ -4764,7 +4774,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
   }
   else
   {
-    if (type == STRING_RESULT)
+    Item_result result_type= th->result_type();
+    if (result_type == STRING_RESULT)
       length++;					// Store strings with end \0
     if (length <= extra_size)
     {
@@ -4793,27 +4804,27 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	  return 1;
       }
     }
-    if (type == STRING_RESULT)
+    if (result_type == STRING_RESULT)
     {
       length--;					// Fix length change above
       entry->value[length]= 0;			// Store end \0
     }
     if (length)
       memmove(entry->value, ptr, length);
-    if (type == DECIMAL_RESULT)
+    if (result_type == DECIMAL_RESULT)
       ((my_decimal*)entry->value)->fix_buffer_pointer();
     entry->length= length;
     entry->set_charset(cs);
     entry->unsigned_flag= unsigned_arg;
   }
-  entry->type=type;
+  entry->type_handler= th;
   return 0;
 }
 
 
 bool
 Item_func_set_user_var::update_hash(void *ptr, size_t length,
-                                    Item_result res_type,
+                                    const Type_handler *th,
                                     CHARSET_INFO *cs,
                                     bool unsigned_arg)
 {
@@ -4829,9 +4840,9 @@ Item_func_set_user_var::update_hash(void *ptr, size_t length,
   else
     null_value= args[0]->null_value;
   if (null_value && null_item)
-    res_type= m_var_entry->type;                 // Don't change type of item
+    th= m_var_entry->type_handler;                 // Don't change type of item
   if (::update_hash(m_var_entry, null_value,
-                    ptr, length, res_type, cs, unsigned_arg))
+                    ptr, length, th, cs, unsigned_arg))
   {
     null_value= 1;
     return 1;
@@ -4847,7 +4858,7 @@ double user_var_entry::val_real(bool *null_value)
   if ((*null_value= (value == 0)))
     return 0.0;
 
-  switch (type) {
+  switch (type_handler->result_type()) {
   case REAL_RESULT:
     return *(double*) value;
   case INT_RESULT:
@@ -4872,7 +4883,7 @@ longlong user_var_entry::val_int(bool *null_value) const
   if ((*null_value= (value == 0)))
     return 0;
 
-  switch (type) {
+  switch (type_handler->result_type()) {
   case REAL_RESULT:
     return (longlong) *(double*) value;
   case INT_RESULT:
@@ -4901,7 +4912,7 @@ String *user_var_entry::val_str(bool *null_value, String *str,
   if ((*null_value= (value == 0)))
     return (String*) 0;
 
-  switch (type) {
+  switch (type_handler->result_type()) {
   case REAL_RESULT:
     str->set_real(*(double*) value, decimals, charset());
     break;
@@ -4933,7 +4944,7 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
   if ((*null_value= (value == 0)))
     return 0;
 
-  switch (type) {
+  switch (type_handler->result_type()) {
   case REAL_RESULT:
     double2my_decimal(E_DEC_FATAL_ERROR, *(double*) value, val);
     break;
@@ -5072,32 +5083,32 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, default_charset(), 0);
+		     type_handler(), default_charset(), 0);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, default_charset(), unsigned_flag);
+                     type_handler(), default_charset(), unsigned_flag);
     break;
   }
   case STRING_RESULT:
   {
     if (!save_result.vstr)					// Null value
-      res= update_hash((void*) 0, 0, STRING_RESULT, &my_charset_bin, 0);
+      res= update_hash((void*) 0, 0, type_handler(), &my_charset_bin, 0);
     else
       res= update_hash((void*) save_result.vstr->ptr(),
-		       save_result.vstr->length(), STRING_RESULT,
+		       save_result.vstr->length(), type_handler(),
 		       save_result.vstr->charset(), 0);
     break;
   }
   case DECIMAL_RESULT:
   {
     if (!save_result.vdec)					// Null value
-      res= update_hash((void*) 0, 0, DECIMAL_RESULT, &my_charset_bin, 0);
+      res= update_hash((void*) 0, 0, type_handler(), &my_charset_bin, 0);
     else
       res= update_hash((void*) save_result.vdec,
-                       sizeof(my_decimal), DECIMAL_RESULT,
+                       sizeof(my_decimal), type_handler(),
                        default_charset(), 0);
     break;
   }
@@ -5490,7 +5501,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
   user_var_event->value= (char*) user_var_event +
     ALIGN_SIZE(sizeof(BINLOG_USER_VAR_EVENT));
   user_var_event->user_var_event= var_entry;
-  user_var_event->type= var_entry->type;
+  user_var_event->type= var_entry->type_handler->result_type();
   user_var_event->charset_number= var_entry->charset()->number;
   user_var_event->unsigned_flag= var_entry->unsigned_flag;
   if (!var_entry->value)
@@ -5538,7 +5549,7 @@ bool Item_func_get_user_var::fix_length_and_dec()
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-    set_handler_by_result_type(m_var_entry->type);
+    set_handler(m_var_entry->type_handler);
     switch (result_type()) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
@@ -5619,7 +5630,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(thd->lex->exchange);
   if (!(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
-  entry->type= STRING_RESULT;
+  entry->type_handler= &type_handler_long_blob;
   /*
     Let us set the same collation which is used for loading
     of fields in LOAD DATA INFILE.
@@ -5635,14 +5646,15 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 
 void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
 {
-  ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
+  ::update_hash(entry, TRUE, 0, 0, &type_handler_long_blob,
+                cs, 0 /* unsigned_arg */);
 }
 
 
 void Item_user_var_as_out_param::set_value(const char *str, uint length,
                                            CHARSET_INFO* cs)
 {
-  ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
+  ::update_hash(entry, FALSE, (void*)str, length, &type_handler_long_blob, cs,
                 0 /* unsigned_arg */);
 }
 

@@ -6400,7 +6400,7 @@ class user_var_entry
   char *value;
   size_t length;
   query_id_t update_query_id, used_query_id;
-  Item_result type;
+  const Type_handler *type_handler;
   bool unsigned_flag;
 
   double val_real(bool *null_value);
