@@ -131,7 +131,7 @@ public:
 		wait();
 	}
 
-	mysql_mutex_t& mutex()
+	std::mutex& mutex()
 	{
 		return m_cache.mutex();
 	}
@@ -3700,10 +3700,8 @@ void os_aio_wait_until_no_pending_writes(bool declare)
 /** @return number of pending reads */
 size_t os_aio_pending_reads()
 {
-  mysql_mutex_lock(&read_slots->mutex());
-  size_t pending= read_slots->pending_io_count();
-  mysql_mutex_unlock(&read_slots->mutex());
-  return pending;
+  std::unique_lock<std::mutex> lk(read_slots->mutex());
+  return read_slots->pending_io_count();
 }
 
 /** @return approximate number of pending reads */
@@ -3715,10 +3713,8 @@ size_t os_aio_pending_reads_approx()
 /** @return number of pending writes */
 size_t os_aio_pending_writes()
 {
-  mysql_mutex_lock(&write_slots->mutex());
-  size_t pending= write_slots->pending_io_count();
-  mysql_mutex_unlock(&write_slots->mutex());
-  return pending;
+  std::unique_lock<std::mutex> lk(write_slots->mutex());
+  return write_slots->pending_io_count();
 }
 
 /** Wait until all pending asynchronous reads have completed.
