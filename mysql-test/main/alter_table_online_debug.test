@@ -1922,6 +1922,125 @@ select * from t;
 --connection default
 drop table t;
 set debug_sync= reset;
+
+--echo # MDEV-32771 Server crash upon online alter with concurrent XA
+
+create table t (a int primary key);
+insert t values(1),(2),(3);
+
+--echo # First, check that nothing from the rollbacked statement commits
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t add b int default (555), algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t add c int default(777), algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+--echo # Same, but add one successful statement into transaction
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t drop b, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 10 where a = 1;
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t drop primary key, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+--echo # This statement will take effect.
+update t set a = 10 where a = 1;
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+
+--echo # The only statement succeeds (test both commit and rollback)
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t add d text default ('qwe'), algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t drop c, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+drop table t;
+
+
 eval set global default_storage_engine= $default_storage_engine;
 
 --disconnect con1
