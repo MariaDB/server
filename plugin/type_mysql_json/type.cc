@@ -62,7 +62,7 @@ public:
   bool parse_mysql(String *dest, const char *data, size_t length) const;
   bool send(Protocol *protocol) { return Field::send(protocol); }
   void sql_type(String &s) const
-  { s.set_ascii(STRING_WITH_LEN("json /* MySQL 5.7 */")); }
+  { s.set_ascii(STRING_WITH_LEN("mysql_json /* JSON from MySQL 5.7 */")); }
   /* this will make ALTER TABLE to consider it different from built-in field */
   Compression_method *compression_method() const { return (Compression_method*)1; }
 };

@@ -169,3 +169,47 @@ Total_Number_of_Tests	Succesful_Tests	String_is_valid_JSON
 drop table tempty;
 drop table mysql_json_test;
 drop table mysql_json_test_big;
+#
+# MDEV-32790: Output result in show create table
+#             for mysql_json type should be longtext
+#
+create table t1(j json);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
+create table t1(j mysql_json);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` mysql_json /* JSON from MySQL 5.7 */ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
+create table `testjson` (
+`t` json /* JSON from MySQL 5.7*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=InnoDB DEFAULT CH...' at line 2
+create table `testjson` (
+`t` json /* JSON from MySQL 5.7*/ COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+show create table testjson;
+Table	Create Table
+testjson	CREATE TABLE `testjson` (
+  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`t`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table testjson;
+create table `testjson` (
+`t` longtext /* JSON from MySQL 5.7 */ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+show create table testjson;
+Table	Create Table
+testjson	CREATE TABLE `testjson` (
+  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table testjson;
+#
+# End of 10.5 tests
+#
