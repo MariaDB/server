@@ -852,7 +852,9 @@ void purge_sys_t::rseg_get_next_history_log()
 {
   fil_addr_t prev_log_addr;
 
+#ifndef SUX_LOCK_GENERIC
   ut_ad(rseg->latch.is_write_locked());
+#endif
   ut_a(rseg->last_page_no != FIL_NULL);
 
   tail.trx_no= rseg->last_trx_no() + 1;
@@ -968,7 +970,9 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
 {
   ut_ad(next_stored);
   ut_ad(tail.trx_no < low_limit_no());
+#ifndef SUX_LOCK_GENERIC
   ut_ad(rseg->latch.is_write_locked());
+#endif
 
   if (!offset)
   {
