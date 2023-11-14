@@ -5181,6 +5181,7 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
     if (error == SQL_SELECT::IMPOSSIBLE_RANGE)
     {
       table->reginfo.impossible_range=1;
+      *quick_count= 0;
       DBUG_RETURN(false);
     }
     if (unlikely(error == SQL_SELECT::ERROR))
@@ -14366,8 +14367,18 @@ bool error_if_full_join(JOIN *join)
 }
 
 
-void JOIN_TAB::build_range_rowid_filter_if_needed()
+/**
+  Build rowid filter.
+
+  @retval
+    0	ok
+  @retval
+    1	Error, transaction should be rolled back
+*/
+
+bool JOIN_TAB::build_range_rowid_filter_if_needed()
 {
+  bool result= false;
   if (rowid_filter && !is_rowid_filter_built)
   {
     /**
@@ -14382,10 +14393,9 @@ void JOIN_TAB::build_range_rowid_filter_if_needed()
     Rowid_filter_tracker *rowid_tracker= rowid_filter->get_tracker();
     table->file->set_time_tracker(rowid_tracker->get_time_tracker());
     rowid_tracker->start_tracking(join->thd);
-    if (!rowid_filter->build())
-    {
+    Rowid_filter::build_return_code build_rc= rowid_filter->build();
+    if (build_rc == Rowid_filter::SUCCESS)
       is_rowid_filter_built= true;
-    }
     else
     {
       delete rowid_filter;
@@ -14393,7 +14403,9 @@ void JOIN_TAB::build_range_rowid_filter_if_needed()
     }
     rowid_tracker->stop_tracking(join->thd);
     table->file->set_time_tracker(table_tracker);
+    result= (build_rc == Rowid_filter::FATAL_ERROR);
   }
+  return result;
 }
 
 
@@ -21741,7 +21753,9 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (!join_tab->preread_init_done && join_tab->preread_init())
     DBUG_RETURN(NESTED_LOOP_ERROR);
 
-  join_tab->build_range_rowid_filter_if_needed();
+  if (join_tab->build_range_rowid_filter_if_needed())
+    DBUG_RETURN(NESTED_LOOP_ERROR);
+
   if (join_tab->rowid_filter && join_tab->rowid_filter->is_empty())
     rc= NESTED_LOOP_NO_MORE_ROWS;
 
@@ -22762,7 +22776,8 @@ int join_init_read_record(JOIN_TAB *tab)
     need_unpacking= tbl ? tbl->is_sjm_scan_table() : FALSE;
   }
 
-  tab->build_range_rowid_filter_if_needed();
+  if (tab->build_range_rowid_filter_if_needed())
+    return 1;
 
   if (tab->filesort && tab->sort_table())     // Sort table.
     return 1;
@@ -24594,11 +24609,24 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   bool orig_cond_saved= false;
   int best_key= -1;
   bool changed_key= false;
+  THD *thd= tab->join->thd;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array  trace_arr(thd, "test_if_skip_sort_order");
   DBUG_ENTER("test_if_skip_sort_order");
 
   *fatal_error= false;
   /* Check that we are always called with first non-const table */
   DBUG_ASSERT(tab == tab->join->join_tab + tab->join->const_tables);
+
+  /* Sorting a single row can always be skipped */
+  if (tab->type == JT_EQ_REF ||
+      tab->type == JT_CONST  ||
+      tab->type == JT_SYSTEM)
+  {
+    Json_writer_object trace_skip(thd);
+    trace_skip.add("skipped", "single row access method");
+    DBUG_RETURN(1);
+  }
 
   /*
     Keys disabled by ALTER TABLE ... DISABLE KEYS should have already

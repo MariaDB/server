@@ -403,13 +403,48 @@ class Create_func_decode_oracle : public Create_native_func
 {
 public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+                              List<Item> *item_list)
+  {
+    if (unlikely(!item_list || item_list->elements < 3))
+    {
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+      return NULL;
+    }
+    return new (thd->mem_root) Item_func_decode_oracle(thd, *item_list);
+  }
 
   static Create_func_decode_oracle s_singleton;
 
 protected:
   Create_func_decode_oracle() = default;
   virtual ~Create_func_decode_oracle() = default;
+};
+
+
+class Create_func_decode : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list)
+  {
+    if (thd->variables.sql_mode & MODE_ORACLE)
+      return Create_func_decode_oracle::s_singleton.create_native(thd, name,
+                                                                  item_list);
+    if (unlikely(!item_list || item_list->elements != 2))
+    {
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+      return NULL;
+    }
+    Item_args args(thd, *item_list);
+    return new (thd->mem_root) Item_func_decode(thd, args.arguments()[0],
+                                                     args.arguments()[1]);
+  }
+
+  static Create_func_decode s_singleton;
+
+protected:
+  Create_func_decode() {}
+  virtual ~Create_func_decode() {}
 };
 
 
@@ -3040,20 +3075,9 @@ Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
   return new (thd->mem_root) Item_func_decode_histogram(thd, arg1, arg2);
 }
 
-Create_func_decode_oracle Create_func_decode_oracle::s_singleton;
+Create_func_decode Create_func_decode::s_singleton;
 
-Item*
-Create_func_decode_oracle::create_native(THD *thd, const LEX_CSTRING *name,
-                                         List<Item> *item_list)
-{
-  uint arg_count= item_list ? item_list->elements : 0;
-  if (unlikely(arg_count < 3))
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    return NULL;
-  }
-  return new (thd->mem_root) Item_func_decode_oracle(thd, *item_list);
-}
+Create_func_decode_oracle Create_func_decode_oracle::s_singleton;
 
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
 
@@ -5564,6 +5588,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
   { { STRING_WITH_LEN("DAYOFWEEK") }, BUILDER(Create_func_dayofweek)},
   { { STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
+  { { STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},

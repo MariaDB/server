@@ -91,4 +91,28 @@ CREATE TABLE t2 (b VARCHAR(8)) ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t2 MODIFY b VARCHAR(16), ADD KEY(b);
 DROP TABLE t1, t2;
+#
+#  MDEV-32337  Assertion `pos < table->n_def' failed
+#		in dict_table_get_nth_col
+#
+CREATE TABLE t (a INT, va INT AS (a), b INT, vb INT AS (b),
+c INT, vc INT AS (c), vf VARCHAR(16) AS (f),
+f VARCHAR(4)) ENGINE=InnoDB;
+ALTER TABLE t MODIFY f VARCHAR(8);
+ALTER TABLE t MODIFY vf VARCHAR(18);
+ERROR HY000: This is not yet supported for generated columns
+DROP TABLE t;
+#
+#  MDEV-32527 Server aborts during alter operation
+#	when table doesn't have foreign index
+#
+CREATE TABLE t1 (f1 INT NOT NULL, INDEX(f1)) ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL, f2 VARCHAR(100) DEFAULT NULL,
+INDEX idx(f1, f2),
+FOREIGN KEY(f1) REFERENCES t1(f1))ENGINE=INNODB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t2 DROP INDEX idx;
+ALTER TABLE t2 MODIFY f2 VARCHAR(1023);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+DROP TABLE t2, t1;
 # End of 10.4 tests

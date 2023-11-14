@@ -1131,19 +1131,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       return vcol &&
              vcol->expr->walk(&Item::check_field_expression_processor, 0, field);
     }
-    static bool check_constraint(Field *field, Virtual_column_info *vcol)
-    {
-      uint32 flags= field->flags;
-      /* Check constraints can refer it itself */
-      field->flags|= NO_DEFAULT_VALUE_FLAG;
-      const bool res= check(field, vcol);
-      field->flags= flags;
-      return res;
-    }
     static bool check(Field *field)
     {
       if (check(field, field->vcol_info) ||
-          check_constraint(field, field->check_constraint) ||
           check(field, field->default_value))
         return true;
       return false;
@@ -1158,6 +1148,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Field **vfield_ptr= table->vfield;
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
+  Sql_mode_save_for_frm_handling sql_mode_save(thd);
   Query_arena backup_arena;
   Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
@@ -1178,8 +1169,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  Sql_mode_instant_remove sms(thd, MODE_NO_BACKSLASH_ESCAPES |
-                              MODE_EMPTY_STRING_IS_NULL);
 
   while (pos < end)
   {
@@ -1355,11 +1344,16 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   /* Check that expressions aren't referring to not yet initialized fields */
   for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
     if (check_vcol_forward_refs::check(*field_ptr))
     {
       *error_reported= true;
       goto end;
     }
+    if ((*field_ptr)->check_constraint)
+        (*field_ptr)->check_constraint->expr->
+          walk(&Item::update_func_default_processor, 0, *field_ptr);
+  }
 
   table->find_constraint_correlated_indexes();
 

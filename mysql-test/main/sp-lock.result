@@ -13,12 +13,6 @@
 # Start a transaction, create a savepoint, 
 # then call a DDL operation on a procedure, and then check
 # that the savepoint is no longer present.
-drop table if exists t1;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop procedure if exists p4;
-drop function if exists f1;
 create table t1 (a int);
 #
 # Test 'CREATE PROCEDURE'.
@@ -469,8 +463,8 @@ drop function f1;
 create function f1() returns varchar(20) return "f1()";
 create function f2() returns varchar(20) return "f2()";
 create view v1 as select f1() as a;
-set @@session.autocommit=0;
 lock table v1 read;
+start transaction;
 select * from v1;
 a
 f1()
@@ -492,6 +486,7 @@ connection con2;
 # Reaping 'drop function f2'...
 connection default;
 unlock tables;
+commit;
 connection con1;
 # Reaping 'drop function f1'...
 connection default;
@@ -500,7 +495,6 @@ ERROR 42000: FUNCTION test.f1 does not exist
 drop function f2;
 ERROR 42000: FUNCTION test.f2 does not exist
 drop view v1;
-set @@session.autocommit=default;
 # 
 # 8) Check the situation when we're preparing or executing a
 # prepared statement, and as part of that try to flush the
@@ -744,8 +738,6 @@ DROP PROCEDURE p1;
 # Bug#57663 Concurrent statement using stored function and DROP DATABASE
 #           breaks SBR
 #
-DROP DATABASE IF EXISTS db1;
-DROP FUNCTION IF EXISTS f1;
 connect con1, localhost, root;
 connect con2, localhost, root;
 # Test 1: Check that DROP DATABASE block if a function is used

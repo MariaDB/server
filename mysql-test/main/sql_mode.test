@@ -575,7 +575,9 @@ DELIMITER ;$$
 
 SET sql_mode='ORACLE,EMPTY_STRING_IS_NULL';
 SELECT @@sql_mode;
+--disable_service_connection
 SELECT '' AS empty;
+--enable_service_connection
 SET sql_mode='';
 SELECT @@sql_mode;
 SET sql_mode=DEFAULT;

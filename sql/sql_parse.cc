@@ -6128,7 +6128,7 @@ finish:
       thd->release_transactional_locks();
     }
   }
-  else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
+  else if (! thd->in_sub_stmt && ! thd->in_active_multi_stmt_transaction())
   {
     /*
       - If inside a multi-statement transaction,
@@ -7052,6 +7052,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      FALSE, FALSE))
           return TRUE; /* Access denied */
 
+    thd->col_access= dst_table->grant.privilege; // for sql_show.cc
     /*
       Check_grant will grant access if there is any column privileges on
       all of the tables thanks to the fourth parameter (bool show_table).

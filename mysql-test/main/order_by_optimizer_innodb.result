@@ -21,6 +21,10 @@ REPEAT('filler-data-', 10),
 REPEAT('filler-data-', 10)
 from 
 seq_0_to_1999;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 select pk1, count(*) from t2 group by pk1;
 pk1	count(*)
 0	1

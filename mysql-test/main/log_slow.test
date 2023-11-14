@@ -182,6 +182,7 @@ SET SESSION slow_query_log=default;
 drop table tab_MDEV_30820, tab2;
 drop function get_zero;
 
+--enable_view_protocol
 --enable_ps2_protocol
 --enable_view_protocol
 
