@@ -1,0 +1,20 @@
+call mtr.add_suppression("Checksum mismatch in the first page of file");
+show variables like 'innodb_doublewrite';
+Variable_name	Value
+innodb_doublewrite	ON
+create table t1(f1 int not null, f2 int not null)engine=innodb;
+insert into t1 values (1, 1);
+InnoDB		0 transactions not purged
+set GLOBAL innodb_log_checkpoint_now=1;
+# Make the first page dirty for undo tablespace
+set global innodb_saved_page_number_debug = 0;
+set global innodb_fil_make_page_dirty_debug = 1;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+# Kill the server
+# restart
+FOUND 1 /Checksum mismatch in the first page of file/ in mysqld.1.err
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;

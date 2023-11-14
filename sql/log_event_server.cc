@@ -2971,6 +2971,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       sa_seq_no= thd->get_binlog_start_alter_seq_no();
     flags2|= FL_DDL;
   }
+
+  DBUG_ASSERT(thd_arg->lex->sql_command != SQLCOM_CREATE_SEQUENCE ||
+              (flags2 & FL_DDL) || thd_arg->in_multi_stmt_transaction_mode());
 }
 
 
