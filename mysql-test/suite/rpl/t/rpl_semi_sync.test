@@ -12,14 +12,34 @@ let $engine_type= InnoDB;
 
 # Suppress warnings that might be generated during the test
 connection master;
+
+# Make a thread handle SIGHUP
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+  my $mysqld_pid = `cat $pid_filename`;
+  chomp($mysqld_pid);
+  system("kill -HUP $mysqld_pid");
+  exit(0);
+EOF
+
 call mtr.add_suppression("Timeout waiting for reply of binlog");
 call mtr.add_suppression("Read semi-sync reply");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 call mtr.add_suppression("mysqld: Got an error reading communication packets");
+--disable_query_log
+set @old_log_warnings= @@global.log_warnings;
+set global log_warnings=9;
+--enable_query_log
 connection slave;
 call mtr.add_suppression("Master server does not support semi-sync");
 call mtr.add_suppression("Semi-sync slave .* reply");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
+--disable_query_log
+set @old_log_warnings= @@global.log_warnings;
+set global log_warnings=9;
+--enable_query_log
 connection master;
 
 # wait for dying connections (if any) to disappear
@@ -526,8 +546,14 @@ change master to master_user='root',master_password='';
 source include/start_slave.inc;
 
 connection master;
+--disable_query_log
+set global log_warnings=@old_log_warnings;
+--enable_query_log
 drop table t1;
 sync_slave_with_master;
+--disable_query_log
+set global log_warnings=@old_log_warnings;
+--enable_query_log
 
 connection master;
 drop user rpl@127.0.0.1;

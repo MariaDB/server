@@ -3564,6 +3564,17 @@ bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id)
     server_threads.iterate(kill_callback, &arg);
     if (!arg.thd)
       return 0;
+    /*
+      It is possible for multiple dump threads to need to die, so if this is
+      a new dump thread that isn't killed, and we are also still not killed,
+      then kill it. If we are killed, then simply skip and eventually die.
+    */
+    if (!arg.thd->is_killed() && !thd->is_killed())
+    {
+      arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+      arg.thd->abort_current_cond_wait(true);
+      ack_receiver.remove_slave(arg.thd);
+    }
     mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
     mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
     my_sleep(1000000L / 10);                // Wait 1/10 of a second
