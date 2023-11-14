@@ -59,6 +59,7 @@
 #include "sp_rcontext.h"
 #include "sp_head.h"
 #include "sql_table.h"
+#include "log_cache.h"
 
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
@@ -75,9 +76,6 @@
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
 #define MAX_TIME_SIZE 32
-#define MY_OFF_T_UNDEF (~(my_off_t)0UL)
-/* Truncate cache log files bigger than this */
-#define CACHE_FILE_TRUNC_SIZE 65536
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -103,8 +101,6 @@ static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
-
-static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -275,243 +271,7 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
   Helper classes to store non-transactional and transactional data
   before copying it to the binary log.
 */
-class binlog_cache_data
-{
-public:
-  binlog_cache_data(): before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
-  incident(FALSE), saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
-  ptr_binlog_cache_disk_use(0)
-  { }
-  
-  ~binlog_cache_data()
-  {
-    DBUG_ASSERT(empty());
-    close_cached_file(&cache_log);
-  }
 
-  /*
-    Return 1 if there is no relevant entries in the cache
-
-    This is:
-    - Cache is empty
-    - There are row or critical (DDL?) events in the cache
-
-    The status test is needed to avoid writing entries with only
-    a table map entry, which would crash in do_apply_event() on the slave
-    as it assumes that there is always a row entry after a table map.
-  */
-  bool empty() const
-  {
-    return (pending() == NULL &&
-            (my_b_write_tell(&cache_log) == 0 ||
-             ((status & (LOGGED_ROW_EVENT | LOGGED_CRITICAL)) == 0)));
-  }
-
-  Rows_log_event *pending() const
-  {
-    return m_pending;
-  }
-
-  void set_pending(Rows_log_event *const pending_arg)
-  {
-    m_pending= pending_arg;
-  }
-
-  void set_incident(void)
-  {
-    incident= TRUE;
-  }
-  
-  bool has_incident(void)
-  {
-    return(incident);
-  }
-
-  void reset()
-  {
-    bool cache_was_empty= empty();
-    bool truncate_file= (cache_log.file != -1 &&
-                         my_b_write_tell(&cache_log) > CACHE_FILE_TRUNC_SIZE);
-    truncate(0,1);                              // Forget what's in cache
-    if (!cache_was_empty)
-      compute_statistics();
-    if (truncate_file)
-      my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
-
-    status= 0;
-    incident= FALSE;
-    before_stmt_pos= MY_OFF_T_UNDEF;
-    DBUG_ASSERT(empty());
-  }
-
-  my_off_t get_byte_position() const
-  {
-    return my_b_tell(&cache_log);
-  }
-
-  my_off_t get_prev_position()
-  {
-     return(before_stmt_pos);
-  }
-
-  void set_prev_position(my_off_t pos)
-  {
-     before_stmt_pos= pos;
-  }
-  
-  void restore_prev_position()
-  {
-    truncate(before_stmt_pos);
-  }
-
-  void restore_savepoint(my_off_t pos)
-  {
-    truncate(pos);
-    if (pos < before_stmt_pos)
-      before_stmt_pos= MY_OFF_T_UNDEF;
-  }
-
-  void set_binlog_cache_info(my_off_t param_max_binlog_cache_size,
-                             ulong *param_ptr_binlog_cache_use,
-                             ulong *param_ptr_binlog_cache_disk_use)
-  {
-    /*
-      The assertions guarantee that the set_binlog_cache_info is
-      called just once and information passed as parameters are
-      never zero.
-
-      This is done while calling the constructor binlog_cache_mngr.
-      We cannot set information in the constructor binlog_cache_data
-      because the space for binlog_cache_mngr is allocated through
-      a placement new.
-
-      In the future, we can refactor this and change it to avoid
-      the set_binlog_info. 
-    */
-    DBUG_ASSERT(saved_max_binlog_cache_size == 0);
-    DBUG_ASSERT(param_max_binlog_cache_size != 0);
-    DBUG_ASSERT(ptr_binlog_cache_use == 0);
-    DBUG_ASSERT(param_ptr_binlog_cache_use != 0);
-    DBUG_ASSERT(ptr_binlog_cache_disk_use == 0);
-    DBUG_ASSERT(param_ptr_binlog_cache_disk_use != 0);
-
-    saved_max_binlog_cache_size= param_max_binlog_cache_size;
-    ptr_binlog_cache_use= param_ptr_binlog_cache_use;
-    ptr_binlog_cache_disk_use= param_ptr_binlog_cache_disk_use;
-    cache_log.end_of_file= saved_max_binlog_cache_size;
-  }
-
-  void add_status(enum_logged_status status_arg)
-  {
-    status|= status_arg;
-  }
-
-  /*
-    Cache to store data before copying it to the binary log.
-  */
-  IO_CACHE cache_log;
-
-protected:
-  /*
-    Binlog position before the start of the current statement.
-  */
-  my_off_t before_stmt_pos;
-
-private:
-  /*
-    Pending binrows event. This event is the event where the rows are currently
-    written.
-   */
-  Rows_log_event *m_pending;
-
-  /*
-    Bit flags for what has been writing to cache. Used to
-    discard logs without any data changes.
-    see enum_logged_status;
-  */
-  uint32 status;
-
-  /*
-    This indicates that some events did not get into the cache and most likely
-    it is corrupted.
-  */ 
-  bool incident;
-
-  /**
-    This function computes binlog cache and disk usage.
-  */
-  void compute_statistics()
-  {
-    statistic_increment(*ptr_binlog_cache_use, &LOCK_status);
-    if (cache_log.disk_writes != 0)
-    {
-#ifdef REAL_STATISTICS
-      statistic_add(*ptr_binlog_cache_disk_use,
-                    cache_log.disk_writes, &LOCK_status);
-#else
-      statistic_increment(*ptr_binlog_cache_disk_use, &LOCK_status);
-#endif
-      cache_log.disk_writes= 0;
-    }
-  }
-
-  /*
-    Stores the values of maximum size of the cache allowed when this cache
-    is configured. This corresponds to either
-      . max_binlog_cache_size or max_binlog_stmt_cache_size.
-  */
-  my_off_t saved_max_binlog_cache_size;
-
-  /*
-    Stores a pointer to the status variable that keeps track of the in-memory 
-    cache usage. This corresponds to either
-      . binlog_cache_use or binlog_stmt_cache_use.
-  */
-  ulong *ptr_binlog_cache_use;
-
-  /*
-    Stores a pointer to the status variable that keeps track of the disk
-    cache usage. This corresponds to either
-      . binlog_cache_disk_use or binlog_stmt_cache_disk_use.
-  */
-  ulong *ptr_binlog_cache_disk_use;
-
-  /*
-    It truncates the cache to a certain position. This includes deleting the
-    pending event.
-   */
-  void truncate(my_off_t pos, bool reset_cache=0)
-  {
-    DBUG_PRINT("info", ("truncating to position %lu", (ulong) pos));
-    cache_log.error=0;
-    if (pending())
-    {
-      delete pending();
-      set_pending(0);
-    }
-    my_bool res= reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
-    DBUG_ASSERT(res == 0);
-    cache_log.end_of_file= saved_max_binlog_cache_size;
-  }
-
-  binlog_cache_data& operator=(const binlog_cache_data& info);
-  binlog_cache_data(const binlog_cache_data& info);
-};
-
-
-class online_alter_cache_data: public Sql_alloc, public ilist_node<>,
-  public binlog_cache_data
-{
-public:
-  void store_prev_position()
-  {
-    before_stmt_pos= my_b_write_tell(&cache_log);
-  }
-
-  handlerton *hton;
-  Cache_flip_event_log *sink_log;
-  SAVEPOINT *sv_list;
-};
 
 void Log_event_writer::add_status(enum_logged_status status)
 {
@@ -2185,7 +1945,6 @@ int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
               (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
-
   rc= binlog_rollback(hton, thd, TRUE);
   thd->ha_data[hton->slot].ha_info[1].reset();
 
@@ -2213,15 +1972,16 @@ inline bool is_prepared_xa(THD *thd)
 static bool trans_cannot_safely_rollback(THD *thd, bool all)
 {
   DBUG_ASSERT(ending_trans(thd, all));
+  ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
 
   return ((thd->variables.option_bits & OPTION_BINLOG_THIS_TRX) ||
           (trans_has_updated_non_trans_table(thd) &&
-           thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT) ||
+           binlog_format == BINLOG_FORMAT_STMT) ||
           (thd->transaction->all.has_modified_non_trans_temp_table() &&
-           thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED) ||
+           binlog_format == BINLOG_FORMAT_MIXED) ||
           (trans_has_updated_non_trans_table(thd) &&
            ending_single_stmt_trans(thd,all) &&
-           thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED) ||
+           binlog_format == BINLOG_FORMAT_MIXED) ||
           is_prepared_xa(thd));
 }
 
@@ -2267,61 +2027,6 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
 }
 
-#ifdef HAVE_REPLICATION
-int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
-                                const uchar *after_record, Log_func *log_func)
-{
-  THD *thd= table->in_use;
-
-  if (!table->online_alter_cache)
-  {
-    table->online_alter_cache= online_alter_binlog_get_cache_data(thd, table);
-    trans_register_ha(thd, false, binlog_hton, 0);
-    if (thd->in_multi_stmt_transaction_mode())
-      trans_register_ha(thd, true, binlog_hton, 0);
-  }
-
-  // We need to log all columns for the case if alter table changes primary key
-  DBUG_ASSERT(!before_record || bitmap_is_set_all(table->read_set));
-  MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
-  table->rpl_write_set= &table->s->all_set;
-
-  table->online_alter_cache->store_prev_position();
-  int error= (*log_func)(thd, table, table->s->online_alter_binlog,
-                         table->online_alter_cache,
-                         table->file->has_transactions_and_rollback(),
-                         BINLOG_ROW_IMAGE_FULL,
-                         before_record, after_record);
-
-  table->rpl_write_set= old_rpl_write_set;
-
-  if (unlikely(error))
-  {
-    table->online_alter_cache->restore_prev_position();
-    return HA_ERR_RBR_LOGGING_FAILED;
-  }
-
-  return 0;
-}
-
-static void
-binlog_online_alter_cleanup(ilist<online_alter_cache_data> &list, bool ending_trans)
-{
-  if (ending_trans)
-  {
-    auto it= list.begin();
-    while (it != list.end())
-    {
-      auto &cache= *it++;
-      cache.sink_log->release();
-      cache.reset();
-      delete &cache;
-    }
-    list.clear();
-    DBUG_ASSERT(list.empty());
-  }
-}
-#endif // HAVE_REPLICATION
 
 /**
   This function is called once after each statement.
@@ -2339,12 +2044,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
 
-  IF_DBUG(bool commit_online= !thd->online_alter_cache_list.empty(),);
-
   bool is_ending_transaction= ending_trans(thd, all);
-  error= binlog_online_alter_end_trans(thd, all, true);
-  if (error)
-    DBUG_RETURN(error);
 
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   /*
@@ -2352,7 +2052,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   */
   if (!cache_mngr)
   {
-    DBUG_ASSERT(WSREP(thd) || commit_online ||
+    DBUG_ASSERT(WSREP(thd) ||
                 (thd->lex->sql_command != SQLCOM_XA_PREPARE &&
                 !(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
                   thd->lex->xa_opt == XA_ONE_PHASE)));
@@ -2450,17 +2150,13 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   DBUG_ENTER("binlog_rollback");
 
   bool is_ending_trans= ending_trans(thd, all);
-
-  bool rollback_online= !thd->online_alter_cache_list.empty();
-  if (rollback_online)
-    binlog_online_alter_end_trans(thd, all, 0);
   int error= 0;
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   if (!cache_mngr)
   {
-    DBUG_ASSERT(WSREP(thd) || rollback_online);
-    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK || rollback_online);
+    DBUG_ASSERT(WSREP(thd));
+    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK);
 
     DBUG_RETURN(0);
   }
@@ -2513,6 +2209,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   }
   else if (likely(!error))
   {  
+    ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
     if (is_ending_trans && trans_cannot_safely_rollback(thd, all))
       error= binlog_rollback_flush_trx_cache(thd, all, cache_mngr);
     /*
@@ -2529,9 +2226,9 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
              (!(thd->transaction->stmt.has_created_dropped_temp_table() &&
                 !thd->is_current_stmt_binlog_format_row()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
-               thd->wsrep_binlog_format() != BINLOG_FORMAT_STMT) &&
+               binlog_format != BINLOG_FORMAT_STMT) &&
               (!thd->transaction->stmt.has_modified_non_trans_temp_table() ||
-               thd->wsrep_binlog_format() != BINLOG_FORMAT_MIXED)))
+               binlog_format != BINLOG_FORMAT_MIXED)))
       error= binlog_truncate_trx_cache(thd, cache_mngr, all);
   }
 
@@ -2653,9 +2350,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   int error= 1;
   DBUG_ENTER("binlog_savepoint_set");
 
-  if (!mysql_bin_log.is_open() && !thd->online_alter_cache_list.empty())
-    DBUG_RETURN(0);
-
   char buf[1024];
 
   String log_query(buf, sizeof(buf), &my_charset_bin);
@@ -2687,9 +2381,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
-
-  if (!mysql_bin_log.is_open() && !thd->online_alter_cache_list.empty())
-    DBUG_RETURN(0);
 
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
@@ -6443,54 +6134,6 @@ write_err:
 }
 
 
-#ifdef HAVE_REPLICATION
-static online_alter_cache_data *
-online_alter_binlog_setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
-{
-  static ulong online_alter_cache_use= 0, online_alter_cache_disk_use= 0;
-
-  auto cache= new (root) online_alter_cache_data();
-  if (!cache || open_cached_file(&cache->cache_log, mysql_tmpdir,
-                         LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
-  {
-    delete cache;
-    return NULL;
-  }
-
-  share->online_alter_binlog->acquire();
-  cache->hton= share->db_type();
-  cache->sink_log= share->online_alter_binlog;
-
-  my_off_t binlog_max_size= SIZE_T_MAX; // maximum possible cache size
-  DBUG_EXECUTE_IF("online_alter_small_cache", binlog_max_size= 4096;);
-
-  cache->set_binlog_cache_info(binlog_max_size,
-                               &online_alter_cache_use,
-                               &online_alter_cache_disk_use);
-  cache->store_prev_position();
-  return cache;
-}
-
-
-online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table)
-{
-  ilist<online_alter_cache_data> &list= thd->online_alter_cache_list;
-
-  /* we assume it's very rare to have more than one online ALTER running */
-  for (auto &cache: list)
-  {
-    if (cache.sink_log == table->s->online_alter_binlog)
-      return &cache;
-  }
-
-  MEM_ROOT *root= &thd->transaction->mem_root;
-  auto *new_cache_data= online_alter_binlog_setup_cache_data(root, table->s);
-  list.push_back(*new_cache_data);
-
-  return new_cache_data;
-}
-#endif
-
 binlog_cache_mngr *THD::binlog_get_cache_mngr() const
 {
   return (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
@@ -7747,129 +7390,6 @@ private:
   bool first;
 };
 
-static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
-{
-  DBUG_ENTER("binlog_online_alter_end_trans");
-  int error= 0;
-#ifdef HAVE_REPLICATION
-  if (thd->online_alter_cache_list.empty())
-    DBUG_RETURN(0);
-
-  bool is_ending_transaction= ending_trans(thd, all);
-
-  for (auto &cache: thd->online_alter_cache_list)
-  {
-    auto *binlog= cache.sink_log;
-    DBUG_ASSERT(binlog);
-    bool non_trans= cache.hton->flags & HTON_NO_ROLLBACK // Aria
-                    || !cache.hton->rollback;
-    bool do_commit= (commit && is_ending_transaction) || non_trans;
-
-    if (commit || non_trans)
-    {
-      // Do not set STMT_END for last event to leave table open in altering thd
-      error= binlog_flush_pending_rows_event(thd, false, true, binlog, &cache);
-    }
-
-    if (do_commit)
-    {
-      /*
-        If the cache wasn't reinited to write, then it remains empty after
-        the last write.
-      */
-      if (my_b_bytes_in_cache(&cache.cache_log) && likely(!error))
-      {
-        DBUG_ASSERT(cache.cache_log.type != READ_CACHE);
-        mysql_mutex_lock(binlog->get_log_lock());
-        error= binlog->write_cache_raw(thd, &cache.cache_log);
-        mysql_mutex_unlock(binlog->get_log_lock());
-      }
-    }
-    else if (!commit) // rollback
-    {
-      DBUG_ASSERT(!non_trans);
-      cache.restore_prev_position();
-    }
-    else
-    {
-      DBUG_ASSERT(!is_ending_transaction);
-      cache.store_prev_position();
-    }
-
-
-    if (error)
-    {
-      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG),
-               binlog->get_name(), errno);
-      binlog_online_alter_cleanup(thd->online_alter_cache_list,
-                                  is_ending_transaction);
-      DBUG_RETURN(error);
-    }
-  }
-
-  binlog_online_alter_cleanup(thd->online_alter_cache_list,
-                              is_ending_transaction);
-
-  for (TABLE *table= thd->open_tables; table; table= table->next)
-    table->online_alter_cache= NULL;
-#endif // HAVE_REPLICATION
-  DBUG_RETURN(error);
-}
-
-SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
-                                   SAVEPOINT ** const list);
-
-SAVEPOINT* savepoint_add(THD *thd, LEX_CSTRING name, SAVEPOINT **list,
-                         int (*release_old)(THD*, SAVEPOINT*));
-
-int online_alter_savepoint_set(THD *thd, LEX_CSTRING name)
-{
-
-  DBUG_ENTER("binlog_online_alter_savepoint");
-#ifdef HAVE_REPLICATION
-  if (thd->online_alter_cache_list.empty())
-    DBUG_RETURN(0);
-
-  if (savepoint_alloc_size < sizeof (SAVEPOINT) + sizeof(my_off_t))
-    savepoint_alloc_size= sizeof (SAVEPOINT) + sizeof(my_off_t);
-
-  for (auto &cache: thd->online_alter_cache_list)
-  {
-    if (cache.hton->savepoint_set == NULL)
-      continue;
-
-    SAVEPOINT *sv= savepoint_add(thd, name, &cache.sv_list, NULL);
-    if(unlikely(sv == NULL))
-      DBUG_RETURN(1);
-    my_off_t *pos= (my_off_t*)(sv+1);
-    *pos= cache.get_byte_position();
-
-    sv->prev= cache.sv_list;
-    cache.sv_list= sv;
-  }
-#endif
-  DBUG_RETURN(0);
-}
-
-int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name)
-{
-  DBUG_ENTER("online_alter_savepoint_rollback");
-#ifdef HAVE_REPLICATION
-  for (auto &cache: thd->online_alter_cache_list)
-  {
-    if (cache.hton->savepoint_set == NULL)
-      continue;
-
-    SAVEPOINT **sv= find_savepoint_in_list(thd, name, &cache.sv_list);
-    // sv is null if savepoint was set up before online table was modified
-    my_off_t pos= *sv ? *(my_off_t*)(*sv+1) : 0;
-
-    cache.restore_savepoint(pos);
-  }
-
-#endif
-  DBUG_RETURN(0);
-}
 
 int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
 {

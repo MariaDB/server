@@ -1764,8 +1764,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
   /* rw_trans is TRUE when we in a transaction changing data */
-  bool rw_trans= is_real_trans &&
-                 (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+  bool rw_trans= is_real_trans && rw_ha_count > 0;
   MDL_request mdl_backup;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
@@ -2597,7 +2596,7 @@ static bool xarecover_decide_to_commit(xid_recovery_member* member,
 static void xarecover_do_commit_or_rollback(handlerton *hton,
                                             xarecover_complete_arg *arg)
 {
-  xid_t x;
+  XA_data x;
   my_bool rc;
   xid_recovery_member *member= arg->member;
   Binlog_offset *ptr_commit_max= arg->binlog_coord;
@@ -2606,7 +2605,7 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
     // Populate xid using the server_id from original transaction
     x.set(member->xid, member->server_id);
   else
-    x= *member->full_xid;
+    (XID)x= *member->full_xid;
 
   rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
     hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
@@ -7314,8 +7313,8 @@ int handler::binlog_log_row(const uchar *before_record,
 
 #ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog && is_root_handler()))
-    error= binlog_log_row_online_alter(table, before_record, after_record,
-                                       log_func);
+    error= online_alter_log_row(table, before_record, after_record,
+                                log_func);
 #endif // HAVE_REPLICATION
 
   DBUG_RETURN(error);

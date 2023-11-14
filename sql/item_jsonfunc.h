@@ -869,9 +869,10 @@ protected:
   bool hash_inited, root_inited;
   HASH items;
   MEM_ROOT hash_root;
+  bool parse_for_each_row;
 public:
   Item_func_json_array_intersect(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
+    Item_str_func(thd, a, b) { hash_inited= root_inited= parse_for_each_row= false; }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -889,6 +890,7 @@ public:
     if (root_inited)
       free_root(&hash_root, MYF(0));
   }
+  void prepare_json_and_create_hash(json_engine_t *je1, String *js);
 };
 
 class Item_func_json_object_filter_keys: public Item_str_func

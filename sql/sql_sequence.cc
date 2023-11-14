@@ -187,7 +187,8 @@ void sequence_definition::store_fields(TABLE *table)
     true        Failure
 */
 
-bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
+bool check_sequence_fields(LEX *lex, List<Create_field> *fields,
+                           const LEX_CSTRING db, const LEX_CSTRING table_name)
 {
   Create_field *field;
   List_iterator_fast<Create_field> it(*fields);
@@ -235,8 +236,7 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
 err:
   my_error(ER_SEQUENCE_INVALID_TABLE_STRUCTURE, MYF(0),
-           lex->first_select_lex()->table_list.first->db.str,
-           lex->first_select_lex()->table_list.first->table_name.str, reason);
+           db.str, table_name.str, reason);
   DBUG_RETURN(TRUE);
 }
 
@@ -301,7 +301,8 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   Query_tables_list query_tables_list_backup;
   TABLE_LIST table_list;                        // For sequence table
   DBUG_ENTER("sequence_insert");
-
+  DBUG_EXECUTE_IF("kill_query_on_sequence_insert",
+                  thd->set_killed(KILL_QUERY););
   /*
     seq is 0 if sequence was created with CREATE TABLE instead of
     CREATE SEQUENCE

@@ -6226,7 +6226,8 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   table= 0;
   for (uint i=1 ; i < arg_count ; i++)
   {
-    item= args[i]= args[i]->real_item();
+
+    item= args[i]->real_item();
     /*
       When running in PS mode, some Item_field's can already be replaced
       to Item_func_conv_charset during PREPARE time. This is possible
@@ -6315,9 +6316,10 @@ bool Item_func_match::fix_index()
 
   for (i=1; i < arg_count; i++)
   {
-    if (args[i]->type() != FIELD_ITEM)
+    Item *real_item= args[i]->real_item();
+    if (real_item->type() != FIELD_ITEM)
       goto err;
-    item=(Item_field*)args[i];
+    item=(Item_field*)real_item;
     for (keynr=0 ; keynr < fts ; keynr++)
     {
       KEY *ft_key=&table->key_info[ft_to_key[keynr]];

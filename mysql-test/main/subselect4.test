@@ -1,7 +1,5 @@
 # General purpose bug fix tests go here : subselect.test too large
 
-#remove this include after fix MDEV-27871, MDEV-27957
---source include/no_view_protocol.inc
 
 --source include/default_optimizer_switch.inc
 
@@ -243,22 +241,22 @@ SELECT t1.pk, NULL NOT IN (SELECT t2d.i FROM t2d  WHERE t2d.pk = t1.pk) FROM t1;
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
-SELECT (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk) from t1;
+SELECT (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk) as exp from t1;
 
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk);
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk);
-SELECT (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk) from t1;
+SELECT (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk) as exp from t1;
 
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
-SELECT (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk) from t1;
+SELECT (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk) as exp from t1;
 
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk);
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk);
-SELECT (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk) from t1;
+SELECT (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk) as exp from t1;
 
 drop table t1, t2a, t2b, t2c, t2d;
 
@@ -1334,10 +1332,10 @@ INSERT INTO t3 VALUES (0,0), (0,0);
 
 EXPLAIN SELECT STRAIGHT_JOIN (
         SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-);
+) as exp;
 SELECT STRAIGHT_JOIN (
         SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-);
+) as exp;
 
 drop table t1, t2, t3;
 
@@ -2158,7 +2156,7 @@ SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='subquery_cache=off';
 CREATE TABLE t1 (a INT,b INT);
 INSERT INTO t1 VALUES (0,0),(0,0);
-SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
+SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) as exp FROM t1 AS t1o;
 SET @@optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1;
 
@@ -2322,7 +2320,7 @@ SELECT
     FROM
       t1 AS t1_outer
     GROUP BY f
-  );
+  ) as exp;
 
 SELECT
   1 IN (
@@ -2334,7 +2332,7 @@ SELECT
     FROM
       t1 AS t1_outer
     GROUP BY 1
-  );
+  ) as exp;
 
 DROP TABLE t1;
 
@@ -2578,6 +2576,40 @@ select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
 
 
 drop table t0, t1, t2;
+
+--echo #
+--echo # MDEV-32320: Server crashes at TABLE::add_tmp_key
+--echo #
+
+--error ER_OPERAND_COLUMNS
+select
+  ( ( 'x' , 1.000000 ) , 1 )
+IN
+(SELECT
+   'x' , 'x'
+ WHERE ( 'x' )
+ UNION
+ SELECT 1 , 'x'
+ HAVING 1 != 1
+) as T;
+
+--error ER_OPERAND_COLUMNS
+SELECT
+  EXISTS (
+    WITH x ( x ) AS ( SELECT 1 )
+    SELECT NULL
+    WHERE ( 1 , 1 ) =
+         (SELECT
+           1 , ( ( x , 1.000000 ) , 1 )
+          IN
+          (SELECT 'x' , 'x' WHERE ( ( 'x' ) )
+           UNION
+           SELECT 1 , x HAVING 1 != 1
+          )
+          FROM x
+         )
+  );
+
 
 --echo # End of 10.4 tests
 

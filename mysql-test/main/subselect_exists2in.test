@@ -272,24 +272,22 @@ INSERT INTO t3 VALUES (4),(5);
 
 SET optimizer_switch='exists_to_in=on,subquery_cache=off,materialization=on,in_to_exists=off,semijoin=off';
 
-#enable after fix MDEV-27871
---disable_view_protocol
 explain extended
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
 
 SET optimizer_switch='exists_to_in=on,subquery_cache=off';
 
 
 explain extended
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
 
 SET optimizer_switch='exists_to_in=off,subquery_cache=off';
 
 explain extended
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) as exp FROM t1;
 
 set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
@@ -328,8 +326,6 @@ set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
 
 drop table t1,t3;
-
---enable_view_protocol
 
 --echo #
 --echo # MDEV-159 Assertion about not marked for read failed in

@@ -37,13 +37,13 @@ que_node_t */
 #include "que0types.h"
 #include "que0que.h"
 #include "row0sel.h"
-
-#if defined __GNUC__ && (!defined __clang_major__ || __clang_major__ > 11)
-#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#ifdef __GNUC__
+# pragma GCC diagnostic ignored "-Wpragmas"
+# pragma GCC diagnostic ignored "-Wunknown-warning-option"
+# pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+# pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #endif
-
 #define YYSTYPE que_node_t*
-
 /* #define __STDC__ */
 int
 yylex(void);

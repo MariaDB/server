@@ -1,5 +1,3 @@
-SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 # Bug #12429576 - Test an assertion failure on purge.
 CREATE TABLE t1_purge (
 A int,
@@ -118,4 +116,3 @@ t12963823	CREATE TABLE `t12963823` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 InnoDB		0 transactions not purged
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge, t12637786, t12963823;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

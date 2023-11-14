@@ -2885,8 +2885,9 @@ export const char *optimizer_switch_names[]=
   "condition_pushdown_from_having",
   "not_null_range_scan",
   "hash_join_cardinality",
+  "cset_narrowing",
   "sargable_casefold",
-  "default", 
+  "default",
   NullS
 };
 static bool check_legal_optimizer_switch(sys_var *self, THD *thd,

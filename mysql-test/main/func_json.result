@@ -28,8 +28,8 @@ NULL
 select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
 json_value('{"key1": [1,2,3], "key1":123}', '$.key1')
 123
-select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z');
-JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z')
+select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z') as exp;
+exp
 Mon"t"y
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
 json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2')
@@ -43,8 +43,8 @@ NULL
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
 json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 [1,2,3]
-select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)));
-json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)))
+select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000))) as exp;
+exp
 NULL
 select json_array();
 json_array()
@@ -76,14 +76,14 @@ json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x')
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
 json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
 ["a", {"b": [1, 2]}, [3, 4], "x"]
-select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
-json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x')
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x') as exp;
+exp
 ["a", {"b": ["x", 1, 2]}, [3, 4]]
 select json_array_insert('true', '$', 1);
 json_array_insert('true', '$', 1)
 NULL
-select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y');
-json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y')
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y') as exp;
+exp
 ["a", {"b": [1, 2]}, [3, "y", 4]]
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 json_contains('{"k1":123, "k2":345}', '123', '$.k1')
@@ -152,98 +152,98 @@ json_contains('[1, {"a":1}]', '{"a":1}')
 select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
 json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]')
 0
-select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
-json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]')
+select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]') as exp;
+exp
 1
 select json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}');
 json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}')
 1
-select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
-json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]") as exp;
+exp
 1
-select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");
-json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]") as exp;
+exp
 0
-select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma");
-json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma") as exp;
+exp
 0
-select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1");
-json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1") as exp;
+exp
 1
-select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma");
-json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma") as exp;
+exp
 1
-select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma");
-json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma") as exp;
+exp
 0
-select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2");
-json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2")
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2") as exp;
+exp
 1
-select json_contains_path('{ "a": true }', NULL, '$.a' );
-json_contains_path('{ "a": true }', NULL, '$.a' )
+select json_contains_path('{ "a": true }', NULL, '$.a' ) as exp;
+exp
 NULL
-select json_contains_path('{ "a": true }', 'all', NULL );
-json_contains_path('{ "a": true }', 'all', NULL )
+select json_contains_path('{ "a": true }', 'all', NULL ) as exp;
+exp
 NULL
-select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*');
-json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*')
+select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*') as exp;
+exp
 1
-select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
-json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1")
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1") as exp;
+exp
 "asd"
-select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY");
-json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY")
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY") as exp;
+exp
 NULL
-select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2");
-json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2")
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2") as exp;
+exp
 ["asd", [2, 3]]
-select json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2");
-json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2")
+select json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2") as exp;
+exp
 [5, [2, 3]]
-select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
-json_extract('{"key0":true, "key1":"qwe"}', "$.key1")
+select json_extract('{"key0":true, "key1":"qwe"}', "$.key1") as exp;
+exp
 "qwe"
-select json_extract(json_object('foo', 'foobar'),'$');
-json_extract(json_object('foo', 'foobar'),'$')
+select json_extract(json_object('foo', 'foobar'),'$') as exp;
+exp
 {"foo": "foobar"}
-select json_extract('[10, 20, [30, 40]]', '$[2][*]');
-json_extract('[10, 20, [30, 40]]', '$[2][*]')
+select json_extract('[10, 20, [30, 40]]', '$[2][*]') as exp;
+exp
 [30, 40]
-select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
-json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]')
+select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]') as exp;
+exp
 [{"a": 3}, 30, 40]
-select json_extract('1', '$');
-json_extract('1', '$')
+select json_extract('1', '$') as exp;
+exp
 1
-select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
-json_extract('[10, 20, [30, 40], 1, 10]', '$[1]')
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]') as exp;
+exp
 20
-select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]');
-json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]')
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]') as exp;
+exp
 [20]
-select json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a');
-json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a')
+select json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a') as exp;
+exp
 [[3, 4]]
-select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
-json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word') as exp;
+exp
 {"a": 1, "b": {"c": 1, "k1": "word"}, "d": [1, 2]}
-select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
-json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3)
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3) as exp;
+exp
 {"a": 1, "b": {"c": 1}, "d": [1, 2, 3]}
-select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2);
-json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2)
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2) as exp;
+exp
 {"a": [1, 2], "b": {"c": 1}, "d": [1, 2]}
-select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word');
-json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word')
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word') as exp;
+exp
 {"a": 1, "b": {"c": 1}, "d": [1, 2]}
-select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
-json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]')
+select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]') as exp;
+exp
 {"a": 10, "b": [2, 3], "c": "[true, false]"}
-select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
-json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]')
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]') as exp;
+exp
 {"a": 10, "b": [2, 3]}
-select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]');
-json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]')
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]') as exp;
+exp
 {"a": 10, "b": "[true, false]"}
 set @j = '["a", ["b", "c"], "d"]';
 select json_remove(@j, '$[0]');
@@ -278,14 +278,14 @@ select * from t1;
 f
 {"id": 87, "name": "carrot"}
 drop table t1;
-select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
-json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2")
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2") as ex;
+ex
 1
-select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]");
-json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]")
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]") as ex;
+ex
 1
-select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]");
-json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]")
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]") as ex;
+ex
 0
 select json_quote('"string"');
 json_quote('"string"')
@@ -362,43 +362,43 @@ json_keys('foo')
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
-select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}');
-json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}')
+select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}') as ex;
+ex
 ["a", "b", "c"]
-select json_keys('{"c1": "value 1", "c1": "value 2"}');
-json_keys('{"c1": "value 1", "c1": "value 2"}')
+select json_keys('{"c1": "value 1", "c1": "value 2"}') as ex;
+ex
 ["c1"]
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
-select json_search(@j, 'one', 'abc');
-json_search(@j, 'one', 'abc')
+select json_search(@j, 'one', 'abc') as ex;
+ex
 "$[0]"
-select json_search(@j, 'all', 'abc');
-json_search(@j, 'all', 'abc')
+select json_search(@j, 'all', 'abc') as ex;
+ex
 ["$[0]", "$[2].x"]
-select json_search(@j, 'all', 'abc', NULL, '$[2]');
-json_search(@j, 'all', 'abc', NULL, '$[2]')
+select json_search(@j, 'all', 'abc', NULL, '$[2]') as ex;
+ex
 "$[2].x"
-select json_search(@j, 'all', 'abc', NULL, '$');
-json_search(@j, 'all', 'abc', NULL, '$')
+select json_search(@j, 'all', 'abc', NULL, '$') as ex;
+ex
 ["$[0]", "$[2].x"]
-select json_search(@j, 'all', '10', NULL, '$');
-json_search(@j, 'all', '10', NULL, '$')
+select json_search(@j, 'all', '10', NULL, '$') as ex;
+ex
 "$[1][0].k"
-select json_search(@j, 'all', '10', NULL, '$[*]');
-json_search(@j, 'all', '10', NULL, '$[*]')
+select json_search(@j, 'all', '10', NULL, '$[*]') as ex;
+ex
 "$[1][0].k"
-select json_search(@j, 'all', '10', NULL, '$[*][0].k');
-json_search(@j, 'all', '10', NULL, '$[*][0].k')
+select json_search(@j, 'all', '10', NULL, '$[*][0].k') as ex;
+ex
 "$[1][0].k"
-select json_search(@j, 'all', '10', NULL, '$**.k');
-json_search(@j, 'all', '10', NULL, '$**.k')
+select json_search(@j, 'all', '10', NULL, '$**.k') as ex;
+ex
 "$[1][0].k"
 create table t1( json_col text );
 insert into t1 values
 ('{ "a": "foobar" }'),
 ('{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }');
-select json_search( json_col, 'all', 'foot' ) from t1;
-json_search( json_col, 'all', 'foot' )
+select json_search( json_col, 'all', 'foot' ) as ex from t1;
+ex
 NULL
 "$.c[1]"
 drop table t1;
@@ -468,32 +468,32 @@ json	CREATE TABLE `json` (
   `j` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table json;
-select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
-json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' )
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' ) as ex;
+ex
 1
-select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
-json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' )
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' ) as ex;
+ex
 1
-select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' );
-json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' )
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' ) as ex;
+ex
 1
-select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' );
-json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' )
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' ) as ex;
+ex
 1
-select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' );
-json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' )
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' ) as ex;
+ex
 2
-select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' );
-json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' )
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' ) as ex;
+ex
 2
-select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' );
-json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' )
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' ) as ex;
+ex
 2
-select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' );
-json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' )
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' ) as ex;
+ex
 2
-select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' );
-json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' )
+select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' ) as ex;
+ex
 2
 select json_set('1', '$[0]', 100);
 json_set('1', '$[0]', 100)
@@ -516,20 +516,20 @@ json_set('{"a":12}', '$[0][0].a', 100)
 select json_set('{"a":12}', '$[0][1].a', 100);
 json_set('{"a":12}', '$[0][1].a', 100)
 {"a": 12}
-select json_value('{"\\"key1":123}', '$."\\"key1"');
-json_value('{"\\"key1":123}', '$."\\"key1"')
+select json_value('{"\\"key1":123}', '$."\\"key1"') as ex;
+ex
 123
-select json_value('{"\\"key1\\"":123}', '$."\\"key1\\""');
-json_value('{"\\"key1\\"":123}', '$."\\"key1\\""')
+select json_value('{"\\"key1\\"":123}', '$."\\"key1\\""') as ex;
+ex
 123
-select json_value('{"key 1":123}', '$."key 1"');
-json_value('{"key 1":123}', '$."key 1"')
+select json_value('{"key 1":123}', '$."key 1"') as ex;
+ex
 123
-select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[2]");
-json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[2]")
+select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[2]") as ex;
+ex
 1
-select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[3]");
-json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[3]")
+select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[3]") as ex;
+ex
 0
 select json_extract( '[1]', '$[0][0]' );
 json_extract( '[1]', '$[0][0]' )
@@ -579,26 +579,26 @@ json_set('[]', '$[0][0][0]', 100)
 SELECT JSON_search( '{"": "a"}', "one", 'a');
 JSON_search( '{"": "a"}', "one", 'a')
 "$."
-select json_merge('{"a":"b"}', '{"a":"c"}') ;
-json_merge('{"a":"b"}', '{"a":"c"}')
+select json_merge('{"a":"b"}', '{"a":"c"}') as ex ;
+ex
 {"a": ["b", "c"]}
-select json_merge('{"a":{"x":"b"}}', '{"a":"c"}') ;
-json_merge('{"a":{"x":"b"}}', '{"a":"c"}')
+select json_merge('{"a":{"x":"b"}}', '{"a":"c"}') as ex ;
+ex
 {"a": [{"x": "b"}, "c"]}
-select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') ;
-json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}')
+select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') as ex ;
+ex
 {"a": {"u": 12, "x": ["b", "c"]}}
-select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;
-json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}')
+select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') as ex ;
+ex
 {"a": {"u": 12, "x": ["b", "c"], "r": [1, 2]}}
-select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
-json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}')
+select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') as ex;
+ex
 {"a":1,"b":[1,2,3],"c":{"aa":"v1","bb":"v2"}}
-select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
-json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}')
+select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') as ex;
+ex
 {"a": 1, "b": [1, 2, 3], "c": {"aa": "v1", "bb": "v2"}}
-select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
-json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}')
+select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') as ex;
+ex
 {
     "a": 1,
     "b": 
@@ -613,11 +613,11 @@ json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}')
         "bb": "v2"
     }
 }
-SELECT JSON_search( '{"x": "\\""}', "one", '"');
-JSON_search( '{"x": "\\""}', "one", '"')
+SELECT JSON_search( '{"x": "\\""}', "one", '"') as ex;
+ex
 "$.x"
-SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
-JSON_search( '{"x": "\\""}', "one", '\\"')
+SELECT JSON_search( '{"x": "\\""}', "one", '\\"') as ex;
+ex
 "$.x"
 set @save_max_allowed_packet=@@max_allowed_packet;
 set @save_net_buffer_length=@@net_buffer_length;
@@ -630,13 +630,13 @@ net_buffer_length	1024
 show variables like 'max_allowed_packet';
 Variable_name	Value
 max_allowed_packet	2048
-select json_array(repeat('a',1024),repeat('a',1024));
-json_array(repeat('a',1024),repeat('a',1024))
+select json_array(repeat('a',1024),repeat('a',1024)) as ex;
+ex
 NULL
 Warnings:
 Warning	1301	Result of json_array() was larger than max_allowed_packet (2048) - truncated
-select json_object("a", repeat('a',1024),"b", repeat('a',1024));
-json_object("a", repeat('a',1024),"b", repeat('a',1024))
+select json_object("a", repeat('a',1024),"b", repeat('a',1024)) as ex;
+ex
 NULL
 Warnings:
 Warning	1301	Result of json_object() was larger than max_allowed_packet (2048) - truncated
@@ -674,31 +674,31 @@ NULL
 SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]');
 JSON_EXTRACT( '{"foo":"bar"}', '$[*]')
 NULL
-select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value';
-JSON_EXTRACT('{"name":"value"}', '$.name') = 'value'
+select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value' as ex;
+ex
 1
-select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
-JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true as ex;
+ex
 1
-select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
-JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false as ex;
+ex
 0
-select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
-JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1 as ex;
+ex
 1
-select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
-JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"')
+select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"') as ex;
+ex
 "\u00f6"
-select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
-JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo')
+select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo') as ex;
+ex
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 15
-SELECT JSON_OBJECT('foo', '`');
-JSON_OBJECT('foo', '`')
+SELECT JSON_OBJECT('foo', '`') as ex;
+ex
 {"foo": "`"}
-SELECT JSON_OBJECT("foo", "bar`bar");
-JSON_OBJECT("foo", "bar`bar")
+SELECT JSON_OBJECT("foo", "bar`bar") as ex;
+ex
 {"foo": "bar`bar"}
 SELECT JSON_SET('{}', '$.age', 87);
 JSON_SET('{}', '$.age', 87)
@@ -776,21 +776,21 @@ insert into t1 values (_latin1 X'7B226B657931223A2253EC227D');
 select JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC' from t1;
 JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC'
 1
-select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' from t1;
-REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC'
+select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' as exp from t1;
+exp
 1
 drop table t1;
 #
 # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
 #
-SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6);
-JSON_SET('{}', '$.a', _utf8 0xC3B6)
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6) as exp;
+exp
 {"a": "ö"}
-SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
-JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6)
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6) as exp;
+exp
 {"a": "ö", "b": "ö"}
-SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
-JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6')
+SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6') as exp;
+exp
 {"a": "ö", "x": 1, "b": "ö"}
 #
 # MDEV-17121 JSON_ARRAY_APPEND
@@ -835,14 +835,14 @@ JSON_VALID( '{"a":1]' )
 #
 # MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
 #
-SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
-JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'))
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket')) as exp;
+exp
 ["str", {"plugin": "unix_socket"}]
-SELECT CHARSET(JSON_ARRAY());
-CHARSET(JSON_ARRAY())
+SELECT CHARSET(JSON_ARRAY()) as exp;
+exp
 latin1
-SELECT CHARSET(JSON_OBJECT());
-CHARSET(JSON_OBJECT())
+SELECT CHARSET(JSON_OBJECT()) as exp;
+exp
 latin1
 #
 # MDEV-13992 Implement JSON_MERGE_PATCH
@@ -892,31 +892,31 @@ id	target	patch	merged	a
 16	NULL	{}	NULL	NULL
 17	{}	NULL	NULL	NULL
 DROP TABLE merge_t;
-SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
-JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}')
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}') as exp;
+exp
 NULL
-SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
-JSON_MERGE_PATCH(NULL, '[1,2,3]')
+SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]') as exp;
+exp
 [1, 2, 3]
-SELECT JSON_MERGE_PATCH(NULL, 'a');
-JSON_MERGE_PATCH(NULL, 'a')
+SELECT JSON_MERGE_PATCH(NULL, 'a') as exp;
+exp
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 1
-SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
-JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}')
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}') as exp;
+exp
 {"d": "e"}
-SELECT JSON_MERGE_PATCH();
+SELECT JSON_MERGE_PATCH() as exp;
 ERROR 42000: Incorrect parameter count in the call to native function 'JSON_MERGE_PATCH'
-SELECT JSON_MERGE_PATCH('{}');
+SELECT JSON_MERGE_PATCH('{}') as exp;
 ERROR 42000: Incorrect parameter count in the call to native function 'JSON_MERGE_PATCH'
-SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
-JSON_MERGE_PATCH('{', '[1,2,3]')
+SELECT JSON_MERGE_PATCH('{', '[1,2,3]') as exp;
+exp
 NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_patch'
-SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
-JSON_MERGE_PATCH('{"a":"b"}', '[1,')
+SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,') as exp;
+exp
 NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
@@ -1379,8 +1379,8 @@ insert into t200 values
     }
   ]
 }');
-select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
-JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
+select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) as exp from t200;
+exp
 [
     {
         "range_scan_alternatives": 
@@ -1410,8 +1410,8 @@ JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
         ["123"]
     }
 ]
-select JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
-JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
+select JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) as exp from t200;
+exp
 [
     {
         "range_scan_alternatives": 
@@ -1441,8 +1441,8 @@ JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
         ["123"]
     }
 ]
-select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
-JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
+select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) as exp from t200;
+exp
 [{"range_scan_alternatives": [{"index": "a_b", "ranges": ["2 <= a <= 2 AND 4 <= b <= 4", "123"], "rowid_ordered": true, "using_mrr": false, "index_only": true, "rows": 1, "cost": 1.1752, "chosen": true}], "analyzing_roworder_intersect": {"cause": "too few roworder scans"}, "analyzing_index_merge_union": [], "test_one_line_array": ["123"]}]
 drop table t200;
 #
@@ -1615,11 +1615,11 @@ DROP TABLE t2;
 #
 # MDEV-27018 IF and COALESCE lose "json" property
 #
-SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
-json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')))
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f'))) as exp;
+exp
 {"a": {"b": "c"}}
-SELECT json_object('a', coalesce(json_object('b', 'c')));
-json_object('a', coalesce(json_object('b', 'c')))
+SELECT json_object('a', coalesce(json_object('b', 'c'))) as exp;
+exp
 {"a": {"b": "c"}}
 #
 # MDEV-26392: Crash with json_get_path_next and 10.5.12
@@ -1757,15 +1757,8 @@ SELECT JSON_OVERLAPS('{
 '{
                         "A": 2,
                         "B": "string1"
-                      }');
-JSON_OVERLAPS('{
-                       "A": 1,
-                       "B": "string1"
-                      }',
-'{
-                        "A": 2,
-                        "B": "string1"
-                      }')
+                      }') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{
                        "A": 1,
@@ -1774,15 +1767,8 @@ SELECT JSON_OVERLAPS('{
 '{
                        "A": 2,
                        "B": "string2"
-                      }');
-JSON_OVERLAPS('{
-                       "A": 1,
-                       "B": "string1"
-                      }',
-'{
-                       "A": 2,
-                       "B": "string2"
-                      }')
+                      }') as exp;
+exp
 0
 # Comparing nested object with other nested object
 SELECT JSON_OVERLAPS('{
@@ -1792,15 +1778,8 @@ SELECT JSON_OVERLAPS('{
 '{
                         "A": 2,
                         "B": {"C":1}
-                      }');
-JSON_OVERLAPS('{
-                        "A": 1,
-                        "B": {"C":2}
-                      }',
-'{
-                        "A": 2,
-                        "B": {"C":1}
-                      }')
+                      }') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('{
                        "A": 1,
@@ -1809,15 +1788,8 @@ SELECT JSON_OVERLAPS('{
 '{
                         "A": 2,
                         "B": {"C":2}
-                      }');
-JSON_OVERLAPS('{
-                       "A": 1,
-                       "B": {"C":2}
-                      }',
-'{
-                        "A": 2,
-                        "B": {"C":2}
-                      }')
+                      }') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{
                        "A": {
@@ -1829,171 +1801,136 @@ SELECT JSON_OVERLAPS('{
                              "B": true,
                              "C": false
                             }
-                      }');
-JSON_OVERLAPS('{
-                       "A": {
-                             "B": true
-                            }
-                      }',
-'{
-                       "A": {
-                             "B": true,
-                             "C": false
-
+                      }') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":5}}',
-'{"C":3, "B":{"E":5, "D":4}}');
-JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":5}}',
-'{"C":3, "B":{"E":5, "D":4}}')
+'{"C":3, "B":{"E":5, "D":4}}') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "B":{"E":5, "D":4}}');
-JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "B":{"E":5, "D":4}}')
+'{"C":3, "B":{"E":5, "D":4}}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "B":{"E":[5, 6, 7], "D":4}}');
-JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "B":{"E":[5, 6, 7], "D":4}}')
+'{"C":3, "B":{"E":[5, 6, 7], "D":4}}') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "B":{"E":[7, 6 ,5], "D":4}}');
-JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "B":{"E":[7, 6 ,5], "D":4}}')
+'{"C":3, "B":{"E":[7, 6 ,5], "D":4}}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "F":{"E":[5, 6, 7], "D":4}}');
-JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
-'{"C":3, "F":{"E":[5, 6, 7], "D":4}}')
+'{"C":3, "F":{"E":[5, 6, 7], "D":4}}') as exp;
+exp
 0
 # Comparing array with array (non-nested)
 SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
-'[3, 4, 1]');
-JSON_OVERLAPS('[1, 2, true, false, null]',
-'[3, 4, 1]')
+'[3, 4, 1]') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
 '[3, 4, 5]');
 JSON_OVERLAPS('[1, 2, true, false, null]',
 '[3, 4, 5]')
 0
-SELECT JSON_OVERLAPS('[1,2,3]','[]');
-JSON_OVERLAPS('[1,2,3]','[]')
+SELECT JSON_OVERLAPS('[1,2,3]','[]') as exp;
+exp
 0
 # Comparing nested arrays
 SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
-'[3, 4, [1]]');
-JSON_OVERLAPS('[1, 2, true, false, null]',
-'[3, 4, [1]]')
+'[3, 4, [1]]') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('[1, 2, [true, false], null]',
-'[[1], [true, false]]');
-JSON_OVERLAPS('[1, 2, [true, false], null]',
-'[[1], [true, false]]')
+'[[1], [true, false]]') as exp;
+exp
 1
-SELECT JSON_OVERLAPS('[1, 2, 3, [4, 5, 6]]','[7, 8, 9, [6, 5, 4]]');
-JSON_OVERLAPS('[1, 2, 3, [4, 5, 6]]','[7, 8, 9, [6, 5, 4]]')
+SELECT JSON_OVERLAPS('[1, 2, 3, [4, 5, 6]]','[7, 8, 9, [6, 5, 4]]') as exp;
+exp
 0
 # Comparing one non-scalar json datatypes with another non-scalar
 # json datatype
 # Comparing array with object
 SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
-'{"A": 1}');
-JSON_OVERLAPS('[1, 2, true, false, null]',
-'{"A": 1}')
+'{"A": 1}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('[1, 2, true, false, null, {"A":2}]',
-'{"A": 1}');
-JSON_OVERLAPS('[1, 2, true, false, null, {"A":2}]',
-'{"A": 1}')
+'{"A": 1}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('[1, {"A": 2}, {"A": 1}]',
-'{"A": 1}');
-JSON_OVERLAPS('[1, {"A": 2}, {"A": 1}]',
-'{"A": 1}')
+'{"A": 1}') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
-'{"A": 1, "B": 2}');
-JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
-'{"A": 1, "B": 2}')
+'{"A": 1, "B": 2}') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
-'{"A": 1, "B": 3}');
-JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
-'{"A": 1, "B": 3}')
+'{"A": 1, "B": 3}') as exp;
+exp
 0
 # Comparing nested array with object
 SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
-'{"A": 1, "B": 2}');
-JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
-'{"A": 1, "B": 2}')
+'{"A": 1, "B": 2}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
-'{"A": 1, "B": 3}');
-JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
-'{"A": 1, "B": 3}')
+'{"A": 1, "B": 3}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
-'{"A": 1}');
-JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
-'{"A": 1}')
+'{"A": 1}') as exp;
+exp
 0
 # Comparing array with nested object
 SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": {"C": 12}}]',
-'{"A": 1, "B": {"C": 12}}');
-JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": {"C": 12}}]',
-'{"A": 1, "B": {"C": 12}}')
+'{"A": 1, "B": {"C": 12}}') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
-'{"A": 1, "B": {"C": 12}}');
-JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
-'{"A": 1, "B": {"C": 12}}')
+'{"A": 1, "B": {"C": 12}}') as exp;
+exp
 0
 # Comparing nested array with nested objects
 SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
-'{"A": 1, "B":{"C": 12}}');
-JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
-'{"A": 1, "B":{"C": 12}}')
+'{"A": 1, "B":{"C": 12}}') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('[[1, 2, true, false, {"A": 1, "B": {"C": 12}}]]',
-'{"A": 1, "B": {"C": 12}}');
-JSON_OVERLAPS('[[1, 2, true, false, {"A": 1, "B": {"C": 12}}]]',
-'{"A": 1, "B": {"C": 12}}')
+'{"A": 1, "B": {"C": 12}}') as exp;
+exp
 0
 # Comparing object with array
 SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
-'[1, 2, true, false, {"A": 1, "B": 2}]');
-JSON_OVERLAPS('{"A": 1, "B": 3}',
-'[1, 2, true, false, {"A": 1, "B": 2}]')
+'[1, 2, true, false, {"A": 1, "B": 2}]') as exp;
+exp
 0
 SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
-'[1, 2, true, false, {"A": 1, "B": 3}]');
-JSON_OVERLAPS('{"A": 1, "B": 3}',
-'[1, 2, true, false, {"A": 1, "B": 3}]')
+'[1, 2, true, false, {"A": 1, "B": 3}]') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
-'[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": 3}]');
-JSON_OVERLAPS('{"A": 1, "B": 3}',
-'[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": 3}]')
+'[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": 3}]') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, 3]}',
-'[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": [1, 2, 3]}]');
-JSON_OVERLAPS('{"A": 1, "B": [1, 2, 3]}',
-'[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": [1, 2, 3]}]')
+'[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": [1, 2, 3]}]') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
-'[1, 2, true, false, {"A": 1, "B": 2}, {"A":1, "B":[1, 2, {"C": 3, "D": 5}]}]');
-JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
-'[1, 2, true, false, {"A": 1, "B": 2}, {"A":1, "B":[1, 2, {"C": 3, "D": 5}]}]')
+'[1, 2, true, false, {"A": 1, "B": 2}, {"A":1, "B":[1, 2, {"C": 3, "D": 5}]}]') as exp;
+exp
 1
 SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
-'[1, 2, true, false, {"A": 1, "B": 2},{"A": 1, "B": [1, 2, {"C": 3, "D": 4}]}]');
-JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
-'[1, 2, true, false, {"A": 1, "B": 2},{"A": 1, "B": [1, 2, {"C": 3, "D": 4}]}]')
+'[1, 2, true, false, {"A": 1, "B": 2},{"A": 1, "B": [1, 2, {"C": 3, "D": 4}]}]') as exp;
+exp
 0
 # Comparing object with nested array
-SELECT JSON_OVERLAPS('{"A": 1, "B": 3}','[1, 2, true, false, [{"A": 1, "B": 2}, {"A": 1, "B": 3}]]');
-JSON_OVERLAPS('{"A": 1, "B": 3}','[1, 2, true, false, [{"A": 1, "B": 2}, {"A": 1, "B": 3}]]')
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}','[1, 2, true, false, [{"A": 1, "B": 2}, {"A": 1, "B": 3}]]') as exp;
+exp
 0
 # Checking errors and warnings
 SELECT JSON_OVERLAPS('[1,2,{"A":B}]', '{"A":B}', '{"C":"string1"}');
@@ -4864,8 +4801,9 @@ FROM JSON_TABLE(
 JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0][1]'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
-SELECT JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1]');
-JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1]')
+SELECT JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]',
+'$[0][1]') as exp;
+exp
 [{"key": "key1", "value": "val1"}, {"key": "key2", "value": "val2"}]
 SELECT jt.*
 FROM JSON_TABLE(
@@ -4874,24 +4812,27 @@ JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1]'), '$[
 k	v	id
 key1	val1	1
 key2	val2	2
-SELECT JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1].key1');
-JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1].key1')
+SELECT JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]',
+'$[0][1].key1') as exp;
+exp
 NULL
 SELECT jt.*
 FROM JSON_TABLE(
 JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1].key1'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
-SELECT JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1]');
-JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1]')
+SELECT JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]',
+'$[0][1]') as exp;
+exp
 NULL
 SELECT jt.*
 FROM JSON_TABLE(
 JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1]'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
-SELECT JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1][0]');
-JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1][0]')
+SELECT JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]',
+'$[0][1][0]') as exp;
+exp
 [{"key": "key1", "value": "val1"}, {"key": "key2", "value": "val2"}]
 SELECT jt.*
 FROM JSON_TABLE(
@@ -4904,8 +4845,8 @@ key2	val2	2
 SELECT JSON_KEY_VALUE('{}', '$.key1');
 JSON_KEY_VALUE('{}', '$.key1')
 NULL
-SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$');
-JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$')
+SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$') as exp;
+exp
 [{"key": "key1", "value": "val1"}, {"key": "key2", "value": "val2"}]
 SELECT jt.*
 FROM JSON_TABLE(
@@ -4914,16 +4855,16 @@ JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$'), '$[*]'
 k	v	id
 key1	val1	1
 key2	val2	2
-SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$.key1');
-JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$.key1')
+SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$.key1') as exp;
+exp
 NULL
 SELECT jt.*
 FROM JSON_TABLE(
 JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$.key1'), '$[*]'
     COLUMNS (k VARCHAR(11) PATH '$.key', v VARCHAR(5) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
-SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b":2}, "key2":"val2"}', '$.key1');
-JSON_KEY_VALUE('{"key1":{"a":1, "b":2}, "key2":"val2"}', '$.key1')
+SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b":2}, "key2":"val2"}', '$.key1') as exp;
+exp
 [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
 SELECT jt.*
 FROM JSON_TABLE(
@@ -4932,8 +4873,8 @@ JSON_KEY_VALUE('{"key1":{"a":1, "b":2}, "key2":"val2"}', '$.key1'), '$[*]'
 k	v	id
 a	1	1
 b	2	2
-SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[3]');
-JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[3]')
+SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[3]') as exp;
+exp
 [{"key": "some_key", "value": "some_val"}, {"key": "c", "value": 3}]
 SELECT jt.*
 FROM JSON_TABLE(
@@ -4942,8 +4883,8 @@ JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "
 k	v	id
 some_key	some_val	1
 c	3	2
-SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]');
-JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]')
+SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]') as exp;
+exp
 NULL
 SELECT jt.*
 FROM JSON_TABLE(
@@ -5125,6 +5066,20 @@ SET @arr1= '[1, 2, 3]';
 SELECT JSON_OBJECT_TO_ARRAY(@arr1);
 JSON_OBJECT_TO_ARRAY(@arr1)
 NULL
+#
+# MDEV-31411: JSON_ARRAY_INTERSECT/JSON_OBJECT_FILTER_KEYS should fetch
+# data from a table similar to other JSON functions
+#
+CREATE TABLE t1 (
+c1 longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(c1)),
+c2 longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+INSERT INTO t1 VALUES('[1,2,3]', '[2, 3, 4]'), ('[2 ,3, 4]', '[4, 5, 6]');
+SELECT JSON_ARRAY_INTERSECT(c1, c2) FROM t1;
+JSON_ARRAY_INTERSECT(c1, c2)
+[2, 3]
+[4]
+DROP TABLE t1;
 #
 # End of 11.2 Test
 #
