@@ -419,6 +419,33 @@ int json_escape_string(const char *str,const char *str_end,
                        char *json, char *json_end);
 int json_unescape_json(const char *json_str, const char *json_end,
                        char *res, char *res_end);
+extern struct sql_service_st {
+  MYSQL *(STDCALL *mysql_init_func)(MYSQL *mysql);
+  MYSQL *(*mysql_real_connect_local_func)(MYSQL *mysql);
+  MYSQL *(STDCALL *mysql_real_connect_func)(MYSQL *mysql, const char *host,
+      const char *user, const char *passwd, const char *db, unsigned int port,
+      const char *unix_socket, unsigned long clientflag);
+  unsigned int(STDCALL *mysql_errno_func)(MYSQL *mysql);
+  const char *(STDCALL *mysql_error_func)(MYSQL *mysql);
+  int (STDCALL *mysql_real_query_func)(MYSQL *mysql, const char *q,
+                                  unsigned long length);
+  my_ulonglong (STDCALL *mysql_affected_rows_func)(MYSQL *mysql);
+  my_ulonglong (STDCALL *mysql_num_rows_func)(MYSQL_RES *res);
+  MYSQL_RES *(STDCALL *mysql_store_result_func)(MYSQL *mysql);
+  void (STDCALL *mysql_free_result_func)(MYSQL_RES *result);
+  MYSQL_ROW (STDCALL *mysql_fetch_row_func)(MYSQL_RES *result);
+  void (STDCALL *mysql_close_func)(MYSQL *mysql);
+  int (STDCALL *mysql_options_func)(MYSQL *mysql, enum mysql_option option,
+                            const void *arg);
+  unsigned long *(STDCALL *mysql_fetch_lengths_func)(MYSQL_RES *res);
+  int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
+  unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
+  int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
+  my_bool (STDCALL *mysql_ssl_set_func)(MYSQL *mysql, const char *key,
+                                        const char *cert, const char *ca,
+                                        const char *capath, const char *cipher);
+} *sql_service;
+MYSQL *mysql_real_connect_local(MYSQL *mysql);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

@@ -500,21 +500,21 @@ SELECT @@global.rpad(); -- Unknown system variable 'rpad'
 --------
 SELECT @@global.adddate(); -- Unknown system variable 'adddate'
 --------
-SELECT @@global.substr(); -- Unknown system variable 'substr'
+SELECT @@global.substr(); -- ..syntax.. near 'substr()' at line 1
 --------
-SELECT @@global.substring(); -- Unknown system variable 'substring'
+SELECT @@global.substring(); -- ..syntax.. near 'substring()' at line 1
 --------
 SELECT @@global.trim_oracle(); -- Unknown system variable 'trim_oracle'
 --------
 SELECT @@global.ascii(); -- Unknown system variable 'ascii'
 --------
-SELECT @@global.replace(); -- Unknown system variable 'replace'
+SELECT @@global.replace(); -- ..syntax.. near 'replace()' at line 1
 --------
 SELECT @@global.weight_string(); -- Unknown system variable 'weight_string'
 --------
 SELECT @@global.char(); -- Unknown system variable 'char'
 --------
-SELECT @@global.trim(); -- Unknown system variable 'trim'
+SELECT @@global.trim(); -- ..syntax.. near 'trim()' at line 1
 --------
 SELECT @@global.year(); -- Unknown system variable 'year'
 --------
@@ -732,21 +732,21 @@ CREATE FUNCTION test.rpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION test.adddate() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.substr() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.substr() RETURNS OOPS; -- ..syntax.. near 'substr() RETURNS OOPS' 
 --------
-CREATE FUNCTION test.substring() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.substring() RETURNS OOPS; -- ..syntax.. near 'substring() RETURNS OOP
 --------
 CREATE FUNCTION test.trim_oracle() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION test.ascii() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.replace() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.replace() RETURNS OOPS; -- ..syntax.. near 'replace() RETURNS OOPS'
 --------
 CREATE FUNCTION test.weight_string() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION test.char() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.trim() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.trim() RETURNS OOPS; -- ..syntax.. near 'trim() RETURNS OOPS' at
 --------
 CREATE FUNCTION test.year() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------

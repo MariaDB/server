@@ -2818,7 +2818,7 @@ static const char *thread_state_info(THD *tmp)
     if (cond)
       return "Waiting on cond";
   }
-  return NULL;
+  return "";
 }
 
 

@@ -1287,10 +1287,7 @@ void THD::init()
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
-  if (variables.sql_log_bin)
-    variables.option_bits|= OPTION_BIN_LOG;
-  else
-    variables.option_bits&= ~OPTION_BIN_LOG;
+  set_binlog_bit();
 
   variables.sql_log_bin_off= 0;
 
@@ -1633,6 +1630,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  proc_info= "login";                           // Same as in THD::THD()
   transaction.on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
@@ -5682,8 +5680,6 @@ void THD::set_examined_row_count(ha_rows count)
 void THD::inc_sent_row_count(ha_rows count)
 {
   m_sent_row_count+= count;
-  DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
-                  m_examined_row_count= (ULONGLONG_MAX - 1000000););
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 

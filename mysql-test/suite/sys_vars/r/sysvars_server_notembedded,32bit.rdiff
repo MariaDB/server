@@ -1,5 +1,3 @@
---- suite/sys_vars/r/sysvars_server_notembedded.result	2023-05-02 23:37:10.180795104 +0300
-+++ suite/sys_vars/r/sysvars_server_notembedded,32bit.reject	2023-05-24 15:07:00.882252929 +0300
 @@ -34,7 +34,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	ARIA_BLOCK_SIZE
@@ -413,7 +411,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Log some not critical warnings to the general log file.Value can be between 0 and 11. Higher values mean more verbosity
+ VARIABLE_COMMENT	Log some non critical warnings to the error log.Value can be between 0 and 11. Higher values mean more verbosity
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -1904,7 +1904,7 @@

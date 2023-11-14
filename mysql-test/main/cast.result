@@ -814,7 +814,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` char(5) GENERATED ALWAYS AS (cast('a' as char(10) charset latin1) + `a`) VIRTUAL
+  `b` char(5) GENERATED ALWAYS AS (cast('a' as char(10) charset latin1 binary) + `a`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select collation(cast("a" as char(10) binary));

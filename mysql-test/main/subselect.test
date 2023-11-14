@@ -1172,8 +1172,10 @@ create table t1 (a int, b decimal(13, 3));
 insert into t1 values (1, 0.123);
 let $outfile_abs= $MYSQLTEST_VARDIR/tmp/subselect.out.file.1;
 let $outfile_rel= ../../tmp/subselect.out.file.1;
+--disable_warnings
 --error 0,1
 --remove_file $outfile_abs
+--enable_warnings
 eval select a, (select max(b) from t1) into outfile "$outfile_rel" from t1;
 delete from t1;
 eval load data infile "$outfile_rel" into table t1;
@@ -5992,6 +5994,8 @@ drop table t1;
 --echo #
 --echo # MDEV-7565: Server crash with Signal 6 (part 2)
 --echo #
+
+truncate table mysql.slow_log;
 Select 
   (Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
     Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)

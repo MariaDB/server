@@ -287,7 +287,7 @@ enum wsrep::provider::status Wsrep_client_service::replay()
   replayer_thd->real_id= pthread_self();
   replayer_thd->prior_thr_create_utime=
       replayer_thd->start_utime= microsecond_interval_timer();
-  replayer_thd->set_command(COM_SLEEP);
+  replayer_thd->mark_connection_idle();
   replayer_thd->reset_for_next_command(true);
 
   enum wsrep::provider::status ret;

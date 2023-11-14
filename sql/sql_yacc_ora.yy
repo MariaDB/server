@@ -1675,8 +1675,17 @@ END_OF_INPUT
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
-%type <trim> trim_operands
-%type <substring_spec> substring_operands
+
+%type <trim>
+        trim_operands
+        trim_operands_regular
+        trim_operands_special
+
+%type <substring_spec>
+        substring_operands
+        substring_operands_regular
+        substring_operands_special
+
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
@@ -10646,8 +10655,16 @@ explicit_cursor_attr:
 
 
 trim_operands:
+          trim_operands_regular
+        | trim_operands_special
+        ;
+
+trim_operands_regular:
           expr                     { $$.set(TRIM_BOTH, $1);         }
-        | LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
+        ;
+
+trim_operands_special:
+          LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
         | TRAILING expr FROM expr  { $$.set(TRIM_TRAILING, $2, $4); }
         | BOTH     expr FROM expr  { $$.set(TRIM_BOTH, $2, $4);     }
         | LEADING       FROM expr  { $$.set(TRIM_LEADING, $3);      }
@@ -11056,6 +11073,11 @@ function_call_keyword:
         ;
 
 substring_operands:
+          substring_operands_regular
+        | substring_operands_special
+        ;
+
+substring_operands_regular:
           expr ',' expr ',' expr
           {
             $$= Lex_substring_spec_st::init($1, $3, $5);
@@ -11064,7 +11086,10 @@ substring_operands:
           {
             $$= Lex_substring_spec_st::init($1, $3);
           }
-        | expr FROM expr FOR_SYM expr
+        ;
+
+substring_operands_special:
+          expr FROM expr FOR_SYM expr
           {
             $$= Lex_substring_spec_st::init($1, $3, $5);
           }
@@ -11585,7 +11610,8 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            builder= native_functions_hash.find(thd, $1);
+            builder= Schema::find_implied(thd)->
+                       find_native_function_builder(thd, $1);
             if (builder)
             {
               item= builder->create_func(thd, &$1, $4);
@@ -11625,6 +11651,31 @@ function_call_generic:
         | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list ')'
           {
             if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' REPLACE '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_replace(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' SUBSTRING '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_substr(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' SUBSTRING '(' substring_operands_special ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_substr(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' TRIM '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_trim(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' TRIM '(' trim_operands_special ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_trim(thd, $1, $3, $5))))
               MYSQL_YYABORT;
           }
         ;

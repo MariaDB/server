@@ -757,6 +757,10 @@ enum enum_query_type
   QT_NO_DATA_EXPANSION= (1 << 9),
   // Remove wrappers added for TVC when creating or showing view
   QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 11),
+
+  /// Print for FRM file. Focus on parse-back.
+  /// e.g. VIEW expressions and virtual column expressions
+  QT_FOR_FRM= (1 << 12)
 };
 
 

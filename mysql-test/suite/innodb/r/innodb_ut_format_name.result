@@ -1,0 +1,5 @@
+CREATE TABLE t (c INT) ENGINE=INNODB;
+SET @save_dbug = @@debug_dbug;
+SET debug_dbug = '+d,test_ut_format_name';
+DROP TABLE t;
+SET debug_dbug = @save_dbug;

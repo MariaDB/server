@@ -39,7 +39,7 @@ static void init_service_thd(THD* thd, char* thread_stack)
   thd->thread_stack= thread_stack;
   thd->real_id= pthread_self();
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->reset_for_next_command(true);
 }
 

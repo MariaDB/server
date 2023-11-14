@@ -10,5 +10,5 @@
 #
 ##############################################################################
 
-galera_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
-galera_gtid_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
+galera_2_cluster : MDEV-32631 galera_2_cluster: before_rollback(): Assertion `0' failed
+galera_gtid_2_cluster : MDEV-32633 galera_gtid_2_cluster: Assertion `thd->wsrep_next_trx_id() != (0x7fffffffffffffffLL * 2ULL + 1)'

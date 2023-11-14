@@ -942,7 +942,7 @@ bool is_lex_native_function(const LEX_CSTRING *name)
 
 bool is_native_function(THD *thd, const LEX_CSTRING *name)
 {
-  if (native_functions_hash.find(thd, *name))
+  if (mariadb_schema.find_native_function_builder(thd, *name))
     return true;
 
   if (is_lex_native_function(name))
@@ -1618,7 +1618,18 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       if (lex->parsing_options.lookup_keywords_after_qualifier)
         next_state= MY_LEX_IDENT_OR_KEYWORD;
       else
-        next_state= MY_LEX_IDENT_START;    // Next is ident (not keyword)
+      {
+        /*
+          Next is:
+          - A qualified func with a special syntax:
+            mariadb_schema.REPLACE('a','b','c')
+            mariadb_schema.SUSTRING('a',1,2)
+            mariadb_schema.TRIM('a')
+          - Or an identifier otherwise. No keyword lookup is done,
+            all keywords are treated as identifiers.
+        */
+        next_state= MY_LEX_IDENT_OR_QUALIFIED_SPECIAL_FUNC;
+      }
       if (!ident_map[(uchar) yyPeek()])    // Probably ` or "
         next_state= MY_LEX_START;
       return((int) c);
@@ -2062,7 +2073,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         We should now be able to handle:
         [(global | local | session) .]variable_name
       */
-      return scan_ident_sysvar(thd, &yylval->ident_cli);
+      return scan_ident_common(thd, &yylval->ident_cli,
+                               GENERAL_KEYWORD_OR_FUNC_LPAREN);
+
+    case MY_LEX_IDENT_OR_QUALIFIED_SPECIAL_FUNC:
+      return scan_ident_common(thd, &yylval->ident_cli,
+                               QUALIFIED_SPECIAL_FUNC_LPAREN);
     }
   }
 }
@@ -2084,7 +2100,64 @@ bool Lex_input_stream::get_7bit_or_8bit_ident(THD *thd, uchar *last_char)
 }
 
 
-int Lex_input_stream::scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str)
+/*
+  Resolve special SQL functions that have a qualified syntax in sql_yacc.yy.
+  These functions are not listed in the native function registry
+  because of a special syntax, or a reserved keyword:
+
+    mariadb_schema.SUBSTRING('a' FROM 1 FOR 2)   -- Special syntax
+    mariadb_schema.TRIM(BOTH ' ' FROM 'a')       -- Special syntax
+    mariadb_schema.REPLACE('a','b','c')          -- Verb keyword
+*/
+
+int Lex_input_stream::find_keyword_qualified_special_func(Lex_ident_cli_st *str,
+                                                          uint length) const
+{
+  /*
+    There are many other special functions, see the following grammar rules:
+      function_call_keyword
+      function_call_nonkeyword
+    Here we resolve only those that have a qualified syntax to handle
+    different behavior in different @@sql_mode settings.
+
+    Other special functions do not work in qualified context:
+      SELECT mariadb_schema.year(now()); -- Function year is not defined
+      SELECT mariadb_schema.now();       -- Function now is not defined
+
+    We don't resolve TRIM_ORACLE here, because it does not have
+    a qualified syntax yet. Search for "trim_operands" in sql_yacc.yy
+    to find more comments.
+  */
+  static LEX_CSTRING funcs[]=
+  {
+    {STRING_WITH_LEN("SUBSTRING")},
+    {STRING_WITH_LEN("SUBSTR")},
+    {STRING_WITH_LEN("TRIM")},
+    {STRING_WITH_LEN("REPLACE")}
+  };
+
+  int tokval= find_keyword(str, length, true);
+  if (!tokval)
+    return 0;
+  for (size_t i= 0; i < array_elements(funcs); i++)
+  {
+    CHARSET_INFO *cs= system_charset_info;
+    /*
+      Check length equality to avoid non-ASCII variants
+      compared as equal to ASCII variants.
+    */
+    if (length == funcs[i].length &&
+        !cs->coll->strnncollsp(cs,
+                               (const uchar *) m_tok_start, length,
+                               (const uchar *) funcs[i].str, funcs[i].length))
+      return tokval;
+  }
+  return 0;
+}
+
+
+int Lex_input_stream::scan_ident_common(THD *thd, Lex_ident_cli_st *str,
+                                        Ident_mode mode)
 {
   uchar last_char;
   uint length;
@@ -2098,10 +2171,41 @@ int Lex_input_stream::scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str)
     next_state= MY_LEX_IDENT_SEP;
   if (!(length= yyLength()))
     return ABORT_SYM;                  // Names must be nonempty.
-  if ((tokval= find_keyword(str, length, 0)))
-  {
-    yyUnget();                         // Put back 'c'
-    return tokval;                     // Was keyword
+
+  switch (mode) {
+  case GENERAL_KEYWORD_OR_FUNC_LPAREN:
+    /*
+      We can come here inside a system variable after "@@",
+      e.g. @@global.character_set_client.
+      We resolve all general purpose keywords here.
+
+      We can come here when LEX::parsing_options.lookup_keywords_after_qualifier
+      is true, i.e. within the "field_spec" Bison rule.
+      We need to resolve functions that have special rules inside sql_yacc.yy,
+      such as SUBSTR, REPLACE, TRIM, to make this work:
+        c2 varchar(4) GENERATED ALWAYS AS (mariadb_schema.substr(c1,1,4))
+    */
+    if ((tokval= find_keyword(str, length, last_char == '(')))
+    {
+      yyUnget();                         // Put back 'c'
+      return tokval;                     // Was keyword
+    }
+    break;
+  case QUALIFIED_SPECIAL_FUNC_LPAREN:
+    /*
+      We come here after '.' in various contexts:
+        SELECT @@global.character_set_client;
+        SELECT t1.a FROM t1;
+        SELECT test.f1() FROM t1;
+        SELECT mariadb_schema.trim('a');
+    */
+    if (last_char == '(' &&
+        (tokval= find_keyword_qualified_special_func(str, length)))
+    {
+      yyUnget();                         // Put back 'c'
+      return tokval;                     // Was keyword
+    }
+    break;
   }
 
   yyUnget();                       // ptr points now after last token char
@@ -2445,6 +2549,7 @@ void st_select_lex::init_query()
   in_tvc= false;
   versioned_tables= 0;
   pushdown_select= 0;
+  orig_names_of_item_list_elems= 0;
 }
 
 void st_select_lex::init_select()
@@ -2491,6 +2596,7 @@ void st_select_lex::init_select()
   in_tvc= false;
   versioned_tables= 0;
   is_tvc_wrapper= false;
+  orig_names_of_item_list_elems= 0;
 }
 
 /*
@@ -8642,6 +8748,136 @@ bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
 }
 
 
+const Schema *
+LEX::find_func_schema_by_name_or_error(const Lex_ident_sys &schema,
+                                       const Lex_ident_sys &func)
+{
+  Schema *res= Schema::find_by_name(schema);
+  if (res)
+    return res;
+  Database_qualified_name qname(schema, func);
+  my_error(ER_FUNCTION_NOT_DEFINED, MYF(0), ErrConvDQName(&qname).ptr());
+  return NULL;
+}
+
+
+Item *LEX::make_item_func_substr(THD *thd,
+                                 const Lex_ident_cli_st &schema_name_cli,
+                                 const Lex_ident_cli_st &func_name_cli,
+                                 const Lex_substring_spec_st &spec)
+{
+  Lex_ident_sys schema_name(thd, &schema_name_cli);
+  Lex_ident_sys func_name(thd, &func_name_cli);
+  if (schema_name.is_null() || func_name.is_null())
+    return NULL; // EOM
+  const Schema *schema= find_func_schema_by_name_or_error(schema_name,
+                                                          func_name);
+  return schema ? schema->make_item_func_substr(thd, spec) : NULL;
+}
+
+
+Item *LEX::make_item_func_substr(THD *thd,
+                                 const Lex_ident_cli_st &schema_name_cli,
+                                 const Lex_ident_cli_st &func_name_cli,
+                                 List<Item> *item_list)
+{
+  Lex_ident_sys schema_name(thd, &schema_name_cli);
+  Lex_ident_sys func_name(thd, &func_name_cli);
+  if (schema_name.is_null() || func_name.is_null())
+    return NULL; // EOM
+  Schema *schema;
+  if (item_list &&
+      (item_list->elements == 2 || item_list->elements == 3) &&
+      (schema= Schema::find_by_name(schema_name)))
+  {
+    Item_args args(thd, *item_list);
+    Lex_substring_spec_st spec=
+      Lex_substring_spec_st::init(args.arguments()[0],
+                                  args.arguments()[1],
+                                  item_list->elements == 3 ?
+                                  args.arguments()[2] : NULL);
+    return schema->make_item_func_substr(thd, spec);
+  }
+  return make_item_func_call_generic(thd, schema_name, func_name, item_list);
+}
+
+
+Item *LEX::make_item_func_replace(THD *thd,
+                                  const Lex_ident_cli_st &schema_name_cli,
+                                  const Lex_ident_cli_st &func_name_cli,
+                                  Item *org,
+                                  Item *find,
+                                  Item *replace)
+{
+  Lex_ident_sys schema_name(thd, &schema_name_cli);
+  Lex_ident_sys func_name(thd, &func_name_cli);
+  if (schema_name.is_null() || func_name.is_null())
+    return NULL; // EOM
+  const Schema *schema= find_func_schema_by_name_or_error(schema_name,
+                                                          func_name);
+  return schema ? schema->make_item_func_replace(thd, org, find, replace) :
+                  NULL;
+}
+
+
+Item *LEX::make_item_func_replace(THD *thd,
+                                  const Lex_ident_cli_st &schema_name_cli,
+                                  const Lex_ident_cli_st &func_name_cli,
+                                  List<Item> *item_list)
+{
+  Lex_ident_sys schema_name(thd, &schema_name_cli);
+  Lex_ident_sys func_name(thd, &func_name_cli);
+  if (schema_name.is_null() || func_name.is_null())
+    return NULL; // EOM
+  const Schema *schema;
+  if (item_list && item_list->elements == 3 &&
+      (schema= Schema::find_by_name(schema_name)))
+  {
+    Item_args args(thd, *item_list);
+    return schema->make_item_func_replace(thd, args.arguments()[0],
+                                               args.arguments()[1],
+                                               args.arguments()[2]);
+  }
+  return make_item_func_call_generic(thd, schema_name, func_name, item_list);
+}
+
+
+Item *LEX::make_item_func_trim(THD *thd,
+                               const Lex_ident_cli_st &schema_name_cli,
+                               const Lex_ident_cli_st &func_name_cli,
+                               const Lex_trim_st &spec)
+{
+  Lex_ident_sys schema_name(thd, &schema_name_cli);
+  Lex_ident_sys func_name(thd, &func_name_cli);
+  if (schema_name.is_null() || func_name.is_null())
+    return NULL; // EOM
+  const Schema *schema= find_func_schema_by_name_or_error(schema_name,
+                                                          func_name);
+  return schema ? schema->make_item_func_trim(thd, spec) : NULL;
+}
+
+
+Item *LEX::make_item_func_trim(THD *thd,
+                               const Lex_ident_cli_st &schema_name_cli,
+                               const Lex_ident_cli_st &func_name_cli,
+                               List<Item> *item_list)
+{
+  Lex_ident_sys schema_name(thd, &schema_name_cli);
+  Lex_ident_sys func_name(thd, &func_name_cli);
+  if (schema_name.is_null() || func_name.is_null())
+    return NULL; // EOM
+  const Schema *schema;
+  if (item_list && item_list->elements == 1 &&
+      (schema= Schema::find_by_name(schema_name)))
+  {
+    Item_args args(thd, *item_list);
+    Lex_trim spec(TRIM_BOTH, args.arguments()[0]);
+    return schema->make_item_func_trim(thd, spec);
+  }
+  return make_item_func_call_generic(thd, schema_name, func_name, item_list);
+}
+
+
 bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table,
                                  const LEX_CSTRING field_name)
 {
@@ -8720,16 +8956,10 @@ Item *Lex_trim_st::make_item_func_trim_oracle(THD *thd) const
 }
 
 
-Item *Lex_trim_st::make_item_func_trim(THD *thd) const
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-         make_item_func_trim_oracle(thd) :
-         make_item_func_trim_std(thd);
-}
-
-
-Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
-                                       Lex_ident_cli_st *cname, List<Item> *args)
+Item *LEX::make_item_func_call_generic(THD *thd,
+                                       const Lex_ident_cli_st *cdb,
+                                       const Lex_ident_cli_st *cname,
+                                       List<Item> *args)
 {
   Lex_ident_sys db(thd, cdb), name(thd, cname);
   if (db.is_null() || name.is_null())
@@ -8755,6 +8985,19 @@ Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
   }
   if (check_routine_name(&name))
     return NULL;
+
+  return make_item_func_call_generic(thd, db, name, args);
+}
+
+
+Item *LEX::make_item_func_call_generic(THD *thd,
+                                       const Lex_ident_sys &db,
+                                       const Lex_ident_sys &name,
+                                       List<Item> *args)
+{
+  const Schema *schema= Schema::find_by_name(db);
+  if (schema)
+    return schema->make_item_func_call_native(thd, name, args);
 
   Create_qfunc *builder= find_qualified_function_builder(thd);
   DBUG_ASSERT(builder);
@@ -9171,8 +9414,17 @@ bool Lex_order_limit_lock::set_to(SELECT_LEX *sel)
           "CUBE/ROLLUP", "ORDER BY");
       return TRUE;
     }
+    for (ORDER *order= order_list->first; order; order= order->next)
+      (*order->item)->walk(&Item::change_context_processor, FALSE,
+                           &sel->context);
     sel->order_list= *(order_list);
   }
+  if (limit.select_limit)
+    limit.select_limit->walk(&Item::change_context_processor, FALSE,
+                             &sel->context);
+  if (limit.offset_limit)
+    limit.offset_limit->walk(&Item::change_context_processor, FALSE,
+                             &sel->context);
   sel->is_set_query_expr_tail= true;
   return FALSE;
 }
@@ -10418,6 +10670,71 @@ exit:
   return having;
 }
 
+
+/**
+  @brief
+  Save the original names of items from the item list.
+
+  @retval
+    true  - if an error occurs
+    false - otherwise
+*/
+
+bool st_select_lex::save_item_list_names(THD *thd)
+{
+  if (orig_names_of_item_list_elems)
+    return false;
+
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  if (unlikely(!(orig_names_of_item_list_elems= new(thd->mem_root)
+                                       List<Lex_ident_sys>)))
+    return true;
+
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++))
+  {
+    if (unlikely(orig_names_of_item_list_elems->push_back(
+          new Lex_ident_sys(item->name.str, item->name.length), thd->mem_root)))
+    {
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      orig_names_of_item_list_elems= 0;
+      return true;
+    }
+  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  return false;
+}
+
+
+/**
+  @brief
+    Restore the name of each item in the item_list of this st_select_lex
+    from orig_names_of_item_list_elems.
+*/
+
+void st_select_lex::restore_item_list_names()
+{
+  if (!orig_names_of_item_list_elems)
+    return;
+
+  DBUG_ASSERT(item_list.elements == orig_names_of_item_list_elems->elements);
+
+  List_iterator_fast<Lex_ident_sys> it(*orig_names_of_item_list_elems);
+  Lex_ident_sys *new_name;
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++) && (new_name= it++))
+    lex_string_set( &item->name, new_name->str);
+}
 
 bool LEX::stmt_install_plugin(const DDL_options_st &opt,
                               const Lex_ident_sys_st &name,

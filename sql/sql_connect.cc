@@ -1249,8 +1249,7 @@ void prepare_new_connection_state(THD* thd)
     embedded server library.
     TODO: refactor this to avoid code duplication there
   */
-  thd->proc_info= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->init_for_queries();
 
   if (opt_init_connect.length && !(sctx->master_access & SUPER_ACL))
@@ -1477,7 +1476,7 @@ void CONNECT::close_with_error(uint sql_errno,
   if (thd)
   {
     if (sql_errno)
-      net_send_error(thd, sql_errno, message, NULL);
+      thd->protocol->net_send_error(thd, sql_errno, message, NULL);
     close_connection(thd, close_error);
     delete thd;
     set_current_thd(0);

@@ -3015,8 +3015,7 @@ void* start_wsrep_THD(void *arg)
   thd->security_ctx->skip_grants();
 
   /* handle_one_connection() again... */
-  thd->proc_info= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->init_for_queries();
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 

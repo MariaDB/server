@@ -131,6 +131,16 @@ Item_args::Item_args(THD *thd, const Item_args *other)
 }
 
 
+void Item_func::wrong_param_count_error(const LEX_CSTRING &schema_name,
+                                        const LEX_CSTRING &func_name)
+{
+  DBUG_ASSERT(schema_name.length);
+  Database_qualified_name qname(schema_name, func_name);
+  my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0),
+           ErrConvDQName(&qname).ptr());
+}
+
+
 void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 {
   List_iterator_fast<Item> li(list);
@@ -607,13 +617,12 @@ table_map Item_func::not_null_tables() const
 void Item_func::print(String *str, enum_query_type query_type)
 {
   str->append(func_name());
-  str->append('(');
-  print_args(str, 0, query_type);
-  str->append(')');
+  print_args_parenthesized(str, query_type);
 }
 
 
-void Item_func::print_args(String *str, uint from, enum_query_type query_type)
+void Item_func::print_args(String *str, uint from,
+                           enum_query_type query_type) const
 {
   for (uint i=from ; i < arg_count ; i++)
   {

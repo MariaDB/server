@@ -1311,6 +1311,26 @@ JOIN::prepare(TABLE_LIST *tables_init,
                  &select_lex->hidden_bit_fields))
     DBUG_RETURN(-1);
 
+  /*
+    If the select_lex is immediately contained within a derived table
+    AND this derived table is a CTE
+    WITH supplied column names
+    AND we have the correct number of elements in both lists
+      (mismatches found in mysql_derived_prepare/rename_columns_of_derived_unit)
+    THEN NOW is the time to take a copy of these item_names for
+      later restoration if required.
+  */
+  TABLE_LIST *derived= select_lex->master_unit()->derived;
+
+  if (derived &&
+      derived->with &&
+      derived->with->column_list.elements &&
+      (derived->with->column_list.elements == select_lex->item_list.elements))
+  {
+    if (select_lex->save_item_list_names(thd))
+      DBUG_RETURN(-1);
+  }
+
   if (thd->lex->current_select->first_cond_optimization)
   {
     if ( conds && ! thd->lex->current_select->merged_into)

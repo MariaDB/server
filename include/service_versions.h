@@ -43,3 +43,4 @@
 #define VERSION_thd_wait                0x0100
 #define VERSION_wsrep                   0x0400
 #define VERSION_json                    0x0100
+#define VERSION_sql_service             0x0100
