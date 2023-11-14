@@ -1577,10 +1577,10 @@ xa begin 'x1';
 update t set a = 2 where a = 1;
 xa end 'x1';
 xa prepare 'x1';
-set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
 disconnect con1;
 connection con2;
-set debug_sync= 'now wait_for xa_detach';
+set debug_sync= 'now signal close wait_for xa_detach';
 xa commit 'x1';
 set debug_sync= 'now signal go';
 connection default;
@@ -1596,10 +1596,10 @@ xa begin 'x2';
 insert into t values (53);
 xa end 'x2';
 xa prepare 'x2';
-set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
 disconnect con1;
 connection con2;
-set debug_sync= 'now wait_for xa_detach';
+set debug_sync= 'now signal close wait_for xa_detach';
 xa rollback 'x2';
 set debug_sync= 'now signal go';
 connection default;
@@ -1618,11 +1618,11 @@ insert into t values (3);
 xa end 'xuncommitted';
 xa prepare 'xuncommitted';
 set debug_sync= 'now signal go';
-set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
 disconnect con1;
 connection default;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-set debug_sync= 'now wait_for xa_detach';
+set debug_sync= 'now signal close wait_for xa_detach';
 xa rollback 'xuncommitted';
 select * from t;
 a
@@ -1638,11 +1638,11 @@ insert into t values (3);
 xa end 'committed_later';
 xa prepare 'committed_later';
 set debug_sync= 'now signal go';
-set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
 disconnect con1;
 connection default;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-set debug_sync= 'now wait_for xa_detach';
+set debug_sync= 'now signal close wait_for xa_detach';
 xa commit 'committed_later';
 select * from t;
 a
@@ -1659,10 +1659,10 @@ ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
 insert into t values (5);
 xa end 'x1';
 xa prepare 'x1';
-set debug_sync= 'THD_cleanup_after_trans_cleanup signal xa_detach';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
 disconnect con1;
 connection con2;
-set debug_sync= 'now wait_for xa_detach';
+set debug_sync= 'now signal close wait_for xa_detach';
 xa commit 'x1';
 set debug_sync= 'now signal go';
 connection default;
@@ -1675,6 +1675,116 @@ connect con1, localhost, root,,;
 connection default;
 drop table t;
 set debug_sync= reset;
+# MDEV-32771 Server crash upon online alter with concurrent XA
+create table t (a int primary key);
+insert t values(1),(2),(3);
+# First, check that nothing from the rollbacked statement commits
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t add b int default (555), algorithm=copy;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a	b
+1	555
+2	555
+3	555
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t add c int default(777), algorithm=copy;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a	b	c
+1	555	777
+2	555	777
+3	555	777
+# Same, but add one successful statement into transaction
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t drop b, algorithm=copy;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 10 where a = 1;
+update t set a = 0;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a	c
+1	777
+2	777
+3	777
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t drop primary key, algorithm=copy;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+# This statement will take effect.
+update t set a = 10 where a = 1;
+update t set a = 0;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a	c
+10	777
+2	777
+3	777
+# The only statement succeeds (test both commit and rollback)
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t add d text default ('qwe'), algorithm=copy;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a	c	d
+10	777	qwe
+2	777	qwe
+3	777	qwe
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+alter table t drop c, algorithm=copy;
+connection con1;
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+connection default;
+select * from t;
+a	d
+0	qwe
+0	qwe
+0	qwe
+drop table t;
 set global default_storage_engine= MyISAM;
 disconnect con1;
 disconnect con2;

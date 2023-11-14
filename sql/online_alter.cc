@@ -315,17 +315,39 @@ int online_alter_savepoint_rollback(handlerton *hton, THD *thd, sv_id_t sv_id)
 
 static int online_alter_commit(handlerton *hton, THD *thd, bool all)
 {
-  int res= online_alter_end_trans(get_cache_list(hton, thd), thd,
-                                  ending_trans(thd, all), true);
-  cleanup_tables(thd);
+  int res;
+  bool is_ending_transaction= ending_trans(thd, all);
+  if (is_ending_transaction 
+      && thd->transaction->xid_state.get_state_code() == XA_PREPARED)
+  {
+    res= hton->commit_by_xid(hton, thd->transaction->xid_state.get_xid());
+    // cleanup was already done by prepare()
+  }
+  else
+  {
+    res= online_alter_end_trans(get_cache_list(hton, thd), thd,
+                                is_ending_transaction, true);
+    cleanup_tables(thd);
+  }
   return res;
 };
 
 static int online_alter_rollback(handlerton *hton, THD *thd, bool all)
 {
-  int res= online_alter_end_trans(get_cache_list(hton, thd), thd,
-                                  ending_trans(thd, all), false);
-  cleanup_tables(thd);
+  int res;
+  bool is_ending_transaction= ending_trans(thd, all);
+  if (is_ending_transaction
+      && thd->transaction->xid_state.get_state_code() == XA_PREPARED)
+  {
+    res= hton->rollback_by_xid(hton, thd->transaction->xid_state.get_xid());
+    // cleanup was already done by prepare()
+  }
+  else
+  {
+    res= online_alter_end_trans(get_cache_list(hton, thd), thd,
+                                is_ending_transaction, false);
+    cleanup_tables(thd);
+  }
   return res;
 };
 
