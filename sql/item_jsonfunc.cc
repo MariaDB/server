@@ -4798,15 +4798,21 @@ If any of them fails, return false, else return true.
 bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
 {
   json_engine_t je;
-  bool res= 0;
+  bool res= 0, is_schema_constant= args[0]->const_item();
 
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= NULL;
 
-  if ((null_value= args[0]->null_value))
+  if (!is_schema_constant || (null_value= args[0]->null_value))
   {
+    if (!is_schema_constant)
+    {
+      my_error(ER_JSON_NO_VARIABLE_SCHEMA, MYF(0));
+    }
     null_value= 1;
     return 0;
   }
+  js= args[0]->val_json(&tmp_js);
+
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   if (!create_object_and_handle_keyword(thd, &je, &keyword_list,
