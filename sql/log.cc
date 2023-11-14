@@ -4327,8 +4327,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 err:
   if (error == 1)
     name= const_cast<char*>(save_name);
-  else
-    ha_reset_binlog_pos(get_log_fname(), BIN_LOG_HEADER_SIZE);
 
   if (!is_relay_log)
   {
