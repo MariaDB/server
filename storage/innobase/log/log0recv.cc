@@ -2409,7 +2409,7 @@ struct recv_ring : public recv_buf
   {
     const size_t s(*this - start);
     ut_ad(s + len <= srv_page_size);
-    if (!log_sys.is_encrypted())
+    if (!len || !log_sys.is_encrypted())
     {
       if (start.ptr + s == ptr && ptr + len <= end())
         return ptr;
