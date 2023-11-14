@@ -260,6 +260,8 @@ show variables like 'rpl_semi_sync_slave_enabled';
 
 connection master;
 
+SET debug_sync='now SIGNAL unpause_ack_reply_to_binlog';
+
 # Wait that number of active transactions gets incremented
 let $status_var= Rpl_semi_sync_master_yes_tx;
 let $status_var_comparsion= >=;
@@ -271,7 +273,6 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 --echo # Check condition (get ack) before getting the ACK
 show status like 'Rpl_semi_sync_master_get_ack';
 
-SET debug_sync='now SIGNAL unpause_ack_reply_to_binlog';
 
 # Wait on master's get_ACK 
 --echo # Get ack before
