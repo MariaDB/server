@@ -301,3 +301,100 @@ alter table t1 convert partition p1 to table tp1;
 drop database EXISTENT;
 drop user alan;
 drop tables t1, tp1, tp2, tp4;
+
+--echo #
+--echo # MDEV-22164 without validation for exchange partition/convert in
+--echo #
+
+create table validation(x int);
+drop table validation;
+
+create table t (a int primary key);
+
+create table tp (a int primary key) partition by range (a) (
+  partition p0 values less than (100),
+  # Cunning syntax (same as above)
+  p1 values less (300));
+
+insert into t values (1), (99);
+insert into tp values (2), (200);
+
+select * from t order by a;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p1 with table t;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p1 with table t with validation;
+alter table tp exchange partition p1 with table t without validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+alter table tp check partition p0;
+alter table tp check partition p1;
+
+alter table tp exchange partition p1 with table t with validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p1 with table t with validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+
+# SP
+create or replace procedure validation()
+alter table tp exchange partition p1 with table t with validation;
+create or replace procedure without_validation()
+alter table tp exchange partition p1 with table t without validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+call validation;
+call without_validation;
+call validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+call validation;
+call without_validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+call validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+drop procedure validation;
+drop procedure without_validation;
+
+# PS
+prepare validation from "alter table tp exchange partition p1 with table t with validation";
+prepare without_validation from "alter table tp exchange partition p1 with table t without validation";
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+execute validation;
+execute without_validation;
+execute validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+execute validation;
+execute without_validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+execute validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+drop prepare validation;
+drop prepare without_validation;
+
+# CONVERT IN
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp convert table t to partition p2 values less (maxvalue);
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp convert table t to partition p2 values less (maxvalue) with validation;
+alter table tp convert table t to partition p2 values less (maxvalue) without validation;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+select * from tp partition (p2) order by a;
+
+drop table tp;

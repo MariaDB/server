@@ -344,3 +344,147 @@ connection default;
 drop database EXISTENT;
 drop user alan;
 drop tables t1, tp1, tp2, tp4;
+#
+# MDEV-22164 without validation for exchange partition/convert in
+#
+create table validation(x int);
+drop table validation;
+create table t (a int primary key);
+create table tp (a int primary key) partition by range (a) (
+partition p0 values less than (100),
+# Cunning syntax (same as above)
+p1 values less (300));
+insert into t values (1), (99);
+insert into tp values (2), (200);
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p0) order by a;
+a
+2
+select * from tp partition (p1) order by a;
+a
+200
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+a
+2
+select * from tp partition (p0) order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p0) order by a;
+a
+2
+select * from tp partition (p1) order by a;
+a
+200
+alter table tp exchange partition p1 with table t;
+ERROR HY000: Found a row that does not match the partition
+alter table tp exchange partition p1 with table t with validation;
+ERROR HY000: Found a row that does not match the partition
+alter table tp exchange partition p1 with table t without validation;
+select * from t order by a;
+a
+200
+select * from tp partition (p1) order by a;
+a
+1
+99
+alter table tp check partition p0;
+Table	Op	Msg_type	Msg_text
+test.tp	check	status	OK
+alter table tp check partition p1;
+Table	Op	Msg_type	Msg_text
+test.tp	check	error	Found a misplaced row
+test.tp	check	error	Partition p1 returned error
+test.tp	check	error	Upgrade required. Please do "REPAIR TABLE `tp`" or dump/reload to fix it!
+alter table tp exchange partition p1 with table t with validation;
+alter table tp exchange partition p1 with table t with validation;
+ERROR HY000: Found a row that does not match the partition
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+create or replace procedure validation()
+alter table tp exchange partition p1 with table t with validation;
+create or replace procedure without_validation()
+alter table tp exchange partition p1 with table t without validation;
+call validation;
+ERROR HY000: Found a row that does not match the partition
+call without_validation;
+call validation;
+call validation;
+ERROR HY000: Found a row that does not match the partition
+call without_validation;
+select * from t order by a;
+a
+200
+select * from tp partition (p1) order by a;
+a
+1
+99
+call validation;
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+drop procedure validation;
+drop procedure without_validation;
+prepare validation from "alter table tp exchange partition p1 with table t with validation";
+prepare without_validation from "alter table tp exchange partition p1 with table t without validation";
+execute validation;
+ERROR HY000: Found a row that does not match the partition
+execute without_validation;
+execute validation;
+execute validation;
+ERROR HY000: Found a row that does not match the partition
+execute without_validation;
+select * from t order by a;
+a
+200
+select * from tp partition (p1) order by a;
+a
+1
+99
+execute validation;
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+drop prepare validation;
+drop prepare without_validation;
+alter table tp convert table t to partition p2 values less (maxvalue);
+ERROR HY000: Found a row that does not match the partition
+alter table tp convert table t to partition p2 values less (maxvalue) with validation;
+ERROR HY000: Found a row that does not match the partition
+alter table tp convert table t to partition p2 values less (maxvalue) without validation;
+select * from tp partition (p0) order by a;
+a
+2
+select * from tp partition (p1) order by a;
+a
+200
+select * from tp partition (p2) order by a;
+a
+1
+99
+drop table tp;

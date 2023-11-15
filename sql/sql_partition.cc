@@ -4107,6 +4107,9 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
   DBUG_ASSERT(table && table->file && part_table && part_table->part_info &&
               part_table->file);
 
+  if (table->in_use->lex->without_validation)
+    DBUG_RETURN(false);
+
   /*
     Verify all table rows.
     First implementation uses full scan + evaluates partition functions for
