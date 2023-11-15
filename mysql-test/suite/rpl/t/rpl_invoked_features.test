@@ -9,6 +9,7 @@
 --source include/master-slave.inc
 
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+call mtr.add_suppression("Event Scheduler: .* Duplicate entry '10' for key 'a'");
 
 # --disable_warnings/--enable_warnings added before/after query 
 # if one uses UUID() function because we need to avoid warnings
