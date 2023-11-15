@@ -4017,7 +4017,9 @@ String *Item_func_conv_charset::val_str(String *str)
 
 bool Item_func_conv_charset::fix_length_and_dec(THD *thd)
 {
-  DBUG_ASSERT(collation.derivation == DERIVATION_IMPLICIT);
+  DBUG_ASSERT(collation.derivation == DERIVATION_CAST ||
+              (collation.derivation == DERIVATION_IMPLICIT &&
+               collation.collation == &my_charset_bin));
   fix_char_length(args[0]->max_char_length());
   return FALSE;
 }
