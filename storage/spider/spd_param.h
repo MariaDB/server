@@ -349,8 +349,6 @@ int spider_param_load_sts_at_startup(
 int spider_param_load_crd_at_startup(
   int load_crd_at_startup
 );
-uint spider_param_table_sts_thread_count();
-uint spider_param_table_crd_thread_count();
 int spider_param_slave_trx_isolation();
 int spider_param_remote_wait_timeout(
   THD *thd
