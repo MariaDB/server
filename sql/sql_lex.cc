@@ -3119,7 +3119,7 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
 static
 bool setup_ref_ptrs_array(THD *thd, Ref_ptr_array *ref_ptrs, uint n_elems)
 {
-  Query_arena *arena= thd->stmt_arena;
+  Query_arena *arena= thd->active_stmt_arena_to_use();
   if (!ref_ptrs->is_null())
   {
     if (ref_ptrs->size() >= n_elems)
@@ -3139,7 +3139,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     prepared statement
   */
   uint slice_card= (thd->is_first_query_execution() ||
-                    thd->stmt_arena->is_stmt_prepare ()) ?
+                    thd->active_stmt_arena_to_use()->is_stmt_prepare ()) ?
                     get_cardinality_of_ref_ptrs_slice(order_group_num) :
                     card_of_ref_ptrs_slice;
   uint n_elems= slice_card * 5;

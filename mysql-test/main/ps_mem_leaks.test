@@ -69,4 +69,32 @@ EXECUTE stmt;
 
 DEALLOCATE PREPARE stmt;
 
+--echo #
+--echo # MDEV-32466: Potential memory leak on execuing of create view statement
+--echo #
+
+--delimiter |
+
+CREATE FUNCTION f1 () RETURNS VARCHAR(1)
+BEGIN
+  DECLARE rec1 ROW TYPE OF v1;
+  SELECT z INTO rec1 FROM v1;
+  RETURN 1;
+END|
+--delimiter ;
+
+CREATE FUNCTION f2 () RETURNS VARCHAR(1) RETURN '!';
+CREATE VIEW v1 AS SELECT f2() z;
+
+PREPARE stmt FROM "SELECT f1()";
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+# Clean up
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP FUNCTION f2;
+
 --echo # End of 10.4 tests
