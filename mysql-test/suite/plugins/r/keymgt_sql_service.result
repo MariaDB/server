@@ -1,0 +1,13 @@
+install soname 'example_keymgt_sql_service.so';
+SET @saved_encrypt_tables = @@global.innodb_encrypt_tables;
+SET @saved_encryption_threads = @@global.innodb_encryption_threads;
+SET SESSION innodb_default_encryption_key_id=1;
+SET GLOBAL innodb_encrypt_tables=ON;
+SET GLOBAL innodb_encryption_threads=1;
+We didn't crash
+SET GLOBAL innodb_encrypt_tables = @saved_encrypt_tables;
+SET GLOBAL innodb_encryption_threads = @saved_encryption_threads;
+uninstall soname 'example_keymgt_sql_service.so';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+# End of 10.4 tests
