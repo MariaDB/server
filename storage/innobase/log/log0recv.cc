@@ -4091,7 +4091,6 @@ recv_group_scan_log_recs(
 
 	log_sys.log.scanned_lsn = end_lsn = *contiguous_lsn =
 		ut_uint64_align_down(*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
-	ut_d(recv_sys.after_apply = last_phase);
 
 	do {
 		start_lsn = ut_uint64_align_down(end_lsn,
@@ -4107,6 +4106,7 @@ recv_group_scan_log_recs(
 		DBUG_RETURN(false);
 	}
 
+	ut_d(recv_sys.after_apply = last_phase);
 	DBUG_PRINT("ib_log", ("%s " LSN_PF " completed",
 			      last_phase ? "rescan" : "scan",
 			      log_sys.log.scanned_lsn));

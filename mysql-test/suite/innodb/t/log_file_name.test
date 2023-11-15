@@ -172,6 +172,8 @@ call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' \(init function returned error\|registration as a STORAGE ENGINE failed\)");
 call mtr.add_suppression("InnoDB: Table test/u[123] in the InnoDB data dictionary has tablespace id [1-9][0-9]*, but tablespace with that id or name does not exist\\. Have you deleted or moved \\.ibd files\\?");
 call mtr.add_suppression("InnoDB: Cannot replay rename of tablespace.*");
+call mtr.add_suppression("InnoDB: Attempted to open a previously opened tablespace");
+call mtr.add_suppression("InnoDB: Recovery cannot access file");
 FLUSH TABLES;
 --enable_query_log
 

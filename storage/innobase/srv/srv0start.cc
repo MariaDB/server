@@ -1973,7 +1973,7 @@ void innodb_preshutdown()
     better prevent any further changes from being buffered. */
     innodb_change_buffering= 0;
 
-    if (trx_sys.is_initialised())
+    if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO && srv_was_started)
       while (trx_sys.any_active_transactions())
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
