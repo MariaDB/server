@@ -2515,6 +2515,7 @@ void st_select_lex::init_query()
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
   ref_pointer_array.reset();
+  save_ref_ptrs.reset();
   select_n_where_fields= 0;
   order_group_num= 0;
   select_n_reserved= 0;
@@ -2526,6 +2527,8 @@ void st_select_lex::init_query()
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
   changed_elements= 0;
+  save_uncacheable= 0;
+  save_master_uncacheable= 0;
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
   is_service_select= 0;
@@ -2597,6 +2600,7 @@ void st_select_lex::init_select()
   versioned_tables= 0;
   is_tvc_wrapper= false;
   orig_names_of_item_list_elems= 0;
+  fields_added_by_fix_inner_refs= 0;
 }
 
 /*
@@ -3110,16 +3114,53 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
 }
 
 
+static
+bool setup_ref_ptrs_array(THD *thd, Ref_ptr_array *ref_ptrs, uint n_elems)
+{
+  Query_arena *arena= thd->stmt_arena;
+  if (!ref_ptrs->is_null())
+  {
+    if (ref_ptrs->size() >= n_elems)
+      return false;
+  }
+  Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
+  if (likely(array != NULL))
+    *ref_ptrs= Ref_ptr_array(array, n_elems);
+  return array == NULL;
+}
+
+
 bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 {
+  /*
+    We have to create array in prepared statement memory if it is a
+    prepared statement
+  */
   uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num) * 5;
+  DBUG_ASSERT(n_elems % 5 == 0);
+  return setup_ref_ptrs_array(thd, &ref_pointer_array, n_elems);
+}
+
+
+bool st_select_lex::save_ref_ptrs_after_persistent_rewrites(THD *thd)
+{
+  uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num);
+  if (setup_ref_ptrs_array(thd, &save_ref_ptrs, n_elems))
+    return true;
   if (!ref_pointer_array.is_null())
-    return false;
-  Item **array= static_cast<Item**>(thd->stmt_arena->alloc(sizeof(Item*) *
-                                                           n_elems));
-  if (likely(array != NULL))
-    ref_pointer_array= Ref_ptr_array(array, n_elems);
-  return array == NULL;
+    join->copy_ref_ptr_array(save_ref_ptrs, join->ref_ptr_array_slice(0));
+  return false;
+}
+
+
+bool st_select_lex::save_ref_ptrs_if_needed(THD *thd)
+{
+  if (thd->is_first_query_execution())
+  {
+    if (save_ref_ptrs_after_persistent_rewrites(thd))
+      return true;
+  }
+  return false;
 }
 
 
@@ -4336,7 +4377,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         }
         if ((res= inner_join->optimize()))
           return TRUE;
-        if (!inner_join->cleaned)
+	if (inner_join->thd->is_first_query_execution())
           sl->update_used_tables();
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;

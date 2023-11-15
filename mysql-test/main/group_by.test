@@ -1372,6 +1372,7 @@ DROP TABLE t1;
 --echo #
 #creating view adds one new warning
 --disable_view_protocol
+--disable_ps2_protocol
 
 SET BIG_TABLES=1;
 CREATE TABLE t1(a INT);
@@ -1383,6 +1384,7 @@ SELECT 1 FROM t1 GROUP BY SUBSTRING(SYSDATE() FROM 'K' FOR 'jxW<');
 DROP TABLE t1;
 SET BIG_TABLES=0;
 
+--enable_ps2_protocol
 --enable_view_protocol
 
 --echo #
