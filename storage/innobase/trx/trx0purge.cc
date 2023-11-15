@@ -659,13 +659,12 @@ void trx_purge_truncate_history()
 
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
-      if (bpage->id().space() == space.id &&
-          bpage->oldest_modification() != 1)
+      if (bpage->oldest_modification() > 2 &&
+          bpage->id().space() == space.id)
       {
         ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
         auto block= reinterpret_cast<buf_block_t*>(bpage);
-        block->fix();
-        ut_ad(rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
+        buf_block_buf_fix_inc(block, __FILE__, __LINE__);
         buf_pool.flush_hp.set(prev);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -676,15 +675,13 @@ void trx_purge_truncate_history()
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         ut_ad(bpage->io_fix() == BUF_IO_NONE);
 
-        if (bpage->oldest_modification() > 1)
-        {
-          bpage->clear_oldest_modification(false);
+        if (bpage->oldest_modification() > 2 &&
+            !mtr.have_x_latch(*reinterpret_cast<buf_block_t*>(bpage)))
           mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
-        }
         else
         {
+          buf_block_buf_fix_dec(block);
           rw_lock_x_unlock(&block->lock);
-          block->unfix();
         }
 
         if (prev != buf_pool.flush_hp.get())
