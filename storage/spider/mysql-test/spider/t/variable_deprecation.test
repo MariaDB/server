@@ -50,23 +50,6 @@ SHOW VARIABLES LIKE "spider_load_crd_at_startup";
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
---echo # MDEV-28010 Deprecate spider_crd_type and spider_crd_weight
-SET spider_crd_type = 1;
-SHOW VARIABLES LIKE "spider_crd_type";
-eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='ctp "1"';
-eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_type "1"';
-
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-
-SET spider_crd_weight = 1;
-SHOW VARIABLES LIKE "spider_crd_weight";
-eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='cwg "1"';
-eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_weight "1"';
-
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-
 --echo # MDEV-28560 Deprecate spider_buffer_size
 SET spider_buffer_size = 1;
 SHOW VARIABLES LIKE "spider_buffer_size";

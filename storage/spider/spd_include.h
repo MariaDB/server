@@ -821,8 +821,6 @@ typedef struct st_spider_share
   int                store_last_crd;
   /** See `mysql_sysvar_load_crd_at_startup` */
   int                load_crd_at_startup;
-  int                crd_type;
-  double             crd_weight;
   longlong           internal_offset;
   longlong           internal_limit;
   longlong           split_read;

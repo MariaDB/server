@@ -213,14 +213,6 @@ int spider_param_crd_sync(
   THD *thd,
   int crd_sync
 );
-int spider_param_crd_type(
-  THD *thd,
-  int crd_type
-);
-double spider_param_crd_weight(
-  THD *thd,
-  double crd_weight
-);
 int spider_param_crd_bg_mode(
   THD *thd,
   int crd_bg_mode

@@ -77,35 +77,6 @@ Variable_name	Value
 spider_load_crd_at_startup	0
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
-# MDEV-28010 Deprecate spider_crd_type and spider_crd_weight
-SET spider_crd_type = 1;
-Warnings:
-Warning	1287	'@@spider_crd_type' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_crd_type";
-Variable_name	Value
-spider_crd_type	1
-CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ctp "1"';
-Warnings:
-Warning	1287	'ctp' is deprecated and will be removed in a future release
-CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_type "1"';
-Warnings:
-Warning	1287	'crd_type' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-SET spider_crd_weight = 1;
-Warnings:
-Warning	1287	'@@spider_crd_weight' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_crd_weight";
-Variable_name	Value
-spider_crd_weight	1
-CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cwg "1"';
-Warnings:
-Warning	1287	'cwg' is deprecated and will be removed in a future release
-CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_weight "1"';
-Warnings:
-Warning	1287	'crd_weight' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
 # MDEV-28560 Deprecate spider_buffer_size
 SET spider_buffer_size = 1;
 Warnings:

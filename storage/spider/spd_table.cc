@@ -2187,8 +2187,6 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
   share->crd_sync = -1;
   share->store_last_crd = -1;
   share->load_crd_at_startup = -1;
-  share->crd_type = -1;
-  share->crd_weight = -1;
   share->internal_offset = -1;
   share->internal_limit = -1;
   share->split_read = -1;
@@ -2653,10 +2651,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("cto", connect_timeouts, 0,
             2147483647);
-          SPIDER_PARAM_DEPRECATED_WARNING("ctp", 1007);
-          SPIDER_PARAM_INT_WITH_MAX("ctp", crd_type, 0, 2);
-          SPIDER_PARAM_DEPRECATED_WARNING("cwg", 1007);
-          SPIDER_PARAM_DOUBLE("cwg", crd_weight, 1);
           SPIDER_PARAM_INT_WITH_MAX("dat", delete_all_rows_type, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("ddi", direct_dup_insert, 0, 1);
           SPIDER_PARAM_STR_LIST("dff", tgt_default_files);
@@ -2786,8 +2780,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_STR_LIST("password", tgt_passwords);
         SPIDER_PARAM_INT_WITH_MAX("sts_sync", sts_sync, 0, 2);
         SPIDER_PARAM_INT_WITH_MAX("crd_sync", crd_sync, 0, 2);
-        SPIDER_PARAM_DEPRECATED_WARNING("crd_type", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
         SPIDER_PARAM_LONGLONG("priority", priority, 0);
         SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
         SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
@@ -2802,8 +2794,6 @@ int spider_parse_connect_info(
         error_num= parse.fail(true);
         goto error;
       case 10:
-        SPIDER_PARAM_DEPRECATED_WARNING("crd_weight", 1007);
-        SPIDER_PARAM_DOUBLE("crd_weight", crd_weight, 1);
         SPIDER_PARAM_LONGLONG("split_read", split_read, 0);
         SPIDER_PARAM_INT_WITH_MAX("quick_mode", quick_mode, 0, 3);
         SPIDER_PARAM_STR_LIST("ssl_cipher", tgt_ssl_ciphers);
