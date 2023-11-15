@@ -4727,7 +4727,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
                              &my_charset_numeric : args[0]->collation.collation);
   collation.set(m_var_entry->charset(),
                 args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                DERIVATION_NUMERIC : DERIVATION_IMPLICIT);
+                DERIVATION_NUMERIC : DERIVATION_COERCIBLE);
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:
@@ -4790,7 +4790,7 @@ Item_func_set_user_var::fix_length_and_dec(THD *thd)
   }
   else
   {
-    collation.set(DERIVATION_IMPLICIT);
+    collation.set(DERIVATION_COERCIBLE);
     fix_length_and_charset(args[0]->max_char_length(),
                            args[0]->collation.collation);
   }
@@ -5667,7 +5667,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
         set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
-      collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
+      collation.set(m_var_entry->charset(), DERIVATION_COERCIBLE);
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
       if (m_var_entry->type_handler()->field_type() == MYSQL_TYPE_GEOMETRY)
@@ -5687,7 +5687,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
   }
   else
   {
-    collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
+    collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
     null_value= 1;
     set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;

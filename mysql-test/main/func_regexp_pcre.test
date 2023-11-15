@@ -428,7 +428,13 @@ SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this a
 --echo # Testing a warning
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP @regCheck;
+SELECT 0xE001 REGEXP @regCheck COLLATE latin1_bin;
+SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
+
+--echo # Since 11.4 user variables have DERIVATION_COERCIBLE
+--echo # so a user variable and a literal in the pattern give equal results
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1, 0xE001 REGEXP @regCheck AS c2;
 
 --echo # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;
