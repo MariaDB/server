@@ -2016,7 +2016,7 @@ insert into t1 values('t1_val');
 create view v1 as select 'v1_val' as col1;
 select coercibility(col1), collation(col1) from v1;
 coercibility(col1)	collation(col1)
-4	utf8mb3_general_ci
+5	utf8mb3_general_ci
 create view v2 as select col1 from v1 union select col1 from t1;
 select coercibility(col1), collation(col1)from v2;
 coercibility(col1)	collation(col1)
@@ -2896,7 +2896,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select hex(concat(coercibility('a')));
 hex(concat(coercibility('a')))
-34
+35
 create table t1 as select concat(coercibility('a')) as c1;
 show create table t1;
 Table	Create Table
@@ -3284,7 +3284,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-5	2
+6	4
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1

@@ -2951,13 +2951,35 @@ static inline my_repertoire_t &operator|=(my_repertoire_t &a,
 
 enum Derivation
 {
-  DERIVATION_IGNORABLE= 6,
-  DERIVATION_NUMERIC= 5,
-  DERIVATION_COERCIBLE= 4,
+  DERIVATION_IGNORABLE= 7, // Explicit NULL
+  /*
+    Explicit or implicit conversion from numeric/temporal data to string:
+    - Numbers/temporals in string context
+    - Numeric user variables
+    - CAST(numeric_or_temporal_expr AS CHAR)
+  */
+  DERIVATION_NUMERIC= 6,
+  /*
+    - String literals
+    - String user variables
+  */
+  DERIVATION_COERCIBLE= 5,
+  /*
+    String cast and conversion functions:
+    - CAST(string_expr AS CHAR)
+    - CONVERT(expr USING cs)
+  */
+  DERIVATION_CAST= 4,
+  /*
+    utf8 metadata functions:
+    - DATABASE()
+    - CURRENT_ROLE()
+    - USER()
+  */
   DERIVATION_SYSCONST= 3,
-  DERIVATION_IMPLICIT= 2,
-  DERIVATION_NONE= 1,
-  DERIVATION_EXPLICIT= 0
+  DERIVATION_IMPLICIT= 2,  // Table columns, SP variables
+  DERIVATION_NONE= 1,      // A mix (e.g. CONCAT) of two differrent collations
+  DERIVATION_EXPLICIT= 0   // An explicit COLLATE clause
 };
 
 
@@ -3011,6 +3033,12 @@ public:
     derivation(derivation_arg),
     repertoire(repertoire_arg)
   { }
+  static DTCollation string_typecast(CHARSET_INFO *collation_arg)
+  {
+    return DTCollation(collation_arg,
+                       collation_arg == &my_charset_bin ?
+                       DERIVATION_IMPLICIT : DERIVATION_CAST);
+  }
   void set(const DTCollation &dt)
   {
     *this= dt;
@@ -3046,6 +3074,7 @@ public:
       case DERIVATION_NUMERIC:   return "NUMERIC";
       case DERIVATION_IGNORABLE: return "IGNORABLE";
       case DERIVATION_COERCIBLE: return "COERCIBLE";
+      case DERIVATION_CAST:      return "CAST";
       case DERIVATION_IMPLICIT:  return "IMPLICIT";
       case DERIVATION_SYSCONST:  return "SYSCONST";
       case DERIVATION_EXPLICIT:  return "EXPLICIT";

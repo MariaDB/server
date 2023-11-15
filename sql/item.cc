@@ -2385,10 +2385,7 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
   Aggregate two collations together taking
   into account their coercibility (aka derivation):.
 
-  0 == DERIVATION_EXPLICIT  - an explicitly written COLLATE clause @n
-  1 == DERIVATION_NONE      - a mix of two different collations @n
-  2 == DERIVATION_IMPLICIT  - a column @n
-  3 == DERIVATION_COERCIBLE - a string constant.
+  See the definition of enum Derivation for details.
 
   The most important rules are:
   -# If collations are the same:
