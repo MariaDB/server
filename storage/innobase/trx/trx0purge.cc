@@ -677,8 +677,8 @@ not_free:
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
-  rescan:
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  rescan:
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
     {
       ut_ad(bpage->oldest_modification());
@@ -707,26 +707,20 @@ not_free:
         ut_ad(!bpage->is_io_fixed());
         ut_ad(bpage->id().space() == space_id);
 
-        if (bpage->oldest_modification() > 2)
-        {
+        if (bpage->oldest_modification() > 2 &&
+            !mtr.have_x_latch(*reinterpret_cast<buf_block_t*>(bpage)))
           mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
                         MTR_MEMO_PAGE_X_FIX);
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-          ut_ad(bpage->oldest_modification() > 2);
-          bpage->reset_oldest_modification();
-        }
         else
         {
           bpage->unfix();
           bpage->lock.x_unlock();
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
         }
 
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
         if (prev != buf_pool.flush_hp.get())
-        {
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
           goto rescan;
-        }
       }
 
       bpage= prev;
