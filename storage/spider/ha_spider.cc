@@ -6887,7 +6887,6 @@ ha_rows ha_spider::records_in_range(
   int error_num;
   THD *thd = ha_thd();
   double crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-  int crd_type = spider_param_crd_type(thd, share->crd_type);
   int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
   int crd_bg_mode = spider_param_crd_bg_mode(thd, share->crd_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
@@ -7067,10 +7066,7 @@ ha_rows ha_spider::records_in_range(
     tgt_key_part_map = end_key_part_map;
   }
 
-  if (crd_type == 0)
-    weight = spider_param_crd_weight(thd, share->crd_weight);
-  else
-    weight = 1;
+  weight = 1;
 
   if (share->static_key_cardinality[inx] == -1)
   {
@@ -7101,10 +7097,7 @@ ha_rows ha_spider::records_in_range(
           DBUG_RETURN((ha_rows) 2);
         }
       }
-      if (crd_type == 1)
-        weight += spider_param_crd_weight(thd, share->crd_weight);
-      else if (crd_type == 2)
-        weight *= spider_param_crd_weight(thd, share->crd_weight);
+      weight *= 2;
     }
     field = key_part->field;
     DBUG_PRINT("info",
@@ -7163,7 +7156,6 @@ ha_rows ha_spider::records_in_range(
   }
   DBUG_PRINT("info",("spider rows4=%f", rows));
   DBUG_RETURN((ha_rows) rows);
-  DBUG_RETURN((ha_rows) spider_param_crd_weight(thd, share->crd_weight));
 }
 
 int ha_spider::check_crd()

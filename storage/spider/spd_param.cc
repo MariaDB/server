@@ -1329,44 +1329,6 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_sync)
 
 /*
  -1 :fallback to default
-  0 :The crd_weight is used as a fixed value.
-  1 :The crd_weight is used as an addition value.
-  2 :The crd_weight is used as a multiplication value.
- */
-static MYSQL_THDVAR_INT(
-  crd_type, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Type of cardinality calculation.", /* comment */
-  NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  2, /* def */
-  -1, /* min */
-  2, /* max */
-  0 /* blk */
-);
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_type)
-
-/*
- -1 :fallback to default
-  0-:weight
- */
-static MYSQL_THDVAR_INT(
-  crd_weight, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Weight coefficient to calculate effectiveness of index from cardinality of column.", /* comment */
-  NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  2, /* def */
-  -1, /* min */
-  2147483647, /* max */
-  0 /* blk */
-);
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(double, crd_weight)
-
-/*
- -1 :fallback to default
   0 :Background confirmation is disabled
   1 :Background confirmation is enabled (create thread per table/partition)
   2 :Background confirmation is enabled (use static threads)
@@ -2333,8 +2295,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(crd_sync),
   MYSQL_SYSVAR(store_last_crd),
   MYSQL_SYSVAR(load_crd_at_startup),
-  MYSQL_SYSVAR(crd_type),
-  MYSQL_SYSVAR(crd_weight),
   MYSQL_SYSVAR(crd_bg_mode),
   MYSQL_SYSVAR(sts_interval),
   MYSQL_SYSVAR(sts_sync),
