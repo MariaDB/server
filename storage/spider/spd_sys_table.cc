@@ -433,24 +433,6 @@ TABLE *spider_open_sys_table(
       }
       DBUG_ASSERT(0);
       break;
-    case 21:
-      if (!memcmp(table_name, SPIDER_SYS_RW_TBLS_TABLE_NAME_STR,
-        SPIDER_SYS_RW_TBLS_TABLE_NAME_LEN))
-      {
-        DBUG_PRINT("info",("spider checking for SYS_RW_TBLS"));
-        if (table->s->fields != SPIDER_SYS_RW_TBLS_COL_CNT)
-        {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-          table = NULL;
-          my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
-            ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
-            SPIDER_SYS_RW_TBLS_TABLE_NAME_STR);
-          *error_num = ER_SPIDER_SYS_TABLE_VERSION_NUM;
-          goto error_col_num_chk;
-        }
-      }
-      DBUG_ASSERT(0);
-      break;
     case 22:
       if (!memcmp(table_name, SPIDER_SYS_LINK_FAILED_TABLE_NAME_STR,
         SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN))
@@ -487,60 +469,6 @@ TABLE *spider_open_sys_table(
         }
         break;
       }
-      if (!memcmp(table_name, SPIDER_SYS_RWN_TBLS_TABLE_NAME_STR,
-        SPIDER_SYS_RWN_TBLS_TABLE_NAME_LEN))
-      {
-        DBUG_PRINT("info",("spider checking for SYS_RWN_TBLS"));
-        if (table->s->fields != SPIDER_SYS_RWN_TBLS_COL_CNT)
-        {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-          table = NULL;
-          my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
-            ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
-            SPIDER_SYS_RWN_TBLS_TABLE_NAME_STR);
-          *error_num = ER_SPIDER_SYS_TABLE_VERSION_NUM;
-          goto error_col_num_chk;
-        }
-        break;
-      }
-      DBUG_ASSERT(0);
-      break;
-    case 27:
-      if (!memcmp(table_name, SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR,
-        SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_LEN))
-      {
-        DBUG_PRINT("info",("spider checking for SYS_RW_TBL_TBLS"));
-        if (table->s->fields != SPIDER_SYS_RW_TBL_TBLS_COL_CNT)
-        {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-          table = NULL;
-          my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
-            ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
-            SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR);
-          *error_num = ER_SPIDER_SYS_TABLE_VERSION_NUM;
-          goto error_col_num_chk;
-        }
-        break;
-      }
-      DBUG_ASSERT(0);
-      break;
-    case 31:
-      if (!memcmp(table_name, SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR,
-        SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_LEN))
-      {
-        DBUG_PRINT("info",("spider checking for SYS_RW_TBL_PTTS"));
-        if (table->s->fields != SPIDER_SYS_RW_TBL_PTTS_COL_CNT)
-        {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-          table = NULL;
-          my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
-            ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
-            SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR);
-          *error_num = ER_SPIDER_SYS_TABLE_VERSION_NUM;
-          goto error_col_num_chk;
-        }
-        break;
-      }
       DBUG_ASSERT(0);
       break;
     case 34:
@@ -555,22 +483,6 @@ TABLE *spider_open_sys_table(
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
             SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR);
-          *error_num = ER_SPIDER_SYS_TABLE_VERSION_NUM;
-          goto error_col_num_chk;
-        }
-        break;
-      }
-      if (!memcmp(table_name, SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR,
-        SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_LEN))
-      {
-        DBUG_PRINT("info",("spider checking for SYS_RW_TBL_SPTTS"));
-        if (table->s->fields != SPIDER_SYS_RW_TBL_SPTTS_COL_CNT)
-        {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-          table = NULL;
-          my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
-            ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
-            SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR);
           *error_num = ER_SPIDER_SYS_TABLE_VERSION_NUM;
           goto error_col_num_chk;
         }
