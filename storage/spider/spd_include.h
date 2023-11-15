@@ -734,7 +734,6 @@ typedef struct st_spider_share
   volatile time_t    sts_get_time;
   volatile time_t    bg_sts_try_time;
   volatile double    bg_sts_interval;
-  volatile int       bg_sts_mode;
   volatile int       bg_sts_sync;
   volatile bool      bg_sts_init;
   volatile bool      bg_sts_kill;
@@ -747,7 +746,6 @@ typedef struct st_spider_share
   volatile time_t    crd_get_time;
   volatile time_t    bg_crd_try_time;
   volatile double    bg_crd_interval;
-  volatile int       bg_crd_mode;
   volatile int       bg_crd_sync;
   volatile bool      bg_crd_init;
   volatile bool      bg_crd_kill;
@@ -800,8 +798,6 @@ typedef struct st_spider_share
   int                sts_bg_mode;
   /** See `mysql_sysvar_sts_interval` */
   double             sts_interval;
-  /** See `mysql_sysvar_sts_mode` */
-  int                sts_mode;
   /** See `mysql_sysvar_sts_sync` */
   int                sts_sync;
   int                store_last_sts;

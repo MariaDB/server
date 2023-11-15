@@ -702,7 +702,6 @@ int spider_db_seek_tmp_minimum_columns(
 int spider_db_show_table_status(
   ha_spider *spider,
   int link_idx,
-  int sts_mode,
   uint flag
 );
 
@@ -727,8 +726,7 @@ void spider_db_set_cardinarity(
 int spider_db_show_index(
   ha_spider *spider,
   int link_idx,
-  TABLE *table,
-  int crd_mode
+  TABLE *table
 );
 
 ha_rows spider_db_explain_select(

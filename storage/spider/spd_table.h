@@ -559,7 +559,6 @@ int spider_get_sts(
   time_t tmp_time,
   ha_spider *spider,
   double sts_interval,
-  int sts_mode,
   int sts_sync,
   int sts_sync_level,
   uint flag
@@ -572,7 +571,6 @@ int spider_get_crd(
   ha_spider *spider,
   TABLE *table,
   double crd_interval,
-  int crd_mode,
   int crd_sync,
   int crd_sync_level
 );

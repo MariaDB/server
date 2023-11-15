@@ -5198,18 +5198,14 @@ int spider_db_seek_tmp_minimum_columns(
 int spider_db_show_table_status(
   ha_spider *spider,
   int link_idx,
-  int sts_mode,
   uint flag
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
   spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
   DBUG_ENTER("spider_db_show_table_status");
-  DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
-  sts_mode = dbton_hdl->sts_mode_exchange(sts_mode);
   error_num = dbton_hdl->show_table_status(
     link_idx,
-    sts_mode,
     flag
   );
   DBUG_RETURN(error_num);
@@ -5352,17 +5348,13 @@ void spider_db_set_cardinarity(
 int spider_db_show_index(
   ha_spider *spider,
   int link_idx,
-  TABLE *table,
-  int crd_mode
+  TABLE *table
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
-  spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
   DBUG_ENTER("spider_db_show_index");
-  crd_mode = dbton_hdl->crd_mode_exchange(crd_mode);
   error_num = spider->dbton_handler[conn->dbton_id]->show_index(
-    link_idx,
-    crd_mode
+    link_idx
   );
   DBUG_RETURN(error_num);
 }

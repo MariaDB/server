@@ -6546,7 +6546,6 @@ int ha_spider::info(
   int error_num;
   THD *thd = ha_thd();
   double sts_interval = spider_param_sts_interval(thd, share->sts_interval);
-  int sts_mode = spider_param_sts_mode(thd, share->sts_mode);
   int sts_sync = spider_param_sts_sync(thd, share->sts_sync);
   int sts_bg_mode = spider_param_sts_bg_mode(thd, share->sts_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
@@ -6688,7 +6687,7 @@ int ha_spider::info(
               DBUG_RETURN(check_error_mode(error_num));
             }
             if ((error_num = spider_get_sts(share, search_link_idx, tmp_time,
-                this, sts_interval, sts_mode,
+                this, sts_interval,
                 sts_sync,
                 share->sts_init ? 2 : 1,
                 flag | (share->sts_init ? 0 : HA_STATUS_AUTO)))
@@ -6758,7 +6757,6 @@ int ha_spider::info(
             share->bg_sts_thd_wait = FALSE;
             share->bg_sts_try_time = tmp_time;
             share->bg_sts_interval = sts_interval;
-            share->bg_sts_mode = sts_mode;
             share->bg_sts_sync = sts_sync;
             if (!share->bg_sts_init)
             {
@@ -6783,7 +6781,6 @@ int ha_spider::info(
         } else {
           share->bg_sts_try_time = tmp_time;
           share->bg_sts_interval = sts_interval;
-          share->bg_sts_mode = sts_mode;
           share->bg_sts_sync = sts_sync;
           spider_table_add_share_to_sts_thread(share);
         }
@@ -6890,13 +6887,10 @@ ha_rows ha_spider::records_in_range(
   int error_num;
   THD *thd = ha_thd();
   double crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-  int crd_mode = spider_param_crd_mode(thd, share->crd_mode);
   int crd_type = spider_param_crd_type(thd, share->crd_type);
   int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
   int crd_bg_mode = spider_param_crd_bg_mode(thd, share->crd_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
-  uint dbton_id;
-  spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::records_in_range");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider inx=%u", inx));
@@ -6926,260 +6920,19 @@ ha_rows ha_spider::records_in_range(
         }
       }
       pthread_mutex_unlock(&share->crd_mutex);
-      if (crd_mode == 3)
-        crd_mode = 1;
       crd_interval = 0;
     }
   }
-  dbton_id = share->sql_dbton_ids[search_link_idx];
-  dbton_hdl = dbton_handler[dbton_id];
-  crd_mode = dbton_hdl->crd_mode_exchange(crd_mode);
-  if (crd_mode == 1 || crd_mode == 2)
-  {
-    DBUG_PRINT("info", ("spider static_key_cardinality[%u]=%lld", inx,
-      share->static_key_cardinality[inx]));
-    DBUG_PRINT("info",
-      ("spider difftime=%f", difftime(tmp_time, share->crd_get_time)));
-    DBUG_PRINT("info",
-      ("spider crd_interval=%f", crd_interval));
-    if (
-      share->static_key_cardinality[inx] == -1 &&
-      difftime(tmp_time, share->crd_get_time) >= crd_interval
-    ) {
-      if (!dml_inited)
-      {
-        if (unlikely((error_num = dml_init())))
-        {
-          if (check_error_mode(error_num))
-            my_errno = error_num;
-          DBUG_RETURN(HA_POS_ERROR);
-        }
-      }
-      if (
-        crd_interval == 0 ||
-        !pthread_mutex_trylock(&share->crd_mutex)
-      ) {
-        if (crd_interval == 0 || crd_bg_mode == 0)
-        {
-          if (crd_interval == 0)
-            pthread_mutex_lock(&share->crd_mutex);
-          if (difftime(tmp_time, share->crd_get_time) >= crd_interval)
-          {
-            if ((error_num = spider_get_crd(share, search_link_idx, tmp_time,
-              this, table, crd_interval, crd_mode,
-              crd_sync,
-              share->crd_init ? 2 : 1)))
-            {
-              pthread_mutex_unlock(&share->crd_mutex);
-              if (
-                share->monitoring_kind[search_link_idx] &&
-                need_mons[search_link_idx]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    search_link_idx,
-                    (uint32) share->monitoring_sid[search_link_idx],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[search_link_idx],
-                    NULL,
-                    0,
-                    share->monitoring_kind[search_link_idx],
-                    share->monitoring_limit[search_link_idx],
-                    share->monitoring_flag[search_link_idx],
-                    TRUE
-                  );
-              }
-              if (!share->crd_init)
-              {
-                if (
-                  spider_init_error_table ||
-                  (spider_init_error_table =
-                    spider_get_init_error_table(wide_handler->trx,
-                      share, TRUE))
-                ) {
-                  spider_init_error_table->init_error = error_num;
-/*
-                  if (!thd->is_error())
-                    my_error(error_num, MYF(0), "");
-*/
-                  if ((spider_init_error_table->init_error_with_message =
-                    thd->is_error()))
-                    strmov(spider_init_error_table->init_error_msg,
-                      spider_stmt_da_message(thd));
-                  spider_init_error_table->init_error_time =
-                    (time_t) time((time_t*) 0);
-                }
-                share->init_error = TRUE;
-                share->init = TRUE;
-              }
-              if (check_error_mode(error_num))
-                my_errno = error_num;
-              DBUG_RETURN(HA_POS_ERROR);
-            }
-          }
-        } else if (crd_bg_mode == 1) {
-          /* background */
-          if (!share->bg_crd_init || share->bg_crd_thd_wait)
-          {
-            share->bg_crd_thd_wait = FALSE;
-            share->bg_crd_try_time = tmp_time;
-            share->bg_crd_interval = crd_interval;
-            share->bg_crd_mode = crd_mode;
-            share->bg_crd_sync = crd_sync;
-            if (!share->bg_crd_init)
-            {
-              if ((error_num = spider_create_crd_thread(share)))
-              {
-                pthread_mutex_unlock(&share->crd_mutex);
-                my_errno = error_num;
-                DBUG_RETURN(HA_POS_ERROR);
-              }
-            } else
-              pthread_cond_signal(&share->bg_crd_cond);
-          }
-        } else {
-          share->bg_crd_try_time = tmp_time;
-          share->bg_crd_interval = crd_interval;
-          share->bg_crd_mode = crd_mode;
-          share->bg_crd_sync = crd_sync;
-          spider_table_add_share_to_crd_thread(share);
-        }
-        pthread_mutex_unlock(&share->crd_mutex);
-      }
-    }
-
-    KEY *key_info = &table->key_info[inx];
-    key_part_map full_key_part_map =
-      make_prev_keypart_map(spider_user_defined_key_parts(key_info));
-    key_part_map start_key_part_map;
-    key_part_map end_key_part_map;
-    key_part_map tgt_key_part_map;
-    KEY_PART_INFO *key_part;
-    Field *field = NULL;
-    double rows = (double) share->stat.records;
-    double weight, rate;
-    DBUG_PRINT("info",("spider rows1=%f", rows));
-    if (start_key)
-      start_key_part_map = start_key->keypart_map & full_key_part_map;
-    else
-      start_key_part_map = 0;
-    if (end_key)
-      end_key_part_map = end_key->keypart_map & full_key_part_map;
-    else
-      end_key_part_map = 0;
-
-    if (!start_key_part_map && !end_key_part_map)
-    {
-      DBUG_RETURN(HA_POS_ERROR);
-    }
-    else if (start_key_part_map >= end_key_part_map)
-    {
-      tgt_key_part_map = start_key_part_map;
-    } else {
-      tgt_key_part_map = end_key_part_map;
-    }
-
-    if (crd_type == 0)
-      weight = spider_param_crd_weight(thd, share->crd_weight);
-    else
-      weight = 1;
-
-    if (share->static_key_cardinality[inx] == -1)
-    {
-      for (
-        key_part = key_info->key_part;
-        tgt_key_part_map > 1;
-        tgt_key_part_map >>= 1,
-        key_part++
-      ) {
-        field = key_part->field;
-        DBUG_PRINT("info",
-          ("spider field_index=%u",
-            field->field_index));
-        DBUG_PRINT("info",
-          ("spider cardinality=%lld", share->cardinality[field->field_index]));
-        if (share->cardinality[field->field_index] == -1)
-        {
-          DBUG_PRINT("info",
-            ("spider uninitialized column cardinality"));
-          DBUG_RETURN(HA_POS_ERROR);
-        }
-        if ((rate =
-          ((double) share->cardinality[field->field_index]) / weight) >= 1
-        ) {
-          if ((rows = rows / rate) < 2)
-          {
-            DBUG_PRINT("info",("spider rows2=%f then ret 2", rows));
-            DBUG_RETURN((ha_rows) 2);
-          }
-        }
-        if (crd_type == 1)
-          weight += spider_param_crd_weight(thd, share->crd_weight);
-        else if (crd_type == 2)
-          weight *= spider_param_crd_weight(thd, share->crd_weight);
-      }
-      field = key_part->field;
-      DBUG_PRINT("info",
-        ("spider field_index=%u",
-          field->field_index));
-      DBUG_PRINT("info",
-        ("spider cardinality=%lld", share->cardinality[field->field_index]));
-      if (share->cardinality[field->field_index] == -1)
-      {
-        DBUG_PRINT("info",
-          ("spider uninitialized column cardinality"));
-        DBUG_RETURN(HA_POS_ERROR);
-      }
-    }
-    if (
-      start_key_part_map >= end_key_part_map &&
-      start_key->flag == HA_READ_KEY_EXACT
-    ) {
-      if (share->static_key_cardinality[inx] == -1)
-      {
-        if ((rate =
-          ((double) share->cardinality[field->field_index]) / weight) >= 1)
-          rows = rows / rate;
-      } else {
-        rate = ((double) share->static_key_cardinality[inx]);
-        rows = rows / rate;
-      }
-    } else if (start_key_part_map == end_key_part_map)
-    {
-      if (share->static_key_cardinality[inx] == -1)
-      {
-        if ((rate =
-          ((double) share->cardinality[field->field_index]) / weight / 4) >= 1)
-          rows = rows / rate;
-      } else {
-        if ((rate =
-          ((double) share->static_key_cardinality[inx]) / 4) >= 1)
-          rows = rows / rate;
-      }
-    } else {
-      if (share->static_key_cardinality[inx] == -1)
-      {
-        if ((rate =
-          ((double) share->cardinality[field->field_index]) / weight / 16) >= 1)
-          rows = rows / rate;
-      } else {
-        if ((rate =
-          ((double) share->static_key_cardinality[inx]) / 16) >= 1)
-          rows = rows / rate;
-      }
-    }
-    if (rows < 2)
-    {
-      DBUG_PRINT("info",("spider rows3=%f then ret 2", rows));
-      DBUG_RETURN((ha_rows) 2);
-    }
-    DBUG_PRINT("info",("spider rows4=%f", rows));
-    DBUG_RETURN((ha_rows) rows);
-  } else if (crd_mode == 3)
-  {
+  DBUG_PRINT("info", ("spider static_key_cardinality[%u]=%lld", inx,
+                      share->static_key_cardinality[inx]));
+  DBUG_PRINT("info",
+             ("spider difftime=%f", difftime(tmp_time, share->crd_get_time)));
+  DBUG_PRINT("info",
+             ("spider crd_interval=%f", crd_interval));
+  if (
+    share->static_key_cardinality[inx] == -1 &&
+    difftime(tmp_time, share->crd_get_time) >= crd_interval
+  ) {
     if (!dml_inited)
     {
       if (unlikely((error_num = dml_init())))
@@ -7189,10 +6942,227 @@ ha_rows ha_spider::records_in_range(
         DBUG_RETURN(HA_POS_ERROR);
       }
     }
-    result_list.key_info = &table->key_info[inx];
-    DBUG_RETURN(spider_db_explain_select(start_key, end_key, this,
-      search_link_idx));
+    if (
+      crd_interval == 0 ||
+      !pthread_mutex_trylock(&share->crd_mutex)
+    ) {
+      if (crd_interval == 0 || crd_bg_mode == 0)
+      {
+        if (crd_interval == 0)
+          pthread_mutex_lock(&share->crd_mutex);
+        if (difftime(tmp_time, share->crd_get_time) >= crd_interval)
+        {
+          if ((error_num = spider_get_crd(share, search_link_idx, tmp_time,
+                                          this, table, crd_interval,
+                                          crd_sync,
+                                          share->crd_init ? 2 : 1)))
+          {
+            pthread_mutex_unlock(&share->crd_mutex);
+            if (
+              share->monitoring_kind[search_link_idx] &&
+              need_mons[search_link_idx]
+            ) {
+              error_num = spider_ping_table_mon_from_table(
+                wide_handler->trx,
+                wide_handler->trx->thd,
+                share,
+                search_link_idx,
+                (uint32) share->monitoring_sid[search_link_idx],
+                share->table_name,
+                share->table_name_length,
+                conn_link_idx[search_link_idx],
+                NULL,
+                0,
+                share->monitoring_kind[search_link_idx],
+                share->monitoring_limit[search_link_idx],
+                share->monitoring_flag[search_link_idx],
+                TRUE
+              );
+            }
+            if (!share->crd_init)
+            {
+              if (
+                spider_init_error_table ||
+                (spider_init_error_table =
+                 spider_get_init_error_table(wide_handler->trx,
+                                             share, TRUE))
+              ) {
+                spider_init_error_table->init_error = error_num;
+/*
+  if (!thd->is_error())
+  my_error(error_num, MYF(0), "");
+  */
+                if ((spider_init_error_table->init_error_with_message =
+                     thd->is_error()))
+                  strmov(spider_init_error_table->init_error_msg,
+                         spider_stmt_da_message(thd));
+                spider_init_error_table->init_error_time =
+                  (time_t) time((time_t*) 0);
+              }
+              share->init_error = TRUE;
+              share->init = TRUE;
+            }
+            if (check_error_mode(error_num))
+              my_errno = error_num;
+            DBUG_RETURN(HA_POS_ERROR);
+          }
+        }
+      } else if (crd_bg_mode == 1) {
+        /* background */
+        if (!share->bg_crd_init || share->bg_crd_thd_wait)
+        {
+          share->bg_crd_thd_wait = FALSE;
+          share->bg_crd_try_time = tmp_time;
+          share->bg_crd_interval = crd_interval;
+          share->bg_crd_sync = crd_sync;
+          if (!share->bg_crd_init)
+          {
+            if ((error_num = spider_create_crd_thread(share)))
+            {
+              pthread_mutex_unlock(&share->crd_mutex);
+              my_errno = error_num;
+              DBUG_RETURN(HA_POS_ERROR);
+            }
+          } else
+            pthread_cond_signal(&share->bg_crd_cond);
+        }
+      } else {
+        share->bg_crd_try_time = tmp_time;
+        share->bg_crd_interval = crd_interval;
+        share->bg_crd_sync = crd_sync;
+        spider_table_add_share_to_crd_thread(share);
+      }
+      pthread_mutex_unlock(&share->crd_mutex);
+    }
   }
+
+  KEY *key_info = &table->key_info[inx];
+  key_part_map full_key_part_map =
+    make_prev_keypart_map(spider_user_defined_key_parts(key_info));
+  key_part_map start_key_part_map;
+  key_part_map end_key_part_map;
+  key_part_map tgt_key_part_map;
+  KEY_PART_INFO *key_part;
+  Field *field = NULL;
+  double rows = (double) share->stat.records;
+  double weight, rate;
+  DBUG_PRINT("info",("spider rows1=%f", rows));
+  if (start_key)
+    start_key_part_map = start_key->keypart_map & full_key_part_map;
+  else
+    start_key_part_map = 0;
+  if (end_key)
+    end_key_part_map = end_key->keypart_map & full_key_part_map;
+  else
+    end_key_part_map = 0;
+
+  if (!start_key_part_map && !end_key_part_map)
+  {
+    DBUG_RETURN(HA_POS_ERROR);
+  }
+  else if (start_key_part_map >= end_key_part_map)
+  {
+    tgt_key_part_map = start_key_part_map;
+  } else {
+    tgt_key_part_map = end_key_part_map;
+  }
+
+  if (crd_type == 0)
+    weight = spider_param_crd_weight(thd, share->crd_weight);
+  else
+    weight = 1;
+
+  if (share->static_key_cardinality[inx] == -1)
+  {
+    for (
+      key_part = key_info->key_part;
+      tgt_key_part_map > 1;
+      tgt_key_part_map >>= 1,
+        key_part++
+    ) {
+      field = key_part->field;
+      DBUG_PRINT("info",
+                 ("spider field_index=%u",
+                  field->field_index));
+      DBUG_PRINT("info",
+                 ("spider cardinality=%lld", share->cardinality[field->field_index]));
+      if (share->cardinality[field->field_index] == -1)
+      {
+        DBUG_PRINT("info",
+                   ("spider uninitialized column cardinality"));
+        DBUG_RETURN(HA_POS_ERROR);
+      }
+      if ((rate =
+           ((double) share->cardinality[field->field_index]) / weight) >= 1
+      ) {
+        if ((rows = rows / rate) < 2)
+        {
+          DBUG_PRINT("info",("spider rows2=%f then ret 2", rows));
+          DBUG_RETURN((ha_rows) 2);
+        }
+      }
+      if (crd_type == 1)
+        weight += spider_param_crd_weight(thd, share->crd_weight);
+      else if (crd_type == 2)
+        weight *= spider_param_crd_weight(thd, share->crd_weight);
+    }
+    field = key_part->field;
+    DBUG_PRINT("info",
+               ("spider field_index=%u",
+                field->field_index));
+    DBUG_PRINT("info",
+               ("spider cardinality=%lld", share->cardinality[field->field_index]));
+    if (share->cardinality[field->field_index] == -1)
+    {
+      DBUG_PRINT("info",
+                 ("spider uninitialized column cardinality"));
+      DBUG_RETURN(HA_POS_ERROR);
+    }
+  }
+  if (
+    start_key_part_map >= end_key_part_map &&
+    start_key->flag == HA_READ_KEY_EXACT
+  ) {
+    if (share->static_key_cardinality[inx] == -1)
+    {
+      if ((rate =
+           ((double) share->cardinality[field->field_index]) / weight) >= 1)
+        rows = rows / rate;
+    } else {
+      rate = ((double) share->static_key_cardinality[inx]);
+      rows = rows / rate;
+    }
+  } else if (start_key_part_map == end_key_part_map)
+  {
+    if (share->static_key_cardinality[inx] == -1)
+    {
+      if ((rate =
+           ((double) share->cardinality[field->field_index]) / weight / 4) >= 1)
+        rows = rows / rate;
+    } else {
+      if ((rate =
+           ((double) share->static_key_cardinality[inx]) / 4) >= 1)
+        rows = rows / rate;
+    }
+  } else {
+    if (share->static_key_cardinality[inx] == -1)
+    {
+      if ((rate =
+           ((double) share->cardinality[field->field_index]) / weight / 16) >= 1)
+        rows = rows / rate;
+    } else {
+      if ((rate =
+           ((double) share->static_key_cardinality[inx]) / 16) >= 1)
+        rows = rows / rate;
+    }
+  }
+  if (rows < 2)
+  {
+    DBUG_PRINT("info",("spider rows3=%f then ret 2", rows));
+    DBUG_RETURN((ha_rows) 2);
+  }
+  DBUG_PRINT("info",("spider rows4=%f", rows));
+  DBUG_RETURN((ha_rows) rows);
   DBUG_RETURN((ha_rows) spider_param_crd_weight(thd, share->crd_weight));
 }
 
@@ -7201,12 +7171,9 @@ int ha_spider::check_crd()
   int error_num;
   THD *thd = ha_thd();
   double crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-  int crd_mode = spider_param_crd_mode(thd, share->crd_mode);
   int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
   int crd_bg_mode = spider_param_crd_bg_mode(thd, share->crd_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
-  uint dbton_id;
-  spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::check_crd");
   DBUG_PRINT("info",("spider this=%p", this));
   time_t tmp_time = (time_t) time((time_t*) 0);
@@ -7236,15 +7203,10 @@ int ha_spider::check_crd()
       crd_interval = 0;
     }
   }
-  if (crd_mode == 3)
-    crd_mode = 1;
   if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
   {
     DBUG_RETURN(check_error_mode(error_num));
   }
-  dbton_id = share->sql_dbton_ids[search_link_idx];
-  dbton_hdl = dbton_handler[dbton_id];
-  crd_mode = dbton_hdl->crd_mode_exchange(crd_mode);
   DBUG_PRINT("info",
     ("spider difftime=%f", difftime(tmp_time, share->crd_get_time)));
   DBUG_PRINT("info",
@@ -7262,7 +7224,7 @@ int ha_spider::check_crd()
         if (difftime(tmp_time, share->crd_get_time) >= crd_interval)
         {
           if ((error_num = spider_get_crd(share, search_link_idx, tmp_time,
-            this, table, crd_interval, crd_mode,
+            this, table, crd_interval,
             crd_sync,
             share->crd_init ? 2 : 1)))
           {
@@ -7316,7 +7278,6 @@ int ha_spider::check_crd()
           share->bg_crd_thd_wait = FALSE;
           share->bg_crd_try_time = tmp_time;
           share->bg_crd_interval = crd_interval;
-          share->bg_crd_mode = crd_mode;
           share->bg_crd_sync = crd_sync;
           if (!share->bg_crd_init)
           {
@@ -7331,7 +7292,6 @@ int ha_spider::check_crd()
       } else {
         share->bg_crd_try_time = tmp_time;
         share->bg_crd_interval = crd_interval;
-        share->bg_crd_mode = crd_mode;
         share->bg_crd_sync = crd_sync;
         spider_table_add_share_to_crd_thread(share);
       }
