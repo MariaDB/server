@@ -1893,13 +1893,13 @@ public:
   Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs):
     Item_str_func(thd, a)
   {
-    collation.set(cs, DERIVATION_IMPLICIT);
+    collation= DTCollation::string_typecast(cs);
     use_cached_value= 0; safe= 0;
   }
   Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs, bool cache_if_const):
     Item_str_func(thd, a)
   {
-    collation.set(cs, DERIVATION_IMPLICIT);
+    collation= DTCollation::string_typecast(cs);
     if (cache_if_const && args[0]->can_eval_in_optimize())
     {
       uint errors= 0;

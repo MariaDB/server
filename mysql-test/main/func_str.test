@@ -485,7 +485,7 @@ where collation(t2.a) = _utf8'binary' order by t1.a,t2.a;
 select t1.*,t2.* from t1 left join t2 on (t1.b=t2.b)
 where charset(t2.a) = _utf8'binary' order by t1.a,t2.a;
 select t1.*,t2.* from t1 left join t2 on (t1.b=t2.b)
-where coercibility(t2.a) = 5 order by t1.a,t2.a;
+where coercibility(t2.a) = 6 order by t1.a,t2.a;
 DROP TABLE t1, t2;
 
 #
@@ -2539,4 +2539,33 @@ SELECT CONV(-9223372036854775808, -10, -62);
 
 --echo #
 --echo # End of 11.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-25829 Change default collation to utf8mb4_1400_ai_ci
+--echo #
+
+--vertical_results
+SELECT
+  coercibility(CAST(1 AS CHAR)),
+  coercibility(CONVERT('a' USING latin1));
+
+SELECT
+  coercibility(CAST(1 AS BINARY)),
+  coercibility(CONVERT('a' USING binary)),
+  coercibility(binary'a');
+--horizontal_results
+
+EXPLAIN EXTENDED SELECT
+  CAST(1 AS BINARY) AS c,
+  CONVERT('a' USING binary),
+  BINARY'a';
+
+--echo #
+--echo # End of 11.5 tests
 --echo #
