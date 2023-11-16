@@ -244,9 +244,7 @@ set @foo= (select max(a) from t0 where sin(a) >0);
 connection default;
 show explain for $thr2;
 ERROR HY000: Target is not executing an operation with a query plan
-kill query $thr2;
 connection con1;
-ERROR 70100: Query execution was interrupted
 SET debug_dbug=@old_debug;
 #
 # Attempt SHOW EXPLAIN for an UPDATE
@@ -568,9 +566,14 @@ SELECT * FROM v1, t2;
 connection default;
 show explain for $thr2;
 ERROR HY000: Target is not executing an operation with a query plan
-kill query $thr2;
 connection con1;
-ERROR 70100: Query execution was interrupted
+a	b
+8	4
+8	5
+8	6
+8	7
+8	8
+8	9
 SET debug_dbug=@old_debug;
 DROP VIEW v1;
 DROP TABLE t2, t3;
