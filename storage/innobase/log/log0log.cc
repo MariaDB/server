@@ -871,7 +871,6 @@ repeat:
 @param sync  whether to wait for a durable write to complete */
 void log_buffer_flush_to_disk(bool sync)
 {
-  ut_ad(!srv_read_only_mode);
   log_write_up_to(log_sys.get_lsn(std::memory_order_acquire), sync);
 }
 

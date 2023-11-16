@@ -37,6 +37,8 @@ SELECT * FROM t;
 a
 3
 SET GLOBAL innodb_max_purge_lag_wait=0;
+INSERT INTO mysql.innodb_index_stats
+SELECT * FROM mysql.innodb_index_stats LIMIT 0;
 # restart
 SELECT * FROM t;
 a

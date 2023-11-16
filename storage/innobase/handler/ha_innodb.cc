@@ -15797,7 +15797,8 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
-		if (!m_prebuilt->table->is_temporary()) {
+		if (!m_prebuilt->table->is_temporary()
+		    && !high_level_read_only) {
 			log_buffer_flush_to_disk();
 		}
 		break;
