@@ -269,6 +269,11 @@ constexpr privilege_t PROC_DDL_ACLS=
 constexpr privilege_t SHOW_PROC_WITHOUT_DEFINITION_ACLS=
   PROC_DDL_ACLS | EXECUTE_ACL;
 
+/*
+  When changing this, don't forget to update tables_priv
+  at scripts/mariadb_system_tables.sql, scripts/mariadb_system_tables_fix.sql
+  and scripts/sys_schema/i_s/table_privileges.sql
+*/
 constexpr privilege_t TABLE_ACLS=
   COL_DML_ACLS | ALL_TABLE_DDL_ACLS | VIEW_ACLS |
   GRANT_ACL | REFERENCES_ACL | 

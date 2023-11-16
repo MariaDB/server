@@ -1635,6 +1635,59 @@ mysql> select * from schema_object_overview;
 10 rows in set (1.58 sec)
 ```
 
+#### table_privileges
+
+##### Description
+
+-- Shows privileges on existing tables and views granted at all possible levels:
+-- - user_privileges
+-- - schema_privileges
+-- - table_privileges
+
+##### Structure
+
+```SQL
+MariaDB [test]> desc sys.table_privileges;
++--------------+--------------+------+-----+---------+-------+
+| Field        | Type         | Null | Key | Default | Extra |
++--------------+--------------+------+-----+---------+-------+
+| TABLE_SCHEMA | varchar(64)  | NO   |     | NULL    |       |
+| TABLE_NAME   | varchar(64)  | NO   |     | NULL    |       |
+| GRANTEE      | varchar(385) | NO   |     |         |       |
+| PRIVILEGE    | varchar(64)  | NO   |     |         |       |
+| LEVEL        | varchar(6)   | NO   |     |         |       |
++--------------+--------------+------+-----+---------+-------+
+5 rows in set (0.002 sec)
+```
+
+##### Example
+
+```SQL
+mysql> select * from sys.table_privileges;
++--------------+------------+--------------------+----------------+--------+
+| TABLE_SCHEMA | TABLE_NAME | GRANTEE            | PRIVILEGE_TYPE | LEVEL  |
++--------------+------------+--------------------+----------------+--------+
+| test         | v1         | 'oleg'@'localhost' | SELECT         | GLOBAL |
+| test         | t1         | 'oleg'@'localhost' | SELECT         | GLOBAL |
+| test         | v1         | 'oleg'@'localhost' | INSERT         | GLOBAL |
+| test         | t1         | 'oleg'@'localhost' | INSERT         | GLOBAL |
+| test         | v1         | 'oleg'@'localhost' | UPDATE         | GLOBAL |
+| test         | v1         | 'PUBLIC'@''        | SELECT         | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | SELECT         | SCHEMA |
+| test         | v1         | 'PUBLIC'@''        | INSERT         | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | INSERT         | SCHEMA |
+| test         | v1         | 'PUBLIC'@''        | UPDATE         | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | UPDATE         | SCHEMA |
+| test         | v1         | 'PUBLIC'@''        | DELETE HISTORY | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | DELETE HISTORY | SCHEMA |
+| test         | t1         | 'oleg'@'%'         | SELECT         | TABLE  |
+| test         | t1         | 'oleg'@'%'         | UPDATE         | TABLE  |
+| test         | v1         | 'oleg'@'%'         | SELECT         | TABLE  |
++--------------+------------+--------------------+----------------+--------+
+16 rows in set (1.58 sec)
+```
+
+
 #### schema_table_statistics / x$schema_table_statistics
 
 ##### Description
