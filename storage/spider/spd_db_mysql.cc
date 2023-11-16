@@ -16106,8 +16106,7 @@ int spider_mbase_handler::append_from_and_tables_part(
     default:
       DBUG_RETURN(0);
   }
-  fields->set_pos_to_first_table_holder();
-  table_holder = fields->get_next_table_holder();
+  table_holder = fields->get_first_table_holder();
   table_list = table_holder->table->pos_in_table_list;
   error_num = spider_db_mbase_utility->append_from_and_tables(
     table_holder->spider, fields, str,

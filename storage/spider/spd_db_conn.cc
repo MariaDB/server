@@ -9693,19 +9693,20 @@ int spider_db_open_item_ident(
       } else {
         if (str)
         {
-          SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
-          SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
-          spider = field_holder->spider;
+          SPIDER_TABLE_HOLDER *table= fields->find_table(field);
+          /* If table or table->spider is NULL the GBH creation
+          would have been skipped the first pass (see below). */
+          spider = table->spider;
           share = spider->share;
           if ((error_num = share->dbton_share[dbton_id]->
             append_column_name_with_alias(str, field->field_index,
-            field_holder->alias->ptr(), field_holder->alias->length())))
+            table->alias->ptr(), table->alias->length())))
             DBUG_RETURN(error_num);
-        } else {
-          if ((error_num = fields->add_field(field)))
-          {
-            DBUG_RETURN(error_num);
-          }
+        } else
+        {
+          SPIDER_TABLE_HOLDER *table= fields->find_table(field);
+          if (!table || !table->spider)
+            DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
         }
       }
     }
@@ -9824,21 +9825,20 @@ int spider_db_open_item_field(
         } else {
           if (str)
           {
-            SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
-            SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
-            spider = field_holder->spider;
+            SPIDER_TABLE_HOLDER *table= fields->find_table(field);
+            /* If table or table->spider is NULL the GBH creation
+            would have been skipped the first pass (see below). */
+            spider = table->spider;
             share = spider->share;
-            field = spider->field_exchange(field);
-            DBUG_ASSERT(field);
             if ((error_num = share->dbton_share[dbton_id]->
               append_column_name_with_alias(str, field->field_index,
-              field_holder->alias->ptr(), field_holder->alias->length())))
+              table->alias->ptr(), table->alias->length())))
               DBUG_RETURN(error_num);
-          } else {
-            if ((error_num = fields->add_field(field)))
-            {
-              DBUG_RETURN(error_num);
-            }
+          } else
+          {
+            SPIDER_TABLE_HOLDER *table= fields->find_table(field);
+            if (!table || !table->spider)
+              DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
           }
           DBUG_RETURN(0);
         }

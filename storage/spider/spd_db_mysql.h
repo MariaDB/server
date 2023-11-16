@@ -687,8 +687,11 @@ public:
   spider_string      *show_table_status;
   spider_string      *show_records;
   spider_string      *show_index;
+  /* The remote table names */
   spider_string      *table_names_str;
+  /* The remote db names */
   spider_string      *db_names_str;
+  /* fixme: this field looks useless */
   spider_string      *db_table_str;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *db_table_str_hash_value;
