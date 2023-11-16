@@ -420,13 +420,10 @@ void mtr_t::commit()
             ut_ad(s < buf_page_t::READ_FIX);
             ut_ad(mach_read_from_8(bpage->frame + FIL_PAGE_LSN) <=
                   m_commit_lsn);
-            if (s >= buf_page_t::UNFIXED)
-            {
-              mach_write_to_8(bpage->frame + FIL_PAGE_LSN, m_commit_lsn);
-              if (UNIV_LIKELY_NULL(bpage->zip.data))
-                memcpy_aligned<8>(FIL_PAGE_LSN + bpage->zip.data,
-                                  FIL_PAGE_LSN + bpage->frame, 8);
-            }
+            mach_write_to_8(bpage->frame + FIL_PAGE_LSN, m_commit_lsn);
+            if (UNIV_LIKELY_NULL(bpage->zip.data))
+              memcpy_aligned<8>(FIL_PAGE_LSN + bpage->zip.data,
+                                FIL_PAGE_LSN + bpage->frame, 8);
             modified++;
           }
           switch (auto latch= slot.type & ~MTR_MEMO_MODIFY) {
