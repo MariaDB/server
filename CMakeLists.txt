@@ -599,6 +599,7 @@ IF(NOT WITHOUT_SERVER)
    mariadb-test
    mariadb-tzinfo-to-sql
    mariadb-upgrade
+   mariadb-frm
    mariadbd
    my_print_defaults
    my_safe_process

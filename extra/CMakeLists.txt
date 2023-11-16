@@ -15,6 +15,8 @@
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIR})
 
+ADD_SUBDIRECTORY(mariafrm)
+
 # Default install component for the files is Server here
 SET(MYSQL_INSTALL_COMPONENT Server)
 
