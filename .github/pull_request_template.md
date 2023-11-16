@@ -20,6 +20,10 @@ An amazing description should answer some questions like:
 ## Description
 TODO: fill description here
 
+## Release Notes
+TODO: What should the release notes say about this change?
+Include any changed system variables, status variables or behaviour. Optionally list any https://mariadb.com/kb/ pages that need changing.
+
 ## How can this PR be tested?
 
 TODO: modify the automated test suite to verify that the PR causes MariaDB to behave as intended.
