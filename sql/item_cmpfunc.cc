@@ -7823,10 +7823,11 @@ bool Item_equal::create_pushable_equalities(THD *thd,
 
   while ((item=it++))
   {
-    left_item= item;
-    if (checker && !((item->*checker) (arg)))
-      continue;
-    break;
+    if (!checker || ((item->*checker)(arg)))
+    {
+      left_item= item;
+      break;
+    }
   }
 
   if (!left_item)
