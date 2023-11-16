@@ -27,6 +27,7 @@ SELECT * FROM t2;
 id	c2	c3
 2	1	De finibus bonorum
 3	4	accusantium doloremque laudantium
+InnoDB		0 transactions not purged
 BEGIN;
 DELETE FROM t1;
 ROLLBACK;
