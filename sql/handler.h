@@ -978,6 +978,7 @@ struct Online_alter_cache_list;
 struct XA_data: XID
 {
   Online_alter_cache_list *online_alter_cache= NULL;
+  XA_data &operator=(const XID &x) { XID::operator=(x); return *this; }
 };
 
 /*

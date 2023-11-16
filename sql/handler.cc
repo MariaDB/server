@@ -2604,7 +2604,7 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
     // Populate xid using the server_id from original transaction
     x.set(member->xid, member->server_id);
   else
-    (XID)x= *member->full_xid;
+    x= *member->full_xid;
 
   rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
     hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
