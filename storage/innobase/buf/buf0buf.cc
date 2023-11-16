@@ -410,9 +410,11 @@ static bool buf_page_decrypt_after_read(buf_page_t *bpage,
 		return (true);
 	}
 
+	buf_tmp_buffer_t* slot;
+
 	if (node.space->purpose == FIL_TYPE_TEMPORARY
 	    && innodb_encrypt_temporary_tables) {
-		buf_tmp_buffer_t* slot = buf_pool.io_buf_reserve();
+		slot = buf_pool.io_buf_reserve();
 		ut_a(slot);
 		slot->allocate();
 
@@ -431,7 +433,6 @@ static bool buf_page_decrypt_after_read(buf_page_t *bpage,
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
 
-	buf_tmp_buffer_t* slot;
 	uint key_version = buf_page_get_key_version(dst_frame, flags);
 
 	if (page_compressed && !key_version) {
@@ -444,7 +445,6 @@ decompress:
 		}
 
 		slot = buf_pool.io_buf_reserve();
-		ut_a(slot);
 		slot->allocate();
 
 decompress_with_slot:
@@ -472,7 +472,6 @@ decrypt_failed:
 		}
 
 		slot = buf_pool.io_buf_reserve();
-		ut_a(slot);
 		slot->allocate();
 		ut_d(fil_page_type_validate(node.space, dst_frame));
 
@@ -1494,6 +1493,41 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	return(true); /* free_list was enough */
 }
 
+void buf_pool_t::io_buf_t::create(ulint n_slots)
+{
+  this->n_slots= n_slots;
+  slots= static_cast<buf_tmp_buffer_t*>
+    (ut_malloc_nokey(n_slots * sizeof *slots));
+  memset((void*) slots, 0, n_slots * sizeof *slots);
+}
+
+void buf_pool_t::io_buf_t::close()
+{
+  for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+  {
+    aligned_free(s->crypt_buf);
+    aligned_free(s->comp_buf);
+  }
+  ut_free(slots);
+  slots= nullptr;
+  n_slots= 0;
+}
+
+buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve()
+{
+  for (;;)
+  {
+    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+      if (s->acquire())
+        return s;
+    os_aio_wait_until_no_pending_writes();
+    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+      if (s->acquire())
+        return s;
+    os_aio_wait_until_no_pending_reads();
+  }
+}
+
 /** Sets the global variable that feeds MySQL's innodb_buffer_pool_resize_status
 to the specified string. The format and the following parameters are the
 same as the ones used for printf(3).
@@ -1564,15 +1598,18 @@ inline bool buf_pool_t::withdraw_blocks()
 
 			block = next_block;
 		}
-		mysql_mutex_unlock(&mutex);
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
 			ulint n_flushed = buf_flush_LRU(
 				std::max<ulint>(withdraw_target
 						- UT_LIST_GET_LEN(withdraw),
-						srv_LRU_scan_depth));
-			buf_flush_wait_batch_end_acquiring_mutex(true);
+						srv_LRU_scan_depth),
+				true);
+			mysql_mutex_unlock(&buf_pool.mutex);
+			buf_dblwr.flush_buffered_writes();
+			mysql_mutex_lock(&buf_pool.mutex);
+			buf_flush_wait_batch_end(true);
 
 			if (n_flushed) {
 				MONITOR_INC_VALUE_CUMULATIVE(
@@ -1586,12 +1623,12 @@ inline bool buf_pool_t::withdraw_blocks()
 		/* relocate blocks/buddies in withdrawn area */
 		ulint	count2 = 0;
 
-		mysql_mutex_lock(&mutex);
-		buf_page_t*	bpage;
-		bpage = UT_LIST_GET_FIRST(LRU);
-		while (bpage != NULL) {
-			buf_page_t* next_bpage = UT_LIST_GET_NEXT(LRU, bpage);
-			if (bpage->zip.data != NULL
+		buf_pool_mutex_exit_forbid();
+		for (buf_page_t* bpage = UT_LIST_GET_FIRST(LRU), *next_bpage;
+		     bpage; bpage = next_bpage) {
+			ut_ad(bpage->in_file());
+			next_bpage = UT_LIST_GET_NEXT(LRU, bpage);
+			if (UNIV_LIKELY_NULL(bpage->zip.data)
 			    && will_be_withdrawn(bpage->zip.data)
 			    && bpage->can_relocate()) {
 				buf_pool_mutex_exit_forbid();
@@ -2667,11 +2704,6 @@ buf_page_get_low(
 	      || (rw_latch == RW_X_LATCH)
 	      || (rw_latch == RW_SX_LATCH)
 	      || (rw_latch == RW_NO_LATCH));
-	ut_ad(!allow_ibuf_merge
-	      || mode == BUF_GET
-	      || mode == BUF_GET_POSSIBLY_FREED
-	      || mode == BUF_GET_IF_IN_POOL
-	      || mode == BUF_GET_IF_IN_POOL_OR_WATCH);
 
 	if (err) {
 		*err = DB_SUCCESS;
@@ -2685,14 +2717,14 @@ buf_page_get_low(
 		replace any old pages, which were not evicted during DISCARD.
 		Skip the assertion on space_page_size. */
 		break;
-	case BUF_PEEK_IF_IN_POOL:
+	default:
+		ut_ad(!allow_ibuf_merge);
+		ut_ad(mode == BUF_PEEK_IF_IN_POOL);
+		break;
+	case BUF_GET_POSSIBLY_FREED:
 	case BUF_GET_IF_IN_POOL:
 		/* The caller may pass a dummy page size,
 		because it does not really matter. */
-		break;
-	default:
-		ut_error;
-	case BUF_GET_POSSIBLY_FREED:
 		break;
 	case BUF_GET_NO_LATCH:
 		ut_ad(rw_latch == RW_NO_LATCH);
