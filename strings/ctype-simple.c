@@ -451,7 +451,11 @@ long my_strntol_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -546,7 +550,11 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -634,7 +642,11 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -656,8 +668,12 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
 
   if (negative)
   {
-    if (i  > (ulonglong) LONGLONG_MIN)
+    if (i >= (ulonglong) LONGLONG_MIN)
+    {
+      if (i == (ulonglong) LONGLONG_MIN)
+        return LONGLONG_MIN;
       overflow = 1;
+    }
   }
   else if (i > (ulonglong) LONGLONG_MAX)
     overflow = 1;
@@ -731,7 +747,11 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
