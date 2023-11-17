@@ -345,7 +345,7 @@ SPIDER_LINK_IDX_CHAIN *spider_fields::create_link_idx_chain(
   DBUG_ENTER("spider_fields::create_link_idx_chain");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN((SPIDER_LINK_IDX_CHAIN *)
-    spider_malloc(spider_current_trx, 254, sizeof(SPIDER_LINK_IDX_CHAIN),
+    spider_malloc(spider_current_trx, SPD_MID_FIELDS_CREATE_LINK_IDX_CHAIN_1, sizeof(SPIDER_LINK_IDX_CHAIN),
     MYF(MY_WME | MY_ZEROFILL)));
 }
 
@@ -533,7 +533,7 @@ SPIDER_LINK_IDX_HOLDER *spider_fields::create_link_idx_holder(
   DBUG_ENTER("spider_fields::create_link_idx_holder");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN((SPIDER_LINK_IDX_HOLDER *)
-    spider_malloc(spider_current_trx, 253, sizeof(SPIDER_LINK_IDX_HOLDER),
+    spider_malloc(spider_current_trx, SPD_MID_FIELDS_CREATE_LINK_IDX_HOLDER_1, sizeof(SPIDER_LINK_IDX_HOLDER),
     MYF(MY_WME | MY_ZEROFILL)));
 }
 
@@ -611,7 +611,7 @@ SPIDER_CONN_HOLDER *spider_fields::create_conn_holder(
   DBUG_ENTER("spider_fields::create_conn_holder");
   DBUG_PRINT("info",("spider this=%p", this));
   return_conn_holder = (SPIDER_CONN_HOLDER *)
-    spider_bulk_malloc(spider_current_trx, 252, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_FIELDS_CREATE_CONN_HOLDER_1, MYF(MY_WME | MY_ZEROFILL),
       &return_conn_holder, (uint) (sizeof(SPIDER_CONN_HOLDER)),
       &table_link_idx_holder,
         (uint) (table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER)),
@@ -880,7 +880,7 @@ static SPIDER_TABLE_HOLDER *spider_create_table_holder(
   if (table_count_arg == 0)
     DBUG_RETURN(0);
   table_holder = (SPIDER_TABLE_HOLDER *)
-    spider_malloc(spider_current_trx, 249,
+    spider_malloc(spider_current_trx, SPD_MID_CREATE_TABLE_HOLDER_1,
     table_count_arg * sizeof(SPIDER_TABLE_HOLDER),
     MYF(MY_WME | MY_ZEROFILL));
   DBUG_RETURN(table_holder);
