@@ -6807,440 +6807,249 @@ int spider_db_mbase_util::append_escaped_util(
 }
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-int spider_db_mbase_util::append_table(
-  ha_spider *spider,
-  spider_fields *fields,
-  spider_string *str,
-  TABLE_LIST *table_list,
-  TABLE_LIST **used_table_list,
-  uint *current_pos,
-  TABLE_LIST **cond_table_list_ptr,
-  bool top_down,
-  bool first
-) {
-  int error_num;
-  bool use_cond_table_list = FALSE;
-  spider_mbase_share *db_share;
-  spider_mbase_handler *dbton_hdl;
-  SPIDER_TABLE_HOLDER *table_holder;
-  TABLE_LIST *cond_table_list = *cond_table_list_ptr;
-  ha_spider *spd;
-  DBUG_ENTER("spider_db_mbase_util::append_table");
-  DBUG_PRINT("info",("spider table_list=%p", table_list));
-  DBUG_PRINT("info",("spider table_list->outer_join=%u",
-    table_list->outer_join));
-  DBUG_PRINT("info",("spider table_list->on_expr=%p",
-    table_list->on_expr));
-  DBUG_PRINT("info",("spider table_list->join_using_fields=%p",
-    table_list->join_using_fields));
-  DBUG_PRINT("info",("spider table_list->table=%p",
-    table_list->table));
-  if (!top_down && table_list->embedding)
+/*
+  Walk a TABLE_LIST, or format it to a string and append it.
+
+  If str is NULL, walk the nested join (if any) to determine whether
+  to create a group by handler. Otherwise, format the TABLE_LIST to a
+  string and append it to str.
+
+  Adapted from TABLE_LIST::print().
+*/
+int spider_db_mbase_util::append_table_list(spider_fields *fields,
+                                            spider_string *str,
+                                            TABLE_LIST *table,
+                                            table_map *upper_usable_tables,
+                                            table_map eliminated_tables)
+{
+  DBUG_ENTER("spider_db_mbase_util::append_table_list");
+  /* Eliminated tables were removed from append_join(). */
+  DBUG_ASSERT(!is_eliminated_table(eliminated_tables, table));
+  if (!str)                     /* First pass (GBH creation) */
   {
-    if ((error_num = append_embedding_tables(spider, fields, str,
-      table_list->embedding, used_table_list, current_pos,
-      cond_table_list_ptr)))
-      DBUG_RETURN(error_num);
-  } else if (!table_list->table)
-  {
-    if ((error_num = append_tables_top_down(spider, fields, str, table_list,
-      used_table_list, current_pos, cond_table_list_ptr)))
-      DBUG_RETURN(error_num);
-  } else {
-    if (
-      table_list->outer_join ||
-      table_list->on_expr ||
-      table_list->join_using_fields
-    ) {
-      DBUG_PRINT("info",("spider use table_list"));
-      if (table_list->outer_join & JOIN_TYPE_LEFT)
-      {
-        if (str)
-        {
-          if (str->reserve(SPIDER_SQL_LEFT_JOIN_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
-        }
-      } else {
-        if (str)
-        {
-          if (str->reserve(SPIDER_SQL_JOIN_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
-        }
-      }
-    } else if (
-      cond_table_list &&
-      (
-        cond_table_list->outer_join ||
-        cond_table_list->on_expr ||
-        cond_table_list->join_using_fields
-      )
-    ) {
-      DBUG_PRINT("info",("spider use cond_table_list"));
-      if (cond_table_list->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
-      {
-        if (str)
-        {
-          if (str->reserve(SPIDER_SQL_LEFT_JOIN_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
-        }
-      } else {
-        if (str)
-        {
-          if (str->reserve(SPIDER_SQL_JOIN_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
-        }
-      }
-      use_cond_table_list = TRUE;
-    } else if (*current_pos > 0 && !first)
-    {
-      DBUG_PRINT("info",("spider no condition"));
-      if (str)
-      {
-        if (str->reserve(SPIDER_SQL_JOIN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
-      }
-    }
-
-    if (str)
-    {
-      table_holder = fields->get_table_holder(table_list->table);
-      spd = table_holder->spider;
-      db_share = (spider_mbase_share *)
-        spd->share->dbton_share[dbton_id];
-      dbton_hdl = (spider_mbase_handler *)
-        spd->dbton_handler[dbton_id];
-
-      dbton_hdl->table_name_pos = str->length();
-
-      if (str->reserve(
-        db_share->db_nm_max_length +
-        SPIDER_SQL_DOT_LEN + /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 +
-        db_share->table_nm_max_length + SPIDER_SQL_SPACE_LEN +
-        table_holder->alias->length() - SPIDER_SQL_DOT_LEN
-      )) {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-
-      if ((error_num = db_share->append_table_name_with_adjusting(str,
-        spd->conn_link_idx[dbton_hdl->first_link_idx])))
-      {
-        DBUG_RETURN(error_num);
-      }
-      str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
-      str->q_append(table_holder->alias->ptr(),
-        table_holder->alias->length() - SPIDER_SQL_DOT_LEN);
-    }
-    used_table_list[(*current_pos)++] = table_list;
-
-    if (str)
-    {
-      List<String> *join_using_fields = table_list->join_using_fields;
-      if (!join_using_fields && cond_table_list)
-      {
-        join_using_fields = cond_table_list->join_using_fields;
-      }
-
-      if (join_using_fields)
-      {
-        if (str->reserve(SPIDER_SQL_USING_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_USING_STR, SPIDER_SQL_USING_LEN);
-        str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
-          SPIDER_SQL_OPEN_PAREN_LEN);
-        List_iterator_fast<String> it2(*join_using_fields);
-        String *ptr;
-        while ((ptr = it2++))
-        {
-          if (str->reserve(ptr->length() + SPIDER_SQL_COMMA_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(ptr->ptr(), ptr->length());
-          str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-        }
-        str->length(str->length() - SPIDER_SQL_COMMA_LEN);
-        if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
-          SPIDER_SQL_CLOSE_PAREN_LEN);
-      }
-    }
-
-    Item *on_expr = table_list->on_expr;
-    if (!on_expr && cond_table_list)
-    {
-      on_expr = cond_table_list->on_expr;
-    }
-
-    if (on_expr)
-    {
-      if (str)
-      {
-        if (str->reserve(SPIDER_SQL_ON_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_ON_STR, SPIDER_SQL_ON_LEN);
-      }
-      if ((error_num = spider_db_print_item_type(on_expr, NULL,
-        spider, str, NULL, 0, dbton_id, TRUE, fields)))
-      {
-        DBUG_RETURN(error_num);
-      }
-    }
-
-    if (use_cond_table_list)
-    {
-      (*cond_table_list_ptr) = NULL;
-      DBUG_PRINT("info",("spider cond_table_list=%p", (*cond_table_list_ptr)));
-    }
+    DBUG_ASSERT(upper_usable_tables);
+    if (table->nested_join)
+      DBUG_RETURN(append_join(fields, str,
+                              &table->nested_join->join_list,
+                              upper_usable_tables, eliminated_tables));
+    /* jtbm is a kind of semi join, and TABLE_LIST::print() adds an
+    extra " <materialize> " annotation. */
+    if (table->jtbm_subselect)
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+    /* TODO: These conditions are printed in a different way in
+    TABLE_LIST::print(), but they do not seem to occur very often.
+    Let's not worry about them now. */
+    if (table->view_name.str || table->derived)
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+    *upper_usable_tables |= table->table->map;
+    DBUG_RETURN(0);
   }
+  /* Second pass (query execution) */
+  DBUG_ASSERT(!upper_usable_tables);
+  if (table->nested_join)
+  {
+    if (str->append("("))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    if (int error_num= append_join(
+          fields, str, &table->nested_join->join_list,
+          upper_usable_tables, eliminated_tables))
+      DBUG_RETURN(error_num);
+    if (str->append(")"))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    DBUG_RETURN(0);
+  }
+  /* These have been ruled out during the creation of the group by
+  handler, see above. */
+  DBUG_ASSERT(!table->jtbm_subselect);
+  DBUG_ASSERT(!table->view_name.str);
+  DBUG_ASSERT(!table->derived);
+  /* We have a "normal" table. Print it and append to str. */
+  SPIDER_TABLE_HOLDER *table_holder = fields->get_table_holder(table->table);
+  ha_spider *spd = table_holder->spider;
+  spider_mbase_share *db_share =
+    (spider_mbase_share *) spd->share->dbton_share[dbton_id];
+  spider_mbase_handler *dbton_hdl =
+    (spider_mbase_handler *) spd->dbton_handler[dbton_id];
+  if (table->table->const_table)
+  {
+    if (str->append(STRING_WITH_LEN("(select 1)")))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  else
+    if (int error_num= db_share->append_table_name(
+          str, spd->conn_link_idx[dbton_hdl->first_link_idx]))
+      DBUG_RETURN(error_num);
+  if (str->append(" ") ||
+      str->append(table_holder->alias->ptr(),
+                  /* Don't append the trailing dot */
+                  table_holder->alias->length() - 1))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   DBUG_RETURN(0);
 }
 
-int spider_db_mbase_util::append_tables_top_down(
-  ha_spider *spider,
-  spider_fields *fields,
-  spider_string *str,
-  TABLE_LIST *table_list,
-  TABLE_LIST **used_table_list,
-  uint *current_pos,
-  TABLE_LIST **cond_table_list_ptr
-) {
-  int error_num;
-  uint outer_join_backup;
-  TABLE_LIST *cur_table_list, *prev_table_list = NULL, *cond_table_list = NULL;
-  bool first = TRUE;
-  DBUG_ENTER("spider_db_mbase_util::append_tables_top_down");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (
-    table_list->outer_join ||
-    table_list->on_expr ||
-    table_list->join_using_fields
-  ) {
-    DBUG_ASSERT(!(*cond_table_list_ptr));
-    (*cond_table_list_ptr) = table_list;
-    DBUG_PRINT("info",("spider cond_table_list=%p", table_list));
-  }
-  List_iterator_fast<TABLE_LIST> it1(table_list->nested_join->join_list);
-  cur_table_list = it1++;
-  if (cur_table_list->outer_join & JOIN_TYPE_RIGHT)
-  {
-    first = FALSE;
-    prev_table_list = cur_table_list;
-    cur_table_list = it1++;
-  } else if (*cond_table_list_ptr)
-  {
-    first = TRUE;
-    cond_table_list = (*cond_table_list_ptr);
-    (*cond_table_list_ptr) = NULL;
-    if (cond_table_list->outer_join & JOIN_TYPE_LEFT)
-    {
-      if (str)
-      {
-        if (str->reserve(SPIDER_SQL_LEFT_JOIN_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
-        str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
-      }
-    } else {
-      if (str)
-      {
-        if (str->reserve(SPIDER_SQL_JOIN_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
-        str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
-      }
-    }
-  }
+/*
+  Walk an array of TABLE_LIST's, or format it to a string and append it.
 
-  do {
-    if (cur_table_list->outer_join & JOIN_TYPE_RIGHT)
+  If str is NULL, walk each TABLE_LIST to determine whether to create
+  a group by handler. Otherwise, format the TABLE_LISTs to a string
+  and append it to str.
+
+  Adapted from print_table_array().
+*/
+int spider_db_mbase_util::append_table_array(spider_fields *fields,
+                                             spider_string *str,
+                                             TABLE_LIST **table,
+                                             TABLE_LIST **end,
+                                             table_map *upper_usable_tables,
+                                             table_map eliminated_tables)
+{
+  DBUG_ENTER("spider_db_mbase_util::append_table_array");
+  if (str)
+  {
+    DBUG_ASSERT(!upper_usable_tables);
+    if (int error_num= append_table_list(fields, str, *table, NULL,
+                                         eliminated_tables))
+      DBUG_RETURN(error_num);
+
+    for (TABLE_LIST **tbl= table + 1; tbl < end; tbl++)
     {
-      prev_table_list = cur_table_list;
-    } else {
-      if ((error_num = append_table(spider, fields, str, cur_table_list,
-        used_table_list, current_pos, cond_table_list_ptr, TRUE, first)))
-        DBUG_RETURN(error_num);
-      first = FALSE;
-      if (prev_table_list)
+      TABLE_LIST *curr= *tbl;
+
+      /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
+      if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
       {
-        outer_join_backup = prev_table_list->outer_join;
-        prev_table_list->outer_join = JOIN_TYPE_LEFT;
-        if ((error_num = append_table(spider, fields, str, prev_table_list,
-          used_table_list, current_pos, cond_table_list_ptr, TRUE, FALSE)))
-        {
-          prev_table_list->outer_join = outer_join_backup;
+        /* MySQL converts right to left joins */
+        if (str->append(STRING_WITH_LEN(" left join ")))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+      else if (curr->straight)
+      {
+        if (str->append(STRING_WITH_LEN(" straight_join ")))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+      /* semi join should already have been ruled out during the
+      creation of the group by handler. */
+      else if (curr->sj_inner_tables)
+        DBUG_ASSERT(0);
+      else
+        if (str->append(STRING_WITH_LEN(" join ")))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+      if (int error_num= append_table_list(fields, str, curr, NULL,
+                                           eliminated_tables))
+        DBUG_RETURN(error_num);
+
+      if (curr->on_expr)
+      {
+        if (str->append(STRING_WITH_LEN(" on ")))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        if (int error_num=
+            spider_db_print_item_type(curr->on_expr, NULL,
+                                      fields->get_first_table_holder()->spider,
+                                      str, NULL, 0, dbton_id, TRUE, fields))
           DBUG_RETURN(error_num);
-        }
-        prev_table_list->outer_join = outer_join_backup;
-        prev_table_list = NULL;
-      }
-    }
-  } while ((cur_table_list = it1++));
-
-  if (cond_table_list)
-  {
-    if (str)
-    {
-      if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
-      {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-      str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
-        SPIDER_SQL_CLOSE_PAREN_LEN);
-
-      List<String> *join_using_fields = cond_table_list->join_using_fields;
-      if (join_using_fields)
-      {
-        if (str->reserve(SPIDER_SQL_USING_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_USING_STR, SPIDER_SQL_USING_LEN);
-        str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
-          SPIDER_SQL_OPEN_PAREN_LEN);
-        List_iterator_fast<String> it2(*join_using_fields);
-        String *ptr;
-        while ((ptr = it2++))
-        {
-          if (str->reserve(ptr->length() + SPIDER_SQL_COMMA_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(ptr->ptr(), ptr->length());
-          str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-        }
-        str->length(str->length() - SPIDER_SQL_COMMA_LEN);
-        if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
-          SPIDER_SQL_CLOSE_PAREN_LEN);
-      }
-    }
-
-    Item *on_expr = cond_table_list->on_expr;
-    if (on_expr)
-    {
-      if (str)
-      {
-        if (str->reserve(SPIDER_SQL_ON_LEN))
-        {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        str->q_append(SPIDER_SQL_ON_STR, SPIDER_SQL_ON_LEN);
-      }
-      if ((error_num = spider_db_print_item_type(on_expr, NULL,
-        spider, str, NULL, 0, dbton_id, TRUE, fields)))
-      {
-        DBUG_RETURN(error_num);
       }
     }
   }
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase_util::append_tables_top_down_check(
-  TABLE_LIST *table_list,
-  TABLE_LIST **used_table_list,
-  uint *current_pos
-) {
-  int error_num;
-  TABLE_LIST *cur_table_list;
-  DBUG_ENTER("spider_db_mbase_util::append_tables_top_down_check");
-  DBUG_PRINT("info",("spider this=%p", this));
-  List_iterator_fast<TABLE_LIST> it1(table_list->nested_join->join_list);
-  while ((cur_table_list = it1++))
+  else                        /* str == NULL */
   {
-    if (!cur_table_list->table)
-    {
-      if ((error_num = append_tables_top_down_check(
-        cur_table_list, used_table_list, current_pos)))
-        DBUG_RETURN(error_num);
-    } else {
-      used_table_list[(*current_pos)++] = cur_table_list;
-    }
-  }
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase_util::append_embedding_tables(
-  ha_spider *spider,
-  spider_fields *fields,
-  spider_string *str,
-  TABLE_LIST *table_list,
-  TABLE_LIST **used_table_list,
-  uint *current_pos,
-  TABLE_LIST **cond_table_list_ptr
-) {
-  int error_num;
-  TABLE_LIST *embedding = table_list->embedding;
-  DBUG_ENTER("spider_db_mbase_util::append_embedding_tables");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (embedding)
-  {
-    DBUG_PRINT("info",("spider embedding=%p", embedding));
-    DBUG_PRINT("info",("spider embedding->outer_join=%u",
-      embedding->outer_join));
-    DBUG_PRINT("info",("spider embedding->on_expr=%p",
-      embedding->on_expr));
-    DBUG_PRINT("info",("spider embedding->join_using_fields=%p",
-      embedding->join_using_fields));
-    DBUG_PRINT("info",("spider embedding->table=%p",
-      embedding->table));
-    if ((error_num = append_embedding_tables(spider, fields, str, embedding,
-      used_table_list, current_pos, cond_table_list_ptr)))
+    table_map usable_tables= 0;
+    if (int error_num= append_table_list(fields, str, *table,
+                                         &usable_tables, eliminated_tables))
       DBUG_RETURN(error_num);
-  } else {
-    DBUG_PRINT("info",("spider table_list=%p", table_list));
-    DBUG_PRINT("info",("spider table_list->outer_join=%u",
-      table_list->outer_join));
-    DBUG_PRINT("info",("spider table_list->on_expr=%p",
-      table_list->on_expr));
-    DBUG_PRINT("info",("spider table_list->join_using_fields=%p",
-      table_list->join_using_fields));
-    DBUG_PRINT("info",("spider table_list->table=%p",
-      table_list->table));
-    if (table_list->outer_join & JOIN_TYPE_RIGHT)
+    for (TABLE_LIST **tbl= table + 1; tbl < end; tbl++)
     {
-      if ((error_num = append_tables_top_down_check(table_list,
-        used_table_list, current_pos)))
+      TABLE_LIST *curr= *tbl;
+      /* semi join is an "internal" join and is unsupported. */
+      if (curr->sj_inner_tables)
+        DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+      if (int error_num= append_table_list(fields, str, curr,
+                                           &usable_tables, eliminated_tables))
         DBUG_RETURN(error_num);
-      DBUG_ASSERT(!(*cond_table_list_ptr));
-      (*cond_table_list_ptr) = table_list;
-      DBUG_PRINT("info",("spider cond_table_list=%p", table_list));
-    } else {
-      if ((error_num = append_tables_top_down(spider, fields, str, table_list,
-        used_table_list, current_pos, cond_table_list_ptr)))
-        DBUG_RETURN(error_num);
+      if (curr->on_expr)
+      {
+        /* The join refers to fields outside of the current context,
+        and cannot be handled by a group by handler. */
+        if ((curr->on_expr->used_tables() & usable_tables) !=
+            curr->on_expr->used_tables())
+          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+        if (int error_num=
+            spider_db_print_item_type(curr->on_expr, NULL,
+                                      fields->get_first_table_holder()->spider,
+                                      str, NULL, 0, dbton_id, TRUE, fields))
+          DBUG_RETURN(error_num);
+      }
     }
+    /* Update usable tables in the outer context. */
+    if (upper_usable_tables)
+      *upper_usable_tables |= usable_tables;
   }
   DBUG_RETURN(0);
+}
+
+/*
+  Walk a join, or format it to a string and append the string.
+
+  Skip all eliminated tables.
+
+  If str is NULL, walk the tables to determine whether to create a
+  group by handler. Otherwise, format the join to a string and append
+  it to str.
+
+  Adapted from print_join().
+*/
+int spider_db_mbase_util::append_join(spider_fields *fields,
+                                      spider_string *str,
+                                      List<TABLE_LIST> *tables,
+                                      table_map *upper_usable_tables,
+                                      table_map eliminated_tables)
+{
+  /* List is reversed => we should reverse it before using */
+  List_iterator_fast<TABLE_LIST> ti(*tables);
+  TABLE_LIST **table;
+  THD *thd= fields->get_first_table_holder()->spider->trx->thd;
+  DBUG_ENTER("spider_db_mbase_util::append_join");
+
+  size_t tables_to_print= 0;
+
+  for (TABLE_LIST *t= ti++; t ; t= ti++)
+  {
+    /* optimized_away implies const_table */
+    DBUG_ASSERT(!t->optimized_away || t->table->const_table);
+    if (!is_eliminated_table(eliminated_tables, t))
+      tables_to_print++;
+  }
+  if (tables_to_print == 0)
+  {
+    if (str && str->append(STRING_WITH_LEN("dual")))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    DBUG_RETURN(0);
+  }
+  ti.rewind();
+
+  if (!(table= static_cast<TABLE_LIST **>(thd->alloc(sizeof(TABLE_LIST*) *
+                                                     tables_to_print))))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  TABLE_LIST *tmp, **t= table + (tables_to_print - 1);
+  while ((tmp= ti++))
+    if (!is_eliminated_table(eliminated_tables, tmp))
+      *t--= tmp;
+
+  DBUG_ASSERT(tables->elements >= 1);
+  if ((*table)->sj_inner_tables)
+  {
+    /* Semi join is not supported. */
+    if (!str)
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+    /* Semi join should have been skipped in the first pass. */
+    else
+      DBUG_ASSERT(0);
+  }
+  int error_num= append_table_array(
+    fields, str, table, table + tables_to_print, upper_usable_tables,
+    eliminated_tables);
+  DBUG_RETURN(error_num);
 }
 
 int spider_db_mbase_util::append_from_and_tables(
@@ -7249,77 +7058,17 @@ int spider_db_mbase_util::append_from_and_tables(
   spider_string *str,
   TABLE_LIST *table_list,
   uint table_count
-) {
-  int error_num;
-  uint current_pos = 0, roop_count, backup_pos, outer_join_backup;
-  TABLE *table;
-  TABLE_LIST **used_table_list, *prev_table_list = NULL,
-    *cond_table_list = NULL;
+)
+{
   DBUG_ENTER("spider_db_mbase_util::append_from_and_tables");
-  DBUG_PRINT("info",("spider this=%p", this));
-  used_table_list = (TABLE_LIST **)
-    my_alloca(sizeof(TABLE_LIST *) * table_count);
-  if (!used_table_list)
+  if (str && str->append(" from "))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-
-  if (str)
-  {
-    if (str->reserve(SPIDER_SQL_FROM_LEN))
-    {
-      my_afree(used_table_list);
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    }
-    str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
-  }
-
-  do {
-    table = table_list->table;
-    if (table->const_table)
-      continue;
-
-    for (roop_count = 0; roop_count < current_pos; ++roop_count)
-    {
-      if (used_table_list[roop_count] == table_list)
-        break;
-    }
-    if (roop_count < current_pos)
-      continue;
-
-    if (prev_table_list)
-      current_pos = backup_pos;
-    else
-      backup_pos = current_pos;
-    if ((error_num = append_table(spider, fields, str, table_list, used_table_list,
-      &current_pos, &cond_table_list, FALSE, FALSE)))
-    {
-      my_afree(used_table_list);
-      DBUG_RETURN(error_num);
-    }
-    if (prev_table_list)
-    {
-      outer_join_backup = prev_table_list->outer_join;
-      prev_table_list->outer_join = JOIN_TYPE_LEFT;
-      if ((error_num = append_table(spider, fields, str, prev_table_list,
-        used_table_list, &current_pos, &cond_table_list, FALSE, FALSE)))
-      {
-        prev_table_list->outer_join = outer_join_backup;
-        my_afree(used_table_list);
-        DBUG_RETURN(error_num);
-      }
-      prev_table_list->outer_join = outer_join_backup;
-      prev_table_list = NULL;
-    }
-    if (cond_table_list && (cond_table_list->outer_join & JOIN_TYPE_RIGHT))
-    {
-      prev_table_list = cond_table_list;
-      cond_table_list = NULL;
-      DBUG_PRINT("info",("spider cond_table_list=%p", cond_table_list));
-    }
-  } while ((table_list = table_list->next_local));
-  my_afree(used_table_list);
-  DBUG_RETURN(0);
+  const table_map eliminated_tables= table_list->select_lex->join ?
+    table_list->select_lex->join->eliminated_tables : 0;
+  int error_num = append_join(fields, str, table_list->select_lex->join_list,
+                              NULL, eliminated_tables);
+  DBUG_RETURN(error_num);
 }
-
 int spider_db_mbase_util::append_where(
   spider_string *str
 ) {

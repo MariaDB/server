@@ -157,40 +157,22 @@ public:
     String *from
   ) override;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-  int append_table(
-    ha_spider *spider,
-    spider_fields *fields,
-    spider_string *str,
-    TABLE_LIST *table_list,
-    TABLE_LIST **used_table_list,
-    uint *current_pos,
-    TABLE_LIST **cond_table_list_ptr,
-    bool top_down,
-    bool first
-  );
-  int append_tables_top_down(
-    ha_spider *spider,
-    spider_fields *fields,
-    spider_string *str,
-    TABLE_LIST *table_list,
-    TABLE_LIST **used_table_list,
-    uint *current_pos,
-    TABLE_LIST **cond_table_list_ptr
-  );
   int append_tables_top_down_check(
     TABLE_LIST *table_list,
     TABLE_LIST **used_table_list,
     uint *current_pos
   );
-  int append_embedding_tables(
-    ha_spider *spider,
-    spider_fields *fields,
-    spider_string *str,
-    TABLE_LIST *table_list,
-    TABLE_LIST **used_table_list,
-    uint *current_pos,
-    TABLE_LIST **cond_table_list_ptr
-  );
+  int append_table_list(spider_fields *fields,
+                        spider_string *str, TABLE_LIST *table,
+                        table_map *upper_usable_tables,
+                        table_map eliminated_tables);
+  int append_table_array(spider_fields *fields,
+                         spider_string *str, TABLE_LIST **table,
+                         TABLE_LIST **end, table_map *upper_usable_tables,
+                         table_map eliminated_tables);
+  int append_join(spider_fields *fields, spider_string *str,
+                  List<TABLE_LIST> *tables, table_map *upper_usable_tables,
+                  table_map eliminated_tables);
   int append_from_and_tables(
     ha_spider *spider,
     spider_fields *fields,
