@@ -249,7 +249,7 @@ int spider_release_ping_table_mon_list(
   }
   spider_string conv_name_str(buf, conv_name_length + link_idx_str_length + 1,
     system_charset_info);
-  conv_name_str.init_calc_mem(134);
+  conv_name_str.init_calc_mem(SPD_MID_RELEASE_PING_TABLE_MON_LIST_1);
   conv_name_str.length(0);
   conv_name_str.q_append(conv_name, conv_name_length);
   conv_name_str.q_append(link_idx_str, link_idx_str_length);
@@ -363,7 +363,7 @@ create_table_mon:
 
   do {
     if (!(table_mon = (SPIDER_TABLE_MON *)
-      spider_bulk_malloc(spider_current_trx, 35, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_GET_PING_TABLE_MON_1, MYF(MY_WME | MY_ZEROFILL),
         &table_mon, (uint) (sizeof(SPIDER_TABLE_MON)),
         &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
         &tmp_connect_info,
@@ -486,7 +486,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
 
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *)
-    spider_bulk_malloc(spider_current_trx, 36, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_GET_PING_TABLE_TGT_1, MYF(MY_WME | MY_ZEROFILL),
       &table_mon_list, (uint) (sizeof(SPIDER_TABLE_MON_LIST)),
       &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
       &tmp_connect_info,
@@ -1083,8 +1083,8 @@ long long spider_ping_table_body(
   int static_link_id_length = 0;
   bool get_lock = FALSE, status_changed_to_ng = FALSE;
   DBUG_ENTER("spider_ping_table_body");
-  conv_name.init_calc_mem(135);
-  tmp_str.init_calc_mem(247);
+  conv_name.init_calc_mem(SPD_MID_PING_TABLE_BODY_1);
+  tmp_str.init_calc_mem(SPD_MID_PING_TABLE_BODY_2);
   conv_name.length(0);
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
   server_id = global_system_variables.server_id;
@@ -1544,7 +1544,7 @@ my_bool spider_ping_table_init_body(
   }
 
   if (!(mon_table_result = (SPIDER_MON_TABLE_RESULT *)
-    spider_malloc(spider_current_trx, 11, sizeof(SPIDER_MON_TABLE_RESULT),
+    spider_malloc(spider_current_trx, SPD_MID_PING_TABLE_INIT_BODY_1, sizeof(SPIDER_MON_TABLE_RESULT),
       MYF(MY_WME | MY_ZEROFILL)))
   ) {
     strcpy(message, "spider_ping_table() out of memory");
@@ -1687,7 +1687,7 @@ int spider_ping_table_mon_from_table(
   buf[conv_name_length + link_idx_str_length] = '\0';
   spider_string conv_name_str(buf, conv_name_length + link_idx_str_length + 1,
     system_charset_info);
-  conv_name_str.init_calc_mem(136);
+  conv_name_str.init_calc_mem(SPD_MID_PING_TABLE_MON_FROM_TABLE_1);
   conv_name_str.length(0);
   conv_name_str.q_append(conv_name, conv_name_length);
   conv_name_str.q_append(link_idx_str, link_idx_str_length + 1);

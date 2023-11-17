@@ -295,7 +295,7 @@ TABLE *spider_open_sys_table(
   } else {
     SPIDER_reset_n_backup_open_tables_state(thd, open_tables_backup, NULL);
 
-    if (!(table = (TABLE*) spider_malloc(spider_current_trx, 12,
+    if (!(table = (TABLE*) spider_malloc(spider_current_trx, SPD_MID_OPEN_SYS_TABLE_1,
       sizeof(*table), MYF(MY_WME))))
     {
       *error_num = HA_ERR_OUT_OF_MEM;
