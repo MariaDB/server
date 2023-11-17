@@ -143,6 +143,11 @@ public:
 struct Lex_ident_sys_st: public LEX_CSTRING
 {
 public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
+  static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
+  static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
+
   bool copy_ident_cli(THD *thd, const Lex_ident_cli_st *str);
   bool copy_keyword(THD *thd, const Lex_ident_cli_st *str);
   bool copy_sys(THD *thd, const LEX_CSTRING *str);
@@ -175,6 +180,10 @@ public:
   {
     LEX_CSTRING tmp= {name, length};
     set_valid_utf8(&tmp);
+  }
+  Lex_ident_sys(THD *thd, const LEX_CSTRING *str)
+  {
+    set_valid_utf8(str);
   }
   Lex_ident_sys & operator=(const Lex_ident_sys_st &name)
   {
