@@ -462,7 +462,11 @@ bs:
       else if ( wc>='A' && wc<='Z')
         wc = wc - 'A' + 10;
       else if ( wc>='a' && wc<='z')
+      {
         wc = wc - 'a' + 10;
+        if (base > 36)
+          wc += 26;
+      }
       else
         break;
       if ((int)wc >= base)
@@ -575,7 +579,11 @@ bs:
       else if ( wc>='A' && wc<='Z')
         wc = wc - 'A' + 10;
       else if ( wc>='a' && wc<='z')
+      {
         wc = wc - 'a' + 10;
+        if (base > 36)
+          wc += 26;
+      }
       else
         break;
       if ((int)wc >= base)
