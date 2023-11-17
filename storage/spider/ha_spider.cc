@@ -58,7 +58,7 @@ ha_spider::ha_spider(
 {
   DBUG_ENTER("ha_spider::ha_spider");
   DBUG_PRINT("info",("spider this=%p", this));
-  spider_alloc_calc_mem_init(mem_calc, 139);
+  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
   share = NULL;
   conns = NULL;
@@ -118,7 +118,7 @@ ha_spider::ha_spider(
 {
   DBUG_ENTER("ha_spider::ha_spider");
   DBUG_PRINT("info",("spider this=%p", this));
-  spider_alloc_calc_mem_init(mem_calc, 0);
+  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_2);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
   share = NULL;
   conns = NULL;
@@ -265,7 +265,7 @@ int ha_spider::open(
     uchar *rnd_read_bitmap;
     uchar *rnd_write_bitmap;
     if (!(wide_handler = (SPIDER_WIDE_HANDLER *)
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_1, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -357,10 +357,10 @@ int ha_spider::open(
   }
   for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
   {
-    result_list.sqls[roop_count].init_calc_mem(80);
-    result_list.insert_sqls[roop_count].init_calc_mem(81);
-    result_list.update_sqls[roop_count].init_calc_mem(82);
-    result_list.tmp_sqls[roop_count].init_calc_mem(83);
+    result_list.sqls[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_OPEN_2);
+    result_list.insert_sqls[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_OPEN_3);
+    result_list.update_sqls[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_OPEN_4);
+    result_list.tmp_sqls[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_OPEN_5);
     uint all_link_idx = conn_link_idx[roop_count];
     uint dbton_id = share->sql_dbton_ids[all_link_idx];
     if (share->dbton_share[dbton_id]->need_change_db_table_name())
@@ -391,7 +391,7 @@ int ha_spider::open(
     }
     for (roop_count = 0; roop_count < (int) table_share->fields; roop_count++)
     {
-      blob_buff[roop_count].init_calc_mem(84);
+      blob_buff[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_OPEN_6);
       blob_buff[roop_count].set_charset(table->field[roop_count]->charset());
     }
   }
@@ -3571,7 +3571,7 @@ int ha_spider::multi_range_read_next_first(
       spider_free(spider_current_trx, multi_range_keys, MYF(0));
     }
     if (!(multi_range_keys = (range_id_t *)
-      spider_malloc(spider_current_trx, 1, sizeof(range_id_t) *
+      spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_1, sizeof(range_id_t) *
         (multi_range_num < result_list.multi_split_read ?
           multi_range_num : result_list.multi_split_read), MYF(MY_WME)))
     )
@@ -3584,7 +3584,7 @@ int ha_spider::multi_range_read_next_first(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
       for (roop_count = 0; roop_count < 2; roop_count++)
-        mrr_key_buff[roop_count].init_calc_mem(235);
+        mrr_key_buff[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_2);
     }
     error_num = 0;
     if ((range_res = mrr_funcs.next(mrr_iter, &mrr_cur_range)))
@@ -6047,7 +6047,7 @@ FT_INFO *ha_spider::ft_init_ext(
   if (!ft_current)
   {
     if (!(ft_current = (st_spider_ft_info *)
-      spider_malloc(spider_current_trx, 2, sizeof(st_spider_ft_info),
+      spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_FT_INIT_EXT_1, sizeof(st_spider_ft_info),
         MYF(MY_WME | MY_ZEROFILL))))
     {
       my_error(HA_ERR_OUT_OF_MEM, MYF(0));
@@ -8460,7 +8460,7 @@ int ha_spider::create(
   if (form->s->keys > 0)
   {
     if (!(tmp_share.static_key_cardinality = (longlong *)
-      spider_bulk_malloc(spider_current_trx, 246, MYF(MY_WME),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_CREATE_1, MYF(MY_WME),
         &tmp_share.static_key_cardinality,
           (uint) (sizeof(*tmp_share.static_key_cardinality) * form->s->keys),
         NullS))
@@ -8475,7 +8475,7 @@ int ha_spider::create(
     }
   }
   for (roop_count = 0; roop_count < form->s->keys; roop_count++)
-    tmp_share.key_hint[roop_count].init_calc_mem(85);
+    tmp_share.key_hint[roop_count].init_calc_mem(SPD_MID_HA_SPIDER_CREATE_2);
   DBUG_PRINT("info",("spider tmp_share.key_hint=%p", tmp_share.key_hint));
   if ((error_num = spider_parse_connect_info(&tmp_share, form->s,
     form->part_info,
@@ -9099,7 +9099,7 @@ const COND *ha_spider::cond_push(
   {
     SPIDER_CONDITION *tmp_cond;
     if (!(tmp_cond = (SPIDER_CONDITION *)
-      spider_malloc(spider_current_trx, 3, sizeof(*tmp_cond), MYF(MY_WME)))
+      spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_COND_PUSH_1, sizeof(*tmp_cond), MYF(MY_WME)))
     )
       DBUG_RETURN(cond);
     tmp_cond->cond = (COND *) cond;
