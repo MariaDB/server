@@ -2514,6 +2514,7 @@ connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 # Check that FLUSH must wait to get the GRL
 # and let DROP PROCEDURE continue
+InnoDB		0 transactions not purged
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
@@ -2538,7 +2539,7 @@ SET DEBUG_SYNC= 'RESET';
 # UPDATE should wait for FTWRL with non transactional table second
 #
 create table t1 (a int) engine=myisam;
-create table t2 (a int) engine=innodb;
+create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';

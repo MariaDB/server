@@ -1,6 +1,7 @@
 #
 # Test lock taken
 #
+InnoDB		0 transactions not purged
 BACKUP LOCK test.t1;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -23,7 +24,7 @@ BACKUP UNLOCK;
 #
 connect  con1,localhost,root,,;
 connection default;
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent=0,engine=innodb;
 insert into t1 values (1);
 backup lock t1;
 select * from t1;
@@ -32,6 +33,7 @@ a
 connection con1;
 drop table t1;
 connection default;
+InnoDB		0 transactions not purged
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
