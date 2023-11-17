@@ -3936,8 +3936,8 @@ String *Item_func_conv::val_str(String *str)
   // Note that abs(INT_MIN) is undefined.
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
       from_base == INT_MIN || to_base == INT_MIN ||
-      abs(to_base) > 36 || abs(to_base) < 2 ||
-      abs(from_base) > 36 || abs(from_base) < 2 || !(res->length()))
+      abs(to_base) > 62 || abs(to_base) < 2 ||
+      abs(from_base) > 62 || abs(from_base) < 2 || !(res->length()))
   {
     null_value= 1;
     return NULL;
