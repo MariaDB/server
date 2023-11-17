@@ -33,7 +33,7 @@ Created April 08, 2011 Vasil Dimov
 
 #include "buf0rea.h"
 #include "buf0dump.h"
-#include "dict0dict.h"
+#include "dict0load.h"
 #include "os0file.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -557,6 +557,22 @@ buf_load()
 
 	if (!SHUTTING_DOWN()) {
 		std::sort(dump, dump + dump_n);
+		std::set<uint32_t> missing;
+		for (const page_id_t id : st_::span<const page_id_t>
+		       (dump, dump_n)) {
+			missing.emplace(id.space());
+		}
+		for (std::set<uint32_t>::iterator i = missing.begin();
+		     i != missing.end(); ) {
+			auto j = i++;
+			if (fil_space_t* space = fil_space_t::get(*j)) {
+				space->release();
+				missing.erase(j);
+			}
+		}
+		if (!missing.empty()) {
+			dict_check_tablespaces_and_store_max_id(&missing);
+		}
 	}
 
 	/* Avoid calling the expensive fil_space_t::get() for each

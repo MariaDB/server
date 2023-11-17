@@ -35,22 +35,16 @@ Created 4/24/1996 Heikki Tuuri
 #include "btr0types.h"
 
 #include <deque>
+#include <set>
 
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
-/** Check each tablespace found in the data dictionary.
-Then look at each table defined in SYS_TABLES that has a space_id > 0
-to find all the file-per-table tablespaces.
+/** Check MAX(SPACE) FROM SYS_TABLES and store it in fil_system.
+Open each data file if an encryption plugin has been loaded.
 
-In a crash recovery we already have some tablespace objects created from
-processing the REDO log. We will compare the
-space_id information in the data dictionary to what we find in the
-tablespace file. In addition, more validation will be done if recovery
-was needed and force_recovery is not set.
-
-We also scan the biggest space id, and store it to fil_system. */
-void dict_check_tablespaces_and_store_max_id();
+@param spaces  set of tablespace files to open */
+void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces);
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 @param[in,out]	table		Table object */

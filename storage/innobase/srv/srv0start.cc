@@ -1819,21 +1819,13 @@ file_checked:
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-			/* The following call is necessary for the insert
+			/* The following call is necessary for the change
 			buffer to work with multiple tablespaces. We must
 			know the mapping between space id's and .ibd file
 			names.
 
-			In a crash recovery, we check that the info in data
-			dictionary is consistent with what we already know
-			about space id's from the calls to fil_ibd_load().
-
-			In a normal startup, we create the space objects for
-			every table in the InnoDB data dictionary that has
-			an .ibd file.
-
 			We also determine the maximum tablespace id used. */
-			dict_check_tablespaces_and_store_max_id();
+			dict_check_tablespaces_and_store_max_id(nullptr);
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO

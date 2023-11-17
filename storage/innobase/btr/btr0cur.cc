@@ -1155,6 +1155,19 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       mtr_s_lock_index(index(), mtr);
   }
 
+  dberr_t err;
+
+  if (!index()->table->space)
+  {
+  corrupted:
+    ut_ad("corrupted" == 0); // FIXME: remove this
+    err= DB_CORRUPTION;
+  func_exit:
+    if (UNIV_LIKELY_NULL(heap))
+      mem_heap_free(heap);
+    return err;
+  }
+
   const ulint zip_size= index()->table->space->zip_size();
 
   /* Start with the root page. */
@@ -1168,7 +1181,6 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
   low_bytes= 0;
   ulint buf_mode= BUF_GET;
  search_loop:
-  dberr_t err;
   auto block_savepoint= mtr->get_savepoint();
   buf_block_t *block=
     buf_page_get_gen(page_id, zip_size, rw_latch, guess, buf_mode, mtr,
@@ -1180,10 +1192,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       btr_decryption_failed(*index());
       /* fall through */
     default:
-    func_exit:
-      if (UNIV_LIKELY_NULL(heap))
-        mem_heap_free(heap);
-      return err;
+      goto func_exit;
     case DB_SUCCESS:
       /* This must be a search to perform an insert, delete mark, or delete;
       try using the change buffer */
@@ -1250,12 +1259,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       btr_page_get_index_id(block->page.frame) != index()->id ||
       fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE ||
       !fil_page_index_page_check(block->page.frame))
-  {
-  corrupted:
-    ut_ad("corrupted" == 0); // FIXME: remove this
-    err= DB_CORRUPTION;
-    goto func_exit;
-  }
+    goto corrupted;
 
   page_cur.block= block;
   ut_ad(block == mtr->at_savepoint(block_savepoint));

@@ -1,2 +1,3 @@
 --innodb-checksum-algorithm=crc32
 --skip-innodb-read-only-compressed
+--skip-innodb-buffer-pool-dump-at-shutdown

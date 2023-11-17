@@ -33,8 +33,8 @@ Created 4/24/1996 Heikki Tuuri
 #include "dict0boot.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
-#include "dict0mem.h"
 #include "dict0stats.h"
+#include "ibuf0ibuf.h"
 #include "fsp0file.h"
 #include "fts0priv.h"
 #include "mach0data.h"
@@ -867,18 +867,30 @@ err_exit:
 	return READ_OK;
 }
 
-/** Check each tablespace found in the data dictionary.
-Then look at each table defined in SYS_TABLES that has a space_id > 0
-to find all the file-per-table tablespaces.
+/** @return SELECT MAX(space) FROM sys_tables */
+static uint32_t dict_find_max_space_id(btr_pcur_t *pcur, mtr_t *mtr)
+{
+  uint32_t max_space_id= 0;
 
-In a crash recovery we already have some tablespace objects created from
-processing the REDO log. We will compare the
-space_id information in the data dictionary to what we find in the
-tablespace file. In addition, more validation will be done if recovery
-was needed and force_recovery is not set.
+  for (const rec_t *rec= dict_startscan_system(pcur, mtr, dict_sys.sys_tables);
+       rec; rec= dict_getnext_system_low(pcur, mtr))
+    if (!dict_sys_tables_rec_check(rec))
+    {
+      ulint len;
+      const byte *field=
+        rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__SPACE, &len);
+      ut_ad(len == 4);
+      max_space_id= std::max(max_space_id, mach_read_from_4(field));
+    }
 
-We also scan the biggest space id, and store it to fil_system. */
-void dict_check_tablespaces_and_store_max_id()
+  return max_space_id;
+}
+
+/** Check MAX(SPACE) FROM SYS_TABLES and store it in fil_system.
+Open each data file if an encryption plugin has been loaded.
+
+@param spaces  set of tablespace files to open */
+void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 {
 	ulint		max_space_id = 0;
 	btr_pcur_t	pcur;
@@ -889,6 +901,12 @@ void dict_check_tablespaces_and_store_max_id()
 	mtr.start();
 
 	dict_sys.lock(SRW_LOCK_CALL);
+
+	if (!spaces && ibuf.empty
+	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
+		max_space_id = dict_find_max_space_id(&pcur, &mtr);
+		goto done;
+	}
 
 	for (const rec_t *rec = dict_startscan_system(&pcur, &mtr,
 						      dict_sys.sys_tables);
@@ -921,14 +939,6 @@ void dict_check_tablespaces_and_store_max_id()
 			continue;
 		}
 
-		if (flags2 & DICT_TF2_DISCARDED) {
-			sql_print_information("InnoDB: Ignoring tablespace"
-					      " for %.*s because "
-					      "the DISCARD flag is set",
-					      static_cast<int>(len), field);
-			continue;
-		}
-
 		/* For tables or partitions using .ibd files, the flag
 		DICT_TF2_USE_FILE_PER_TABLE was not set in MIX_LEN
 		before MySQL 5.6.5. The flag should not have been
@@ -938,6 +948,19 @@ void dict_check_tablespaces_and_store_max_id()
 		will otherwise ignore the flag. */
 
 		if (fil_space_for_table_exists_in_mem(space_id, flags)) {
+			continue;
+		}
+
+		if (spaces && spaces->find(uint32_t(space_id))
+                    == spaces->end()) {
+			continue;
+		}
+
+		if (flags2 & DICT_TF2_DISCARDED) {
+			sql_print_information("InnoDB: Ignoring tablespace"
+					      " for %.*s because "
+					      "the DISCARD flag is set",
+					      static_cast<int>(len), field);
 			continue;
 		}
 
@@ -973,6 +996,7 @@ void dict_check_tablespaces_and_store_max_id()
 		ut_free(filepath);
 	}
 
+done:
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -2248,20 +2272,8 @@ dict_load_tablespace(
 	/* The tablespace may already be open. */
 	table->space = fil_space_for_table_exists_in_mem(table->space_id,
 							 table->flags);
-	if (table->space) {
+	if (table->space || table->file_unreadable) {
 		return;
-	}
-
-	if (ignore_err >= DICT_ERR_IGNORE_TABLESPACE) {
-		table->file_unreadable = true;
-		return;
-	}
-
-	if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
-		ib::error() << "Failed to find tablespace for table "
-			<< table->name << " in the cache. Attempting"
-			" to load the tablespace with space id "
-			<< table->space_id;
 	}
 
 	/* Use the remote filepath if needed. This parameter is optional
@@ -2286,6 +2298,12 @@ dict_load_tablespace(
 	if (!table->space) {
 		/* We failed to find a sensible tablespace file */
 		table->file_unreadable = true;
+
+		if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
+			sql_print_error("InnoDB: Failed to load tablespace "
+					ULINTPF " for table %s",
+					table->space_id, table->name);
+		}
 	}
 
 	ut_free(filepath);

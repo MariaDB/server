@@ -157,7 +157,9 @@ SHOW CREATE TABLE tr;
 SHOW CREATE TABLE tc;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM tc;
+--error ER_GET_ERRNO
 SHOW CREATE TABLE td;
+--error ER_GET_ERRNO
 SELECT * FROM td;
 # This table was converted to NO_ROLLBACK due to the SYS_TABLES.TYPE change.
 SHOW CREATE TABLE tz;

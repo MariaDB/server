@@ -527,15 +527,6 @@ Variable_name	Value
 innodb_file_per_table	ON
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
-test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
-test/t7_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
-test/t7_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
-test/t5_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
-test/t6_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
-test/t7_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
-test/t7_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 SELECT count(*) FROM t5_restart;
 count(*)
@@ -629,7 +620,6 @@ RENAME TABLE t6_restart TO t66_restart;
 RENAME TABLE t7_restart TO t77_restart;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
 test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
@@ -728,15 +718,6 @@ Variable_name	Value
 innodb_file_per_table	ON
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
-test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s1.ibd
-test/t55_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
-test/t66_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
@@ -863,15 +844,6 @@ t77_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-test/t4_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
-test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p1.ibd
-test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p0#sp#s1.ibd
-test/t55_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd
-test/t66_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s3.ibd
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
@@ -1002,15 +974,6 @@ t77_restart.par
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t66_restart#p#p0	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p1.ibd
-test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s1.ibd
-test/t55_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t55_restart.ibd
-test/t66_restart#p#p2	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s3.ibd
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
