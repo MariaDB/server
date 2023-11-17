@@ -2041,6 +2041,31 @@ select * from t;
 drop table t;
 
 
+--echo #
+--echo # MDEV-32803 Assertion `total == 0' failed in Event_log::write_cache_raw
+--echo #
+
+create or replace table t1 (a int) engine=aria;
+insert t1 values (5);
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+send alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+set debug_sync= 'now WAIT_FOR ended';
+begin;
+insert into t1 values (123);
+insert into t1 values (456), (789);
+commit;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+drop table t1;
+
+
 eval set global default_storage_engine= $default_storage_engine;
 
 --disconnect con1

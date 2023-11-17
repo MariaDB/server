@@ -152,6 +152,7 @@ int online_alter_log_row(TABLE* table, const uchar *before_record,
   if (!table->online_alter_cache)
   {
     table->online_alter_cache= get_cache_data(thd, table);
+    DBUG_ASSERT(table->online_alter_cache->cache_log.type == WRITE_CACHE);
     trans_register_ha(thd, false, online_alter_hton, 0);
     if (thd->in_multi_stmt_transaction_mode())
       trans_register_ha(thd, true, online_alter_hton, 0);
@@ -237,6 +238,8 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
         mysql_mutex_lock(binlog->get_log_lock());
         error= binlog->write_cache_raw(thd, &cache.cache_log);
         mysql_mutex_unlock(binlog->get_log_lock());
+        if (!is_ending_transaction)
+          cache.reset();
       }
     }
     else if (!commit) // rollback
