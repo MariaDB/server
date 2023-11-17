@@ -166,7 +166,7 @@ int spider_trx_another_lock_tables(
   spider_string sql_str(sql_buf, sizeof(sql_buf), system_charset_info);
   DBUG_ENTER("spider_trx_another_lock_tables");
   SPIDER_BACKUP_DASTATUS;
-  sql_str.init_calc_mem(188);
+  sql_str.init_calc_mem(SPD_MID_TRX_ANOTHER_LOCK_TABLES_1);
   sql_str.length(0);
   memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
@@ -482,7 +482,7 @@ int spider_create_trx_alter_table(
   share_alter = &share->alter_table;
 
   if (!(alter_table = (SPIDER_ALTER_TABLE *)
-    spider_bulk_malloc(spider_current_trx, 55, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_TRX_ALTER_TABLE_1, MYF(MY_WME | MY_ZEROFILL),
       &alter_table, (uint) (sizeof(*alter_table)),
       &tmp_name, (uint) (sizeof(char) * (share->table_name_length + 1)),
 
@@ -1142,7 +1142,7 @@ SPIDER_TRX *spider_get_trx(
   ) {
     DBUG_PRINT("info",("spider create new trx"));
     if (!(trx = (SPIDER_TRX *)
-      spider_bulk_malloc(NULL, 56, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(NULL, SPD_MID_GET_TRX_1, MYF(MY_WME | MY_ZEROFILL),
         &trx, (uint) (sizeof(*trx)),
         &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
         &tmp_wide_handler, (uint) sizeof(SPIDER_WIDE_HANDLER),
@@ -1171,7 +1171,7 @@ SPIDER_TRX *spider_get_trx(
                    spider_conn_get_key, 0, 0)
     )
       goto error_init_hash;
-    spider_alloc_calc_mem_init(trx->trx_conn_hash, 151);
+    spider_alloc_calc_mem_init(trx->trx_conn_hash, SPD_MID_GET_TRX_2);
     spider_alloc_calc_mem(
       thd ? ((SPIDER_TRX *) thd_get_ha_data(thd, spider_hton_ptr)) : NULL,
       trx->trx_conn_hash,
@@ -1184,7 +1184,7 @@ SPIDER_TRX *spider_get_trx(
                    spider_conn_get_key, 0, 0)
     )
       goto error_init_another_hash;
-    spider_alloc_calc_mem_init(trx->trx_another_conn_hash, 152);
+    spider_alloc_calc_mem_init(trx->trx_another_conn_hash, SPD_MID_GET_TRX_3);
     spider_alloc_calc_mem(
       thd ? ((SPIDER_TRX *) thd_get_ha_data(thd, spider_hton_ptr)) : NULL,
       trx->trx_another_conn_hash,
@@ -1197,7 +1197,7 @@ SPIDER_TRX *spider_get_trx(
                    spider_alter_tbl_get_key, 0, 0)
     )
       goto error_init_alter_hash;
-    spider_alloc_calc_mem_init(trx->trx_alter_table_hash, 157);
+    spider_alloc_calc_mem_init(trx->trx_alter_table_hash, SPD_MID_GET_TRX_4);
     spider_alloc_calc_mem(
       thd ? ((SPIDER_TRX *) thd_get_ha_data(thd, spider_hton_ptr)) : NULL,
       trx->trx_alter_table_hash,
@@ -1210,7 +1210,7 @@ SPIDER_TRX *spider_get_trx(
                    spider_trx_ha_get_key, 0, 0)
     )
       goto error_init_trx_ha_hash;
-    spider_alloc_calc_mem_init(trx->trx_ha_hash, 158);
+    spider_alloc_calc_mem_init(trx->trx_ha_hash, SPD_MID_GET_TRX_5);
     spider_alloc_calc_mem(
       thd ? ((SPIDER_TRX *) thd_get_ha_data(thd, spider_hton_ptr)) : NULL,
       trx->trx_ha_hash,
@@ -1262,7 +1262,7 @@ SPIDER_TRX *spider_get_trx(
       for (roop_count2 = 0; roop_count2 < (int) trx->tmp_share->link_count;
         ++roop_count2)
       {
-        trx->tmp_spider->result_list.sqls[roop_count2].init_calc_mem(121);
+        trx->tmp_spider->result_list.sqls[roop_count2].init_calc_mem(SPD_MID_GET_TRX_6);
         trx->tmp_spider->result_list.sqls[roop_count2].set_charset(
           trx->tmp_share->access_charset);
       }
@@ -3688,7 +3688,7 @@ int spider_create_trx_ha(
   if (need_create)
   {
     if (!(trx_ha = (SPIDER_TRX_HA *)
-      spider_bulk_malloc(spider_current_trx, 58, MYF(MY_WME),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_TRX_HA_1, MYF(MY_WME),
         &trx_ha, (uint) (sizeof(SPIDER_TRX_HA)),
         &tmp_name, (uint) (sizeof(char *) * (share->table_name_length + 1)),
         &conn_link_idx, (uint) (sizeof(uint) * share->link_count),
