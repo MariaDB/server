@@ -1785,6 +1785,28 @@ a	d
 0	qwe
 0	qwe
 drop table t;
+#
+# MDEV-32803 Assertion `total == 0' failed in Event_log::write_cache_raw
+#
+create or replace table t1 (a int) engine=aria;
+insert t1 values (5);
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+set debug_sync= 'now WAIT_FOR ended';
+begin;
+insert into t1 values (123);
+insert into t1 values (456), (789);
+commit;
+set debug_sync= 'now SIGNAL end';
+connection default;
+select * from t1;
+a	b
+5	NULL
+123	NULL
+456	NULL
+789	NULL
+drop table t1;
 set global default_storage_engine= MyISAM;
 disconnect con1;
 disconnect con2;
