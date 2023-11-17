@@ -80,21 +80,17 @@ DROP TABLE t1;
 --connection server_2
 --disable_warnings
 --let rpl_allow_error=1
---source include/wait_for_slave_io_to_start.inc
-
 --source include/start_slave.inc
 --enable_warnings
 
 --connection server_3
 --disable_warnings
 --let rpl_allow_error=1
---source include/wait_for_slave_io_to_start.inc
 --source include/start_slave.inc
 --enable_warnings
 
 --connection server_4
 --disable_warnings
 --let rpl_allow_error=1
---source include/wait_for_slave_io_to_start.inc
 --source include/start_slave.inc
 --enable_warnings
