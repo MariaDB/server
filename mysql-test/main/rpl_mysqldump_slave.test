@@ -86,3 +86,52 @@ DROP TABLE t2;
 
 
 --source include/rpl_end.inc
+
+#
+# MDEV-32611 Added test for mysqldump --delete-master-logs option
+#
+
+connection master;
+use test;
+
+--source include/have_binlog_format_row.inc
+
+use test;
+
+CREATE TABLE t (
+    id int,
+    name varchar(255),
+    male boolean
+);
+
+insert into t values (1, 'John', true);
+insert into t values (2, 'Mary', false);
+
+SHOW MASTER STATUS;
+
+--let $predump_binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $predump_binlog_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# Execute mysqldump with delete-master-logs option
+--exec $MYSQL_DUMP --compact --delete-master-logs test
+
+--let $postdump_binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $postdump_binlog_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+SHOW MASTER STATUS;
+
+if ($predump_binlog_filename != $postdump_binlog_filename)
+{
+  --echo # predump_binlog_filename: $predump_binlog_filename
+  --echo # postdump_binlog_filename: $postdump_binlog_filename
+  --echo # Master state changed after mariadb-dump with --delete-master-logs
+}
+
+if ($predump_binlog_pos != $postdump_binlog_pos)
+{
+  --echo # predump_binlog_pos: $predump_binlog_pos
+  --echo # postdump_binlog_pos: $postdump_binlog_pos
+  --echo # Master state changed after mariadb-dump with --delete-master-logs
+}
+
+drop table t;
