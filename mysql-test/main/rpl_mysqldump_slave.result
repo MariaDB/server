@@ -65,4 +65,13 @@ SET GLOBAL gtid_slave_pos='0-2-1003';
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
+connection master;
+CREATE TABLE t (
+id int
+);
+insert into t values (1);
+insert into t values (2);
+drop table t;
+-- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
+-- SET GLOBAL gtid_slave_pos='0-1-1005';
 include/rpl_end.inc
