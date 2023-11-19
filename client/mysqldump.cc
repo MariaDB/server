@@ -7113,6 +7113,7 @@ static void dynstr_realloc_checked(DYNAMIC_STRING *str, ulong additional_size)
 }
 
 #include <tpool.h>
+#include <string>
 static std::atomic<int> worker_num;
 static thread_local MYSQL *worker_con;
 static tpool::thread_pool *thread_pool;
