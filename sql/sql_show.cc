@@ -8842,9 +8842,9 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     }
     List_iterator_fast<Item> it(sel->item_list);
     if (!(transl=
-          (Field_translator*)(thd->stmt_arena->
+          (Field_translator*)(thd->active_stmt_arena_to_use()->
                               alloc(sel->item_list.elements *
-                                    sizeof(Field_translator)))))
+                                    sizeof(Field_translator))))) // ???
     {
       DBUG_RETURN(1);
     }

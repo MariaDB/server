@@ -827,7 +827,7 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
   {
     if (*tmp_paths == 0)
     {
-      MEM_ROOT *root= thd->stmt_arena->mem_root;
+      MEM_ROOT *root= thd->active_stmt_arena_to_use()->mem_root;
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
