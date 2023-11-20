@@ -8751,13 +8751,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
     DEBUG_SYNC(leader->thd, "commit_loop_entry_commit_ordered");
     ++num_commits;
+    set_current_thd(current->thd);
     if (current->cache_mngr->using_xa && likely(!current->error) &&
         !DBUG_IF("skip_commit_ordered"))
-    {
-      mysql_mutex_lock(&current->thd->LOCK_thd_data);
       run_commit_ordered(current->thd, current->all);
-      mysql_mutex_unlock(&current->thd->LOCK_thd_data);
-    }
     current->thd->wakeup_subsequent_commits(current->error);
 
     /*
@@ -8774,6 +8771,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     }
     current= next;
   }
+  set_current_thd(leader->thd);
   DEBUG_SYNC(leader->thd, "commit_after_group_run_commit_ordered");
   mysql_mutex_unlock(&LOCK_commit_ordered);
   DEBUG_SYNC(leader->thd, "commit_after_group_release_commit_ordered");

@@ -1771,21 +1771,13 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-			/* The following call is necessary for the insert
+			/* The following call is necessary for the change
 			buffer to work with multiple tablespaces. We must
 			know the mapping between space id's and .ibd file
 			names.
 
-			In a crash recovery, we check that the info in data
-			dictionary is consistent with what we already know
-			about space id's from the calls to fil_ibd_load().
-
-			In a normal startup, we create the space objects for
-			every table in the InnoDB data dictionary that has
-			an .ibd file.
-
 			We also determine the maximum tablespace id used. */
-			dict_check_tablespaces_and_store_max_id();
+			dict_check_tablespaces_and_store_max_id(nullptr);
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
@@ -1933,7 +1925,7 @@ void innodb_preshutdown()
     better prevent any further changes from being buffered. */
     innodb_change_buffering= 0;
 
-    if (trx_sys.is_initialised())
+    if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO && srv_was_started)
       while (trx_sys.any_active_transactions())
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }

@@ -4012,7 +4012,6 @@ static bool recv_scan_log(bool last_phase)
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
-  ut_d(recv_sys.after_apply= last_phase);
   if (!last_phase)
     recv_sys.clear();
   else
@@ -4221,6 +4220,7 @@ static bool recv_scan_log(bool last_phase)
     recv_sys.lsn= rewound_lsn;
   }
 func_exit:
+  ut_d(recv_sys.after_apply= last_phase);
   mysql_mutex_unlock(&recv_sys.mutex);
   DBUG_RETURN(!store);
 }

@@ -2184,8 +2184,6 @@ func_exit:
 			goto corrupted;
 		}
 
-		os_file_get_last_error(operation_not_for_export,
-				       !operation_not_for_export);
 		if (!operation_not_for_export) {
 			goto corrupted;
 		}

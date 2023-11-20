@@ -38,6 +38,7 @@ disconnect ddl;
 
 SELECT * FROM t1;
 SELECT * FROM t2;
+--source include/wait_all_purged.inc
 BEGIN;
 DELETE FROM t1;
 ROLLBACK;
