@@ -9405,15 +9405,25 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
   for (; ha_info; ha_info= ha_info->next())
   {
     handlerton *ht= ha_info->ht();
-    if (!ht->commit_ordered)
-      continue;
+
     if (is_preparing_xa(thd))
     {
       DBUG_ASSERT(all);
       DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_PREPARE);
       DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
 
-      ht->prepare(ht, thd, all);
+      if (!ht->prepare)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_GET_ERRNO, ER_THD(thd, ER_GET_ERRNO),
+                            HA_ERR_WRONG_COMMAND,
+                            ha_resolve_storage_engine_name(ht));
+        continue;
+      }
+      else if (ht != binlog_hton)
+      {
+        ht->prepare(ht, thd, all);
+      }
       if (!ha_info->next()
           && thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
       {
@@ -9434,9 +9444,15 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
       DBUG_ASSERT(!thd->transaction->xid_state.is_recovered());
 
       if (thd->lex->sql_command == SQLCOM_XA_COMMIT)
-        ht->commit_ordered(ht, thd, all);
-      else
+      {
+        if (ht->commit_ordered)
+          ht->commit_ordered(ht, thd, all);
+      }
+      else if (ht != binlog_hton)
+      {
         ht->rollback(ht, thd, all);
+      }
+
       if (!ha_info->next())
       {
         set_current_thd(thd);
@@ -9448,6 +9464,9 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
     }
     else
     {
+      if (!ht->commit_ordered)
+        continue;
+
       ht->commit_ordered(ht, thd, all);
     }
     DBUG_EXECUTE_IF("enable_log_write_upto_crash",
