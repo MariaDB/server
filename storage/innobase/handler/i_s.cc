@@ -5012,6 +5012,16 @@ i_s_dict_fill_sys_tables(
 
 	DBUG_RETURN(0);
 }
+
+/** Handle the error for information schema query
+@param	err  error value
+@param  thd  thread
+@return 0 if query is interrupted or error */
+static int i_s_sys_error_handling(int err, THD *thd)
+{
+  return thd_kill_level(thd) ? 0 : err;
+}
+
 /*******************************************************************//**
 Function to go through each record in SYS_TABLES table, and fill the
 information_schema.innodb_sys_tables table with related table information
@@ -5028,6 +5038,7 @@ i_s_sys_tables_fill_table(
 	const rec_t*	rec;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_tables_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -5055,8 +5066,12 @@ i_s_sys_tables_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_tables(thd, table_rec,
-						 tables->table);
+			err = i_s_dict_fill_sys_tables(
+				thd, table_rec, tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -5077,9 +5092,11 @@ i_s_sys_tables_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 
 /*******************************************************************//**
@@ -5276,6 +5293,7 @@ i_s_sys_tables_fill_table_stats(
 	const rec_t*	rec;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_tables_fill_table_stats");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -5311,8 +5329,13 @@ i_s_sys_tables_fill_table_stats(
 
 		if (table_rec != NULL) {
 			ut_ad(err_msg == NULL);
-			i_s_dict_fill_sys_tablestats(thd, table_rec, ref_count,
-						     tables->table);
+			err = i_s_dict_fill_sys_tablestats(
+				thd, table_rec, ref_count,
+				tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			ut_ad(err_msg != NULL);
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -5333,10 +5356,12 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	rw_lock_s_unlock(&dict_sys.latch);
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 
 /*******************************************************************//**
@@ -5517,6 +5542,7 @@ i_s_sys_indexes_fill_table(
 	const rec_t*		rec;
 	mem_heap_t*		heap;
 	mtr_t			mtr;
+	int			err = 0;
 
 	DBUG_ENTER("i_s_sys_indexes_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -5552,11 +5578,13 @@ i_s_sys_indexes_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			if (int err = i_s_dict_fill_sys_indexes(
-				    thd, table_id, space_id, &index_rec,
-				    tables->table)) {
-				mem_heap_free(heap);
-				DBUG_RETURN(err);
+			err = i_s_dict_fill_sys_indexes(
+				    thd, table_id, space_id,
+				    &index_rec,
+				    tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
 			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -5574,9 +5602,11 @@ i_s_sys_indexes_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.innodb_sys_indexes
@@ -5734,6 +5764,7 @@ i_s_sys_columns_fill_table(
 	const char*	col_name;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_columns_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -5765,9 +5796,14 @@ i_s_sys_columns_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_columns(thd, table_id, col_name,
-						 &column_rec, nth_v_col,
-						 tables->table);
+			err = i_s_dict_fill_sys_columns(
+				thd, table_id, col_name,
+				&column_rec, nth_v_col,
+				tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -5784,9 +5820,11 @@ i_s_sys_columns_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.innodb_sys_columns
@@ -5926,6 +5964,7 @@ i_s_sys_virtual_fill_table(
 	ulint		pos;
 	ulint		base_pos;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_virtual_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -5954,8 +5993,13 @@ i_s_sys_virtual_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_virtual(thd, table_id, pos, base_pos,
-						  tables->table);
+			err = i_s_dict_fill_sys_virtual(
+				thd, table_id, pos, base_pos,
+				tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -5970,8 +6014,9 @@ i_s_sys_virtual_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
-
-	DBUG_RETURN(0);
+func_exit:
+	ut_free(pcur.old_rec_buf);
+	DBUG_RETURN(err);
 }
 
 /** Bind the dynamic table INFORMATION_SCHEMA.innodb_sys_virtual
@@ -6106,6 +6151,7 @@ i_s_sys_fields_fill_table(
 	mem_heap_t*	heap;
 	index_id_t	last_id;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_fields_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -6141,8 +6187,13 @@ i_s_sys_fields_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_fields(thd, index_id, &field_rec,
-						 pos, tables->table);
+			err = i_s_dict_fill_sys_fields(
+				thd, index_id, &field_rec,
+				pos, tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 			last_id = index_id;
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -6160,9 +6211,11 @@ i_s_sys_fields_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.innodb_sys_fields
@@ -6305,6 +6358,7 @@ i_s_sys_foreign_fill_table(
 	const rec_t*	rec;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_foreign_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -6333,8 +6387,15 @@ i_s_sys_foreign_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_foreign(thd, &foreign_rec,
-						 tables->table);
+			err = i_s_dict_fill_sys_foreign(
+				thd, &foreign_rec, tables->table);
+			if (err) {
+				ut_free(pcur.old_rec_buf);
+				if (thd_kill_level(thd)) {
+					err = 0;
+				}
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -6351,9 +6412,10 @@ i_s_sys_foreign_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 
 /*******************************************************************//**
@@ -6493,6 +6555,7 @@ i_s_sys_foreign_cols_fill_table(
 	const rec_t*	rec;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_foreign_cols_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -6523,9 +6586,13 @@ i_s_sys_foreign_cols_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_foreign_cols(
-				thd, name, for_col_name, ref_col_name, pos,
-				tables->table);
+			err = i_s_dict_fill_sys_foreign_cols(
+				thd, name, for_col_name,
+				ref_col_name, pos, tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -6542,9 +6609,11 @@ i_s_sys_foreign_cols_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.innodb_sys_foreign_cols
@@ -6773,6 +6842,7 @@ i_s_sys_tablespaces_fill_table(
 	const rec_t*	rec;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_tablespaces_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -6803,9 +6873,13 @@ i_s_sys_tablespaces_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_tablespaces(
+			err = i_s_dict_fill_sys_tablespaces(
 				thd, space, name, flags,
 				tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -6821,14 +6895,16 @@ i_s_sys_tablespaces_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
-	mem_heap_free(heap);
 
 	i_s_dict_fill_sys_tablespaces(
 		thd, fil_system.temp_space->id,
 		fil_system.temp_space->name,
 		fil_system.temp_space->flags, tables->table);
+func_exit:
+	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES
@@ -6956,6 +7032,7 @@ i_s_sys_datafiles_fill_table(
 	const rec_t*	rec;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
+	int		err = 0;
 
 	DBUG_ENTER("i_s_sys_datafiles_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
@@ -6984,8 +7061,12 @@ i_s_sys_datafiles_fill_table(
 		mutex_exit(&dict_sys.mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_datafiles(
+			err = i_s_dict_fill_sys_datafiles(
 				thd, space, path, tables->table);
+			if (err) {
+				err = i_s_sys_error_handling(err, thd);
+				goto func_exit;
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -7002,9 +7083,11 @@ i_s_sys_datafiles_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
+func_exit:
 	mem_heap_free(heap);
+	ut_free(pcur.old_rec_buf);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.INNODB_SYS_DATAFILES
