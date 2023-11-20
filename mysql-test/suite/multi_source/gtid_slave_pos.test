@@ -121,8 +121,7 @@ set default_master_connection = 'slave2';
 --let $slave_sql_errno= 1942
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE;
---let $rpl_only_running_threads= 1
---source include/stop_slave.inc
+--source include/wait_for_slave_io_to_stop.inc
 set default_master_connection = 'slave1';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc

@@ -31,8 +31,8 @@ SET sql_log_bin=1;
 START SLAVE;
 --let $slave_sql_errno=1062
 --source include/wait_for_slave_sql_error.inc
---let $rpl_only_running_threads= 1
---source include/stop_slave.inc
+--source include/wait_for_slave_io_to_start.inc
+--source include/stop_slave_io.inc
 # Skip the problem event from the master.
 SET GLOBAL gtid_slave_pos= "0-1-100";
 --source include/start_slave.inc
@@ -51,7 +51,7 @@ SET debug_dbug= @dbug_save;
 --connection slave
 --let $slave_sql_errno=1590
 --source include/wait_for_slave_sql_error.inc
---source include/stop_slave.inc
+--source include/stop_slave_io.inc
 SET sql_slave_skip_counter=1;
 --source include/start_slave.inc
 --sync_with_master

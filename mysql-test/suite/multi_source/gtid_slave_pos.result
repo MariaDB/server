@@ -99,7 +99,7 @@ include/wait_for_slave_to_stop.inc
 set default_master_connection = 'slave2';
 include/wait_for_slave_sql_error.inc [errno=1942]
 STOP SLAVE;
-include/stop_slave.inc
+include/wait_for_slave_io_to_stop.inc
 set default_master_connection = 'slave1';
 START SLAVE;
 include/wait_for_slave_to_start.inc

@@ -29,8 +29,7 @@ SELECT * FROM t1;
 a	b	c
 1	1	1
 2	2	3
-stop slave;
-include/stop_slave.inc
+include/stop_slave_io.inc
 reset slave;
 connection master;
 reset master;
@@ -189,8 +188,7 @@ SELECT * FROM t1;
 a	b	c
 1	1	1
 2	2	3
-stop slave;
-include/stop_slave.inc
+include/stop_slave_io.inc
 reset slave;
 connection master;
 reset master;

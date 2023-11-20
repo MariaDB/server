@@ -28,6 +28,9 @@
 #     there is an error in the IO thread.
 #     (If an error is _always_ expected, a better alternative might be to
 #     use wait_for_slave_io_error.inc instead of this file).
+#     Note: This is currently always enabled, since a simple STOP SLAVE
+#     IO_THREAD can cause an error if it interrupts the slave's initial
+#     communication with the master (MDEV-32892).
 #
 #   $rpl_debug
 #     See include/rpl_init.inc
@@ -39,12 +42,15 @@
 
 --let $slave_param= Slave_IO_Running
 --let $slave_param_value= No
-if (!$rpl_allow_error)
-{
-  --let $slave_error_param= Last_IO_Errno
-}
+--let $_io_stop_save_allow_error= $slave_error_param
+# Disabled, as IO errors are left behind when a normal STOP SLAVE interrupts
+# the initial communication between the IO thread and the master (MDEV-32892).
+#if (!$rpl_allow_error)
+#{
+#  --let $slave_error_param= Last_IO_Errno
+#}
 --source include/wait_for_slave_param.inc
---let $slave_error_param=
+--let $slave_error_param= $_io_stop_save_allow_error
 
 
 --let $include_filename= wait_for_slave_io_to_stop.inc

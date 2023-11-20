@@ -433,8 +433,7 @@ source include/show_binlog_events.inc;
 --eval SET GLOBAL binlog_stmt_cache_size= $old_binlog_stmt_cache_size
 
 # SQL slave is stopped, stop only IO thread
---let $rpl_only_running_threads= 1
-source include/stop_slave.inc;
+source include/stop_slave_io.inc;
 source include/start_slave.inc;
 
 connection master;

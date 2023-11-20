@@ -95,8 +95,7 @@ COMMIT;
 --connection server_2
 --let $slave_sql_errno= 1062
 --source include/wait_for_slave_sql_error.inc
---let $rpl_only_running_threads= 1
---source include/stop_slave.inc
+--source include/stop_slave_io.inc
 --let $assert_cond= COUNT(*) = 0 FROM t1 WHERE a>32
 --let $assert_text= table t1 should have zero rows where a>32
 --source include/assert.inc

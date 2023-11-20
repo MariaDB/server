@@ -207,8 +207,7 @@ START SLAVE;
 --let $status_items= Last_IO_Errno, Last_IO_Error
 --source include/show_slave_status.inc
 
---let $rpl_only_running_threads= 1
---source include/stop_slave.inc
+--source include/stop_slave_sql.inc
 RESET SLAVE;
 
 --connection master

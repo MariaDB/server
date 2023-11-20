@@ -63,7 +63,7 @@ include/wait_for_slave_io_error.inc [errno=1236]
 SHOW TABLES;
 Tables_in_test
 table1_no_encryption
-include/stop_slave.inc
+include/stop_slave_sql.inc
 reset slave;
 ##########
 # Cleanup
