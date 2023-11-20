@@ -11,16 +11,16 @@
 set @save_dbug=@@debug_dbug;
 
 set @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
-set @save_lag_wait=@@GLOBAL.innodb_max_purge_lag_wait;
+# Wait for the undo logs to be empty from previous tests.
+# This is not an actual parameter, so there is no need to restore it.
 set GLOBAL innodb_max_purge_lag_wait=0;
 
-CREATE TABLE t1 (t TEXT) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 SET GLOBAL innodb_limit_optimistic_insert_debug=2;
-SET unique_checks=0, foreign_key_checks=0;
-INSERT INTO t1 SELECT CONCAT(REPEAT('junk text', 500), CAST(seq AS CHAR)) FROM seq_1_to_1000;
+SET STATEMENT unique_checks=0, foreign_key_checks=0 FOR
+INSERT INTO t1 SELECT * FROM seq_1_to_1000;
 
 SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
-SET GLOBAL innodb_max_purge_lag_wait=@save_lag_wait;
 
 DROP TABLE t1;
 
@@ -36,7 +36,7 @@ FROM INFORMATION_SCHEMA.GLOBAL_STATUS
 WHERE VARIABLE_NAME='Innodb_buffer_pool_pages_dirty';
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_PATTERN= InnoDB: Memory pressure event freed;
+let SEARCH_PATTERN= InnoDB: Memory pressure event freed.*;
 --source include/search_pattern_in_file.inc
 
 set debug_dbug=@save_dbug;
