@@ -31,6 +31,21 @@ if (!$rpl_debug)
 }
 
 
+#if ($start_slave_send_sighup)
+#{
+## Make a thread handle SIGHUP
+#--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+#--perl
+#  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+#  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+#  my $mysqld_pid = `cat $pid_filename`;
+#  chomp($mysqld_pid);
+#  system("kill -HUP $mysqld_pid");
+#  exit(0);
+#EOF
+#}
+
+
 START SLAVE;
 source include/wait_for_slave_to_start.inc;
 

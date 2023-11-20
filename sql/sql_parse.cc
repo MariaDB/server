@@ -2131,6 +2131,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       status_var_increment(thd->status_var.com_other);
 
       thd->query_plan_flags|= QPLAN_ADMIN;
+      DBUG_PRINT("zombie", ("prepre kzdt %lu", thd->thread_id));
       if (check_global_access(thd, PRIV_COM_BINLOG_DUMP))
 	break;
 
@@ -2138,8 +2139,10 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       pos = uint4korr(packet);
       flags = uint2korr(packet + 4);
       thd->variables.server_id=0; /* avoid suicide */
+      DBUG_PRINT("zombie", ("pre kzdt %llu", thd->thread_id));
       if ((slave_server_id= uint4korr(packet+6))) // mysqlbinlog.server_id==0
       {
+      DBUG_PRINT("zombie", ("pre kzdt %llu has slave_server_id=%u", thd->thread_id, slave_server_id));
 	bool got_error= kill_zombie_dump_threads(thd, slave_server_id);
         if (got_error || thd->killed)
         {
@@ -2155,6 +2158,10 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
           break;
         }
       }
+      else
+      {
+        DBUG_PRINT("zombie", ("pre kzdt %llu has no slave server id", thd->thread_id));
+      }
       thd->variables.server_id = slave_server_id;
 
       const char *name= packet + 10;
@@ -2162,7 +2169,12 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
 
       general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
       if (nlen < FN_REFLEN)
+      {
+
+        DBUG_PRINT("zombie", ("thd %llu sending binlog", thd->thread_id));
+        fprintf(stderr, "\n\tthd %llu sending binlog\n", thd->thread_id);
         mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
+      }
       if (thd->killed && ! thd->get_stmt_da()->is_set())
         thd->send_kill_message();
       thd->unregister_slave(); // todo: can be extraneous

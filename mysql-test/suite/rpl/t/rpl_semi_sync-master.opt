@@ -1,0 +1,2 @@
+--debug="+d,info,error,exit,semisync,zombie:i"
+

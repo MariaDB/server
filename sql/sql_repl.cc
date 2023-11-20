@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
+#include "partition_info.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_base.h"
@@ -3131,6 +3132,8 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("start_slave");
 
+  sql_print_information("Got start slave command");
+
   if (check_global_access(thd, PRIV_STMT_START_SLAVE))
     DBUG_RETURN(-1);
 
@@ -3334,6 +3337,8 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   DBUG_ENTER("stop_slave");
   DBUG_PRINT("enter",("Connection: %s", mi->connection_name.str));
 
+  sql_print_information("Got stop slave command");
+
   if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
     DBUG_RETURN(-1);
   THD_STAGE_INFO(thd, stage_killing_slave);
@@ -3534,10 +3539,20 @@ static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
 bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id)
 {
   kill_callback_arg arg(slave_server_id);
+  DBUG_PRINT("zombie", ("new kzdt %llu: Entering slave_id %u", thd->thread_id, slave_server_id));
   server_threads.iterate(kill_callback, &arg);
 
   if (!arg.thd)
+  {
+    DBUG_PRINT("zombie", ("kzdt %llu: Early quit", thd->thread_id));
     return 0;
+  }
+  DBUG_PRINT("zombie", ("kzdt %llu: Killing thd %lu", thd->thread_id, arg.thd->thread_id));
+  if (arg.thd->thread_id == 2)
+  {
+    fprintf(stderr, "\n\tFound invalid thdid..\n");
+  }
+
 
   /*
     Here we do not call kill_one_thread() as
@@ -3560,14 +3575,24 @@ bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id)
        --i > 0  && !thd->killed;
        i++)
   {
+    DBUG_PRINT("zombie", ("kzdt %llu: Checking for other threads", thd->thread_id));
     arg.thd= 0;
     server_threads.iterate(kill_callback, &arg);
     if (!arg.thd)
+    {
+      DBUG_PRINT("zombie", ("kzdt %llu: Non found, exiting", thd->thread_id));
       return 0;
+    }
+    if (arg.thd->thread_id == 34)
+    {
+      fprintf(stderr, "\n\tSomehow we found thread 34 who are you??\n");
+    }
+    DBUG_PRINT("zombie", ("kzdt %llu: Found thread %lu", thd->thread_id, arg.thd->thread_id));
     mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
     mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
     my_sleep(1000000L / 10);                // Wait 1/10 of a second
   }
+  DBUG_PRINT("zombie", ("kzdt %llu: Not able to die, removing %lu from ack receiver", thd->thread_id, arg.thd->thread_id));
   /*
     We where not able to kill the dump thread.
 

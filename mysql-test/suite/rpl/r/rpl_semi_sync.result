@@ -319,6 +319,8 @@ include/kill_binlog_dump_threads.inc
 connection slave;
 include/start_slave.inc
 connection master;
+connection slave;
+connection master;
 create table t1 (a int) engine = ENGINE_TYPE;
 insert into t1 values (1);
 insert into t1 values (2), (3);
@@ -360,6 +362,8 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
+connection master;
+connection slave;
 connection master;
 [ master semi-sync should be ON ]
 show status like 'Rpl_semi_sync_master_clients';

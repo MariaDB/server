@@ -3206,6 +3206,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
+      fprintf(stderr,"\n\tGot SIGHUP\n");
 #if defined(SI_KERNEL)
       if (!abort_loop && origin != SI_KERNEL)
 #elif defined(SI_USER)

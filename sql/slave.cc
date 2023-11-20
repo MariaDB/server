@@ -4780,6 +4780,7 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
 connected:
+  sql_print_information("Slave I/O thread connected");
 
   if (mi->using_gtid != Master_info::USE_GTID_NO)
   {

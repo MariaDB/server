@@ -6,7 +6,16 @@
 
 source include/not_embedded.inc;
 source include/have_innodb.inc;
+#--let $start_slave_send_sighup= 1
 source include/master-slave.inc;
+#--let $start_slave_send_sighup=
+#--connection master
+#set @old_dbug= @@global.debug_dbug;
+#set @@global.debug_dbug= "+d,info,error,exit,semisync,zombie:i";
+#--connection slave
+#set @old_dbug= @@global.debug_dbug;
+#set @@global.debug_dbug= "+d,info,error,exit,semisync:i";
+
 
 let $engine_type= InnoDB;
 
@@ -520,9 +529,11 @@ set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
 set global rpl_semi_sync_master_enabled= 0;
+#set @@global.debug_dbug= @old_dbug;
 
 connection slave;
 change master to master_user='root',master_password='';
+#set @@global.debug_dbug= @old_dbug;
 source include/start_slave.inc;
 
 connection master;
@@ -533,4 +544,31 @@ connection master;
 drop user rpl@127.0.0.1;
 flush privileges;
 set global rpl_semi_sync_master_timeout= default;
+
+--disable_query_log
+--connection master
+# Make a thread handle SIGHUP
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+  my $mysqld_pid = `cat $pid_filename`;
+  chomp($mysqld_pid);
+  system("kill -HUP $mysqld_pid");
+  exit(0);
+EOF
+--connection slave
+# Make a thread handle SIGHUP
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+  my $mysqld_pid = `cat $pid_filename`;
+  chomp($mysqld_pid);
+  system("kill -HUP $mysqld_pid");
+  exit(0);
+EOF
+--sleep 0.1
+--enable_query_log
+
 --source include/rpl_end.inc
