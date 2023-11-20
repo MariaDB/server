@@ -1593,6 +1593,10 @@ void THD::free_connection()
     vio_delete(net.vio);
   net.vio= nullptr;
   net_end(&net);
+  delete(rgi_fake);
+  rgi_fake= NULL;
+  delete(rli_fake);
+  rli_fake= NULL;
 #endif
  if (!cleanup_done)
    cleanup();
@@ -1695,17 +1699,6 @@ THD::~THD()
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
-  if (rgi_fake)
-  {
-    delete rgi_fake;
-    rgi_fake= NULL;
-  }
-  if (rli_fake)
-  {
-    delete rli_fake;
-    rli_fake= NULL;
-  }
-  
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
   my_free(semisync_info);
