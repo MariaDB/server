@@ -1265,6 +1265,13 @@ int ha_spider::external_lock(
 #ifdef HA_CAN_BULK_ACCESS
   external_lock_cnt++;
 #endif
+  if (lock_type == F_UNLCK)
+  {
+    if (!trx->locked_connections)
+    {
+      DBUG_RETURN(0); /* No remote table actually locked by Spider */
+    }
+  }
   if (store_error_num)
     DBUG_RETURN(store_error_num);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
