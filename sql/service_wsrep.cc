@@ -409,3 +409,8 @@ extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
     WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
   }
 }
+
+extern "C" uint32 wsrep_get_domain_id()
+{
+  return wsrep_gtid_domain_id;
+}
