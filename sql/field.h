@@ -2121,7 +2121,7 @@ public:
 	    const LEX_CSTRING *field_name_arg,
 	    const DTCollation &collation);
   decimal_digits_t decimals() const override
-  { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
+  { return is_created_from_null_item ? 0 : DECIMAL_NOT_SPECIFIED; }
   int  save_in_field(Field *to) override { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const override
   {
@@ -2289,7 +2289,7 @@ public:
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const override
   {
-    return dec == NOT_FIXED_DEC ?
+    return dec == DECIMAL_NOT_SPECIFIED ?
                   Information_schema_numeric_attributes(field_length) :
                   Information_schema_numeric_attributes(field_length, dec);
   }
@@ -2861,15 +2861,24 @@ public:
      integers. But in all other cases we treat it as TIME_RESULT! */
 };
 
+static inline decimal_digits_t fix_dec_arg(decimal_digits_t dec_arg)
+{ return dec_arg >= FLOATING_POINT_DECIMALS ? DECIMAL_NOT_SPECIFIED : dec_arg; }
 
 class Field_float final :public Field_real {
 public:
   Field_float(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-              decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg);
+              decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
+    :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                unireg_check_arg, field_name_arg,
+                fix_dec_arg(dec_arg), zero_arg, unsigned_arg)
+    { }
   Field_float(uint32 len_arg, bool maybe_null_arg,
-              const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg);
+              const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
+    :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    { }
   const Type_handler *type_handler() const override
   { return &type_handler_float; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_FLOAT; }
@@ -2902,12 +2911,24 @@ public:
   Field_double(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	       uchar null_bit_arg,
 	       enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	       decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg);
+	       decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
+    :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                unireg_check_arg, field_name_arg,
+                fix_dec_arg(dec_arg), zero_arg, unsigned_arg)
+    { }
   Field_double(uint32 len_arg, bool maybe_null_arg,
-               const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg);
+               const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
+    :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    { }
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
-	       decimal_digits_t dec_arg, bool not_fixed_arg);
+	       decimal_digits_t dec_arg, bool not_fixed_arg)
+    :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    {
+      not_fixed= not_fixed_arg;
+    }
   void init_for_tmp_table(Field *org_field, TABLE *new_table) override
   {
     Field::init_for_tmp_table(org_field, new_table);

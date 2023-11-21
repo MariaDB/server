@@ -4689,30 +4689,6 @@ bool Field_longlong::is_max()
   single precision float
 ****************************************************************************/
 
-Field_float::Field_float(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-                         uchar null_bit_arg,
-                         enum utype unireg_check_arg,
-                         const LEX_CSTRING *field_name_arg,
-                         decimal_digits_t dec_arg,
-                         bool zero_arg, bool unsigned_arg)
-  :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-              unireg_check_arg, field_name_arg,
-              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
-              zero_arg, unsigned_arg)
-{
-}
-
-Field_float::Field_float(uint32 len_arg, bool maybe_null_arg,
-                         const LEX_CSTRING *field_name_arg,
-                         decimal_digits_t dec_arg)
-  :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
-              NONE, field_name_arg,
-              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
-              0, 0)
-{
-}
-
-
 int Field_float::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
   int error;
@@ -4860,40 +4836,6 @@ Binlog_type_info Field_float::binlog_type_info() const
 /****************************************************************************
   double precision floating point numbers
 ****************************************************************************/
-
-Field_double::Field_double(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-                           uchar null_bit_arg,
-                           enum utype unireg_check_arg,
-                           const LEX_CSTRING *field_name_arg,
-                           decimal_digits_t dec_arg,
-                           bool zero_arg, bool unsigned_arg)
-  :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-              unireg_check_arg, field_name_arg,
-              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
-              zero_arg, unsigned_arg)
-{
-}
-
-Field_double::Field_double(uint32 len_arg, bool maybe_null_arg,
-                           const LEX_CSTRING *field_name_arg,
-                           decimal_digits_t dec_arg)
-  :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-              NONE, field_name_arg,
-              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
-              0, 0)
-{
-}
-
-Field_double::Field_double(uint32 len_arg, bool maybe_null_arg,
-                           const LEX_CSTRING *field_name_arg,
-                           decimal_digits_t dec_arg, bool not_fixed_arg)
-  :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-              NONE, field_name_arg,
-              (dec_arg >= FLOATING_POINT_DECIMALS ? NOT_FIXED_DEC : dec_arg),
-              0, 0)
-{
-  not_fixed= not_fixed_arg;
-}
 
 int Field_double::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
