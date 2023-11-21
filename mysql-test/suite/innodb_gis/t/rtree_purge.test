@@ -8,7 +8,7 @@
 
 create table t (
   b point not null,d point not null, spatial key (d),spatial key (b)
-) engine=innodb;
+) engine=innodb stats_persistent=0;
 
 --disable_query_log
 set @p=point(1,1);

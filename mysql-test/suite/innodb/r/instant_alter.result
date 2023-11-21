@@ -1,3 +1,5 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 #
 # MDEV-11369: Instant ADD COLUMN for InnoDB
 #
@@ -2937,3 +2939,4 @@ index(id, msg)
 FLUSH TABLES;
 ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
 DROP TABLE mdev28822_100427_innodb;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

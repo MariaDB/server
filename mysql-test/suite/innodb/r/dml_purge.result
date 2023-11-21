@@ -1,3 +1,5 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 #
 # MDEV-12288 Reset DB_TRX_ID when the history is removed,
 # to speed up MVCC
@@ -46,3 +48,4 @@ a	b	c
 1	2	NULL
 3	-3	NULL
 DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

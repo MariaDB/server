@@ -1,6 +1,9 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 --disable_query_log
 call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
 --enable_query_log
@@ -170,3 +173,7 @@ UNLOCK TABLES;
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+
+--echo # End of 10.6 tests

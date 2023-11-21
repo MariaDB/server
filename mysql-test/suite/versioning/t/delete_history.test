@@ -195,7 +195,7 @@ drop table t1;
 --echo # MDEV-25004 Missing row in FTS_DOC_ID_INDEX during DELETE HISTORY
 --echo #
 create table t1 (a integer, c0 varchar(255), fulltext key (c0))
-with system versioning engine innodb;
+with system versioning engine innodb stats_persistent=0;
 set system_versioning_alter_history= keep;
 alter table t1 drop system versioning;
 alter table t1 add system versioning;
@@ -206,7 +206,7 @@ delete history from t1;
 drop table t1;
 
 create table t1 (id int primary key, ftx varchar(255))
-with system versioning engine innodb;
+with system versioning engine innodb stats_persistent=0;
 insert into t1 values (1, 'c');
 delete from t1;
 alter table t1 add fulltext key(ftx);

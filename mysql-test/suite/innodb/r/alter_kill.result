@@ -2,6 +2,7 @@
 # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 #
 SET GLOBAL innodb_file_per_table=1;
+SET GLOBAL innodb_stats_persistent=0;
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 connect  con1,localhost,root;
 CREATE TABLE bug16720368 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
