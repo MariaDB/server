@@ -473,15 +473,17 @@ err:
   Create a formatted date/time value in a string.
 */
 
-static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
-                           timestamp_type type, const MY_LOCALE *locale,
-                           String *str)
+static bool make_date_time(THD *thd, const String *format,
+                           const MYSQL_TIME *l_time, timestamp_type type,
+                           const MY_LOCALE *locale, String *str)
 {
   char intbuff[15];
   uint hours_i;
   uint weekday;
   ulong length;
   const char *ptr, *end;
+  struct tz curr_tz;
+  Time_zone* curr_timezone= 0;
 
   str->length(0);
 
@@ -699,6 +701,32 @@ static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
 	str->append_with_prefill(intbuff, length, 1, '0');
 	break;
 
+      case 'z':
+      {
+        if (!curr_timezone)
+        {
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
+        }
+        long minutes= labs(curr_tz.seconds_offset)/60, diff_hr, diff_min;
+        diff_hr= minutes/60;
+        diff_min= minutes%60;
+
+        str->append(curr_tz.seconds_offset < 0 ? '-' : '+');
+        str->append(static_cast<char>('0' + diff_hr/10));
+        str->append(static_cast<char>('0' + diff_hr%10));
+        str->append(static_cast<char>('0' + diff_min/10));
+        str->append(static_cast<char>('0' + diff_min%10));
+        break;
+      }
+      case 'Z':
+        if (!curr_timezone)
+        {
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
+        }
+        str->append(curr_tz.abbrevation, strlen(curr_tz.abbrevation));
+        break;
       default:
 	str->append(*ptr);
 	break;
@@ -1827,6 +1855,7 @@ uint Item_func_date_format::format_length(const String *format)
       case 'X': /* Year, used with 'v, where week starts with Monday' */
 	size += 4;
 	break;
+      case 'Z': /* time zone abbreviation */
       case 'a': /* locale's abbreviated weekday name (Sun..Sat) */
       case 'b': /* locale's abbreviated month name (Jan.Dec) */
 	size += 32; /* large for UTF8 locale data */
@@ -1865,6 +1894,9 @@ uint Item_func_date_format::format_length(const String *format)
       case 'f': /* microseconds */
 	size += 6;
 	break;
+      case 'z': /* time zone offset */
+        size += 5;
+        break;
       case 'w': /* day (of the week), numeric */
       case '%':
       default:
@@ -1912,7 +1944,7 @@ String *Item_func_date_format::val_str(String *str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(format, &l_time,
+  if (!make_date_time(thd, format, &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))

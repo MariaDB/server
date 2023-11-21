@@ -69,8 +69,6 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
-#else
-static inline bool wsrep_is_bf_aborted(THD* thd) { return false; }
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
 #include <mysql/psi/mysql_transaction.h>
@@ -643,7 +641,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
+   m_sent_row_count(0),
+   sent_row_count_for_statement(0),
    m_examined_row_count(0),
+   examined_row_count_for_statement(0),
    accessed_rows_and_keys(0),
    m_digest(NULL),
    m_statement_psi(NULL),
@@ -779,7 +780,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   my_hash_clear(&ull_hash);
   tmp_table=0;
   cuted_fields= 0L;
-  m_sent_row_count= 0L;
   limit_found_rows= 0;
   m_row_count_func= -1;
   statement_id_counter= 0UL;
@@ -1009,7 +1009,8 @@ void THD::raise_note(uint sql_errno)
 {
   DBUG_ENTER("THD::raise_note");
   DBUG_PRINT("enter", ("code: %d", sql_errno));
-  if (!(variables.option_bits & OPTION_SQL_NOTES))
+  if (!(variables.option_bits & OPTION_SQL_NOTES) ||
+      (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* msg= ER_THD(this, sql_errno);
   (void) raise_condition(sql_errno, "\0\0\0\0\0",
@@ -1023,7 +1024,8 @@ void THD::raise_note_printf(uint sql_errno, ...)
   char    ebuff[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("THD::raise_note_printf");
   DBUG_PRINT("enter",("code: %u", sql_errno));
-  if (!(variables.option_bits & OPTION_SQL_NOTES))
+  if (!(variables.option_bits & OPTION_SQL_NOTES) ||
+      (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* format= ER_THD(this, sql_errno);
   va_start(args, sql_errno);
@@ -1046,8 +1048,9 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
-  if (!(variables.option_bits & OPTION_SQL_NOTES) &&
-      (level == Sql_condition::WARN_LEVEL_NOTE))
+  if ((level == Sql_condition::WARN_LEVEL_NOTE) &&
+      (!(variables.option_bits & OPTION_SQL_NOTES) ||
+       (variables.note_verbosity == 0)))
     DBUG_RETURN(NULL);
 #ifdef WITH_WSREP
   /*
@@ -1235,10 +1238,7 @@ void THD::init()
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
-  variables.default_master_connection.str= default_master_connection_buff;
-  ::strmake(default_master_connection_buff,
-            global_system_variables.default_master_connection.str,
-            variables.default_master_connection.length);
+
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
   user_time.val= start_time= start_time_sec_part= 0;
@@ -1727,7 +1727,9 @@ THD::~THD()
     lf_hash_put_pins(tdc_hash_pins);
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
+#if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
+#endif
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 
@@ -1742,7 +1744,7 @@ THD::~THD()
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
-    SAFEMALLOC_REPORT_MEMORY(thread_id);
+    SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id());
     DBUG_ASSERT(status_var.local_memory_used == 0 ||
                 !debug_assert_on_not_freed_memory);
   }
@@ -5823,7 +5825,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   cuted_fields= 0;
   transaction->savepoints= 0;
   first_successful_insert_id_in_cur_stmt= 0;
-  reset_slow_query_state();
+  reset_slow_query_state(backup);
 }
 
 void THD::restore_sub_statement_state(Sub_statement_state *backup)
@@ -5865,11 +5867,14 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   first_successful_insert_id_in_cur_stmt= 
     backup->first_successful_insert_id_in_cur_stmt;
   limit_found_rows= backup->limit_found_rows;
-  set_sent_row_count(backup->sent_row_count);
   client_capabilities= backup->client_capabilities;
 
   /* Restore statistic needed for slow log */
   add_slow_query_state(backup);
+  if (backup->sent_row_count)
+    MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
+  if (backup->examined_row_count)
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
 
   /*
     If we've left sub-statement mode, reset the fatal error flag.
@@ -5890,7 +5895,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     The following is added to the old values as we are interested in the
     total complexity of the query
   */
-  inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
 }
@@ -5904,18 +5908,20 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
   backup->affected_rows=           affected_rows;
   backup->bytes_sent_old=          bytes_sent_old;
   backup->examined_row_count=      m_examined_row_count;
+  backup->examined_row_count_for_statement= examined_row_count_for_statement;
   backup->query_plan_flags=        query_plan_flags;
   backup->query_plan_fsort_passes= query_plan_fsort_passes;
   backup->sent_row_count=          m_sent_row_count;
+  backup->sent_row_count_for_statement= sent_row_count_for_statement;
   backup->tmp_tables_disk_used=    tmp_tables_disk_used;
   backup->tmp_tables_size=         tmp_tables_size;
   backup->tmp_tables_used=         tmp_tables_used;
-  backup->handler_stats=            handler_stats;
+  backup->handler_stats=           handler_stats;
 }
 
 /* Reset variables related to slow query log */
 
-void THD::reset_slow_query_state()
+void THD::reset_slow_query_state(Sub_statement_state *backup)
 {
   affected_rows=                0;
   bytes_sent_old=               status_var.bytes_sent;
@@ -5926,6 +5932,17 @@ void THD::reset_slow_query_state()
   tmp_tables_disk_used=         0;
   tmp_tables_size=              0;
   tmp_tables_used=              0;
+  if (backup && (backup->in_stored_procedure= in_stored_procedure()))
+  {
+    /*
+      For stored procedures, we want to see stats in show processlist
+      for the current statement, not for the call to stored procedure.
+      This is because 'show processlist' shows the stored procedure
+      query string, not the CALL query.
+    */
+    examined_row_count_for_statement= 0;
+    sent_row_count_for_statement= 0;
+  }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.reset();
 }
@@ -5946,6 +5963,17 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
   tmp_tables_size+=              backup->tmp_tables_size;
   tmp_tables_used+=              backup->tmp_tables_used;
+  if (backup->in_stored_procedure)
+  {
+    /*
+      For stored procedures, we want to see stats in show processlist
+      for the current statement, not for the call to stored procedure.
+      This is because 'show processlist' shows the stored procedure
+      query string, not the CALL query.
+    */
+    examined_row_count_for_statement+= backup->examined_row_count_for_statement;
+    sent_row_count_for_statement+=     backup->sent_row_count_for_statement;
+  }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.add(&backup->handler_stats);
 }
@@ -5958,28 +5986,21 @@ void THD::set_statement(Statement *stmt)
   mysql_mutex_unlock(&LOCK_thd_data);
 }
 
+/*
+  This functions is only called when we send the result from the query
+  cache or in case of select_export().
+*/
 void THD::set_sent_row_count(ha_rows count)
 {
   m_sent_row_count= count;
+  sent_row_count_for_statement+= count;
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
-void THD::set_examined_row_count(ha_rows count)
+void THD::ps_report_examined_row_count()
 {
-  m_examined_row_count= count;
-  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
-}
-
-void THD::inc_sent_row_count(ha_rows count)
-{
-  m_sent_row_count+= count;
-  MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
-}
-
-void THD::inc_examined_row_count(ha_rows count)
-{
-  m_examined_row_count+= count;
-  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
+  if (m_examined_row_count)
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
 }
 
 void THD::inc_status_created_tmp_disk_tables()
@@ -7846,6 +7867,7 @@ wait_for_commit::reinit()
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
   commit_started= false;
+  wakeup_blocked= false;
 #ifdef SAFE_MUTEX
   /*
     When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
@@ -8118,6 +8140,9 @@ void
 wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 {
   wait_for_commit *waiter;
+
+  if (unlikely(wakeup_blocked))
+    return;
 
   mysql_mutex_lock(&LOCK_wait_commit);
   wakeup_subsequent_commits_running= true;

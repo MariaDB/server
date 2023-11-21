@@ -36,6 +36,7 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 a
 3
+SET GLOBAL innodb_max_purge_lag_wait=0;
 # restart
 SELECT * FROM t;
 a

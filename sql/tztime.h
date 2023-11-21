@@ -32,12 +32,22 @@ class THD;
 
 class THD;
 
+/*
+  Has only offset from UTC and abbrevation.
+*/
+struct tz
+{
+  long seconds_offset;
+  char abbrevation[64];
+};
+
 /**
-  This class represents abstract time zone and provides 
+  This class represents abstract time zone and provides
   basic interface for MYSQL_TIME <-> my_time_t conversion.
-  Actual time zones which are specified by DB, or via offset 
+  Actual time zones which are specified by DB, or via offset
   or use system functions are its descendants.
 */
+
 class Time_zone: public Sql_alloc 
 {
 public:
@@ -61,6 +71,8 @@ public:
     of c_ptr().
   */
   virtual const String * get_name() const = 0;
+
+  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const = 0;
 
   /** 
     We need this only for surpressing warnings, objects of this type are

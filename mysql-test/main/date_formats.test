@@ -256,3 +256,72 @@ select time_format('2001-01-01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%T');
 select time_format('2001-01-01 02:02:02', '%T');
+
+--echo #
+--echo # End of 10.2 test
+--echo #
+
+--echo #
+--echo # MDEV-31684 Add timezone information to DATE_FORMAT
+--echo #
+
+SET @old_timezone= @@time_zone;
+
+
+--echo # Using named timezones
+
+SET TIME_ZONE='Japan';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET @@time_zone='Europe/Moscow';
+SELECT DATE_FORMAT('1965-02-17 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('1965-12-31 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('1985-06-01', '%z %Z');
+
+--echo # Using positive and negative offset
+
+SET TIME_ZONE= '-05:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET TIME_ZONE= '+04:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+
+--echo # Using UTC
+
+SET TIME_ZONE='UTC';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET @@time_zone= @old_timezone;
+
+--echo # More timezone test:
+
+--echo #
+--echo # Check for time zone with leap seconds
+--echo #
+set time_zone='Europe/Moscow';
+
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+
+set time_zone='leap/Europe/Moscow';
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+
+--echo #
+--echo # Values around and in spring time-gap
+--echo #
+
+set time_zone='MET';
+
+--echo # Normal value with DST
+SELECT DATE_FORMAT('2003-03-30 01:59:59', '%z %Z');
+
+--echo # Values around and in spring time-gap
+SELECT DATE_FORMAT('2023-03-26 01:59:59', '%z %Z');
+SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
+
+
+--echo #
+--echo # End of 11.3 test
+--echo #

@@ -283,20 +283,20 @@ class Type_collection_uuid: public Type_collection
 {
   const Type_handler *find_in_array(const Type_handler *what,
                                     const Type_handler *stop,
-                                    bool for_comparison) const;
+                                    int start) const;
 public:
   const Type_handler *aggregate_for_result(const Type_handler *a,
                                            const Type_handler *b)
                                            const override
-  { return find_in_array(a, b, false); }
+  { return find_in_array(a, b, 0); }
   const Type_handler *aggregate_for_min_max(const Type_handler *a,
                                             const Type_handler *b)
                                             const override
-  { return find_in_array(a, b, false); }
+  { return find_in_array(a, b, 0); }
   const Type_handler *aggregate_for_comparison(const Type_handler *a,
                                                const Type_handler *b)
                                                const override
-  { return find_in_array(a, b, true); }
+  { return find_in_array(a, b, 6); }    // skip types that cannot happen here
   const Type_handler *aggregate_for_num_op(const Type_handler *a,
                                            const Type_handler *b)
                                            const override

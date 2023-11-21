@@ -396,3 +396,22 @@ DROP TABLE vchar;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col VARCHAR(32), KEY(indexed_col));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (20230100+i);
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

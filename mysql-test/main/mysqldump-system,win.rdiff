@@ -3,24 +3,24 @@
 @@ -449,9 +449,9 @@
  Table	Checksum
  mysql.roles_mapping	2510045525
- mysql.time_zone_transition	3895294076
+ mysql.time_zone_transition	3719776009
 -mysql.plugin	1587119305
 +mysql.plugin	2184891911
  mysql.servers	2079085450
 -mysql.func	3241572444
 +mysql.func	310494789
- mysql.innodb_table_stats	347867921
- mysql.table_stats	664320059
+ mysql.innodb_table_stats	1285726777
+ mysql.table_stats	2836905944
  # Opps....
 @@ -484,9 +484,9 @@
  Table	Checksum
  mysql.roles_mapping	2510045525
- mysql.time_zone_transition	3895294076
+ mysql.time_zone_transition	3719776009
 -mysql.plugin	1587119305
 +mysql.plugin	2184891911
  mysql.servers	2079085450
 -mysql.func	3241572444
 +mysql.func	310494789
- mysql.innodb_table_stats	347867921
- mysql.table_stats	664320059
+ mysql.innodb_table_stats	1285726777
+ mysql.table_stats	2836905944
  DROP FUNCTION IF EXISTS metaphon;

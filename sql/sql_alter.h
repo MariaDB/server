@@ -105,10 +105,88 @@ public:
   ulong                         partition_flags;
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
+  // Used only in add_stat_drop_index()
+  TABLE                         *original_table;
   // List of partitions.
   List<const char>              partition_names;
   // Number of partitions.
   uint                          num_parts;
+
+  /* List of fields that we should delete statistics from */
+  List<Field> drop_stat_fields;
+
+  struct DROP_INDEX_STAT_PARAMS
+  {
+    KEY *key;
+    bool ext_prefixes_only;
+  };
+
+  struct RENAME_COLUMN_STAT_PARAMS
+  {
+    Field *field;
+    LEX_CSTRING *name;
+    uint duplicate_counter;                       // For temporary names
+  };
+  struct RENAME_INDEX_STAT_PARAMS
+  {
+    const KEY *key;
+    const LEX_CSTRING *name;
+    uint duplicate_counter;                       // For temporary names
+    uint usage_count;                             // How many rename entries
+  };
+
+  /* List of index that we should delete statistics from */
+  List<DROP_INDEX_STAT_PARAMS> drop_stat_indexes;
+
+  List<RENAME_COLUMN_STAT_PARAMS> rename_stat_fields;
+
+  List<RENAME_INDEX_STAT_PARAMS> rename_stat_indexes;
+
+  bool add_stat_drop_index(KEY *key, bool ext_prefixes_only,
+                           MEM_ROOT *mem_root)
+  {
+    DROP_INDEX_STAT_PARAMS *param;
+    if (!(param= (DROP_INDEX_STAT_PARAMS*)
+          alloc_root(mem_root, sizeof(*param))))
+      return true;
+    param->key=  key;
+    param->ext_prefixes_only= ext_prefixes_only;
+    return drop_stat_indexes.push_back(param, mem_root);
+  }
+
+  bool add_stat_drop_index(THD *thd, const LEX_CSTRING *key_name);
+
+  bool add_stat_rename_index(const KEY *key, const LEX_CSTRING *name,
+                             MEM_ROOT *mem_root)
+  {
+    RENAME_INDEX_STAT_PARAMS *param;
+    if (!(param= (RENAME_INDEX_STAT_PARAMS*)
+          alloc_root(mem_root, sizeof(*param))))
+      return true;
+    param->key=  key;
+    param->name= name;
+    param->usage_count= 0;
+    return rename_stat_indexes.push_back(param, mem_root);
+  }
+
+  bool add_stat_rename_field(Field *field, LEX_CSTRING *name,
+                             MEM_ROOT *mem_root)
+  {
+    RENAME_COLUMN_STAT_PARAMS *param;
+    if (!(param= (RENAME_COLUMN_STAT_PARAMS*)
+          alloc_root(mem_root, sizeof(*param))))
+      return true;
+    param->field= field;
+    param->name=  name;
+    param->duplicate_counter= 0;
+    return rename_stat_fields.push_back(param, mem_root);
+  }
+
+  bool collect_renamed_fields(THD *thd);
+
+  /* Delete/update statistics in EITS tables */
+  void apply_statistics_deletes_renames(THD *thd, TABLE *table);
+
 private:
   // Type of ALTER TABLE algorithm.
   enum_alter_table_algorithm    requested_algorithm;
@@ -121,6 +199,7 @@ public:
   Alter_info() :
   flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
+    original_table(0),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_NONE),
     requested_lock(ALTER_TABLE_LOCK_DEFAULT)
@@ -135,6 +214,10 @@ public:
     create_list.empty();
     alter_index_ignorability_list.empty();
     check_constraint_list.empty();
+    drop_stat_fields.empty();
+    drop_stat_indexes.empty();
+    rename_stat_fields.empty();
+    rename_stat_indexes.empty();
     flags= 0;
     partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;

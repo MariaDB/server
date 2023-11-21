@@ -3941,6 +3941,8 @@ use test;
 create database mysqldump_test_db;
 grant all privileges on mysqldump_test_db.*  to user1;
 grant all privileges on mysqldump_test_db.*  to user2;
+revoke SHOW CREATE ROUTINE on  mysqldump_test_db.* from user1;
+revoke SHOW CREATE ROUTINE on  mysqldump_test_db.* from user2;
 connect  user27293,localhost,user1,,mysqldump_test_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user27293;
 create procedure mysqldump_test_db.sp1() select 'hello';
@@ -5179,6 +5181,7 @@ END
 # Test to check 'Insufficient privileges' error.
 
 GRANT ALL PRIVILEGES ON BUG52792.* TO user1;
+REVOKE SHOW CREATE ROUTINE ON BUG52792.* FROM user1;
 connect  conn_1, localhost, user1, , BUG52792, $MASTER_MYPORT, $MASTER_MYSOCK;
 connection conn_1;
 # Running 'replace_regex on timestamp'
@@ -5399,15 +5402,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 SET @@global.log_output=       @old_log_output_state;
 SET @@global.slow_query_log=   @old_slow_query_log_state;
@@ -5890,15 +5893,15 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
@@ -5985,15 +5988,15 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
@@ -6090,15 +6093,15 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
@@ -6550,15 +6553,15 @@ DROP TABLE IF EXISTS mysql.column_stats;
 		<field Field="user_host" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="query_time" Type="time(6)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="lock_time" Type="time(6)" Null="NO" Key="" Extra="" Comment="" />
-		<field Field="rows_sent" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
-		<field Field="rows_examined" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_sent" Type="bigint(20) unsigned" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_examined" Type="bigint(20) unsigned" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="db" Type="varchar(512)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="last_insert_id" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="insert_id" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="server_id" Type="int(10) unsigned" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="sql_text" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
 		<field Field="thread_id" Type="bigint(21) unsigned" Null="NO" Key="" Extra="" Comment="" />
-		<field Field="rows_affected" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_affected" Type="bigint(20) unsigned" Null="NO" Key="" Extra="" Comment="" />
 		<options Name="slow_log" Engine="CSV" Version="10" Row_format="Dynamic" Rows="2" Avg_row_length="0" Data_length="0" Max_data_length="0" Index_length="0" Data_free="0" Collation="utf8mb3_general_ci" Create_options="" Comment="Slow log" Max_index_length="0" Temporary="N" />
 	</table_structure>
 

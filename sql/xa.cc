@@ -1141,6 +1141,11 @@ static bool slave_applier_reset_xa_trans(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
 
+  if (thd->variables.pseudo_slave_mode &&
+      !thd->transaction->all.is_trx_read_write())
+  {
+    thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
+  }
   thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
   thd->transaction->xid_state.xid_cache_element= 0;
 

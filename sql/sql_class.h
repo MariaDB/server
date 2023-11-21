@@ -454,7 +454,8 @@ private:
 
 class Key :public Sql_alloc, public DDL_options {
 public:
-  enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY};
+  enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY,
+                 IGNORE_KEY};
   enum Keytype type;
   KEY_CREATE_INFO key_create_info;
   List<Key_part_spec> columns;
@@ -708,6 +709,7 @@ typedef struct system_variables
   ulonglong log_slow_verbosity; 
   ulonglong log_slow_disabled_statements;
   ulonglong log_disabled_statements;
+  ulonglong note_verbosity;
   ulonglong bulk_insert_buff_size;
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
@@ -766,6 +768,8 @@ typedef struct system_variables
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
   ulong optimizer_trace_max_mem_size;
+  ulong optimizer_max_sel_arg_weight;
+  ulong optimizer_max_sel_args;
   ulong use_stat_tables;
   ulong histogram_size;
   ulong histogram_type;
@@ -787,6 +791,7 @@ typedef struct system_variables
   ulong trans_prealloc_size;
   ulong log_warnings;
   ulong block_encryption_mode;
+  ulong log_slow_max_warnings;
   /* Flags for slow log filtering */
   ulong log_slow_rate_limit; 
   ulong binlog_format; ///< binlog format for this thd (see enum_binlog_format)
@@ -800,7 +805,6 @@ typedef struct system_variables
   ulong server_id;
   ulong session_track_transaction_info;
   ulong threadpool_priority;
-  ulong optimizer_max_sel_arg_weight;
   ulong vers_alter_history;
 
   /* deadlock detection */
@@ -883,6 +887,7 @@ typedef struct system_variables
 
   Time_zone *time_zone;
   char *session_track_system_variables;
+  char *redirect_url;
 
   /* Some wsrep variables */
   ulonglong wsrep_trx_fragment_size;
@@ -1186,11 +1191,21 @@ public:
     Prepared statement: STMT_INITIALIZED -> STMT_PREPARED -> STMT_EXECUTED.
     Stored procedure:   STMT_INITIALIZED_FOR_SP -> STMT_EXECUTED.
     Other statements:   STMT_CONVENTIONAL_EXECUTION never changes.
+
+    Special case for stored procedure arguments: STMT_SP_QUERY_ARGUMENTS
+                        This state never changes and used for objects
+                        whose lifetime is whole duration of function call
+                        (sp_rcontext, it's tables and items. etc). Such objects
+                        should be deallocated after every execution of a stored
+                        routine. Caller's arena/memroot can't be used for
+                        placing such objects since memory allocated on caller's
+                        arena not freed until termination of user's session.
   */
   enum enum_state
   {
     STMT_INITIALIZED= 0, STMT_INITIALIZED_FOR_SP= 1, STMT_PREPARED= 2,
-    STMT_CONVENTIONAL_EXECUTION= 3, STMT_EXECUTED= 4, STMT_ERROR= -1
+    STMT_CONVENTIONAL_EXECUTION= 3, STMT_EXECUTED= 4,
+    STMT_SP_QUERY_ARGUMENTS= 5, STMT_ERROR= -1
   };
 
   enum_state state;
@@ -2018,6 +2033,7 @@ public:
   ulonglong tmp_tables_size;
   ulonglong client_capabilities;
   ulonglong cuted_fields, sent_row_count, examined_row_count;
+  ulonglong sent_row_count_for_statement, examined_row_count_for_statement;
   ulonglong affected_rows;
   ulonglong bytes_sent_old;
   ha_handler_stats handler_stats;
@@ -2028,6 +2044,7 @@ public:
   uint in_sub_stmt;    /* 0,  SUB_STMT_TRIGGER or SUB_STMT_FUNCTION */
   bool enable_slow_log;
   bool last_insert_id_used;
+  bool in_stored_procedure;
   enum enum_check_fields count_cuted_fields;
 };
 
@@ -2124,11 +2141,17 @@ private:
 /**
   Implements the trivial error handler which cancels all error states
   and prevents an SQLSTATE to be set.
+  Remembers the first error
 */
 
 class Dummy_error_handler : public Internal_error_handler
 {
+  uint m_unhandled_errors;
+  uint first_error;
 public:
+  Dummy_error_handler()
+    : m_unhandled_errors(0), first_error(0)
+  {}
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
@@ -2136,12 +2159,14 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
-    /* Ignore error */
-    return TRUE;
+    m_unhandled_errors++;
+    if (!first_error)
+      first_error= sql_errno;
+    return TRUE;                                // Ignore error
   }
-  Dummy_error_handler() = default;                    /* Remove gcc warning */
+  bool any_error() { return m_unhandled_errors != 0; }
+  uint got_error() { return first_error; }
 };
-
 
 /**
   Implements the trivial error handler which counts errors as they happen.
@@ -2481,6 +2506,19 @@ struct wait_for_commit
     group commit as T1.
   */
   bool commit_started;
+  /*
+    Set to temporarily ignore calls to wakeup_subsequent_commits(). The
+    caller must arrange that another wakeup_subsequent_commits() gets called
+    later after wakeup_blocked has been set back to false.
+
+    This is used for parallel replication with temporary tables.
+    Temporary tables require strict single-threaded operation. The normal
+    optimization, of doing wakeup_subsequent_commits early and overlapping
+    part of the commit with the following transaction, is not safe. Thus
+    when temporary tables are replicated, wakeup is blocked until the
+    event group is fully done.
+  */
+  bool wakeup_blocked;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
   int wait_for_prior_commit(THD *thd, bool allow_kill=true)
@@ -3532,12 +3570,13 @@ public:
 
   ha_rows    cuted_fields;
 
-private:
   /*
     number of rows we actually sent to the client, including "synthetic"
     rows in ROLLUP etc.
   */
   ha_rows    m_sent_row_count;
+  /* Number of rows for the total statement */
+  ha_rows    sent_row_count_for_statement;
 
   /**
     Number of rows read and/or evaluated for a statement. Used for
@@ -3550,8 +3589,9 @@ private:
     filesort() before reading it for e.g. update.
   */
   ha_rows    m_examined_row_count;
+  /* Number of rows for the top level query */
+  ha_rows    examined_row_count_for_statement;
 
-public:
   ha_rows get_sent_row_count() const
   { return m_sent_row_count; }
 
@@ -3562,10 +3602,27 @@ public:
   { return affected_rows; }
 
   void set_sent_row_count(ha_rows count);
-  void set_examined_row_count(ha_rows count);
 
-  void inc_sent_row_count(ha_rows count);
-  void inc_examined_row_count(ha_rows count);
+  inline void inc_sent_row_count(ha_rows count)
+  {
+    m_sent_row_count+= count;
+    sent_row_count_for_statement+= count;
+    MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
+  }
+  inline void inc_examined_row_count_fast()
+  {
+    m_examined_row_count++;
+    examined_row_count_for_statement++;
+  }
+  inline void inc_examined_row_count()
+  {
+    inc_examined_row_count_fast();
+    DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
+                    m_examined_row_count= (ULONGLONG_MAX - 1000000););
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
+  }
+
+  void ps_report_examined_row_count();
 
   void inc_status_created_tmp_disk_tables();
   void inc_status_created_tmp_files();
@@ -3750,7 +3807,6 @@ public:
     This is used for taging error messages in the log files.
   */
   LEX_CSTRING connection_name;
-  char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
   bool       slave_thread;
@@ -4548,6 +4604,17 @@ public:
 
   inline Query_arena *activate_stmt_arena_if_needed(Query_arena *backup)
   {
+    if (state == Query_arena::STMT_SP_QUERY_ARGUMENTS)
+      /*
+        Caller uses the arena with state STMT_SP_QUERY_ARGUMENTS for stored
+        routine's parameters. Lifetime of these objects spans a lifetime of
+        stored routine call and freed every time the stored routine execution
+        has been completed. That is the reason why switching to statement's
+        arena is not performed for arguments, else we would observe increasing
+        of memory usage while a stored routine be called over and over again.
+      */
+      return NULL;
+
     /*
       Use the persistent arena if we are in a prepared statement or a stored
       procedure statement and we have not already changed to use this arena.
@@ -4682,7 +4749,7 @@ public:
   void reset_sub_statement_state(Sub_statement_state *backup, uint new_state);
   void restore_sub_statement_state(Sub_statement_state *backup);
   void store_slow_query_state(Sub_statement_state *backup);
-  void reset_slow_query_state();
+  void reset_slow_query_state(Sub_statement_state *backup);
   void add_slow_query_state(Sub_statement_state *backup);
   void set_n_backup_active_arena(Query_arena *set, Query_arena *backup);
   void restore_active_arena(Query_arena *set, Query_arena *backup);
@@ -5710,6 +5777,14 @@ public:
            lex->analyze_stmt;
   }
 
+  /* Return true if we should create a note when an unusable key is found */
+  bool give_notes_for_unusable_keys()
+  {
+    return ((variables.note_verbosity & (NOTE_VERBOSITY_UNUSABLE_KEYS)) ||
+            (lex->describe && // Is EXPLAIN
+             (variables.note_verbosity & NOTE_VERBOSITY_EXPLAIN)));
+  }
+
   bool vers_insert_history_fast(const TABLE *table)
   {
     DBUG_ASSERT(table->versioned());
@@ -5729,6 +5804,15 @@ public:
         lex->sql_command != SQLCOM_LOAD)
       return false;
     return !is_set_timestamp_forbidden(this);
+  }
+  /*
+    Return true if we are in stored procedure, not in a function or
+    trigger.
+  */
+  bool in_stored_procedure()
+  {
+    return (lex->sphead != 0 &&
+            !(in_sub_stmt & (SUB_STMT_FUNCTION | SUB_STMT_TRIGGER)));
   }
 };
 

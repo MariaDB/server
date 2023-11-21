@@ -149,6 +149,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser3'@'localhost'	def	db_datadict	LOCK TABLES	NO
 'testuser3'@'localhost'	def	db_datadict	REFERENCES	NO
 'testuser3'@'localhost'	def	db_datadict	SELECT	NO
+'testuser3'@'localhost'	def	db_datadict	SHOW CREATE ROUTINE	NO
 'testuser3'@'localhost'	def	db_datadict	SHOW VIEW	NO
 'testuser3'@'localhost'	def	db_datadict	TRIGGER	NO
 'testuser3'@'localhost'	def	db_datadict	UPDATE	NO

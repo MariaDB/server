@@ -253,7 +253,8 @@ buf_read_page_low(
 	auto fio = space->io(IORequest(sync
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
-			     page_id.page_no() * len, len, dst, bpage);
+			     os_offset_t{page_id.page_no()} * len, len,
+			     dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
@@ -302,7 +303,8 @@ wants to access
 TRANSACTIONAL_TARGET
 ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size)
 {
-  if (!srv_random_read_ahead)
+  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
+    /* Disable the read-ahead for temporary tablespace */
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
@@ -508,8 +510,9 @@ latches!
 TRANSACTIONAL_TARGET
 ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
 {
-  /* check if readahead is disabled */
-  if (!srv_read_ahead_threshold)
+  /* check if readahead is disabled.
+  Disable the read ahead logic for temporary tablespace */
+  if (!srv_read_ahead_threshold || page_id.space() >= SRV_TMP_SPACE_ID)
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
@@ -554,11 +557,16 @@ fail:
   for (page_id_t i= low; i <= high_1; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    transactional_shared_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+    /* It does not make sense to use transactional_lock_guard here,
+    because we would have many complex conditions inside the memory
+    transaction. */
+    hash_lock.lock_shared();
+
     const buf_page_t* bpage= buf_pool.page_hash.get(i, chain);
     if (!bpage)
     {
+      hash_lock.unlock_shared();
       if (i == page_id)
         goto fail;
 failed:
@@ -566,6 +574,7 @@ failed:
         continue;
       goto fail;
     }
+    const unsigned accessed= bpage->is_accessed();
     if (i == page_id)
     {
       /* Read the natural predecessor and successor page addresses from
@@ -576,6 +585,7 @@ failed:
       const byte *f= bpage->frame ? bpage->frame : bpage->zip.data;
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
+      hash_lock.unlock_shared();
       if (prev == FIL_NULL || next == FIL_NULL)
         goto fail;
       page_id_t id= page_id;
@@ -605,8 +615,9 @@ failed:
         /* The area is not whole */
         goto fail;
     }
+    else
+      hash_lock.unlock_shared();
 
-    const unsigned accessed= bpage->is_accessed();
     if (!accessed)
       goto failed;
     /* Note that buf_page_t::is_accessed() returns the time of the

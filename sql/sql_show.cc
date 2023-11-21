@@ -541,6 +541,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
   {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
+  {"Show Create Routine","Databases,Functions,Procedures","To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE"},
   {NullS, NullS, NullS}
 };
 
@@ -3389,11 +3390,11 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
       arg->table->field[7]->set_notnull();
 
       /* INFO_BINARY */
-      arg->table->field[16]->store(tmp->query(),
+      arg->table->field[17]->store(tmp->query(),
                                    MY_MIN(PROCESS_LIST_INFO_WIDTH,
                                           tmp->query_length()),
                                    &my_charset_bin);
-      arg->table->field[16]->set_notnull();
+      arg->table->field[17]->set_notnull();
     }
 
     /*
@@ -3429,12 +3430,13 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
                                FALSE);
   arg->table->field[13]->store((longlong) tmp->status_var.max_local_memory_used,
                                FALSE);
-  arg->table->field[14]->store((longlong) tmp->get_examined_row_count(), TRUE);
+  arg->table->field[14]->store((longlong) tmp->examined_row_count_for_statement, TRUE);
+  arg->table->field[15]->store((longlong) tmp->sent_row_count_for_statement, TRUE);
 
   /* QUERY_ID */
-  arg->table->field[15]->store(tmp->query_id, TRUE);
+  arg->table->field[16]->store(tmp->query_id, TRUE);
 
-  arg->table->field[17]->store(tmp->os_thread_id);
+  arg->table->field[18]->store(tmp->os_thread_id);
 
   if (schema_table_store_record(arg->thd, arg->table))
     return 1;
@@ -5018,7 +5020,8 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                               open_tables function for this table
 */
 
-static int fill_schema_table_from_frm(THD *thd, TABLE *table,
+static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
+                                      TABLE *table,
                                       ST_SCHEMA_TABLE *schema_table,
                                       LEX_CSTRING *db_name,
                                       LEX_CSTRING *table_name,
@@ -5030,6 +5033,9 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
   TABLE_LIST table_list;
   uint res= 0;
   IdentBuffer<NAME_LEN> db_name_buff, table_name_buff;
+  Query_arena i_s_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  Query_arena backup_arena, *old_arena;
+  bool i_s_arena_active= false;
 
   bzero((char*) &table_list, sizeof(TABLE_LIST));
   bzero((char*) &tbl, sizeof(TABLE));
@@ -5100,6 +5106,11 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
     free_root(&tbl.mem_root, MYF(0));
     goto end;
   }
+
+  old_arena= thd->stmt_arena;
+  thd->stmt_arena= &i_s_arena;
+  thd->set_n_backup_active_arena(&i_s_arena, &backup_arena);
+  i_s_arena_active= true;
 
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
@@ -5182,7 +5193,16 @@ end:
     savepoint is safe.
   */
   DBUG_ASSERT(thd->open_tables == NULL);
+
   thd->mdl_context.rollback_to_savepoint(open_tables_state_backup->mdl_system_tables_svp);
+
+  if (i_s_arena_active)
+  {
+    thd->stmt_arena= old_arena;
+    thd->restore_active_arena(&i_s_arena, &backup_arena);
+    i_s_arena.free_items();
+  }
+
   if (!thd->is_fatal_error)
     thd->clear_error();
   return res;
@@ -5456,7 +5476,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
                 db_name != &INFORMATION_SCHEMA_NAME)
             {
-              if (!fill_schema_table_from_frm(thd, table, schema_table,
+              if (!fill_schema_table_from_frm(thd, &tmp_mem_root,
+                                              table, schema_table,
                                               db_name, table_name,
                                               &open_tables_state_backup,
                                               can_deadlock))
@@ -6681,7 +6702,9 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     DBUG_RETURN(0);
 
   if (!full_access)
-    full_access= !strcmp(sp_user, definer.str);
+    full_access= !strcmp(sp_user, definer.str) ||
+                 !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
+                                          db.str, name.str, sph, TRUE);
   if (!full_access &&
       check_some_routine_access(thd, db.str, name.str, sph))
     DBUG_RETURN(0);
@@ -6800,7 +6823,9 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
     return 0;
 
   if (!full_access)
-    full_access= !strcmp(sp_user, definer.str);
+    full_access= !strcmp(sp_user, definer.str) ||
+                 !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
+                                          db.str, name.str, sph, TRUE);
   if (!full_access &&
       check_some_routine_access(thd, db.str, name.str, sph))
     return 0;
@@ -6920,7 +6945,8 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   proc_tables.alias= MYSQL_PROC_NAME;
   proc_tables.lock_type= TL_READ;
   full_access= !check_table_access(thd, SELECT_ACL, &proc_tables, FALSE,
-                                   1, TRUE);
+                                   1, TRUE) ||
+               !check_global_access(thd, SHOW_CREATE_ROUTINE_ACL, TRUE);
 
   LOOKUP_FIELD_VALUES lookup;
   if (get_lookup_field_values(thd, cond, false, tables, &lookup))
@@ -7034,7 +7060,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
     {
-      (void) read_statistics_for_tables(thd, tables);
+      (void) read_statistics_for_tables(thd, tables, false);
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_CONST |
@@ -9843,12 +9869,13 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("STAGE",          STiny(2),                  NOT_NULL, "Stage"),
   Column("MAX_STAGE",      STiny(2),                  NOT_NULL, "Max_stage"),
   Column("PROGRESS",       Decimal(703),              NOT_NULL, "Progress"),
-  Column("MEMORY_USED",    SLonglong(7),              NOT_NULL, "Memory_used"),
-  Column("MAX_MEMORY_USED",SLonglong(7),              NOT_NULL, "Max_memory_used"),
-  Column("EXAMINED_ROWS",  SLong(7),                  NOT_NULL, "Examined_rows"),
-  Column("QUERY_ID",       SLonglong(4),              NOT_NULL),
+  Column("MEMORY_USED",    SLonglong(10),             NOT_NULL, "Memory_used"),
+  Column("MAX_MEMORY_USED",SLonglong(10),             NOT_NULL, "Max_memory_used"),
+  Column("EXAMINED_ROWS",  SLonglong(10),             NOT_NULL, "Examined_rows"),
+  Column("SENT_ROWS",      SLonglong(10),             NOT_NULL, "Sent_rows"),
+  Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
-  Column("TID",            SLonglong(4),              NOT_NULL, "Tid"),
+  Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),
   CEnd()
 };
 

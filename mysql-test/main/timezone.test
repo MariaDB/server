@@ -74,3 +74,12 @@ alter table mysql.time_zone_transition_type add primary key (time_zone_id,transi
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+--echo #
+--echo # MDEV-31684 Add timezone information to DATE_FORMAT
+--echo #
+
+--echo # using system time
+SET @@time_zone= default;
+SELECT DATE_FORMAT('2009-11-01 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('2008-06-04 02:23:00', '%z %Z') AS current_timezone;

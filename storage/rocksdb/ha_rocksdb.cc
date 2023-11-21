@@ -6485,7 +6485,7 @@ bool ha_rocksdb::should_hide_ttl_rec(const Rdb_key_def &kd,
 
     /* increment examined row count when rows are skipped */
     THD *thd = ha_thd();
-    thd->inc_examined_row_count(1);
+    thd->inc_examined_row_count();
     DEBUG_SYNC(thd, "rocksdb.ttl_rows_examined");
   }
   return is_hide_ttl;

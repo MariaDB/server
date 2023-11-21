@@ -1934,6 +1934,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
         MYSQL_QUERY_DONE(thd->is_error());
       }
 
+      thd->lex->restore_set_statement_var();
+
 #if defined(ENABLED_PROFILING)
       thd->profiling.finish_current_query();
       thd->profiling.start_new_query("continuing");
@@ -2431,7 +2433,8 @@ resume:
 
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
-  thd->set_examined_row_count(0);                   // For processlist
+  /* Reset values shown in processlist */
+  thd->examined_row_count_for_statement= thd->sent_row_count_for_statement= 0;
   thd->set_command(COM_SLEEP);
 
   thd->m_statement_psi= NULL;
@@ -4426,6 +4429,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
                       lex->update_list, lex->value_list,
                       lex->duplicates, lex->ignore, sel_result);
+    status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
     if (save_protocol)
     {
       delete thd->protocol;
@@ -4623,6 +4627,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
       select_lex->table_list.first= first_table;
+
+      status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
     }
     /*
       If we have inserted into a VIEW, and the base table has
@@ -5922,6 +5928,8 @@ finish:
   thd->wsrep_PA_safe= true;
 #endif /* WITH_WSREP */
 
+  if (lex->sql_command != SQLCOM_SET_OPTION)
+    DEBUG_SYNC(thd, "end_of_statement");
   DBUG_RETURN(res || thd->is_error());
  }
 
@@ -6058,11 +6066,6 @@ static bool __attribute__ ((noinline))
 execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
   bool res;
-
-#if defined(__GNUC__) && (__GNUC__ >= 13)
-#pragma GCC diagnostic ignored "-Wdangling-pointer"
-#endif
-
   system_status_var old_status_var= thd->status_var;
   thd->initial_status_var= &old_status_var;
   WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
@@ -6956,14 +6959,16 @@ bool check_some_routine_access(THD *thd, const char *db, const char *name,
     that are implemented for the INFORMATION_SCHEMA and PERFORMANCE_SCHEMA,
     which are located in check_access().
     Since the I_S and P_S do not contain routines, this bypass is ok,
-    as it only opens SHOW_PROC_ACLS.
+    as it only opens SHOW_PROC_WITHOUT_DEFINITION_ACLS.
   */
-  if (thd->security_ctx->master_access & SHOW_PROC_ACLS)
+  if (thd->security_ctx->master_access & SHOW_PROC_WITHOUT_DEFINITION_ACLS)
     return FALSE;
-  if (!check_access(thd, SHOW_PROC_ACLS, db, &save_priv, NULL, 0, 1) ||
-      (save_priv & SHOW_PROC_ACLS))
+  if (!check_access(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS,
+                    db, &save_priv, NULL, 0, 1) ||
+      (save_priv & SHOW_PROC_WITHOUT_DEFINITION_ACLS))
     return FALSE;
-  return check_routine_level_acl(thd, db, name, sph);
+  return check_routine_level_acl(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS,
+                                 db, name, sph);
 }
 
 
@@ -7321,10 +7326,10 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ASSERT(user_var_events_alloc == &main_mem_root);
   enable_slow_log= true;
   get_stmt_da()->reset_for_next_command();
-  m_sent_row_count= m_examined_row_count= 0;
+  sent_row_count_for_statement= examined_row_count_for_statement= 0;
   accessed_rows_and_keys= 0;
 
-  reset_slow_query_state();
+  reset_slow_query_state(0);
 
   reset_current_stmt_binlog_format_row();
   binlog_unsafe_warning_flags= 0;

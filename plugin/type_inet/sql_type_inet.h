@@ -42,9 +42,38 @@ public:
   static const Name &default_value();
 };
 
+class Type_collection_inet: public Type_collection
+{
+  const Type_handler *find_in_array(const Type_handler *what,
+                                    const Type_handler *stop, int start) const;
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  { return find_in_array(a, b, 0); }
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  { return find_in_array(a, b, 0); }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  { return find_in_array(a, b, 6); }    // skip types that cannot happen here
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  { return NULL; }
+
+  static Type_collection_inet *singleton()
+  {
+    static Type_collection_inet tc;
+    return &tc;
+  }
+};
 
 #include "sql_type_fixedbin.h"
-typedef Type_handler_fbt<Inet6> Type_handler_inet6;
+
+typedef Type_handler_fbt<Inet6, Type_collection_inet> Type_handler_inet6;
 
 /***********************************************************************/
 
@@ -57,7 +86,7 @@ public:
   static const Name &default_value();
 };
 
-typedef Type_handler_fbt<Inet4> Type_handler_inet4;
+typedef Type_handler_fbt<Inet4, Type_collection_inet> Type_handler_inet4;
 
 
 #endif /* SQL_TYPE_INET_H */

@@ -300,14 +300,14 @@ SET GLOBAL log_slow_query = 'OFF';
 ALTER TABLE slow_log
   ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
 ALTER TABLE slow_log
-  ADD COLUMN rows_affected INTEGER NOT NULL AFTER thread_id;
+  ADD COLUMN rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
 ALTER TABLE slow_log
   MODIFY start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY query_time TIME(6) NOT NULL,
   MODIFY lock_time TIME(6) NOT NULL,
-  MODIFY rows_sent INTEGER NOT NULL,
-  MODIFY rows_examined INTEGER NOT NULL,
+  MODIFY rows_sent BIGINT UNSIGNED NOT NULL,
+  MODIFY rows_examined BIGINT UNSIGNED NOT NULL,
   MODIFY db VARCHAR(512) NOT NULL,
   MODIFY last_insert_id INTEGER NOT NULL,
   MODIFY insert_id INTEGER NOT NULL,
@@ -414,7 +414,7 @@ ALTER TABLE procs_priv
   CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
 
 ALTER TABLE procs_priv
-  MODIFY Proc_priv set('Execute','Alter Routine','Grant')
+  MODIFY Proc_priv set('Execute','Alter Routine','Grant','Show Create Routine')
     COLLATE utf8mb3_general_ci DEFAULT '' NOT NULL;
 
 ALTER IGNORE TABLE procs_priv
@@ -705,6 +705,9 @@ ALTER TABLE db add Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci 
 ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 
 UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
+
+ALTER TABLE db ADD    Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' AFTER Delete_history_priv;
+ALTER TABLE db MODIFY Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 
 ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
                  ADD authentication_string TEXT NOT NULL AFTER plugin;

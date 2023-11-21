@@ -226,7 +226,7 @@ static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
                                      Explain_delete *explain, bool truncate_history)
 {
   explain->tracker.on_record_read();
-  thd->inc_examined_row_count(1);
+  thd->inc_examined_row_count();
   if (table->vfield)
     (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
   if (!sel || sel->skip_record(thd) > 0)
@@ -662,7 +662,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
         goto got_error;
 
-      thd->inc_examined_row_count(file_sort->examined_rows);
+      thd->ps_report_examined_row_count();
       /*
         Filesort has already found and selected the rows we want to delete,
         so we don't need the where clause
@@ -1831,5 +1831,6 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
     delete result;
   }
 
+  status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }

@@ -29,6 +29,14 @@ class THD;
 class my_decimal;
 class sp_condition_value;
 
+/* Types of LOG warnings, used by note_verbosity */
+
+#define NOTE_VERBOSITY_NORMAL             (1U << 0)
+/* Show warnings about keys parts that cannot be used */
+#define NOTE_VERBOSITY_UNUSABLE_KEYS      (1U << 1)
+/* Show warnings in explain for key parts that cannot be used */
+#define NOTE_VERBOSITY_EXPLAIN            (1U << 2)
+
 ///////////////////////////////////////////////////////////////////////////
 
 class Sql_state
@@ -1089,6 +1097,11 @@ public:
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
                 m_status == DA_EOF ||m_status == DA_EOF_BULK );
+    return m_statement_warn_count;
+  }
+
+  uint unsafe_statement_warn_count() const
+  {
     return m_statement_warn_count;
   }
 

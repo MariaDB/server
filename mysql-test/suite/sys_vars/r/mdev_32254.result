@@ -1,0 +1,13 @@
+#
+# MDEV-32254 Server crashes when adding records to table after setting redirect_url with empty variable
+#
+set @old_redirect_url=@@global.redirect_url;
+set global redirect_url=@empty_value;
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'NULL'
+CREATE TABLE t (c1 INT) ENGINE=INNODB;
+INSERT INTO t VALUES (1),(1);
+drop table t;
+set global redirect_url=@old_redirect_url;
+#
+# end of test mdev_32254
+#

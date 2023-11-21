@@ -102,14 +102,17 @@ BEGIN
   UPDATE t13 SET c = '';
 END|
 
-# Create events which will run every 1 sec
-CREATE EVENT e1 ON SCHEDULE EVERY 1 SECOND DISABLE DO
+# Create events which will run every 10 sec
+# It cannot be much shorter as we have to ensure that a new
+# event is not scheduled before the DISABLE has been
+# executed.
+CREATE EVENT e1 ON SCHEDULE EVERY 10 SECOND DISABLE DO
 BEGIN
   ALTER EVENT e1 DISABLE;
   CALL p1(10, '');  
 END|
 
-CREATE EVENT e11 ON SCHEDULE EVERY 1 SECOND DISABLE DO
+CREATE EVENT e11 ON SCHEDULE EVERY 10 SECOND DISABLE DO
 BEGIN
   ALTER EVENT e11 DISABLE;
   CALL p11(10, '');  

@@ -1090,6 +1090,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SONAME_SYM
 %token  <kwd>  SOUNDS_SYM
 %token  <kwd>  SOURCE_SYM
+%token  <kwd>  SQL_AFTER_GTIDS_SYM
+%token  <kwd>  SQL_BEFORE_GTIDS_SYM
 %token  <kwd>  SQL_BUFFER_RESULT
 %token  <kwd>  SQL_CACHE_SYM
 %token  <kwd>  SQL_CALC_FOUND_ROWS
@@ -1331,6 +1333,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident
         label_ident
         sp_decl_ident
+        ident_options
         ident_or_empty
         ident_table_alias
         ident_sysvar_name
@@ -1361,6 +1364,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_cast_type
         keyword_ident
         keyword_label
+        keyword_options
         keyword_set_special_case
         keyword_set_usual_case
         keyword_sp_block_section
@@ -5644,30 +5648,47 @@ create_table_option:
         ;
 
 engine_defined_option:
-          IDENT_sys equal TEXT_STRING_sys
+          ident_options equal TEXT_STRING_sys
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
               my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             $$= new (thd->mem_root) engine_option_value($1, $3, true);
             MYSQL_YYABORT_UNLESS($$);
           }
-        | IDENT_sys equal ident
+        | ident_options equal ident
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
               my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             $$= new (thd->mem_root) engine_option_value($1, $3, false);
             MYSQL_YYABORT_UNLESS($$);
           }
-        | IDENT_sys equal real_ulonglong_num
+        | ident_options equal real_ulonglong_num
           {
             $$= new (thd->mem_root) engine_option_value($1, $3, thd->mem_root);
             MYSQL_YYABORT_UNLESS($$);
           }
-        | IDENT_sys equal DEFAULT
+        | ident_options equal DEFAULT
           {
             $$= new (thd->mem_root) engine_option_value($1);
             MYSQL_YYABORT_UNLESS($$);
           }
+        ;
+
+ident_options:
+          IDENT_sys
+        | keyword_options
+          {
+            if (unlikely($$.copy_keyword(thd, &$1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+/*
+  These keywords are fine for option names.
+*/
+keyword_options:
+          READ_ONLY_SYM
+        | WRAPPER_SYM
         ;
 
 opt_versioning_option:
@@ -8062,6 +8083,17 @@ slave_until:
         | UNTIL_SYM MASTER_GTID_POS_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.gtid_pos_str = $4;
+            Lex->mi.is_until_before_gtids= false;
+          }
+        | UNTIL_SYM SQL_AFTER_GTIDS_SYM '=' TEXT_STRING_sys
+          {
+            Lex->mi.gtid_pos_str = $4;
+            Lex->mi.is_until_before_gtids= false;
+          }
+        | UNTIL_SYM SQL_BEFORE_GTIDS_SYM '=' TEXT_STRING_sys
+          {
+            Lex->mi.gtid_pos_str = $4;
+            Lex->mi.is_until_before_gtids= true;
           }
         ;
 
@@ -17513,6 +17545,7 @@ object_privilege:
         | REPLICATION MASTER_SYM ADMIN_SYM { $$= REPL_MASTER_ADMIN_ACL; }
         | REPLICATION SLAVE ADMIN_SYM      { $$= REPL_SLAVE_ADMIN_ACL; }
         | SLAVE MONITOR_SYM                { $$= SLAVE_MONITOR_ACL; }
+        | SHOW CREATE ROUTINE_SYM          { $$= SHOW_CREATE_ROUTINE_ACL; }
         ;
 
 opt_and:
