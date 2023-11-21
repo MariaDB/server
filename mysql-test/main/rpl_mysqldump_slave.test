@@ -83,55 +83,52 @@ DROP TABLE t2;
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --master-data --single-transaction --gtid test
 
-
-
---source include/rpl_end.inc
-
 #
-# MDEV-32611 Added test for mysqldump --delete-master-logs option
+# MDEV-32611 Added test for mysqldump --delete-master-logs option.
 #
 
 connection master;
-use test;
-
---source include/have_binlog_format_row.inc
-
-use test;
 
 CREATE TABLE t (
-    id int,
-    name varchar(255),
-    male boolean
+    id int
 );
 
-insert into t values (1, 'John', true);
-insert into t values (2, 'Mary', false);
-
-SHOW MASTER STATUS;
+insert into t values (1);
+insert into t values (2);
 
 --let $predump_binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $predump_binlog_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
 
 # Execute mysqldump with delete-master-logs option
---exec $MYSQL_DUMP --compact --delete-master-logs test
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP --compact --no-create-info --no-data --delete-master-logs test
 
 --let $postdump_binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $postdump_binlog_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
 
-SHOW MASTER STATUS;
+--let $postdump_first_binary_log_filename= query_get_value(SHOW BINARY LOGS, Log_name, 1)
 
-if ($predump_binlog_filename != $postdump_binlog_filename)
+if ($predump_binlog_filename == $postdump_binlog_filename)
 {
   --echo # predump_binlog_filename: $predump_binlog_filename
   --echo # postdump_binlog_filename: $postdump_binlog_filename
-  --echo # Master state changed after mariadb-dump with --delete-master-logs
+  --die Master state didn't change after mariadb-dump with --delete-master-logs.
 }
 
-if ($predump_binlog_pos != $postdump_binlog_pos)
+if ($predump_binlog_pos == $postdump_binlog_pos)
 {
   --echo # predump_binlog_pos: $predump_binlog_pos
   --echo # postdump_binlog_pos: $postdump_binlog_pos
-  --echo # Master state changed after mariadb-dump with --delete-master-logs
+  --die Master state didn't change after mariadb-dump with --delete-master-logs.
+}
+
+if ($postdump_first_binary_log_filename != $postdump_binlog_filename)
+{
+  --echo # postdump_first_binary_log_filename: $postdump_first_binary_log_filename
+  --echo # postdump_binlog_filename: $postdump_binlog_filename
+  --die Master state didn't change after mariadb-dump with --delete-master-logs.
 }
 
 drop table t;
+
+--source include/rpl_end.inc

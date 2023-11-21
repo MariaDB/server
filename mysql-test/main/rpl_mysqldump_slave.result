@@ -65,40 +65,13 @@ SET GLOBAL gtid_slave_pos='0-2-1003';
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
-include/rpl_end.inc
 connection master;
-use test;
-use test;
 CREATE TABLE t (
-id int,
-name varchar(255),
-male boolean
+id int
 );
-insert into t values (1, 'John', true);
-insert into t values (2, 'Mary', false);
-SHOW MASTER STATUS;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	1354		
--- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=387;
+insert into t values (1);
+insert into t values (2);
+-- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
 -- SET GLOBAL gtid_slave_pos='0-1-1004';
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t` (
-  `id` int(11) DEFAULT NULL,
-  `name` varchar(255) DEFAULT NULL,
-  `male` tinyint(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t` VALUES
-(1,'John',1),
-(2,'Mary',0);
-SHOW MASTER STATUS;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000002	387		
-# predump_binlog_filename: master-bin.000001
-# postdump_binlog_filename: master-bin.000002
-# Master state changed after mariadb-dump with --delete-master-logs
-# predump_binlog_pos: 1354
-# postdump_binlog_pos: 387
-# Master state changed after mariadb-dump with --delete-master-logs
 drop table t;
+include/rpl_end.inc
