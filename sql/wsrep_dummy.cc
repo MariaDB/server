@@ -153,3 +153,5 @@ void wsrep_report_bf_lock_wait(const THD*,
 void wsrep_thd_set_PA_unsafe(THD*)
 {}
 
+uint32 wsrep_get_domain_id()
+{ return 0;}

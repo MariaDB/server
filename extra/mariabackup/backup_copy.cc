@@ -1675,6 +1675,7 @@ ibx_copy_incremental_over_full()
 		NULL};
 	const char *sup_files[] = {"xtrabackup_binlog_info",
 				   "xtrabackup_galera_info",
+				   "donor_galera_info",
 				   "xtrabackup_slave_info",
 				   "xtrabackup_info",
 				   "ib_lru_dump",
