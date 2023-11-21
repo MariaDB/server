@@ -197,6 +197,12 @@ void XID_STATE::set_error(uint error)
     xid_cache_element->rm_error= error;
 }
 
+#ifndef DBUG_OFF
+uint XID_STATE::get_error()
+{
+  return is_explicit_XA() ? xid_cache_element->rm_error : 0;
+}
+#endif
 
 void XID_STATE::er_xaer_rmfail() const
 {
@@ -871,7 +877,12 @@ bool trans_xa_detach(THD *thd)
   DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
 
   if (thd->transaction->xid_state.xid_cache_element->xa_state != XA_PREPARED)
+  {
+#ifndef DBUG_OFF
+    thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
+#endif
     return xa_trans_force_rollback(thd);
+  }
   else if (!thd->transaction->all.is_trx_read_write())
   {
     thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);

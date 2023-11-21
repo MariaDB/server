@@ -145,4 +145,19 @@ XA END 'a';
 XA PREPARE 'a';
 --error ER_XA_RBROLLBACK
 XA ROLLBACK 'a';
+
+--source include/show_binlog_events.inc
+
+# MDEV-31949/MDEV-32830/MDEV-32852
+# Prove exceptional empty transaction binlogging in the following case:
+--connect(con_32852,localhost,root,,)
+
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $binlog_file =  query_get_value(SHOW MASTER STATUS, File, 1)
+XA START 'a';
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=InnoDB;
+SELECT * FROM t1;
+--disconnect con_32852
+
+--connection default
 --source include/show_binlog_events.inc

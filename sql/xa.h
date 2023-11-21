@@ -41,6 +41,7 @@ struct XID_STATE {
   void set_cache_element_to_recovered();
 #ifndef DBUG_OFF
   bool is_recovered();
+  uint get_error();
 #endif
 };
 
