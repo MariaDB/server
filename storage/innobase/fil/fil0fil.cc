@@ -3078,7 +3078,7 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */
-lsn_t fil_names_clear(lsn_t lsn)
+ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 

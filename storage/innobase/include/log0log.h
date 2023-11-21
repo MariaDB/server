@@ -79,13 +79,6 @@ ATTRIBUTE_COLD void log_make_checkpoint();
 /** Make a checkpoint at the latest lsn on shutdown. */
 ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown();
 
-/**
-Checks that there is enough free space in the log to start a new query step.
-Flushes the log buffer or makes a new checkpoint if necessary. NOTE: this
-function may only be called if the calling thread owns no synchronization
-objects! */
-ATTRIBUTE_COLD void log_check_margins();
-
 /******************************************************//**
 Prints info of the log. */
 void
@@ -179,24 +172,36 @@ private:
   std::atomic<lsn_t> flushed_to_disk_lsn;
   /** log sequence number when log resizing was initiated, or 0 */
   std::atomic<lsn_t> resize_lsn;
-  /** set when there may be need to flush the log buffer, or
-  preflush buffer pool pages, or initiate a log checkpoint.
+  /** set when there may be need to initiate a log checkpoint.
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
-  std::atomic<bool> check_flush_or_checkpoint_;
-
+  std::atomic<bool> need_checkpoint;
 
 #if defined(__aarch64__)
-/* On ARM, we do more spinning */
-typedef srw_spin_lock log_rwlock_t;
-#define LSN_LOCK_ATTR MY_MUTEX_INIT_FAST
+  /* On ARM, we do more spinning */
+  typedef srw_spin_lock log_rwlock;
+  typedef pthread_mutex_wrapper<true> log_lsn_lock;
+#elif defined _WIN32
+  typedef srw_lock log_rwlock;
+  typedef pthread_mutex_wrapper<false> log_lsn_lock;
 #else
-typedef srw_lock log_rwlock_t;
-#define LSN_LOCK_ATTR nullptr
+  typedef srw_lock log_rwlock;
+  typedef srw_mutex log_lsn_lock;
 #endif
 
 public:
-  /** rw-lock protecting buf */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock_t latch;
+  /** rw-lock protecting writes to buf; normal mtr_t::commit()
+  outside any log checkpoint is covered by a shared latch */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
+private:
+  /** mutex protecting buf_free et al, together with latch */
+  log_lsn_lock lsn_lock;
+public:
+  /** first free offset within buf use; protected by lsn_lock */
+  Atomic_relaxed<size_t> buf_free;
+  /** number of write requests (to buf); protected by lsn_lock */
+  size_t write_to_buf;
+  /** number of append_prepare_wait(); protected by lsn_lock */
+  size_t waits;
 private:
   /** Last written LSN */
   lsn_t write_lsn;
@@ -227,20 +232,12 @@ private:
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
 
-  /** spin lock protecting lsn, buf_free in append_prepare() */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) pthread_mutex_t lsn_lock;
-  void init_lsn_lock() { pthread_mutex_init(&lsn_lock, LSN_LOCK_ATTR); }
-  void lock_lsn() { pthread_mutex_lock(&lsn_lock); }
-  void unlock_lsn() { pthread_mutex_unlock(&lsn_lock); }
-  void destroy_lsn_lock() { pthread_mutex_destroy(&lsn_lock); }
+  void init_lsn_lock() {lsn_lock.init(); }
+  void lock_lsn() { lsn_lock.wr_lock(); }
+  void unlock_lsn() {lsn_lock.wr_unlock(); }
+  void destroy_lsn_lock() { lsn_lock.destroy(); }
 
 public:
-  /** first free offset within buf use; protected by lsn_lock */
-  Atomic_relaxed<size_t> buf_free;
-  /** number of write requests (to buf); protected by exclusive lsn_lock */
-  ulint write_to_buf;
-  /** number of waits in append_prepare(); protected by lsn_lock */
-  ulint waits;
   /** recommended maximum size of buf, after which the buffer is flushed */
   size_t max_buf_free;
 
@@ -307,6 +304,9 @@ public:
 #endif
 
   bool is_opened() const noexcept { return log.is_opened(); }
+
+  /** @return target write LSN to react on buf_free >= max_buf_free */
+  inline lsn_t get_write_target() const;
 
   /** @return LSN at which log resizing was started and is still in progress
       @retval 0 if no log resizing is in progress */
@@ -419,13 +419,14 @@ public:
   inline void persist(lsn_t lsn) noexcept;
 #endif
 
-  bool check_flush_or_checkpoint() const
+  bool check_for_checkpoint() const
   {
-    return UNIV_UNLIKELY
-      (check_flush_or_checkpoint_.load(std::memory_order_relaxed));
+    return UNIV_UNLIKELY(need_checkpoint.load(std::memory_order_relaxed));
   }
-  void set_check_flush_or_checkpoint(bool flag= true)
-  { check_flush_or_checkpoint_.store(flag, std::memory_order_relaxed); }
+  void set_check_for_checkpoint(bool need= true)
+  {
+    need_checkpoint.store(need, std::memory_order_relaxed);
+  }
 
   /** Make previous write_buf() durable and update flushed_to_disk_lsn. */
   bool flush(lsn_t lsn) noexcept;
@@ -446,8 +447,9 @@ public:
 
 private:
   /** Wait in append_prepare() for buffer to become available
+  @param lsn  log sequence number to write up to
   @param ex   whether log_sys.latch is exclusively locked */
-  ATTRIBUTE_COLD static void append_prepare_wait(bool ex) noexcept;
+  ATTRIBUTE_COLD void append_prepare_wait(lsn_t lsn, bool ex) noexcept;
 public:
   /** Reserve space in the log buffer for appending data.
   @tparam pmem  log_sys.is_pmem()

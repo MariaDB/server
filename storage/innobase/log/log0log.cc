@@ -100,6 +100,7 @@ bool log_t::create()
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   lsn.store(FIRST_LSN, std::memory_order_relaxed);
   flushed_to_disk_lsn.store(FIRST_LSN, std::memory_order_relaxed);
+  need_checkpoint.store(true, std::memory_order_relaxed);
   write_lsn= FIRST_LSN;
 
 #ifndef HAVE_PMEM
@@ -124,17 +125,16 @@ bool log_t::create()
   TRASH_ALLOC(flush_buf, buf_size);
   checkpoint_buf= static_cast<byte*>(aligned_malloc(4096, 4096));
   memset_aligned<4096>(checkpoint_buf, 0, 4096);
+  max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
 #else
   ut_ad(!checkpoint_buf);
   ut_ad(!buf);
   ut_ad(!flush_buf);
+  max_buf_free= 1;
 #endif
 
   latch.SRW_LOCK_INIT(log_latch_key);
   init_lsn_lock();
-
-  max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
-  set_check_flush_or_checkpoint();
 
   last_checkpoint_lsn= FIRST_LSN;
   log_capacity= 0;
@@ -236,6 +236,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
       log.close();
       mprotect(ptr, size_t(size), PROT_READ);
       buf= static_cast<byte*>(ptr);
+      max_buf_free= size;
 # if defined __linux__ || defined _WIN32
       set_block_size(CPU_LEVEL1_DCACHE_LINESIZE);
 # endif
@@ -264,6 +265,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
 
   TRASH_ALLOC(buf, buf_size);
   TRASH_ALLOC(flush_buf, buf_size);
+  max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
 #endif
 
 #if defined __linux__ || defined _WIN32
@@ -813,8 +815,8 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 #ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
 #endif
-  ut_ad(!srv_read_only_mode);
   ut_ad(!is_pmem());
+  ut_ad(!srv_read_only_mode);
 
   const lsn_t lsn{get_lsn(std::memory_order_relaxed)};
 
@@ -849,7 +851,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
       ... /* TODO: Update the LSN and adjust other code. */
 #else
       /* The rest of the block will be written as garbage.
-      (We want to avoid memset() while holding mutex.)
+      (We want to avoid memset() while holding exclusive log_sys.latch)
       This block will be overwritten later, once records beyond
       the current LSN are generated. */
 # ifdef HAVE_valgrind
@@ -886,6 +888,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     write_lsn= lsn;
   }
 
+  set_check_for_checkpoint(false);
   return lsn;
 }
 
@@ -927,8 +930,9 @@ wait and check if an already running write is covering the request.
 void log_write_up_to(lsn_t lsn, bool durable,
                      const completion_callback *callback)
 {
-  ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode || (log_sys.buf_free < log_sys.max_buf_free));
   ut_ad(lsn != LSN_MAX);
+  ut_ad(lsn != 0);
 
   if (UNIV_UNLIKELY(recv_no_ibuf_operations))
   {
@@ -1016,16 +1020,6 @@ ATTRIBUTE_COLD void log_write_and_flush()
 #endif
 }
 
-/********************************************************************
-
-Tries to establish a big enough margin of free space in the log buffer, such
-that a new log entry can be catenated without an immediate need for a flush. */
-ATTRIBUTE_COLD static void log_flush_margin()
-{
-  if (log_sys.buf_free > log_sys.max_buf_free)
-    log_buffer_flush_to_disk(false);
-}
-
 /****************************************************************//**
 Tries to establish a big enough margin of free space in the log, such
 that a new log entry can be catenated without an immediate need for a
@@ -1033,12 +1027,12 @@ checkpoint. NOTE: this function may only be called if the calling thread
 owns no synchronization objects! */
 ATTRIBUTE_COLD static void log_checkpoint_margin()
 {
-  while (log_sys.check_flush_or_checkpoint())
+  while (log_sys.check_for_checkpoint())
   {
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
     ut_ad(!recv_no_log_write);
 
-    if (!log_sys.check_flush_or_checkpoint())
+    if (!log_sys.check_for_checkpoint())
     {
 func_exit:
       log_sys.latch.rd_unlock();
@@ -1054,7 +1048,7 @@ func_exit:
 #ifndef DBUG_OFF
     skip_checkpoint:
 #endif
-      log_sys.set_check_flush_or_checkpoint(false);
+      log_sys.set_check_for_checkpoint(false);
       goto func_exit;
     }
 
@@ -1068,30 +1062,17 @@ func_exit:
   }
 }
 
-/**
-Checks that there is enough free space in the log to start a new query step.
-Flushes the log buffer or makes a new checkpoint if necessary. NOTE: this
-function may only be called if the calling thread owns no synchronization
-objects! */
-ATTRIBUTE_COLD void log_check_margins()
-{
-  do
-  {
-    log_flush_margin();
-    log_checkpoint_margin();
-    ut_ad(!recv_no_log_write);
-  }
-  while (log_sys.check_flush_or_checkpoint());
-}
-
 /** Wait for a log checkpoint if needed.
 NOTE that this function may only be called while not holding
 any synchronization objects except dict_sys.latch. */
 void log_free_check()
 {
   ut_ad(!lock_sys.is_writer());
-  if (log_sys.check_flush_or_checkpoint())
-    log_check_margins();
+  if (log_sys.check_for_checkpoint())
+  {
+    ut_ad(!recv_no_log_write);
+    log_checkpoint_margin();
+  }
 }
 
 extern void buf_resize_shutdown();

@@ -120,7 +120,7 @@ public:
 		ut_ad(mtr_started == scan_mtr->is_active());
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-				log_sys.set_check_flush_or_checkpoint(););
+				log_sys.set_check_for_checkpoint(););
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec.begin();
 		     it != m_dtuple_vec.end();
@@ -128,7 +128,7 @@ public:
 			dtuple = *it;
 			ut_ad(dtuple);
 
-			if (log_sys.check_flush_or_checkpoint()) {
+			if (log_sys.check_for_checkpoint()) {
 				if (mtr_started) {
 					if (!btr_pcur_move_to_prev_on_page(pcur)) {
 						error = DB_CORRUPTION;

@@ -1802,7 +1802,7 @@ bool fil_comp_algo_loaded(ulint comp_algo);
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */
-lsn_t fil_names_clear(lsn_t lsn);
+ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn);
 
 #ifdef UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH
 void test_make_filepath();

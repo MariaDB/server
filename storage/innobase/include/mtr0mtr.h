@@ -105,7 +105,7 @@ struct mtr_t {
   This is to be used at log_checkpoint().
   @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
   @return current LSN */
-  lsn_t commit_files(lsn_t checkpoint_lsn= 0);
+  ATTRIBUTE_COLD lsn_t commit_files(lsn_t checkpoint_lsn= 0);
 
   /** @return mini-transaction savepoint (current size of m_memo) */
   ulint get_savepoint() const

@@ -1575,7 +1575,8 @@ static void innodb_drop_database(handlerton*, char *path)
       ibuf_delete_for_discarded_space(id);
 
     /* Any changes must be persisted before we return. */
-    log_write_up_to(mtr.commit_lsn(), true);
+    if (mtr.commit_lsn())
+      log_write_up_to(mtr.commit_lsn(), true);
   }
 
   my_free(namebuf);
