@@ -8,7 +8,7 @@
 
 let PAGE_SIZE=`select @@innodb_page_size`;
 
-CREATE TABLE t1(a INT) row_format=redundant engine=innoDB;
+CREATE TABLE t1(a INT) row_format=redundant engine=innoDB stats_persistent=0;
 INSERT INTO t1 VALUES(1);
 
 let MYSQLD_DATADIR=`select @@datadir`;

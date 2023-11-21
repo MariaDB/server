@@ -1,3 +1,5 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 SET innodb_strict_mode=OFF;
 CREATE TABLE test_tab (
 a_str_18 mediumtext,
@@ -154,3 +156,4 @@ ROLLBACK;
 InnoDB		0 transactions not purged
 DROP TABLE t1;
 DROP TABLE t2;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
