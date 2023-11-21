@@ -350,14 +350,21 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 }
 
 /** Free an undo log segment.
-@param block     rollback segment header page
+@param rseg_hdr  rollback segment header page
+@param block     undo segment header page
 @param mtr       mini-transaction */
-static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
+static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
+                                   mtr_t &mtr)
 {
+  ut_ad(mtr.memo_contains_flagged(rseg_hdr, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(mtr.memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
+
   while (!fseg_free_step_not_header(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
                                     block->page.frame, &mtr))
   {
+    rseg_hdr->fix();
     block->fix();
+    ut_d(const page_id_t rseg_hdr_id{rseg_hdr->page.id()});
     ut_d(const page_id_t id{block->page.id()});
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
@@ -368,8 +375,11 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
     This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
     mtr.start();
+    rseg_hdr->page.lock.x_lock();
+    ut_ad(rseg_hdr->page.id() == rseg_hdr_id);
     block->page.lock.x_lock();
     ut_ad(block->page.id() == id);
+    mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
     mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
   }
 
@@ -459,7 +469,7 @@ loop:
     free_segment:
       ut_ad(rseg.curr_size >= seg_size);
       rseg.curr_size-= seg_size;
-      trx_purge_free_segment(b, mtr);
+      trx_purge_free_segment(rseg_hdr, b, mtr);
       break;
     case TRX_UNDO_CACHED:
       /* rseg.undo_cached must point to this page */
