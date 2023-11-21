@@ -401,3 +401,7 @@ extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
 	  thd->wsrep_cs().transaction().active());
 }
 
+extern "C" uint32 wsrep_get_domain_id()
+{
+  return wsrep_gtid_domain_id;
+}
