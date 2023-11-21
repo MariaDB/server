@@ -9437,10 +9437,6 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
       DBUG_ASSERT(all);
       DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT ||
                   thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
-      DBUG_ASSERT(is_prepared_xa(thd) ||
-                  ((thd->lex->sql_command == SQLCOM_XA_ROLLBACK &&
-                    thd->transaction->xid_state.get_state_code() == XA_IDLE) ||
-                   thd->lex->xa_opt == XA_ONE_PHASE));
       DBUG_ASSERT(!thd->transaction->xid_state.is_recovered());
 
       if (thd->lex->sql_command == SQLCOM_XA_COMMIT)
@@ -9450,6 +9446,10 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
       }
       else if (ht != binlog_hton)
       {
+        DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+                    thd->transaction->xid_state.get_error() ==
+                    ER_XA_RBROLLBACK);
+
         ht->rollback(ht, thd, all);
       }
 
