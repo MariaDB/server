@@ -2686,7 +2686,9 @@ int spider_parse_connect_info(
         SPIDER_PARAM_INT_WITH_MAX("iom", internal_optimize, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("iol", internal_optimize_local, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("lmr", low_mem_read, 0, 1);
+        SPIDER_PARAM_DEPRECATED_WARNING("lcs", 1104);
         SPIDER_PARAM_INT_WITH_MAX("lcs", load_crd_at_startup, 0, 1);
+        SPIDER_PARAM_DEPRECATED_WARNING("lss", 1104);
         SPIDER_PARAM_INT_WITH_MAX("lss", load_sts_at_startup, 0, 1);
         SPIDER_PARAM_LONG_LIST_WITH_MAX("lst", link_statuses, 0, 3);
         SPIDER_PARAM_LONG_LIST_WITH_MAX("mbf", monitoring_bg_flag, 0, 1);
@@ -2727,8 +2729,10 @@ int spider_parse_connect_info(
         SPIDER_PARAM_DOUBLE("siv", sts_interval, 0);
         SPIDER_PARAM_STR_LIST("sky", tgt_ssl_keys);
         SPIDER_PARAM_STR_LIST("sli", static_link_ids);
+        SPIDER_PARAM_DEPRECATED_WARNING("slc", 1104);
         SPIDER_PARAM_INT_WITH_MAX("slc", store_last_crd, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
+        SPIDER_PARAM_DEPRECATED_WARNING("sls", 1104);
         SPIDER_PARAM_INT_WITH_MAX("sls", store_last_sts, 0, 1);
         SPIDER_PARAM_DEPRECATED_WARNING("smd", 1007);
         SPIDER_PARAM_INT_WITH_MAX("smd", sts_mode, 1, 2);
@@ -2847,7 +2851,9 @@ int spider_parse_connect_info(
         SPIDER_PARAM_LONG_LIST_WITH_MAX("access_balance", access_balances, 0,
                                         2147483647);
         SPIDER_PARAM_STR_LIST("static_link_id", static_link_ids);
+        SPIDER_PARAM_DEPRECATED_WARNING("store_last_crd", 1104);
         SPIDER_PARAM_INT_WITH_MAX("store_last_crd", store_last_crd, 0, 1);
+        SPIDER_PARAM_DEPRECATED_WARNING("store_last_sts", 1104);
         SPIDER_PARAM_INT_WITH_MAX("store_last_sts", store_last_sts, 0, 1);
         error_num= parse.fail(true);
         goto error;
@@ -2931,8 +2937,10 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("bka_table_name_type", 1007);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
             bka_table_name_types, 0, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("load_crd_at_startup", 1104);
           SPIDER_PARAM_INT_WITH_MAX(
             "load_crd_at_startup", load_crd_at_startup, 0, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("load_sts_at_startup", 1104);
           SPIDER_PARAM_INT_WITH_MAX(
             "load_sts_at_startup", load_sts_at_startup, 0, 1);
           error_num = parse.fail(true);
