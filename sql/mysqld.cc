@@ -133,6 +133,9 @@
 #endif
 
 #include <my_service_manager.h>
+#ifdef __linux__
+#include <sys/eventfd.h>
+#endif
 
 #include <source_revision.h>
 
@@ -1386,6 +1389,7 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
+static int termination_event_fd= -1;
 
 
 C_MODE_START
@@ -1669,10 +1673,28 @@ static void break_connect_loop()
     int UNINIT_VAR(error);
     DBUG_PRINT("info",("Waiting for select thread"));
 
-    for(size_t i=0; i < listen_sockets.size(); i++)
     {
-      int fd=mysql_socket_getfd(listen_sockets.at(i));
-      shutdown(fd, SHUT_RDWR);
+      /*
+        Cannot call shutdown on systemd socket activated descriptors
+        as their clone in the pid 1 is reused.
+      */
+      int lowest_fd, shutdowns= 0;
+      lowest_fd= sd_listen_fds(0) + SD_LISTEN_FDS_START;
+      for(size_t i= 0; i < listen_sockets.size(); i++)
+      {
+        int fd= mysql_socket_getfd(listen_sockets.at(i));
+        if (fd >= lowest_fd)
+        {
+          shutdowns++;
+          mysql_socket_shutdown(listen_sockets.at(i), SHUT_RDWR);
+        }
+      }
+      if (!shutdowns && termination_event_fd >=0)
+      {
+        uint64_t u= 1;
+        if (write(termination_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
+          sql_print_error("Couldn't send event to terminate listen loop");
+      }
     }
     set_timespec(abstime, 2);
     for (uint tmp=0 ; tmp < 10 && select_thread_in_use; tmp++)
@@ -1687,6 +1709,8 @@ static void break_connect_loop()
       sql_print_error("Got error %d from mysql_cond_timedwait", error);
 #endif
   }
+  if (termination_event_fd >= 0)
+    close(termination_event_fd);
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* _WIN32 */
 }
@@ -2644,6 +2668,9 @@ static void use_systemd_activated_sockets()
     listen_sockets.push(sock);
   }
   systemd_sock_activation= 1;
+  termination_event_fd= eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
+  if (termination_event_fd == -1)
+    sql_print_warning("eventfd failed %d", errno);
   free(names);
 
   DBUG_VOID_RETURN;
@@ -6263,6 +6290,18 @@ void handle_connections_sockets()
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
 #endif
+  if (termination_event_fd >= 0)
+  {
+#ifdef HAVE_POLL
+    struct pollfd event_fd;
+    event_fd.fd= termination_event_fd;
+    event_fd.events= POLLIN;
+    fds.push(event_fd);
+#else
+    FD_SET(termination_event_fd, &clientFDs);
+#endif
+    /* no need to read this fd, abrt_loop is set before it gets a chance */
+  }
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
