@@ -8896,12 +8896,6 @@ int ha_spider::delete_table(
     DBUG_PRINT("info",
       ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
         thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
-    if ((error_num = spider_sys_delete_table_sts(
-      current_thd, name, name_len)))
-      goto error;
-    if ((error_num = spider_sys_delete_table_crd(
-      current_thd, name, name_len)))
-      goto error;
     if (
       !(table_tables = spider_open_sys_table(
         current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,

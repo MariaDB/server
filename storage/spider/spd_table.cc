@@ -5163,8 +5163,6 @@ int spider_free_share(
 ) {
   DBUG_ENTER("spider_free_share");
   pthread_mutex_lock(&spider_tbl_mutex);
-  bool do_delete_thd = false;
-  THD *thd = current_thd;
   if (!--share->use_count)
   {
     spider_free_sts_thread(share);
@@ -5180,47 +5178,6 @@ int spider_free_share(
       spider_table_remove_share_from_crd_thread(share);
       spider_free_spider_object_for_share(&share->crd_spider);
     }
-    if (
-      share->sts_init &&
-      share->table_share->tmp_table == NO_TMP_TABLE &&
-      spider_param_store_last_sts(share->store_last_sts)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->stat
-      );
-    }
-    if (
-      share->crd_init &&
-      share->table_share->tmp_table == NO_TMP_TABLE &&
-      spider_param_store_last_crd(share->store_last_crd)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields
-      );
-    }
     spider_free_share_alloc(share);
     my_hash_delete(&spider_open_tables, (uchar*) share);
     pthread_mutex_destroy(&share->crd_mutex);
@@ -5229,8 +5186,6 @@ int spider_free_share(
     free_root(&share->mem_root, MYF(0));
     spider_free(spider_current_trx, share, MYF(0));
   }
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
   pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
@@ -6671,35 +6626,16 @@ int spider_get_sts(
   uint flag
 ) {
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
 
   enum ha_sts_crd_get_type get_type =
     spider_get_sts_type(share, sts_interval, sts_sync);
-  if (!share->sts_init &&
-      share->table_share->tmp_table == NO_TMP_TABLE &&
-      spider_param_load_sts_at_startup(share->load_sts_at_startup) &&
-      (!share->init || share->init_error))
-  {
-    error_num = spider_sys_get_table_sts(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      &share->stat);
-    if (!error_num ||
-        (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE))
-    need_to_get = FALSE;
-  }
-
-  if (need_to_get)
-  {
-    if (get_type == HA_GET_COPY)
-      share->stat = share->wide_share->stat;
-    else
-      /* Executes a `show table status` query and store the results in
+  if (get_type == HA_GET_COPY)
+    share->stat = share->wide_share->stat;
+  else
+    /* Executes a `show table status` query and store the results in
       share->stat */
-      error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
-  }
+    error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
   if (get_type >= HA_GET_AFTER_LOCK)
     pthread_mutex_unlock(&share->wide_share->sts_mutex);
 
@@ -6798,34 +6734,15 @@ int spider_get_crd(
   int crd_sync_level
 ) {
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
 
   enum ha_sts_crd_get_type get_type =
     spider_get_crd_type(share, crd_interval, crd_sync);
-  if (!share->crd_init &&
-      share->table_share->tmp_table == NO_TMP_TABLE &&
-      spider_param_load_sts_at_startup(share->load_crd_at_startup))
-  {
-    error_num = spider_sys_get_table_crd(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      share->cardinality,
-      table->s->fields);
-    if (!error_num ||
-        (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE))
-    need_to_get = FALSE;
-  }
-
-  if (need_to_get)
-  {
-    if (get_type == HA_GET_COPY)
-      memcpy(share->cardinality, share->wide_share->cardinality,
-             sizeof(longlong) * table->s->fields);
-    else
-      error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
-  }
+  if (get_type == HA_GET_COPY)
+    memcpy(share->cardinality, share->wide_share->cardinality,
+           sizeof(longlong) * table->s->fields);
+  else
+    error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
   if (get_type >= HA_GET_AFTER_LOCK)
     pthread_mutex_unlock(&share->wide_share->crd_mutex);
   if (error_num)
