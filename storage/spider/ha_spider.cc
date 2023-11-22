@@ -8948,12 +8948,6 @@ int ha_spider::delete_table(
     )
       need_lock = TRUE;
 
-    if ((error_num = spider_sys_delete_table_sts(
-      current_thd, name, name_len, need_lock)))
-      goto error;
-    if ((error_num = spider_sys_delete_table_crd(
-      current_thd, name, name_len, need_lock)))
-      goto error;
     if (
       !(table_tables = spider_open_sys_table(
         current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
