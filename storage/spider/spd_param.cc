@@ -1308,27 +1308,6 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(double, crd_interval)
 
 /*
  -1 :fallback to default
-  0 :use table parameter
-  1 :use show command
-  2 :use information schema
-  3 :use explain
- */
-static MYSQL_THDVAR_INT(
-  crd_mode, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Mode of cardinality confirmation.", /* comment */
-  NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  1, /* def */
-  -1, /* min */
-  3, /* max */
-  0 /* blk */
-);
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_mode)
-
-/*
- -1 :fallback to default
   0 :No synchronization.
   1 :Cardinality is synchronized when opening a table.
      Then no synchronization.
@@ -1424,26 +1403,6 @@ static MYSQL_THDVAR_INT(
 );
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(double, sts_interval)
-
-/*
- -1 :fallback to default
-  0 :use table parameter
-  1 :use show command
-  2 :use information schema
- */
-static MYSQL_THDVAR_INT(
-  sts_mode, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Mode of table state confirmation.", /* comment */
-  NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  1, /* def */
-  -1, /* min */
-  2, /* max */
-  0 /* blk */
-);
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, sts_mode)
 
 /*
  -1 :fallback to default
@@ -2422,7 +2381,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(first_read),
   MYSQL_SYSVAR(second_read),
   MYSQL_SYSVAR(crd_interval),
-  MYSQL_SYSVAR(crd_mode),
   MYSQL_SYSVAR(crd_sync),
   MYSQL_SYSVAR(store_last_crd),
   MYSQL_SYSVAR(load_crd_at_startup),
@@ -2430,7 +2388,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(crd_weight),
   MYSQL_SYSVAR(crd_bg_mode),
   MYSQL_SYSVAR(sts_interval),
-  MYSQL_SYSVAR(sts_mode),
   MYSQL_SYSVAR(sts_sync),
   MYSQL_SYSVAR(store_last_sts),
   MYSQL_SYSVAR(load_sts_at_startup),

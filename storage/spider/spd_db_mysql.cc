@@ -809,7 +809,6 @@ SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_tmp_table(
 
 /* Fetches table status into `stat` */
 int spider_db_mbase_result::fetch_table_status(
-  int mode,
   ha_statistics &stat
 ) {
   int error_num;
@@ -835,242 +834,125 @@ int spider_db_mbase_result::fetch_table_status(
     }
     DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
   }
-  if (mode == 1)
+  /* Ok to test for 18 fields as all new fields are added last */
+  if (num_fields() < 18)
   {
-    /* Ok to test for 18 fields as all new fields are added last */
-    if (num_fields() < 18)
-    {
-      DBUG_PRINT("info",("spider field_count < 18"));
-      DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
-    }
+    DBUG_PRINT("info",("spider field_count < 18"));
+    DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
+  }
 
-    if (mysql_row[4])
-      stat.records =
-        (ha_rows) my_strtoll10(mysql_row[4], (char**) NULL, &error_num);
-    else
-      stat.records = (ha_rows) 0;
-    DBUG_PRINT("info",
-      ("spider records=%lld", stat.records));
-    if (mysql_row[5])
-      stat.mean_rec_length =
-        (ulong) my_strtoll10(mysql_row[5], (char**) NULL, &error_num);
-    else
-      stat.mean_rec_length = 0;
-    DBUG_PRINT("info",
-      ("spider mean_rec_length=%lu", stat.mean_rec_length));
-    if (mysql_row[6])
-      stat.data_file_length =
-        (ulonglong) my_strtoll10(mysql_row[6], (char**) NULL, &error_num);
-    else
-      stat.data_file_length = 0;
-    DBUG_PRINT("info",
-      ("spider data_file_length=%lld", stat.data_file_length));
-    if (mysql_row[7])
-      stat.max_data_file_length =
-        (ulonglong) my_strtoll10(mysql_row[7], (char**) NULL, &error_num);
-    else
-      stat.max_data_file_length = 0;
-    DBUG_PRINT("info",
-      ("spider max_data_file_length=%lld", stat.max_data_file_length));
-    if (mysql_row[8])
-      stat.index_file_length =
-        (ulonglong) my_strtoll10(mysql_row[8], (char**) NULL, &error_num);
-    else
-      stat.index_file_length = 0;
-    DBUG_PRINT("info",
-      ("spider index_file_length=%lld", stat.index_file_length));
-    if (mysql_row[10])
-      stat.auto_increment_value =
-        (ulonglong) my_strtoll10(mysql_row[10], (char**) NULL, &error_num);
-    else
-      stat.auto_increment_value = 1;
-    DBUG_PRINT("info",
-      ("spider auto_increment_value=%lld", stat.auto_increment_value));
-    if (mysql_row[11])
-    {
+  if (mysql_row[4])
+    stat.records =
+      (ha_rows) my_strtoll10(mysql_row[4], (char**) NULL, &error_num);
+  else
+    stat.records = (ha_rows) 0;
+  DBUG_PRINT("info",
+             ("spider records=%lld", stat.records));
+  if (mysql_row[5])
+    stat.mean_rec_length =
+      (ulong) my_strtoll10(mysql_row[5], (char**) NULL, &error_num);
+  else
+    stat.mean_rec_length = 0;
+  DBUG_PRINT("info",
+             ("spider mean_rec_length=%lu", stat.mean_rec_length));
+  if (mysql_row[6])
+    stat.data_file_length =
+      (ulonglong) my_strtoll10(mysql_row[6], (char**) NULL, &error_num);
+  else
+    stat.data_file_length = 0;
+  DBUG_PRINT("info",
+             ("spider data_file_length=%lld", stat.data_file_length));
+  if (mysql_row[7])
+    stat.max_data_file_length =
+      (ulonglong) my_strtoll10(mysql_row[7], (char**) NULL, &error_num);
+  else
+    stat.max_data_file_length = 0;
+  DBUG_PRINT("info",
+             ("spider max_data_file_length=%lld", stat.max_data_file_length));
+  if (mysql_row[8])
+    stat.index_file_length =
+      (ulonglong) my_strtoll10(mysql_row[8], (char**) NULL, &error_num);
+  else
+    stat.index_file_length = 0;
+  DBUG_PRINT("info",
+             ("spider index_file_length=%lld", stat.index_file_length));
+  if (mysql_row[10])
+    stat.auto_increment_value =
+      (ulonglong) my_strtoll10(mysql_row[10], (char**) NULL, &error_num);
+  else
+    stat.auto_increment_value = 1;
+  DBUG_PRINT("info",
+             ("spider auto_increment_value=%lld", stat.auto_increment_value));
+  if (mysql_row[11])
+  {
 #ifdef SPIDER_HAS_TIME_STATUS
-      my_time_status_init(&time_status);
+    my_time_status_init(&time_status);
 #endif
-      SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
-        &mysql_time, 0, &time_status);
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_uint);
-    } else
-      stat.create_time = (time_t) 0;
+    SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
+                           &mysql_time, 0, &time_status);
+    stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
+                                                  &not_used_long, &not_used_uint);
+  } else
+    stat.create_time = (time_t) 0;
 #ifdef DBUG_TRACE
-    {
-      struct tm *ts, tmp_ts;
-      char buf[80];
-      ts = localtime_r(&stat.create_time, &tmp_ts);
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
-      DBUG_PRINT("info",("spider create_time=%s", buf));
-    }
+  {
+    struct tm *ts, tmp_ts;
+    char buf[80];
+    ts = localtime_r(&stat.create_time, &tmp_ts);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
+    DBUG_PRINT("info",("spider create_time=%s", buf));
+  }
 #endif
-    if (mysql_row[12])
-    {
+  if (mysql_row[12])
+  {
 #ifdef SPIDER_HAS_TIME_STATUS
-      my_time_status_init(&time_status);
+    my_time_status_init(&time_status);
 #endif
-      SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
-        &mysql_time, 0, &time_status);
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_uint);
-    } else
-      stat.update_time = (time_t) 0;
+    SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
+                           &mysql_time, 0, &time_status);
+    stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
+                                                  &not_used_long, &not_used_uint);
+  } else
+    stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
-    {
-      struct tm *ts, tmp_ts;
-      char buf[80];
-      ts = localtime_r(&stat.update_time, &tmp_ts);
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
-      DBUG_PRINT("info",("spider update_time=%s", buf));
-    }
+  {
+    struct tm *ts, tmp_ts;
+    char buf[80];
+    ts = localtime_r(&stat.update_time, &tmp_ts);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
+    DBUG_PRINT("info",("spider update_time=%s", buf));
+  }
 #endif
-    if (mysql_row[13])
-    {
+  if (mysql_row[13])
+  {
 #ifdef SPIDER_HAS_TIME_STATUS
-      my_time_status_init(&time_status);
+    my_time_status_init(&time_status);
 #endif
-      SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
-        &mysql_time, 0, &time_status);
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_uint);
-    } else
-      stat.check_time = (time_t) 0;
+    SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
+                           &mysql_time, 0, &time_status);
+    stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
+                                                 &not_used_long, &not_used_uint);
+  } else
+    stat.check_time = (time_t) 0;
 #ifdef DBUG_TRACE
-    {
-      struct tm *ts, tmp_ts;
-      char buf[80];
-      ts = localtime_r(&stat.check_time, &tmp_ts);
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
-      DBUG_PRINT("info",("spider check_time=%s", buf));
-    }
+  {
+    struct tm *ts, tmp_ts;
+    char buf[80];
+    ts = localtime_r(&stat.check_time, &tmp_ts);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
+    DBUG_PRINT("info",("spider check_time=%s", buf));
+  }
 #endif
-    if (mysql_row[15])
-    {
-      stat.checksum_null = FALSE;
-      stat.checksum =
-        (ha_checksum) my_strtoll10(mysql_row[15], (char**) NULL, &error_num);
-      DBUG_PRINT("info", ("spider checksum=%lu", (ulong) stat.checksum));
-    } else {
-      stat.checksum_null = TRUE;
-      stat.checksum = (ha_checksum) 0;
-      DBUG_PRINT("info", ("spider checksum is null"));
-    }
+  if (mysql_row[15])
+  {
+    stat.checksum_null = FALSE;
+    stat.checksum =
+      (ha_checksum) my_strtoll10(mysql_row[15], (char**) NULL, &error_num);
+    DBUG_PRINT("info", ("spider checksum=%lu", (ulong) stat.checksum));
   } else {
-    if (mysql_row[0])
-      stat.records =
-        (ha_rows) my_strtoll10(mysql_row[0], (char**) NULL, &error_num);
-    else
-      stat.records = (ha_rows) 0;
-    DBUG_PRINT("info",
-      ("spider records=%lld", stat.records));
-    if (mysql_row[1])
-      stat.mean_rec_length =
-        (ulong) my_strtoll10(mysql_row[1], (char**) NULL, &error_num);
-    else
-      stat.mean_rec_length = 0;
-    DBUG_PRINT("info",
-      ("spider mean_rec_length=%lu", stat.mean_rec_length));
-    if (mysql_row[2])
-      stat.data_file_length =
-        (ulonglong) my_strtoll10(mysql_row[2], (char**) NULL, &error_num);
-    else
-      stat.data_file_length = 0;
-    DBUG_PRINT("info",
-      ("spider data_file_length=%lld", stat.data_file_length));
-    if (mysql_row[3])
-      stat.max_data_file_length =
-        (ulonglong) my_strtoll10(mysql_row[3], (char**) NULL, &error_num);
-    else
-      stat.max_data_file_length = 0;
-    DBUG_PRINT("info",
-      ("spider max_data_file_length=%lld", stat.max_data_file_length));
-    if (mysql_row[4])
-      stat.index_file_length =
-        (ulonglong) my_strtoll10(mysql_row[4], (char**) NULL, &error_num);
-    else
-      stat.index_file_length = 0;
-    DBUG_PRINT("info",
-      ("spider index_file_length=%lld", stat.index_file_length));
-    if (mysql_row[5])
-      stat.auto_increment_value =
-        (ulonglong) my_strtoll10(mysql_row[5], (char**) NULL, &error_num);
-    else
-      stat.auto_increment_value = 1;
-    DBUG_PRINT("info",
-      ("spider auto_increment_value=%lld", stat.auto_increment_value));
-    if (mysql_row[6])
-    {
-#ifdef SPIDER_HAS_TIME_STATUS
-      my_time_status_init(&time_status);
-#endif
-      SPIDER_str_to_datetime(mysql_row[6], strlen(mysql_row[6]),
-        &mysql_time, 0, &time_status);
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_uint);
-    } else
-      stat.create_time = (time_t) 0;
-#ifdef DBUG_TRACE
-    {
-      struct tm *ts, tmp_ts;
-      char buf[80];
-      ts = localtime_r(&stat.create_time, &tmp_ts);
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
-      DBUG_PRINT("info",("spider create_time=%s", buf));
-    }
-#endif
-    if (mysql_row[7])
-    {
-#ifdef SPIDER_HAS_TIME_STATUS
-      my_time_status_init(&time_status);
-#endif
-      SPIDER_str_to_datetime(mysql_row[7], strlen(mysql_row[7]),
-        &mysql_time, 0, &time_status);
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_uint);
-    } else
-      stat.update_time = (time_t) 0;
-#ifdef DBUG_TRACE
-    {
-      struct tm *ts, tmp_ts;
-      char buf[80];
-      ts = localtime_r(&stat.update_time, &tmp_ts);
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
-      DBUG_PRINT("info",("spider update_time=%s", buf));
-    }
-#endif
-    if (mysql_row[8])
-    {
-#ifdef SPIDER_HAS_TIME_STATUS
-      my_time_status_init(&time_status);
-#endif
-      SPIDER_str_to_datetime(mysql_row[8], strlen(mysql_row[8]),
-        &mysql_time, 0, &time_status);
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_uint);
-    } else
-      stat.check_time = (time_t) 0;
-#ifdef DBUG_TRACE
-    {
-      struct tm *ts, tmp_ts;
-      char buf[80];
-      ts = localtime_r(&stat.check_time, &tmp_ts);
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
-      DBUG_PRINT("info",("spider check_time=%s", buf));
-    }
-#endif
-    if (mysql_row[9])
-    {
-      stat.checksum_null = FALSE;
-      stat.checksum =
-        (ha_checksum) my_strtoll10(mysql_row[9], (char**) NULL, &error_num);
-      DBUG_PRINT("info", ("spider checksum=%lu", (ulong) stat.checksum));
-    } else {
-      stat.checksum_null = TRUE;
-      stat.checksum = (ha_checksum) 0;
-      DBUG_PRINT("info", ("spider checksum is null"));
-    }
+    stat.checksum_null = TRUE;
+    stat.checksum = (ha_checksum) 0;
+    DBUG_PRINT("info", ("spider checksum is null"));
   }
   DBUG_RETURN(0);
 }
@@ -1164,7 +1046,6 @@ int spider_db_mbase_result::fetch_table_checksum(
 }
 
 int spider_db_mbase_result::fetch_table_cardinality(
-  int mode,
   TABLE *table,
   longlong *cardinality,
   uchar *cardinality_upd,
@@ -1188,68 +1069,38 @@ int spider_db_mbase_result::fetch_table_cardinality(
     /* no index */
     DBUG_RETURN(0);
   }
-  if (mode == 1)
+  uint num_fields = this->num_fields();
+  if (num_fields < 12 || num_fields > 14)
   {
-    uint num_fields = this->num_fields();
-    if (num_fields < 12 || num_fields > 14)
+    DBUG_PRINT("info",("spider num_fields < 12 || num_fields > 13"));
+    DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
+  }
+
+  while (mysql_row)
+  {
+    if (
+      mysql_row[4] &&
+      mysql_row[6] &&
+      (field = find_field_in_table_sef(table, mysql_row[4]))
+    ) {
+      if ((cardinality[field->field_index] =
+           (longlong) my_strtoll10(mysql_row[6], (char**) NULL, &error_num))
+          <= 0)
+        cardinality[field->field_index] = 1;
+      spider_set_bit(cardinality_upd, field->field_index);
+      DBUG_PRINT("info",
+                 ("spider col_name=%s", mysql_row[4]));
+      DBUG_PRINT("info",
+                 ("spider cardinality=%lld",
+                  cardinality[field->field_index]));
+    } else if (mysql_row[4])
     {
-      DBUG_PRINT("info",("spider num_fields < 12 || num_fields > 13"));
+      DBUG_PRINT("info",
+                 ("spider skip col_name=%s", mysql_row[4]));
+    } else {
       DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
     }
-
-    while (mysql_row)
-    {
-      if (
-        mysql_row[4] &&
-        mysql_row[6] &&
-        (field = find_field_in_table_sef(table, mysql_row[4]))
-      ) {
-        if ((cardinality[field->field_index] =
-          (longlong) my_strtoll10(mysql_row[6], (char**) NULL, &error_num))
-        <= 0)
-          cardinality[field->field_index] = 1;
-        spider_set_bit(cardinality_upd, field->field_index);
-        DBUG_PRINT("info",
-          ("spider col_name=%s", mysql_row[4]));
-        DBUG_PRINT("info",
-          ("spider cardinality=%lld",
-          cardinality[field->field_index]));
-      } else if (mysql_row[4])
-      {
-        DBUG_PRINT("info",
-          ("spider skip col_name=%s", mysql_row[4]));
-      } else {
-        DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
-      }
-      mysql_row = mysql_fetch_row(db_result);
-    }
-  } else {
-    while (mysql_row)
-    {
-      if (
-        mysql_row[0] &&
-        mysql_row[1] &&
-        (field = find_field_in_table_sef(table, mysql_row[0]))
-      ) {
-        if ((cardinality[field->field_index] =
-          (longlong) my_strtoll10(mysql_row[1], (char**) NULL, &error_num))
-        <= 0)
-          cardinality[field->field_index] = 1;
-        spider_set_bit(cardinality_upd, field->field_index);
-        DBUG_PRINT("info",
-          ("spider col_name=%s", mysql_row[0]));
-        DBUG_PRINT("info",
-          ("spider cardinality=%lld",
-          cardinality[field->field_index]));
-      } else if (mysql_row[0])
-      {
-        DBUG_PRINT("info",
-          ("spider skip col_name=%s", mysql_row[0]));
-      } else {
-        DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
-      }
-      mysql_row = mysql_fetch_row(db_result);
-    }
+    mysql_row = mysql_fetch_row(db_result);
   }
   if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
   {
@@ -13355,14 +13206,6 @@ int spider_mbase_handler::reset()
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::sts_mode_exchange(
-  int sts_mode
-) {
-  DBUG_ENTER("spider_mbase_handler::sts_mode_exchange");
-  DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
-  DBUG_RETURN(sts_mode);
-}
-
 /** Set the session lock wait time out */
 static int spider_set_lock_wait_timeout(uint seconds, SPIDER_CONN *conn,
                                         int *need_mon)
@@ -13449,18 +13292,15 @@ int spider_teardown_after_query(SPIDER_CONN *conn, int error_num, bool clear)
 */
 int spider_mbase_handler::show_table_status(
   int link_idx,
-  int sts_mode,
   uint flag
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
   SPIDER_DB_RESULT *res;
   SPIDER_SHARE *share = spider->share;
-  const uint pos = 2 * spider->conn_link_idx[link_idx] +
-    (sts_mode == 1 ? 0 : 1);
+  const uint pos = 2 * spider->conn_link_idx[link_idx];
   ulonglong auto_increment_value = 0;
   DBUG_ENTER("spider_mbase_handler::show_table_status");
-  DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
 
   spider_setup_for_query(spider, conn, link_idx);
   spider_conn_set_timeout_from_share(
@@ -13512,34 +13352,24 @@ int spider_mbase_handler::show_table_status(
     DBUG_RETURN(spider_teardown_after_query(conn, 0, true));
   if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
   {
-    if (sts_mode == 1)          /* get from status table */
+    if (error_num)
+      DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+    spider_teardown_after_query(conn, 0, false);
+    if ((error_num = spider_db_errorno(conn)))
+      DBUG_RETURN(error_num);
+    else
     {
-      if (error_num)
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
-      spider_teardown_after_query(conn, 0, false);
-      if ((error_num = spider_db_errorno(conn)))
-        DBUG_RETURN(error_num);
-      else
-      {
-        my_printf_error(
-          ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
-          ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
-          mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-          mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
-        DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
-      }
-    } else                      /* get from information schema */
-    {
-      spider_teardown_after_query(conn, error_num, false);
-      if (error_num || (error_num= spider_db_errorno(conn)))
-        DBUG_RETURN(error_num);
-      else
-        DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
+      my_printf_error(
+        ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
+        ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
+        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
+        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+      DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
     }
   }
   spider_teardown_after_query(conn, 0, true);
   /* Fetches query results into share->stat. */
-  error_num = res->fetch_table_status(sts_mode, share->stat);
+  error_num = res->fetch_table_status(share->stat);
   auto_increment_value = share->stat.auto_increment_value;
   res->free_result();
   delete res;
@@ -13596,17 +13426,8 @@ int spider_mbase_handler::show_table_status(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::crd_mode_exchange(
-  int crd_mode
-) {
-  DBUG_ENTER("spider_mbase_handler::crd_mode_exchange");
-  DBUG_PRINT("info",("spider crd_mode=%d", crd_mode));
-  DBUG_RETURN(crd_mode);
-}
-
 int spider_mbase_handler::show_index(
-  int link_idx,
-  int crd_mode
+  int link_idx
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
@@ -13615,10 +13436,8 @@ int spider_mbase_handler::show_index(
   SPIDER_DB_RESULT *res;
   int field;
   longlong *tmp_crd;
-  const uint pos = 2 * spider->conn_link_idx[link_idx] +
-    (crd_mode == 1 ? 0 : 1);
+  const uint pos = 2 * spider->conn_link_idx[link_idx];
   DBUG_ENTER("spider_mbase_handler::show_index");
-  DBUG_PRINT("info",("spider crd_mode=%d", crd_mode));
   spider_setup_for_query(spider, conn, link_idx);
   spider_conn_set_timeout_from_share(conn, link_idx,
                                      spider->wide_handler->trx->thd, share);
@@ -13670,7 +13489,7 @@ int spider_mbase_handler::show_index(
   spider_teardown_after_query(conn, 0, true);
   if (res)
     error_num = res->fetch_table_cardinality(
-      crd_mode, table, share->cardinality, share->cardinality_upd,
+      table, share->cardinality, share->cardinality_upd,
       share->bitmap_size);
   for (field = 0, tmp_crd = share->cardinality;
        field < (int) table->s->fields;

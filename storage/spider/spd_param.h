@@ -209,10 +209,6 @@ double spider_param_crd_interval(
   THD *thd,
   double crd_interval
 );
-int spider_param_crd_mode(
-  THD *thd,
-  int crd_mode
-);
 int spider_param_crd_sync(
   THD *thd,
   int crd_sync
@@ -232,10 +228,6 @@ int spider_param_crd_bg_mode(
 double spider_param_sts_interval(
   THD *thd,
   double sts_interval
-);
-int spider_param_sts_mode(
-  THD *thd,
-  int sts_mode
 );
 int spider_param_sts_sync(
   THD *thd,

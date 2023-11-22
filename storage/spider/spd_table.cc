@@ -2179,13 +2179,11 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
 {
   share->sts_bg_mode = -1;
   share->sts_interval = -1;
-  share->sts_mode = -1;
   share->sts_sync = -1;
   share->store_last_sts = -1;
   share->load_sts_at_startup = -1;
   share->crd_bg_mode = -1;
   share->crd_interval = -1;
-  share->crd_mode = -1;
   share->crd_sync = -1;
   share->store_last_crd = -1;
   share->load_crd_at_startup = -1;
@@ -2651,7 +2649,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("cbm", crd_bg_mode, 0, 2);
           SPIDER_PARAM_DOUBLE("civ", crd_interval, 0);
           SPIDER_PARAM_DEPRECATED_WARNING("cmd", 1007);
-          SPIDER_PARAM_INT_WITH_MAX("cmd", crd_mode, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("csr", casual_read, 0, 63);
           SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("cto", connect_timeouts, 0,
@@ -2734,8 +2731,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
         SPIDER_PARAM_DEPRECATED_WARNING("sls", 1104);
         SPIDER_PARAM_INT_WITH_MAX("sls", store_last_sts, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("smd", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("smd", sts_mode, 1, 2);
         SPIDER_PARAM_LONGLONG("smr", static_mean_rec_length, 0);
         SPIDER_PARAM_LONGLONG("spr", split_read, 0);
         SPIDER_PARAM_INT_WITH_MAX("sps", skip_parallel_search, 0, 3);
@@ -2789,11 +2784,7 @@ int spider_parse_connect_info(
       case 8:
         SPIDER_PARAM_STR_LIST("database", tgt_dbs);
         SPIDER_PARAM_STR_LIST("password", tgt_passwords);
-        SPIDER_PARAM_DEPRECATED_WARNING("sts_mode", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
         SPIDER_PARAM_INT_WITH_MAX("sts_sync", sts_sync, 0, 2);
-        SPIDER_PARAM_DEPRECATED_WARNING("crd_mode", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("crd_mode", crd_mode, 0, 3);
         SPIDER_PARAM_INT_WITH_MAX("crd_sync", crd_sync, 0, 2);
         SPIDER_PARAM_DEPRECATED_WARNING("crd_type", 1007);
         SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
@@ -5219,16 +5210,11 @@ bool spider_share_get_sts_crd(
       (!same_server_link || load_sts_at_startup || load_crd_at_startup))
   {
     const double sts_interval = spider_param_sts_interval(thd, share->sts_interval);
-    const int sts_mode = spider_param_sts_mode(thd, share->sts_mode);
     const int auto_increment_mode = spider_param_auto_increment_mode(
       thd, share->auto_increment_mode);
     const int sts_sync = auto_increment_mode == 1 ? 0 :
       spider_param_sts_sync(thd, share->sts_sync);
     const double crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-    int crd_mode = spider_param_crd_mode(thd, share->crd_mode);
-    /* TODO(MDEV-27996): Delete spider_crd_mode and spider_sts_mode */
-    if (crd_mode == 3)
-      crd_mode = 1;
     const int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
 
     const time_t tmp_time = (time_t) time((time_t*) 0);
@@ -5260,7 +5246,7 @@ bool spider_share_get_sts_crd(
 
     if ((!same_server_link || load_sts_at_startup) &&
         (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
-                                     spider, sts_interval, sts_mode, sts_sync,
+                                     spider, sts_interval, sts_sync,
                                      1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
     )
     {
@@ -5278,7 +5264,7 @@ bool spider_share_get_sts_crd(
 
     if ((!same_server_link || load_crd_at_startup) &&
         (*error_num = spider_get_crd(share, spider->search_link_idx, tmp_time,
-                                     spider, table, crd_interval, crd_mode,
+                                     spider, table, crd_interval,
                                      crd_sync,
                                      1)))
     {
@@ -6999,7 +6985,6 @@ int spider_get_sts(
   time_t tmp_time,
   ha_spider *spider,
   double sts_interval,
-  int sts_mode,
   int sts_sync,
   int sts_sync_level,
   uint flag
@@ -7014,7 +6999,7 @@ int spider_get_sts(
   else
     /* Executes a `show table status` query and store the results in
       share->stat */
-    error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
+    error_num = spider_db_show_table_status(spider, link_idx, flag);
   if (get_type >= HA_GET_AFTER_LOCK)
     pthread_mutex_unlock(&share->wide_share->sts_mutex);
 
@@ -7033,7 +7018,6 @@ int spider_get_sts(
       ha_spider *tmp_spider;
       SPIDER_SHARE *tmp_share;
       double tmp_sts_interval;
-      int tmp_sts_mode;
       int tmp_sts_sync;
       THD *thd = spider->wide_handler->trx->thd;
       for (roop_count = 1;
@@ -7043,10 +7027,9 @@ int spider_get_sts(
         tmp_spider = (ha_spider *) partition_handler->handlers[roop_count];
         tmp_share = tmp_spider->share;
         tmp_sts_interval = spider_param_sts_interval(thd, share->sts_interval);
-        tmp_sts_mode = spider_param_sts_mode(thd, share->sts_mode);
         tmp_sts_sync = spider_param_sts_sync(thd, share->sts_sync);
         spider_get_sts(tmp_share, tmp_spider->search_link_idx, tmp_time,
-                       tmp_spider, tmp_sts_interval, tmp_sts_mode,
+                       tmp_spider, tmp_sts_interval,
                        tmp_sts_sync, 1, flag);
         if (share->wide_share->sts_init)
         {
@@ -7108,7 +7091,6 @@ int spider_get_crd(
   ha_spider *spider,
   TABLE *table,
   double crd_interval,
-  int crd_mode,
   int crd_sync,
   int crd_sync_level
 ) {
@@ -7121,7 +7103,7 @@ int spider_get_crd(
     memcpy(share->cardinality, share->wide_share->cardinality,
            sizeof(longlong) * table->s->fields);
   else
-    error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
+    error_num = spider_db_show_index(spider, link_idx, table);
   if (get_type >= HA_GET_AFTER_LOCK)
     pthread_mutex_unlock(&share->wide_share->crd_mutex);
   if (error_num)
@@ -7138,7 +7120,6 @@ int spider_get_crd(
       ha_spider *tmp_spider;
       SPIDER_SHARE *tmp_share;
       double tmp_crd_interval;
-      int tmp_crd_mode;
       int tmp_crd_sync;
       THD *thd = spider->wide_handler->trx->thd;
       for (roop_count = 1;
@@ -7148,10 +7129,9 @@ int spider_get_crd(
         tmp_spider = (ha_spider *) partition_handler->handlers[roop_count];
         tmp_share = tmp_spider->share;
         tmp_crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-        tmp_crd_mode = spider_param_crd_mode(thd, share->crd_mode);
         tmp_crd_sync = spider_param_crd_sync(thd, share->crd_sync);
         spider_get_crd(tmp_share, tmp_spider->search_link_idx, tmp_time,
-                       tmp_spider, table, tmp_crd_interval, tmp_crd_mode,
+                       tmp_spider, table, tmp_crd_interval,
                        tmp_crd_sync, 1);
         if (share->wide_share->crd_init)
         {
@@ -8985,7 +8965,7 @@ void *spider_table_bg_sts_action(
         {
           if (spider_get_sts(share, spider->search_link_idx,
             share->bg_sts_try_time, spider,
-            share->bg_sts_interval, share->bg_sts_mode,
+            share->bg_sts_interval,
             share->bg_sts_sync,
             2, HA_STATUS_CONST | HA_STATUS_VARIABLE))
           {
@@ -9130,7 +9110,7 @@ void *spider_table_bg_crd_action(
         {
           if (spider_get_crd(share, spider->search_link_idx,
             share->bg_crd_try_time, spider, table,
-            share->bg_crd_interval, share->bg_crd_mode,
+            share->bg_crd_interval,
             share->bg_crd_sync,
             2))
           {

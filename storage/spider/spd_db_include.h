@@ -891,7 +891,6 @@ public:
     TABLE *tmp_table
   ) = 0;
   virtual int fetch_table_status(
-    int mode,
     ha_statistics &stat
   ) = 0;
   virtual int fetch_table_records(
@@ -902,7 +901,6 @@ public:
     ha_spider *spider
   );
   virtual int fetch_table_cardinality(
-    int mode,
     TABLE *table,
     longlong *cardinality,
     uchar *cardinality_upd,
@@ -1447,20 +1445,12 @@ public:
     int *need_mon
   ) = 0;
   virtual int reset() = 0;
-  virtual int sts_mode_exchange(
-    int sts_mode
-  ) = 0;
   virtual int show_table_status(
     int link_idx,
-    int sts_mode,
     uint flag
   ) = 0;
-  virtual int crd_mode_exchange(
-    int crd_mode
-  ) = 0;
   virtual int show_index(
-    int link_idx,
-    int crd_mode
+    int link_idx
   ) = 0;
   virtual int show_records(
     int link_idx

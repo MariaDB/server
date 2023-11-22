@@ -331,7 +331,6 @@ public:
     TABLE *tmp_table
   );
   int fetch_table_status(
-    int mode,
     ha_statistics &stat
   );
   int fetch_simple_action(
@@ -347,7 +346,6 @@ public:
     ha_spider *spider
   );
   int fetch_table_cardinality(
-    int mode,
     TABLE *table,
     longlong *cardinality,
     uchar *cardinality_upd,
@@ -1369,20 +1367,12 @@ public:
     int *need_mon
   );
   int reset();
-  int sts_mode_exchange(
-    int sts_mode
-  );
   int show_table_status(
     int link_idx,
-    int sts_mode,
     uint flag
   );
-  int crd_mode_exchange(
-    int crd_mode
-  );
   int show_index(
-    int link_idx,
-    int crd_mode
+    int link_idx
   );
   int simple_action(
     uint simple_action,
