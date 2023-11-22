@@ -123,8 +123,8 @@ handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
 extern SPIDER_DBTON spider_dbton_mariadb;
-SPIDER_THREAD *spider_table_sts_threads;
-SPIDER_THREAD *spider_table_crd_threads;
+SPIDER_THREAD *spider_table_sts_thread;
+SPIDER_THREAD *spider_table_crd_thread;
 
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key spd_key_mutex_tbl;
@@ -5016,11 +5016,7 @@ int spider_share_init_sts(
       spider_share_init_error_free(share, init_share, true);
       DBUG_RETURN(error_num);
     }
-  share->sts_thread =
-    &spider_table_sts_threads[my_calc_hash(&spider_open_tables,
-                                           (uchar *) table_name,
-                                           (uint) strlen(table_name)) %
-                              spider_param_table_sts_thread_count()];
+  share->sts_thread = spider_table_sts_thread;
   share->sts_spider_init = TRUE;
   DBUG_RETURN(0);
 }
@@ -5041,11 +5037,7 @@ int spider_share_init_crd(
       spider_share_init_error_free(share, init_share, true);
       DBUG_RETURN(error_num);
     }
-  share->crd_thread =
-    &spider_table_crd_threads[my_calc_hash(&spider_open_tables,
-                                           (uchar *) table_name,
-                                           (uint) strlen(table_name)) %
-                              spider_param_table_crd_thread_count()];
+  share->crd_thread = spider_table_crd_thread;
   share->crd_spider_init = TRUE;
   DBUG_RETURN(0);
 }
@@ -6224,17 +6216,9 @@ int spider_db_done(
     }
   }
 
-  for (roop_count = spider_param_table_crd_thread_count() - 1;
-    roop_count >= 0; roop_count--)
-  {
-    spider_free_crd_threads(&spider_table_crd_threads[roop_count]);
-  }
-  for (roop_count = spider_param_table_sts_thread_count() - 1;
-    roop_count >= 0; roop_count--)
-  {
-    spider_free_sts_threads(&spider_table_sts_threads[roop_count]);
-  }
-  spider_free(NULL, spider_table_sts_threads, MYF(0));
+  spider_free_crd_threads(spider_table_crd_thread);
+  spider_free_sts_threads(spider_table_sts_thread);
+  spider_free(NULL, spider_table_sts_thread, MYF(0));
 
   for (roop_count= spider_udf_table_mon_mutex_count - 1;
     roop_count >= 0; roop_count--)
@@ -6706,34 +6690,18 @@ int spider_db_init(
     goto error_system_table_creation;
   }
 
-  if (!(spider_table_sts_threads = (SPIDER_THREAD *)
+  if (!(spider_table_sts_thread = (SPIDER_THREAD *)
     spider_bulk_malloc(NULL, 256, MYF(MY_WME | MY_ZEROFILL),
-      &spider_table_sts_threads, (uint) (sizeof(SPIDER_THREAD) *
-        spider_param_table_sts_thread_count()),
-      &spider_table_crd_threads, (uint) (sizeof(SPIDER_THREAD) *
-        spider_param_table_crd_thread_count()),
+      &spider_table_sts_thread, (uint) (sizeof(SPIDER_THREAD)),
+      &spider_table_crd_thread, (uint) (sizeof(SPIDER_THREAD)),
       NullS))
   )
     goto error_alloc_mon_mutxes;
 
-  for (roop_count = 0;
-    roop_count < (int) spider_param_table_sts_thread_count();
-    roop_count++)
-  {
-    if ((error_num = spider_create_sts_threads(&spider_table_sts_threads[roop_count])))
-    {
+  if ((error_num = spider_create_sts_threads(spider_table_sts_thread)))
       goto error_init_table_sts_threads;
-    }
-  }
-  for (roop_count = 0;
-    roop_count < (int) spider_param_table_crd_thread_count();
-    roop_count++)
-  {
-    if ((error_num = spider_create_crd_threads(&spider_table_crd_threads[roop_count])))
-    {
+  if ((error_num = spider_create_crd_threads(spider_table_crd_thread)))
       goto error_init_table_crd_threads;
-    }
-  }
 
   /** Populates `spider_dbton` with available `SPIDER_DBTON`s */
   dbton_id = 0;
@@ -6759,19 +6727,13 @@ error_init_dbton:
     if (spider_dbton[roop_count].deinit)
       spider_dbton[roop_count].deinit();
   }
-  roop_count = spider_param_table_crd_thread_count() - 1;
+  roop_count = 0;
 error_init_table_crd_threads:
-  for (; roop_count >= 0; roop_count--)
-  {
-    spider_free_crd_threads(&spider_table_crd_threads[roop_count]);
-  }
-  roop_count = spider_param_table_sts_thread_count() - 1;
+  spider_free_crd_threads(spider_table_crd_thread);
+  roop_count = 0;
 error_init_table_sts_threads:
-  for (; roop_count >= 0; roop_count--)
-  {
-    spider_free_sts_threads(&spider_table_sts_threads[roop_count]);
-  }
-  spider_free(NULL, spider_table_sts_threads, MYF(0));
+  spider_free_sts_threads(spider_table_sts_thread);
+  spider_free(NULL, spider_table_sts_thread, MYF(0));
   roop_count= spider_udf_table_mon_mutex_count - 1;
 error_init_udf_table_mon_list_hash:
   for (; roop_count >= 0; roop_count--)

@@ -2206,44 +2206,6 @@ static MYSQL_SYSVAR_INT(
 
 SPIDER_SYSVAR_OVERRIDE_VALUE_FUNC(int, load_crd_at_startup)
 
-static uint spider_table_sts_thread_count;
-/*
-  1-: thread count
- */
-static MYSQL_SYSVAR_UINT(
-  table_sts_thread_count,
-  spider_table_sts_thread_count,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Static thread count of table sts",
-  NULL,
-  NULL,
-  10,
-  1,
-  4294967295U,
-  0
-);
-
-SPIDER_SYSVAR_VALUE_FUNC(uint, table_sts_thread_count)
-
-static uint spider_table_crd_thread_count;
-/*
-  1-: thread count
- */
-static MYSQL_SYSVAR_UINT(
-  table_crd_thread_count,
-  spider_table_crd_thread_count,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Static thread count of table crd",
-  NULL,
-  NULL,
-  10,
-  1,
-  4294967295U,
-  0
-);
-
-SPIDER_SYSVAR_VALUE_FUNC(uint, table_crd_thread_count)
-
 static int spider_slave_trx_isolation;
 /*
  -1 :off
@@ -2509,8 +2471,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(bka_table_name_type),
   MYSQL_SYSVAR(use_cond_other_than_pk_for_update),
   MYSQL_SYSVAR(connect_error_interval),
-  MYSQL_SYSVAR(table_sts_thread_count),
-  MYSQL_SYSVAR(table_crd_thread_count),
   MYSQL_SYSVAR(slave_trx_isolation),
   MYSQL_SYSVAR(remote_wait_timeout),
   MYSQL_SYSVAR(wait_timeout),
