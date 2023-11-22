@@ -21,12 +21,9 @@ connection server_1;
 connection server_1;
 DROP TABLE t1;
 connection server_2;
-include/wait_for_slave_io_to_start.inc
 include/start_slave.inc
 connection server_3;
-include/wait_for_slave_io_to_start.inc
 include/start_slave.inc
 connection server_4;
-include/wait_for_slave_io_to_start.inc
 include/start_slave.inc
 include/rpl_end.inc
