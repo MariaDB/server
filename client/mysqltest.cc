@@ -8991,11 +8991,14 @@ int util_query(MYSQL* org_mysql, const char* query){
 void run_query(struct st_connection *cn, struct st_command *command, int flags)
 {
   MYSQL *mysql= cn->mysql;
-  DYNAMIC_STRING *ds;
-  DYNAMIC_STRING *save_ds= NULL;
-  DYNAMIC_STRING ds_result;
-  DYNAMIC_STRING ds_sorted;
-  DYNAMIC_STRING ds_warnings;
+  DYNAMIC_STRING *rs_output; /* where to put results */
+  DYNAMIC_STRING rs_cmp_result; /* here we put results to compare with
+                                   pre-recrded file */
+  DYNAMIC_STRING rs_unsorted; /* if we need sorted results, here we store
+                                 results before sorting them */
+  DYNAMIC_STRING *rs_sorted_save= NULL; /* here we store where to put sorted
+                                           result if needed */
+  DYNAMIC_STRING rs_warnings;
   char *query;
   size_t query_len;
   my_bool view_created= 0, sp_created= 0;
@@ -9008,10 +9011,10 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
 
   if (!(flags & QUERY_SEND_FLAG) && !cn->pending)
     die("Cannot reap on a connection without pending send");
-  
-  init_dynamic_string(&ds_warnings, NULL, 0, 256);
-  ds_warn= &ds_warnings;
-  
+
+  init_dynamic_string(&rs_warnings, NULL, 0, 256);
+  ds_warn= &rs_warnings;
+
   /*
     Evaluate query if this is an eval command
   */
@@ -9041,11 +9044,11 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (command->require_file)
   {
-    init_dynamic_string(&ds_result, "", 1024, 1024);
-    ds= &ds_result;
+    init_dynamic_string(&rs_cmp_result, "", 1024, 1024);
+    rs_output= &rs_cmp_result;
   }
   else
-    ds= &ds_res;
+    rs_output= &ds_res; // will be shown to colsole
 
   /*
     Log the query into the output buffer
@@ -9059,9 +9062,9 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
       print_query= command->query;
       print_len= (int)(command->end - command->query);
     }
-    replace_dynstr_append_mem(ds, print_query, print_len);
-    dynstr_append_mem(ds, delimiter, delimiter_length);
-    dynstr_append_mem(ds, "\n", 1);
+    replace_dynstr_append_mem(rs_output, print_query, print_len);
+    dynstr_append_mem(rs_output, delimiter, delimiter_length);
+    dynstr_append_mem(rs_output, "\n", 1);
   }
   
   /* We're done with this flag */
@@ -9116,7 +9119,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
         Collect warnings from create of the view that should otherwise
         have been produced when the SELECT was executed
       */
-      append_warnings(&ds_warnings,
+      append_warnings(&rs_warnings,
                       service_connection_enabled ?
                         cur_con->util_mysql :
                         mysql);
@@ -9172,9 +9175,9 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
        that can be sorted before it's added to the
        global result string
     */
-    init_dynamic_string(&ds_sorted, "", 1024, 1024);
-    save_ds= ds; /* Remember original ds */
-    ds= &ds_sorted;
+    init_dynamic_string(&rs_unsorted, "", 1024, 1024);
+    rs_sorted_save= rs_output; /* Remember original ds */
+    rs_output= &rs_unsorted;
   }
 
   /*
@@ -9189,20 +9192,20 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   if (ps_protocol_enabled &&
       complete_query &&
       match_re(&ps_re, query))
-    run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
+    run_query_stmt(cn, command, query, query_len, rs_output, &rs_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
-		     ds, &ds_warnings);
+		     rs_output, &rs_warnings);
 
-  dynstr_free(&ds_warnings);
+  dynstr_free(&rs_warnings);
   ds_warn= 0;
 
   if (display_result_sorted)
   {
     /* Sort the result set and append it to result */
-    dynstr_append_sorted(save_ds, &ds_sorted, 1);
-    ds= save_ds;
-    dynstr_free(&ds_sorted);
+    dynstr_append_sorted(rs_sorted_save, &rs_unsorted, 1);
+    rs_output= rs_sorted_save;
+    dynstr_free(&rs_unsorted);
   }
 
   if (sp_created)
@@ -9225,11 +9228,11 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
        and the output should be checked against an already
        existing file which has been specified using --require or --result
     */
-    check_require(ds, command->require_file);
+    check_require(rs_output, command->require_file);
   }
 
-  if (ds == &ds_result)
-    dynstr_free(&ds_result);
+  if (rs_output == &rs_cmp_result)
+    dynstr_free(&rs_cmp_result);
   DBUG_VOID_RETURN;
 }
 
