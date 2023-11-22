@@ -9437,7 +9437,13 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
     {
       DBUG_ASSERT(all);
       DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT ||
-                  thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
+                  (thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+                   /*
+                     is_error() is false but there are traces of
+                     it was set in the statement.
+                     todo: remove the allowance condition by MDEV-32455
+                   */
+                   thd->get_stmt_da()->get_sql_errno()));
       DBUG_ASSERT(!thd->transaction->xid_state.is_recovered());
 
       handlerton *ht= ha_info->ht();
@@ -9448,7 +9454,8 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
       }
       else if (ht != binlog_hton)
       {
-        DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+        DBUG_ASSERT((thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+                     thd->get_stmt_da()->get_sql_errno()) /* MDEV-32455 */ ||
                     thd->transaction->xid_state.get_error() ==
                     ER_XA_RBROLLBACK);
 
