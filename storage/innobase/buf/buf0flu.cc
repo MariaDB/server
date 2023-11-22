@@ -655,7 +655,7 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
 
   ut_ad(!bpage->zip_size() || !page_compressed);
   /* Find free slot from temporary memory array */
-  *slot= buf_pool.io_buf_reserve();
+  *slot= buf_pool.io_buf_reserve(true);
   ut_a(*slot);
   (*slot)->allocate();
 

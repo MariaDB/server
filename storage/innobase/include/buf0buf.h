@@ -1900,7 +1900,8 @@ public:
   a delete-buffering operation is pending. Protected by mutex. */
   buf_page_t watch[innodb_purge_threads_MAX + 1];
   /** Reserve a buffer. */
-  buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
+  buf_tmp_buffer_t *io_buf_reserve(bool wait_for_reads)
+  { return io_buf.reserve(wait_for_reads); }
 
   /** Remove a block from flush_list.
   @param bpage   buffer pool page */
@@ -1935,7 +1936,7 @@ private:
     void close();
 
     /** Reserve a buffer */
-    buf_tmp_buffer_t *reserve();
+    buf_tmp_buffer_t *reserve(bool wait_for_reads);
   } io_buf;
 
   /** whether resize() is in the critical path */
