@@ -321,18 +321,6 @@ int spider_param_bka_table_name_type(
 int spider_param_use_cond_other_than_pk_for_update(
   THD *thd
 );
-int spider_param_store_last_sts(
-  int store_last_sts
-);
-int spider_param_store_last_crd(
-  int store_last_crd
-);
-int spider_param_load_sts_at_startup(
-  int load_sts_at_startup
-);
-int spider_param_load_crd_at_startup(
-  int load_crd_at_startup
-);
 int spider_param_slave_trx_isolation();
 int spider_param_remote_wait_timeout(
   THD *thd

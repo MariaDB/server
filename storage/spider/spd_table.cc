@@ -2180,13 +2180,9 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
   share->sts_bg_mode = -1;
   share->sts_interval = -1;
   share->sts_sync = -1;
-  share->store_last_sts = -1;
-  share->load_sts_at_startup = -1;
   share->crd_bg_mode = -1;
   share->crd_interval = -1;
   share->crd_sync = -1;
-  share->store_last_crd = -1;
-  share->load_crd_at_startup = -1;
   share->internal_offset = -1;
   share->internal_limit = -1;
   share->split_read = -1;
@@ -2677,10 +2673,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_INT_WITH_MAX("iom", internal_optimize, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("iol", internal_optimize_local, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("lmr", low_mem_read, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("lcs", 1104);
-        SPIDER_PARAM_INT_WITH_MAX("lcs", load_crd_at_startup, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("lss", 1104);
-        SPIDER_PARAM_INT_WITH_MAX("lss", load_sts_at_startup, 0, 1);
         SPIDER_PARAM_LONG_LIST_WITH_MAX("lst", link_statuses, 0, 3);
         SPIDER_PARAM_LONG_LIST_WITH_MAX("mbf", monitoring_bg_flag, 0, 1);
         SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
@@ -2720,11 +2712,7 @@ int spider_parse_connect_info(
         SPIDER_PARAM_DOUBLE("siv", sts_interval, 0);
         SPIDER_PARAM_STR_LIST("sky", tgt_ssl_keys);
         SPIDER_PARAM_STR_LIST("sli", static_link_ids);
-        SPIDER_PARAM_DEPRECATED_WARNING("slc", 1104);
-        SPIDER_PARAM_INT_WITH_MAX("slc", store_last_crd, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
-        SPIDER_PARAM_DEPRECATED_WARNING("sls", 1104);
-        SPIDER_PARAM_INT_WITH_MAX("sls", store_last_sts, 0, 1);
         SPIDER_PARAM_LONGLONG("smr", static_mean_rec_length, 0);
         SPIDER_PARAM_LONGLONG("spr", split_read, 0);
         SPIDER_PARAM_INT_WITH_MAX("sps", skip_parallel_search, 0, 3);
@@ -2832,10 +2820,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_LONG_LIST_WITH_MAX("access_balance", access_balances, 0,
                                         2147483647);
         SPIDER_PARAM_STR_LIST("static_link_id", static_link_ids);
-        SPIDER_PARAM_DEPRECATED_WARNING("store_last_crd", 1104);
-        SPIDER_PARAM_INT_WITH_MAX("store_last_crd", store_last_crd, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("store_last_sts", 1104);
-        SPIDER_PARAM_INT_WITH_MAX("store_last_sts", store_last_sts, 0, 1);
         error_num= parse.fail(true);
         goto error;
       case 15:
@@ -2918,12 +2902,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("bka_table_name_type", 1007);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
             bka_table_name_types, 0, 1);
-          SPIDER_PARAM_DEPRECATED_WARNING("load_crd_at_startup", 1104);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "load_crd_at_startup", load_crd_at_startup, 0, 1);
-          SPIDER_PARAM_DEPRECATED_WARNING("load_sts_at_startup", 1104);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "load_sts_at_startup", load_sts_at_startup, 0, 1);
           error_num = parse.fail(true);
           goto error;
         case 20:
@@ -5191,13 +5169,8 @@ bool spider_share_get_sts_crd(
 )
 {
   const bool same_server_link = spider_param_same_server_link(thd);
-  const int load_sts_at_startup =
-    spider_param_load_sts_at_startup(share->load_sts_at_startup);
-  const int load_crd_at_startup =
-    spider_param_load_crd_at_startup(share->load_crd_at_startup);
   DBUG_ENTER("spider_share_get_sts_crd");
-  if (!spider->error_mode &&
-      (!same_server_link || load_sts_at_startup || load_crd_at_startup))
+  if (!spider->error_mode && !same_server_link)
   {
     const double sts_interval = spider_param_sts_interval(thd, share->sts_interval);
     const int auto_increment_mode = spider_param_auto_increment_mode(
@@ -5234,7 +5207,7 @@ bool spider_share_get_sts_crd(
       }
     }
 
-    if ((!same_server_link || load_sts_at_startup) &&
+    if (!same_server_link &&
         (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
                                      spider, sts_interval, sts_sync,
                                      1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
@@ -5252,7 +5225,7 @@ bool spider_share_get_sts_crd(
       }
     }
 
-    if ((!same_server_link || load_crd_at_startup) &&
+    if (!same_server_link &&
         (*error_num = spider_get_crd(share, spider->search_link_idx, tmp_time,
                                      spider, table, crd_interval,
                                      crd_sync,

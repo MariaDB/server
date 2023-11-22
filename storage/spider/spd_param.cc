@@ -2043,90 +2043,6 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_VALUE_FUNC(int, use_cond_other_than_pk_for_update)
 
-static int spider_store_last_sts;
-/*
- -1 : fallback to default
-  0 : do not store
-  1 : do store
- */
-static MYSQL_SYSVAR_INT(
-  store_last_sts,
-  spider_store_last_sts,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Store last sts result into system table",
-  NULL,
-  spider_var_deprecated_int,
-  1,
-  -1,
-  1,
-  0
-);
-
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUNC(int, store_last_sts)
-
-static int spider_store_last_crd;
-/*
- -1 : fallback to default
-  0 : do not store
-  1 : do store
- */
-static MYSQL_SYSVAR_INT(
-  store_last_crd,
-  spider_store_last_crd,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Store last crd result into system table",
-  NULL,
-  spider_var_deprecated_int,
-  1,
-  -1,
-  1,
-  0
-);
-
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUNC(int, store_last_crd)
-
-static int spider_load_sts_at_startup;
-/*
- -1 : fallback to default
-  0 : do not load
-  1 : do load
- */
-static MYSQL_SYSVAR_INT(
-  load_sts_at_startup,
-  spider_load_sts_at_startup,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Load sts from system table at startup",
-  NULL,
-  spider_var_deprecated_int,
-  1,
-  -1,
-  1,
-  0
-);
-
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUNC(int, load_sts_at_startup)
-
-static int spider_load_crd_at_startup;
-/*
- -1 : fallback to default
-  0 : do not load
-  1 : do load
- */
-static MYSQL_SYSVAR_INT(
-  load_crd_at_startup,
-  spider_load_crd_at_startup,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Load crd from system table at startup",
-  NULL,
-  spider_var_deprecated_int,
-  1,
-  -1,
-  1,
-  0
-);
-
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUNC(int, load_crd_at_startup)
-
 static int spider_slave_trx_isolation;
 /*
  -1 :off
@@ -2344,13 +2260,9 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(second_read),
   MYSQL_SYSVAR(crd_interval),
   MYSQL_SYSVAR(crd_sync),
-  MYSQL_SYSVAR(store_last_crd),
-  MYSQL_SYSVAR(load_crd_at_startup),
   MYSQL_SYSVAR(crd_bg_mode),
   MYSQL_SYSVAR(sts_interval),
   MYSQL_SYSVAR(sts_sync),
-  MYSQL_SYSVAR(store_last_sts),
-  MYSQL_SYSVAR(load_sts_at_startup),
   MYSQL_SYSVAR(sts_bg_mode),
   MYSQL_SYSVAR(ping_interval_at_trx_start),
   MYSQL_SYSVAR(auto_increment_mode),

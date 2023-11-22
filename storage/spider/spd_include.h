@@ -809,18 +809,12 @@ typedef struct st_spider_share
   double             sts_interval;
   /** See `mysql_sysvar_sts_sync` */
   int                sts_sync;
-  int                store_last_sts;
-  /** See `mysql_sysvar_load_sts_at_startup` */
-  int                load_sts_at_startup;
   /** See `mysql_sysvar_crd_bg_mode` */
   int                crd_bg_mode;
   /** See `mysql_sysvar_crd_interval` */
   double             crd_interval;
   /** See `mysql_sysvar_crd_sync` */
   int                crd_sync;
-  int                store_last_crd;
-  /** See `mysql_sysvar_load_crd_at_startup` */
-  int                load_crd_at_startup;
   longlong           internal_offset;
   longlong           internal_limit;
   longlong           split_read;
