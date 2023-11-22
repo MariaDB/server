@@ -8613,7 +8613,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     set_current_thd(current->thd);
     if (current->cache_mngr->using_xa && likely(!current->error) &&
         DBUG_EVALUATE_IF("skip_commit_ordered", 0, 1))
-      run_commit_ordered(current->thd, current->all, leader->thd);
+      run_commit_ordered(current->thd, current->all);
     current->thd->wakeup_subsequent_commits(current->error);
 
     /*
@@ -9376,7 +9376,7 @@ TC_LOG::run_prepare_ordered(THD *thd, bool all)
   The completed XA transaction' xid is also removed from the system xid cache.
 */
 void
-TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
+TC_LOG::run_commit_ordered(THD *thd, bool all)
 {
   Ha_trx_info *ha_info=
     all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
@@ -9395,23 +9395,23 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
 
     plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                    MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
-    set_current_thd(thd);
     xid_cache_delete(thd);
-    set_current_thd(leader_thd);
 
     DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
-  }
-  // else
-  for (; ha_info; ha_info= ha_info->next())
-  {
-    handlerton *ht= ha_info->ht();
 
-    if (is_preparing_xa(thd))
+    return;
+  }
+
+  // else
+  if (is_preparing_xa(thd))
+  {
+    for (; ha_info; ha_info= ha_info->next())
     {
       DBUG_ASSERT(all);
       DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_PREPARE);
       DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
 
+      handlerton *ht= ha_info->ht();
       if (!ht->prepare)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -9424,15 +9424,17 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
       {
         ht->prepare(ht, thd, all);
       }
-      if (!ha_info->next()
-          && thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
-      {
-        thd->transaction->xid_state.set_state_code(XA_PREPARED);
-        thd->transaction->xid_state.set_cache_element_to_recovered();
-        thd->transaction->xid_state.xid_cache_element= 0;
-      }
     }
-    else if (thd->transaction->xid_state.is_explicit_XA())
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+    {
+      thd->transaction->xid_state.set_state_code(XA_PREPARED);
+      thd->transaction->xid_state.set_cache_element_to_recovered();
+      thd->transaction->xid_state.xid_cache_element= 0;
+    }
+  }
+  else if (thd->transaction->xid_state.is_explicit_XA())
+  {
+    for (; ha_info; ha_info= ha_info->next())
     {
       DBUG_ASSERT(all);
       DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT ||
@@ -9445,6 +9447,7 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
                    thd->get_stmt_da()->get_sql_errno()));
       DBUG_ASSERT(!thd->transaction->xid_state.is_recovered());
 
+      handlerton *ht= ha_info->ht();
       if (thd->lex->sql_command == SQLCOM_XA_COMMIT)
       {
         if (ht->commit_ordered)
@@ -9459,29 +9462,27 @@ TC_LOG::run_commit_ordered(THD *thd, bool all, THD *leader_thd)
 
         ht->rollback(ht, thd, all);
       }
-
-      if (!ha_info->next())
-      {
-        set_current_thd(thd);
-        xid_cache_delete(thd);    // trx is completed now
-        set_current_thd(leader_thd);
-
-        DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
-      }
     }
-    else
+    xid_cache_delete(thd);    // trx is completed now
+
+    DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
+  }
+  else
+  {
+    for (; ha_info; ha_info= ha_info->next())
     {
+      handlerton *ht= ha_info->ht();
       if (!ht->commit_ordered)
         continue;
 
       ht->commit_ordered(ht, thd, all);
-    }
-    DBUG_EXECUTE_IF("enable_log_write_upto_crash",
+      DBUG_EXECUTE_IF("enable_log_write_upto_crash",
       {
         DBUG_SET_INITIAL("+d,crash_after_log_write_upto");
         sleep(1000);
       });
-    DEBUG_SYNC(thd, "commit_after_run_commit_ordered");
+      DEBUG_SYNC(thd, "commit_after_run_commit_ordered");
+    }
   }
 }
 

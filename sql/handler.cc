@@ -1537,25 +1537,14 @@ int ha_prepare(THD *thd)
       goto err;
     }
 
-    for (bool slave_wait_done= !thd->rgi_slave; !has_binlog && ha_info;
-         ha_info= ha_info->next())
+    for (; !has_binlog && ha_info; ha_info= ha_info->next())
     {
       handlerton *ht= ha_info->ht();
 
-      if (ht == binlog_hton)
-        continue;
+      DBUG_ASSERT(ht != binlog_hton);
 
       if (ht->prepare)
       {
-        if (!slave_wait_done)
-        {
-          if (thd->wait_for_prior_commit())
-          {
-            error= 1;
-            break;
-          }
-          slave_wait_done= true;
-        }
         if (unlikely(prepare_or_error(ht, thd, all)))
         {
           ha_rollback_trans(thd, all);
@@ -2399,7 +2388,7 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd)
 
   if (!skip_binlog)
   {
-    // when binlog is ON start from from its transaction branch
+    // when binlog is ON start from its transaction branch
     if (commit)
       binlog_commit_by_xid(binlog_hton, xid);
     else

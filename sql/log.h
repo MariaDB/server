@@ -78,7 +78,7 @@ protected:
     LOCK_commit_ordered when calling these methods.
   */
   void run_prepare_ordered(THD *thd, bool all);
-  void run_commit_ordered(THD *thd, bool all, THD *leader_thd= NULL);
+  void run_commit_ordered(THD *thd, bool all);
 };
 
 /*
