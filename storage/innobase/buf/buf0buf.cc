@@ -414,7 +414,7 @@ static bool buf_page_decrypt_after_read(buf_page_t *bpage,
 
 	if (node.space->purpose == FIL_TYPE_TEMPORARY
 	    && innodb_encrypt_temporary_tables) {
-		slot = buf_pool.io_buf_reserve();
+		slot = buf_pool.io_buf_reserve(false);
 		ut_a(slot);
 		slot->allocate();
 
@@ -444,7 +444,7 @@ decompress:
 			return false;
 		}
 
-		slot = buf_pool.io_buf_reserve();
+		slot = buf_pool.io_buf_reserve(false);
 		slot->allocate();
 
 decompress_with_slot:
@@ -471,7 +471,7 @@ decrypt_failed:
 			return false;
 		}
 
-		slot = buf_pool.io_buf_reserve();
+		slot = buf_pool.io_buf_reserve(false);
 		slot->allocate();
 		ut_d(fil_page_type_validate(node.space, dst_frame));
 
@@ -1513,14 +1513,17 @@ void buf_pool_t::io_buf_t::close()
   n_slots= 0;
 }
 
-buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve()
+buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve(bool wait_for_reads)
 {
   for (;;)
   {
     for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
       if (s->acquire())
         return s;
+    buf_dblwr.flush_buffered_writes();
     os_aio_wait_until_no_pending_writes();
+    if (!wait_for_reads)
+      continue;
     for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
       if (s->acquire())
         return s;
