@@ -4208,11 +4208,17 @@ bool mysql_show_binlog_events(THD* thd)
       }
     }
 
+    /*
+      Omit error messages from server log in Log_event::read_log_event. That
+      is, we only need to notify the client to correct their 'from' offset;
+      writing about this in the server log would be confusing as it isn't
+      related to server operational status.
+    */
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log,
                                          description_event,
                                          (opt_master_verify_checksum ||
-                                          verify_checksum_once))); )
+                                          verify_checksum_once), false)); )
     {
       if (event_count >= limit_start &&
           ev->net_send(protocol, linfo.log_file_name, pos))
