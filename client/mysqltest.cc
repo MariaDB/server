@@ -1719,7 +1719,7 @@ void log_msg(const char *fmt, ...)
   va_end(args);
 
   dynstr_append_mem(&ds_res, buff, len);
-  dynstr_append(&ds_res, "\n");
+  dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
 
   DBUG_VOID_RETURN;
 }
@@ -1854,7 +1854,7 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
     die("Out of memory");
 
   dynstr_append_os_quoted(&ds_cmdline, tool_path, NullS);
-  dynstr_append(&ds_cmdline, " ");
+  dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN(" "));
 
   va_start(args, ds_res);
 
@@ -1865,13 +1865,13 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
       dynstr_append_os_quoted(&ds_cmdline, arg, NullS);
     else
       dynstr_append(&ds_cmdline, arg);
-    dynstr_append(&ds_cmdline, " ");
+    dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN(" "));
   }
 
   va_end(args);
 
 #ifdef _WIN32
-  dynstr_append(&ds_cmdline, "\"");
+  dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN("\""));
 #endif
 
   DBUG_PRINT("info", ("Running: %s", ds_cmdline.str));
@@ -2006,8 +2006,8 @@ void show_diff(DYNAMIC_STRING* ds,
       Fallback to dump both files to result file and inform
       about installing "diff"
     */
-	dynstr_append(&ds_tmp, "\n");
-    dynstr_append(&ds_tmp,
+    char message[]=
+"\n"
 "\n"
 "The two files differ but it was not possible to execute 'diff' in\n"
 "order to show only the difference. Instead the whole content of the\n"
@@ -2017,17 +2017,18 @@ void show_diff(DYNAMIC_STRING* ds,
 #ifdef _WIN32
 "or http://gnuwin32.sourceforge.net/packages/diffutils.htm\n"
 #endif
-"\n");
+"\n";
+    dynstr_append_mem(&ds_tmp, message, sizeof(message));
 
-    dynstr_append(&ds_tmp, " --- ");
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" --- "));
     dynstr_append(&ds_tmp, filename1);
-    dynstr_append(&ds_tmp, " >>>\n");
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
     cat_file(&ds_tmp, filename1);
-    dynstr_append(&ds_tmp, "<<<\n --- ");
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<\n --- "));
     dynstr_append(&ds_tmp, filename1);
-    dynstr_append(&ds_tmp, " >>>\n");
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
     cat_file(&ds_tmp, filename2);
-    dynstr_append(&ds_tmp, "<<<<\n");
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<<\n"));
   }
 
   if (ds)
@@ -2806,9 +2807,9 @@ do_result_format_version(struct st_command *command)
 
   set_result_format_version(version);
 
-  dynstr_append(&ds_res, "result_format: ");
+  dynstr_append_mem(&ds_res, STRING_WITH_LEN("result_format: "));
   dynstr_append_mem(&ds_res, ds_version.str, ds_version.length);
-  dynstr_append(&ds_res, "\n");
+  dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
   dynstr_free(&ds_version);
 }
 
@@ -3355,7 +3356,7 @@ void do_exec(struct st_command *command)
   if (disable_result_log)
   {
     /* Collect stderr output as well, for the case app. crashes or returns error.*/
-    dynstr_append(&ds_cmd, " 2>&1");
+    dynstr_append_mem(&ds_cmd, STRING_WITH_LEN(" 2>&1"));
   }
 
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
@@ -3557,9 +3558,9 @@ void do_system(struct st_command *command)
     else
     {
       /* If ! abort_on_error, log message and continue */
-      dynstr_append(&ds_res, "system command '");
+      dynstr_append_mem(&ds_res, STRING_WITH_LEN("system command '"));
       replace_dynstr_append(&ds_res, command->first_argument);
-      dynstr_append(&ds_res, "' failed\n");
+      dynstr_append_mem(&ds_res, STRING_WITH_LEN("' failed\n"));
     }
   }
 
@@ -4026,7 +4027,7 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
         wild_compare(file->name, ds_wild->str, 0))
       continue;
     replace_dynstr_append(ds, file->name);
-    dynstr_append(ds, "\n");
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
   set_wild_chars(0);
   my_dirend(dir_info);
@@ -7684,9 +7685,10 @@ void append_metadata(DYNAMIC_STRING *ds,
                      uint num_fields)
 {
   MYSQL_FIELD *field_end;
-  dynstr_append(ds,"Catalog\tDatabase\tTable\tTable_alias\tColumn\t"
-                "Column_alias\tType\tLength\tMax length\tIs_null\t"
-                "Flags\tDecimals\tCharsetnr\n");
+  dynstr_append_mem(ds, STRING_WITH_LEN(
+                    "Catalog\tDatabase\tTable\tTable_alias\tColumn\t"
+                    "Column_alias\tType\tLength\tMax length\tIs_null\t"
+                    "Flags\tDecimals\tCharsetnr\n"));
 
   for (field_end= field+num_fields ;
        field < field_end ;
@@ -7738,9 +7740,9 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
   dynstr_append(ds, buf);
   if (info)
   {
-    dynstr_append(ds, "info: ");
+    dynstr_append_mem(ds, STRING_WITH_LEN("info: "));
     dynstr_append(ds, info);
-    dynstr_append_mem(ds, "\n", 1);
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
 }
 
@@ -7764,34 +7766,41 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
                                        (enum_session_state_type) type,
                                        &data, &data_length))
     {
-      dynstr_append(ds, "-- ");
+      dynstr_append_mem(ds, STRING_WITH_LEN("-- "));
       switch (type)
       {
         case SESSION_TRACK_SYSTEM_VARIABLES:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_SYSTEM_VARIABLES\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN(
+                           "Tracker : SESSION_TRACK_SYSTEM_VARIABLES\n"));
           break;
         case SESSION_TRACK_SCHEMA:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_SCHEMA\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN(
+                            "Tracker : SESSION_TRACK_SCHEMA\n"));
           break;
         case SESSION_TRACK_STATE_CHANGE:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_STATE_CHANGE\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN(
+                            "Tracker : SESSION_TRACK_STATE_CHANGE\n"));
           break;
         case SESSION_TRACK_GTIDS:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_GTIDS\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN(
+                            "Tracker : SESSION_TRACK_GTIDS\n"));
           break;
         case SESSION_TRACK_TRANSACTION_CHARACTERISTICS:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_CHARACTERISTICS\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN(
+                           "Tracker : "
+                           "SESSION_TRACK_TRANSACTION_CHARACTERISTICS\n"));
           break;
         case SESSION_TRACK_TRANSACTION_TYPE:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_TYPE\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN(
+                            "Tracker : SESSION_TRACK_TRANSACTION_TYPE\n"));
           break;
         default:
           DBUG_ASSERT(0);
-          dynstr_append(ds, "\n");
+          dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
       }
 
 
-      dynstr_append(ds, "-- ");
+      dynstr_append_mem(ds, STRING_WITH_LEN("-- "));
       dynstr_append_mem(ds, data, data_length);
     }
     else
@@ -7800,10 +7809,10 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
                                         (enum_session_state_type) type,
                                         &data, &data_length))
     {
-      dynstr_append(ds, "\n-- ");
+      dynstr_append_mem(ds, STRING_WITH_LEN("\n-- "));
       dynstr_append_mem(ds, data, data_length);
     }
-    dynstr_append(ds, "\n\n");
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n\n"));
   }
 #endif /* EMBEDDED_LIBRARY */
 }
@@ -8198,7 +8207,8 @@ void handle_error(struct st_command *command,
       else if (command->expected_errors.err[0].type == ERR_SQLSTATE ||
                (command->expected_errors.err[0].type == ERR_ERRNO &&
                 command->expected_errors.err[0].code.errnum != 0))
-        dynstr_append(ds,"Got one of the listed errors\n");
+        dynstr_append_mem(ds, STRING_WITH_LEN("Got one of the listed "
+                                              "errors\n"));
     }
     /* OK */
     revert_properties();
@@ -10232,7 +10242,7 @@ int main(int argc, char **argv)
         if (p && *p == '#' && *(p+1) == '#')
         {
           dynstr_append_mem(&ds_res, command->query, command->query_len);
-          dynstr_append(&ds_res, "\n");
+          dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
         }
 	break;
       }
@@ -10245,7 +10255,7 @@ int main(int argc, char **argv)
         if (disable_query_log)
           break;
 
-        dynstr_append(&ds_res, "\n");
+        dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
         break;
       case Q_PING:
         handle_command_error(command, mysql_ping(cur_con->mysql), -1);
@@ -11886,7 +11896,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
   {
     const char **line= dynamic_element(&lines, i, const char**);
     dynstr_append(ds, *line);
-    dynstr_append(ds, "\n");
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
 
   delete_dynamic(&lines);
