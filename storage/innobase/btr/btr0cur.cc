@@ -4338,7 +4338,7 @@ btr_cur_update_in_place(
 	}
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-		row_upd_rec_sys_fields(rec, NULL, index, offsets,
+		row_upd_rec_sys_fields(rec, page_zip, index, offsets,
 				       thr_get_trx(thr), roll_ptr);
 	}
 
