@@ -78,10 +78,7 @@ sub _gdb {
   my ($tmp, $tmp_name) = tempfile();
   print $tmp
     "bt\n",
-    "set print sevenbit on\n",
-    "set print static-members off\n",
-    "set print frame-arguments all\n",
-    "thread apply all bt full\n",
+    "thread apply all bt\n",
     "quit\n";
   close $tmp or die "Error closing $tmp_name: $!";
 
