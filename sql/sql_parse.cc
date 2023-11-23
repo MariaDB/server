@@ -3454,6 +3454,44 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
   return false;
 }
 
+#ifdef WITH_WSREP
+/** RAII Helper class to start streaming replication if wsrep is enabled
+    and end it when destructor is called if it was enabled.
+*/
+class Wsrep_start_sr
+{
+public:
+  Wsrep_start_sr(THD*thd, bool start)
+    : m_thd(thd)
+    , m_sr_started(false)
+  {
+    size_t fs= thd->wsrep_trx().streaming_context().fragment_size();
+
+    // We start streaming replication only if it is not yet started
+    if (start && fs == 0)
+    {
+      m_fragment_unit = thd->wsrep_trx().streaming_context().fragment_unit();
+      m_fragment_size = fs;
+      m_sr_started= true;
+      m_thd->wsrep_cs().streaming_params(wsrep::streaming_context::row, 10000);
+    }
+  }
+
+  ~Wsrep_start_sr()
+  {
+    if (m_sr_started)
+    {
+      /* Restore original settings */
+      m_thd->wsrep_cs().streaming_params(m_fragment_unit, m_fragment_size);
+    }
+  }
+private:
+  THD *m_thd;
+  bool m_sr_started;
+  enum wsrep::streaming_context::fragment_unit m_fragment_unit;
+  size_t m_fragment_size;
+};
+#endif /* WITH_WSREP */
 
 /**
   Execute command saved in thd and lex->sql_command.
@@ -4650,10 +4688,15 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if ((res= insert_precheck(thd, all_tables)))
       break;
+
 #ifdef WITH_WSREP
-    if (WSREP(thd) && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    bool wsrep_toi= false;
+    const bool wsrep= WSREP(thd);
+
+    if (wsrep && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
+      wsrep_toi= true;
       WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
     }
 #endif /* WITH_WSREP */
@@ -4688,6 +4731,28 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
+
+#ifdef WITH_WSREP
+      if (wsrep && !first_table->view)
+      {
+        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+
+        // For consistency check inserted table needs to be InnoDB
+        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              HA_ERR_UNSUPPORTED,
+                              "Galera cluster does support consistency check only"
+                              " for InnoDB tables.");
+          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+        }
+
+        // For !InnoDB we start TOI if it is not yet started and hope for the best
+        if (!is_innodb && !wsrep_toi)
+          WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+      }
+#endif /* WITH_WSREP */
+
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
