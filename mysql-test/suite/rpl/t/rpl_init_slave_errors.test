@@ -78,7 +78,7 @@ reset slave;
 
 SET GLOBAL init_slave= "garbage";
 
-start slave;
+start slave sql_thread;
 # 1064 = ER_PARSE_ERROR
 --let $slave_sql_errno= 1064
 --let $show_slave_sql_error= 1
@@ -90,7 +90,6 @@ start slave;
 SET GLOBAL init_slave= "";
 
 # Clean up Last_SQL_Error
---source include/stop_slave_io.inc
 RESET SLAVE;
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc
