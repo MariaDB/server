@@ -22,7 +22,7 @@ EOF
 fi
 
 echo _WSREP_NEW_CLUSTER='--wsrep-new-cluster' > @mysqlunixdir@/"wsrep-new-cluster" && \
-    systemctl restart ${1:-mariadb}
+    systemctl restart mariadb.service
 
 extcode=$?
 
