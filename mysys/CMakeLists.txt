@@ -34,7 +34,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_static.c my_symlink.c my_symlink2.c my_sync.c my_thr_init.c 
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
-				string.c thr_alarm.c thr_lock.c thr_mutex.c
+				string.c thr_lock.c thr_mutex.c
 				thr_rwlock.c thr_timer.c
                                 tree.c typelib.c base64.c my_memmem.c
                                 my_getpagesize.c
@@ -156,10 +156,6 @@ ENDIF()
 
 IF(UNIX)
  SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_addr_resolve.c my_setuser.c)
-ENDIF()
-
-IF(HAVE_ALARM)
- SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_alarm.c)
 ENDIF()
 
 IF(HAVE_MLOCK)

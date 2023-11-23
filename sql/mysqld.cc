@@ -113,7 +113,6 @@
 #include <sys/prctl.h>
 #endif
 
-#include <thr_alarm.h>
 #include <ft_global.h>
 #include <errmsg.h>
 #include "sp_rcontext.h"
@@ -134,6 +133,9 @@
 #endif
 
 #include <my_service_manager.h>
+#ifdef __linux__
+#include <sys/eventfd.h>
+#endif
 
 #include <source_revision.h>
 
@@ -1387,6 +1389,7 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
+static int termination_event_fd= -1;
 
 
 C_MODE_START
@@ -1670,10 +1673,29 @@ static void break_connect_loop()
     int UNINIT_VAR(error);
     DBUG_PRINT("info",("Waiting for select thread"));
 
-#ifndef DONT_USE_THR_ALARM
-    if (pthread_kill(select_thread, thr_client_alarm))
-      break;					// allready dead
-#endif
+    {
+      /*
+        Cannot call shutdown on systemd socket activated descriptors
+        as their clone in the pid 1 is reused.
+      */
+      int lowest_fd, shutdowns= 0;
+      lowest_fd= sd_listen_fds(0) + SD_LISTEN_FDS_START;
+      for(size_t i= 0; i < listen_sockets.size(); i++)
+      {
+        int fd= mysql_socket_getfd(listen_sockets.at(i));
+        if (fd >= lowest_fd)
+        {
+          shutdowns++;
+          mysql_socket_shutdown(listen_sockets.at(i), SHUT_RDWR);
+        }
+      }
+      if (!shutdowns && termination_event_fd >=0)
+      {
+        uint64_t u= 1;
+        if (write(termination_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
+          sql_print_error("Couldn't send event to terminate listen loop");
+      }
+    }
     set_timespec(abstime, 2);
     for (uint tmp=0 ; tmp < 10 && select_thread_in_use; tmp++)
     {
@@ -1687,6 +1709,8 @@ static void break_connect_loop()
       sql_print_error("Got error %d from mysql_cond_timedwait", error);
 #endif
   }
+  if (termination_event_fd >= 0)
+    close(termination_event_fd);
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* _WIN32 */
 }
@@ -1764,8 +1788,6 @@ static void close_connections(void)
   */
   listen_sockets.free_memory();
   mysql_mutex_unlock(&LOCK_start_thread);
-
-  end_thr_alarm(0);			 // Abort old alarms.
 
   while (CONNECT::count)
     my_sleep(100);
@@ -1876,10 +1898,6 @@ extern "C" sig_handler print_signal_warning(int sig)
                       (uint)my_thread_id());
 #ifdef SIGNAL_HANDLER_RESET_ON_DELIVERY
   my_sigset(sig,print_signal_warning);		/* int. thread system calls */
-#endif
-#if !defined(_WIN32)
-  if (sig == SIGALRM)
-    alarm(2);					/* reschedule alarm */
 #endif
 }
 
@@ -2027,7 +2045,6 @@ static void clean_up(bool print_message)
   multi_keycache_free();
   sp_cache_end();
   free_status_vars();
-  end_thr_alarm(1);			/* Free allocated memory */
   end_thr_timer();
   my_free_open_file_info();
   if (defaults_argv)
@@ -2651,6 +2668,9 @@ static void use_systemd_activated_sockets()
     listen_sockets.push(sock);
   }
   systemd_sock_activation= 1;
+  termination_event_fd= eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
+  if (termination_event_fd == -1)
+    sql_print_warning("eventfd failed %d", errno);
   free(names);
 
   DBUG_VOID_RETURN;
@@ -3110,8 +3130,6 @@ void init_signals(void)
   struct sigaction sa;
   DBUG_ENTER("init_signals");
 
-  my_sigset(THR_SERVER_ALARM,print_signal_warning); // Should never be called!
-
   if (opt_stack_trace || (test_flags & TEST_CORE_ON_SIGNAL))
   {
     sa.sa_flags = SA_RESETHAND | SA_NODEFER;
@@ -3159,7 +3177,6 @@ void init_signals(void)
   sa.sa_flags = 0;
   sa.sa_handler = print_signal_warning;
   sigaction(SIGHUP, &sa, (struct sigaction*) 0);
-  sigaddset(&set,THR_SERVER_ALARM);
   if (test_flags & TEST_SIGINT)
   {
     /* Allow SIGINT to break mysqld. This is for debugging with --gdb */
@@ -3220,7 +3237,7 @@ pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
 #endif
 
 
-/** This threads handles all signals and alarms. */
+/** This threads handles all signals */
 /* ARGSUSED */
 pthread_handler_t signal_hand(void *arg __attribute__((unused)))
 {
@@ -3230,13 +3247,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
-  /*
-    Setup alarm handler
-    This should actually be '+ max_number_of_slaves' instead of +10,
-    but the +10 should be quite safe.
-  */
-  init_thr_alarm(thread_scheduler->max_threads + extra_max_connections +
-		 global_system_variables.max_insert_delayed_threads + 10);
   if (test_flags & TEST_SIGINT)
   {
     /* Allow SIGINT to break mysqld. This is for debugging with --gdb */
@@ -3245,9 +3255,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     (void) pthread_sigmask(SIG_UNBLOCK,&set,NULL);
   }
   (void) sigemptyset(&set);			// Setup up SIGINT for debug
-#ifdef USE_ONE_SIGNAL_HAND
-  (void) sigaddset(&set,THR_SERVER_ALARM);	// For alarms
-#endif
 #ifndef IGNORE_SIGHUP_SIGQUIT
   (void) sigaddset(&set,SIGQUIT);
   (void) sigaddset(&set,SIGHUP);
@@ -3311,7 +3318,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
                           error);
 #else
         my_sigset(sig, SIG_IGN);
-        break_connect_loop(); // MIT THREAD has a alarm thread
+        break_connect_loop(); 
 #endif
       }
       break;
@@ -3341,11 +3348,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
                             opt_log ? fixed_log_output_options : LOG_NONE);
       }
       break;
-#ifdef USE_ONE_SIGNAL_HAND
-    case THR_SERVER_ALARM:
-      process_alarm(sig);			// Trigger alarms.
-      break;
-#endif
     default:
 #ifdef EXTRA_DEBUG
       sql_print_warning("Got signal: %d  error: %d",sig,error); /* purecov: tested */
@@ -5854,7 +5856,7 @@ int mysqld_main(int argc, char **argv)
 #endif
 
   /*
-    init signals & alarm
+    init signals
     After this we can't quit by a simple unireg_abort
   */
   start_signal_handler();				// Creates pidfile
@@ -6288,6 +6290,18 @@ void handle_connections_sockets()
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
 #endif
+  if (termination_event_fd >= 0)
+  {
+#ifdef HAVE_POLL
+    struct pollfd event_fd;
+    event_fd.fd= termination_event_fd;
+    event_fd.events= POLLIN;
+    fds.push(event_fd);
+#else
+    FD_SET(termination_event_fd, &clientFDs);
+#endif
+    /* no need to read this fd, abrt_loop is set before it gets a chance */
+  }
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");

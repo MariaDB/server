@@ -16,12 +16,8 @@
 #include "mysys_priv.h"
 #include "mysys_err.h"
 #include <errno.h>
-#undef MY_HOW_OFTEN_TO_ALARM
-#define MY_HOW_OFTEN_TO_ALARM ((int) my_time_to_wait_for_lock)
-#ifdef NO_ALARM_LOOP
-#undef NO_ALARM_LOOP
-#endif
-#include <my_alarm.h>
+/* Wait timeout for short lock (2 seconds) */
+#define NANOSECONDS_TO_WAIT_FOR_LOCK 2000000000ULL
 
 #ifdef _WIN32
 #define WIN_LOCK_INFINITE -1
@@ -139,7 +135,6 @@ int my_lock(File fd, int locktype, my_off_t start, my_off_t length,
 {
 #ifdef HAVE_FCNTL
   int value;
-  ALARM_VARIABLES;
 #endif
 
   DBUG_ENTER("my_lock");
@@ -171,6 +166,7 @@ int my_lock(File fd, int locktype, my_off_t start, my_off_t length,
 
     if (MyFlags & (MY_NO_WAIT | MY_SHORT_WAIT))
     {
+      ulonglong end_time;
       if (fcntl(fd,F_SETLK,&lock) != -1)	/* Check if we can lock */
 	DBUG_RETURN(0);                         /* Ok, file locked */
       if (MyFlags & MY_NO_WAIT)
@@ -179,14 +175,16 @@ int my_lock(File fd, int locktype, my_off_t start, my_off_t length,
         DBUG_RETURN(-1);
       }
 
-      DBUG_PRINT("info",("Was locked, trying with alarm"));
-      ALARM_INIT;
-      while ((value=fcntl(fd,F_SETLKW,&lock)) && ! ALARM_TEST &&
-	     errno == EINTR)
-      {			/* Setup again so we don`t miss it */
-	ALARM_REINIT;
+      DBUG_PRINT("info",("Was locked, trying with timeout"));
+      end_time= my_interval_timer() + NANOSECONDS_TO_WAIT_FOR_LOCK;
+      while ((value= fcntl(fd, F_SETLKW, &lock)) == -1)
+      {
+        if (errno != EACCES && errno != EAGAIN && errno != EINTR)
+          break;
+        if (my_interval_timer() > end_time)
+          break;
+        my_sleep(1000);
       }
-      ALARM_END;
       if (value != -1)
 	DBUG_RETURN(0);
       if (errno == EINTR)

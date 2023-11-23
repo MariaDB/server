@@ -48,7 +48,6 @@
 #include "sql_audit.h"
 #include <m_ctype.h>
 #include <sys/stat.h>
-#include <thr_alarm.h>
 #include <mysys_err.h>
 #include <limits.h>
 
@@ -1902,9 +1901,6 @@ void THD::awake_no_mutex(killed_state state_to_set)
         vio_shutdown(active_vio, SHUT_RDWR);
     }
 #endif
-
-    /* Mark the target thread's alarm request expired, and signal alarm. */
-    thr_alarm_kill(thread_id);
 
     /* Send an event to the scheduler that a thread should be killed. */
     if (!slave_thread)
