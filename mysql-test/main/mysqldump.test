@@ -2482,7 +2482,7 @@ INSERT INTO t2 VALUES (3), (4);
 SELECT * FROM t1;
 SELECT * FROM t2;
 
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ db_20772273
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=2 db_20772273
 --exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t1.sql
 --exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t2.sql
 
@@ -3023,3 +3023,20 @@ drop table t1;
 --replace_result mariadb-dump.exe mariadb-dump
 --error 1
 --exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp 2>&1
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
+# MDEV-32589 parallel-mysqldump - test "too many connections"
+select @@max_connections into @save_max_connections;
+set global max_connections=10;
+--replace_result mariadb-dump.exe mariadb-dump
+--error 2
+--exec $MYSQL_DUMP --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=20 mysql 2>&1
+# MDEV-32589 test builtin 256 connections limit
+set global max_connections=300;
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=280 mysql 2>&1
+set global max_connections=@save_max_connections;
