@@ -226,7 +226,7 @@ sub mtr_compress_file ($) {
   }
   else
   {
-    my $gzres= system("gzip $filename");
+    my $gzres= system("gzip -f $filename");
     $did_compress= ! $gzres;
     if ($gzres && $gzres != -1) {
       mtr_error ("Error: have gzip but it fails to compress core file");
