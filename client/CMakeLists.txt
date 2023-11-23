@@ -53,7 +53,7 @@ SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
 MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)
 TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c)
+MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c)
