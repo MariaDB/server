@@ -6347,5 +6347,49 @@ SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
 SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
 
 --echo #
+--echo # MDEV-29070 SIGSEGV in my_decimal::operator= and Assertion `0' failed
+--echo # in Item_type_holder::val_decimal on SELECT
+--echo #
+
+CREATE TABLE t1(a INT UNIQUE);
+INSERT INTO t1(a) VALUES (1);
+
+SELECT a FROM t1 WHERE (SELECT a, a UNION SELECT 1, a FROM t1) IN (SELECT 1, 1);
+
+SELECT a FROM t1 WHERE (SELECT a, a UNION SELECT 1, a FROM t1) IN (SELECT a, a);
+
+UPDATE t1 SET a = 0
+  WHERE (SELECT a, a WHERE a < 0 INTERSECT
+         SELECT +1 / +1, a FROM t1 WHERE a > -0+1) IN (SELECT a, a);
+
+SELECT a FROM t1 WHERE (SELECT a, a WHERE a < 0 INTERSECT
+                        SELECT + 1 / + 1, a FROM t1
+  WHERE a > -0 + 1) IN (SELECT a, a);
+
+CREATE TABLE x (x INT);
+INSERT INTO x (x) VALUES (1);
+UPDATE x SET x = 1 WHERE x = 1;
+INSERT INTO x (x) VALUES (1), (1);
+let $q= WITH RECURSIVE x (x) AS (
+  SELECT 1 INTERSECT
+  SELECT -(SELECT 1.000000 AS x
+           UNION
+           SELECT 1.000000 ORDER BY NOT x < 'x',
+                                    -(SELECT 1 + x/1.000000 IN (1, 1) FROM x
+                                    WHERE x ORDER BY 1 - x) DESC LIMIT 1 OFFSET 1
+           ) + 1 FROM x
+  )
+  SELECT DISTINCT x, 1, NULL, 1.000000
+  FROM x
+  WHERE (SELECT (SELECT x WHERE x IN (SELECT x FROM x))) >
+        (SELECT (SELECT x ORDER BY x = x OR (x = 1 AND x = 1) DESC))
+        ORDER BY x ASC, x DESC, x;
+
+--error ER_TRUNCATED_WRONG_VALUE
+eval $q;
+
+DROP TABLE t1, x;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
