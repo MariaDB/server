@@ -781,6 +781,8 @@ SELECT STRAIGHT_JOIN sq1.f2
 
 set @optimizer_switch_save=@@optimizer_switch;
 
+--disable_ps2_protocol
+
 #--view-protocol is disabled because view gives another query plan
 --disable_view_protocol
 
@@ -791,6 +793,8 @@ set optimizer_switch='exists_to_in=on';
 eval explain extended $q;
 eval $q;
 --enable_view_protocol
+
+--enable_ps2_protocol
 
 set optimizer_switch= @optimizer_switch_save;
  

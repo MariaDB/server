@@ -513,7 +513,9 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--disable_ps2_protocol
 SELECT f1();
+--enable_ps2_protocol
 DROP FUNCTION f1;
 DROP VIEW v1;
 DROP TABLE t1;

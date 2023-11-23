@@ -2440,6 +2440,13 @@ public:
   */
   const char *proc_info;
 
+  inline bool is_first_query_execution()
+  {
+    return  (stmt_arena->is_conventional() ||
+             stmt_arena->state != Query_arena::STMT_EXECUTED) &&
+            !stmt_arena->is_stmt_prepare();
+  }
+
 private:
   unsigned int m_current_stage_key;
 

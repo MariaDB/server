@@ -1268,12 +1268,14 @@ set @@optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
 --echo # 1) Test that subquery materialization is setup for query with
 --echo #    premature optimize() exit due to "Impossible WHERE"
 --echo #
+--disable_ps2_protocol
 SELECT MIN(t2.pk)
 FROM t2 JOIN t1 ON t1.pk=t2.pk
 WHERE 'j'
 HAVING ('m') IN ( 
 SELECT v
 FROM t2);
+--enable_ps2_protocol
 
 --echo
 EXPLAIN

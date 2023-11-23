@@ -10539,6 +10539,8 @@ DROP TABLE t1;
 --echo # MDEV-23902: MariaDB crash on calling function
 --echo #
 
+--disable_ps2_protocol
+
 --delimiter |
 CREATE FUNCTION f2 () RETURNS VARCHAR(1)
 BEGIN
@@ -10566,6 +10568,8 @@ DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
 DROP VIEW v1;
+
+--enable_ps2_protocol
 
 --echo # End of 10.4 tests
 --echo #

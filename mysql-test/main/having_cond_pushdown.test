@@ -1449,8 +1449,10 @@ CREATE TABLE t1 (i int NOT NULL);
 SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL);
 #dublicate warning
 --disable_view_protocol
+--disable_ps2_protocol
 SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL AND 'x' = 0);
 SELECT * FROM t1 GROUP BY i HAVING i='1' IN ( i IS NULL AND 'x' = 0);
+--disable_ps2_protocol
 --enable_view_protocol
 DROP TABLE t1;
 

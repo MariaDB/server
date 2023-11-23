@@ -5669,6 +5669,12 @@ public:
   { return get_item_copy<Item_direct_ref>(thd, this); }
   Item *remove_item_direct_ref()
   { return (*ref)->remove_item_direct_ref(); }
+  void cleanup()
+  {
+    if (ref && *ref)
+      (*ref)->cleanup();
+    Item_ref::cleanup();
+  }
 };
 
 
@@ -7742,6 +7748,7 @@ public:
       if (!copy)
         return 0;
       copy->set_item(clone_item);
+      copy->ref= &copy->m_item;
       return copy;
     }
     return 0;

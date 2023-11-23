@@ -11,6 +11,7 @@ if (`SELECT $PS_PROTOCOL = 0`)
 # Test the --enable_prepare_warnings command.
 # Test default value (off), enabling, and disabling.
 #
+--disable_ps2_protocol
 
 --enable_warnings
 
@@ -32,3 +33,5 @@ select 1 + "2 a";
 create table t (a int primary key, b blob default '');
 select a, (2*a) AS a from t group by a;
 drop table t;
+
+--enable_ps2_protocol
