@@ -6658,3 +6658,12 @@ drop table t1;
 # End of 10.4 tests
 #
 mariadb-dump: --xml can't be used with --tab.
+select @@max_connections into @save_max_connections;
+set global max_connections=10;
+mariadb-dump: Got error: 1040: "Too many connections" when trying to connect
+set global max_connections=300;
+mariadb-dump: Too many connections
+set global max_connections=@save_max_connections;
+#
+# End of 11.4 tests
+#

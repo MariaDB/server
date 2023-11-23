@@ -3399,6 +3399,9 @@ int select_export::send_data(List<Item> &items)
   uint used_length=0,items_left=items.elements;
   List_iterator_fast<Item> li(items);
 
+  DBUG_EXECUTE_IF("select_export_kill", {
+    thd->killed= KILL_QUERY;
+  });
   if (my_b_write(&cache,(uchar*) exchange->line_start->ptr(),
 		 exchange->line_start->length()))
     goto err;
