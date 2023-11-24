@@ -73,7 +73,6 @@ void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
   mem_root->error_handler= 0;
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
-  mem_root->total_alloc= 0;
   mem_root->name= name;
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
@@ -84,7 +83,6 @@ void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
                                MYF(my_flags))))
     {
       mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
-      mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->free->left= pre_alloc_size;
       mem_root->free->next= 0;
       TRASH_MEM(mem_root->free);
@@ -142,7 +140,6 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         {
           /* remove block from the list and free it */
           *prev= mem->next;
-          mem_root->total_alloc-= mem->size;
           my_free(mem);
         }
         else
@@ -153,7 +150,6 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                        MYF(MALLOC_FLAG(mem_root)))))
       {
         mem->size= size; 
-        mem_root->total_alloc+= size;
         mem->left= pre_alloc_size;
         mem->next= *prev;
         *prev= mem_root->pre_alloc= mem;
@@ -257,7 +253,6 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
       DBUG_RETURN((void*) 0);                      /* purecov: inspected */
     }
     mem_root->block_num++;
-    mem_root->total_alloc+= get_size;
     next->next= *prev;
     next->size= get_size;
     next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
@@ -416,7 +411,6 @@ void free_root(MEM_ROOT *root, myf MyFlags)
     old=next; next= next->next ;
     if (old != root->pre_alloc)
     {
-      root->total_alloc-= old->size;
       my_free(old);
     }
   }
@@ -425,7 +419,6 @@ void free_root(MEM_ROOT *root, myf MyFlags)
     old=next; next= next->next;
     if (old != root->pre_alloc)
     {
-      root->total_alloc-= old->size;
       my_free(old);
     }
   }
