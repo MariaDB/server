@@ -66,7 +66,7 @@ static inline SHOW_SCOPE show_scope_from_type(enum enum_mysql_show_type type)
     case SHOW_SIMPLE_FUNC:
     case SHOW_UNDEF:
     default:
-      return SHOW_SCOPE_UNDEF;
+      return SHOW_SCOPE_ALL;
   }
   return SHOW_SCOPE_UNDEF;
 }
@@ -716,6 +716,7 @@ bool PFS_status_variable_cache::can_aggregate(enum_mysql_show_type variable_type
     case SHOW_CHAR_PTR:
     case SHOW_ARRAY:
     case SHOW_FUNC:
+    case SHOW_SIMPLE_FUNC:
     case SHOW_INT:
     case SHOW_LONG:
     case SHOW_LONGLONG:
@@ -1152,16 +1153,19 @@ void PFS_status_variable_cache::manifest(THD *thd, const SHOW_VAR *show_var_arra
       reevaluate the new SHOW_TYPE and value. Handle nested case where
       SHOW_FUNC resolves to another SHOW_FUNC.
     */
-    if (show_var_ptr->type == SHOW_FUNC)
+    if (show_var_ptr->type == SHOW_FUNC || show_var_ptr->type == SHOW_SIMPLE_FUNC)
     {
       show_var_tmp= *show_var_ptr;
       /*
         Execute the function reference in show_var_tmp->value, which returns
         show_var_tmp with a new type and new value.
       */
-      for (const SHOW_VAR *var= show_var_ptr; var->type == SHOW_FUNC; var= &show_var_tmp)
+      for (const SHOW_VAR *var= show_var_ptr;
+           var->type == SHOW_FUNC || var->type == SHOW_SIMPLE_FUNC;
+           var= &show_var_tmp)
       {
-        ((mysql_show_var_func)(var->value))(thd, &show_var_tmp, value_buf.data, NULL, m_query_scope);
+        ((mysql_show_var_func)(var->value))(thd, &show_var_tmp, value_buf.data,
+                                            &thd->status_var, m_query_scope);
       }
       show_var_ptr= &show_var_tmp;
     }
