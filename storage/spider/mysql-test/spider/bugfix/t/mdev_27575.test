@@ -8,9 +8,11 @@
 --enable_query_log
 
 SET GLOBAL default_tmp_storage_engine=spider;
+SELECT SLEEP(1);
 --source include/restart_mysqld.inc
 
 SET GLOBAL default_storage_engine=Spider;
+SELECT SLEEP(1);
 --source include/restart_mysqld.inc
 
 --disable_query_log

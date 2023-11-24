@@ -5,8 +5,14 @@ for master_1
 for child2
 for child3
 SET GLOBAL default_tmp_storage_engine=spider;
+SELECT SLEEP(1);
+SLEEP(1)
+0
 # restart
 SET GLOBAL default_storage_engine=Spider;
+SELECT SLEEP(1);
+SLEEP(1)
+0
 # restart
 for master_1
 for child2
