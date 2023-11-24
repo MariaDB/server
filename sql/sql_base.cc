@@ -2191,6 +2191,7 @@ retry_share:
       if (thd->has_read_only_protection())
       {
         MYSQL_UNBIND_TABLE(table->file);
+        table->vcol_cleanup_expr(thd);
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
@@ -2210,6 +2211,7 @@ retry_share:
       if (result)
       {
         MYSQL_UNBIND_TABLE(table->file);
+        table->vcol_cleanup_expr(thd);
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
