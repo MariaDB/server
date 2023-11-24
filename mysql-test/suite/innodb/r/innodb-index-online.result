@@ -1,3 +1,5 @@
+SET GLOBAL innodb_monitor_reset_all=all;
+SET GLOBAL innodb_monitor_reset_all=default;
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
 SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
 SET GLOBAL innodb_file_per_table = on;
@@ -155,6 +157,7 @@ test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	size	1	NULL	Number of pages in the 
 connection con1;
 KILL QUERY @id;
 ERROR 70100: Query execution was interrupted
+SET GLOBAL innodb_max_purge_lag_wait=0;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2d_created WAIT_FOR kill_done';
 CREATE INDEX c2d ON t1(c2);
 connection default;
@@ -221,13 +224,13 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1
 connection default;
 SET @merge_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2e_created WAIT_FOR dml2_done';
@@ -274,13 +277,13 @@ name	pos
 c2	0
 c3	1
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SELECT
 (@merge_encrypt_1-@merge_encrypt_0)-
@@ -320,16 +323,16 @@ ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
@@ -405,16 +408,16 @@ ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	2
 connection default;
 SET @merge_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 SELECT
 (@merge_encrypt_2-@merge_encrypt_1)-
