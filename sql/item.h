@@ -904,6 +904,19 @@ public:
     expressions with subqueries in the ORDER/GROUP clauses.
   */
   String *val_str() { return val_str(&str_value); }
+  String *val_str_null_to_empty(String *to)
+  {
+    String *res= val_str(to);
+    if (res)
+      return res;
+    to->set_charset(collation.collation);
+    to->length(0);
+    return to;
+  }
+  String *val_str_null_to_empty(String *to, bool null_to_empty)
+  {
+    return null_to_empty ? val_str_null_to_empty(to) : val_str(to);
+  }
   virtual Item_func *get_item_func() { return NULL; }
 
   const MY_LOCALE *locale_from_val_str();

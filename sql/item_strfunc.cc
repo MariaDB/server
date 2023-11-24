@@ -1149,8 +1149,7 @@ bool Item_func_reverse::fix_length_and_dec()
     Fix that this works with binary strings when using USE_MB 
 */
 
-String *Item_func_replace::val_str_internal(String *str,
-                                            String *empty_string_for_null)
+String *Item_func_replace::val_str_internal(String *str, bool null_to_empty)
 {
   DBUG_ASSERT(fixed == 1);
   String *res,*res2,*res3;
@@ -1168,13 +1167,8 @@ String *Item_func_replace::val_str_internal(String *str,
   res=args[0]->val_str(str);
   if (args[0]->null_value)
     goto null;
-  res2=args[1]->val_str(&tmp_value);
-  if (args[1]->null_value)
-  {
-    if (!empty_string_for_null)
-      goto null;
-    res2= empty_string_for_null;
-  }
+  if (!(res2= args[1]->val_str_null_to_empty(&tmp_value, null_to_empty)))
+    goto null;
   res->set_charset(collation.collation);
 
 #ifdef USE_MB
@@ -1191,12 +1185,8 @@ String *Item_func_replace::val_str_internal(String *str,
   if (binary_cmp && (offset=res->strstr(*res2)) < 0)
     return res;
 #endif
-  if (!(res3=args[2]->val_str(&tmp_value2)))
-  {
-    if (!empty_string_for_null)
-      goto null;
-    res3= empty_string_for_null;
-  }
+  if (!(res3= args[2]->val_str_null_to_empty(&tmp_value2, null_to_empty)))
+    goto null;
   from_length= res2->length();
   to_length=   res3->length();
 
@@ -1279,7 +1269,7 @@ redo:
     }
     while ((offset=res->strstr(*res2,(uint) offset)) >= 0);
   }
-  if (empty_string_for_null && !res->length())
+  if (null_to_empty && !res->length())
     goto null;
 
   return res;
@@ -1385,20 +1375,22 @@ bool Item_func_regexp_replace::append_replacement(String *str,
 }
 
 
-String *Item_func_regexp_replace::val_str(String *str)
+String *Item_func_regexp_replace::val_str_internal(String *str,
+                                                   bool null_to_empty)
 {
   DBUG_ASSERT(fixed == 1);
   char buff0[MAX_FIELD_WIDTH];
   char buff2[MAX_FIELD_WIDTH];
   String tmp0(buff0,sizeof(buff0),&my_charset_bin);
   String tmp2(buff2,sizeof(buff2),&my_charset_bin);
-  String *source= args[0]->val_str(&tmp0);
-  String *replace= args[2]->val_str(&tmp2);
+  String *source, *replace;
   LEX_CSTRING src, rpl;
   int startoffset= 0;
 
-  if ((null_value= (args[0]->null_value || args[2]->null_value ||
-                    re.recompile(args[1]))))
+  if ((null_value=
+        (!(source= args[0]->val_str(&tmp0)) ||
+         !(replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty)) ||
+         re.recompile(args[1]))))
     return (String *) 0;
 
   if (!(source= re.convert_if_needed(source, &re.subject_converter)) ||
