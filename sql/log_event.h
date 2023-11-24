@@ -4618,6 +4618,12 @@ public:
 #endif
 
 #ifdef MYSQL_CLIENT
+  struct Field_info
+  {
+    const uchar *pos; // Point to a field in before or after image
+    size_t length;    // Length of the field.
+  };
+
   /* not for direct call, each derived has its own ::print() */
   virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
   void change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
@@ -4626,10 +4632,9 @@ public:
   size_t print_verbose_one_row(IO_CACHE *file, table_def *td,
                                PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
-                               const uchar *ptr, const uchar *prefix,
-                               const my_bool no_fill_output= 0); // if no_fill_output=1, then print result is unnecessary
+                               const uchar *ptr, const uchar *prefix);
   size_t calc_row_event_length(table_def *td,
-                               PRINT_EVENT_INFO *print_event_info,
+                               Field_info *fields,
                                MY_BITMAP *cols_bitmap,
                                const uchar *value);
   void count_row_events(PRINT_EVENT_INFO *print_event_info);
