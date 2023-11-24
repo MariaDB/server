@@ -4137,18 +4137,24 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 void st_select_lex::fix_prepare_information(THD *thd, Item **conds, 
                                             Item **having_conds)
 {
+  Query_arena *active_arena= thd->active_stmt_arena_to_use();
+
   DBUG_ENTER("st_select_lex::fix_prepare_information");
-  if (!thd->stmt_arena->is_conventional() &&
+
+  if (!active_arena->is_conventional() &&
       !(changed_elements & TOUCHED_SEL_COND))
   {
     Query_arena_stmt on_stmt_arena(thd);
     changed_elements|= TOUCHED_SEL_COND;
+    DBUG_ASSERT(
+      active_arena->is_stmt_prepare_or_first_stmt_execute() ||
+      active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS);
     if (group_list.first)
     {
       if (!group_list_ptrs)
       {
-        void *mem= thd->stmt_arena->alloc(sizeof(Group_list_ptrs));
-        group_list_ptrs= new (mem) Group_list_ptrs(thd->stmt_arena->mem_root);
+        void *mem= active_arena->alloc(sizeof(Group_list_ptrs));
+        group_list_ptrs= new (mem) Group_list_ptrs(active_arena->mem_root);
       }
       group_list_ptrs->reserve(group_list.elements);
       for (ORDER *order= group_list.first; order; order= order->next)
