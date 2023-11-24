@@ -5595,8 +5595,6 @@ int spider_free_share(
 ) {
   DBUG_ENTER("spider_free_share");
   pthread_mutex_lock(&spider_tbl_mutex);
-  bool do_delete_thd = false;
-  THD *thd = current_thd;
   if (!--share->use_count)
   {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -5614,47 +5612,6 @@ int spider_free_share(
       spider_free_spider_object_for_share(&share->crd_spider);
     }
 #endif
-    if (
-      share->sts_init &&
-      spider_param_store_last_sts(share->store_last_sts)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->stat,
-        FALSE
-      );
-    }
-    if (
-      share->crd_init &&
-      spider_param_store_last_crd(share->store_last_crd)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields,
-        FALSE
-      );
-    }
     spider_free_share_alloc(share);
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
     my_hash_delete_with_hash_value(&spider_open_tables,
@@ -5669,8 +5626,6 @@ int spider_free_share(
     free_root(&share->mem_root, MYF(0));
     spider_free(spider_current_trx, share, MYF(0));
   }
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
   pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
@@ -7450,7 +7405,6 @@ int spider_get_sts(
 ) {
   int get_type __attribute__ ((unused));
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7488,37 +7442,16 @@ int spider_get_sts(
     get_type = 0;
   }
 #endif
-  if (
-    !share->sts_init &&
-    spider_param_load_sts_at_startup(share->load_sts_at_startup) &&
-    (!share->init || share->init_error)
-  ) {
-    error_num = spider_sys_get_table_sts(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      &share->stat,
-      FALSE
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
-    need_to_get = FALSE;
-  }
 
-  if (need_to_get)
-  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (get_type == 0)
+  if (get_type == 0)
       spider_copy_sts_to_share(share, share->partition_share);
-    else {
+  else {
 #endif
       error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    }
-#endif
   }
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (get_type >= 2)
     pthread_mutex_unlock(&share->partition_share->sts_mutex);
@@ -7598,7 +7531,6 @@ int spider_get_crd(
 ) {
   int get_type __attribute__ ((unused));
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7636,38 +7568,16 @@ int spider_get_crd(
     get_type = 0;
   }
 #endif
-  if (
-    !share->crd_init &&
-    spider_param_load_sts_at_startup(share->load_crd_at_startup)
-  ) {
-    error_num = spider_sys_get_table_crd(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      share->cardinality,
-      table->s->fields,
-      FALSE
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
-    need_to_get = FALSE;
-  }
-
-  if (need_to_get)
-  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (get_type == 0)
+  if (get_type == 0)
       spider_copy_crd_to_share(share, share->partition_share,
-        table->s->fields);
-    else {
+                               table->s->fields);
+  else {
 #endif
       error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    }
-#endif
   }
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (get_type >= 2)
     pthread_mutex_unlock(&share->partition_share->crd_mutex);
