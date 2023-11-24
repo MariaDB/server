@@ -1437,7 +1437,7 @@ bool Item_func_json_contains_path::fix_fields(THD *thd, Item **ref)
   if (!tmp_paths)
   {
     if (alloc_tmp_paths(thd, arg_count-2, &paths, &tmp_paths) ||
-        (p_found= (bool *) alloc_root(thd->mem_root,
+        (p_found= (bool *) alloc_root(thd->active_stmt_arena_to_use()->mem_root,
                                        (arg_count-2)*sizeof(bool))) == NULL)
       return true;
   }

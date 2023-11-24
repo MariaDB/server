@@ -97,4 +97,16 @@ DROP FUNCTION f1;
 DROP VIEW v1;
 DROP FUNCTION f2;
 
+--echo #
+--echo # MDEV-32867: ASAN errors in Item_func_json_contains_path::val_int upon PS execution
+--echo #
+CREATE TABLE t1 (f BLOB) ENGINE=MyISAM;
+
+PREPARE stmt FROM "SELECT * FROM t1 WHERE JSON_EXISTS(JSON_ARRAY('[true,1234567890]'), '$**.*') != JSON_CONTAINS_PATH(JSON_INSERT('{}', '$[1]', NULL), 'all', '$[1]')";
+EXECUTE stmt;
+
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
 --echo # End of 10.4 tests
