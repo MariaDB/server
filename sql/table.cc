@@ -2882,8 +2882,7 @@ class Vcol_expr_context
   bool inited;
   THD *thd;
   TABLE *table;
-  LEX *old_lex;
-  LEX lex;
+  Query_arena backup_arena;
   table_map old_map;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
@@ -2893,7 +2892,6 @@ public:
     inited(false),
     thd(_thd),
     table(_table),
-    old_lex(thd->lex),
     old_map(table->map),
     save_security_ctx(thd->security_ctx),
     save_sql_mode(thd->variables.sql_mode) {}
@@ -2905,18 +2903,6 @@ public:
 
 bool Vcol_expr_context::init()
 {
-  /*
-      As this is vcol expression we must narrow down name resolution to
-      single table.
-  */
-  if (init_lex_with_single_table(thd, table, &lex))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    table->map= old_map;
-    return true;
-  }
-
-  lex.sql_command= old_lex->sql_command;
   thd->variables.sql_mode= 0;
 
   TABLE_LIST const *tl= table->pos_in_table_list;
@@ -2924,6 +2910,8 @@ bool Vcol_expr_context::init()
 
   if (table->pos_in_table_list->security_ctx)
     thd->security_ctx= tl->security_ctx;
+
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
 
   inited= true;
   return false;
@@ -2933,9 +2921,9 @@ Vcol_expr_context::~Vcol_expr_context()
 {
   if (!inited)
     return;
-  end_lex_with_single_table(thd, table, old_lex);
   table->map= old_map;
   thd->security_ctx= save_security_ctx;
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
 }
 
