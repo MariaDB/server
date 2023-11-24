@@ -1227,7 +1227,9 @@ void THD::init()
 
   user_time.val= start_time= start_time_sec_part= 0;
 
-  server_status= SERVER_STATUS_AUTOCOMMIT;
+  server_status= 0;
+  if (variables.option_bits & OPTION_AUTOCOMMIT)
+    server_status|= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
   if (variables.sql_mode & MODE_ANSI_QUOTES)
