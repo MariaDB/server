@@ -1530,7 +1530,8 @@ static void innodb_drop_database(handlerton*, char *path)
       os_file_close(detached);
 
     /* Any changes must be persisted before we return. */
-    log_write_up_to(mtr.commit_lsn(), true);
+    if (mtr.commit_lsn())
+      log_write_up_to(mtr.commit_lsn(), true);
   }
 
   my_free(namebuf);
@@ -15652,7 +15653,8 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
-		if (!m_prebuilt->table->is_temporary()) {
+		if (!m_prebuilt->table->is_temporary()
+		    && !high_level_read_only) {
 			log_buffer_flush_to_disk();
 		}
 		break;

@@ -347,14 +347,21 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 }
 
 /** Free an undo log segment.
-@param block     rollback segment header page
+@param rseg_hdr  rollback segment header page
+@param block     undo segment header page
 @param mtr       mini-transaction */
-static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
+static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
+                                   mtr_t &mtr)
 {
+  ut_ad(mtr.memo_contains_flagged(rseg_hdr, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(mtr.memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
+
   while (!fseg_free_step_not_header(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
                                     block->page.frame, &mtr))
   {
+    rseg_hdr->fix();
     block->fix();
+    ut_d(const page_id_t rseg_hdr_id{rseg_hdr->page.id()});
     ut_d(const page_id_t id{block->page.id()});
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
@@ -365,8 +372,11 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
     This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
     mtr.start();
+    rseg_hdr->page.lock.x_lock();
+    ut_ad(rseg_hdr->page.id() == rseg_hdr_id);
     block->page.lock.x_lock();
     ut_ad(block->page.id() == id);
+    mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
     mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
   }
 
@@ -456,7 +466,7 @@ loop:
     free_segment:
       ut_ad(rseg.curr_size >= seg_size);
       rseg.curr_size-= seg_size;
-      trx_purge_free_segment(b, mtr);
+      trx_purge_free_segment(rseg_hdr, b, mtr);
       break;
     case TRX_UNDO_CACHED:
       /* rseg.undo_cached must point to this page */
@@ -675,8 +685,8 @@ not_free:
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
-  rescan:
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  rescan:
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
     {
       ut_ad(bpage->oldest_modification());
@@ -705,26 +715,20 @@ not_free:
         ut_ad(!bpage->is_io_fixed());
         ut_ad(bpage->id().space() == space_id);
 
-        if (bpage->oldest_modification() > 2)
-        {
+        if (bpage->oldest_modification() > 2 &&
+            !mtr.have_x_latch(*reinterpret_cast<buf_block_t*>(bpage)))
           mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
                         MTR_MEMO_PAGE_X_FIX);
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-          ut_ad(bpage->oldest_modification() > 2);
-          bpage->reset_oldest_modification();
-        }
         else
         {
           bpage->unfix();
           bpage->lock.x_unlock();
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
         }
 
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
         if (prev != buf_pool.flush_hp.get())
-        {
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
           goto rescan;
-        }
       }
 
       bpage= prev;
@@ -850,7 +854,9 @@ void purge_sys_t::rseg_get_next_history_log()
 {
   fil_addr_t prev_log_addr;
 
+#ifndef SUX_LOCK_GENERIC
   ut_ad(rseg->latch.is_write_locked());
+#endif
   ut_a(rseg->last_page_no != FIL_NULL);
 
   tail.trx_no= rseg->last_trx_no() + 1;
@@ -965,7 +971,9 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
 {
   ut_ad(next_stored);
   ut_ad(tail.trx_no < low_limit_no());
+#ifndef SUX_LOCK_GENERIC
   ut_ad(rseg->latch.is_write_locked());
+#endif
 
   if (!offset)
   {

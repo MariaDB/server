@@ -4074,6 +4074,13 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
 
+bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
+{
+  bool res= Item_func_group_concat::fix_fields(thd, ref);
+  m_tmp_json.set_charset(collation.collation);
+  return res;
+}
+
 
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {

@@ -1166,6 +1166,8 @@ static int install_used_plugin_data_types(void)
   DYNAMIC_STRING ds_result;
   const char *query = "SELECT table_comment FROM information_schema.tables"
                       " WHERE table_comment LIKE 'Unknown data type: %'";
+  if (opt_systables_only)
+    return 0;
   if (init_dynamic_string(&ds_result, "", 512, 512))
     die("Out of memory");
   run_query(query, &ds_result, TRUE);

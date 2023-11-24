@@ -306,3 +306,13 @@ a	b	c
 6	2	26
 6	3	36
 drop table t1;
+#
+#  MDEV-31116: SIGSEGV in test_if_skip_sort_order|JOIN::optimize_stage2
+#
+CREATE TABLE t1 (a BINARY (2),b BINARY (1),KEY(a)) ENGINE=innodb;
+INSERT INTO t1 select 'ab', NULL from seq_1_to_14;
+SELECT * FROM t1 WHERE a IN (SELECT a FROM t1 WHERE a >'') ORDER BY a LIMIT 1;
+a	b
+ab	NULL
+DROP TABLE t1;
+# End of 11.0 tests
