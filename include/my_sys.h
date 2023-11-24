@@ -892,6 +892,7 @@ extern void init_alloc_root(MEM_ROOT *mem_root, const char *name,
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
 extern void *multi_alloc_root(MEM_ROOT *mem_root, ...);
 extern void free_root(MEM_ROOT *root, myf MyFLAGS);
+extern void move_root(MEM_ROOT *to, MEM_ROOT *from);
 extern void set_prealloc_root(MEM_ROOT *root, char *ptr);
 extern void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                 size_t prealloc_size);
