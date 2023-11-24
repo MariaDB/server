@@ -3115,8 +3115,9 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num) * 5;
   if (!ref_pointer_array.is_null())
     return false;
-  Item **array= static_cast<Item**>(thd->stmt_arena->alloc(sizeof(Item*) *
-                                                           n_elems));
+
+  Item **array= static_cast<Item**>(
+    thd->active_stmt_arena_to_use()->alloc(sizeof(Item*) * n_elems));
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;

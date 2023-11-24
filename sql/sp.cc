@@ -2720,7 +2720,8 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   TABLE_LIST *belong_to_view)
 {
   for (Sroutine_hash_entry *rt= src->first; rt; rt= rt->next)
-    (void)sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+
+    (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
                               belong_to_view);
 }
