@@ -28,7 +28,7 @@
 #include <password.h>
 #include <my_sys.h>
 
-#define ADMIN_VERSION "9.1"
+#define ADMIN_VERSION "10.0"
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
 #define MAX_TRUNC_LENGTH 3
@@ -40,12 +40,12 @@ char ex_var_names[MAX_MYSQL_VAR+100][FN_REFLEN];
 ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
-               opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
+               opt_compress= 0, opt_local= 0, opt_relative= 0,
                opt_vertical= 0, tty_password= 0, opt_nobeep,
-               opt_shutdown_wait_for_slaves= 0;
+               opt_shutdown_wait_for_slaves= 0, opt_not_used;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
-static uint opt_count_iterations= 0, my_end_arg;
+static uint opt_count_iterations= 0, my_end_arg, opt_verbose= 0;
 static ulong opt_connect_timeout, opt_shutdown_timeout;
 static char * unix_port=0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -204,8 +204,10 @@ static struct my_option my_long_options[] =
   {"user", 'u', "User for login if not current user.", &user,
    &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"verbose", 'v', "Write more information.", &opt_verbose,
-   &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"verbose", 'v', "Write more information."
+  "Using it will print more information for 'processlist."
+  "Using it 2 times will print even more information for 'processlist'.",
+   &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"vertical", 'E',
@@ -298,6 +300,11 @@ get_one_option(const struct my_option *opt, const char *argument,
   case 'I':					/* Info */
     usage();
     exit(0);
+  case 'v':                                     /* --verbose   */
+    opt_verbose++;
+    if (argument == disabled_my_option)
+      opt_verbose= 0;
+    break;
   case OPT_CHARSETS_DIR:
 #if MYSQL_VERSION_ID > 32300
     charsets_dir = argument;
@@ -826,10 +833,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     {
       MYSQL_RES *result;
       MYSQL_ROW row;
+      const char *query;
 
-      if (mysql_query(mysql, (opt_verbose ? "show full processlist" :
-			      "show processlist")) ||
-	  !(result = mysql_store_result(mysql)))
+      if (!opt_verbose)
+        query= "show processlist";
+      else if (opt_verbose == 1)
+        query= "show full processlist";
+      else
+        query= "select * from information_schema.processlist where id != connection_id()";
+
+      if (mysql_query(mysql, query) ||
+          !(result = mysql_store_result(mysql)))
       {
 	my_printf_error(0, "process list failed; error: '%s'", error_flags,
 			mysql_error(mysql));
