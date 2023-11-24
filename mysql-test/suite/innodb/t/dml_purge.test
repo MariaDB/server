@@ -1,5 +1,8 @@
 --source include/innodb_page_size.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
 
@@ -76,3 +79,5 @@ EOF
 UNLOCK TABLES;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

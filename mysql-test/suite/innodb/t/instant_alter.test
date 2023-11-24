@@ -3,6 +3,9 @@
 
 let $datadir=`select @@datadir`;
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
@@ -964,3 +967,4 @@ remove_file $datadir/test/mdev28822_100427_innodb.frm;
 copy_file std_data/mysql_upgrade/mdev28822_100427_innodb.frm $datadir/test/mdev28822_100427_innodb.frm;
 ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
 DROP TABLE mdev28822_100427_innodb;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

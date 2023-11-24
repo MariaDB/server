@@ -2297,8 +2297,6 @@ func_exit:
 			goto corrupted;
 		}
 
-		os_file_get_last_error(operation_not_for_export,
-				       !operation_not_for_export);
 		if (!operation_not_for_export) {
 			goto corrupted;
 		}
@@ -3181,7 +3179,7 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */
-lsn_t fil_names_clear(lsn_t lsn)
+ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 

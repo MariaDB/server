@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 connect (purge_control,localhost,root);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
@@ -60,3 +63,5 @@ disconnect purge_control;
 
 connection default;
 drop table t1;
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

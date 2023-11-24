@@ -6,7 +6,7 @@ let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 
-create table t1(f1 int not null)engine=innodb;
+create table t1(f1 int not null)engine=innodb stats_persistent=0;
 insert into t1 values(1), (2), (3);
 let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
 

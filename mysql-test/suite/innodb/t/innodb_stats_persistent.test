@@ -49,7 +49,7 @@ SELECT COUNT(*) FROM t2;
 
 connection con1;
 EXPLAIN SELECT * FROM t2 WHERE val=4;
---source include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait=0;
 --echo # After COMMIT and purge, the DELETE must show up.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 

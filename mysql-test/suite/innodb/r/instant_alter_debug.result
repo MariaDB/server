@@ -1,3 +1,5 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
@@ -528,3 +530,5 @@ FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
 35
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+# End of 10.6 tests

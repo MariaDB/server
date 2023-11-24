@@ -721,6 +721,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if (WSREP_ON_ && wsrep_thd_is_local(thd))
   {
     thd->wsrep_ignore_table= false;
+    table->file->row_logging= 1; // replication requires binary logging
     wsrep_start_trx_if_not_started(thd);
   }
   else
