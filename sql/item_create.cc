@@ -6233,6 +6233,29 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
   return func;
 }
 
+
+class Create_func_vec_distance: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_vec_distance s_singleton;
+
+protected:
+  Create_func_vec_distance() = default;
+  virtual ~Create_func_vec_distance() = default;
+};
+
+
+Create_func_vec_distance Create_func_vec_distance::s_singleton;
+
+Item*
+Create_func_vec_distance::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_vec_distance(thd, arg1, arg2);
+}
+
+
 #define BUILDER(F) & F::s_singleton
 
 /*
@@ -6459,6 +6482,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UPDATEXML") }, BUILDER(Create_func_xml_update)},
   { { STRING_WITH_LEN("UPPER") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
+  { { STRING_WITH_LEN("VEC_DISTANCE") }, BUILDER(Create_func_vec_distance)},
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEK") }, BUILDER(Create_func_week)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
