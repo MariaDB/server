@@ -2480,6 +2480,8 @@ dispatch_end:
   */
   thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  DBUG_EXECUTE_IF("print_allocated_thread_memory",
+                  SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id()););
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
