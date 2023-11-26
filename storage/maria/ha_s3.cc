@@ -121,6 +121,29 @@ static void update_secret_key(MYSQL_THD thd,
   }
 }
 
+static void update_s3_debug(MYSQL_THD thd,
+                            struct st_mysql_sys_var *var
+                            __attribute__((unused)),
+                            void *var_ptr __attribute__((unused)),
+                            const void *save)
+{
+  char new_state= *(char *) save;
+  if (s3_debug != new_state)
+  {
+    s3_debug= new_state;
+    if (s3_hton)                                // If library is initalized
+    {
+      ms3_debug(new_state);
+      if (!new_state)
+      {
+        /* Ensure that all logging is written to log */
+        fflush(stderr);
+      }
+    }
+  }
+}
+
+
 /* Define system variables for S3 */
 
 static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
@@ -129,9 +152,9 @@ static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
        4*1024*1024, 65536, 16*1024*1024, 8192);
 
 static MYSQL_SYSVAR_BOOL(debug, s3_debug,
-       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       PLUGIN_VAR_RQCMDARG,
       "Generates trace file from libmarias3 on stderr for debugging",
-       0, 0, 0);
+       0, update_s3_debug, 0);
 
 static MYSQL_SYSVAR_BOOL(slave_ignore_updates, s3_slave_ignore_updates,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -1048,7 +1071,7 @@ static int ha_s3_init(void *p)
   s3_pagecache.big_block_free= s3_free;
   s3_init_library();
   if (s3_debug)
-    ms3_debug();
+    ms3_debug(1);
 
   struct s3_func s3f_real =
   {

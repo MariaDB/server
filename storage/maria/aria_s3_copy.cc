@@ -195,7 +195,7 @@ static void get_options(int *argc, char ***argv)
     my_exit(-1);
   }
   if (opt_s3_debug)
-    ms3_debug();
+    ms3_debug(1);
 
 } /* get_options */
 
