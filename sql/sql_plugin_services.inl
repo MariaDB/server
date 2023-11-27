@@ -226,6 +226,28 @@ struct json_service_st json_handler=
   json_unescape_json
 };
 
+struct sql_service_st sql_service_handler=
+{
+  mysql_init,
+  mysql_real_connect_local,
+  mysql_real_connect,
+  mysql_errno,
+  mysql_error,
+  mysql_real_query,
+  mysql_affected_rows,
+  mysql_num_rows,
+  mysql_store_result,
+  mysql_free_result,
+  mysql_fetch_row,
+  mysql_close,
+  mysql_options,
+  mysql_fetch_lengths,
+  mysql_set_character_set,
+  mysql_num_fields,
+  mysql_select_db,
+  mysql_ssl_set
+};
+
 static struct thd_mdl_service_st thd_mdl_handler=
 {
   thd_mdl_context
@@ -255,5 +277,6 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
+  { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
   { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler }
 };
