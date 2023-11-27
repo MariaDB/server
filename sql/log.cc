@@ -9462,9 +9462,6 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
         ht->rollback(ht, thd, all);
       }
     }
-    xid_cache_delete(thd);    // trx is completed now
-
-    DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
   }
   else
   {

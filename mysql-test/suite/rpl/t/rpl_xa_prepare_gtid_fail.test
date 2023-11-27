@@ -16,9 +16,9 @@
 #   MDEV-31038: Parallel Replication Breaks if XA PREPARE Fails Updating Slave
 #               GTID State
 #
-source include/master-slave.inc;
 source include/have_binlog_format_row.inc;
 source include/have_innodb.inc;
+source include/master-slave.inc;
 
 --connection slave
 --source include/stop_slave.inc
@@ -56,8 +56,8 @@ xa start '1';
 update t1 set b=b+10 where a=1;
 xa end '1';
 xa prepare '1';
---let $new_gtid= `SELECT @@global.gtid_binlog_pos`
 xa commit '1';
+--let $new_gtid= `SELECT @@global.gtid_binlog_pos`
 --source include/save_master_gtid.inc
 
 --connection slave1
