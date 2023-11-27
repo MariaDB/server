@@ -2255,3 +2255,78 @@ a
 Warnings:
 Warning	1292	Incorrect inet6 value: ''
 DROP TABLE t1;
+#
+# MDEV-32879 Server crash in my_decimal::operator= or unexpected ER_DUP_ENTRY upon comparison with INET6 and similar types
+#
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, GROUP_CONCAT(c) FROM t1 GROUP BY f;
+f	GROUP_CONCAT(c)
+NULL	2000-01-01 00:00:00.000000,1900-01-01 00:00:00.000000
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, COUNT(c) FROM t1 GROUP BY f;
+f	COUNT(c)
+NULL	2
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT 1.00 + (b = a) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+SELECT 1.00 + (b BETWEEN a AND '') AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+SELECT 1.00 + (b IN (a,'')) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;

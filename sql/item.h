@@ -5237,10 +5237,17 @@ public:
                func_name());
       return true;
     }
+    /*
+      If necessary, convert both *a and *b to the collation in tmp:
+    */
+    Single_coll_err error_for_a= {(*b)->collation, true};
+    Single_coll_err error_for_b= {(*a)->collation, false};
     if (agg_item_set_converter(tmp, func_name(),
-                               a, 1, MY_COLL_CMP_CONV, 1) ||
+                               a, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_a) ||
         agg_item_set_converter(tmp, func_name(),
-                               b, 1, MY_COLL_CMP_CONV, 1))
+                               b, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_b))
       return true;
     *cs= tmp.collation;
     return false;

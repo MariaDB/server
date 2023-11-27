@@ -15405,7 +15405,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
     {
       Item_func_eq *eq_item;
       if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item)) ||
-          eq_item->set_cmp_func())
+          eq_item->set_cmp_func(thd))
         return FALSE;
       eq_item->quick_fix_field();
       eq_list->push_back(eq_item, thd->mem_root);
@@ -16155,7 +16155,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
           Don't produce equality if const is equal to item_const.
         */
         Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, item_const, upper_const);
-        func->set_cmp_func();
+        func->set_cmp_func(thd);
         func->quick_fix_field();
         if (func->val_int())
           item= 0;
@@ -16203,7 +16203,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
                                                 field_item->remove_item_direct_ref(),
                                                 head_item->remove_item_direct_ref());
 
-      if (!eq_item || eq_item->set_cmp_func())
+      if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
       eq_item->quick_fix_field();
     }
@@ -16621,7 +16621,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
         So make sure to use set_cmp_func() only for non-LIKE operators.
       */
       if (functype != Item_func::LIKE_FUNC)
-        ((Item_bool_rowready_func2*) func)->set_cmp_func();
+        ((Item_bool_rowready_func2*) func)->set_cmp_func(thd);
     }
   }
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
@@ -16646,7 +16646,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
 	  save_list->push_back(tmp2);
       }
       if (functype != Item_func::LIKE_FUNC)
-        ((Item_bool_rowready_func2*) func)->set_cmp_func();
+        ((Item_bool_rowready_func2*) func)->set_cmp_func(thd);
     }
   }
 }

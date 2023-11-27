@@ -395,16 +395,6 @@ public:
     }
   }
   void convert_const_compared_to_int_field(THD *thd);
-  /**
-    Prepare arguments and setup a comparator.
-    Used in Item_func_xxx with two arguments and a comparator,
-    e.g. Item_bool_func2 and Item_func_nullif.
-    args[0] or args[1] can be modified:
-    - converted to character set and collation of the operation
-    - or replaced to an Item_int_with_ref
-  */
-  bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
-
   bool with_sum_func() const { return m_with_sum_func; }
   With_sum_func_cache* get_with_sum_func_cache() { return this; }
   Item_func *get_item_func() { return this; }

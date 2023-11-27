@@ -55,6 +55,7 @@ class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
 class Item_bool_func2;
+class Item_bool_rowready_func2;
 class Item_func_between;
 class Item_func_in;
 class Item_func_round;
@@ -3233,9 +3234,15 @@ public:
   bool agg_item_collations(DTCollation &c, const char *name,
                            Item **items, uint nitems,
                            uint flags, int item_sep);
+  struct Single_coll_err
+  {
+    const DTCollation& coll;
+    bool first;
+  };
   bool agg_item_set_converter(const DTCollation &coll, const char *fname,
                               Item **args, uint nargs,
-                              uint flags, int item_sep);
+                              uint flags, int item_sep,
+                              const Single_coll_err *single_item_err= NULL);
 
   /*
     Collect arguments' character sets together.
@@ -4232,6 +4239,8 @@ public:
   }
   virtual bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                              Item *a, Item *b) const= 0;
+  virtual bool Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const char *name,
                                                Type_handler_hybrid_field_type *,
