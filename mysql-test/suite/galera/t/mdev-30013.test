@@ -1,4 +1,5 @@
 --source include/galera_cluster.inc
+--source include/force_restart.inc # ARCHIVE plugin will uninstall shutdown
 
 if (!$HA_ARCHIVE_SO) {
   skip Needs Archive loadable plugin;
