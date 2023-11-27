@@ -490,17 +490,18 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     }
 
     wsrep::key_array keys;
-    wsrep_append_fk_parent_table(thd, first_table, &keys);
-
-    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
-                                   (lex->name.str ? lex->name.str : NULL),
-                                   first_table, &alter_info, &keys)
+    if (!wsrep_append_fk_parent_table(thd, first_table, &keys))
     {
-      WSREP_WARN("ALTER TABLE isolation failure");
-      DBUG_RETURN(TRUE);
-    }
+      WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
+                                     (lex->name.str ? lex->name.str : NULL),
+                                     first_table, &alter_info, &keys)
+      {
+        WSREP_WARN("ALTER TABLE isolation failure");
+        DBUG_RETURN(TRUE);
+      }
 
-    DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
+      DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
+    }
   }
 #endif
 
