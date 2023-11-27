@@ -1288,9 +1288,14 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
   /* Don't cache value, as it will change */
   if (!item->const_item())
     arg_cache->set_used_tables(RAND_TABLE_BIT);
+  DBUG_ASSERT(item->type_handler_for_comparison() ==
+              value->type_handler_for_comparison());
+  DBUG_ASSERT(item->type_handler_for_comparison() ==
+              arg_cache->type_handler_for_comparison());
   cmp= new (thd->mem_root) Arg_comparator();
   if (cmp)
-    cmp->set_cmp_func(thd, this, (Item**)&arg_cache, (Item**)&value, FALSE);
+    cmp->set_cmp_func(thd, this, item->type_handler_for_comparison(),
+                      (Item**)&arg_cache, (Item**)&value, FALSE);
   DBUG_VOID_RETURN;
 }
 

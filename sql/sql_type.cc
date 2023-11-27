@@ -5679,6 +5679,14 @@ Type_handler_string_result::Item_func_hybrid_field_type_get_date(
 
 /***************************************************************************/
 
+bool Type_handler::Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const
+{
+  return func->fix_length_and_dec_generic(thd, this);
+}
+
+/***************************************************************************/
+
 bool Type_handler_numeric::
        Item_func_between_fix_length_and_dec(Item_func_between *func) const
 {
