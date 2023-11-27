@@ -1,0 +1,36 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+RESET MASTER;
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $binlog_file = query_get_value(SHOW MASTER STATUS, File, 1)
+
+CREATE TABLE ta (c INT KEY) engine=Aria;
+XA START 'xid_a';
+INSERT INTO ta VALUES (1);
+XA END 'xid_a';
+XA PREPARE 'xid_a';
+
+# sort out the correct code by  MDEV-32455 fixes
+--error 0,ER_XAER_RMFAIL
+LOAD INDEX INTO CACHE c KEY(PRIMARY);
+--error 0
+XA ROLLBACK 'xid_a';
+
+CREATE TABLE ti (c INT KEY) engine=Innodb;
+XA START 'xid_i';
+INSERT INTO ti VALUES (1);
+XA END 'xid_i';
+XA PREPARE 'xid_i';
+
+--error 0,ER_XAER_RMFAIL
+LOAD INDEX INTO CACHE c KEY(PRIMARY);
+
+--error 0
+XA COMMIT 'xid_i';
+SELECT * FROM ti;
+
+#
+--source include/show_binlog_events.inc
+
+drop table ta,ti;

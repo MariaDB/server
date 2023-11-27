@@ -25,6 +25,8 @@
 #ifndef DBUG_OFF
 #include "rpl_rli.h"  // rpl_group_info
 #endif
+#include "debug_sync.h"         // DEBUG_SYNC
+
 static bool slave_applier_reset_xa_trans(THD *thd);
 
 /***************************************************************************
@@ -348,11 +350,10 @@ static void xid_cache_delete(THD *thd, XID_cache_element *&element)
 
 void xid_cache_delete(THD *thd, XID_STATE *xid_state)
 {
-  if (xid_state->is_explicit_XA())
-  {
-    xid_cache_delete(thd, xid_state->xid_cache_element);
-    xid_state->xid_cache_element= 0;
-  }
+  DBUG_ASSERT(xid_state->is_explicit_XA());
+
+  xid_cache_delete(thd, xid_state->xid_cache_element);
+  xid_state->xid_cache_element= 0;
 }
 
 void xid_cache_delete(THD *thd)
@@ -558,6 +559,15 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XAER_NOTA, MYF(0));
   else
   {
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "stop_before_binlog_prepare",
+        if (thd->rgi_slave->current_gtid.seq_no % 100 == 0)
+        {
+          DBUG_ASSERT(!debug_sync_set_action(
+                        thd, STRING_WITH_LEN("now WAIT_FOR binlog_xap")));
+        };);
+#endif
     /*
       Acquire metadata lock which will ensure that COMMIT is blocked
       by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
@@ -594,6 +604,18 @@ bool trans_xa_prepare(THD *thd)
       MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
       res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
         slave_applier_reset_xa_trans(thd) : 0;
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF(
+        "stop_after_binlog_prepare",
+        if (thd->rgi_slave->current_gtid.seq_no % 100 == 0)
+        {
+          DBUG_ASSERT(!debug_sync_set_action(
+            thd,
+            STRING_WITH_LEN(
+                "now SIGNAL xa_prepare_binlogged WAIT_FOR continue_xap")));
+        };);
+#endif
+
     }
   }
 
