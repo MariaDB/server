@@ -15412,29 +15412,33 @@ ha_innobase::extra(
 	enum ha_extra_function operation)
 			   /*!< in: HA_EXTRA_FLUSH or some other flag */
 {
-	check_trx_exists(ha_thd());
-
 	/* Warning: since it is not sure that MySQL calls external_lock
 	before calling this function, the trx field in m_prebuilt can be
 	obsolete! */
+	trx_t *trx;
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
+		(void)check_trx_exists(ha_thd());
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
+		trx = check_trx_exists(ha_thd());
 		reset_template();
-		thd_to_trx(ha_thd())->duplicates = 0;
+		trx->duplicates = 0;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 
@@ -15445,18 +15449,23 @@ ha_innobase::extra(
 		either, because the calling threads may change.
 		CAREFUL HERE, OR MEMORY CORRUPTION MAY OCCUR! */
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_IGNORE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates |= TRX_DUP_IGNORE;
 		break;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_IGNORE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates &= ~TRX_DUP_IGNORE;
 		break;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_REPLACE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates |= TRX_DUP_REPLACE;
 		break;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_REPLACE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates &= ~TRX_DUP_REPLACE;
 		break;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15470,6 +15479,7 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 0;
 		break;
 	default:/* Do nothing */
