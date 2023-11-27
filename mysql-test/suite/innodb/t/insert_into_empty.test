@@ -495,3 +495,18 @@ DROP TABLE t1;
 CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-29913  Assertion `thd->stmt_arena != thd->progress.arena'
+--echo #		failed in thd_progress_init upon bulk load
+--echo #
+CREATE TABLE t1(
+	pk int, f1 varchar(4) DEFAULT 'foo', KEY(pk)) ENGINE=InnoDB;
+SET AUTOCOMMIT=0;
+--disable_ps2_protocol
+SELECT * INTO OUTFILE 'load.data' FROM seq_1_to_200;
+--enable_ps2_protocol
+LOAD DATA INFILE 'load.data' INTO TABLE t1(pk);
+DROP TABLE t1;
+let $datadir= `select @@datadir`;
+remove_file $datadir/test/load.data;

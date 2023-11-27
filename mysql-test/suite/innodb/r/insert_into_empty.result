@@ -467,3 +467,13 @@ DROP TABLE t1;
 CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
 DROP TABLE t;
+#
+#  MDEV-29913  Assertion `thd->stmt_arena != thd->progress.arena'
+#		failed in thd_progress_init upon bulk load
+#
+CREATE TABLE t1(
+pk int, f1 varchar(4) DEFAULT 'foo', KEY(pk)) ENGINE=InnoDB;
+SET AUTOCOMMIT=0;
+SELECT * INTO OUTFILE 'load.data' FROM seq_1_to_200;
+LOAD DATA INFILE 'load.data' INTO TABLE t1(pk);
+DROP TABLE t1;

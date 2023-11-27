@@ -3545,17 +3545,6 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
-	/* These thd_progress* calls will crash on sol10-64 when innodb_plugin
-	is used. MDEV-9356: innodb.innodb_bug53290 fails (crashes) on
-	sol10-64 in buildbot.
-	*/
-#ifndef __sun__
-	/* Progress report only for "normal" indexes. */
-	if (dup && !(dup->index->type & DICT_FTS)) {
-		thd_progress_init(trx->mysql_thd, 1);
-	}
-#endif /* __sun__ */
-
 	if (global_system_variables.log_warnings > 2) {
 		sql_print_information("InnoDB: Online DDL : merge-sorting"
 				      " has estimated " ULINTPF " runs",
@@ -3564,15 +3553,6 @@ row_merge_sort(
 
 	/* Merge the runs until we have one big run */
 	do {
-		/* Report progress of merge sort to MySQL for
-		show processlist progress field */
-		/* Progress report only for "normal" indexes. */
-#ifndef __sun__
-		if (dup && !(dup->index->type & DICT_FTS)) {
-			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
-		}
-#endif /* __sun__ */
-
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset, stage,
 				  crypt_block, space);
@@ -3595,13 +3575,6 @@ row_merge_sort(
 	} while (num_runs > 1);
 
 	ut_free(run_offset);
-
-	/* Progress report only for "normal" indexes. */
-#ifndef __sun__
-	if (dup && !(dup->index->type & DICT_FTS)) {
-		thd_progress_end(trx->mysql_thd);
-	}
-#endif /* __sun__ */
 
 	DBUG_RETURN(error);
 }
