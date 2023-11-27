@@ -22,7 +22,7 @@
 #ifndef MARIADB_CAPI_RENAME_INCLUDED
 #define MARIADB_CAPI_RENAME_INCLUDED
 
-#if !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY) && !defined(MYSQL_DYNAMIC_PLUGIN)
 
 #define MARIADB_ADD_PREFIX(_SYMBOL) server_##_SYMBOL
 #define mysql_real_connect      MARIADB_ADD_PREFIX(mysql_real_connect)

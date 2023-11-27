@@ -453,11 +453,24 @@ static MYSQL_RES * emb_store_result(MYSQL *mysql)
   return mysql_store_result(mysql);
 }
 
-int emb_read_change_user_result(MYSQL *mysql)
+static int emb_read_change_user_result(MYSQL *mysql)
 {
   mysql->net.read_pos= (uchar*)""; // fake an OK packet
   return mysql_errno(mysql) ? (int)packet_error : 1 /* length of the OK packet */;
 }
+
+
+ static void emb_on_close_free(MYSQL *mysql)
+ {
+   my_free(mysql->info_buffer);
+   mysql->info_buffer= 0;
+   if (mysql->thd)
+   {
+     free_embedded_thd(mysql);
+     mysql->thd= 0;
+   }
+ }
+
 
 MYSQL_METHODS embedded_methods= 
 {
@@ -468,12 +481,12 @@ MYSQL_METHODS embedded_methods=
   emb_fetch_lengths, 
   emb_flush_use_result,
   emb_read_change_user_result,
+  emb_on_close_free,
   emb_list_fields,
   emb_read_prepare_result,
   emb_stmt_execute,
   emb_read_binary_rows,
   emb_unbuffered_fetch,
-  emb_free_embedded_thd,
   emb_read_statistics,
   emb_read_query_result,
   emb_read_rows_from_cursor
