@@ -5070,6 +5070,9 @@ i_s_sys_tables_fill_table(
 				thd, table_rec, tables->table);
 			if (err) {
 				err = i_s_sys_error_handling(err, thd);
+				if (table_rec) {
+					dict_mem_table_free(table_rec);
+				}
 				goto func_exit;
 			}
 		} else {
