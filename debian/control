@@ -547,7 +547,7 @@ Description: Backup tool for MariaDB server
  Based on Xtrabackup, but improved to work with MariaDB server.
  This backup tool is guaranteed to be compatible with MariaDB server.
  .
- Plese refer to the MariaDB Knowledge Base on more information on
+ Please refer to the MariaDB Knowledge Base on more information on
  how to use this tool.
 
 Package: mariadb-plugin-connect
