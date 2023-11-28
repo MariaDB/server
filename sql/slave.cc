@@ -46,7 +46,7 @@
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
-
+#include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
 #include "tztime.h"                             // struct Time_zone
 #include "log_event.h"                          // Rotate_log_event,
@@ -60,7 +60,6 @@
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
-#include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
 #include "semisync_slave.h"
