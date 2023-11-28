@@ -27,6 +27,7 @@ INSERT INTO t3 VALUES ('k','n',9),('y','b',8),('m','w',6);
 
 CREATE TABLE t4 (f INT NULL) ENGINE=InnoDB;
 INSERT INTO t4 VALUES (8),(9);
+analyze table t1,t2,t3,t4;
 UPDATE t1 SET t1.pk = -109 WHERE t1.f1 IN ( SELECT 'a' FROM t4 WHERE f >= 1 );
 SET DEBUG_SYNC='now SIGNAL con1_dml';
 
