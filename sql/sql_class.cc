@@ -1649,6 +1649,7 @@ void THD::reset_for_reuse()
   wsrep_cs().reset_error();
   wsrep_aborter= 0;
   wsrep_abort_by_kill= NOT_KILLED;
+  my_free(wsrep_abort_by_kill_err);
   wsrep_abort_by_kill_err= 0;
 #ifndef DBUG_OFF
   wsrep_killed_state= 0;
@@ -1689,6 +1690,8 @@ THD::~THD()
 
 #ifdef WITH_WSREP
   mysql_cond_destroy(&COND_wsrep_thd);
+  my_free(wsrep_abort_by_kill_err);
+  wsrep_abort_by_kill_err= 0;
 #endif
   mdl_context.destroy();
 
@@ -1708,6 +1711,7 @@ THD::~THD()
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
   my_free(m_token_array);
+  my_free(killed_err);
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
@@ -2131,7 +2135,11 @@ void THD::reset_killed()
     mysql_mutex_assert_not_owner(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_kill);
     killed= NOT_KILLED;
-    killed_err= 0;
+    if (unlikely(killed_err))
+    {
+      my_free(killed_err);
+      killed_err= 0;
+    }
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
@@ -2142,6 +2150,7 @@ void THD::reset_killed()
       mysql_mutex_assert_not_owner(&LOCK_thd_kill);
       mysql_mutex_lock(&LOCK_thd_kill);
       wsrep_abort_by_kill= NOT_KILLED;
+      my_free(wsrep_abort_by_kill_err);
       wsrep_abort_by_kill_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }

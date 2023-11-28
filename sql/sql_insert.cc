@@ -2635,7 +2635,9 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy= new (copy_tmp) TABLE;
   *copy= *table;
   copy->vcol_refix_list.empty();
-  copy->mem_root= *client_thd->mem_root;
+  init_alloc_root(&copy->mem_root, client_thd->mem_root->name,
+                  client_thd->mem_root->block_size,
+                  0, MY_THREAD_SPECIFIC);
 
   /* We don't need to change the file handler here */
   /* Assign the pointers for the field pointers array and the record. */
@@ -2729,11 +2731,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
   copy->read_set=  &copy->def_read_set;
   copy->write_set= &copy->def_write_set;
+  move_root(client_thd->mem_root, &copy->mem_root);
+  free_root(&copy->mem_root, 0);
 
   DBUG_RETURN(copy);
 
   /* Got fatal error */
  error:
+  free_root(&copy->mem_root, 0);
   tables_in_use--;
   mysql_cond_signal(&cond);                     // Inform thread about abort
   DBUG_RETURN(0);

@@ -485,6 +485,7 @@ void wsrep_backup_kill_for_commit(THD *thd)
       thd->wsrep_trx().state() != wsrep::transaction::s_must_replay)
   {
     thd->wsrep_abort_by_kill= thd->killed;
+    my_free(thd->wsrep_abort_by_kill_err);
     thd->wsrep_abort_by_kill_err= thd->killed_err;
     thd->killed= NOT_KILLED;
     thd->killed_err= 0;
@@ -497,6 +498,7 @@ void wsrep_restore_kill_after_commit(THD *thd)
   DBUG_ASSERT(WSREP(thd));
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   thd->killed= thd->wsrep_abort_by_kill;
+  my_free(thd->killed_err);
   thd->killed_err= thd->wsrep_abort_by_kill_err;
   thd->wsrep_abort_by_kill= NOT_KILLED;
   thd->wsrep_abort_by_kill_err= 0;
