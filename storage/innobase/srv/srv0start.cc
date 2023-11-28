@@ -1557,7 +1557,7 @@ dberr_t srv_start(bool create_new_db)
 			}
 
 			if (UNIV_UNLIKELY(must_upgrade_ibuf)) {
-				dict_load_tablespaces();
+				dict_load_tablespaces(nullptr, true);
 				err = ibuf_upgrade();
 				if (err != DB_SUCCESS) {
 					break;
@@ -1953,11 +1953,9 @@ void innodb_preshutdown()
   if (srv_read_only_mode)
     return;
   if (!srv_fast_shutdown && srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
-  {
-    if (trx_sys.is_initialised())
+    if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO && srv_was_started)
       while (trx_sys.any_active_transactions())
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
   srv_shutdown_bg_undo_sources();
   srv_purge_shutdown();
 

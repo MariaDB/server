@@ -1114,6 +1114,16 @@ SELECT JSON_OBJECTAGG('\"', 1);
 SELECT JSON_OBJECTAGG('\\', 1);
 
 --echo #
+--echo # MDEV-24784 JSON_ARRAYAGG charset issue
+--echo #
+--disable_service_connection
+set names utf8;
+select json_arrayagg('ä'), json_objectagg(1, 'ä');
+set names latin1;
+select json_arrayagg('ä'), json_objectagg(1, 'ä');
+--enable_service_connection
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
@@ -1831,7 +1841,28 @@ SET @@collation_connection= @save_collation_connection;
 --echo # End of 10.9 Test
 --echo #
 
---echo # Beginning of 11.1 test
+--echo #
+--echo # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
+--echo #             as first character in key
+--echo #
+
+CREATE TEMPORARY TABLE IF NOT EXISTS jsonTest AS
+       SELECT '{ "-1234" : "something",
+                 "12-34" : "else",
+                 "1234-" : "and",
+                 "1234" : "match" }' AS 'message';
+ 
+SELECT JSON_SEARCH(message, 'one', 'something') AS t1_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'something'))) AS t1_result,
+       JSON_SEARCH(message, 'one', 'else') AS t2_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'else'))) AS t2_result,
+       JSON_SEARCH(message, 'one', 'and') AS t3_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'and'))) AS t3_result,
+       JSON_SEARCH(message, 'one', 'match') AS t4_path,
+       JSON_VALUE(message, JSON_UNQUOTE(JSON_SEARCH(message, 'one', 'match'))) AS t4_result
+FROM jsonTest;
+
+--echo # End of 11.0 test
 
 --echo #
 --echo # MDEV-27128: Implement JSON Schema Validation FUNCTION
@@ -3669,6 +3700,15 @@ SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
 SELECT JSON_SCHEMA_VALID('{}', NULL);
 SELECT JSON_SCHEMA_VALID(NULL, '{}');
 SELECT JSON_SCHEMA_VALID(NULL, NULL);
+
+--echo #
+--echo # MDEV-31599: Assertion `0' failed in Item_param::can_return_value from Item::val_json,
+--echo #             UBSAN: member access within null pointer of type 'struct String' in
+--echo #             sql/item_jsonfunc.cc
+--echo #
+
+--error ER_JSON_NO_VARIABLE_SCHEMA
+PREPARE s FROM 'SELECT JSON_SCHEMA_VALID (?,''{}'') FROM DUAL';
 
 --echo # End of 11.1 test
 

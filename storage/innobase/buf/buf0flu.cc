@@ -655,7 +655,7 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
 
   ut_ad(!bpage->zip_size() || !page_compressed);
   /* Find free slot from temporary memory array */
-  *slot= buf_pool.io_buf_reserve();
+  *slot= buf_pool.io_buf_reserve(true);
   ut_a(*slot);
   (*slot)->allocate();
 
@@ -2117,6 +2117,8 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious)
       limit= lsn;
       buf_pool.page_cleaner_set_idle(false);
       pthread_cond_signal(&buf_pool.do_flush_list);
+      if (furious)
+        log_sys.set_check_for_checkpoint();
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }

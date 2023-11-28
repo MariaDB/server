@@ -3,6 +3,8 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 
+SET GLOBAL innodb_stats_persistent = 0;
+
 # Flush any open myisam tables from previous tests
 FLUSH TABLES;
 

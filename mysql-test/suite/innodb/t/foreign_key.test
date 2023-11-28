@@ -2,6 +2,8 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+SET GLOBAL innodb_stats_persistent = 0;
+
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
 --echo # DICT_CREATE_FOREIGN_CONSTR
@@ -125,6 +127,9 @@ FLUSH TABLES;
 --source include/restart_mysqld.inc
 --let $shutdown_timeout=
 disconnect incomplete;
+
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 
 INSERT INTO child SET a=0;
 --error ER_NO_REFERENCED_ROW_2
@@ -1131,5 +1136,7 @@ CHECK TABLE binaries, collections EXTENDED;
 DROP TABLE binaries, collections;
 
 --echo # End of 10.6 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
 --source include/wait_until_count_sessions.inc

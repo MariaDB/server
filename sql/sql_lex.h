@@ -1227,6 +1227,11 @@ public:
   List<Field_pair> grouping_tmp_fields;
   List<udf_func>     udf_list;                  /* udf function calls stack */
   List<Index_hint> *index_hints;  /* list of USE/FORCE/IGNORE INDEX */
+  /*
+    This list is used to restore the names of items
+    from item_list after each execution of the statement.
+  */
+  List<Lex_ident_sys> *orig_names_of_item_list_elems;
   List<List_item> save_many_values;
   List<Item> *save_insert_list;
 
@@ -1445,6 +1450,9 @@ public:
                               bool straight_fl);
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
+  bool save_item_list_names(THD *thd);
+  void restore_item_list_names();
+
   ulong get_table_join_options();
   void set_lock_for_tables(thr_lock_type lock_type, bool for_update,
                            bool skip_locks);

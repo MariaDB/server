@@ -4,6 +4,9 @@
 
 --source include/innodb_page_size_small.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
@@ -144,3 +147,5 @@ DROP TABLE parent;
 --echo #		temporary tablespace information
 --echo #
 SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE name like 'innodb_temporary';
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
