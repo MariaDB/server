@@ -9368,7 +9368,8 @@ TC_LOG::run_prepare_ordered(THD *thd, bool all)
   The function executes the fast part of ordered commit in engine branches
   for normal and XA transactions, as well as XA prepare and XA rollback.
   In the slave case, the completed XA transaction' xid is also removed from
-  the system xid cache.
+  the system xid cache, and the prepared transaction's THD gets disconnected
+  from engines.
 */
 void
 TC_LOG::run_commit_ordered(THD *thd, bool all)
@@ -9409,6 +9410,7 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
       thd->transaction->xid_state.set_state_code(XA_PREPARED);
       thd->transaction->xid_state.set_cache_element_to_recovered();
       thd->transaction->xid_state.xid_cache_element= 0;
+      ha_close_connection(thd, true /* skip binlog */);
     }
   }
   else if (thd->transaction->xid_state.is_explicit_XA())

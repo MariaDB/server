@@ -5302,7 +5302,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin);
 
 TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
-void ha_close_connection(THD* thd);
+void ha_close_connection(THD* thd, bool skip_binlog= false);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
 void ha_signal_ddl_recovery_done();
 bool ha_flush_logs();

@@ -909,14 +909,16 @@ ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *))
   there's no need to rollback here as all transactions must
   be rolled back already
 */
-void ha_close_connection(THD* thd)
+void ha_close_connection(THD* thd, bool skip_binlog)
 {
   for (auto i= 0; i < MAX_HA; i++)
   {
     if (plugin_ref plugin= thd->ha_data[i].lock)
     {
-      thd->ha_data[i].lock= NULL;
       handlerton *hton= plugin_hton(plugin);
+      if (skip_binlog && hton == binlog_hton)
+        continue;
+      thd->ha_data[i].lock= NULL;
       if (hton->close_connection)
         hton->close_connection(hton, thd);
       thd_set_ha_data(thd, hton, 0);
@@ -2226,13 +2228,14 @@ int ha_rollback_trans(THD *thd, bool all)
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(
-        !(thd->rgi_slave &&
-          !thd->rgi_slave->worker_error &&
-          thd->rgi_slave->did_mark_start_commit) ||
-        (thd->transaction->xid_state.is_explicit_XA() ||
-         (thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_PREPARED_XA)));
-
+    DBUG_ASSERT(!(thd->rgi_slave &&
+                  !thd->rgi_slave->worker_error &&
+                  thd->rgi_slave->did_mark_start_commit) ||
+                (thd->transaction->xid_state.is_explicit_XA() ||
+                 /* MDEV-31038: d/l when trying to lock mysql.gtid_slave_pos */
+                 (thd->rgi_slave->gtid_ev_flags2 &
+                  (Gtid_log_event::FL_PREPARED_XA |
+                   Gtid_log_event::FL_COMPLETED_XA))));
     if (thd->rgi_slave &&
         !thd->rgi_slave->worker_error &&
         thd->rgi_slave->did_mark_start_commit)
@@ -2410,6 +2413,7 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd)
                      MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
       xid_cache_delete(thd);
     }
+    thd->wakeup_subsequent_commits(rc);
   }
 
   return xaop.result;

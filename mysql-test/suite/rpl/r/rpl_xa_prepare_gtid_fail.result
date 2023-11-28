@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 connection slave;
 include/stop_slave.inc
+set statement sql_log_bin=0 for call mtr.add_suppression("Commit failed due to failure of an earlier commit");
 set @save_par_thds= @@global.slave_parallel_threads;
 set @save_strict_mode= @@global.gtid_strict_mode;
 set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
