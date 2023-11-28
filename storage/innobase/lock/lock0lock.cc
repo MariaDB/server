@@ -3976,6 +3976,36 @@ run_again:
   return err;
 }
 
+/** Lock the child tables of a table.
+@param table    parent table
+@param trx      transaction
+@return error code */
+dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
+{
+  dict_sys.freeze(SRW_LOCK_CALL);
+  std::vector<dict_table_t*> children;
+
+  for (auto f : table->referenced_set)
+    if (dict_table_t *child= f->foreign_table)
+    {
+      child->acquire();
+      children.emplace_back(child);
+    }
+  dict_sys.unfreeze();
+
+  dberr_t err= DB_SUCCESS;
+
+  for (auto child : children)
+    if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+      break;
+
+  for (auto child : children)
+    child->release();
+
+  return err;
+}
+
+
 /** Exclusively lock the data dictionary tables.
 @param trx  dictionary transaction
 @return error code
