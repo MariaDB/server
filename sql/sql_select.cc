@@ -9104,9 +9104,6 @@ bool JOIN::get_best_combination()
   if (aggr_tables > 2)
     aggr_tables= 2;
 
-#ifndef DBUG_OFF
-  dbug_join_tab_array_size= top_join_tab_count + aggr_tables;
-#endif
   /*
     NOTE: The above computation of aggr_tables can produce wrong result because some
     of the variables it uses may change their values after we leave this function.
@@ -9119,6 +9116,9 @@ bool JOIN::get_best_combination()
   */
   aggr_tables= 2;
   DBUG_ASSERT(!tmp_table_param.using_outer_summary_function);
+#ifndef DBUG_OFF
+  dbug_join_tab_array_size= top_join_tab_count + aggr_tables;
+#endif
 
   if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
                                         (top_join_tab_count + aggr_tables))))
