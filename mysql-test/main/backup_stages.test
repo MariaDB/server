@@ -50,6 +50,7 @@ FROM information_schema.processlist WHERE id = @con1_id;
 # con1 uses @@global.lock_wait_timeout
 
 BACKUP STAGE END;
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 --connection con1

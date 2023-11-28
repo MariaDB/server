@@ -11,6 +11,7 @@
 --echo # Test lock taken
 --echo #
 
+--source ../suite/innodb/include/wait_all_purged.inc
 BACKUP LOCK test.t1;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 BACKUP UNLOCK;
@@ -29,7 +30,7 @@ BACKUP UNLOCK;
 connect (con1,localhost,root,,);
 
 connection default;
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent=0,engine=innodb;
 insert into t1 values (1);
 backup lock t1;
 select * from t1;
@@ -40,6 +41,7 @@ let $wait_condition=
     select count(*) = 1 from information_schema.processlist
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 --error ER_LOCK_DEADLOCK
 select * from t1;
