@@ -26,6 +26,7 @@
 #include <mysql_com.h>
 
 #include "sql_string.h"
+#include "sql_const.h" // STRING_BUFFER_USUAL_SIZE
 
 /*****************************************************************************
 ** String functions
@@ -1226,4 +1227,13 @@ bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
   DBUG_ASSERT((ulonglong) str_length + nbytes < UINT_MAX32);
   str_length+= nbytes;
   return false;
+}
+
+
+bool String::safely_converts_to(CHARSET_INFO *cs) const
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+  String_copier copier;
+  return !tmp.copy(cs, charset(), ptr(), length(), length(), &copier) &&
+         copier.most_important_error_pos() == nullptr;
 }

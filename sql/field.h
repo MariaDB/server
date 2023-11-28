@@ -4883,7 +4883,8 @@ public:
   bool prepare_stage1_typelib(THD *thd, MEM_ROOT *mem_root,
                               handler *file, ulonglong table_flags);
   bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root,
-                             handler *file, ulonglong table_flags);
+                             handler *file, ulonglong table_flags,
+                             const Column_derived_attributes &derived_attr);
   bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
                           handler *file, ulonglong table_flags);
 

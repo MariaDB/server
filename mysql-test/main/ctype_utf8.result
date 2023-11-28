@@ -11552,5 +11552,33 @@ a	OCTET_LENGTH(a)
 a	1
 DROP TABLE t1;
 #
+# MDEV-27771 [ERROR] mysqld: Incorrect information in file: './test/t1.frm' on "ERROR 1918 Encountered illegal value ... when converting to latin1"
+#
+SET NAMES utf8mb3;
+#
+# GENERATED ALWAYS AS ('string literal')
+#
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS ('я')) CHARACTER SET utf8;
+DROP TABLE t1;
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS ('я')) CHARACTER SET latin1;
+ERROR HY000: Function or expression ''я'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET utf8 GENERATED ALWAYS AS ('я')) CHARACTER SET latin1;
+ERROR HY000: Function or expression ''я'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET latin1 GENERATED ALWAYS AS ('я')) CHARACTER SET utf8;
+ERROR HY000: Function or expression ''я'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+#
+# GENERATED ALWAYS AS (func('string literal'))
+#
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET utf8;
+DROP TABLE t1;
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET latin1;
+ERROR HY000: Function or expression 'concat('я')' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET utf8 GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET latin1;
+ERROR HY000: Function or expression 'concat('я')' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET latin1 GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET utf8;
+DROP TABLE t1;
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET latin1 DEFAULT (CONCAT('я'))) CHARACTER SET utf8;
+ERROR 42000: Invalid default value for 'gc'
+#
 # End of 10.4 tests
 #

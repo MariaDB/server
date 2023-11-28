@@ -2466,5 +2466,57 @@ SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-27771 [ERROR] mysqld: Incorrect information in file: './test/t1.frm' on "ERROR 1918 Encountered illegal value ... when converting to latin1"
+--echo #
+
+SET NAMES utf8mb3;
+
+--echo #
+--echo # GENERATED ALWAYS AS ('string literal')
+--echo #
+
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS ('я')) CHARACTER SET utf8;
+DROP TABLE t1;
+
+# A string literal in GENERATED ALWAYS AS produces an error
+# if it does not convert to any of these character sets:
+# - The table character set
+# - The column character set
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS ('я')) CHARACTER SET latin1;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET utf8 GENERATED ALWAYS AS ('я')) CHARACTER SET latin1;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET latin1 GENERATED ALWAYS AS ('я')) CHARACTER SET utf8;
+
+
+--echo #
+--echo # GENERATED ALWAYS AS (func('string literal'))
+--echo #
+
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET utf8;
+DROP TABLE t1;
+
+# A more complex expression in GENERATED ALWAYS as with a literal inside
+# produces an error only if the literal does not convert to the
+# table character set.
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(1) GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET latin1;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET utf8 GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET latin1;
+
+# When the literal does not convert to the column character set,
+# but convert to the table character set, it's allowed.
+# The entire expression might not be useful though.
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET latin1 GENERATED ALWAYS AS (CONCAT('я'))) CHARACTER SET utf8;
+DROP TABLE t1;
+# !!! Let's fix the above eventually, to produce an error like DEFAULT does:
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (gc CHAR(1) CHARACTER SET latin1 DEFAULT (CONCAT('я'))) CHARACTER SET utf8;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

@@ -3182,7 +3182,8 @@ bool Column_definition::prepare_stage1_typelib(THD *thd,
 bool Column_definition::prepare_stage1_string(THD *thd,
                                               MEM_ROOT *mem_root,
                                               handler *file,
-                                              ulonglong table_flags)
+                                              ulonglong table_flags,
+                                const Column_derived_attributes &derived_attr)
 {
   create_length_to_internal_length_string();
   if (prepare_blob_field(thd))
@@ -3202,6 +3203,34 @@ bool Column_definition::prepare_stage1_string(THD *thd,
     if (prepare_stage1_convert_default(thd, mem_root, charset))
       return true;
   }
+
+  if (vcol_info)
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> buffer;
+    String *str;
+    if (vcol_info->expr->walk(&Item::unsafe_for_frm_vcol_info_processor,
+                              true, (void *) derived_attr.charset()) ||
+        /*
+          Catch trivial erroneous cases that make GENERATED ALWAYS AS useless:
+          a literal does not safely convert to the column character set.
+        */
+        (vcol_info->expr->basic_const_item() &&
+         charset != vcol_info->expr->collation.collation &&
+         (str= vcol_info->expr->val_str(&buffer)) &&
+         !str->safely_converts_to(charset)))
+    {
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+      vcol_info->expr->print(&tmp, (enum_query_type)
+                                   (QT_TO_SYSTEM_CHARSET |
+                                    QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                    QT_ITEM_IDENT_SKIP_TABLE_NAMES));
+      my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+               tmp.c_ptr_safe(), "GENERATED ALWAYS AS",
+               field_name.str);
+      return true; // Could not convert
+    }
+  }
+
   return false;
 }
 

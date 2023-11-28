@@ -597,3 +597,42 @@ SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-27771 [ERROR] mysqld: Incorrect information in file: './test/t1.frm' on "ERROR 1918 Encountered illegal value ... when converting to latin1"
+#
+SET NAMES cp932;
+SELECT HEX('�') AS cp932, HEX(CONVERT('�' USING utf8)) AS utf8;
+cp932	utf8
+EFBFBD	3FEFBDBD
+Warnings:
+Warning	1977	Cannot convert 'cp932' character 0xEFBF to 'utf8'
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('�')) /*latin1 by default*/;
+ERROR HY000: Function or expression ''?�'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('�')) CHARACTER SET latin1;
+ERROR HY000: Function or expression ''?�'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('�')) CHARACTER SET utf8;
+ERROR HY000: Function or expression ''?�'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+SELECT HEX('ᐿ'), HEX(CONVERT('ᐿ' USING utf8));
+HEX('ᐿ')	HEX(CONVERT('ᐿ' USING utf8))
+E190BF	E798B0EFBDBF
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('ᐿ')) /*latin1 by default*/;
+ERROR HY000: Function or expression ''ᐿ'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('ᐿ')) CHARACTER SET latin1;
+ERROR HY000: Function or expression ''ᐿ'' cannot be used in the GENERATED ALWAYS AS clause of `gc`
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('ᐿ')) CHARACTER SET utf8;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `gc` char(2) GENERATED ALWAYS AS ('ᐿ') VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(gc) FROM t1;
+HEX(gc)
+E798B0EFBDBF
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

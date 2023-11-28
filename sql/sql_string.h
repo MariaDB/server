@@ -1147,6 +1147,9 @@ public:
       return FALSE;
     return !has_8bit_bytes();
   }
+
+  bool safely_converts_to(CHARSET_INFO *cs) const;
+
   bool eq(const String *other, CHARSET_INFO *cs) const
   {
     return !sortcmp(this, other, cs);

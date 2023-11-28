@@ -1951,6 +1951,7 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+  virtual bool unsafe_for_frm_vcol_info_processor(void *arg) { return 0; }
   bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
@@ -4431,6 +4432,17 @@ protected:
     fix_from_value(dv, metadata);
     set_name(thd, str_value.ptr(), str_value.length(), str_value.charset());
   }
+  bool unsafe_for_frm_vcol_info_processor(void *arg)
+  {
+    /*
+      parse_vcol_defs() sets @@collation_connection to table->s->table_charset.
+      All simple string literals used in the GENERATED ALWAYS AS expression
+      must convert to the table level charset without errors to avoid error
+      at the FRM open time.
+    */
+    CHARSET_INFO *cs= (CHARSET_INFO*) arg;
+    return !str_value.safely_converts_to(cs);
+  }
 protected:
   /* Just create an item and do not fill string representation */
   Item_string(THD *thd, CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE):
@@ -4564,6 +4576,10 @@ public:
 
 class Item_string_with_introducer :public Item_string
 {
+  bool unsafe_for_frm_vcol_info_processor(void *arg)
+  {
+    return false;
+  }
 public:
   Item_string_with_introducer(THD *thd, const char *str, uint length,
                               CHARSET_INFO *cs):

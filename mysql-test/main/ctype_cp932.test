@@ -50,3 +50,57 @@ let $coll_pad='cp932_bin';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-27771 [ERROR] mysqld: Incorrect information in file: './test/t1.frm' on "ERROR 1918 Encountered illegal value ... when converting to latin1"
+--echo #
+
+SET NAMES cp932;
+
+# The string used below is _cp932 0xEFBFBD, it consists of two characters:
+# - 0xEFBF - an unassigned CJK
+# - 0xBF   - HALFWIDTH KATAKANA LETTER SU (U+FF7D, _utf8 0xEFBDBD)
+
+# 0xEFBD does not convert safely to utf8, it gets replaced to 0x3F '?'
+# 0xBF converts safely to utf8
+# So the CONVERT is expected to return 0x3EEFBDBD:
+SELECT HEX('�') AS cp932, HEX(CONVERT('�' USING utf8)) AS utf8;
+
+# As the first character is not assigned, it does not convert
+# to any other character sets, including utf8
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('�')) /*latin1 by default*/;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('�')) CHARACTER SET latin1;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('�')) CHARACTER SET utf8;
+
+
+# The string used below is _cp932 0xE190BF, it consists of two characters:
+# - 0xE190 - an assigned CJK              (U+7630, _utf8 0xE798B0)
+# - 0xBF   - HALFWIDTH KATAKANA LETTER SU (U+FF7D, _utf8 0xEFBDBD)
+
+SELECT HEX('ᐿ'), HEX(CONVERT('ᐿ' USING utf8));
+
+# This string does not convert to latin1
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('ᐿ')) /*latin1 by default*/;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('ᐿ')) CHARACTER SET latin1;
+
+# But it converts to utf8
+CREATE TABLE t1 (gc CHAR(2) GENERATED ALWAYS AS ('ᐿ')) CHARACTER SET utf8;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(gc) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

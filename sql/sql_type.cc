@@ -2809,7 +2809,8 @@ bool Type_handler_string_result::
                                         const
 {
   return def->prepare_charset_for_string(derived_attr) ||
-         def->prepare_stage1_string(thd, mem_root, file, table_flags);
+         def->prepare_stage1_string(thd, mem_root, file, table_flags,
+                                    *derived_attr);
 }
 
 
