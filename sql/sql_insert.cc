@@ -2586,7 +2586,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     }
     THD_STAGE_INFO(client_thd, stage_got_handler_lock);
     if (client_thd->killed)
-      goto error;
+      goto error2;
     if (thd.killed)
     {
       /*
@@ -2611,7 +2611,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         my_message(thd.get_stmt_da()->sql_errno(),
                    thd.get_stmt_da()->message(), MYF(0));
       }
-      goto error;
+      goto error2;
     }
   }
   share= table->s;
@@ -2629,7 +2629,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                       share->reclength +
                                       share->column_bitmap_size*4);
   if (!copy_tmp)
-    goto error;
+    goto error2;
 
   /* Copy the TABLE object. */
   copy= new (copy_tmp) TABLE;
@@ -2739,6 +2739,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   /* Got fatal error */
  error:
   free_root(&copy->mem_root, 0);
+error2:
   tables_in_use--;
   mysql_cond_signal(&cond);                     // Inform thread about abort
   DBUG_RETURN(0);
