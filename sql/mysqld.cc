@@ -5118,6 +5118,9 @@ static int init_server_components()
 
   tc_log= 0; // ha_initialize_handlerton() needs that
 
+  if (!opt_abort && ddl_log_initialize())
+    unireg_abort(1);
+
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
                   (opt_abort ? PLUGIN_INIT_SKIP_INITIALIZATION : 0)))
@@ -5360,9 +5363,6 @@ static int init_server_components()
     wsrep_emulate_bin_log= 1;
   }
 #endif
-
-  if (ddl_log_initialize())
-    unireg_abort(1);
 
   tc_log= get_tc_log_implementation();
 
