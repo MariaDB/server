@@ -1,3 +1,5 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 #
 # Bug#21869656 UNDO LOG DOES NOT CONTAIN ENOUGH INFORMATION
 # ON INDEXED VIRTUAL COLUMNS
@@ -171,3 +173,4 @@ CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

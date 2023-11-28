@@ -1113,6 +1113,19 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       mtr_s_lock_index(index(), mtr);
   }
 
+  dberr_t err;
+
+  if (!index()->table->space)
+  {
+  corrupted:
+    ut_ad("corrupted" == 0); // FIXME: remove this
+    err= DB_CORRUPTION;
+  func_exit:
+    if (UNIV_LIKELY_NULL(heap))
+      mem_heap_free(heap);
+    return err;
+  }
+
   const ulint zip_size= index()->table->space->zip_size();
 
   /* Start with the root page. */
@@ -1125,7 +1138,6 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
   low_match= 0;
   low_bytes= 0;
  search_loop:
-  dberr_t err;
   auto block_savepoint= mtr->get_savepoint();
   buf_block_t *block=
     buf_page_get_gen(page_id, zip_size, rw_latch, guess, BUF_GET, mtr, &err);
@@ -1133,22 +1145,14 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
   {
     if (err == DB_DECRYPTION_FAILED)
       btr_decryption_failed(*index());
-  func_exit:
-    if (UNIV_LIKELY_NULL(heap))
-      mem_heap_free(heap);
-    return err;
+    goto func_exit;
   }
 
   if (!!page_is_comp(block->page.frame) != index()->table->not_redundant() ||
       btr_page_get_index_id(block->page.frame) != index()->id ||
       fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE ||
       !fil_page_index_page_check(block->page.frame))
-  {
-  corrupted:
-    ut_ad("corrupted" == 0); // FIXME: remove this
-    err= DB_CORRUPTION;
-    goto func_exit;
-  }
+    goto corrupted;
 
   page_cur.block= block;
   ut_ad(block == mtr->at_savepoint(block_savepoint));
@@ -1666,6 +1670,18 @@ dberr_t btr_cur_search_to_nth_level(ulint level,
   ut_ad(mtr->memo_contains_flagged(&index->lock,
                                    MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 
+  dberr_t err;
+
+  if (!index->table->space)
+  {
+  corrupted:
+    err= DB_CORRUPTION;
+  func_exit:
+    if (UNIV_LIKELY_NULL(heap))
+      mem_heap_free(heap);
+    return err;
+  }
+
   const ulint zip_size= index->table->space->zip_size();
 
   /* Start with the root page. */
@@ -1673,7 +1689,7 @@ dberr_t btr_cur_search_to_nth_level(ulint level,
   ulint height= ULINT_UNDEFINED;
 
 search_loop:
-  dberr_t err= DB_SUCCESS;
+  err= DB_SUCCESS;
   if (buf_block_t *b=
       mtr->get_already_latched(page_id, mtr_memo_type_t(rw_latch)))
     block= b;
@@ -1694,14 +1710,7 @@ search_loop:
       btr_page_get_index_id(block->page.frame) != index->id ||
       fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE ||
       !fil_page_index_page_check(block->page.frame))
-  {
-  corrupted:
-    err= DB_CORRUPTION;
-  func_exit:
-    if (UNIV_LIKELY_NULL(heap))
-      mem_heap_free(heap);
-    return err;
-  }
+    goto corrupted;
 
   const uint32_t page_level= btr_page_get_level(block->page.frame);
 

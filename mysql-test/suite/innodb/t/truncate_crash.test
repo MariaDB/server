@@ -4,7 +4,7 @@
 --source include/not_embedded.inc
 
 FLUSH TABLES;
-CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 VALUES (1),(2);
 
 connect (wait,localhost,root,,test);

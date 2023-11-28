@@ -735,6 +735,14 @@ trx_undo_free_page(
 		return FIL_NULL;
 	}
 
+	const fil_addr_t last_addr = flst_get_last(
+		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
+		+ header_block->page.frame);
+	if (UNIV_UNLIKELY(last_addr.page == page_no)) {
+		*err = DB_CORRUPTION;
+		return FIL_NULL;
+	}
+
 	*err = fseg_free_page(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 			      + header_block->page.frame,
 			      rseg->space, page_no, mtr);
@@ -743,9 +751,6 @@ trx_undo_free_page(
 	}
 	buf_page_free(rseg->space, page_no, mtr);
 
-	const fil_addr_t last_addr = flst_get_last(
-		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
-		+ header_block->page.frame);
 	rseg->curr_size--;
 
 	if (!in_history) {
@@ -788,6 +793,9 @@ static dberr_t trx_undo_truncate_end(trx_undo_t &undo, undo_no_t limit,
                                      bool is_temp)
 {
   ut_ad(is_temp == !undo.rseg->is_persistent());
+
+  if (UNIV_UNLIKELY(undo.last_page_no == FIL_NULL))
+    return DB_CORRUPTION;
 
   for (mtr_t mtr;;)
   {
