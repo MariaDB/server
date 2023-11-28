@@ -1740,6 +1740,7 @@ rule:
         query_expression_tail
         opt_query_expression_tail
         order_or_limit
+        opt_order_or_limit
         order_limit_lock
         opt_order_limit_lock
 
@@ -12756,6 +12757,18 @@ opt_procedure_or_into:
           }
         ;
 
+opt_order_or_limit:
+          /* empty */
+          {
+            $$= NULL;
+          }
+        |
+          order_or_limit
+          {
+            $1->lock.empty();
+            $$= $1;
+          }
+        ;
 
 order_or_limit:
           order_clause opt_limit_clause
@@ -13699,10 +13712,15 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          FROM join_table_list opt_where_clause
+          FROM join_table_list opt_where_clause opt_order_or_limit
           {
             if (unlikely(multi_delete_set_locks_and_link_aux_tables(Lex)))
               MYSQL_YYABORT;
+            if ($6)
+            {
+              DBUG_ASSERT(Lex->select_stack_head() == Select);
+              $6->set_to(Lex->select_stack_head());
+            }
           } stmt_end {}
         | FROM table_alias_ref_list
           {
@@ -13715,10 +13733,15 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          USING join_table_list opt_where_clause
+          USING join_table_list opt_where_clause opt_order_or_limit
           {
             if (unlikely(multi_delete_set_locks_and_link_aux_tables(Lex)))
               MYSQL_YYABORT;
+            if ($7)
+            {
+              DBUG_ASSERT(Lex->select_stack_head() == Select);
+              $7->set_to(Lex->select_stack_head());
+            }
           } stmt_end {}
         ;
 
