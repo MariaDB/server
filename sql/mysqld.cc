@@ -5366,7 +5366,6 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-change-buffering"),
 
       /* removed in 11.3 */
-      MARIADB_REMOVED_OPTION("debug"),
       MARIADB_REMOVED_OPTION("date-format"),
       MARIADB_REMOVED_OPTION("datetime-format"),
       MARIADB_REMOVED_OPTION("time-format"),
