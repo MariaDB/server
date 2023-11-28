@@ -22,4 +22,4 @@ galera_as_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsr
 galera_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
 galera_bf_lock_wait : MDEV-32781 galera_bf_lock_wait test failed
 galera_sst_mysqldump_with_key : MDEV-32782 galera_sst_mysqldump_with_key test failed
-mdev-31285 : MDEV-25089 Assertion `error.len > 0' failed in galera::ReplicatorSMM::handle_apply_error()
+

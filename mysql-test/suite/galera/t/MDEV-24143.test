@@ -11,7 +11,11 @@ SET SESSION autocommit=0;
 SELECT * FROM t1 WHERE c1 <=0 ORDER BY c1 DESC;
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (4),(3),(1),(2);
---error ER_TABLE_EXISTS_ERROR
+#
+# This is because support for CREATE TABLE ENGINE=SEQUENCE
+# is done before we check does table exists already.
+#
+--error ER_NOT_SUPPORTED_YET
 CREATE TABLE t1 (pk INT PRIMARY KEY, b INT) ENGINE=SEQUENCE;
 --error ER_CANT_DROP_FIELD_OR_KEY
 ALTER TABLE t1 DROP COLUMN c2;

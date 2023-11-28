@@ -14,7 +14,7 @@ c1
 INSERT INTO t1 VALUES (4),(3),(1),(2);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 CREATE TABLE t1 (pk INT PRIMARY KEY, b INT) ENGINE=SEQUENCE;
-ERROR 42S01: Table 't1' already exists
+ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
 ALTER TABLE t1 DROP COLUMN c2;
 ERROR 42000: Can't DROP COLUMN `c2`; check that it exists
 SELECT get_lock ('test', 1.5);
