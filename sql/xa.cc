@@ -1188,6 +1188,10 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   thd->transaction->all.ha_list= 0;
 
   ha_close_connection(thd);
+
+  DBUG_ASSERT(!thd->is_error());
+
+  thd->wakeup_subsequent_commits(0);
   thd->transaction->cleanup();
   thd->transaction->all.reset();
 
