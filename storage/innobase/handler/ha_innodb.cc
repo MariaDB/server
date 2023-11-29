@@ -598,7 +598,13 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
 #  ifdef BTR_CUR_HASH_ADAPT
   { &btr_search_latch_key, "btr_search_latch", 0 },
 #  endif
-  { &dict_operation_lock_key, "dict_operation_lock", 0 },
+  { &dict_operation_lock_key, "dict_operation_lock",
+#  ifdef UNIV_DEBUG
+    PSI_RWLOCK_FLAG_SX
+#  else
+    0
+#  endif
+  },
   { &fil_space_latch_key, "fil_space_latch", 0 },
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },

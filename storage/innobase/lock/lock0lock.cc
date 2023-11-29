@@ -3940,6 +3940,8 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait)
 {
+  ut_ad(!dict_sys.frozen());
+
   mem_heap_t *heap= mem_heap_create(512);
   sel_node_t *node= sel_node_create(heap);
   que_thr_t *thr= pars_complete_graph_for_exec(node, trx, heap, nullptr);
