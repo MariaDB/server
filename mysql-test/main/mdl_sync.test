@@ -16,6 +16,8 @@
 SET DEBUG_SYNC= 'RESET';
 --enable_warnings
 
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # Test the case of when a exclusive lock request waits for a
 # shared lock being upgraded to a exclusive lock.
@@ -3249,6 +3251,7 @@ connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 --echo # Check that FLUSH must wait to get the GRL
 --echo # and let DROP PROCEDURE continue
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 --send FLUSH TABLES WITH READ LOCK
@@ -3274,7 +3277,7 @@ SET DEBUG_SYNC= 'RESET';
 --echo #
 
 create table t1 (a int) engine=myisam;
-create table t2 (a int) engine=innodb;
+create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
 
@@ -4175,3 +4178,4 @@ disconnect con1;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

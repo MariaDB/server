@@ -5,6 +5,9 @@
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
 
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
 --echo #
 --echo # Check backup and FTWRL
 --echo #
@@ -120,7 +123,7 @@ drop table t1;
 --echo # BACKUP STAGE performs implicit commits
 --echo #
 --disable_view_protocol
-create table t1(a int) engine=InnoDB;
+create table t1(a int) stats_persistent=0, engine=InnoDB;
 begin;
 insert into t1 values(1);
 select lock_mode from information_schema.metadata_lock_info;
@@ -221,8 +224,9 @@ drop table t1;
 --echo # OTOH we most probably allow them under FTWRL as well
 --echo #
 --disable_view_protocol
-CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t1 (col1 INT)stats_persistent=0, ENGINE = InnoDB;
 insert into t1 values (1);
+--source ../suite/innodb/include/wait_all_purged.inc
 backup stage start;
 backup stage block_commit;
 begin;
@@ -521,3 +525,4 @@ FLUSH TABLE t1 FOR EXPORT;
 FLUSH TABLE t1 WITH READ LOCK;
 BACKUP STAGE END;
 DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -10,7 +10,9 @@
 --echo #
 --echo # Test lock taken
 --echo #
-
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+--source ../suite/innodb/include/wait_all_purged.inc
 BACKUP LOCK test.t1;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 BACKUP UNLOCK;
@@ -29,7 +31,7 @@ BACKUP UNLOCK;
 connect (con1,localhost,root,,);
 
 connection default;
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent=0,engine=innodb;
 insert into t1 values (1);
 backup lock t1;
 select * from t1;
@@ -40,6 +42,7 @@ let $wait_condition=
     select count(*) = 1 from information_schema.processlist
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 --error ER_LOCK_DEADLOCK
 select * from t1;
@@ -107,6 +110,7 @@ LOCK TABLES t2 AS a2 WRITE;
 BACKUP LOCK t1;
 UNLOCK TABLES;
 INSERT INTO t1 VALUES(0);
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --source include/restart_mysqld.inc
 DROP TABLE t1;
 DROP TABLE t2;
@@ -187,7 +191,6 @@ LOCK TABLES t3 AS a2 WRITE, t3 AS a1 READ LOCAL;
 DROP TABLE t3;
 BACKUP UNLOCK;
 DROP TABLE t3;
-
 --echo #
 --echo #  MDEV-28367: BACKUP LOCKS on table to be accessible to those
 --echo #              with database LOCK TABLES privileges
@@ -260,7 +263,6 @@ disconnect con1;
 
 drop database db1;
 drop user user1@localhost;
-
 --echo #
 --echo # End of MariaDB 10.4 tests
 --echo #
