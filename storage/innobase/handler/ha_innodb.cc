@@ -7665,20 +7665,6 @@ ha_innobase::write_row(
 #endif
 
 		if ((error_result = update_auto_increment())) {
-			/* We don't want to mask autoinc overflow errors. */
-
-			/* Handle the case where the AUTOINC sub-system
-			failed during initialization. */
-			if (m_prebuilt->autoinc_error == DB_UNSUPPORTED) {
-				error_result = ER_AUTOINC_READ_FAILED;
-				/* Set the error message to report too. */
-				my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-				goto func_exit;
-			} else if (m_prebuilt->autoinc_error != DB_SUCCESS) {
-				error = m_prebuilt->autoinc_error;
-				goto report_error;
-			}
-
 			/* MySQL errors are passed straight back. */
 			goto func_exit;
 		}
@@ -7816,7 +7802,6 @@ set_max_autoinc:
 		}
 	}
 
-report_error:
 	/* Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
