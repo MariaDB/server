@@ -7561,6 +7561,7 @@ class SORT_INFO;
 class multi_delete :public select_result_interceptor
 {
   TABLE_LIST *delete_tables, *table_being_deleted;
+  TMP_TABLE_PARAM *tmp_table_param;
   Unique **tempfiles;
   ha_rows deleted, found;
   uint num_of_tables;
@@ -7585,6 +7586,7 @@ public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int prepare2(JOIN *join);
   int send_data(List<Item> &items) override;
   bool initialize_tables (JOIN *join) override;
   int do_deletes();

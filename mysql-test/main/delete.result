@@ -680,3 +680,105 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	20000	
 drop table t1, t2;
 # End of 11.7 tests
+# MDEV-30469: Add support of ORDER BY and LIMIT to multidelete query.
+#
+# Check that limits work with hints
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+select * from t2 ORDER BY (id);
+id
+3
+8
+9
+10
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) DESC LIMIT 3;
+select * from t2;
+id
+3
+# Check some useles syntax
+DELETE t2.* FROM t2 FORCE INDEX FOR GROUP BY (xid) ORDER BY (id) LIMIT 1;
+drop table t2;
+# Check that hints work with limit
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+# default primary index
+explain
+DELETE t2.* FROM t2 ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	2	
+# make it use other undex
+explain
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+explain
+DELETE t2.* FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# prohibit primary index
+explain
+DELETE t2.* FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+drop table t2;
+# Check that limits work with hints & PS protocol
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+prepare stmt from
+"DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT ?";
+set @lim= 2;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+id
+3
+8
+9
+10
+set @lim= 1;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+id
+8
+9
+10
+set @lim= 3;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+id
+drop table t2;
+# Check that hints work with limit in normal DELETE syntax
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+# default primary index
+explain
+DELETE FROM t2 ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	2	
+# make it use other undex
+explain
+DELETE FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+explain
+DELETE FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# prohibit primary index
+explain
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# should issue warnings becaouse we can not switch it internally
+# to multiupdate due to RETURNING
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2 RETURNING id;
+id
+1
+2
+Warnings:
+Warning	4195	Index hints are ignored because they are incompatible with RETURNING clause
+drop table t2;
+#
+# End of 11.4 test
+#
+

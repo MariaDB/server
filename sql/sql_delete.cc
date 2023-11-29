@@ -1112,6 +1112,60 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   DBUG_RETURN(0);
 }
 
+static TABLE *item_rowid_table(Item *item)
+{
+  if (item->type() != Item::FUNC_ITEM)
+    return NULL;
+  Item_func *func= (Item_func *)item;
+  if (func->functype() != Item_func::TEMPTABLE_ROWID)
+    return NULL;
+  Item_temptable_rowid *itr= (Item_temptable_rowid *)func;
+  return itr->table;
+}
+
+/*
+  multi_update stores a rowid and new field values for every updated row in a
+  temporary table (one temporary table per updated table).  These rowids are
+  obtained via Item_temptable_rowid's by calling handler::position().  But if
+  the join is resolved via a temp table, rowids cannot be obtained from
+  handler::position() in the multi_update::send_data().  So, they're stored in
+  the join's temp table (JOIN::add_fields_for_current_rowid()) and here we
+  replace Item_temptable_rowid's (that would've done handler::position()) with
+  Item_field's (that will simply take the corresponding field value from the
+  temp table).
+*/
+int multi_delete::prepare2(JOIN *join)
+{
+  if (!join->need_tmp || !join->tmp_table_keep_current_rowid)
+    return 0;
+
+  // there cannot be many tmp tables in multi-update
+  JOIN_TAB *tmptab= join->join_tab + join->exec_join_tab_cnt();
+
+  for (Item **it= tmptab->tmp_table_param->items_to_copy; *it ; it++)
+  {
+    TABLE *tbl= item_rowid_table(*it);
+    if (!tbl)
+      continue;
+    for (uint i= 0; i < num_of_tables; i++)
+    {
+      for (Item **it2= tmp_table_param[i].items_to_copy; *it2; it2++)
+      {
+        if (item_rowid_table(*it2) != tbl)
+          continue;
+        Item_field *fld= new (thd->mem_root)
+                             Item_field(thd, (*it)->get_tmp_table_field());
+        if (!fld)
+          return 1;
+        fld->result_field= (*it2)->get_tmp_table_field();
+        *it2= fld;
+      }
+    }
+  }
+  return 0;
+}
+
+
 void multi_delete::prepare_to_read_rows()
 {
   /* see multi_update::prepare_to_read_rows() */
@@ -1211,6 +1265,7 @@ multi_delete::initialize_tables(JOIN *join)
   if (init_ftfuncs(thd, thd->lex->current_select, 1))
     DBUG_RETURN(true);
 
+  join->tmp_table_keep_current_rowid= TRUE;
   DBUG_RETURN(thd->is_fatal_error);
 }
 
@@ -1581,11 +1636,8 @@ void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
 
 bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
 {
-  SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   return
-    ((select_lex->order_list.elements &&
-      select_lex->limit_params.select_limit) ||
-     thd->lex->has_returning());
+    (thd->lex->has_returning());
 }
 
 
@@ -1695,6 +1747,19 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
 
   if (!multitable)
   {
+    if (select_lex->index_hints || table_list->index_hints)
+    {
+      if (!processing_as_multitable_delete_prohibited(thd))
+      {
+        multitable= true;
+      }
+      else
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            WARN_INDEX_HINTS_IGNORED,
+                            ER_THD(thd, WARN_INDEX_HINTS_IGNORED));
+      }
+    }
     if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())
     {
       my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);

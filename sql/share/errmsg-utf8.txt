@@ -12289,3 +12289,6 @@ ER_VECTOR_BINARY_FORMAT_INVALID
         eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
 ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
+WARN_INDEX_HINTS_IGNORED
+        eng "Index hints are ignored because they are incompatible with RETURNING clause"
+        ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
