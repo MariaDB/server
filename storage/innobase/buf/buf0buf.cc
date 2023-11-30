@@ -2541,14 +2541,21 @@ lookup:
 
       if (discard_attempted || !bpage->frame)
       {
-        /* Even when we are holding a hash_lock, it should be
-        acceptable to wait for a page S-latch here, because
-        buf_page_t::read_complete() will not wait for buf_pool.mutex,
-        and because S-latch would not conflict with a U-latch
-        that would be protecting buf_page_t::write_complete(). */
-        bpage->lock.s_lock();
+        const bool got_s_latch= bpage->lock.s_lock_try();
         hash_lock.unlock_shared();
-        break;
+        if (UNIV_LIKELY(got_s_latch))
+          break;
+        /* We may fail to acquire bpage->lock because
+        buf_page_t::read_complete() may be invoking
+        buf_pool_t::corrupted_evict() on this block, which it would
+        hold an exclusive latch on.
+
+        Let us aqcuire and release buf_pool.mutex to ensure that any
+        buf_pool_t::corrupted_evict() will proceed before we reacquire
+        the hash_lock that it could be waiting for. */
+        mysql_mutex_lock(&buf_pool.mutex);
+        mysql_mutex_unlock(&buf_pool.mutex);
+        goto lookup;
       }
 
       hash_lock.unlock_shared();
