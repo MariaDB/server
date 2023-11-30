@@ -58,6 +58,7 @@ class Arg_comparator: public Sql_alloc
                                    //   when one of arguments is NULL.
 
   int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                   const Type_handler *compare_handler,
                    Item **a1, Item **a2);
 
   int compare_not_null_values(longlong val1, longlong val2)
@@ -96,11 +97,24 @@ public:
   bool set_cmp_func_decimal(THD *thd);
 
   inline int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
-			  Item **a1, Item **a2, bool set_null_arg)
+                          const Type_handler *compare_handler,
+                          Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
-    return set_cmp_func(thd, owner_arg, a1, a2);
+    return set_cmp_func(thd, owner_arg, compare_handler, a1, a2);
   }
+  int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                   Item **a1, Item **a2, bool set_null_arg)
+  {
+    Item *tmp_args[2]= { *a1, *a2 };
+    Type_handler_hybrid_field_type tmp;
+    if (tmp.aggregate_for_comparison(owner_arg->func_name_cstring(),
+                                     tmp_args, 2, false))
+      return 1;
+    return set_cmp_func(thd, owner_arg, tmp.type_handler(),
+                        a1, a2, set_null_arg);
+  }
+
   inline int compare() { return (this->*func)(); }
 
   int compare_string();		 // compare args[0] & args[1]
@@ -562,9 +576,17 @@ public:
     return this;
   }
   bool fix_length_and_dec(THD *thd) override;
+  bool fix_length_and_dec_generic(THD *thd,
+                                  const Type_handler *compare_handler)
+  {
+    DBUG_ASSERT(args == tmp_arg);
+    return cmp.set_cmp_func(thd, this, compare_handler,
+                            tmp_arg, tmp_arg + 1, true/*set_null*/);
+  }
   int set_cmp_func(THD *thd)
   {
-    return cmp.set_cmp_func(thd, this, tmp_arg, tmp_arg + 1, true);
+    DBUG_ASSERT(args == tmp_arg);
+    return cmp.set_cmp_func(thd, this, tmp_arg, tmp_arg + 1, true/*set_null*/);
   }
   CHARSET_INFO *compare_collation() const override
   { return cmp.compare_collation(); }

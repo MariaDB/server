@@ -71,7 +71,7 @@ usage() if ($opt_help); # the help function
 
 if ($opt_host =~ s/:(\d+)$//)
 {
-    $opt_port = $1;
+  $opt_port = $1;
 }
 
 if ($opt_host eq '')
@@ -101,7 +101,7 @@ my $prefix= 'mysql';
 if (eval {DBI->install_driver("MariaDB")}) {
   $dsn ="DBI:MariaDB:;";
   $prefix= 'mariadb';
-} 
+}
 else {
   $dsn = "DBI:mysql:;";
 }
@@ -229,11 +229,11 @@ sub setpwd
   {
     $pass = "PASSWORD(". $dbh->quote($pass) . ")";
   }
-  my $uh= "$user@$host";
+  my $uh= $user."@".$host;
   my $sth = $dbh->prepare("set password for $uh =$pass") || die $dbh->errstr;
   $sth->execute || die $dbh->errstr;
   $sth->finish;
-  print "The password is set for user $user.\n\n";
+  print "The password is set for user $uh.\n\n";
 
 }
 
