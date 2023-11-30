@@ -64,6 +64,7 @@
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 #include "wsrep_var.h"            /* wsrep_hton_check() */
 #endif /* WITH_WSREP */
+#include "xa.h"
 
 /**
   @def MYSQL_TABLE_LOCK_WAIT
@@ -2409,13 +2410,29 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd)
     int rc= thd->wait_for_prior_commit();
     if (!rc)
     {
+      if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+      {
+        DBUG_ASSERT(thd->transaction->xid_state.is_dummy_XA());
+
+        auto xs= xid_cache_search(thd, xid);
+        if(!xs)
+        {
+          my_error(ER_XAER_NOTA, MYF(0));
+          goto end;
+        }
+        else
+        {
+          thd->transaction->xid_state.xid_cache_element= xs;
+        }
+        DBUG_ASSERT(thd->transaction->xid_state.is_recovered());
+      }
       plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                      MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
       xid_cache_delete(thd);
     }
     thd->wakeup_subsequent_commits(rc);
   }
-
+end:
   return xaop.result;
 }
 

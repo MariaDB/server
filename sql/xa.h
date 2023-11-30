@@ -33,6 +33,7 @@ struct XID_STATE {
 
   bool check_has_uncommitted_xa() const;
   bool is_explicit_XA() const { return xid_cache_element != 0; }
+  bool is_dummy_XA();
   void set_error(uint error);
   void er_xaer_rmfail() const;
   XID *get_xid() const;
@@ -62,5 +63,6 @@ bool mysql_xa_recover(THD *thd);
 
 void xa_recover_get_fields(THD *thd, List<Item> *field_list,
                            my_hash_walk_action *action);
+XID_cache_element *xid_cache_search(THD *thd, XID *xid);
 
 #endif /* XA_INCLUDED */
