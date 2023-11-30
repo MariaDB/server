@@ -13561,8 +13561,37 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   DBUG_RETURN(0);
 }
 
+
+/**
+  Determine if the client is MySQL Connector/NET.
+
+  Checks whether the given connection attributes blob corresponds to
+  MySQL Connector/NET by examining the "_client_name" attribute, which is
+  expected to be the first attribute in the blob.
+
+  @param connection_attrs - The connection attributes blob.
+  @param length - The length of the blob.
+
+  @return true if the client is MySQL Connector/NET, false otherwise.
+*/
+static inline bool is_connector_net_client(const char *connection_attrs,
+                                           size_t length)
+{
+  constexpr LEX_CSTRING prefix=
+    {STRING_WITH_LEN("\x0c_client_name\x13mysql-connector-net")};
+
+  if (length < prefix.length)
+    return false;
+
+  /* Optimization to avoid following memcmp in common cases.*/
+  if (connection_attrs[prefix.length - 1] != prefix.str[prefix.length - 1])
+    return false;
+
+  return !memcmp(connection_attrs, prefix.str, prefix.length);
+}
+
 static bool
-read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
+read_client_connect_attrs(char **ptr, char *end, THD* thd)
 {
   ulonglong length;
   char *ptr_save= *ptr;
@@ -13585,10 +13614,14 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
   if (length > 65535)
     return true;
 
-  if (PSI_CALL_set_thread_connect_attrs(*ptr, (uint)length, from_cs) &&
+  if (PSI_CALL_set_thread_connect_attrs(*ptr, (uint)length, thd->charset()) &&
       current_thd->variables.log_warnings)
     sql_print_warning("Connection attributes of length %llu were truncated",
                       length);
+
+  /* Connector/Net crashes, when "show collations" returns NULL IDs*/
+  if (is_connector_net_client(*ptr, length))
+    thd->variables.old_behavior |= OLD_MODE_NO_NULL_COLLATION_IDS;
   return false;
 }
 
@@ -13722,7 +13755,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   }
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
-      read_client_connect_attrs(&next_field, end, thd->charset()))
+      read_client_connect_attrs(&next_field, end, thd))
   {
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
@@ -13972,7 +14005,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
-                                mpvio->auth_info.thd->charset()))
+                                mpvio->auth_info.thd))
     return packet_error;
 
   /*
