@@ -2613,6 +2613,9 @@ int spider_parse_connect_info(
       continue;
     }
 
+    warn_deprecated<1104>(current_thd,
+                          "Spider: Encoding connection info in COMMENT or "
+                          "CONNECTION strings");
     start_param = connect_string;
     parse.error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
     while (*start_param != '\0')
