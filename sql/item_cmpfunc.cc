@@ -457,40 +457,6 @@ void Item_bool_func::raise_note_if_key_become_unused(THD *thd, const Item_args &
 }
 
 
-bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
-{
-  DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
-
-  if (args[0]->cmp_type() == STRING_RESULT &&
-      args[1]->cmp_type() == STRING_RESULT)
-  {
-    CHARSET_INFO *tmp;
-    /*
-      Use charset narrowing only for equalities, as that would allow
-      to construct ref access.
-      Non-equality comparisons with constants work without charset narrowing,
-      the constant gets converted.
-      Non-equality comparisons with non-constants would need narrowing to
-      enable range optimizer to handle e.g.
-        t1.mb3key_col <= const_table.mb4_col
-      But this doesn't look important.
-    */
-    bool allow_narrowing= MY_TEST(functype()==Item_func::EQ_FUNC ||
-                                  functype()==Item_func::EQUAL_FUNC);
-
-    if (agg_arg_charsets_for_comparison(&tmp, &args[0], &args[1],
-                                        allow_narrowing))
-      return true;
-    cmp->m_compare_collation= tmp;
-  }
-  //  Convert constants when compared to int/year field
-  DBUG_ASSERT(functype() != LIKE_FUNC);
-  convert_const_compared_to_int_field(thd);
-
-  return cmp->set_cmp_func(thd, this, &args[0], &args[1], true);
-}
-
-
 /*
   Comparison operators remove arguments' dependency on PAD_CHAR_TO_FULL_LENGTH
   in case of PAD SPACE comparison collations: trailing spaces do not affect
@@ -519,8 +485,15 @@ bool Item_bool_rowready_func2::fix_length_and_dec(THD *thd)
   if (!args[0] || !args[1])
     return FALSE;
   Item_args old_args(args[0], args[1]);
-  if (setup_args_and_comparator(thd, &cmp))
+  convert_const_compared_to_int_field(thd);
+  Type_handler_hybrid_field_type tmp;
+  if (tmp.aggregate_for_comparison(func_name_cstring(), args, 2, false) ||
+      tmp.type_handler()->Item_bool_rowready_func2_fix_length_and_dec(thd,
+                                                                      this))
+  {
+    DBUG_ASSERT(thd->is_error());
     return true;
+  }
   raise_note_if_key_become_unused(thd, old_args);
   return false;
 }
@@ -540,21 +513,14 @@ bool Item_bool_rowready_func2::fix_length_and_dec(THD *thd)
 */
 
 int Arg_comparator::set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                                 const Type_handler *compare_handler,
                                  Item **a1, Item **a2)
 {
   owner= owner_arg;
   set_null= set_null && owner_arg;
   a= a1;
   b= a2;
-  Item *tmp_args[2]= {*a1, *a2};
-  Type_handler_hybrid_field_type tmp;
-  if (tmp.aggregate_for_comparison(owner_arg->func_name_cstring(), tmp_args, 2,
-                                   false))
-  {
-    DBUG_ASSERT(thd->is_error());
-    return 1;
-  }
-  m_compare_handler= tmp.type_handler();
+  m_compare_handler= compare_handler;
   return m_compare_handler->set_comparator_func(thd, this);
 }
 
@@ -605,6 +571,14 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
       We must set cmp_collation here as we may be called from for an automatic
       generated item, like in natural join.
       Allow reinterpted superset as subset.
+      Use charset narrowing only for equalities, as that would allow
+      to construct ref access.
+      Non-equality comparisons with constants work without charset narrowing,
+      the constant gets converted.
+      Non-equality comparisons with non-constants would need narrowing to
+      enable range optimizer to handle e.g.
+        t1.mb3key_col <= const_table.mb4_col
+      But this doesn't look important.
     */
     bool allow_narrowing= false;
     if (owner->type() == Item::FUNC_ITEM)
@@ -2812,8 +2786,9 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
   fix_char_length(args[2]->max_char_length());
   set_maybe_null();
   m_arg0= args[0];
-  if (setup_args_and_comparator(thd, &cmp))
-    return TRUE;
+  convert_const_compared_to_int_field(thd);
+  if (cmp.set_cmp_func(thd, this, &args[0], &args[1], true/*set_null*/))
+    return true;
   /*
     A special code for EXECUTE..PREPARE.
 

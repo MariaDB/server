@@ -438,6 +438,13 @@ dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait= false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Lock the child tables of a table.
+@param table    parent table
+@param trx      transaction
+@return error code */
+dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /** Exclusively lock the data dictionary tables.
 @param trx  dictionary transaction
 @return error code

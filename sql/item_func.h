@@ -388,15 +388,6 @@ public:
     }
   }
   void convert_const_compared_to_int_field(THD *thd);
-  /**
-    Prepare arguments and setup a comparator.
-    Used in Item_func_xxx with two arguments and a comparator,
-    e.g. Item_bool_func2 and Item_func_nullif.
-    args[0] or args[1] can be modified:
-    - converted to character set and collation of the operation
-    - or replaced to an Item_int_with_ref
-  */
-  bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
   Item_func *get_item_func() override { return this; }
   bool is_simplified_cond_processor(void *arg) override
   { return const_item() && !val_int(); }
