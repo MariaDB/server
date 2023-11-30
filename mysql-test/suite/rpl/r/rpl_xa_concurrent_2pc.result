@@ -876,6 +876,28 @@ show warnings;
 Level	Code	Message
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+#
+# Test Case 6: unilateral completion of a prepared XA by slave
+#
+connection master;
+xa start '1';
+insert into t1 set a=1;
+xa end '1';
+xa prepare '1';
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+set statement sql_log_bin=0 for xa rollback '1';
+connection master;
+xa rollback '1';
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1397]
+Last_SQL_Error = 'Error 'XAER_NOTA: Unknown XID' on query. Default database: 'test'. Query: 'XA ROLLBACK X'31',X'',1''
+connection master;
+delete from t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 drop table t1;
 connection slave;

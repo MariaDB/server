@@ -27,6 +27,9 @@
 # setting gtid_slave_pos), and only its XAC/XAR is tried to execute, the
 # replica should report ER_XAER_NOTA.
 #
+#   Test Case 6: unilateral completion of a prepared XA by slave
+# must end up in the slave error at XA-"complete" time.
+#
 #
 # References:
 #   MDEV-31949: slow parallel replication of user xa
@@ -99,6 +102,32 @@ while ($i)
 
 	--dec $i
 }
+--echo #
+--echo # Test Case 6: unilateral completion of a prepared XA by slave
+--echo #
+--connection master
+  xa start '1'; insert into t1 set a=1; xa end '1'; xa prepare '1';
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+set statement sql_log_bin=0 for xa rollback '1';
+
+--connection master
+  xa rollback '1';
+
+--connection slave
+--let $slave_sql_errno= 1397
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+--connection master
+delete from t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
 
 # MDEV-31949 cleanup
 --connection master

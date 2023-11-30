@@ -85,6 +85,7 @@ const char *log_bin_index= 0;
 const char *log_bin_basename= 0;
 
 MYSQL_BIN_LOG mysql_bin_log(&sync_binlog_period);
+XID_cache_element *xid_cache_search(THD *thd, XID *xid);
 
 static bool test_if_number(const char *str,
 			   ulong *res, bool allow_wildcards);
@@ -1862,9 +1863,11 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
     DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
                 XA_PREPARED);
 
-    buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                               buf, query, q_len);
-    cache_mngr->using_xa= TRUE;   // to take part in group commit
+    buflen= serialize_with_xid(thd->transaction->xid_state.is_dummy_XA() ?
+                               thd->lex->xid :
+                               thd->transaction->xid_state.get_xid(), buf,
+                               query, q_len);
+    cache_mngr->using_xa= TRUE;  // to take part in group commit
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
@@ -1894,8 +1897,10 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
   {
     /* for not prepared use plain ROLLBACK */
     if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
-      buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                                 buf, query, q_len);
+      buflen= serialize_with_xid(thd->transaction->xid_state.is_dummy_XA() ?
+                                 thd->lex->xid :
+                                 thd->transaction->xid_state.get_xid(), buf,
+                                 query, q_len);
     cache_mngr->using_xa= TRUE;
 #ifndef DBUG_OFF
     if (thd->killed != NOT_KILLED)
@@ -9392,6 +9397,23 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
     XID *xid= thd->lex->xid;
     bool commit= thd->lex->sql_command == SQLCOM_XA_COMMIT;
     struct xahton_st xaop= { xid, 1 };
+
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+    {
+      DBUG_ASSERT(thd->transaction->xid_state.is_dummy_XA());
+
+      auto xs= xid_cache_search(thd, xid);
+      if(!xs)
+      {
+        my_error(ER_XAER_NOTA, MYF(0));
+        return;
+      }
+      else
+      {
+        thd->transaction->xid_state.xid_cache_element= xs;
+      }
+      DBUG_ASSERT(thd->transaction->xid_state.is_recovered());
+    }
 
     plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                    MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);

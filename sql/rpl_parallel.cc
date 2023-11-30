@@ -3175,8 +3175,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       still be in process this event group gets flagged for synchronization, i.e
       to wait for prior commits at its execution start.
     */
-    if ((gtid_flags & (Gtid_log_event::FL_PREPARED_XA |
-                       Gtid_log_event::FL_COMPLETED_XA)) &&
+    if ((gtid_flags & Gtid_log_event::FL_PREPARED_XA) &&
         (is_dup_xac= handle_xa_prepare_duplicate_xid(e, &gtid_ev->xid,
                                                      gtid_flags &
                                                      Gtid_log_event::FL_PREPARED_XA)))

@@ -22,9 +22,7 @@
 #include "my_cpu.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
-#ifndef DBUG_OFF
 #include "rpl_rli.h"  // rpl_group_info
-#endif
 #include "debug_sync.h"         // DEBUG_SYNC
 
 static bool slave_applier_reset_xa_trans(THD *thd);
@@ -156,12 +154,13 @@ public:
     *length= element->xid.key_length();
     return element->xid.key();
   }
+  XID_cache_element(enum xa_states xa_state_arg) : xa_state(xa_state_arg) { }
 };
 
 
 static LF_HASH xid_cache;
 static bool xid_cache_inited;
-
+XID_cache_element dummy_element(XA_PREPARED);
 
 enum xa_states XID_STATE::get_state_code() const
 {
@@ -269,12 +268,16 @@ void xid_cache_free()
   }
 }
 
+bool XID_STATE::is_dummy_XA()
+{
+  return xid_cache_element == &dummy_element;
+}
 
 /**
   Find recovered XA transaction by XID.
 */
 
-static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
+XID_cache_element *xid_cache_search(THD *thd, XID *xid)
 {
   DBUG_ASSERT(thd->xid_hash_pins);
   XID_cache_element *element=
@@ -282,16 +285,36 @@ static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
                                         xid->key(), xid->key_length());
   if (element)
   {
-    /* The element can be removed from lf_hash by other thread, but
-    element->acquire_recovered() will return false in this case. */
-    if (!element->acquire_recovered())
-      element= 0;
+    /*
+      parallel slave XA-"complete" will acquire its actual xid after
+      it's ready for ordered commit. Meanwhile the transaction's handler
+      will use a dummy prepared xid element.
+
+      TODO: lsu = zero.
+    */
+    if ((!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec) ||
+         thd->transaction->xid_state.is_dummy_XA()))
+    {
+      /* The element can be removed from lf_hash by other thread, but
+         element->acquire_recovered() will return false in this case. */
+      if (!element->acquire_recovered())
+        element= 0;
+      /* Once the element is acquired (i.e. got the ACQUIRED bit) by this
+         thread, only this thread can delete it. The deletion happens in
+         xid_cache_delete(). See also the XID_cache_element documentation. */
+      DEBUG_SYNC(thd, "xa_after_search");
+    }
+    else
+    {
+      element= &dummy_element;
+    }
     lf_hash_search_unpin(thd->xid_hash_pins);
-    /* Once the element is acquired (i.e. got the ACQUIRED bit) by this thread,
-    only this thread can delete it. The deletion happens in xid_cache_delete().
-    See also the XID_cache_element documentation. */
-    DEBUG_SYNC(thd, "xa_after_search");
   }
+  else if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+  {
+    element= thd->transaction->xid_state.is_dummy_XA() ? 0 : &dummy_element;
+  }
+
   return element;
 }
 
@@ -722,7 +745,7 @@ static bool xa_complete(THD *thd, bool do_commit)
     xs= NULL;
 
 _end_external_xid:
-    if (xs)
+    if (xs && xs != &dummy_element)
       xs->acquired_to_recovered();
     xid_state.xid_cache_element= 0;
     if (mdl_request.ticket)
