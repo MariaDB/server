@@ -7163,24 +7163,26 @@ drop table t1;
 #
 # MDEV-7565: Server crash with Signal 6 (part 2)
 #
-truncate table mysql.slow_log;
+create table t1 (id int not null primary key);
 Select 
-(Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
-Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+(Select Sum(`TestCase`.Revenue) From t1 E
+Where TestCase.TemplateID not in (Select 1 from t1 where 2=2)
 ) As `ControlRev`
 From 
 (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
 Group By  TestCase.Revenue, TestCase.TemplateID;
 ControlRev
 NULL
+drop table t1;
 #
 # MDEV-7445:Server crash with Signal 6
 #
+create table t1 (id int not null primary key);
 CREATE PROCEDURE procedure2()
 BEGIN
 Select 
-(Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
-Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+(Select Sum(`TestCase`.Revenue) From t1 E           
+Where TestCase.TemplateID not in (Select 1 from t1 where 2=2)
 ) As `ControlRev`
   From 
 (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
@@ -7193,6 +7195,7 @@ call procedure2();
 ControlRev
 NULL
 drop procedure procedure2;
+drop table t1;
 #
 # MDEV-7846:Server crashes in Item_subselect::fix
 #_fields or fails with Thread stack overrun
