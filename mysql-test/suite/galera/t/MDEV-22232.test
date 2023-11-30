@@ -18,19 +18,20 @@
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 
 # Run CTAS until the resulting table gets created,
-# then it gets BF aborted by ALTER.
-SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_alter WAIT_FOR bf_abort';
+# then it gets BF aborted by other DDL.
+SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_run WAIT_FOR bf_abort';
 --send
   CREATE TABLE t2 SELECT * FROM t1;
 
 # Wait for CTAS to reach the table create point,
-# start executing ALTER and BF abort CTAS.
+# start executing other DDL and BF abort CTAS.
 --connection node_1
-SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
 --disable_result_log
 --error ER_CANT_DROP_FIELD_OR_KEY
 ALTER TABLE t1 DROP FOREIGN KEY b, ALGORITHM=COPY;
 --enable_result_log
+SET DEBUG_SYNC = 'now WAIT_FOR may_run';
+TRUNCATE TABLE t1;
 
 --connection con1
 # CTAS gets BF aborted.
@@ -46,19 +47,16 @@ SET DEBUG_SYNC = 'RESET';
 INSERT INTO t1 VALUES (10), (20), (30);
 
 # Run CTAS until the resulting table gets created,
-# then it gets BF aborted by ALTER.
-SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_alter WAIT_FOR bf_abort';
+# then it gets BF aborted by other DDL.
+SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_run WAIT_FOR bf_abort';
 --send
   CREATE TABLE t2 SELECT * FROM t1;
 
 # Wait for CTAS to reach the table create point,
-# start executing ALTER and BF abort CTAS.
+# start executing other DDL and BF abort CTAS.
 --connection node_1
-SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
---disable_result_log
---error ER_ERROR_ON_RENAME
-ALTER TABLE t1 DROP FOREIGN KEY b, ALGORITHM=COPY;
---enable_result_log
+SET DEBUG_SYNC = 'now WAIT_FOR may_run';
+TRUNCATE TABLE t1;
 
 --connection con1
 # CTAS gets BF aborted.
