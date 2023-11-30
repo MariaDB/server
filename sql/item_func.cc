@@ -1824,7 +1824,7 @@ void Item_func_neg::fix_length_and_dec_int()
     Use val() to get value as arg_type doesn't mean that item is
     Item_int or Item_float due to existence of Item_param.
   */
-  if (args[0]->const_item())
+  if (args[0]->const_item() && !args[0]->is_expensive())
   {
     longlong val= args[0]->val_int();
     if ((ulonglong) val >= (ulonglong) LONGLONG_MIN &&

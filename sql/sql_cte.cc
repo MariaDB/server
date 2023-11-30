@@ -643,6 +643,8 @@ void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
   {
     check_dependencies_in_select(sl, &unit_ctxt_elem, in_subq, dep_map);
   }
+  if ((sl= unit->fake_select_lex))
+    check_dependencies_in_select(sl, &unit_ctxt_elem, in_subq, dep_map);
 }
 
 

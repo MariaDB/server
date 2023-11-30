@@ -6386,7 +6386,7 @@ let $q= WITH RECURSIVE x (x) AS (
         (SELECT (SELECT x ORDER BY x = x OR (x = 1 AND x = 1) DESC))
         ORDER BY x ASC, x DESC, x;
 
---error ER_TRUNCATED_WRONG_VALUE
+--error ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 eval $q;
 
 DROP TABLE t1, x;

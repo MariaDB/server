@@ -7528,7 +7528,7 @@ FROM x
 WHERE (SELECT (SELECT x WHERE x IN (SELECT x FROM x))) >
 (SELECT (SELECT x ORDER BY x = x OR (x = 1 AND x = 1) DESC))
 ORDER BY x ASC, x DESC, x;
-ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'x'
 DROP TABLE t1, x;
 #
 # End of 10.4 tests
