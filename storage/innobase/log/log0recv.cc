@@ -2317,7 +2317,7 @@ struct recv_ring : public recv_buf
   {
     const size_t s(*this - start);
     ut_ad(s + len <= srv_page_size);
-    if (!log_sys.is_encrypted())
+    if (!len || !log_sys.is_encrypted())
     {
       if (start.ptr + s == ptr && ptr + len <= end())
         return ptr;
@@ -3892,7 +3892,6 @@ static bool recv_scan_log(bool last_phase)
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
-  ut_d(recv_sys.after_apply= last_phase);
   if (!last_phase)
     recv_sys.clear();
   else
@@ -4101,6 +4100,7 @@ static bool recv_scan_log(bool last_phase)
     recv_sys.lsn= rewound_lsn;
   }
 func_exit:
+  ut_d(recv_sys.after_apply= last_phase);
   mysql_mutex_unlock(&recv_sys.mutex);
   DBUG_RETURN(!store);
 }
@@ -4696,6 +4696,14 @@ byte *recv_dblwr_t::find_page(const page_id_t page_id,
     if (page_get_page_no(page) != page_id.page_no() ||
         page_get_space_id(page) != page_id.space())
       continue;
+    if (page_id.page_no() == 0)
+    {
+      uint32_t flags= mach_read_from_4(
+        FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+      if (!fil_space_t::is_valid_flags(flags, page_id.space()))
+        continue;
+    }
+
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
     if (lsn <= max_lsn ||
         !validate_page(page_id, page, space, tmp_buf))
@@ -4704,9 +4712,38 @@ byte *recv_dblwr_t::find_page(const page_id_t page_id,
       memset(page + FIL_PAGE_LSN, 0, 8);
       continue;
     }
+
+    ut_a(page_get_page_no(page) == page_id.page_no());
     max_lsn= lsn;
     result= page;
   }
 
   return result;
+}
+
+bool recv_dblwr_t::restore_first_page(uint32_t space_id, const char *name,
+                                      os_file_t file)
+{
+  const page_id_t page_id(space_id, 0);
+  const byte* page= find_page(page_id);
+  if (!page)
+  {
+    /* If the first page of the given user tablespace is not there
+    in the doublewrite buffer, then the recovery is going to fail
+    now. Hence this is treated as error. */
+    ib::error()
+            << "Corrupted page " << page_id << " of datafile '"
+            << name <<"' could not be found in the doublewrite buffer.";
+    return true;
+  }
+
+  ulint physical_size= fil_space_t::physical_size(
+    mach_read_from_4(page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS));
+  ib::info() << "Restoring page " << page_id << " of datafile '"
+          << name << "' from the doublewrite buffer. Writing "
+          << physical_size << " bytes into file '" << name << "'";
+
+  return os_file_write(
+           IORequestWrite, name, file, page, 0, physical_size) !=
+         DB_SUCCESS;
 }

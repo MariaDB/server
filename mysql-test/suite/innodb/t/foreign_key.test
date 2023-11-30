@@ -2,6 +2,8 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+SET GLOBAL innodb_stats_persistent = 0;
+
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
 --echo # DICT_CREATE_FOREIGN_CONSTR
@@ -126,6 +128,9 @@ FLUSH TABLES;
 --let $shutdown_timeout=
 disconnect incomplete;
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 INSERT INTO child SET a=0;
 --error ER_NO_REFERENCED_ROW_2
 INSERT INTO child SET a=1;
@@ -137,9 +142,6 @@ DELETE FROM parent;
 ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
-
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
@@ -737,7 +739,6 @@ disconnect con1;
 --source include/wait_all_purged.inc
 CHECK TABLE t1;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo #
 --echo # MDEV-17187 table doesn't exist in engine after ALTER other tables
@@ -934,7 +935,27 @@ INSERT INTO t1 VALUES (2,11,11);
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 
--- echo # End of 10.4 tests
+--echo #
+--echo # MDEV-32018 Allow the setting of Auto_increment on FK referenced columns
+--echo #
+
+CREATE TABLE t1 (
+  id int unsigned NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE t2 (
+  id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  t1_id int unsigned DEFAULT NULL,
+  CONSTRAINT FK_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id)
+);
+
+ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
 
 --echo #
 --echo # MDEV-20729 Fix REFERENCES constraint in column definition
@@ -1080,9 +1101,6 @@ DROP TABLE IF EXISTS t2, t1;
 --echo # MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
 --echo #
 
-SET @freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 CREATE TABLE collections (
   id int(11) unsigned NOT NULL AUTO_INCREMENT,
   collectionhash varchar(255) NOT NULL DEFAULT '0',
@@ -1111,7 +1129,6 @@ REPLACE INTO binaries (id) VALUES (NULL);
 
 SET GLOBAL innodb_max_purge_lag_wait=0;
 CHECK TABLE binaries, collections EXTENDED;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
 
 --disconnect con1
 
@@ -1119,5 +1136,7 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
 DROP TABLE binaries, collections;
 
 --echo # End of 10.6 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
 --source include/wait_until_count_sessions.inc

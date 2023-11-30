@@ -1609,9 +1609,10 @@ and common table associated with the fts table.
 			already stopped*/
 void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
 {
-  dict_sys.lock(SRW_LOCK_CALL);
   if (!already_stopped)
     purge_sys.stop_FTS();
+
+  dict_sys.lock(SRW_LOCK_CALL);
 
   fts_table_t fts_table;
   char table_name[MAX_FULL_NAME_LEN];
@@ -4254,6 +4255,11 @@ fts_sync(
 	fts_cache_t*	cache = sync->table->fts->cache;
 
 	mysql_mutex_lock(&cache->lock);
+
+	if (cache->total_size == 0) {
+                mysql_mutex_unlock(&cache->lock);
+		return DB_SUCCESS;
+	}
 
 	/* Check if cache is being synced.
 	Note: we release cache lock in fts_sync_write_words() to

@@ -718,6 +718,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_arrayagg(") };
     return name;
   }
+  bool fix_fields(THD *thd, Item **ref) override;
   enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
 
   String* val_str(String *str) override;

@@ -39,6 +39,8 @@ SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 SET GLOBAL innodb_max_purge_lag_wait=0;
+INSERT INTO mysql.innodb_index_stats
+SELECT * FROM mysql.innodb_index_stats LIMIT 0;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;

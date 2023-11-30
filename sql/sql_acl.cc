@@ -3390,10 +3390,18 @@ end:
                                                 check_role_is_granted_callback,
                                                 NULL) == -1))
       {
-        /* Role is not granted but current user can see the role */
-        my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
-                        MYF(0), thd->security_ctx->priv_user,
-                        thd->security_ctx->priv_host, rolename);
+        /* This happens for SET ROLE case and when `--skip-name-resolve` option
+           is used. In that situation host can be NULL and current user is always
+           target user, so printing `priv_user@priv_host` is not incorrect.
+         */
+        if (!host)
+          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                          MYF(0), thd->security_ctx->priv_user,
+                          thd->security_ctx->priv_host, rolename);
+        else
+          /* Role is not granted but current user can see the role */
+          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                          MYF(0), user, host, rolename);
       }
       else
       {
@@ -5431,6 +5439,15 @@ public:
                   0, 0, 0, (my_hash_get_key) get_key_column, 0, 0, 0);
   }
 };
+
+
+privilege_t GRANT_INFO::all_privilege()
+{
+  return (grant_table_user ? grant_table_user->cols : NO_ACL) |
+         (grant_table_role ? grant_table_role->cols : NO_ACL) |
+         (grant_public ?  grant_public->cols : NO_ACL) |
+         privilege;
+}
 
 
 void GRANT_NAME::set_user_details(const char *h, const char *d,
@@ -8450,8 +8467,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (!(~t_ref->grant.privilege & want_access))
       continue;
 
-    if ((want_access&= ~(t_ref->grant.aggregate_cols() |
-                         t_ref->grant.privilege)))
+    if ((want_access&= ~t_ref->grant.all_privilege()))
     {
       goto err;                                 // impossible
     }
@@ -8507,6 +8523,7 @@ inline privilege_t GRANT_INFO::aggregate_cols()
          (grant_table_role ?  grant_table_role->cols : NO_ACL) |
          (grant_public ?  grant_public->cols : NO_ACL);
 }
+
 
 void GRANT_INFO::refresh(const Security_context *sctx,
                          const char *db, const char *table)

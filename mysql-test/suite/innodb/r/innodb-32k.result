@@ -1,4 +1,4 @@
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status

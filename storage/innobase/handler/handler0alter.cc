@@ -4338,7 +4338,8 @@ static void unlock_and_close_files(const std::vector<pfs_os_file_t> &deleted,
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
-  log_write_up_to(trx->commit_lsn, true);
+  if (trx->commit_lsn)
+    log_write_up_to(trx->commit_lsn, true);
 }
 
 /** Commit a DDL transaction and unlink any deleted files. */
@@ -7760,20 +7761,17 @@ bool check_col_is_in_fk_indexes(
 {
   char *fk_id= nullptr;
 
-  for (dict_foreign_set::iterator it= table->foreign_set.begin();
-       it!= table->foreign_set.end();)
+  for (const auto &f : table->foreign_set)
   {
-    if (std::find(drop_fk.begin(), drop_fk.end(), (*it))
-        != drop_fk.end())
-      goto next_item;
-    for (ulint i= 0; i < (*it)->n_fields; i++)
-      if ((*it)->foreign_index->fields[i].col == col)
+    if (!f->foreign_index ||
+        std::find(drop_fk.begin(), drop_fk.end(), f) != drop_fk.end())
+      continue;
+    for (ulint i= 0; i < f->n_fields; i++)
+      if (f->foreign_index->fields[i].col == col)
       {
-	fk_id= (*it)->id;
-	goto err_exit;
+        fk_id= f->id;
+        goto err_exit;
       }
-next_item:
-    it++;
   }
 
   for (const auto &a : add_fk)
@@ -7783,17 +7781,16 @@ next_item:
       if (a->foreign_index->fields[i].col == col)
       {
         fk_id= a->id;
-	goto err_exit;
+        goto err_exit;
       }
     }
   }
 
   for (const auto &f : table->referenced_set)
   {
+    if (!f->referenced_index) continue;
     for (ulint i= 0; i < f->n_fields; i++)
     {
-      if (!f->referenced_index)
-        continue;
       if (f->referenced_index->fields[i].col == col)
       {
         my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0),
@@ -8414,8 +8411,17 @@ err_exit:
 	if (ha_alter_info->handler_flags
 			& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) {
 
-		for (uint i= 0; i < table->s->fields; i++) {
+		for (uint i= 0, n_v_col= 0; i < table->s->fields;
+		     i++) {
 			Field* field = table->field[i];
+
+			/* Altering the virtual column is not
+			supported for inplace alter algorithm */
+			if (field->vcol_info) {
+				n_v_col++;
+				continue;
+			}
+
 			for (const Create_field& new_field :
 				ha_alter_info->alter_info->create_list) {
 				if (new_field.field == field) {
@@ -8430,7 +8436,7 @@ err_exit:
 field_changed:
 			const char* col_name= field->field_name.str;
 			dict_col_t *col= dict_table_get_nth_col(
-				m_prebuilt->table, i);
+				m_prebuilt->table, i - n_v_col);
 			if (check_col_is_in_fk_indexes(
 				m_prebuilt->table, col, col_name,
 				span<const dict_foreign_t*>(
@@ -11662,7 +11668,6 @@ foreign_fail:
 		}
 
 		unlock_and_close_files(deleted, trx);
-		log_write_up_to(trx->commit_lsn, true);
 		DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 				DBUG_SUICIDE(););
 		trx->free();
@@ -11719,7 +11724,6 @@ foreign_fail:
 	}
 
 	unlock_and_close_files(deleted, trx);
-	log_write_up_to(trx->commit_lsn, true);
 	DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 			DBUG_SUICIDE(););
 	trx->free();

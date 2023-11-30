@@ -32,7 +32,7 @@ Without automated tests, future regressions in the expected behavior can't be au
 If the changes are not amenable to automated testing, please explain why not and carefully describe how to test manually.
 
 <!--
-Tick one of the following boxes [x] to help us understand if the base branch for the PR is correct. (Currently the earliest maintained branch is 10.3)
+Tick one of the following boxes [x] to help us understand if the base branch for the PR is correct. (Currently the earliest maintained branch is 10.4)
 -->
 ## Basing the PR against the correct MariaDB version
 - [ ] *This is a new feature and the PR is based against the latest MariaDB development branch.*

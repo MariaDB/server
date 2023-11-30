@@ -1,6 +1,8 @@
 SET SESSION character_set_connection=latin2;
 SET SESSION character_set_client=cp1250;
 
+--disable_service_connection
+
 --echo #
 --echo # Test litteral
 --echo #
@@ -129,3 +131,5 @@ EXPLAIN EXTENDED SELECT '';
 EXPLAIN EXTENDED SELECT _latin1'';
 EXPLAIN EXTENDED SELECT N'';
 EXPLAIN EXTENDED SELECT '' '';
+
+--enable_service_connection

@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 
-SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 
 --echo #
 --echo # MDEV-17821 Assertion `!page_rec_is_supremum(rec)' failed
@@ -217,8 +217,6 @@ DROP TABLE t1;
 --echo #            in btr_pcur_store_position()
 --echo #
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 CREATE TABLE t (
   pk int auto_increment,
   c01 char(255) not null default repeat('a',255),
@@ -245,7 +243,6 @@ ROLLBACK;
 DELETE FROM t;
 
 --source include/wait_all_purged.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 
 CREATE TABLE tt ENGINE=InnoDB AS SELECT c FROM t;
 DROP TABLE t, tt;
@@ -524,7 +521,6 @@ ALTER TABLE t1 ADD COLUMN(f2 INT NOT NULL, f3 INT NOT NULL,
 			  f4 INT NOT NULL, f5 INT NOT NULL),
 	       CHANGE COLUMN f1 f1 CHAR(10) DEFAULT NULL;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
 
 --echo #
 --echo # MDEV-26420 Buffer overflow on instant ADD/DROP of generated column
@@ -534,3 +530,7 @@ ALTER TABLE t1 ADD COLUMN i INT GENERATED ALWAYS AS (1), DROP COLUMN i;
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+
+--echo # End of 10.6 tests

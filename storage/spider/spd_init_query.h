@@ -21,6 +21,9 @@
 
 static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
+    "SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'ORACLE', '');"
+  )},
+  {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_xa("
     "  format_id int not null default 0,"
     "  gtrid_length int not null default 0,"
@@ -210,7 +213,8 @@ static LEX_STRING spider_init_queries[] = {
     "  add if not exists username char(64) default null,"
     "  add if not exists password char(64) default null,"
     "  add if not exists tgt_db_name char(64) default null,"
-    "  add if not exists tgt_table_name char(64) default null;"
+    "  add if not exists tgt_table_name char(64) default null,"
+    "  algorithm=copy, lock=shared;"
   )},
 /*
   Fix for version 0.17
@@ -224,7 +228,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'binary(128)' then"
     "  alter table mysql.spider_xa"
-    "    modify data binary(128) not null default '';"
+    "    modify data binary(128) not null default '',"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -236,7 +241,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'binary(128)' then"
     "  alter table mysql.spider_xa_member"
-    "    modify data binary(128) not null default '';"
+    "    modify data binary(128) not null default '',"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
 /*
@@ -246,14 +252,16 @@ static LEX_STRING spider_init_queries[] = {
     "alter table mysql.spider_tables"
     "  add column if not exists link_id int not null default 0 after table_name,"
     "  drop primary key,"
-    "  add primary key (db_name, table_name, link_id);"
+    "  add primary key (db_name, table_name, link_id),"
+    "  algorithm=copy, lock=shared;"
   )},
 /*
   Fix for version 2.8
 */
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
-    "  add column if not exists link_status tinyint not null default 1;"
+    "  add column if not exists link_status tinyint not null default 1,"
+    "  algorithm=copy, lock=shared;"
   )},
 /*
   Fix for version 2.10
@@ -269,7 +277,8 @@ static LEX_STRING spider_init_queries[] = {
     "    after ssl_key,"
     "  add column if not exists default_file char(64) default null"
     "    after ssl_verify_server_cert,"
-    "  add column if not exists default_group char(64) default null after default_file;"
+    "  add column if not exists default_group char(64) default null after default_file,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
@@ -282,7 +291,8 @@ static LEX_STRING spider_init_queries[] = {
     "    after ssl_key,"
     "  add column if not exists default_file char(64) default null"
     "    after ssl_verify_server_cert,"
-    "  add column if not exists default_group char(64) default null after default_file;"
+    "  add column if not exists default_group char(64) default null after default_file,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_link_mon_servers"
@@ -295,7 +305,8 @@ static LEX_STRING spider_init_queries[] = {
     "    after ssl_key,"
     "  add column if not exists default_file char(64) default null"
     "    after ssl_verify_server_cert,"
-    "  add column if not exists default_group char(64) default null after default_file;"
+    "  add column if not exists default_group char(64) default null after default_file,"
+    "  algorithm=copy, lock=shared;"
   )},
 /*
   Fix for version 2.28
@@ -309,7 +320,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'int(10) unsigned' then"
     "  alter table mysql.spider_link_mon_servers"
-    "  modify sid int unsigned not null default 0;"
+    "  modify sid int unsigned not null default 0,"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
 /*
@@ -331,7 +343,8 @@ static LEX_STRING spider_init_queries[] = {
     "    modify ssl_capath text,"
     "    modify ssl_cert text,"
     "    modify ssl_key text,"
-    "    modify default_file text;"
+    "    modify default_file text,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -348,7 +361,8 @@ static LEX_STRING spider_init_queries[] = {
     "    modify ssl_capath text,"
     "    modify ssl_cert text,"
     "    modify ssl_key text,"
-    "    modify default_file text;"
+    "    modify default_file text,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -365,7 +379,8 @@ static LEX_STRING spider_init_queries[] = {
     "    modify ssl_capath text,"
     "    modify ssl_cert text,"
     "    modify ssl_key text,"
-    "    modify default_file text;"
+    "    modify default_file text,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
 /*
@@ -374,7 +389,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
     "  add if not exists monitoring_binlog_pos_at_failing tinyint not null default 0"
-    "    after ssl_verify_server_cert;"
+    "    after ssl_verify_server_cert,"
+    "    algorithm=copy, lock=shared;"
   )},
 /*
   Fix for version 3.3.6
@@ -382,12 +398,14 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
     "  add column if not exists block_status tinyint not null default 0"
-    "    after link_status;"
+    "    after link_status,"
+    "    algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
     "  add column if not exists static_link_id char(64) default null after block_status,"
-    "  add unique index if not exists uidx1 (db_name, table_name, static_link_id);"
+    "  add unique index if not exists uidx1 (db_name, table_name, static_link_id),"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
@@ -398,7 +416,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(64)' then"
     "  alter table mysql.spider_link_mon_servers"
-    "  modify link_id char(64) not null default '';"
+    "  modify link_id char(64) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -410,7 +429,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(64)' then"
     "  alter table mysql.spider_link_failed_log"
-    "  modify link_id char(64) not null default '';"
+    "  modify link_id char(64) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
 /*
@@ -425,7 +445,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(199)' then"
     "  alter table mysql.spider_tables"
-    "  modify table_name char(199) not null default '';"
+    "  modify table_name char(199) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -437,7 +458,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(199)' then"
     "  alter table mysql.spider_link_mon_servers"
-    "  modify table_name char(199) not null default '';"
+    "  modify table_name char(199) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -449,7 +471,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(199)' then"
     "  alter table mysql.spider_link_failed_log"
-    "  modify table_name char(199) not null default '';"
+    "  modify table_name char(199) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -461,7 +484,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(199)' then"
     "  alter table mysql.spider_table_position_for_recovery"
-    "  modify table_name char(199) not null default '';"
+    "  modify table_name char(199) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -473,7 +497,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(199)' then"
     "  alter table mysql.spider_table_sts"
-    "  modify table_name char(199) not null default '';"
+    "  modify table_name char(199) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -485,7 +510,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @col_type != 'char(199)' then"
     "  alter table mysql.spider_table_crd"
-    "  modify table_name char(199) not null default '';"
+    "  modify table_name char(199) not null default '',"
+    "  algorithm=copy, lock=shared;"
     "end if;"
   )},
 /*
@@ -493,7 +519,8 @@ static LEX_STRING spider_init_queries[] = {
 */
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_table_sts"
-    "  add column if not exists checksum bigint unsigned default null after update_time;"
+    "  add column if not exists checksum bigint unsigned default null after update_time,"
+    "  algorithm=copy, lock=shared;"
   )},
 /*
   Fix for MariaDB 10.4: Crash-Safe system tables
@@ -506,7 +533,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_link_failed_log"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -517,7 +545,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_link_mon_servers"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -528,7 +557,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_table_crd"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -539,7 +569,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_table_position_for_recovery"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -550,7 +581,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_table_sts"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -561,7 +593,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_tables"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -572,7 +605,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_xa"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -583,7 +617,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_xa_failed_log"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
   {C_STRING_WITH_LEN(
@@ -594,7 +629,8 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "if @engine_name != 'Aria' then"
     "  alter table mysql.spider_xa_member"
-    "    engine=Aria transactional=1;"
+    "    engine=Aria transactional=1,"
+    "    algorithm=copy, lock=shared;"
     "end if;"
   )},
 /*
@@ -602,51 +638,63 @@ static LEX_STRING spider_init_queries[] = {
 */
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_link_mon_servers"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_failed_log"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_member"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_link_mon_servers"
-    "  add column if not exists filedsn text default null after dsn;"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
-    "  add column if not exists filedsn text default null after dsn;"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_failed_log"
-    "  add column if not exists filedsn text default null after dsn;"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_member"
-    "  add column if not exists filedsn text default null after dsn;"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_link_mon_servers"
-    "  add column if not exists driver char(64) default null after filedsn;"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
-    "  add column if not exists driver char(64) default null after filedsn;"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_failed_log"
-    "  add column if not exists driver char(64) default null after filedsn;"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_member"
-    "  add column if not exists driver char(64) default null after filedsn;"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
@@ -657,7 +705,7 @@ static LEX_STRING spider_init_queries[] = {
     "if @win_plugin = 0 then"
     "  begin not atomic"
     "    declare exit handler for 1041, 1123"
-    "      insert into mysql.func values"
+    "      replace into mysql.func values"
     "        ('spider_direct_sql', 2, 'ha_spider.so', 'function'),"
     "        ('spider_bg_direct_sql', 2, 'ha_spider.so', 'aggregate'),"
     "        ('spider_ping_table', 2, 'ha_spider.so', 'function'),"
@@ -677,7 +725,7 @@ static LEX_STRING spider_init_queries[] = {
     "else"
     "  begin not atomic"
     "    declare exit handler for 1041, 1123"
-    "      insert into mysql.func values"
+    "      replace into mysql.func values"
     "        ('spider_direct_sql', 2, 'ha_spider.dll', 'function'),"
     "        ('spider_bg_direct_sql', 2, 'ha_spider.dll', 'aggregate'),"
     "        ('spider_ping_table', 2, 'ha_spider.dll', 'function'),"

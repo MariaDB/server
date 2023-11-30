@@ -1056,12 +1056,10 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
 	byte		info_bits;
-	ulint		type;
-	ulint		cmpl_info;
+	byte		type;
+	byte		cmpl_info;
 	bool		dummy_extern;
 
-	ut_ad(node->state == UNDO_UPDATE_PERSISTENT
-	      || node->state == UNDO_UPDATE_TEMPORARY);
 	ut_ad(node->trx->in_rollback);
 	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
 
@@ -1070,7 +1068,7 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		&dummy_extern, &undo_no, &table_id);
 	node->rec_type = type;
 
-	if (node->state == UNDO_UPDATE_PERSISTENT) {
+	if (!node->is_temp) {
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
@@ -1169,7 +1167,7 @@ close_table:
 		row_upd_replace_vcol(node->row, node->table,
 				     node->update, false, node->undo_row,
 				     (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
-					? NULL : ptr);
+				     ? nullptr : ptr);
 	}
 
 	return true;

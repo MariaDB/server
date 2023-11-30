@@ -5046,7 +5046,7 @@ Converter_double_to_longlong::push_warning(THD *thd,
 }
 
 
-int Field_real::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
+int Field_real::store_time_dec(const MYSQL_TIME *ltime, uint)
 {
   return store(TIME_to_double(ltime));
 }
@@ -6591,7 +6591,7 @@ int Field_year::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_year::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
+int Field_year::store_time_dec(const MYSQL_TIME *ltime, uint)
 {
   ErrConvTime str(ltime);
   if (Field_year::store(ltime->year, 0))
@@ -7502,7 +7502,8 @@ Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
   return !cmp_is_done_using_type_handler_of_this(cond, item) ?
          Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
          (charset() != cond->compare_collation() &&
-          !(cond->compare_collation()->state & MY_CS_BINSORT)) ?
+          !(cond->compare_collation()->state & MY_CS_BINSORT) &&
+          !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
          Data_type_compatibility::INCOMPATIBLE_COLLATION :
          Data_type_compatibility::OK;
 }
@@ -7513,6 +7514,18 @@ Field_longstr::can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
+  /*
+    So, we have an equality:  tbl.string_key = 'abc'
+
+    The comparison is the string comparison. Can we use index lookups to
+    find matching rows?  We can do that when:
+     - The comparison uses the same collation as tbl.string_key
+     - the comparison uses binary collation, while tbl.string_key
+       uses some other collation.
+       In this case, we will find matches in some collation. For example, for
+       'abc' we may find 'abc', 'ABC', and 'äbc'.
+       But we're certain that will find the row with the identical binary, 'abc'.
+  */
   return cmp_to_string_with_stricter_collation(cond, item);
 }
 
@@ -7718,9 +7731,10 @@ void Field_string::sql_type(String &res) const
 */
 void Field_string::sql_rpl_type(String *res) const
 {
-  CHARSET_INFO *cs=charset();
   if (Field_string::has_charset())
   {
+    CHARSET_INFO *cs= res->charset();
+    DBUG_ASSERT(cs->mbminlen == 1);
     size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
                                       res->alloced_length(),
                                       "char(%u octets) character set %s",
@@ -8187,9 +8201,10 @@ void Field_varstring::sql_type(String &res) const
 */
 void Field_varstring::sql_rpl_type(String *res) const
 {
-  CHARSET_INFO *cs=charset();
   if (Field_varstring::has_charset())
   {
+    CHARSET_INFO *cs= res->charset();
+    DBUG_ASSERT(cs->mbminlen == 1);
     size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
                                       res->alloced_length(),
                                       "varchar(%u octets) character set %s",
@@ -9502,14 +9517,14 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
   {
     /* This is for reading numbers with LOAD DATA INFILE */
     char *end;
-    tmp= cs->strntoull(from,length,10,&end,&err);
-    if (err || end != from+length ||
-	tmp > (ulonglong) (((longlong) 1 << typelib->count) - (longlong) 1))
+    tmp= cs->strntoull(from, length, 10, &end, &err);
+    if (err || end != from + length)
     {
-      tmp=0;      
       set_warning(WARN_DATA_TRUNCATED, 1);
-      err= 1;
+      store_type(0);
+      return 1;
     }
+    return Field_set::store((longlong) tmp, true/*unsigned*/);
   }
   else if (got_warning)
     set_warning(WARN_DATA_TRUNCATED, 1);

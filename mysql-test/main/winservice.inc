@@ -21,7 +21,7 @@ exec $sc_exe delete $service_name;
 source include/shutdown_mysqld.inc;
 echo # run mysql_install_db with --service parameter;
 --disable_result_log
-exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --port=$MASTER_MYPORT --password=$password --service=$service_name -R;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --port=$MASTER_MYPORT --password=$password --service=$service_name --verbose-bootstrap -R;
 --enable_result_log
 
 echo # Start service;

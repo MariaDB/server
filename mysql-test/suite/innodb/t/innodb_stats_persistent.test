@@ -1,8 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @saved_include_delete_marked = @@GLOBAL.innodb_stats_include_delete_marked;
 SET GLOBAL innodb_stats_include_delete_marked = ON;
 SET @saved_traditional = @@GLOBAL.innodb_stats_traditional;
@@ -51,7 +49,7 @@ SELECT COUNT(*) FROM t2;
 
 connection con1;
 EXPLAIN SELECT * FROM t2 WHERE val=4;
---source include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait=0;
 --echo # After COMMIT and purge, the DELETE must show up.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 
@@ -84,4 +82,3 @@ DROP TABLE t1,t2;
 SET GLOBAL innodb_stats_include_delete_marked = @saved_include_delete_marked;
 SET GLOBAL innodb_stats_traditional = @saved_traditional;
 SET GLOBAL innodb_stats_modified_counter = @saved_modified_counter;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -1391,7 +1391,6 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
       case CLOB_MARIADB_SYM:           return CLOB_ORACLE_SYM;
       case CONTINUE_MARIADB_SYM:       return CONTINUE_ORACLE_SYM;
       case DECLARE_MARIADB_SYM:        return DECLARE_ORACLE_SYM;
-      case DECODE_MARIADB_SYM:         return DECODE_ORACLE_SYM;
       case ELSEIF_MARIADB_SYM:         return ELSEIF_ORACLE_SYM;
       case ELSIF_MARIADB_SYM:          return ELSIF_ORACLE_SYM;
       case EXCEPTION_MARIADB_SYM:      return EXCEPTION_ORACLE_SYM;
@@ -2939,6 +2938,7 @@ void st_select_lex::init_query()
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
+  order_group_num= 0;
   select_n_reserved= 0;
   select_n_having_items= 0;
   n_sum_items= 0;
@@ -2958,9 +2958,11 @@ void st_select_lex::init_query()
 
   window_specs.empty();
   window_funcs.empty();
+  is_win_spec_list_built= false;
   tvc= 0;
   versioned_tables= 0;
   pushdown_select= 0;
+  orig_names_of_item_list_elems= 0;
 }
 
 void st_select_lex::init_select()
@@ -3012,6 +3014,7 @@ void st_select_lex::init_select()
   versioned_tables= 0;
   is_tvc_wrapper= false;
   nest_flags= 0;
+  orig_names_of_item_list_elems= 0;
   item_list_usage= MARK_COLUMNS_READ;
 }
 
@@ -3469,46 +3472,41 @@ List<Item>* st_select_lex::get_item_list()
   return &item_list;
 }
 
-bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
-{
 
+uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
+{
   if (!((options & SELECT_DISTINCT) && !group_list.elements))
     hidden_bit_fields= 0;
 
-  // find_order_in_list() may need some extra space, so multiply by two.
-  order_group_num*= 2;
+  if (!order_group_num)
+    order_group_num= order_group_num_arg;
 
   /*
-    We have to create array in prepared statement memory if it is a
-    prepared statement
+    find_order_in_list() may need some extra space,
+    so multiply order_group_num by 2
   */
-  Query_arena *arena= thd->stmt_arena;
-  const size_t n_elems= (n_sum_items +
-                       n_child_sum_items +
-                       item_list.elements +
-                       select_n_reserved +
-                       select_n_having_items +
-                       select_n_where_fields +
-                       order_group_num +
-                       hidden_bit_fields +
-                       fields_in_window_functions + 1) * (size_t) 5;
-  DBUG_ASSERT(n_elems % 5 == 0);
+  uint n= n_sum_items +
+          n_child_sum_items +
+          item_list.elements +
+          select_n_reserved +
+          select_n_having_items +
+          select_n_where_fields +
+          order_group_num * 2 +
+          hidden_bit_fields +
+          fields_in_window_functions + 1;
+  return n;
+}
+
+
+bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
+{
+  uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num) * 5;
   if (!ref_pointer_array.is_null())
-  {
-    /*
-      We need to take 'n_sum_items' into account when allocating the array,
-      and this may actually increase during the optimization phase due to
-      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
-      In the usual case we can reuse the array from the prepare phase.
-      If we need a bigger array, we must allocate a new one.
-     */
-    if (ref_pointer_array.size() >= n_elems)
-      return false;
-   }
-  Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
+    return false;
+  Item **array= static_cast<Item**>(thd->stmt_arena->alloc(sizeof(Item*) *
+                                                           n_elems));
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
-
   return array == NULL;
 }
 
@@ -7024,7 +7022,7 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
 }
 
 
-bool LEX::sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop)
+bool LEX::sp_for_loop_intrange_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
   sphead->reset_lex(thd);
 
@@ -7034,13 +7032,11 @@ bool LEX::sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop)
                thd->lex->sphead->restore_lex(thd)))
     return true;
 
-  // Generate a jump to the beginning of the loop
-  DBUG_ASSERT(this == thd->lex);
-  return sp_while_loop_finalize(thd);
+  return false;
 }
 
 
-bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
+bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
@@ -7048,9 +7044,9 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
   if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
   instr->add_to_varlist(loop.m_index);
-  // Generate a jump to the beginning of the loop
-  return sp_while_loop_finalize(thd);
+  return false;
 }
+
 
 bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
                                            const Lex_for_loop_st &loop)
@@ -7653,13 +7649,22 @@ bool LEX::sp_iterate_statement(THD *thd, const LEX_CSTRING *label_name)
 
 bool LEX::sp_continue_loop(THD *thd, sp_label *lab)
 {
-  if (lab->ctx->for_loop().m_index)
+  const sp_pcontext::Lex_for_loop &for_loop= lab->ctx->for_loop();
+  /*
+    FOR loops need some additional instructions (e.g. an integer increment or
+    a cursor fetch) before the "jump to the start of the body" instruction.
+    We need to check two things here:
+    - If we're in a FOR loop at all.
+    - If the label pointed by "lab" belongs exactly to the nearest FOR loop,
+      rather than to a nested LOOP/WHILE/REPEAT inside the FOR.
+  */
+  if (for_loop.m_index /* we're in some FOR loop */ &&
+      for_loop.m_start_label == lab /* lab belongs to the FOR loop */)
   {
-    // We're in a FOR loop, increment the index variable before backward jump
-    sphead->reset_lex(thd);
-    DBUG_ASSERT(this != thd->lex);
-    if (thd->lex->sp_for_loop_increment(thd, lab->ctx->for_loop()) ||
-        thd->lex->sphead->restore_lex(thd))
+    // We're in a FOR loop, and "ITERATE loop_label" belongs to this FOR loop.
+    if (for_loop.is_for_loop_cursor() ?
+        sp_for_loop_cursor_iterate(thd, for_loop) :
+        sp_for_loop_intrange_iterate(thd, for_loop))
       return true;
   }
   return sp_change_context(thd, lab->ctx, false) ||
@@ -11165,6 +11170,71 @@ exit:
   return having;
 }
 
+
+/**
+  @brief
+  Save the original names of items from the item list.
+
+  @retval
+    true  - if an error occurs
+    false - otherwise
+*/
+
+bool st_select_lex::save_item_list_names(THD *thd)
+{
+  if (orig_names_of_item_list_elems)
+    return false;
+
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  if (unlikely(!(orig_names_of_item_list_elems= new(thd->mem_root)
+                                       List<Lex_ident_sys>)))
+    return true;
+
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++))
+  {
+    if (unlikely(orig_names_of_item_list_elems->push_back(
+                        new Lex_ident_sys(item->name.str, item->name.length))))
+    {
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      orig_names_of_item_list_elems= 0;
+      return true;
+    }
+  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  return false;
+}
+
+
+/**
+  @brief
+    Restore the name of each item in the item_list of this st_select_lex
+    from orig_names_of_item_list_elems.
+*/
+
+void st_select_lex::restore_item_list_names()
+{
+  if (!orig_names_of_item_list_elems)
+    return;
+
+  DBUG_ASSERT(item_list.elements == orig_names_of_item_list_elems->elements);
+
+  List_iterator_fast<Lex_ident_sys> it(*orig_names_of_item_list_elems);
+  Lex_ident_sys *new_name;
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++) && (new_name= it++))
+    lex_string_set( &item->name, new_name->str);
+}
 
 bool LEX::stmt_install_plugin(const DDL_options_st &opt,
                               const Lex_ident_sys_st &name,

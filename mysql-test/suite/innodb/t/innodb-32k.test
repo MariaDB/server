@@ -3,8 +3,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_32k.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 
 let $MYSQLD_DATADIR= `select @@datadir`;

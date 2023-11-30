@@ -1,5 +1,6 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_innodb.inc
+--source include/have_debug.inc
 
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
@@ -139,6 +140,50 @@ SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 
 SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 
+--echo #
+--echo # MDEV-25163 Rowid filter does not process storage engine error correctly.
+--echo #
+#INSERT INTO t1 VALUES
+# (100,'z','a'),
+# (100,'z','a'),
+# (100,'z','a'),
+# (100,'z','a');
+
+
+#ANALYZE TABLE t1;
+
+
+CREATE TABLE two(tw int) Engine=MyISAM;
+INSERT INTO two VALUES (1),(2);
+
+# Switch off statistics update to catch correct create lock function call
+SET GLOBAL innodb_stats_persistent= OFF;
+
+# Make sure it's still rowid filter + filesort
+#--optimizer_trace
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+
+EXPLAIN EXTENDED
+SELECT a FROM t1,two WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+
+SET @saved_dbug = @@SESSION.debug_dbug;
+# Deadlock error should be returned from InnoDB during rowid filter container
+# filling. If MDEV-25163 is not fixed, there will be assertion failure in
+# InnoDB, as allready rolled back trx_t object will be used in filesort
+# operation.
+SET debug_dbug = '+d,innodb_report_deadlock';
+--error ER_LOCK_DEADLOCK
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+SET debug_dbug = @saved_dbug;
+
+# Same as above for the join query:
+SET debug_dbug = '+d,innodb_report_deadlock';
+--error ER_LOCK_DEADLOCK
+SELECT a FROM t1,two WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+SET debug_dbug = @saved_dbug;
+
+DROP TABLE two;
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent= @stats.save;
 
