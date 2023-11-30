@@ -3669,7 +3669,6 @@ public:
   static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
-  static const Type_handler *get_handler_by_cmp_type(Item_result type);
   static const Type_collection *
     type_collection_for_aggregation(const Type_handler *h1,
                                     const Type_handler *h2);
