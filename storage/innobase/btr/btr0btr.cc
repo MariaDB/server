@@ -787,7 +787,8 @@ static rec_offs *btr_page_get_parent(rec_offs *offsets, mem_heap_t *heap,
 /************************************************************//**
 Returns the upper level node pointer to a page. It is assumed that mtr holds
 an x-latch on the tree.
-@return rec_get_offsets() of the node pointer record */
+@return rec_get_offsets() of the node pointer record
+@retval nullptr on corruption */
 static
 rec_offs*
 btr_page_get_father_block(
@@ -2373,6 +2374,11 @@ btr_attach_half_pages(
 		offsets = btr_page_get_father_block(nullptr, heap, mtr,
 						    &cursor);
 
+		if (UNIV_UNLIKELY(!offsets)) {
+			mem_heap_free(heap);
+			return DB_CORRUPTION;
+		}
+
 		/* Replace the address of the old child node (= page) with the
 		address of the new lower half */
 
@@ -3240,6 +3246,14 @@ btr_lift_page_up(
 			offsets = btr_page_get_father_block(offsets, heap,
 							    mtr, &cursor);
 		}
+
+		if (UNIV_UNLIKELY(!offsets)) {
+parent_corrupted:
+			mem_heap_free(heap);
+			*err = DB_CORRUPTION;
+			return nullptr;
+		}
+
 		father_block = btr_cur_get_block(&cursor);
 		father_page_zip = buf_block_get_page_zip(father_block);
 
@@ -3263,6 +3277,10 @@ btr_lift_page_up(
 								    heap,
 								    mtr,
 								    &cursor);
+			}
+
+			if (UNIV_UNLIKELY(!offsets)) {
+				goto parent_corrupted;
 			}
 
 			blocks[n_blocks++] = b = btr_cur_get_block(&cursor);
@@ -3475,6 +3493,10 @@ btr_compress(
 get_offsets:
 		offsets = btr_page_get_father_block(
 			NULL, heap, mtr, &father_cursor);
+	}
+
+	if (UNIV_UNLIKELY(!offsets)) {
+		goto corrupted;
 	}
 
 	if (adjust) {
