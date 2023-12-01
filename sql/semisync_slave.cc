@@ -277,6 +277,17 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
                           "Repl_semi_sync_slave::slave_reply",
                           binlog_filename, (ulong)binlog_filepos));
 
+  DBUG_EXECUTE_IF("delay_before_io_read_event", {
+    static ulong just_my_counter= 1;
+    static bool done= 0;
+    just_my_counter++;
+    if ((just_my_counter % (4096)) == 0 && !done)
+    {
+      my_sleep(15000000); // 5s
+      done= 1;
+    }
+  };);
+
   /*
     We have to do a net_clear() as with semi-sync the slave_reply's are
     interleaved with data from the master and then the net->pkt_nr

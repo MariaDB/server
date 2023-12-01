@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "my_sys.h"
 #include "sql_priv.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command
