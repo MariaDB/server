@@ -12270,3 +12270,6 @@ ER_JSON_INVALID_VALUE_FOR_KEYWORD
 ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         eng "%s keyword is not supported"
         sw "%s neno kuu halitumiki"
+WARN_INDEX_HINTS_IGNORED
+        eng "Index hints are ignored because they are incompatible with RETURNING clause"
+        ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"

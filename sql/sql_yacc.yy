@@ -13646,7 +13646,7 @@ delete_part2:
         ;
 
 delete_single_table:
-          FROM table_ident opt_use_partition
+          FROM table_ident opt_key_definition opt_use_partition
           {
             if (unlikely(!Select->
                          add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
@@ -13665,8 +13665,8 @@ delete_single_table:
                          add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
                                            YYPS->m_lock_type,
                                            YYPS->m_mdl_type,
-                                           NULL,
-                                           $3)))
+                                           Select->pop_index_hints(),
+                                           $4)))
               MYSQL_YYABORT;
             Lex->auxiliary_table_list.first->correspondent_table=
               Lex->query_tables;

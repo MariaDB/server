@@ -679,6 +679,37 @@ execute stmt using @lim;
 select * from t2 ORDER BY (id);
 id
 drop table t2;
+# Check that hints work with limit in normal DELETE syntax
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+# default primary index
+explain
+DELETE FROM t2 ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	2	
+# make it use other undex
+explain
+DELETE FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+explain
+DELETE FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# prohibit primary index
+explain
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# should issue warnings becaouse we can not switch it internally
+# to multiupdate due to RETURNING
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2 RETURNING id;
+id
+1
+2
+Warnings:
+Warning	4195	Index hints are ignored because they are incompatible with RETURNING clause
+drop table t2;
 #
 # End of 11.4 test
 #

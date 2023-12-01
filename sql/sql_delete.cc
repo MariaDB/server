@@ -1504,11 +1504,8 @@ void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
 
 bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
 {
-  SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   return
-    ((select_lex->order_list.elements &&
-      select_lex->limit_params.select_limit) ||
-     thd->lex->has_returning());
+    (thd->lex->has_returning());
 }
 
 
@@ -1618,6 +1615,19 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
 
   if (!multitable)
   {
+    if (select_lex->index_hints || table_list->index_hints)
+    {
+      if (!processing_as_multitable_delete_prohibited(thd))
+      {
+        multitable= true;
+      }
+      else
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            WARN_INDEX_HINTS_IGNORED,
+                            ER_THD(thd, WARN_INDEX_HINTS_IGNORED));
+      }
+    }
     if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())
     {
       my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
