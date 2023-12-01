@@ -3416,7 +3416,13 @@ void Item_func_case_simple::print(String *str, enum_query_type query_type)
 
 void Item_func_decode_oracle::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  if (query_type & QT_FOR_FRM)
+  {
+    // 10.3 downgrade compatibility for FRM
+    str->append(STRING_WITH_LEN("decode_oracle"));
+  }
+  else
+    print_sql_mode_qualified_name(str, query_type);
   str->append('(');
   args[0]->print(str, query_type);
   for (uint i= 1, count= when_count() ; i <= count; i++)

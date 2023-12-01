@@ -1279,14 +1279,14 @@ bool With_element::prepare_unreferenced(THD *thd)
        sl= sl->next_select())
     sl->context.outer_context= 0;
 
+  uint8 save_context_analysys_only= thd->lex->context_analysis_only;
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (!spec->prepared &&
       (spec->prepare(spec->derived, 0, 0) ||
        process_columns_of_derived_unit(thd, spec) ||
        check_duplicate_names(thd, first_sl->item_list, 1)))
     rc= true;
-
-  thd->lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
+  thd->lex->context_analysis_only= save_context_analysys_only;
   return rc;
 }
 

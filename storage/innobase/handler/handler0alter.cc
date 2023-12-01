@@ -4493,11 +4493,13 @@ innobase_build_col_map(
 				col_map[old_i - num_old_v] = i;
 				if (!old_table->versioned()
 				    || !altered_table->versioned()) {
-				} else if (old_i == old_table->vers_start) {
-					new_table->vers_start = (i + num_v)
+				} else if (old_i - num_old_v == old_table->vers_start) {
+					ut_ad(field->vers_sys_start());
+					new_table->vers_start = i
 						& dict_index_t::MAX_N_FIELDS;
-				} else if (old_i == old_table->vers_end) {
-					new_table->vers_end = (i + num_v)
+				} else if (old_i - num_old_v == old_table->vers_end) {
+					ut_ad(field->vers_sys_end());
+					new_table->vers_end = i
 						& dict_index_t::MAX_N_FIELDS;
 				}
 				goto found_col;
@@ -7613,6 +7615,7 @@ bool check_col_is_in_fk_indexes(
 
   for (const auto &a : add_fk)
   {
+    if (!a->foreign_index) continue;
     for (ulint i= 0; i < a->n_fields; i++)
     {
       if (a->foreign_index->fields[i].col == col)

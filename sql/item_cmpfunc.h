@@ -2340,7 +2340,8 @@ public:
   Item_func_decode_oracle(THD *thd, List<Item> &list)
    :Item_func_case_simple(thd, list)
   { }
-  const char *func_name() const { return "decode_oracle"; }
+  const Schema *schema() const { return &oracle_schema_ref; }
+  const char *func_name() const { return "decode"; }
   void print(String *str, enum_query_type query_type);
   bool fix_length_and_dec();
   Item *find_item();

@@ -1119,7 +1119,7 @@ int spider_create_string_list(
   }
 
   if (!(*string_list = (char**)
-    spider_bulk_malloc(spider_current_trx, 37, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_STRING_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       string_list, (uint) (sizeof(char*) * (*list_length)),
       string_length_list, (uint) (sizeof(int) * (*list_length)),
       NullS))
@@ -1313,7 +1313,7 @@ int spider_create_long_list(
   }
 
   if (!(*long_list = (long*)
-    spider_bulk_malloc(spider_current_trx, 38, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_LONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       long_list, (uint) (sizeof(long) * (*list_length)),
       NullS))
   ) {
@@ -1392,7 +1392,7 @@ int spider_create_longlong_list(
   }
 
   if (!(*longlong_list = (longlong *)
-    spider_bulk_malloc(spider_current_trx, 39, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_LONGLONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       longlong_list, (uint) (sizeof(longlong) * (*list_length)),
       NullS))
   ) {
@@ -1460,7 +1460,7 @@ int spider_increase_string_list(
   }
 
   if (!(tmp_str_list = (char**)
-    spider_bulk_malloc(spider_current_trx, 40, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_STRING_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_str_list, (uint) (sizeof(char*) * link_count),
       &tmp_length_list, (uint) (sizeof(uint) * link_count),
       NullS))
@@ -1523,7 +1523,7 @@ int spider_increase_null_string_list(
     DBUG_RETURN(0);
 
   if (!(tmp_str_list = (char**)
-    spider_bulk_malloc(spider_current_trx, 247, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_NULL_STRING_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_str_list, (uint) (sizeof(char*) * link_count),
       &tmp_length_list, (uint) (sizeof(uint) * link_count),
       NullS))
@@ -1581,7 +1581,7 @@ int spider_increase_long_list(
     tmp_long = -1;
 
   if (!(tmp_long_list = (long*)
-    spider_bulk_malloc(spider_current_trx, 41, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_LONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_long_list, (uint) (sizeof(long) * link_count),
       NullS))
   ) {
@@ -1626,7 +1626,7 @@ int spider_increase_longlong_list(
     tmp_longlong = -1;
 
   if (!(tmp_longlong_list = (longlong*)
-    spider_bulk_malloc(spider_current_trx, 42, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_LONGLONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_longlong_list, (uint) (sizeof(longlong) * link_count),
       NullS))
   ) {
@@ -3027,7 +3027,7 @@ int spider_parse_connect_info(
   share_alter = &share->alter_table;
   share_alter->all_link_count = share->all_link_count;
   if (!(share_alter->tmp_server_names = (char **)
-    spider_bulk_malloc(spider_current_trx, 43, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_PARSE_CONNECT_INFO_1, MYF(MY_WME | MY_ZEROFILL),
       &share_alter->tmp_server_names,
       (uint) (sizeof(char *) * share->all_link_count),
       &share_alter->tmp_tgt_table_names,
@@ -4189,7 +4189,7 @@ int spider_create_conn_keys(
 #endif
   }
   if (!(share->conn_keys = (char **)
-    spider_bulk_alloc_mem(spider_current_trx, 45,
+    spider_bulk_alloc_mem(spider_current_trx, SPD_MID_CREATE_CONN_KEYS_1,
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &share->conn_keys, sizeof(char *) * share->all_link_count,
       &share->conn_keys_lengths, length_base,
@@ -4469,7 +4469,7 @@ SPIDER_SHARE *spider_create_share(
   length = (uint) strlen(table_name);
   bitmap_size = spider_bitmap_size(table_share->fields);
   if (!(share = (SPIDER_SHARE *)
-    spider_bulk_malloc(spider_current_trx, 46, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
       &share, (uint) (sizeof(*share)),
       &tmp_name, (uint) (length + 1),
       &tmp_static_key_cardinality,
@@ -4523,7 +4523,7 @@ SPIDER_SHARE *spider_create_share(
     goto error_init_hint_string;
   }
   for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
-    share->key_hint[roop_count].init_calc_mem(95);
+    share->key_hint[roop_count].init_calc_mem(SPD_MID_CREATE_SHARE_2);
   DBUG_PRINT("info",("spider share->key_hint=%p", share->key_hint));
 
   if ((*error_num = spider_parse_connect_info(share, table_share,
@@ -5008,7 +5008,7 @@ SPIDER_SHARE *spider_get_share(
 #endif
 
     if (!(spider->conn_keys = (char **)
-      spider_bulk_alloc_mem(spider_current_trx, 47,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_GET_SHARE_1,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &spider->conn_keys, sizeof(char *) * share->link_count,
         &tmp_name, sizeof(char) * share->conn_keys_charlen,
@@ -5550,7 +5550,7 @@ SPIDER_SHARE *spider_get_share(
 #endif
 
     if (!(spider->conn_keys = (char **)
-      spider_bulk_alloc_mem(spider_current_trx, 49,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_GET_SHARE_2,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &spider->conn_keys, sizeof(char *) * share->link_count,
         &tmp_name, sizeof(char) * share->conn_keys_charlen,
@@ -5928,8 +5928,6 @@ int spider_free_share(
 ) {
   DBUG_ENTER("spider_free_share");
   pthread_mutex_lock(&spider_tbl_mutex);
-  bool do_delete_thd = false;
-  THD *thd = current_thd;
   if (!--share->use_count)
   {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -5947,47 +5945,6 @@ int spider_free_share(
       spider_free_spider_object_for_share(&share->crd_spider);
     }
 #endif
-    if (
-      share->sts_init &&
-      spider_param_store_last_sts(share->store_last_sts)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->stat,
-        FALSE
-      );
-    }
-    if (
-      share->crd_init &&
-      spider_param_store_last_crd(share->store_last_crd)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields,
-        FALSE
-      );
-    }
     spider_free_share_alloc(share);
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
     my_hash_delete_with_hash_value(&spider_open_tables,
@@ -6001,8 +5958,6 @@ int spider_free_share(
     free_root(&share->mem_root, MYF(0));
     spider_free(spider_current_trx, share, MYF(0));
   }
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
   pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
@@ -6081,7 +6036,7 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   {
     DBUG_PRINT("info",("spider create new lgtm tblhnd share"));
     if (!(lgtm_tblhnd_share = (SPIDER_LGTM_TBLHND_SHARE *)
-      spider_bulk_malloc(spider_current_trx, 244, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_GET_LGTM_TBLHND_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
         &lgtm_tblhnd_share, (uint) (sizeof(*lgtm_tblhnd_share)),
         &tmp_name, (uint) (table_name_length + 1),
         NullS))
@@ -6190,7 +6145,7 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
   {
     DBUG_PRINT("info",("spider create new wide share"));
     if (!(wide_share = (SPIDER_WIDE_SHARE *)
-      spider_bulk_malloc(spider_current_trx, 51, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx,  SPD_MID_GET_PT_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
         &wide_share, sizeof(SPIDER_WIDE_SHARE),
         &tmp_name, (uint) (table_share->path.length + 1),
         &tmp_cardinality,
@@ -6505,7 +6460,7 @@ int spider_open_all_tables(
       spider->wide_handler->lock_type = TL_READ_NO_INSERT;
 
       if (!(share = (SPIDER_SHARE *)
-        spider_bulk_malloc(spider_current_trx, 52, MYF(MY_WME | MY_ZEROFILL),
+        spider_bulk_malloc(spider_current_trx, SPD_MID_OPEN_ALL_TABLES_1, MYF(MY_WME | MY_ZEROFILL),
           &share, (uint) (sizeof(*share)),
           &connect_info,
             (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
@@ -6745,25 +6700,12 @@ int spider_db_done(
   void *p
 ) {
   int roop_count;
-  bool do_delete_thd;
-  THD *thd = current_thd, *tmp_thd;
+  THD *tmp_thd;
   SPIDER_CONN *conn;
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
   SPIDER_TABLE_MON_LIST *table_mon_list;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   DBUG_ENTER("spider_db_done");
-
-  /* Begin Spider plugin deinit */
-  if (thd)
-    do_delete_thd = FALSE;
-  else
-  {
-    /* Create a thread for Spider plugin deinit */
-    thd = spider_create_thd();
-    if (!thd)
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    do_delete_thd = TRUE;
-  }
 
   for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
   {
@@ -6981,13 +6923,6 @@ int spider_db_done(
       ));
   }
 
-  /* End Spider plugin deinit */
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
-
-/*
-DBUG_ASSERT(0);
-*/
   DBUG_RETURN(0);
 }
 
@@ -7220,7 +7155,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_open_tables_hash_init;
 
-  spider_alloc_calc_mem_init(spider_open_tables, 143);
+  spider_alloc_calc_mem_init(spider_open_tables, SPD_MID_DB_INIT_1);
   spider_alloc_calc_mem(NULL,
     spider_open_tables,
     spider_open_tables.array.max_element *
@@ -7229,7 +7164,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_init_error_tables_hash_init;
 
-  spider_alloc_calc_mem_init(spider_init_error_tables, 144);
+  spider_alloc_calc_mem_init(spider_init_error_tables, SPD_MID_DB_INIT_2);
   spider_alloc_calc_mem(NULL,
     spider_init_error_tables,
     spider_init_error_tables.array.max_element *
@@ -7241,7 +7176,7 @@ int spider_db_init(
   )
     goto error_open_wide_share_hash_init;
 
-  spider_alloc_calc_mem_init(spider_open_wide_share, 145);
+  spider_alloc_calc_mem_init(spider_open_wide_share, SPD_MID_DB_INIT_3);
   spider_alloc_calc_mem(NULL,
     spider_open_wide_share,
     spider_open_wide_share.array.max_element *
@@ -7252,7 +7187,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_lgtm_tblhnd_share_hash_get_key, 0, 0))
     goto error_lgtm_tblhnd_share_hash_init;
 
-  spider_alloc_calc_mem_init(spider_lgtm_tblhnd_share_hash, 245);
+  spider_alloc_calc_mem_init(spider_lgtm_tblhnd_share_hash, SPD_MID_DB_INIT_4);
   spider_alloc_calc_mem(NULL,
     spider_lgtm_tblhnd_share_hash,
     spider_lgtm_tblhnd_share_hash.array.max_element *
@@ -7266,7 +7201,7 @@ int spider_db_init(
                    spider_free_ipport_conn, 0))
       goto error_ipport_conn__hash_init;
 
-  spider_alloc_calc_mem_init(spider_open_connections, 146);
+  spider_alloc_calc_mem_init(spider_open_connections, SPD_MID_DB_INIT_5);
   spider_alloc_calc_mem(NULL,
     spider_open_connections,
     spider_open_connections.array.max_element *
@@ -7276,7 +7211,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_hs_r_conn_hash_init;
 
-  spider_alloc_calc_mem_init(spider_hs_r_conn_hash, 147);
+  spider_alloc_calc_mem_init(spider_hs_r_conn_hash, SPD_MID_DB_INIT_6);
   spider_alloc_calc_mem(NULL,
     spider_hs_r_conn_hash,
     spider_hs_r_conn_hash.array.max_element *
@@ -7285,7 +7220,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_hs_w_conn_hash_init;
 
-  spider_alloc_calc_mem_init(spider_hs_w_conn_hash, 148);
+  spider_alloc_calc_mem_init(spider_hs_w_conn_hash, SPD_MID_DB_INIT_7);
   spider_alloc_calc_mem(NULL,
     spider_hs_w_conn_hash,
     spider_hs_w_conn_hash.array.max_element *
@@ -7295,7 +7230,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_allocated_thds_get_key, 0, 0))
     goto error_allocated_thds_hash_init;
 
-  spider_alloc_calc_mem_init(spider_allocated_thds, 149);
+  spider_alloc_calc_mem_init(spider_allocated_thds, SPD_MID_DB_INIT_8);
   spider_alloc_calc_mem(NULL,
     spider_allocated_thds,
     spider_allocated_thds.array.max_element *
@@ -7305,14 +7240,14 @@ int spider_db_init(
       NULL, 64, 64, MYF(MY_WME)))
     goto error_mon_table_cache_array_init;
 
-  spider_alloc_calc_mem_init(spider_mon_table_cache, 165);
+  spider_alloc_calc_mem_init(spider_mon_table_cache, SPD_MID_DB_INIT_9);
   spider_alloc_calc_mem(NULL,
     spider_mon_table_cache,
     spider_mon_table_cache.max_element *
     spider_mon_table_cache.size_of_element);
 
   if (!(spider_udf_table_mon_mutexes = (pthread_mutex_t *)
-    spider_bulk_malloc(NULL, 53, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(NULL, SPD_MID_DB_INIT_10, MYF(MY_WME | MY_ZEROFILL),
       &spider_udf_table_mon_mutexes, (uint) (sizeof(pthread_mutex_t) *
         spider_param_udf_table_mon_mutex_count()),
       &spider_udf_table_mon_conds, (uint) (sizeof(pthread_cond_t) *
@@ -7357,7 +7292,7 @@ int spider_db_init(
       (my_hash_get_key) spider_udf_tbl_mon_list_key, 0, 0))
       goto error_init_udf_table_mon_list_hash;
 
-    spider_alloc_calc_mem_init(spider_udf_table_mon_list_hash, 150);
+    spider_alloc_calc_mem_init(spider_udf_table_mon_list_hash, SPD_MID_DB_INIT_11);
     spider_alloc_calc_mem(NULL,
       spider_udf_table_mon_list_hash,
       spider_udf_table_mon_list_hash[roop_count].array.max_element *
@@ -7366,7 +7301,7 @@ int spider_db_init(
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (!(spider_table_sts_threads = (SPIDER_THREAD *)
-    spider_bulk_malloc(NULL, 256, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(NULL, SPD_MID_DB_INIT_12, MYF(MY_WME | MY_ZEROFILL),
       &spider_table_sts_threads, (uint) (sizeof(SPIDER_THREAD) *
         spider_param_table_sts_thread_count()),
       &spider_table_crd_threads, (uint) (sizeof(SPIDER_THREAD) *
@@ -7579,7 +7514,7 @@ char *spider_create_string(
 ) {
   char *res;
   DBUG_ENTER("spider_create_string");
-  if (!(res = (char*) spider_malloc(spider_current_trx, 13, length + 1,
+  if (!(res = (char*) spider_malloc(spider_current_trx, SPD_MID_CREATE_STRING_1, length + 1,
     MYF(MY_WME))))
     DBUG_RETURN(NULL);
   memcpy(res, str, length);
@@ -7601,7 +7536,7 @@ char *spider_create_table_name_string(
     if (sub_name)
       length += sizeof("#SP#") - 1 + strlen(sub_name);
   }
-  if (!(res = (char*) spider_malloc(spider_current_trx, 14, length + 1,
+  if (!(res = (char*) spider_malloc(spider_current_trx, SPD_MID_CREATE_TABLE_NAME_STRING_1, length + 1,
     MYF(MY_WME))))
     DBUG_RETURN(NULL);
   tmp = strmov(res, table_name);
@@ -7721,7 +7656,6 @@ int spider_get_sts(
   int get_type;
 #endif
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7759,37 +7693,16 @@ int spider_get_sts(
     get_type = 0;
   }
 #endif
-  if (
-    !share->sts_init &&
-    spider_param_load_sts_at_startup(share->load_sts_at_startup) &&
-    (!share->init || share->init_error)
-  ) {
-    error_num = spider_sys_get_table_sts(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      &share->stat,
-      FALSE
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
-    need_to_get = FALSE;
-  }
 
-  if (need_to_get)
-  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (get_type == 0)
+  if (get_type == 0)
       spider_copy_sts_to_share(share, share->wide_share);
-    else {
+  else {
 #endif
       error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    }
-#endif
   }
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (get_type >= 2)
     pthread_mutex_unlock(&share->wide_share->sts_mutex);
@@ -7871,7 +7784,6 @@ int spider_get_crd(
   int get_type;
 #endif
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7909,38 +7821,16 @@ int spider_get_crd(
     get_type = 0;
   }
 #endif
-  if (
-    !share->crd_init &&
-    spider_param_load_sts_at_startup(share->load_crd_at_startup)
-  ) {
-    error_num = spider_sys_get_table_crd(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      share->cardinality,
-      table->s->fields,
-      FALSE
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
-    need_to_get = FALSE;
-  }
-
-  if (need_to_get)
-  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (get_type == 0)
+  if (get_type == 0)
       spider_copy_crd_to_share(share, share->wide_share,
-        table->s->fields);
-    else {
+                               table->s->fields);
+  else {
 #endif
       error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    }
-#endif
   }
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (get_type >= 2)
     pthread_mutex_unlock(&share->wide_share->crd_mutex);
@@ -8069,7 +7959,7 @@ SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
       DBUG_RETURN(NULL);
     }
     if (!(spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *)
-      spider_bulk_malloc(spider_current_trx, 54, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_GET_INIT_ERROR_TABLE_1, MYF(MY_WME | MY_ZEROFILL),
         &spider_init_error_table, (uint) (sizeof(*spider_init_error_table)),
         &tmp_name, (uint) (share->table_name_length + 1),
         NullS))
@@ -8183,7 +8073,7 @@ bool spider_check_hs_pk_update(
     tmp_str2(buf2, MAX_FIELD_WIDTH, &my_charset_bin);
   String *str, *str2;
   DBUG_ENTER("spider_check_hs_pk_update");
-  tmp_str.init_calc_mem(137);
+  tmp_str.init_calc_mem(SPD_MID_CHECK_HS_PK_UPDATE_1);
 
   if (table_share->primary_key == MAX_KEY)
     DBUG_RETURN(FALSE);
@@ -9373,7 +9263,7 @@ int spider_discover_table_structure(
   char buf[MAX_FIELD_WIDTH];
   spider_string str(buf, sizeof(buf), system_charset_info);
   DBUG_ENTER("spider_discover_table_structure");
-  str.init_calc_mem(229);
+  str.init_calc_mem(SPD_MID_DISCOVER_TABLE_STRUCTURE_1);
   str.length(0);
   if (str.reserve(
     SPIDER_SQL_CREATE_TABLE_LEN + share->db.length +
@@ -9745,7 +9635,7 @@ int spider_create_spider_object_for_share(
   DBUG_PRINT("info",("spider spider=%p", (*spider)));
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (!(need_mons = (int *)
-    spider_bulk_malloc(spider_current_trx, 255, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_SPIDER_OBJECT_FOR_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
       &need_mons, (uint) (sizeof(int) * share->link_count),
       &conns, (uint) (sizeof(SPIDER_CONN *) * share->link_count),
       &conn_link_idx, (uint) (sizeof(uint) * share->link_count),
@@ -9759,7 +9649,7 @@ int spider_create_spider_object_for_share(
   )
 #else
   if (!(need_mons = (int *)
-    spider_bulk_malloc(spider_current_trx, 255, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_SPIDER_OBJECT_FOR_SHARE_2, MYF(MY_WME | MY_ZEROFILL),
       &need_mons, (uint) (sizeof(int) * share->link_count),
       &conns, (uint) (sizeof(SPIDER_CONN *) * share->link_count),
       &conn_link_idx, (uint) (sizeof(uint) * share->link_count),

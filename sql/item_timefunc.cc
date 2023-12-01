@@ -2281,6 +2281,13 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
   {
     str->append(STRING_WITH_LEN(" charset "));
     str->append(cast_cs->csname);
+    /*
+      Print the "binary" keyword in cases like:
+        CAST('str' AS CHAR CHARACTER SET latin1 BINARY)
+    */
+    if ((cast_cs->state & MY_CS_BINSORT) &&
+        Charset(cast_cs).can_have_collate_clause())
+      str->append(STRING_WITH_LEN(" binary"));
   }
   str->append(')');
 }

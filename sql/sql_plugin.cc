@@ -1685,7 +1685,6 @@ int plugin_init(int *argc, char **argv, int flags)
         }
       }
 
-      free_root(&tmp_root, MYF(MY_MARK_BLOCKS_FREE));
       tmp.state= PLUGIN_IS_UNINITIALIZED;
       if (register_builtin(plugin, &tmp, &plugin_ptr))
         goto err_unlock;

@@ -354,9 +354,6 @@ dict_build_table_def_step(
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			DICT_TF2_FLAG_UNSET(table,
-					    DICT_TF2_FTS_AUX_HEX_NAME););
 
 	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE)) {
 		/* This table will need a new tablespace. */

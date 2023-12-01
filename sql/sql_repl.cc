@@ -4209,11 +4209,17 @@ bool mysql_show_binlog_events(THD* thd)
       }
     }
 
+    /*
+      Omit error messages from server log in Log_event::read_log_event. That
+      is, we only need to notify the client to correct their 'from' offset;
+      writing about this in the server log would be confusing as it isn't
+      related to server operational status.
+    */
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log,
                                          description_event,
                                          (opt_master_verify_checksum ||
-                                          verify_checksum_once))); )
+                                          verify_checksum_once), false)); )
     {
       if (!unit->lim.check_offset(event_count) &&
 	        ev->net_send(protocol, linfo.log_file_name, pos))
@@ -4499,6 +4505,10 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
   /* buffer contains position where we started last read */
   uchar* buffer= (uchar*) my_b_get_buffer_start(file);
   uint max_event_size= lf_info->thd->variables.max_allowed_packet;
+  int res;
+#ifndef DBUG_OFF
+  bool did_dbug_inject= false;
+#endif
 
   if (lf_info->thd->is_current_stmt_binlog_format_row())
     goto ret;
@@ -4506,6 +4516,19 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
       lf_info->last_pos_in_file >= my_b_get_pos_in_file(file))
     goto ret;
   
+  DBUG_EXECUTE_IF("load_data_binlog_cache_error",
+                  {
+                    /*
+                      Simulate "disk full" error in the middle of writing to
+                      the binlog cache.
+                    */
+                    if (lf_info->last_pos_in_file >= 2*4096)
+                    {
+                      DBUG_SET("+d,simulate_file_write_error");
+                      did_dbug_inject= true;
+                    }
+                  };);
+
   for (block_len= (uint) (my_b_get_bytes_in_buffer(file)); block_len > 0;
        buffer += MY_MIN(block_len, max_event_size),
        block_len -= MY_MIN(block_len, max_event_size))
@@ -4517,7 +4540,10 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
                                MY_MIN(block_len, max_event_size),
                                lf_info->log_delayed);
       if (mysql_bin_log.write(&a))
-        DBUG_RETURN(1);
+      {
+        res= 1;
+        goto err;
+      }
     }
     else
     {
@@ -4526,12 +4552,20 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
                                    MY_MIN(block_len, max_event_size),
                                    lf_info->log_delayed);
       if (mysql_bin_log.write(&b))
-        DBUG_RETURN(1);
+      {
+        res= 1;
+        goto err;
+      }
       lf_info->wrote_create_file= 1;
     }
   }
 ret:
-  int res= Buffer ? lf_info->real_read_function(file, Buffer, Count) : 0;
+  res= Buffer ? lf_info->real_read_function(file, Buffer, Count) : 0;
+err:
+#ifndef DBUG_OFF
+  if (did_dbug_inject)
+    DBUG_SET("-d,simulate_file_write_error");
+#endif
   DBUG_RETURN(res);
 }
 

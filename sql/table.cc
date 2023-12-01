@@ -5721,7 +5721,7 @@ allocate:
   /* Create view fields translation table */
 
   if (!(transl=
-        (Field_translator*)(thd->stmt_arena->
+        (Field_translator*)(thd->
                             alloc(select->item_list.elements *
                                   sizeof(Field_translator)))))
   {
@@ -10146,6 +10146,12 @@ bool Vers_history_point::check_unit(THD *thd)
 {
   if (!item)
     return false;
+  if (item->real_type() == Item::FIELD_ITEM)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             item->full_name(), "FOR SYSTEM_TIME");
+    return true;
+  }
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();
