@@ -28,6 +28,9 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 
 #include "log0log.h"
 
+/** innodb_encrypt_log: whether to encrypt the redo log */
+extern my_bool srv_encrypt_log;
+
 /** Initialize the redo log encryption key and random parameters
 when creating a new redo log.
 The random parameters will be persisted in the log header.
