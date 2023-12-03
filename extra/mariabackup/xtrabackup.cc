@@ -148,8 +148,8 @@ my_bool xtrabackup_decrypt_decompress;
 my_bool xtrabackup_print_param;
 my_bool xtrabackup_mysqld_args;
 my_bool xtrabackup_help;
-
 my_bool xtrabackup_export;
+my_bool ignored_option;
 
 longlong xtrabackup_use_memory;
 
@@ -1348,6 +1348,7 @@ enum options_xtrabackup
   OPT_NO_LOCK,
   OPT_SAFE_SLAVE_BACKUP,
   OPT_RSYNC,
+  OPT_NO_BACKUP_LOCKS,
   OPT_FORCE_NON_EMPTY_DIRS,
   OPT_NO_VERSION_CHECK,
   OPT_DECOMPRESS,
@@ -1586,6 +1587,14 @@ struct my_option xb_client_options[]= {
      "thread will be restarted when the backup finishes.",
      (uchar *) &opt_safe_slave_backup, (uchar *) &opt_safe_slave_backup, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"rsync", OPT_RSYNC,
+     "Obsolete depricated option",
+     &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"no-backup-locks", OPT_NO_BACKUP_LOCKS,
+     "Obsolete depricated option",
+     &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS,
      "This "
@@ -2139,7 +2148,8 @@ static void usage(void)
   puts("Open source backup tool for InnoDB and XtraDB\n\
 \n\
 Copyright (C) 2009-2015 Percona LLC and/or its affiliates.\n\
-Portions Copyright (C) 2000, 2011, MySQL AB & Innobase Oy. All Rights Reserved.\n\
+Portions Copyright (C) 2000, 2011, MySQL AB & Innobase Oy.\n\
+Portions Copyright (C) 2017-2023 MariaDB Corporation / MariaDB Plc.\n\
 \n\
 This program is free software; you can redistribute it and/or\n\
 modify it under the terms of the GNU General Public License\n\
@@ -2327,6 +2337,11 @@ xb_get_one_option(const struct my_option *opt,
         exit(1);
       }
     }
+    break;
+  case OPT_RSYNC:
+  case OPT_NO_BACKUP_LOCKS:
+    if (my_handle_options_init_variables)
+      fprintf(stderr, "Obsolete option: %s. Ignored\n", opt->name);
     break;
 #define MYSQL_CLIENT
 #include "sslopt-case.h"
