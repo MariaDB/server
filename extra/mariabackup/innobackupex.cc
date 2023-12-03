@@ -80,7 +80,6 @@ my_bool opt_ibx_no_lock = FALSE;
 my_bool opt_ibx_safe_slave_backup = FALSE;
 my_bool opt_ibx_force_non_empty_dirs = FALSE;
 my_bool opt_ibx_noversioncheck = FALSE;
-my_bool opt_ibx_no_backup_locks = FALSE;
 my_bool opt_ibx_decompress = FALSE;
 
 char *opt_ibx_incremental_history_name = NULL;
@@ -267,8 +266,10 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_incremental, (uchar *) &opt_ibx_incremental, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"no-lock", OPT_NO_LOCK, "Use this option to disable table lock "
-	 "with \"FLUSH TABLES WITH READ LOCK\". Use it only if ALL your "
+	{"no-lock", OPT_NO_LOCK, "This option should not be used as "
+         "mariadb-backup now is using BACKUP LOCKS, which minimizes the "
+         "lock time. ALTER TABLE can run in parallel with BACKUP LOCKS."
+         "Use the --no-lock option it only if ALL your "
 	 "tables are InnoDB and you DO NOT CARE about the binary log "
 	 "position of the backup. This option shouldn't be used if there "
 	 "are any DDL statements being executed or if any updates are "
@@ -320,13 +321,9 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_noversioncheck,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"no-backup-locks", OPT_NO_BACKUP_LOCKS, "This option controls if "
-	 "backup locks should be used instead of FLUSH TABLES WITH READ LOCK "
-	 "on the backup stage. The option has no effect when backup locks are "
-	 "not supported by the server. This option is enabled by default, "
-	 "disable with --no-backup-locks.",
-	 (uchar *) &opt_ibx_no_backup_locks,
-	 (uchar *) &opt_ibx_no_backup_locks,
+	{"no-backup-locks", OPT_NO_BACKUP_LOCKS,
+         "Old disabled option which has no effect anymore.",
+	 (uchar *) 0, (uchar*) 0,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"decompress", OPT_DECOMPRESS, "Decompresses all files with the .qp "
@@ -392,11 +389,10 @@ static struct my_option ibx_long_options[] =
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
-	 "This option specifies which types of queries are allowed to complete "
-	 "before innobackupex will issue the global lock. Default is all.",
-	 (uchar*) &opt_ibx_lock_wait_query_type,
-	 (uchar*) &opt_ibx_lock_wait_query_type, &query_type_typelib,
-	 GET_ENUM, REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0, 0},
+         "Old disabled option which has no effect anymore (not needed "
+         "with BACKUP LOCKS)",
+	 (uchar*) 0, (uchar*) 0, &query_type_typelib, GET_ENUM,
+         REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0, 0},
 
 	{"kill-long-query-type", OPT_KILL_LONG_QUERY_TYPE,
 	 "This option specifies which types of queries should be killed to "
@@ -437,32 +433,32 @@ static struct my_option ibx_long_options[] =
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"kill-long-queries-timeout", OPT_KILL_LONG_QUERIES_TIMEOUT,
-	 "This option specifies the number of seconds innobackupex waits "
-	 "between starting FLUSH TABLES WITH READ LOCK and killing those "
-	 "queries that block it. Default is 0 seconds, which means "
-	 "innobackupex will not attempt to kill any queries.",
-	 (uchar*) &opt_ibx_kill_long_queries_timeout,
-	 (uchar*) &opt_ibx_kill_long_queries_timeout, 0, GET_UINT,
+         "Old disabled option which has no effect anymore (not needed "
+         "with BACKUP LOCKS)",
+	 (uchar*) 0, (uchar*) 0,  0, GET_UINT,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"ftwrl-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
-	 "This option specifies time in seconds that innobackupex should wait "
-	 "for queries that would block FTWRL before running it. If there are "
-	 "still such queries when the timeout expires, innobackupex terminates "
-	 "with an error. Default is 0, in which case innobackupex does not "
-	 "wait for queries to complete and starts FTWRL immediately.",
-	 (uchar*) &opt_ibx_lock_wait_timeout,
-	 (uchar*) &opt_ibx_lock_wait_timeout, 0, GET_UINT,
+         "Alias for startup-wait-timeout",
+         (uchar*) &opt_ibx_lock_wait_timeout,
+         (uchar*) &opt_ibx_lock_wait_timeout, 0, GET_UINT,
+	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
+	{"startup-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
+         "This option specifies time in seconds that mariadb-backup should wait for "
+         "BACKUP STAGE START to complete. BACKUP STAGE START has to wait until all "
+         "currently running queries using explicite LOCK TABLES has ended. "
+         "If there are still such queries when the timeout expires, mariadb-backup "
+         "terminates with an error. Default is 0, in which case mariadb-backup waits "
+         "indefinitely for BACKUP STAGE START to finish",
+         (uchar*) &opt_ibx_lock_wait_timeout,
+         (uchar*) &opt_ibx_lock_wait_timeout, 0, GET_UINT,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"ftwrl-wait-threshold", OPT_LOCK_WAIT_THRESHOLD,
-	 "This option specifies the query run time threshold which is used by "
-	 "innobackupex to detect long-running queries with a non-zero value "
-	 "of --ftwrl-wait-timeout. FTWRL is not started until such "
-	 "long-running queries exist. This option has no effect if "
-	 "--ftwrl-wait-timeout is 0. Default value is 60 seconds.",
-	 (uchar*) &opt_ibx_lock_wait_threshold,
-	 (uchar*) &opt_ibx_lock_wait_threshold, 0, GET_UINT,
+         "Old disabled option which has no effect anymore (not needed "
+         "with BACKUP LOCKS)",
+	 (uchar*) 0, (uchar*) 0,  0, GET_UINT,
 	 REQUIRED_ARG, 60, 0, 0, 0, 0, 0},
 
 	{"safe-slave-backup-timeout", OPT_SAFE_SLAVE_BACKUP_TIMEOUT,

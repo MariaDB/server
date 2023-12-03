@@ -147,8 +147,8 @@ my_bool xtrabackup_decrypt_decompress;
 my_bool xtrabackup_print_param;
 my_bool xtrabackup_mysqld_args;
 my_bool xtrabackup_help;
-
 my_bool xtrabackup_export;
+my_bool ignored_option;
 
 longlong xtrabackup_use_memory;
 
@@ -1351,6 +1351,7 @@ enum options_xtrabackup
   OPT_NO_LOCK,
   OPT_SAFE_SLAVE_BACKUP,
   OPT_RSYNC,
+  OPT_NO_BACKUP_LOCKS,
   OPT_FORCE_NON_EMPTY_DIRS,
   OPT_NO_VERSION_CHECK,
   OPT_DECOMPRESS,
@@ -1564,8 +1565,10 @@ struct my_option xb_client_options[]= {
      0, 0, 0, 0, 0, 0},
 
     {"no-lock", OPT_NO_LOCK,
-     "Use this option to disable table lock "
-     "with \"FLUSH TABLES WITH READ LOCK\". Use it only if ALL your "
+     "This option should not be used as "
+     "mariadb-backup now is using BACKUP LOCKS, which minimizes the "
+     "lock time. ALTER TABLE can run in parallel with BACKUP LOCKS."
+     "Use the --no-lock option it only if ALL your "
      "tables are InnoDB and you DO NOT CARE about the binary log "
      "position of the backup. This option shouldn't be used if there "
      "are any DDL statements being executed or if any updates are "
@@ -1592,6 +1595,14 @@ struct my_option xb_client_options[]= {
      "thread will be restarted when the backup finishes.",
      (uchar *) &opt_safe_slave_backup, (uchar *) &opt_safe_slave_backup, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"rsync", OPT_RSYNC,
+     "Obsolete depricated option",
+     &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"no-backup-locks", OPT_NO_BACKUP_LOCKS,
+     "Obsolete depricated option",
+     &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS,
      "This "
@@ -1685,11 +1696,10 @@ struct my_option xb_client_options[]= {
      (uchar *) &opt_remove_original, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
-     "This option specifies which types of queries are allowed to complete "
-     "before " XB_TOOL_NAME " will issue the global lock. Default is all.",
-     (uchar *) &opt_lock_wait_query_type, (uchar *) &opt_lock_wait_query_type,
-     &query_type_typelib, GET_ENUM, REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0,
-     0},
+     "Old disabled option which has no effect anymore (not needed "
+     "with BACKUP LOCKS)",
+     (uchar*) 0, (uchar*) 0, &query_type_typelib, GET_ENUM,
+     REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0, 0},
 
     {"kill-long-query-type", OPT_KILL_LONG_QUERY_TYPE,
      "This option specifies which types of queries should be killed to "
@@ -1706,32 +1716,31 @@ struct my_option xb_client_options[]= {
      NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"kill-long-queries-timeout", OPT_KILL_LONG_QUERIES_TIMEOUT,
-     "This option specifies the number of seconds " XB_TOOL_NAME " waits "
-     "between starting FLUSH TABLES WITH READ LOCK and killing those "
-     "queries that block it. Default is 0 seconds, which means "
-     XB_TOOL_NAME " will not attempt to kill any queries.",
-     (uchar *) &opt_kill_long_queries_timeout,
-     (uchar *) &opt_kill_long_queries_timeout, 0, GET_UINT, REQUIRED_ARG, 0, 0,
+     "Old disabled option which has no effect anymore (not needed "
+     "with BACKUP LOCKS)",
+     (uchar*) 0, (uchar*) 0,  0, GET_UINT, REQUIRED_ARG, 0, 0,
      0, 0, 0, 0},
 
     {"ftwrl-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
-     "This option specifies time in seconds that " XB_TOOL_NAME " should wait "
-     "for queries that would block FTWRL before running it. If there are "
-     "still such queries when the timeout expires, " XB_TOOL_NAME " terminates "
-     "with an error. Default is 0, in which case " XB_TOOL_NAME " does not "
-     "wait for queries to complete and starts FTWRL immediately.",
-     (uchar *) &opt_lock_wait_timeout, (uchar *) &opt_lock_wait_timeout, 0,
-     GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+     "Alias for startup-wait-timeout",
+     (uchar*) &opt_lock_wait_timeout, (uchar*) &opt_lock_wait_timeout,
+     0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"startup-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
+     "This option specifies time in seconds that mariadb-backup should wait for "
+     "BACKUP STAGE START to complete. BACKUP STAGE START has to wait until all "
+     "currently running queries using explicite LOCK TABLES has ended. "
+     "If there are still such queries when the timeout expires, mariadb-backup "
+     "terminates with an error. Default is 0, in which case mariadb-backup waits "
+     "indefinitely for BACKUP STAGE START to finish",
+     (uchar*) &opt_lock_wait_timeout, (uchar*) &opt_lock_wait_timeout,
+     0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"ftwrl-wait-threshold", OPT_LOCK_WAIT_THRESHOLD,
-     "This option specifies the query run time threshold which is used by "
-     XB_TOOL_NAME " to detect long-running queries with a non-zero value "
-     "of --ftwrl-wait-timeout. FTWRL is not started until such "
-     "long-running queries exist. This option has no effect if "
-     "--ftwrl-wait-timeout is 0. Default value is 60 seconds.",
-     (uchar *) &opt_lock_wait_threshold, (uchar *) &opt_lock_wait_threshold, 0,
-     GET_UINT, REQUIRED_ARG, 60, 0, 0, 0, 0, 0},
-
+     "Old disabled option which has no effect anymore (not needed "
+     "with BACKUP LOCKS)",
+     (uchar*) 0, (uchar*) 0,  0, GET_UINT,
+     REQUIRED_ARG, 60, 0, 0, 0, 0, 0},
 
     {"safe-slave-backup-timeout", OPT_SAFE_SLAVE_BACKUP_TIMEOUT,
      "How many seconds --safe-slave-backup should wait for "
@@ -2150,7 +2159,8 @@ static void usage(void)
   puts("Open source backup tool for InnoDB and XtraDB\n\
 \n\
 Copyright (C) 2009-2015 Percona LLC and/or its affiliates.\n\
-Portions Copyright (C) 2000, 2011, MySQL AB & Innobase Oy. All Rights Reserved.\n\
+Portions Copyright (C) 2000, 2011, MySQL AB & Innobase Oy.\n\
+Portions Copyright (C) 2017-2023 MariaDB Corporation / MariaDB Plc.\n\
 \n\
 This program is free software; you can redistribute it and/or\n\
 modify it under the terms of the GNU General Public License\n\
@@ -2338,6 +2348,11 @@ xb_get_one_option(const struct my_option *opt,
         exit(1);
       }
     }
+    break;
+  case OPT_RSYNC:
+  case OPT_NO_BACKUP_LOCKS:
+    if (my_handle_options_init_variables)
+      fprintf(stderr, "Obsolete option: %s. Ignored\n", opt->name);
     break;
 #define MYSQL_CLIENT
 #include "sslopt-case.h"
