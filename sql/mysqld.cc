@@ -457,6 +457,11 @@ ulong tc_heuristic_recover= 0;
 Atomic_counter<uint32_t> THD_count::count, CONNECT::count;
 bool shutdown_wait_for_slaves;
 Atomic_counter<uint32_t> slave_open_temp_tables;
+/*
+  This is incremented every time a slave starts to read a new binary log
+  file. Used by MYSQL_BIN_LOG::can_purge_log()
+*/
+Atomic_counter<ulonglong> sending_new_binlog_file;
 ulong thread_created;
 ulong back_log, connect_timeout, server_id;
 ulong what_to_log;
@@ -472,6 +477,7 @@ ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
 ulonglong binlog_file_cache_size=0;
+ulong slave_connections_needed_for_purge;
 ulonglong max_binlog_cache_size=0;
 ulong slave_max_allowed_packet= 0;
 double slave_max_statement_time_double;
@@ -531,6 +537,7 @@ uint sync_binlog_period= 0, sync_relaylog_period= 0,
      sync_relayloginfo_period= 0, sync_masterinfo_period= 0;
 double expire_logs_days = 0;
 ulong binlog_expire_logs_seconds = 0;
+ulonglong binlog_space_limit;
 
 /**
   Soft upper limit for number of sp_head objects that can be stored
@@ -5490,18 +5497,19 @@ static int init_server_components()
 #ifdef HAVE_REPLICATION
   if (opt_bin_log)
   {
-    if (binlog_expire_logs_seconds)
-    {
-      time_t purge_time= server_start_time - binlog_expire_logs_seconds;
-      if (purge_time >= 0)
-        mysql_bin_log.purge_logs_before_date(purge_time);
-    }
+    if (binlog_space_limit)
+      mysql_bin_log.count_binlog_space_with_lock();
+    mysql_bin_log.purge(1);
   }
   else
   {
-    if (binlog_expire_logs_seconds && (global_system_variables.log_warnings >= 4))
-      sql_print_information("You need to use --log-bin to make --expire-logs-days "
-                             "or --binlog-expire-logs-seconds work.");
+    if ((binlog_expire_logs_seconds || binlog_space_limit) &&
+        (global_system_variables.log_warnings >= 4))
+      sql_print_information("You need to use --log-bin to make "
+                            "--expire-logs-days, "
+                            "--binlog-expire-logs-seconds or "
+                            "--max-binlog-total-size "
+                            "work.");
   }
 #endif
 
@@ -7314,6 +7322,20 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
+static int show_binlog_space_total(THD *thd, SHOW_VAR *var, char *buff,
+                                   struct system_status_var *status_var,
+                                   enum enum_var_type scope)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  if (opt_bin_log && binlog_space_limit)
+    *(ulonglong*) buff= mysql_bin_log.get_binlog_space_total();
+  else
+    *(ulonglong*) buff= 0;
+  return 0;
+}
+
+
 #ifndef DBUG_OFF
 static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
                              system_status_var *, enum_var_type)
@@ -7398,6 +7420,7 @@ SHOW_VAR status_vars[]= {
   {"Binlog_cache_use",         (char*) &binlog_cache_use,       SHOW_LONG},
   {"Binlog_stmt_cache_disk_use",(char*) &binlog_stmt_cache_disk_use,  SHOW_LONG},
   {"Binlog_stmt_cache_use",    (char*) &binlog_stmt_cache_use,       SHOW_LONG},
+  {"Binlog_disk_use",          (char*) &show_binlog_space_total, SHOW_SIMPLE_FUNC},
   {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
   {"Bytes_received",           (char*) offsetof(STATUS_VAR, bytes_received), SHOW_LONGLONG_STATUS},
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},

@@ -666,6 +666,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   mysql_cond_t  COND_xid_list;
   mysql_cond_t  COND_relay_log_updated, COND_bin_log_updated;
   ulonglong bytes_written;
+  ulonglong binlog_space_total;
   IO_CACHE index_file;
   char index_file_name[FN_REFLEN];
   /*
@@ -733,13 +734,13 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   */
   int new_file_impl();
   void do_checkpoint_request(ulong binlog_id);
-  void purge();
   int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
   int queue_for_group_commit(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
 public:
+  void purge(bool all);
   int new_file_without_locking();
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
@@ -1035,6 +1036,23 @@ public:
                  ulonglong *decrease_log_space);
   int purge_logs_before_date(time_t purge_time);
   int purge_first_log(Relay_log_info* rli, bool included);
+  int count_binlog_space();
+  void count_binlog_space_with_lock()
+  {
+    mysql_mutex_lock(&LOCK_index);
+    count_binlog_space();
+    mysql_mutex_unlock(&LOCK_index);
+  }
+  void reset_binlog_space_total() { binlog_space_total= 0; }
+  ulonglong get_binlog_space_total();
+  int real_purge_logs_by_size(ulonglong binlog_pos);
+  inline int purge_logs_by_size(ulonglong binlog_pos)
+  {
+    if (!binlog_space_total || is_relay_log || ! binlog_space_limit ||
+        binlog_space_total + binlog_pos <= binlog_space_limit)
+      return 0;
+    return real_purge_logs_by_size(binlog_pos);
+  }
   int set_purge_index_file_name(const char *base_file_name);
   int open_purge_index_file(bool destroy);
   bool truncate_and_remove_binlogs(const char *truncate_file,

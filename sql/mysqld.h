@@ -158,6 +158,7 @@ extern bool opt_using_transactions;
 extern ulong current_pid;
 extern double expire_logs_days;
 extern ulong binlog_expire_logs_seconds;
+extern ulonglong binlog_space_limit;
 extern my_bool relay_log_recovery;
 extern uint sync_binlog_period, sync_relaylog_period, 
             sync_relayloginfo_period, sync_masterinfo_period;
@@ -223,6 +224,8 @@ extern ulong delayed_insert_limit, delayed_queue_size;
 extern ulong delayed_insert_threads, delayed_insert_writes;
 extern ulong delayed_rows_in_use,delayed_insert_errors;
 extern Atomic_counter<uint32_t> slave_open_temp_tables;
+extern Atomic_counter<ulonglong> sending_new_binlog_file;
+extern ulong slave_connections_needed_for_purge;
 extern ulonglong query_cache_size;
 extern ulong query_cache_limit;
 extern ulong query_cache_min_res_unit;
