@@ -3446,8 +3446,8 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
   :reset_master_pending(0), mark_xid_done_waiting(0),
-   bytes_written(0), last_used_log_number(0),
-   file_id(1), open_count(1),
+   bytes_written(0), binlog_space_total(0),
+   last_used_log_number(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
    group_commit_trigger_count(0), group_commit_trigger_timeout(0),
@@ -4642,6 +4642,7 @@ err:
     reset_master_pending--;
     reset_master_count++;
     mysql_mutex_unlock(&LOCK_xid_list);
+    binlog_space_total= 0;
   }
 
   mysql_mutex_unlock(&LOCK_index);
@@ -4960,7 +4961,6 @@ int MYSQL_BIN_LOG::open_purge_index_file(bool destroy)
 {
   int error= 0;
   File file= -1;
-
   DBUG_ENTER("MYSQL_BIN_LOG::open_purge_index_file");
 
   if (destroy)
@@ -5261,8 +5261,7 @@ int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
   if (unlikely((error=find_log_pos(&log_info, NullS, 0 /*no mutex*/))))
     goto err;
 
-  while (strcmp(log_file_name, log_info.log_file_name) &&
-	 can_purge_log(log_info.log_file_name))
+  while (can_purge_log(log_info.log_file_name))
   {
     if (!mysql_file_stat(m_key_file_log,
                          log_info.log_file_name, &stat_area, MYF(0)))
@@ -5300,16 +5299,20 @@ int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
     }
     else
     {
-      if (stat_area.st_mtime < purge_time) 
-        strmake_buf(to_log, log_info.log_file_name);
-      else
+      if (stat_area.st_mtime >= purge_time)
         break;
+      strmake_buf(to_log, log_info.log_file_name);
     }
     if (find_next_log(&log_info, 0))
       break;
   }
 
-  error= (to_log[0] ? purge_logs(to_log, 1, 0, 1, (ulonglong *) 0) : 0);
+  if (to_log[0])
+  {
+    ulonglong reclaimed_space= 0;
+    error= purge_logs(to_log, 1, 0, 1, &reclaimed_space);
+    binlog_space_total-= reclaimed_space;
+  }
 
 err:
   mysql_mutex_unlock(&LOCK_index);
@@ -5317,28 +5320,224 @@ err:
 }
 
 
+/**
+  Purge old logs so that we have a total size lower than binlog_space_limit.
+
+  @note
+    If any of the logs before the deleted one is in use,
+    only purge logs up to this one.
+
+  @retval
+    0				ok
+  @retval
+    LOG_INFO_FATAL      if any other than ENOENT error from
+                        mysql_file_stat() or mysql_file_delete()
+*/
+
+int MYSQL_BIN_LOG::real_purge_logs_by_size(ulonglong binlog_pos)
+{
+  int error= 0;
+  LOG_INFO log_info;
+  MY_STAT stat_area;
+  char to_log[FN_REFLEN];
+  ulonglong found_space= 0;
+  DBUG_ENTER("real_purge_logs_by_size");
+
+  mysql_mutex_lock(&LOCK_index);
+
+  /* Check if another user changed the value of binlog_space_limit just now */
+  if (! binlog_space_limit)
+    goto err;
+
+   if ((error = find_log_pos(&log_info, NullS,
+                             false /*need_lock_index=false*/)))
+    goto err;
+
+  to_log[0] = 0;
+  while (can_purge_log(log_info.log_file_name))
+  {
+    if (!mysql_file_stat(m_key_file_log, log_info.log_file_name, &stat_area,
+                         MYF(0)))
+    {
+      if (my_errno != ENOENT)
+      {
+        /*
+          Other than ENOENT are fatal
+        */
+        THD *thd = current_thd;
+        if (thd)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_BINLOG_PURGE_FATAL_ERR,
+                              "A problem with getting info on being purged %s; "
+                              "consider examining correspondence "
+                              "of your binlog index file "
+                              "to the actual binlog files",
+                              log_info.log_file_name);
+        }
+        else
+        {
+          sql_print_warning("Failed to stat log file '%s'",
+                            log_info.log_file_name);
+        }
+        error= LOG_INFO_FATAL;
+        goto err;
+      }
+    }
+    else
+    {
+      found_space+= stat_area.st_size;
+      strmake(to_log, log_info.log_file_name, sizeof(to_log) - 1);
+      if (binlog_space_total + binlog_pos - found_space <= binlog_space_limit)
+        break;                                  // Found enough
+    if (find_next_log(&log_info, false /*need_lock_index=false*/))
+      break;
+    }
+  }
+  if (found_space)
+  {
+    ulonglong reclaimed_space= 0;
+    purge_logs(to_log, true, false /*need_lock_index=false*/,
+               true /*need_update_threads=true*/,
+               &reclaimed_space);
+    DBUG_ASSERT(reclaimed_space == found_space);
+    binlog_space_total-= reclaimed_space;
+    /*
+      The following is here to handle cases where something goes wrong.
+      Like a bug or if somethings adds data to an existing log file.
+    */
+    DBUG_ASSERT((longlong) binlog_space_total >= 0);
+    if ((longlong) binlog_space_total <= 0)
+      count_binlog_space();
+  }
+
+err:
+  mysql_mutex_unlock(&LOCK_index);
+  DBUG_RETURN(error);
+}
+
+/*
+  The following variables are here to allows us to quickly check if
+  the can_purge_log(log_file_name_arg) name will fail in the
+  'log_in_use' call.
+
+  waiting_for_slave_to_change_binlog is 1 if last log_in_use failed.
+  purge_binlog_name is the last failed log_file_name_arg.
+
+  sending_new_binlog_file, cached in purge_sending_new_binlog_file,
+  is incremented every time a slave changes to use a new binary log.
+*/
+
+static bool waiting_for_slave_to_change_binlog= 0;
+static ulonglong purge_sending_new_binlog_file= 0;
+static char purge_binlog_name[FN_REFLEN];
+
 bool
 MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg)
 {
-  xid_count_per_binlog *b;
+  THD *thd= current_thd;                        // May be NULL at startup
+  bool res;
 
-  if (is_active(log_file_name_arg))
-    return false;
-  mysql_mutex_lock(&LOCK_xid_list);
+  if (is_active(log_file_name_arg) ||
+      (!is_relay_log && waiting_for_slave_to_change_binlog &&
+       purge_sending_new_binlog_file == sending_new_binlog_file &&
+       !strcmp(log_file_name_arg, purge_binlog_name)))
+      return false;
+
+  DBUG_ASSERT(!is_relay_log || binlog_xid_count_list.is_empty());
+  if (!is_relay_log)
   {
-    I_List_iterator<xid_count_per_binlog> it(binlog_xid_count_list);
-    while ((b= it++) &&
-           0 != strncmp(log_file_name_arg+dirname_length(log_file_name_arg),
-                        b->binlog_name, b->binlog_name_len))
-      ;
+    xid_count_per_binlog *b;
+    mysql_mutex_lock(&LOCK_xid_list);
+    {
+      I_List_iterator<xid_count_per_binlog> it(binlog_xid_count_list);
+      while ((b= it++) &&
+             0 != strncmp(log_file_name_arg+dirname_length(log_file_name_arg),
+                          b->binlog_name, b->binlog_name_len))
+        ;
+    }
+    mysql_mutex_unlock(&LOCK_xid_list);
+    if (b)
+      return false;
   }
-  mysql_mutex_unlock(&LOCK_xid_list);
-  if (b)
-    return false;
-  return !log_in_use(log_file_name_arg);
+
+  if (!is_relay_log)
+  {
+    waiting_for_slave_to_change_binlog= 0;
+    purge_sending_new_binlog_file= sending_new_binlog_file;
+  }
+  if ((res= log_in_use(log_file_name_arg,
+                       (is_relay_log ||
+                        (thd && thd->lex->sql_command == SQLCOM_PURGE)) ?
+                       0 : slave_connections_needed_for_purge)))
+  {
+    if (!is_relay_log)
+    {
+      waiting_for_slave_to_change_binlog= 1;
+      strmake(purge_binlog_name, log_file_name_arg,
+              sizeof(purge_binlog_name)-1);
+    }
+  }
+  return !res;
 }
 #endif /* HAVE_REPLICATION */
 
+
+/**
+  Count a total size of binary logs (except the active one) to the variable
+  binlog_space_total.
+
+  @retval
+    0			ok
+  @retval
+    LOG_INFO_FATAL      if any other than ENOENT error from
+                        mysql_file_stat() or mysql_file_delete()
+*/
+
+int MYSQL_BIN_LOG::count_binlog_space()
+{
+  int error;
+  LOG_INFO log_info;
+  DBUG_ENTER("count_binlog_space");
+
+  binlog_space_total = 0;
+  if ((error= find_log_pos(&log_info, NullS, false /*need_lock_index=false*/)))
+    goto done;
+
+  MY_STAT stat_area;
+  while (!is_active(log_info.log_file_name))
+  {
+    if (!mysql_file_stat(m_key_file_log, log_info.log_file_name, &stat_area,
+                         MYF(0)))
+    {
+      if (my_errno != ENOENT)
+      {
+        error= LOG_INFO_FATAL;
+        goto done;
+      }
+    }
+    else
+      binlog_space_total+= stat_area.st_size;
+    if (find_next_log(&log_info, false /*need_lock_index=false*/))
+      break;
+  }
+done:
+  DBUG_RETURN(error);
+}
+
+
+ulonglong MYSQL_BIN_LOG::get_binlog_space_total()
+{
+  ulonglong used_space= 0;
+  mysql_mutex_lock(&LOCK_log);
+  /* Get position in current log file */
+  used_space= my_b_tell(&log_file);
+  mysql_mutex_lock(&LOCK_index);
+  mysql_mutex_unlock(&LOCK_log);
+  used_space+= binlog_space_total;
+  mysql_mutex_unlock(&LOCK_index);
+  return used_space;
+}
 
 bool
 MYSQL_BIN_LOG::is_xidlist_idle()
@@ -5448,6 +5647,7 @@ int MYSQL_BIN_LOG::new_file_without_locking()
 
   @note
     The new file name is stored last in the index file
+    binlog_space_total will be updated if binlog_space_limit is set
 */
 
 int MYSQL_BIN_LOG::new_file_impl()
@@ -5529,7 +5729,6 @@ int MYSQL_BIN_LOG::new_file_impl()
     goto end;
   }
   update_binlog_end_pos();
-
   old_name=name;
   name=0;				// Don't free name
   close_flag= LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX;
@@ -5544,6 +5743,8 @@ int MYSQL_BIN_LOG::new_file_impl()
     old_file= log_file.file;
     close_flag|= LOG_CLOSE_DELAYED_CLOSE;
     delay_close= true;
+    if (binlog_space_limit)
+      binlog_space_total+= binlog_end_pos;
   }
   close(close_flag);
   if (checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
@@ -6383,6 +6584,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
   }
   return error;
 }
+
 
 /**
   This function removes the pending rows event, discarding any outstanding
@@ -7326,6 +7528,7 @@ MYSQL_BIN_LOG::do_checkpoint_request(ulong binlog_id)
 int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
 {
   int error= 0;
+  ulonglong binlog_pos;
   DBUG_ENTER("MYSQL_BIN_LOG::rotate");
 
 #ifdef WITH_WSREP
@@ -7341,7 +7544,8 @@ int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
   //todo: fix the macro def and restore safe_mutex_assert_owner(&LOCK_log);
   *check_purge= false;
 
-  if (force_rotate || (my_b_tell(&log_file) >= (my_off_t) max_size))
+  binlog_pos= my_b_tell(&log_file);
+  if (force_rotate || binlog_pos >= max_size)
   {
     ulong binlog_id= current_binlog_id;
     /*
@@ -7383,18 +7587,31 @@ int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
       mark_xid_done(binlog_id, false);
     }
     else
+    {
       *check_purge= true;
+      binlog_pos= my_b_tell(&log_file);
+    }
   }
+  /*
+    Purge by size here for every write.  Purge based on timestamps is done
+    by purge() when rotate has been done().
+  */
+#ifdef HAVE_REPLICATION
+  purge_logs_by_size(binlog_pos);
+#endif
   DBUG_RETURN(error);
 }
 
 /**
   The method executes logs purging routine.
 
+  @param all  If false, purge only based on binlog_expire_logs_seconds.
+              If true, purge also based on binlog_space_limit.
   @retval
     nonzero - error in rotating routine.
 */
-void MYSQL_BIN_LOG::purge()
+
+void MYSQL_BIN_LOG::purge(bool all)
 {
   mysql_mutex_assert_not_owner(&LOCK_log);
 #ifdef HAVE_REPLICATION
@@ -7409,14 +7626,21 @@ void MYSQL_BIN_LOG::purge()
     }
     DEBUG_SYNC(current_thd, "after_purge_logs_before_date");
   }
+  if (all && binlog_space_limit)
+  {
+    ulonglong binlog_pos;
+    mysql_mutex_lock(&LOCK_log);
+    binlog_pos= my_b_tell(&log_file);
+    purge_logs_by_size(binlog_pos);
+    mysql_mutex_unlock(&LOCK_log);
+  }
 #endif
 }
-
 
 void MYSQL_BIN_LOG::checkpoint_and_purge(ulong binlog_id)
 {
   do_checkpoint_request(binlog_id);
-  purge();
+  purge(0);
 }
 
 

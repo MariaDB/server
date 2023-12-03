@@ -150,6 +150,9 @@ The following specify which files/extra groups are read (specified before remain
  MINIMAL means that only metadata actually required by
  slave is logged; NO_LOG NO metadata will be
  logged.Default: NO_LOG.
+ --binlog-space-limit=# 
+ Alias for max_binlog_total_size. Compatibility with
+ Percona server.
  --binlog-stmt-cache-size=# 
  The size of the statement cache for updates to
  non-transactional engines for the binary log. If you
@@ -619,6 +622,11 @@ The following specify which files/extra groups are read (specified before remain
  exceeds this value.
  --max-binlog-stmt-cache-size=# 
  Sets the total size of the statement cache
+ --max-binlog-total-size=# 
+ Maximum space to use for all binary logs. Extra logs are
+ deleted on server start, log rotation, FLUSH LOGS or when
+ writing to binlog. Default is 0, which means no size
+ restrictions. See also slave_connections_needed_for_purge
  --max-connect-errors=# 
  If there is more than this number of interrupted
  connections from a host this host will be blocked from
@@ -1294,6 +1302,10 @@ The following specify which files/extra groups are read (specified before remain
  --skip-slave-start  If set, slave is not autostarted.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
+ --slave-connections-needed-for-purge=# 
+ Minimum number of connected slaves required for automatic
+ binary log purge with max_binlog_total_size,
+ binlog_expire_logs_seconds or binlog_expire_logs_days.
  --slave-ddl-exec-mode=name 
  How replication events should be executed. Legal values
  are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
@@ -1616,6 +1628,7 @@ binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL
 binlog-row-metadata NO_LOG
+binlog-space-limit 0
 binlog-stmt-cache-size 32768
 block-encryption-mode aes-128-ecb
 bulk-insert-buffer-size 8388608
@@ -1743,6 +1756,7 @@ max-allowed-packet 16777216
 max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
+max-binlog-total-size 0
 max-connect-errors 100
 max-delayed-threads 20
 max-digest-length 1024
@@ -1930,6 +1944,7 @@ skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
 slave-compressed-protocol FALSE
+slave-connections-needed-for-purge 1
 slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT
