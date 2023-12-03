@@ -1247,6 +1247,68 @@ Sys_binlog_expire_logs_seconds(
        VALID_RANGE(0, 8553600), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(copy_to_expire_logs_days));
 
+
+static bool update_binlog_space_limit(sys_var *, THD *,
+                                      enum_var_type type)
+{
+#ifdef HAVE_REPLICATION
+  /* Refresh summary of binlog sizes */
+  mysql_bin_log.lock_index();
+  binlog_space_limit= internal_binlog_space_limit;
+  slave_connections_needed_for_purge=
+    internal_slave_connections_needed_for_purge;
+
+  if (opt_bin_log)
+  {
+    if (binlog_space_limit)
+      mysql_bin_log.count_binlog_space();
+    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+    sending_new_binlog_file++;
+     mysql_bin_log.unlock_index();
+    mysql_bin_log.purge(1);
+    return 0;
+  }
+  mysql_bin_log.unlock_index();
+#endif
+  return 0;
+}
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_max_binlog_total_size(
+      "max_binlog_total_size",
+      "Maximum space to use for all binary logs. Extra logs are deleted on "
+      "server start, log rotation, FLUSH LOGS or when writing to binlog. "
+      "Default is 0, which means no size restrictions. "
+      "See also slave_connections_needed_for_purge",
+      GLOBAL_VAR(internal_binlog_space_limit), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+      ON_UPDATE(update_binlog_space_limit));
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_binlog_space_limit(
+      "binlog_space_limit",
+      "Alias for max_binlog_total_size. Compatibility with Percona server.",
+      GLOBAL_VAR(internal_binlog_space_limit), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+      ON_UPDATE(update_binlog_space_limit));
+
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_slave_connections_needed_for_purge(
+      "slave_connections_needed_for_purge",
+      "Minimum number of connected slaves required for automatic binary "
+      "log purge with max_binlog_total_size, binlog_expire_logs_seconds "
+      "or binlog_expire_logs_days.",
+       GLOBAL_VAR(internal_slave_connections_needed_for_purge),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_binlog_space_limit));
+
 static Sys_var_mybool Sys_flush(
        "flush", "Flush MyISAM tables to disk between SQL commands",
        GLOBAL_VAR(myisam_flush),
