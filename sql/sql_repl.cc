@@ -586,21 +586,40 @@ void adjust_linfo_offsets(my_off_t purge_offset)
 }
 
 
-static my_bool log_in_use_callback(THD *thd, const char *log_name)
+struct st_log_in_use
+{
+  const char *log_name;
+  uint connected_slaves;
+};
+
+static my_bool log_in_use_callback(THD *thd, st_log_in_use *arg)
 {
   my_bool result= 0;
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  if (auto linfo= thd->current_linfo)
-    result= !strcmp(log_name, linfo->log_file_name);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  const char *log_name= arg->log_name;
+  if (thd->current_linfo)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    if (LOG_INFO *linfo= thd->current_linfo)
+    {
+      result= !strcmp(log_name, linfo->log_file_name);
+      arg->connected_slaves++;
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   return result;
 }
 
 
-bool log_in_use(const char* log_name)
+bool log_in_use(const char* log_name, uint min_connected)
 {
-  return server_threads.iterate(log_in_use_callback, log_name);
+  st_log_in_use arg;
+  arg.log_name= log_name;
+  arg.connected_slaves= 0;
+
+  return ((server_threads.iterate(log_in_use_callback, &arg) ||
+           arg.connected_slaves < min_connected));
 }
+
 
 bool purge_error_message(THD* thd, int res)
 {
@@ -2818,6 +2837,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
  * return 0 - OK
  *        1 - NOK
  */
+
 static int send_one_binlog_file(binlog_send_info *info,
                                 IO_CACHE* log,
                                 LOG_INFO* linfo,
@@ -2832,6 +2852,8 @@ static int send_one_binlog_file(binlog_send_info *info,
     linfo->pos= start_pos;
   }
 
+  /* Counter used by can_purge_log() */
+  sending_new_binlog_file++;
   while (!should_stop(info))
   {
     /**
