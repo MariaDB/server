@@ -1,0 +1,33 @@
+#--source include/innodb_page_size.inc
+--source include/have_file_key_management.inc
+
+CREATE TABLE t(c TEXT) ENGINE INNODB encrypted=yes;
+INSERT INTO t VALUES(REPEAT('fubar',100));
+INSERT INTO t VALUES('foobar1');
+DELETE FROM t LIMIT 1;
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+--let SEARCH_RANGE = 10000000
+--let SEARCH_PATTERN=foobar1
+--let SEARCH_FILE=$targetdir/ib_logfile0
+--source include/search_pattern_in_file.inc
+--echo # expect NOT FOUND
+
+INSERT INTO t VALUES('foobar2');
+echo # xtrabackup prepare;
+
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+--list_files $targetdir ib_logfile*
+--remove_file $targetdir/ib_logfile0
+
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;

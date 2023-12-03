@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, 2022, MariaDB Corporation.
+/* Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,18 +17,18 @@
 #include <mysqld.h>
 #include <mysql.h>
 #include <xtrabackup.h>
-#include <xb_plugin.h>
+#include <encryption_plugin.h>
 #include <sql_plugin.h>
 #include <sstream>
 #include <vector>
 #include <common.h>
 #include <backup_mysql.h>
-#include <srv0srv.h>
+#include <log0crypt.h>
 
 
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
-static void xb_plugin_init(int argc, char **argv);
+static void encryption_plugin_init(int argc, char **argv);
 
 extern char *xb_plugin_load;
 extern char *xb_plugin_dir;
@@ -42,7 +42,7 @@ const char *QUERY_PLUGIN =
 " OR (plugin_type = 'DAEMON' AND plugin_name LIKE 'provider\\_%')"
 " AND plugin_status='ACTIVE'";
 
-std::string xb_plugin_config;
+std::string encryption_plugin_config;
 
 static void add_to_plugin_load_list(const char *plugin_def)
 {
@@ -52,16 +52,16 @@ static void add_to_plugin_load_list(const char *plugin_def)
 static char XTRABACKUP_EXE[] = "xtrabackup";
 
 /*
-  Read "plugin-load" value from backup-my.cnf during prepare phase.
+  Read "plugin-load" value (encryption plugin) from backup-my.cnf during
+  prepare phase.
   The value is stored during backup phase.
 */
-static std::string get_plugin_from_cnf(const char *dir)
+static std::string get_encryption_plugin_from_cnf()
 {
-  std::string path = dir + std::string("/backup-my.cnf");
-  FILE *f = fopen(path.c_str(), "r");
+  FILE *f = fopen("backup-my.cnf", "r");
   if (!f)
   {
-    die("Can't open %s for reading", path.c_str());
+    die("Can't open backup-my.cnf for reading");
   }
   char line[512];
   std::string plugin_load;
@@ -80,7 +80,7 @@ static std::string get_plugin_from_cnf(const char *dir)
 }
 
 
-void xb_plugin_backup_init(MYSQL *mysql)
+void encryption_plugin_backup_init(MYSQL *mysql)
 {
   MYSQL_RES *result;
   MYSQL_ROW row;
@@ -163,7 +163,7 @@ void xb_plugin_backup_init(MYSQL *mysql)
     mysql_free_result(result);
   }
 
-  xb_plugin_config = oss.str();
+  encryption_plugin_config = oss.str();
 
   argc = 0;
   argv[argc++] = XTRABACKUP_EXE;
@@ -175,23 +175,23 @@ void xb_plugin_backup_init(MYSQL *mysql)
   }
   argv[argc] = 0;
 
-  xb_plugin_init(argc, argv);
+  encryption_plugin_init(argc, argv);
 }
 
-const char *xb_plugin_get_config()
+const char *encryption_plugin_get_config()
 {
-  return xb_plugin_config.c_str();
+  return encryption_plugin_config.c_str();
 }
 
 extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
 
-void xb_plugin_prepare_init(int argc, char **argv, const char *dir)
+void encryption_plugin_prepare_init(int argc, char **argv)
 {
-  std::string plugin_load= get_plugin_from_cnf(dir ? dir : ".");
+  std::string plugin_load= get_encryption_plugin_from_cnf();
   if (plugin_load.size())
   {
-    msg("Loading plugins from %s", plugin_load.c_str());
+    msg("Loading encryption plugin from %s", plugin_load.c_str());
   }
   else
   {
@@ -211,19 +211,19 @@ void xb_plugin_prepare_init(int argc, char **argv, const char *dir)
   new_argv[0] = XTRABACKUP_EXE;
   memcpy(&new_argv[1], argv, argc*sizeof(char *));
 
-  xb_plugin_init(argc+1, new_argv);
+  encryption_plugin_init(argc+1, new_argv);
 
   delete[] new_argv;
 }
 
-static void xb_plugin_init(int argc, char **argv)
+static void encryption_plugin_init(int argc, char **argv)
 {
   /* Patch optional and mandatory plugins, we only need to load the one in xb_plugin_load. */
   mysql_optional_plugins[0] = mysql_mandatory_plugins[0] = 0;
   plugin_maturity = MariaDB_PLUGIN_MATURITY_UNKNOWN; /* mariabackup accepts all plugins */
-  msg("Loading plugins");
+  msg("Loading encryption plugin");
   for (int i= 1; i < argc; i++)
-    msg("\t Plugin parameter :  '%s'", argv[i]);
+    msg("\t Encryption plugin parameter :  '%s'", argv[i]);
   plugin_init(&argc, argv, PLUGIN_INIT_SKIP_PLUGIN_TABLE);
 }
 

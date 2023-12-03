@@ -1,0 +1,50 @@
+--source include/have_innodb.inc
+--source include/innodb_page_size.inc
+
+let basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_undo_tablespaces=2;
+--source include/restart_mysqld.inc
+
+CREATE TABLE t1(a varchar(60)) ENGINE INNODB;
+start transaction;
+INSERT INTO t1 VALUES(1);
+
+--echo # xtrabackup backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+--echo # Restart the server with 4 undo tablespaces
+let $restart_parameters=--innodb_undo_tablespaces=4;
+set global innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+
+let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
+--echo # incremental backup should fail
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf   --backup --target-dir=$incremental_dir --incremental-basedir=$basedir 2> $backuplog;
+
+--let SEARCH_PATTERN=--incremental backup is impossible if the server had been restarted with different innodb_undo_tablespaces
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+remove_file $backuplog;
+rmdir $incremental_dir;
+rmdir $basedir;
+
+--echo # Take full backup again
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+--disable_result_log
+
+echo # Prepare full backup;
+exec $XTRABACKUP --prepare --target-dir=$basedir;
+
+--echo # Display 4 undo log files from target directory
+list_files $basedir undo*;
+
+DROP TABLE t1;
+rmdir $basedir;
