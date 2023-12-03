@@ -3,14 +3,14 @@ CREATE user backup@localhost;
 
 # backup possible for unprivileges user, with --no-lock
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --no-lock  --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 -ubackup --no-lock  --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 
 # backup fails without --no-lock, because of FTWRL
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 -ubackup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
 --enable_result_log
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log;
@@ -23,7 +23,7 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log;
 # backup succeeds with RELOAD privilege
 GRANT RELOAD, PROCESS on *.* to backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup -ubackup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 -ubackup --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 

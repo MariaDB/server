@@ -1,0 +1,38 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+# xtrabackup backup
+NOT FOUND /InnoDB: Allocated tablespace ID/ in backup.log
+INSERT INTO t VALUES(2);
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t;
+i
+1
+DROP TABLE t;
+#
+#  MDEV-27121 mariabackup incompatible with disabled dedicated
+#                  undo log tablespaces
+#
+call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=0 because previous shutdown was not with innodb_fast_shutdown=0");
+call mtr.add_suppression("Found 1 prepared XA transactions");
+CREATE TABLE t(f1 INT NOT NULL)ENGINE=InnoDB;
+XA START 'zombie';
+INSERT INTO t VALUES(1);
+XA END 'zombie';
+XA PREPARE 'zombie';
+# restart: --innodb_undo_tablespaces=0
+# xtrabackup backup
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart: --innodb_undo_tablespaces=0
+# Display undo log files from target directory
+undo001
+undo002
+XA COMMIT 'zombie';
+DROP TABLE t;

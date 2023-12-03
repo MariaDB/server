@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, 2022, MariaDB Corporation.
+/* Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,18 +17,18 @@
 #include <mysqld.h>
 #include <mysql.h>
 #include <xtrabackup.h>
-#include <xb_plugin.h>
+#include <encryption_plugin.h>
 #include <sql_plugin.h>
 #include <sstream>
 #include <vector>
 #include <common.h>
 #include <backup_mysql.h>
-#include <srv0srv.h>
+#include <log0crypt.h>
 
 
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
-static void xb_plugin_init(int argc, char **argv);
+static void encryption_plugin_init(int argc, char **argv);
 
 extern char *xb_plugin_load;
 extern char *xb_plugin_dir;
@@ -39,10 +39,9 @@ std::vector<std::string> backup_plugins_args;
 const char *QUERY_PLUGIN =
 "SELECT plugin_name, plugin_library, @@plugin_dir"
 " FROM information_schema.plugins WHERE plugin_type='ENCRYPTION'"
-" OR (plugin_type = 'DAEMON' AND plugin_name LIKE 'provider\\_%')"
 " AND plugin_status='ACTIVE'";
 
-std::string xb_plugin_config;
+std::string encryption_plugin_config;
 
 static void add_to_plugin_load_list(const char *plugin_def)
 {
@@ -52,16 +51,16 @@ static void add_to_plugin_load_list(const char *plugin_def)
 static char XTRABACKUP_EXE[] = "xtrabackup";
 
 /*
-  Read "plugin-load" value from backup-my.cnf during prepare phase.
+  Read "plugin-load" value (encryption plugin) from backup-my.cnf during
+  prepare phase.
   The value is stored during backup phase.
 */
-static std::string get_plugin_from_cnf(const char *dir)
+static std::string get_encryption_plugin_from_cnf()
 {
-  std::string path = dir + std::string("/backup-my.cnf");
-  FILE *f = fopen(path.c_str(), "r");
+  FILE *f = fopen("backup-my.cnf", "r");
   if (!f)
   {
-    die("Can't open %s for reading", path.c_str());
+    die("Can't open backup-my.cnf for reading");
   }
   char line[512];
   std::string plugin_load;
@@ -80,90 +79,82 @@ static std::string get_plugin_from_cnf(const char *dir)
 }
 
 
-void xb_plugin_backup_init(MYSQL *mysql)
+void encryption_plugin_backup_init(MYSQL *mysql)
 {
   MYSQL_RES *result;
   MYSQL_ROW row;
   std::ostringstream oss;
   char *argv[PLUGIN_MAX_ARGS];
-  char show_query[1024] = "";
-  std::string plugin_load;
   int argc;
 
   result = xb_mysql_query(mysql, QUERY_PLUGIN, true, true);
-  while ((row = mysql_fetch_row(result)))
+  row = mysql_fetch_row(result);
+  if (!row)
   {
-    char *name= row[0];
-    char *library= row[1];
-    char *dir= row[2];
-
-    if (!plugin_load.length())
-    {
-#ifdef _WIN32
-      for (char *p = dir; *p; p++)
-        if (*p == '\\') *p = '/';
-#endif
-      strncpy(opt_plugin_dir, dir, FN_REFLEN - 1);
-      opt_plugin_dir[FN_REFLEN - 1] = '\0';
-      oss << "plugin_dir=" << '"' << dir << '"' << std::endl;
-    }
-
-    plugin_load += std::string(";") + name;
-
-    if (library)
-    {
-      /* Remove shared library suffixes, in case we'll prepare on different OS.*/
-      const char *extensions[] = { ".dll", ".so", 0 };
-      for (size_t i = 0; extensions[i]; i++)
-      {
-        const char *ext = extensions[i];
-        if (ends_with(library, ext))
-          library[strlen(library) - strlen(ext)] = 0;
-      }
-      plugin_load += std::string("=") + library;
-    }
-
-    if (strncmp(name, "provider_", 9) == 0)
-      continue;
-
-    /* Read plugin variables. */
-    snprintf(show_query, sizeof(show_query), "SHOW variables like '%s_%%'", name);
-  }
-  mysql_free_result(result);
-  if (!plugin_load.length())
+    mysql_free_result(result);
     return;
+  }
 
-  oss << "plugin_load=" << plugin_load.c_str() + 1 << std::endl;
+  char *name= row[0];
+  char *library= row[1];
+  char *dir= row[2];
+
+#ifdef _WIN32
+  for (char *p = dir; *p; p++)
+    if (*p == '\\') *p = '/';
+#endif
+
+  std::string plugin_load(name);
+  if (library)
+  {
+    /* Remove shared library suffixes, in case we'll prepare on different OS.*/
+    const char *extensions[] = { ".dll", ".so", 0 };
+    for (size_t i = 0; extensions[i]; i++)
+    {
+      const char *ext = extensions[i];
+      if (ends_with(library, ext))
+        library[strlen(library) - strlen(ext)] = 0;
+    }
+    plugin_load += std::string("=") + library;
+  }
+
+  oss << "plugin_load=" << plugin_load << std::endl;
 
   /* Required  to load the plugin later.*/
-  add_to_plugin_load_list(plugin_load.c_str() + 1);
+  add_to_plugin_load_list(plugin_load.c_str());
+  strncpy(opt_plugin_dir, dir, FN_REFLEN - 1);
+  opt_plugin_dir[FN_REFLEN - 1] = '\0';
+
+  oss << "plugin_dir=" << '"' << dir << '"' << std::endl;
 
 
-  if (*show_query)
+  /* Read plugin variables. */
+  char query[1024];
+  snprintf(query, 1024, "SHOW variables like '%s_%%'", name);
+  mysql_free_result(result);
+
+  result = xb_mysql_query(mysql, query, true, true);
+  while ((row = mysql_fetch_row(result)))
   {
-    result = xb_mysql_query(mysql, show_query, true, true);
-    while ((row = mysql_fetch_row(result)))
-    {
-      std::string arg("--");
-      arg += row[0];
-      arg += "=";
-      arg += row[1];
-      backup_plugins_args.push_back(arg);
-      oss << row[0] << "=" << row[1] << std::endl;
-    }
-
-    mysql_free_result(result);
-
-    /* Check whether to encrypt logs. */
-    result = xb_mysql_query(mysql, "select @@innodb_encrypt_log", true, true);
-    row = mysql_fetch_row(result);
-    srv_encrypt_log = (row != 0 && row[0][0] == '1');
-    oss << "innodb_encrypt_log=" << row[0] << std::endl;
-
-    mysql_free_result(result);
+    std::string arg("--");
+    arg += row[0];
+    arg += "=";
+    arg += row[1];
+    backup_plugins_args.push_back(arg);
+    oss << row[0] << "=" << row[1] << std::endl;
   }
 
-  xb_plugin_config = oss.str();
+  mysql_free_result(result);
+
+  /* Check whether to encrypt logs. */
+  result = xb_mysql_query(mysql, "select @@innodb_encrypt_log", true, true);
+  row = mysql_fetch_row(result);
+  srv_encrypt_log = (row != 0 && row[0][0] == '1');
+  oss << "innodb_encrypt_log=" << row[0] << std::endl;
+
+  mysql_free_result(result);
+
+  encryption_plugin_config = oss.str();
 
   argc = 0;
   argv[argc++] = XTRABACKUP_EXE;
@@ -175,23 +166,23 @@ void xb_plugin_backup_init(MYSQL *mysql)
   }
   argv[argc] = 0;
 
-  xb_plugin_init(argc, argv);
+  encryption_plugin_init(argc, argv);
 }
 
-const char *xb_plugin_get_config()
+const char *encryption_plugin_get_config()
 {
-  return xb_plugin_config.c_str();
+  return encryption_plugin_config.c_str();
 }
 
 extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
 
-void xb_plugin_prepare_init(int argc, char **argv, const char *dir)
+void encryption_plugin_prepare_init(int argc, char **argv)
 {
-  std::string plugin_load= get_plugin_from_cnf(dir ? dir : ".");
+  std::string plugin_load= get_encryption_plugin_from_cnf();
   if (plugin_load.size())
   {
-    msg("Loading plugins from %s", plugin_load.c_str());
+    msg("Loading encryption plugin from %s", plugin_load.c_str());
   }
   else
   {
@@ -207,23 +198,23 @@ void xb_plugin_prepare_init(int argc, char **argv, const char *dir)
     opt_plugin_dir[FN_REFLEN - 1] = '\0';
   }
 
-  char **new_argv = new char *[argc + 2];
+  char **new_argv = new char *[argc + 1];
   new_argv[0] = XTRABACKUP_EXE;
   memcpy(&new_argv[1], argv, argc*sizeof(char *));
 
-  xb_plugin_init(argc+1, new_argv);
+  encryption_plugin_init(argc+1, new_argv);
 
   delete[] new_argv;
 }
 
-static void xb_plugin_init(int argc, char **argv)
+static void encryption_plugin_init(int argc, char **argv)
 {
   /* Patch optional and mandatory plugins, we only need to load the one in xb_plugin_load. */
   mysql_optional_plugins[0] = mysql_mandatory_plugins[0] = 0;
   plugin_maturity = MariaDB_PLUGIN_MATURITY_UNKNOWN; /* mariabackup accepts all plugins */
-  msg("Loading plugins");
+  msg("Loading encryption plugin");
   for (int i= 1; i < argc; i++)
-    msg("\t Plugin parameter :  '%s'", argv[i]);
+    msg("\t Encryption plugin parameter :  '%s'", argv[i]);
   plugin_init(&argc, argv, PLUGIN_INIT_SKIP_PLUGIN_TABLE);
 }
 

@@ -78,7 +78,6 @@ my_bool opt_ibx_galera_info = FALSE;
 my_bool opt_ibx_slave_info = FALSE;
 my_bool opt_ibx_no_lock = FALSE;
 my_bool opt_ibx_safe_slave_backup = FALSE;
-my_bool opt_ibx_rsync = FALSE;
 my_bool opt_ibx_force_non_empty_dirs = FALSE;
 my_bool opt_ibx_noversioncheck = FALSE;
 my_bool opt_ibx_no_backup_locks = FALSE;
@@ -295,15 +294,6 @@ static struct my_option ibx_long_options[] =
 	 "thread will be restarted when the backup finishes.",
 	 (uchar *) &opt_ibx_safe_slave_backup,
 	 (uchar *) &opt_ibx_safe_slave_backup,
-	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
-	{"rsync", OPT_RSYNC, "Uses the rsync utility to optimize local file "
-	 "transfers. When this option is specified, innobackupex uses rsync "
-	 "to copy all non-InnoDB files instead of spawning a separate cp for "
-	 "each file, which can be much faster for servers with a large number "
-	 "of databases or tables.  This option cannot be used together with "
-	 "--stream.",
-	 (uchar *) &opt_ibx_rsync, (uchar *) &opt_ibx_rsync,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS, "This "
@@ -864,10 +854,8 @@ ibx_init()
 	opt_slave_info = opt_ibx_slave_info;
 	opt_no_lock = opt_ibx_no_lock;
 	opt_safe_slave_backup = opt_ibx_safe_slave_backup;
-	opt_rsync = opt_ibx_rsync;
 	opt_force_non_empty_dirs = opt_ibx_force_non_empty_dirs;
 	opt_noversioncheck = opt_ibx_noversioncheck;
-	opt_no_backup_locks = opt_ibx_no_backup_locks;
 	opt_decompress = opt_ibx_decompress;
 
 	opt_incremental_history_name = opt_ibx_incremental_history_name;
