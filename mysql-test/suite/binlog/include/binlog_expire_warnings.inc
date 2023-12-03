@@ -87,7 +87,7 @@ if ($expect_binlog_off_days_and_seconds_warning) {
 }
 
 --let $assert_file = $ofile
---let $assert_select = You need to use --log-bin to make --expire-logs-days or --binlog-expire-logs-seconds work.
+--let $assert_select = You need to use --log-bin to make --expire-logs-days, --binlog-expire-logs-seconds or --max-binlog-total-size work.
 --let $assert_only_after = Shutdown complete
 --source include/assert_grep.inc
 
