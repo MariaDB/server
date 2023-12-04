@@ -1512,6 +1512,7 @@ public:
   void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
   {
 #ifdef UNIV_DEBUG
+    ut_ad(!latch.have_any());
     if (!latch.x_lock_try())
 #else
     if (!latch.wr_lock_try())
@@ -1540,6 +1541,7 @@ public:
   void freeze()
   {
 # ifdef UNIV_DEBUG
+    ut_ad(!latch.have_any());
     latch.s_lock();
 # else
     latch.rd_lock();
