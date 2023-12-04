@@ -9,10 +9,14 @@ set spider_disable_group_by_handler=1;
 CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a));
 CREATE TABLE t2 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a)) ENGINE=SPIDER COMMENT='srv "srv", WRAPPER "mysql", TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SET SESSION optimizer_switch='semijoin=off';
 SELECT * FROM t2
 WHERE A BETWEEN 0 AND 10 AND B IN(SELECT B FROM t2 WHERE A BETWEEN 11 AND 20);
 a	b
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SET SESSION optimizer_switch='semijoin=on';
 SELECT * FROM t2
 WHERE A BETWEEN 0 AND 10 AND B IN(SELECT B FROM t2 WHERE A BETWEEN 11 AND 20);

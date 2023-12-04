@@ -37,12 +37,18 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES
 (1, 'a', '2008-08-01 10:21:39'),
 (2, 'b', '2000-01-01 00:00:00'),
 (3, 'e', '2007-06-04 20:03:11'),
 (4, 'd', '2003-11-30 05:01:03'),
 (5, 'c', '2001-12-31 23:59:59');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 direct_updating test
 connection master_1;
