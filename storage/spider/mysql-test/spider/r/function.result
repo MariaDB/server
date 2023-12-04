@@ -34,7 +34,11 @@ CREATE TABLE t1 (
 a VARCHAR(255),
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET3 MASTER_1_COMMENT_TEXT_PK1_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values ('1');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 select a + 1 from t1;
 insert into t1 select a + 2 from t1;
 insert into t1 select a + 4 from t1;
@@ -51,6 +55,8 @@ select a from t1 where a in ('15', '120');
 a
 120
 15
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 date_sub()
 connection master_1;
@@ -61,12 +67,18 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES
 (1, 'a', '2008-08-01 10:21:39'),
 (2, 'b', '2000-01-01 00:00:00'),
 (3, 'e', '2007-06-04 20:03:11'),
 (4, 'd', '2003-11-30 05:01:03'),
 (5, 'c', '2001-12-31 23:59:59');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39

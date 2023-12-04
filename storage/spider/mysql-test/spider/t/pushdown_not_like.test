@@ -77,10 +77,12 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
   (1, 'a', '2018-11-01 10:21:39'),
   (2, 'b', '2015-06-30 23:59:59'),
   (3, 'c', '2013-11-01 01:01:01');
+--enable_ps_protocol
 
 --echo
 --echo spider not like bug fix test

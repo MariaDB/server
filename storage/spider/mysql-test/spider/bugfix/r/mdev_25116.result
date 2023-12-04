@@ -17,6 +17,8 @@ USE auto_test_local;
 CREATE TABLE tbl_a (
 id INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
 set spider_direct_aggregate=1;
@@ -26,6 +28,8 @@ Spider_direct_aggregate	0
 SELECT IF(COUNT(id > 0),'Y','N') FROM tbl_a;
 IF(COUNT(id > 0),'Y','N')
 N
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
 Spider_direct_aggregate	1

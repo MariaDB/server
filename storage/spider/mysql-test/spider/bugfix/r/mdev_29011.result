@@ -22,12 +22,16 @@ CREATE TABLE tbl_a (
 a INT,
 b INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a XOR b AS f FROM tbl_a;
 f
 0
 1
 1
 0
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 connection child2_1;
