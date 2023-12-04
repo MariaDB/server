@@ -3263,9 +3263,21 @@ HEX(a)	HEX(b)
 61	62
 61	0061
 DROP TABLE t1;
-0x00 in the beginning of a value of a non-last ENUM/SET causes an error:
+0x00 in the beginning of a value of a non-last ENUM/SET (fixed by MDEV-28498):
 CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
-ERROR HY000: Incorrect information in file: 'DIR/t1.frm'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a','\0a') DEFAULT NULL,
+  `b` enum('b') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,1);
+SELECT HEX(a), HEX(b) FROM t1 ORDER BY a, b;
+HEX(a)	HEX(b)
+61	62
+0061	62
+DROP TABLE t1;
 #
 # End of 10.1 tests
 #

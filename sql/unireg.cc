@@ -33,6 +33,7 @@
 #include "create_options.h"
 #include "discover.h"
 #include <m_ctype.h>
+#include "strfunc.h"                            // typelib_with_0x00
 
 #define FCOMP			17		/* Bytes for a packed field */
 
@@ -733,9 +734,12 @@ static bool pack_header(THD *thd, uchar *forminfo,
     if (field->interval)
     {
       uint old_int_count=int_count;
+      bool typelib_with_z= typelib_with_0x00(*field->interval);
 
-      if (field->charset->mbminlen > 1)
+      if (field->charset->mbminlen > 1 || typelib_with_z)
       {
+        if (typelib_with_z)
+          field->pack_flag|= FIELDFLAG_FRM_HEX_ENCODED_TYPELIB;
         /* 
           Escape UCS2 intervals using HEX notation to avoid
           problems with delimiters between enum elements.

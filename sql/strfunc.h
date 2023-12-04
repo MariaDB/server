@@ -29,6 +29,20 @@ uint find_type(const TYPELIB *lib, const char *find, size_t length,
 uint find_type2(const TYPELIB *lib, const char *find, size_t length,
                 CHARSET_INFO *cs);
 void unhex_type2(TYPELIB *lib);
+
+static inline bool typelib_with_0x00(const TYPELIB &typelib)
+{
+  for (uint pos= 0; pos < typelib.count; pos++)
+  {
+    for (uint i= 0; i < typelib.type_lengths[pos]; i++)
+    {
+      if (typelib.type_names[pos][i] == 0x00)
+        return true;
+    }
+  }
+  return false;
+}
+
 uint check_word(TYPELIB *lib, const char *val, const char *end,
 		const char **end_of_word);
 int find_string_in_array(LEX_CSTRING * const haystack,

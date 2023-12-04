@@ -131,10 +131,13 @@ INSERT INTO t1 VALUES (1,2);
 SELECT HEX(a), HEX(b) FROM t1 ORDER BY a, b;
 DROP TABLE t1;
 
---echo 0x00 in the beginning of a value of a non-last ENUM/SET causes an error:
---replace_regex /'.*t1.frm'/'DIR\/t1.frm'/
---error ER_NOT_FORM_FILE
+--echo 0x00 in the beginning of a value of a non-last ENUM/SET (fixed by MDEV-28498):
 CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,1);
+SELECT HEX(a), HEX(b) FROM t1 ORDER BY a, b;
+DROP TABLE t1;
 
 
 --echo #

@@ -2321,17 +2321,25 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (share->mysql_version < 100200)
       attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
 
-    if (interval_nr && attr.charset->mbminlen > 1 &&
-        !interval_unescaped[interval_nr - 1])
+    if (interval_nr && (attr.charset->mbminlen > 1 ||
+                        (attr.pack_flag & FIELDFLAG_FRM_HEX_ENCODED_TYPELIB)))
     {
       /*
-        Unescape UCS2/UTF16/UTF32 intervals from HEX notation.
-        Note, ENUM/SET columns with equal value list share a single
-        copy of TYPELIB. Unescape every TYPELIB only once.
+        This flag is used only in FRM and is mangled with other flags.
+        Unset it to avoid unexpected bit combinations in the rest of the code.
       */
-      TYPELIB *interval= share->intervals + interval_nr - 1;
-      unhex_type2(interval);
-      interval_unescaped[interval_nr - 1]= true;
+      attr.pack_flag&= ~FIELDFLAG_FRM_HEX_ENCODED_TYPELIB;
+      if (!interval_unescaped[interval_nr - 1])
+      {
+        /*
+          Decode the interval from the HEX notation.
+          Note, ENUM/SET columns with equal value lists share a single
+          copy of TYPELIB. Unescape every TYPELIB only once.
+        */
+        TYPELIB *interval= share->intervals + interval_nr - 1;
+        unhex_type2(interval);
+        interval_unescaped[interval_nr - 1]= true;
+      }
     }
 
 #ifndef TO_BE_DELETED_ON_PRODUCTION
