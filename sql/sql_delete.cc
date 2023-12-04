@@ -841,7 +841,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
       if (likely(!error))
       {
-	deleted++;
+        deleted++;
         if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
@@ -849,15 +849,15 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
           error= 1;
           break;
         }
-	if (!--limit && using_limit)
-	{
-	  error= -1;
-	  break;
-	}
+        if (!--limit && using_limit)
+        {
+          error= -1;
+          break;
+        }
       }
       else
       {
-	table->file->print_error(error,
+        table->file->print_error(error,
                                  MYF(thd->lex->ignore ? ME_WARNING : 0));
         if (thd->is_error())
         {
@@ -947,7 +947,7 @@ cleanup:
 
       if (log_result > 0)
       {
-	error=1;
+        error=1;
       }
     }
   }
@@ -958,6 +958,8 @@ cleanup:
   {
     if (thd->lex->analyze_stmt)
       goto send_nothing_and_leave;
+
+    thd->collect_unit_results(0, deleted);
 
     if (returning)
       result->send_eof();

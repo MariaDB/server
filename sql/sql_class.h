@@ -5953,6 +5953,14 @@ public:
     return (lex->sphead != 0 &&
             !(in_sub_stmt & (SUB_STMT_FUNCTION | SUB_STMT_TRIGGER)));
   }
+
+  /* Data and methods for bulk multiple unit result reporting */
+  DYNAMIC_ARRAY *unit_results;
+  void stop_collecting_unit_results();
+  bool collect_unit_results(ulonglong id, ulonglong affected_rows);
+  bool need_report_unit_results();
+  bool report_collected_unit_results();
+  bool init_collecting_unit_results();
 };
 
 
