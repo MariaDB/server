@@ -959,6 +959,8 @@ cleanup:
     if (thd->lex->analyze_stmt)
       goto send_nothing_and_leave;
 
+    thd->collect_unit_results(0, deleted);
+
     if (returning)
       result->send_eof();
     else
