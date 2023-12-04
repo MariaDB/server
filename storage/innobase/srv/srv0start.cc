@@ -596,7 +596,8 @@ static uint32_t trx_rseg_get_n_undo_tablespaces()
   mtr_t mtr;
   mtr.start();
 
-  if (const buf_block_t *sys_header= trx_sysf_get(&mtr, false))
+  if (const buf_block_t *sys_header=
+      recv_sys.recover({TRX_SYS_SPACE, TRX_SYS_PAGE_NO}, &mtr, nullptr))
     for (ulint rseg_id= 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++)
       if (trx_sysf_rseg_get_page_no(sys_header, rseg_id) != FIL_NULL)
 	if (uint32_t space= trx_sysf_rseg_get_space(sys_header, rseg_id))
@@ -1552,20 +1553,6 @@ dberr_t srv_start(bool create_new_db)
 
 			srv_undo_tablespaces_active
 				= trx_rseg_get_n_undo_tablespaces();
-
-			if (srv_operation != SRV_OPERATION_RESTORE) {
-				dict_sys.load_sys_tables();
-			}
-
-			if (UNIV_UNLIKELY(must_upgrade_ibuf)) {
-				dict_load_tablespaces(nullptr, true);
-				err = ibuf_upgrade();
-				if (err != DB_SUCCESS) {
-					break;
-				}
-			}
-
-			err = trx_lists_init_at_db_start();
 			break;
 		default:
 			ut_ad("wrong mariabackup mode" == 0);
@@ -1596,9 +1583,45 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 
+			if (srv_operation != SRV_OPERATION_RESTORE
+			    || recv_needed_recovery) {
+			}
+
 			DBUG_PRINT("ib_log", ("apply completed"));
 
-			if (recv_needed_recovery) {
+			if (srv_operation != SRV_OPERATION_RESTORE) {
+				dict_sys.lock(SRW_LOCK_CALL);
+				dict_load_sys_table(dict_sys.sys_tables);
+				dict_sys.unlock();
+
+				if (UNIV_UNLIKELY(must_upgrade_ibuf)) {
+					dict_load_tablespaces(nullptr, true);
+					err = ibuf_upgrade();
+					if (err != DB_SUCCESS) {
+						return srv_init_abort(err);
+					}
+				}
+
+				dict_sys.lock(SRW_LOCK_CALL);
+				dict_load_sys_table(dict_sys.sys_columns);
+				dict_load_sys_table(dict_sys.sys_indexes);
+				dict_load_sys_table(dict_sys.sys_fields);
+				dict_sys.unlock();
+				dict_sys.load_sys_tables();
+
+				err = trx_lists_init_at_db_start();
+				if (err != DB_SUCCESS) {
+					return srv_init_abort(err);
+				}
+
+				if (recv_needed_recovery) {
+					trx_sys_print_mysql_binlog_offset();
+				}
+			} else if (recv_needed_recovery) {
+				err = trx_lists_init_at_db_start();
+				if (err != DB_SUCCESS) {
+					return srv_init_abort(err);
+				}
 				trx_sys_print_mysql_binlog_offset();
 			}
 		}

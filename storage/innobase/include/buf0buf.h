@@ -201,34 +201,12 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err = NULL)
-	MY_ATTRIBUTE((nonnull(6)));
-
-/** This is the low level function used to get access to a database page.
-@param[in]	page_id			page id
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
-@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-or BUF_PEEK_IF_IN_POOL
-@param[in,out]	mtr			mini-transaction, or NULL if a
-					block with page_id is to be evicted
-@param[out]	err			DB_SUCCESS or error code
-@return pointer to the block or NULL */
-buf_block_t*
-buf_page_get_low(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			rw_latch,
-	buf_block_t*		guess,
-	ulint			mode,
-	mtr_t*			mtr,
-	dberr_t*		err);
+	dberr_t*		err = nullptr);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED => LRU
-(the other is buf_page_get_low()).
+(the other is buf_page_get_gen()).
 @param[in,out]	space		space object
 @param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0

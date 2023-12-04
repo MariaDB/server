@@ -2074,7 +2074,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	/* If we already had an old page with matching number
 	in the buffer pool, evict it now, because
 	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
+	buf_page_get_gen(block->page.id(), get_zip_size(), RW_NO_LATCH,
 			 nullptr, BUF_PEEK_IF_IN_POOL,
 			 nullptr, nullptr);
 

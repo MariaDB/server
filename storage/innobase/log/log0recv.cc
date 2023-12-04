@@ -3649,33 +3649,70 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
   return block ? block : reinterpret_cast<buf_block_t*>(-1);
 }
 
-/** Attempt to initialize a page based on redo log records.
+/** Read a page or recover it based on redo log records.
 @param page_id  page identifier
-@return recovered block
-@retval nullptr if the page cannot be initialized based on log records */
-ATTRIBUTE_COLD buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
+@param mtr      mini-transaction
+@param err      error code
+@return the requested block
+@retval nullptr if the page cannot be accessed due to corruption */
+ATTRIBUTE_COLD
+buf_block_t *
+recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
 {
+  if (!recovery_on)
+  must_read:
+    return buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
+                            err);
+
   mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
 
-  if (p != pages.end() && !p->second.being_processed && p->second.skip_read)
+  if (p == pages.end() || p->second.being_processed || !p->second.skip_read)
   {
-    p->second.being_processed= 1;
-    const lsn_t init_lsn{mlog_init.last(page_id)};
     mysql_mutex_unlock(&mutex);
-    buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
-    mtr_t mtr;
-    buf_block_t *block= recover_low(p, mtr, free_block, init_lsn);
-    p->second.being_processed= -1;
-    ut_ad(!block || block == reinterpret_cast<buf_block_t*>(-1) ||
-          block == free_block);
-    if (UNIV_UNLIKELY(!block))
-      buf_pool.free_block(free_block);
-    return block;
+    goto must_read;
   }
 
+  p->second.being_processed= 1;
+  const lsn_t init_lsn{mlog_init.last(page_id)};
   mysql_mutex_unlock(&mutex);
-  return nullptr;
+  buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
+  buf_block_t *block;
+  {
+    mtr_t local_mtr;
+    block= recover_low(p, local_mtr, free_block, init_lsn);
+  }
+  p->second.being_processed= -1;
+  if (UNIV_UNLIKELY(!block))
+  {
+    buf_pool.free_block(free_block);
+    goto must_read;
+  }
+  else if (block == reinterpret_cast<buf_block_t*>(-1))
+  {
+  corrupted:
+    if (err)
+      *err= DB_CORRUPTION;
+    return nullptr;
+  }
+
+  ut_ad(block == free_block);
+  auto s= block->page.fix();
+  ut_ad(s >= buf_page_t::FREED);
+  /* The block may be write-fixed at this point because we are not
+  holding a latch, but it must not be read-fixed. */
+  ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
+  if (s < buf_page_t::UNFIXED)
+  {
+    mysql_mutex_lock(&buf_pool.mutex);
+    block->page.unfix();
+    buf_LRU_free_page(&block->page, true);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    goto corrupted;
+  }
+
+  mtr->page_lock(block, RW_S_LATCH);
+  return block;
 }
 
 inline fil_space_t *fil_system_t::find(const char *path) const

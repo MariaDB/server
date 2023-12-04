@@ -815,7 +815,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 
 	/* We must hold an exclusive hash_lock to prevent
 	bpage->can_relocate() from changing due to a concurrent
-	execution of buf_page_get_low(). */
+	execution of buf_page_get_gen(). */
 	buf_pool_t::hash_chain& chain= buf_pool.page_hash.cell_get(id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 	/* We cannot use transactional_lock_guard here,

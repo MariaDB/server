@@ -1114,9 +1114,9 @@ void btr_drop_temporary_table(const dict_table_t &table)
   for (const dict_index_t *index= table.indexes.start; index;
        index= dict_table_get_next_index(index))
   {
-    if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page}, 0,
-                                             RW_X_LATCH, nullptr, BUF_GET, &mtr,
-                                             nullptr))
+    if (buf_block_t *block= buf_page_get_gen({SRV_TMP_SPACE_ID, index->page},
+                                             0, RW_X_LATCH, nullptr, BUF_GET,
+                                             &mtr, nullptr))
     {
       btr_free_but_not_root(block, MTR_LOG_NO_REDO);
       mtr.set_log_mode(MTR_LOG_NO_REDO);
