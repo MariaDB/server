@@ -72,6 +72,13 @@ id int
 insert into t values (1);
 insert into t values (2);
 drop table t;
+connection slave;
+include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+connection master;
+# Ensuring the binlog dump thread is killed on primary...
 -- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
 -- SET GLOBAL gtid_slave_pos='0-1-1005';
+connection slave;
+include/start_slave.inc
 include/rpl_end.inc

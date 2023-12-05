@@ -85,7 +85,7 @@ DROP TABLE t2;
 
 #
 # MDEV-32611 Added test for mysqldump --delete-master-logs option.
-# This options is alias of 
+# This options is alias of
 # get binlogs: show master status -> flush logs -> purge binary logs to <new_binlog>
 # sequence and this test is derived using the same pattern.
 #
@@ -100,6 +100,33 @@ insert into t values (1);
 insert into t values (2);
 
 drop table t;
+
+--sync_slave_with_master
+
+# MDEV-32953: Because --delete-master-logs immediately purges logs after
+# flushing, it is possible the binlog dump threads will still be using the old
+# log when the purge executes, disallowing the file from being deleted.
+# Therefore, we temporarily stop the slave so there is no chance the old binlog
+# is still being referenced. master_use_gtid=Slave_pos is necessary to still
+# appear up-to-date to the master on restart after the master has flushed the
+# logs (while the slave is offline). Otherwise (i.e. if using binlog file/pos),
+# the slave would point to a purged log file, and receive an error immediately
+# upon connecting to the master.
+--source include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+
+connection master;
+
+--echo # Ensuring the binlog dump thread is killed on primary...
+--disable_query_log
+--let $binlog_dump_thd_tid= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Binlog Dump'`
+if ($binlog_dump_thd_tid)
+{
+  --eval kill $binlog_dump_thd_tid
+}
+--let $wait_condition= SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Binlog Dump'
+--source include/wait_condition.inc
+--enable_query_log
 
 --let $predump_binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
 
@@ -124,5 +151,8 @@ if ($postdump_first_binary_log_filename != $postdump_binlog_filename)
   --echo # postdump_binlog_filename: $postdump_binlog_filename
   --die Master binlog wasn't deleted after mariadb-dump with --delete-master-logs.
 }
+
+connection slave;
+--source include/start_slave.inc
 
 --source include/rpl_end.inc
