@@ -3364,7 +3364,7 @@ int spider_db_mbase::set_loop_check(
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
   DBUG_ENTER("spider_db_mbase::set_loop_check");
   DBUG_PRINT("info",("spider this=%p", this));
-  sql_str.init_calc_mem(270);
+  sql_str.init_calc_mem(SPD_MID_DB_MBASE_SET_LOOP_CHECK_1);
   while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
     &conn->loop_check_queue, 0)))
   {

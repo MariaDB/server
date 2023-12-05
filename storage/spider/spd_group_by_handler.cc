@@ -1719,8 +1719,7 @@ group_by_handler *spider_create_group_by_handler(
   if (spider->dml_init())
   {
     DBUG_PRINT("info",("spider can not init for dml"));
-    delete fields;
-    DBUG_RETURN(NULL);
+    goto skip_free_fields;
   }
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
@@ -1792,8 +1791,7 @@ group_by_handler *spider_create_group_by_handler(
     if (spider->dml_init())
     {
       DBUG_PRINT("info",("spider can not init for dml"));
-      delete fields;
-      DBUG_RETURN(NULL);
+      goto skip_free_fields;
     }
     for (
       roop_count = spider_conn_link_idx_next(share->link_statuses,
