@@ -822,7 +822,6 @@ skip_secondaries:
 				   buf_page_get(page_id_t(rseg.space->id,
 							  page_no),
 						0, RW_X_LATCH, &mtr)) {
-				block->page.set_accessed();
 				buf_page_make_young_if_needed(&block->page);
 
 				byte* data_field = block->page.frame

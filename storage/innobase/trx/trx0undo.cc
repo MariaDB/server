@@ -25,8 +25,8 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "trx0undo.h"
+#include "buf0rea.h"
 #include "fsp0fsp.h"
-#include "mach0data.h"
 #include "mtr0log.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -178,8 +178,12 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
 
   block= buf_page_get(page_id_t(block->page.id().space(), prev_page_no),
                       0, shared ? RW_S_LATCH : RW_X_LATCH, mtr);
+  if (UNIV_UNLIKELY(!block))
+    return nullptr;
 
-  return block ? trx_undo_page_get_last_rec(block, page_no, offset) : nullptr;
+  if (!buf_page_make_young_if_needed(&block->page))
+    buf_read_ahead_linear(block->page.id(), 0, false);
+  return trx_undo_page_get_last_rec(block, page_no, offset);
 }
 
 /** Get the previous undo log record.
@@ -268,12 +272,16 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                        uint16_t offset, ulint mode, const buf_block_t*& block,
                        mtr_t *mtr, dberr_t *err)
 {
-  block= buf_page_get_gen(page_id_t{space.id, page_no}, 0, mode,
-                          nullptr, BUF_GET, mtr, err);
+  buf_block_t *b= buf_page_get_gen(page_id_t{space.id, page_no}, 0, mode,
+                                   nullptr, BUF_GET, mtr, err);
+  block= b;
   if (!block)
     return nullptr;
 
-  if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(block, page_no, offset))
+  if (!buf_page_make_young_if_needed(&b->page))
+    buf_read_ahead_linear(b->page.id(), 0, false);
+
+  if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(b, page_no, offset))
     return rec;
 
   return trx_undo_get_next_rec_from_next_page(block, page_no, offset, mode,
@@ -663,6 +671,8 @@ buf_block_t *trx_undo_add_page(trx_undo_t *undo, mtr_t *mtr, dberr_t *err)
                      0, RW_X_LATCH, nullptr, BUF_GET, mtr, err);
   if (!header_block)
     goto func_exit;
+  buf_page_make_young_if_needed(&header_block->page);
+
   *err= fsp_reserve_free_extents(&n_reserved, rseg->space, 1, FSP_UNDO, mtr);
 
   if (UNIV_UNLIKELY(*err != DB_SUCCESS))
@@ -731,6 +741,8 @@ trx_undo_free_page(
 	if (UNIV_UNLIKELY(!header_block)) {
 		return FIL_NULL;
 	}
+
+	buf_page_make_young_if_needed(&header_block->page);
 
 	*err = flst_remove(header_block, TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST,
 			   undo_block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE,
@@ -1271,6 +1283,8 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 		return NULL;
 	}
 
+	buf_page_make_young_if_needed(&block->page);
+
 	UT_LIST_REMOVE(rseg->undo_cached, undo);
 
 	*pundo = undo;
@@ -1305,19 +1319,24 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
 
 	trx_undo_t* undo = trx->rsegs.m_redo.undo;
+	buf_block_t* block;
 
 	if (undo) {
-		return buf_page_get_gen(
+		block = buf_page_get_gen(
 			page_id_t(undo->rseg->space->id, undo->last_page_no),
 			0, RW_X_LATCH, undo->guess_block,
 			BUF_GET, mtr, err);
+		if (UNIV_LIKELY(block != nullptr)) {
+			buf_page_make_young_if_needed(&block->page);
+		}
+		return block;
 	}
 
 	*err = DB_SUCCESS;
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
 	rseg->latch.wr_lock(SRW_LOCK_CALL);
-	buf_block_t* block = trx_undo_reuse_cached(
+	block = trx_undo_reuse_cached(
 		trx, rseg, &trx->rsegs.m_redo.undo, mtr, err);
 
 	if (!block) {
@@ -1358,12 +1377,17 @@ trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
 		       : &trx->rsegs.m_redo.undo));
 	ut_ad(mtr->get_log_mode()
 	      == (is_temp ? MTR_LOG_NO_REDO : MTR_LOG_ALL));
+	buf_block_t* block;
 
 	if (*undo) {
-		return buf_page_get_gen(
+		block = buf_page_get_gen(
 			page_id_t(rseg->space->id, (*undo)->last_page_no),
 			0, RW_X_LATCH, (*undo)->guess_block,
 			BUF_GET, mtr, err);
+		if (UNIV_LIKELY(block != nullptr)) {
+			buf_page_make_young_if_needed(&block->page);
+		}
+		return block;
 	}
 
 	DBUG_EXECUTE_IF(
@@ -1373,7 +1397,6 @@ trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
 
 	*err = DB_SUCCESS;
 	rseg->latch.wr_lock(SRW_LOCK_CALL);
-	buf_block_t* block;
 	if (is_temp) {
 		ut_ad(!UT_LIST_GET_LEN(rseg->undo_cached));
 	} else {
