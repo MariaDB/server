@@ -5056,6 +5056,14 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     closefrm(&tbl);
   }
 
+  // Handle MYSQL_JSON data type with table that needs upgrade
+  if (share->incompatible_version & HA_CREATE_USED_ENGINE)
+  {
+    table_list.table= &tbl;
+    res= schema_table->process_table(thd, &table_list, table,
+                                     TRUE, db_name, table_name);
+  }
+
 
 end_share:
   tdc_release_share(share);
