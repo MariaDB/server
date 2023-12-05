@@ -674,8 +674,8 @@ public:
   /* Tracker with the information about how rowid filter is executed */
   Rowid_filter_tracker *tracker;
 
-  void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze);
+  void print_explain_json(Explain_query *query, double loops,
+                          Json_writer *writer, bool is_analyze);
 
   /*
     TODO:
