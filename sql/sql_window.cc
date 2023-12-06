@@ -336,7 +336,8 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   List_iterator_fast<Item_window_func> li(win_funcs);
   while (Item_window_func * win_func_item= li++)
   {
-    if (win_func_item->check_result_type_of_order_item())
+    if (win_func_item->resolve_window_name(thd) ||
+        win_func_item->check_result_type_of_order_item())
       DBUG_RETURN(1);
   }
   DBUG_RETURN(0);

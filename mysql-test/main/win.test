@@ -2874,3 +2874,26 @@ create table t1 (a int);
 insert into t1 values (1),(2),(3);
 SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NULL);
 drop table t1;
+
+--echo #
+--echo # MDEV-28619: Server crash in Window_funcs_sort::setup
+--echo #
+
+--error ER_WRONG_WINDOW_SPEC_NAME
+SELECT 1 IN (SELECT 1 a UNION SELECT 5 ORDER BY LAST_VALUE (a) OVER XXX);
+--error ER_WRONG_WINDOW_SPEC_NAME
+SELECT 1 IN (SELECT 2 AS two UNION (SELECT 5 AS five) ORDER BY LAST_VALUE (0) OVER x);
+--error ER_WRONG_WINDOW_SPEC_NAME
+WITH col AS (SELECT 1 AS t1)
+SELECT t1 IN (
+  SELECT t1 FROM col UNION SELECT 50 FROM col ORDER BY LAST_VALUE (1) OVER x DESC
+) FROM col;
+
+use test;
+CREATE TABLE t1 ( col FLOAT NOT NULL ) ;
+INSERT INTO t1 ( col ) VALUES ( 52 ) ;
+--error ER_WRONG_WINDOW_SPEC_NAME
+SELECT col IN (
+  SELECT col FROM t1 UNION (SELECT 0) ORDER BY LAST_VALUE (0) OVER x DESC
+) FROM t1;
+DROP TABLE t1;

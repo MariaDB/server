@@ -4397,6 +4397,26 @@ row_number() OVER (order by a)
 3
 drop table t1;
 #
+# MDEV-28619: Server crash in Window_funcs_sort::setup
+#
+SELECT 1 IN (SELECT 1 a UNION SELECT 5 ORDER BY LAST_VALUE (a) OVER XXX);
+ERROR HY000: Window specification with name 'XXX' is not defined
+SELECT 1 IN (SELECT 2 AS two UNION (SELECT 5 AS five) ORDER BY LAST_VALUE (0) OVER x);
+ERROR HY000: Window specification with name 'x' is not defined
+WITH col AS (SELECT 1 AS t1)
+SELECT t1 IN (
+SELECT t1 FROM col UNION SELECT 50 FROM col ORDER BY LAST_VALUE (1) OVER x DESC
+) FROM col;
+ERROR HY000: Window specification with name 'x' is not defined
+use test;
+CREATE TABLE t1 ( col FLOAT NOT NULL ) ;
+INSERT INTO t1 ( col ) VALUES ( 52 ) ;
+SELECT col IN (
+SELECT col FROM t1 UNION (SELECT 0) ORDER BY LAST_VALUE (0) OVER x DESC
+) FROM t1;
+ERROR HY000: Window specification with name 'x' is not defined
+DROP TABLE t1;
+#
 # MDEV-23867: select crash in compute_window_func
 #
 set @save_sort_buffer_size=@@sort_buffer_size;
