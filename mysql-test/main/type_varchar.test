@@ -415,3 +415,22 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # MDEV-32957 Unusable key notes report wrong predicates for > and >=
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (a INT, i CHAR(32), KEY(i));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (i, 10+i);
+END FOR;
+$$
+DELIMITER ;$$
+EXPLAIN SELECT * FROM t1 WHERE i>30 ORDER BY i LIMIT 5;
+EXPLAIN SELECT * FROM t1 WHERE i>=30 ORDER BY i LIMIT 5;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

@@ -306,6 +306,19 @@ INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
 --source include/explain_utils.inc
 DROP TABLE t1;
 
+--echo #30a
+--echo #
+--echo # MDEV-32957 Unusable key notes report wrong predicates for > and >=
+--echo #
+CREATE TABLE t1(a INT, i CHAR(2), INDEX(i(1)));
+INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
+                          (20),(21),(22),(23),(24),(25),(26),(27),(28),(29),
+                          (30),(31),(32),(33),(34),(35);
+--let $query =  DELETE   FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5
+--let $select = SELECT * FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5
+--source include/explain_utils.inc
+DROP TABLE t1;
+
 --echo #31
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),

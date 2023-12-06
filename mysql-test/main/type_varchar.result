@@ -952,3 +952,25 @@ Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten c
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-32957 Unusable key notes report wrong predicates for > and >=
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (a INT, i CHAR(32), KEY(i));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (i, 10+i);
+END FOR;
+$$
+EXPLAIN SELECT * FROM t1 WHERE i>30 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i	NULL	NULL	NULL	31	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "30" of type `int`
+EXPLAIN SELECT * FROM t1 WHERE i>=30 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i	NULL	NULL	NULL	31	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "30" of type `int`
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
