@@ -2697,8 +2697,7 @@ dict_foreign_find_index(
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index;
 	     index = dict_table_get_next_index(index)) {
-		if (types_idx != index
-		    && !index->to_be_dropped
+		if (!index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
