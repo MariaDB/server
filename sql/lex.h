@@ -714,6 +714,7 @@ SYMBOL symbols[] = {
   { "UTC_DATE",         SYM(UTC_DATE_SYM)},
   { "UTC_TIME",         SYM(UTC_TIME_SYM)},
   { "UTC_TIMESTAMP",    SYM(UTC_TIMESTAMP_SYM)},
+  { "VALIDATION",       SYM(VALIDATION_SYM)},
   { "VALUE",		SYM(VALUE_SYM)},
   { "VALUES",		SYM(VALUES)},
   { "VARBINARY",	SYM(VARBINARY)},

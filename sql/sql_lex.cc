@@ -1301,6 +1301,7 @@ void LEX::start(THD *thd_arg)
   default_used= 0;
   with_rownum= FALSE;
   is_lex_started= 1;
+  without_validation= 0;
 
   create_info.lex_start();
   name= null_clex_str;
@@ -3932,7 +3933,7 @@ LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
     mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
     default_used(0),
-    with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
+    with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
     limit_rows_examined_cnt(ULONGLONG_MAX)
 {
