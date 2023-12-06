@@ -2487,7 +2487,7 @@ SELECT * FROM t2;
 --exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t2.sql
 
 # Test mysqlimport with multiple threads
---exec $MYSQL_IMPORT --silent --use-threads=2 db_20772273 $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt
+--exec $MYSQL_IMPORT --silent --parallel=2 db_20772273 $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt
 
 SELECT * FROM t1;
 SELECT * FROM t2;
