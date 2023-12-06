@@ -10999,6 +10999,8 @@ int ha_spider::direct_delete_rows_init()
     DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_delete_rows_init());
   }
 #endif
+  if (int error_num = spider_check_trx_and_get_conn(thd, this, TRUE))
+    DBUG_RETURN(error_num);
   direct_update_init(
     thd,
     FALSE
