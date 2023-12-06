@@ -3828,6 +3828,19 @@ lock_table_enqueue_waiting(
 	}
 
 #ifdef WITH_WSREP
+	/*
+	  Check if a BF-transaction holds the conflicting lock.
+	  In this case, roll back current transaction.
+	*/
+	if (trx->is_wsrep() && c_lock->trx->is_wsrep() &&
+	    wsrep_thd_is_BF(c_lock->trx->mysql_thd, FALSE)) {
+		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+			/* BF-BF wait is a bug. */
+			ut_error;
+		}
+		trx->lock.was_chosen_as_deadlock_victim = TRUE;
+	}
+
 	if (trx->is_wsrep() && trx->lock.was_chosen_as_deadlock_victim) {
 		return(DB_DEADLOCK);
 	}
@@ -3901,7 +3914,8 @@ lock_table_other_has_incompatible(
 		    && (wait || !lock_get_wait(lock))) {
 
 #ifdef WITH_WSREP
-			if (lock->trx->is_wsrep()) {
+			if (lock->trx->is_wsrep() &&
+			    !wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)) {
 				if (UNIV_UNLIKELY(wsrep_debug)) {
 					ib::info() << "WSREP: table lock abort for table:"
 						   << table->name;
@@ -4011,6 +4025,7 @@ lock_table(
 
 	trx_mutex_exit(trx);
 
+	DEBUG_SYNC_C("after_lock_table_for_trx");
 	return(err);
 }
 

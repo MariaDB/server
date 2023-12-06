@@ -1,0 +1,74 @@
+#
+# MDEV-32738: Don't roll back high-priority transaction waiting on a lock in InnoDB.
+#
+# DML transactions on FK-child tables also get table locks on FK-parent tables.
+# If there is a DML transaction holding such a lock, and a TOI transaction starts,
+# the latter BF-aborts the former and puts itself into a waiting state.
+# If at this moment another DML transaction on FK-child table starts, it doesn't
+# check that the transaction waiting on a parent table lock is TOI, and it
+# erroneously BF-aborts the waiting TOI transaction.
+#
+# The fix: check that the waiting transaction is TOI and in this case roll back
+# the incoming DML transaction in InnoDB.
+#
+# The test runs with autocommit statement retry disabled.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connect con1_1,127.0.0.1,root,,test,$NODE_MYPORT_1
+--connect con1_2,127.0.0.1,root,,test,$NODE_MYPORT_1
+
+CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1_fk(c1 INT PRIMARY KEY, c2 INT, INDEX (c2), FOREIGN KEY (c2) REFERENCES t1(c1)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1);
+
+--connection con1_1
+SET DEBUG_SYNC = 'ib_after_row_insert WAIT_FOR bf_abort';
+# INSERT also grabs FK-referenced table lock.
+--send
+  INSERT INTO t1_fk VALUES (1, 1);
+
+--connection con1_2
+SET DEBUG_SYNC = 'ha_write_row_start SIGNAL may_alter WAIT_FOR may_insert';
+# Stop before doing anything, but pass wsrep_sync_wait().
+# This should be done before ALTER enters TOI.
+--send
+  INSERT INTO t1_fk VALUES (2, 2);
+
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
+SET DEBUG_SYNC = 'after_lock_table_for_trx SIGNAL may_insert WAIT_FOR alter_continue';
+# ALTER BF-aborts the first INSERT and lets the second INSERT continue.
+--send
+  ALTER TABLE t1 ADD COLUMN c2 INT;
+
+--connection con1_1
+# First INSERT gets BF-aborted.
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection con1_2
+# Second INSERT rolls back as ALTER is waiting on the lock.
+--error ER_LOCK_DEADLOCK
+--reap
+SET DEBUG_SYNC = 'now SIGNAL alter_continue';
+
+--connection node_1
+# ALTER succeeds.
+--reap
+
+--connection node_2
+# Sanity check that ALTER has been replicated.
+INSERT INTO t1 (c1, c2) VALUES (2, 2);
+
+# Cleanup.
+--connection node_1
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1_fk, t1;
+--disconnect con1_1
+--disconnect con1_2
+--source include/galera_end.inc
