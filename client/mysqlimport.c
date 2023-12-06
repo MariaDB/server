@@ -148,6 +148,9 @@ static struct my_option my_long_options[] =
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
+  {"parallel", 'j', "Number of LOAD DATA jobs executed in parallel",
+   &opt_use_threads, &opt_use_threads, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0,
+   0, 0},
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
    &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -170,10 +173,8 @@ static struct my_option my_long_options[] =
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
-  {"use-threads", OPT_USE_THREADS,
-   "Load files in parallel. The argument is the number "
-   "of threads to use for loading data.",
-   &opt_use_threads, &opt_use_threads, 0, 
+  {"use-threads", OPT_USE_THREADS, "Synonym for --parallel option",
+   &opt_use_threads, &opt_use_threads, 0,
    GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DONT_ALLOW_USER_CHANGE
   {"user", 'u', "User for login if not current user.", &current_user,
