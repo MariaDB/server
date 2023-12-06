@@ -1,6 +1,6 @@
 --source include/have_s3.inc
 
-if (`SELECT @@s3_host_name <> "s3.amazonaws.com"`)
+if (`SELECT @@s3_host_name NOT LIKE "%.amazonaws.com"`)
 {
   skip Not connected to AWS;
 }
