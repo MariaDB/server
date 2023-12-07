@@ -108,7 +108,7 @@ public:
     Protected with internal locks.
     Must get data_lock when resetting the logs.
   */
-  MYSQL_BIN_LOG relay_log;
+  MYSQL_RELAY_LOG relay_log;
   LOG_INFO linfo;
 
   /*
