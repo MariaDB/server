@@ -129,9 +129,6 @@ const char **spd_mysqld_unix_port;
 uint *spd_mysqld_port;
 bool volatile *spd_abort_loop;
 Time_zone *spd_tz_system;
-static int *spd_mysqld_server_started;
-static pthread_mutex_t *spd_LOCK_server_started;
-static pthread_cond_t *spd_COND_server_started;
 extern long spider_conn_mutex_id;
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
@@ -6610,30 +6607,6 @@ handler* spider_create_handler(
   MEM_ROOT *mem_root
 ) {
   DBUG_ENTER("spider_create_handler");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  SPIDER_THREAD *thread = &spider_table_sts_threads[0];
-  if (unlikely(thread->init_command))
-  {
-    THD *thd = current_thd;
-    pthread_cond_t *cond = thd->mysys_var->current_cond;
-    pthread_mutex_t *mutex = thd->mysys_var->current_mutex;
-    /* wait for finishing init_command */
-    pthread_mutex_lock(&thread->mutex);
-    if (unlikely(thread->init_command))
-    {
-      thd->mysys_var->current_cond = &thread->sync_cond;
-      thd->mysys_var->current_mutex = &thread->mutex;
-      pthread_cond_wait(&thread->sync_cond, &thread->mutex);
-    }
-    pthread_mutex_unlock(&thread->mutex);
-    thd->mysys_var->current_cond = cond;
-    thd->mysys_var->current_mutex = mutex;
-    if (thd->killed)
-    {
-      DBUG_RETURN(NULL);
-    }
-  }
-#endif
   DBUG_RETURN(new (mem_root) ha_spider(hton, table));
 }
 
@@ -6934,6 +6907,50 @@ int spider_panic(
   DBUG_RETURN(0);
 }
 
+/*
+  Create or fix the system tables. See spd_init_query.h for the details.
+*/
+bool spider_init_system_tables()
+{
+  DBUG_ENTER("spider_init_system_tables");
+
+  MYSQL *mysql= mysql_init(NULL);
+  if (!mysql)
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  if (!mysql_real_connect_local(mysql))
+  {
+    mysql_close(mysql);
+    DBUG_RETURN(TRUE);
+  }
+
+  const int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
+  for (int i= 0; i < size; i++)
+  {
+    const LEX_STRING *query= &spider_init_queries[i];
+    if (mysql_real_query(mysql, query->str, query->length))
+    {
+      fprintf(stderr,
+              "[ERROR] SPIDER plugin initialization failed at '%s' by '%s'\n",
+              query->str, mysql_error(mysql));
+
+      mysql_close(mysql);
+      DBUG_RETURN(TRUE);
+    }
+
+    if (MYSQL_RES *res= mysql_store_result(mysql))
+    {
+      mysql_free_result(res);
+    }
+  }
+
+  mysql_close(mysql);
+
+  DBUG_RETURN(FALSE);
+}
+
 int spider_db_init(
   void *p
 ) {
@@ -6942,6 +6959,11 @@ int spider_db_init(
   uchar addr[6];
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
+
+  const LEX_CSTRING aria_name={STRING_WITH_LEN("Aria")};
+  if (!plugin_is_ready(&aria_name, MYSQL_STORAGE_ENGINE_PLUGIN))
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
+
   spider_hton_ptr = spider_hton;
 
   spider_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED;
@@ -7021,9 +7043,6 @@ int spider_db_init(
   spd_mysqld_port = &mysqld_port;
   spd_abort_loop = &abort_loop;
   spd_tz_system = my_tz_SYSTEM;
-  spd_mysqld_server_started = &mysqld_server_started;
-  spd_LOCK_server_started = &LOCK_server_started;
-  spd_COND_server_started = &COND_server_started;
 
 #ifdef HAVE_PSI_INTERFACE
   init_spider_psi_keys();
@@ -7299,6 +7318,11 @@ int spider_db_init(
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
   }
 
+  if (spider_init_system_tables())
+  {
+    goto error_system_table_creation;
+  }
+
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (!(spider_table_sts_threads = (SPIDER_THREAD *)
     spider_bulk_malloc(NULL, SPD_MID_DB_INIT_12, MYF(MY_WME | MY_ZEROFILL),
@@ -7309,7 +7333,6 @@ int spider_db_init(
       NullS))
   )
     goto error_alloc_mon_mutxes;
-  spider_table_sts_threads[0].init_command = TRUE;
 
   for (roop_count = 0;
     roop_count < (int) spider_param_table_sts_thread_count();
@@ -7400,6 +7423,7 @@ error_init_udf_table_mon_list_hash:
 error_init_udf_table_mon_cond:
   for (; roop_count >= 0; roop_count--)
     pthread_cond_destroy(&spider_udf_table_mon_conds[roop_count]);
+error_system_table_creation:
   roop_count = spider_param_udf_table_mon_mutex_count() - 1;
 error_init_udf_table_mon_mutex:
   for (; roop_count >= 0; roop_count--)
@@ -9812,7 +9836,6 @@ void spider_free_sts_threads(
 ) {
   bool thread_killed;
   DBUG_ENTER("spider_free_sts_threads");
-  spider_thread->init_command = FALSE;
   pthread_mutex_lock(&spider_thread->mutex);
   thread_killed = spider_thread->killed;
   spider_thread->killed = TRUE;
@@ -9963,59 +9986,6 @@ void *spider_table_bg_sts_action(
   trx->thd = thd;
   /* init end */
 
-  if (thread->init_command)
-  {
-    uint i = 0;
-    tmp_disable_binlog(thd);
-    thd->security_ctx->skip_grants();
-    thd->client_capabilities |= CLIENT_MULTI_RESULTS;
-    if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed)
-    {
-      pthread_mutex_lock(spd_LOCK_server_started);
-      thd->mysys_var->current_cond = spd_COND_server_started;
-      thd->mysys_var->current_mutex = spd_LOCK_server_started;
-      if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
-        thread->init_command)
-      {
-        do
-        {
-          struct timespec abstime;
-          set_timespec_nsec(abstime, 1000);
-          error_num = pthread_cond_timedwait(spd_COND_server_started,
-            spd_LOCK_server_started, &abstime);
-        } while (
-          (error_num == ETIMEDOUT || error_num == ETIME) &&
-          !(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
-          thread->init_command
-        );
-      }
-      pthread_mutex_unlock(spd_LOCK_server_started);
-      thd->mysys_var->current_cond = &thread->cond;
-      thd->mysys_var->current_mutex = &thread->mutex;
-    }
-    bool spd_wsrep_on = thd->variables.wsrep_on;
-    thd->variables.wsrep_on = false;
-    while (spider_init_queries[i].length && !thd->killed && !thread->killed &&
-      thread->init_command)
-    {
-      dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
-        (uint) spider_init_queries[i].length, FALSE, FALSE);
-      if (unlikely(thd->is_error()))
-      {
-        fprintf(stderr, "[ERROR] %s\n", spider_stmt_da_message(thd));
-        thd->clear_error();
-        break;
-      }
-      ++i;
-    }
-    thd->variables.wsrep_on = spd_wsrep_on;
-    thd->mysys_var->current_cond = &thread->cond;
-    thd->mysys_var->current_mutex = &thread->mutex;
-    thd->client_capabilities -= CLIENT_MULTI_RESULTS;
-    reenable_binlog(thd);
-    thread->init_command = FALSE;
-    pthread_cond_broadcast(&thread->sync_cond);
-  }
   if (thd->killed)
   {
     thread->killed = TRUE;

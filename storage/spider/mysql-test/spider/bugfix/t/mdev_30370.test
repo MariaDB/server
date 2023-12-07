@@ -3,7 +3,9 @@
 --echo # MDEV-30370 mariadbd hangs when running with --wsrep-recover and --plugin-load-add=ha_spider.so
 --echo #
 
-let $MYSQLD_DATADIR=$MYSQLTEST_VARDIR/mdev_30370;
---mkdir $MYSQLD_DATADIR
---exec $MYSQLD_BOOTSTRAP_CMD --wsrep-recover --plugin-load-add=ha_spider.so --datadir=$MYSQLD_DATADIR
---rmdir $MYSQLD_DATADIR
+call mtr.add_suppression(".*\\[Warning\\] InnoDB: Skipping buffer pool dump/restore during wsrep recovery");
+--source include/kill_mysqld.inc
+--exec $MYSQLD_LAST_CMD --wsrep-recover --plugin-load-add=ha_spider
+--source include/start_mysqld.inc
+--disable_query_log
+--source ../../include/clean_up_spider.inc
