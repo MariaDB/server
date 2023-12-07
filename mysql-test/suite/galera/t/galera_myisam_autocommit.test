@@ -2,8 +2,10 @@
 --source include/have_innodb.inc
 
 #
-# This tests simple autocommit replication of MyISAM tables. No updates arrive on the slave.
+# This tests simple autocommit replication of MyISAM tables.
 #
+
+SET GLOBAL wsrep_replicate_myisam=ON;
 
 # Without a PK
 
@@ -11,11 +13,13 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=MyISAM;
 
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2), (3);
+# This is TOI
 INSERT INTO t1 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
 
 CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1);
 INSERT INTO t2 VALUES (2), (3);
+# This is TOI
 INSERT INTO t2 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
 
 # Error
@@ -32,14 +36,26 @@ UPDATE t2 SET f1 = 9 WHERE f1 = 1;
 DELETE FROM t1 WHERE f1 = 9;
 DELETE FROM t2 WHERE f1 = 9;
 
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t2 ORDER BY f1;
+
+--connection node_2
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t2 ORDER BY f1;
+
 # TRUNCATE
 
 TRUNCATE TABLE t1;
-TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t2 ORDER BY f1;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM t2;
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t2 ORDER BY f1;
 
+--connection node_1
+SET GLOBAL wsrep_replicate_myisam=OFF;
 DROP TABLE t1;
 DROP TABLE t2;
