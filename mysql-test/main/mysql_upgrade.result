@@ -57,6 +57,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -76,7 +77,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -211,6 +211,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -230,7 +231,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -364,6 +364,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -383,7 +384,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -523,6 +523,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -542,7 +543,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -682,6 +682,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -701,7 +702,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -844,6 +844,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -863,7 +864,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -1046,6 +1046,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1065,7 +1066,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -1219,6 +1219,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1238,7 +1239,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -1400,6 +1400,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1419,7 +1420,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -1623,6 +1623,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1642,7 +1643,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -1804,6 +1804,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1823,7 +1824,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -2037,6 +2037,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -2056,7 +2057,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK
@@ -2258,6 +2258,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -2277,7 +2278,6 @@ sys.statements_with_full_table_scans               OK
 sys.statements_with_runtimes_in_95th_percentile    OK
 sys.statements_with_sorting                        OK
 sys.statements_with_temp_tables                    OK
-sys.table_privileges                               OK
 sys.user_summary                                   OK
 sys.user_summary_by_file_io                        OK
 sys.user_summary_by_file_io_type                   OK

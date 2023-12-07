@@ -1,12 +1,13 @@
 --
--- View: table_privileges
+-- View: privileges_by_table_by_level
 --
--- Shows privileges on existing tables and views granted at all possible levels:
+-- Shows granted privileges broken down by the table on which they allow access
+-- and the level on which they were granted:
 -- - user_privileges
 -- - schema_privileges
 -- - table_privileges
 --
--- mysql> select * from sys.table_privileges;
+-- mysql> select * from sys.privileges_by_table_by_level;
 -- +--------------+------------+--------------------+----------------+--------+
 -- | TABLE_SCHEMA | TABLE_NAME | GRANTEE            | PRIVILEGE_TYPE | LEVEL  |
 -- +--------------+------------+--------------------+----------------+--------+
@@ -32,7 +33,7 @@ CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
   DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER
-VIEW table_privileges (
+VIEW privileges_by_table_by_level (
   TABLE_SCHEMA,
   TABLE_NAME,
   GRANTEE,

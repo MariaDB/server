@@ -22,6 +22,7 @@ memory_by_user_by_current_bytes
 memory_global_by_current_bytes
 memory_global_total
 metrics
+privileges_by_table_by_level
 processlist
 ps_check_lost_instrumentation
 schema_auto_increment_columns
@@ -42,7 +43,6 @@ statements_with_sorting
 statements_with_temp_tables
 statement_analysis
 sys_config
-table_privileges
 user_summary
 user_summary_by_file_io
 user_summary_by_file_io_type

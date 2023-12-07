@@ -38,7 +38,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/schema_object_overview.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/schema_auto_increment_columns.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/x_schema_flattened_keys.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/schema_redundant_indexes.sql
-${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/table_privileges.sql
+${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/privileges_by_table_by_level.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/ps_check_lost_instrumentation_57.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/latest_file_io.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/x_latest_file_io.sql

@@ -4,7 +4,7 @@
 
 ### Improvements
 
-* A new `table_privileges` view was added, which displays privileges on tables granted at all levels (user, schema, table)
+* A new `privileges_by_table_by_level` view was added, which displays granted privileges broken down by the table on which they allow access and the level on which they were granted
 
 
 ## 1.5.1 (2016-07-07)

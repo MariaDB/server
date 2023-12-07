@@ -140,7 +140,6 @@ TABLES	TABLES
 TABLESPACES	TABLESPACES
 TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
-TABLE_PRIVILEGES	table_privileges
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
 t1	t1
@@ -164,7 +163,6 @@ TABLES	TABLES
 TABLESPACES	TABLESPACES
 TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
-TABLE_PRIVILEGES	table_privileges
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
 t1	t1
@@ -188,7 +186,6 @@ TABLES	TABLES
 TABLESPACES	TABLESPACES
 TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
-TABLE_PRIVILEGES	table_privileges
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
 t1	t1
@@ -1492,6 +1489,7 @@ memory_by_user_by_current_bytes	NO
 memory_global_by_current_bytes	YES
 memory_global_total	NO
 metrics	NO
+privileges_by_table_by_level	NO
 processlist	NO
 ps_check_lost_instrumentation	YES
 schema_auto_increment_columns	NO
@@ -1511,7 +1509,6 @@ statements_with_runtimes_in_95th_percentile	YES
 statements_with_sorting	YES
 statements_with_temp_tables	YES
 statement_analysis	YES
-table_privileges	NO
 user	YES
 user_summary	NO
 user_summary_by_file_io	NO
