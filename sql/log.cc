@@ -5524,8 +5524,6 @@ int MYSQL_BIN_LOG::new_file_without_locking()
 /**
   Start writing to a new log file or reopen the old file.
 
-  @param need_lock		Set to 1 if caller has not locked LOCK_log
-
   @retval
     nonzero - error
 
