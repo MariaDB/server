@@ -18326,11 +18326,15 @@ static
 void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync();
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  if (!*(my_bool*) save)
+    return;
+  const uint s= srv_fil_make_page_dirty_debug;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (s)
+    buf_flush_sync();
+  else
+    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
