@@ -68,7 +68,6 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
 
-  relay_log.is_relay_log= TRUE;
   relay_log_state.init();
 #ifdef HAVE_PSI_INTERFACE
   relay_log.set_psi_keys(key_RELAYLOG_LOCK_index,
