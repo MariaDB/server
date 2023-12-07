@@ -1528,6 +1528,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` <= "18" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` <= "18" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`i` AS `i` from `test`.`t1` where `test`.`t1`.`i` > 10 and `test`.`t1`.`i` <= 18 order by `test`.`t1`.`i` limit 5
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
 Variable_name	Value
@@ -1589,6 +1591,8 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	i	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "18" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "18" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`i` AS `i` from `test`.`t1` where `test`.`t1`.`i` >= 10 and `test`.`t1`.`i` < 18 order by `test`.`t1`.`i` limit 5
@@ -2140,6 +2144,8 @@ EXPLAIN EXTENDED SELECT * FROM t2     WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	i	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` > "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` <= "18" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` <= "18" of type `int`
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`i` AS `i` from `test`.`t2` where `test`.`t2`.`i` > 10 and `test`.`t2`.`i` <= 18 order by `test`.`t2`.`i` limit 5

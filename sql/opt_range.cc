@@ -2690,7 +2690,7 @@ SQL_SELECT::test_quick_select(THD *thd,
                               bool ordered_output,
                               bool remove_false_parts_of_where,
                               bool only_single_index_range_scan,
-                              bool suppress_unusable_key_notes)
+                              Item_func::Bitmap note_unusable_keys)
 {
   uint idx;
   double scan_time;
@@ -2784,9 +2784,9 @@ SQL_SELECT::test_quick_select(THD *thd,
     param.max_key_parts= 0;
     param.remove_false_where_parts= remove_false_parts_of_where;
     param.force_default_mrr= ordered_output;
-    param.note_unusable_keys= (!suppress_unusable_key_notes &&
-                               thd->give_notes_for_unusable_keys());
-
+    param.note_unusable_keys= thd->give_notes_for_unusable_keys() ?
+                              note_unusable_keys :
+                              Item_func::BITMAP_NONE;
     param.possible_keys.clear_all();
 
     thd->no_errors=1;				// Don't warn about NULL
@@ -3993,7 +3993,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   range_par->remove_jump_scans= FALSE;
   range_par->real_keynr[0]= 0;
   range_par->alloced_sel_args= 0;
-  range_par->note_unusable_keys= 0;
+  range_par->note_unusable_keys= Item_func::BITMAP_NONE;
 
   thd->no_errors=1;				// Don't warn about NULL
   thd->mem_root=&alloc;
@@ -8756,9 +8756,11 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
   if (field->result_type() == STRING_RESULT &&
       field->charset() != compare_collation())
   {
-    if (param->note_unusable_keys)
+    if (param->note_unusable_keys & BITMAP_LIKE)
       field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
-                                            func_name_cstring(), value,
+                                            func_name_cstring(),
+                                            compare_collation(),
+                                            value,
                                             Data_type_compatibility::
                                             INCOMPATIBLE_COLLATION);
     DBUG_RETURN(0);
@@ -8774,9 +8776,11 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
       field->type_handler() == &type_handler_enum ||
       field->type_handler() == &type_handler_set)
   {
-    if (param->note_unusable_keys)
+    if (param->note_unusable_keys & BITMAP_LIKE)
       field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
-                                            func_name_cstring(), value,
+                                            func_name_cstring(),
+                                            compare_collation(),
+                                            value,
                                             Data_type_compatibility::
                                             INCOMPATIBLE_DATA_TYPE);
     DBUG_RETURN(0);
@@ -8881,7 +8885,8 @@ Field::can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
     TODO: Perhaps we also need to raise a similar note when
     a partition could not be used (when using_real_indexes==false).
   */
-  if (param->using_real_indexes && param->note_unusable_keys)
+  if (param->using_real_indexes && param->note_unusable_keys &&
+      (param->note_unusable_keys & cond->bitmap_bit()))
   {
     DBUG_ASSERT(keynr < table->s->keys);
     /*
@@ -8895,6 +8900,7 @@ Field::can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
     */
     raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
                                    scalar_comparison_op_to_lex_cstring(op),
+                                   cond->compare_collation(),
                                    value, compat);
   }
   return compat;

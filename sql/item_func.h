@@ -79,6 +79,38 @@ public:
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
                 };
+
+  /*
+    A function bitmap. Useful when some operation needs to be applied only
+    to certain functions. For now we only need to distinguish some
+    comparison predicates.
+  */
+  enum Bitmap : ulonglong
+  {
+    BITMAP_NONE= 0,
+    BITMAP_EQ=         1ULL << EQ_FUNC,
+    BITMAP_EQUAL=      1ULL << EQUAL_FUNC,
+    BITMAP_NE=         1ULL << NE_FUNC,
+    BITMAP_LT=         1ULL << LT_FUNC,
+    BITMAP_LE=         1ULL << LE_FUNC,
+    BITMAP_GE=         1ULL << GE_FUNC,
+    BITMAP_GT=         1ULL << GT_FUNC,
+    BITMAP_LIKE=       1ULL << LIKE_FUNC,
+    BITMAP_BETWEEN=    1ULL << BETWEEN,
+    BITMAP_IN=         1ULL << IN_FUNC,
+    BITMAP_MULT_EQUAL= 1ULL << MULT_EQUAL_FUNC,
+    BITMAP_OTHER=      1ULL << 63,
+    BITMAP_ALL=        0xFFFFFFFFFFFFFFFFULL,
+    BITMAP_ANY_EQUALITY= BITMAP_EQ | BITMAP_EQUAL | BITMAP_MULT_EQUAL,
+    BITMAP_EXCEPT_ANY_EQUALITY= BITMAP_ALL & ~BITMAP_ANY_EQUALITY,
+  };
+
+  ulonglong bitmap_bit() const
+  {
+    Functype type= functype();
+    return 1ULL << (type > 63 ? 63 : type);
+  }
+
   static scalar_comparison_op functype_to_scalar_comparison_op(Functype type)
   {
     switch (type) {

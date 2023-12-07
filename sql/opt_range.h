@@ -713,7 +713,10 @@ public:
   */
   bool remove_false_where_parts;
 
-  bool note_unusable_keys;        // Give SQL notes for unusable keys
+  /*
+    Which functions should give SQL notes for unusable keys.
+  */
+  Item_func::Bitmap note_unusable_keys;
 
   /*
     used_key_no -> table_key_no translation table. Only makes sense if
@@ -1718,12 +1721,14 @@ class SQL_SELECT :public Sql_alloc {
       true  - for ERROR and IMPOSSIBLE_RANGE
       false   - Ok
   */
-  bool check_quick(THD *thd, bool force_quick_range, ha_rows limit)
+  bool check_quick(THD *thd, bool force_quick_range, ha_rows limit,
+                   Item_func::Bitmap note_unusable_keys)
   {
     key_map tmp;
     tmp.set_all();
     return test_quick_select(thd, tmp, 0, limit, force_quick_range,
-                             FALSE, FALSE, FALSE) != OK;
+                             FALSE, FALSE, FALSE,
+                             note_unusable_keys) != OK;
   }
 
   /* 
@@ -1753,7 +1758,7 @@ class SQL_SELECT :public Sql_alloc {
                     bool ordered_output,
                     bool remove_false_parts_of_where,
                     bool only_single_index_range_scan,
-                    bool suppress_unusable_key_notes = 0);
+                    Item_func::Bitmap note_unusable_keys);
 };
 
 typedef enum SQL_SELECT::quick_select_return_type quick_select_return;
