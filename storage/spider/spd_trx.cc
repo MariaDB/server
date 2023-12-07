@@ -3642,9 +3642,6 @@ int spider_check_trx_and_get_conn(
       for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       {
         if (
-/*
-          spider->conn_kind[roop_count] != SPIDER_CONN_KIND_MYSQL &&
-*/
           share->hs_dbton_ids[spider->conn_link_idx[roop_count]] ==
             SPIDER_DBTON_SIZE
         ) {

@@ -1390,7 +1390,7 @@ static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
  * @param tables list of tables
  * @param keys   prepared keys
 
- * @return true if parent table append was successfull, otherwise false.
+ * @return 0 if parent table append was successful, non-zero otherwise.
 */
 bool
 wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
@@ -1439,6 +1439,8 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
     }
 
 exit:
+    DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
+
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -1449,6 +1451,24 @@ exit:
       table->mdl_request.ticket= NULL;
     }
 
+    /*
+      MDEV-32938: Check if DDL operation has been killed before.
+
+      It may be that during collecting foreign keys this operation gets BF-aborted
+      by another already-running TOI operation because it got MDL locks on the same
+      table for checking foreign keys.
+      After `close_thread_tables()` has been called it's safe to assume that no-one
+      can BF-abort this operation as it's not holding any MDL locks any more.
+    */
+    if (!fail)
+    {
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
+      if (thd->killed)
+      {
+        fail= true;
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    }
     return fail;
 }
 
@@ -2537,6 +2557,15 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables,
                              const HA_CREATE_INFO *create_info)
 {
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  const killed_state killed = thd->killed;
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  if (killed)
+  {
+    DBUG_ASSERT(FALSE);
+    return -1;
+  }
+
   /*
     No isolation for applier or replaying threads.
   */
