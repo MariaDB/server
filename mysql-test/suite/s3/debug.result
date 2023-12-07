@@ -18,15 +18,15 @@ select count(*) from t1;
 count(*)
 100
 flush table t1;
-NOT FOUND /storage-engine/s3_test_/ in mysqld.1.err
+NOT FOUND /s3_test_/ in mysqld.1.err
 set @@global.s3_debug=1;
 select count(*) from t1;
 count(*)
 100
 set @@global.s3_debug=0;
-FOUND 6 /storage-engine/s3_test_/ in mysqld.1.err
+FOUND 6 /s3_test_/ in mysqld.1.err
 select count(*) from t1;
 count(*)
 100
 drop table t1;
-FOUND 6 /storage-engine/s3_test_/ in mysqld.1.err
+FOUND 6 /s3_test_/ in mysqld.1.err

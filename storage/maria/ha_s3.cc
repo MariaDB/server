@@ -170,7 +170,10 @@ static MYSQL_SYSVAR_BOOL(replicate_alter_as_create_select,
 static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          PLUGIN_VAR_RQCMDARG,
                          "Protocol used to communication with S3. One of "
-                         "\"Auto\", \"Amazon\" or \"Original\".",
+                         "\"Auto\", \"Legacy\", \"Original\", \"Amazon\", "
+                         "\"Path\" or \"Domain\". "
+                         "Note: \"Legacy\", \"Original\" and \"Amazon\" are "
+                         "deprecated.",
                          NULL, NULL, 0, &s3_protocol_typelib);
 
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
