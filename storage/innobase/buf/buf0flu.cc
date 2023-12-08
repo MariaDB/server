@@ -2379,10 +2379,11 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
       else
       {
       maybe_unemployed:
-        const bool below{dirty_pct < pct_lwm};
-        pct_lwm= 0.0;
-        if (below)
+        if (dirty_pct < pct_lwm)
+        {
+          pct_lwm= 0.0;
           goto possibly_unemployed;
+        }
       }
     }
     else if (dirty_pct < srv_max_buf_pool_modified_pct)
