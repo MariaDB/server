@@ -3507,7 +3507,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	recv_group_scan_log_recs(checkpoint_lsn, &contiguous_lsn, false);
 	/* The first scan should not have stored or applied any records. */
 	ut_ad(recv_sys.pages.empty());
-	ut_ad(!recv_sys.found_corrupt_fs);
+	ut_ad(!recv_sys.found_corrupt_fs || !srv_force_recovery);
 
 	if (srv_read_only_mode && recv_needed_recovery) {
 		mysql_mutex_unlock(&log_sys.mutex);
