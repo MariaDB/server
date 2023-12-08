@@ -745,3 +745,41 @@ SELECT id, ts, vc INTO OUTFILE 'load_t1' FROM t1;
 LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id, ts, vc);
 INSERT IGNORE INTO t1 (id) VALUES (2);
 DROP TABLE t1;
+#
+# MDEV-28566 Assertion `!expr->is_fixed()' failed in bool
+#            Virtual_column_info::fix_session_expr(THD*)
+#
+CREATE TABLE t1 (c1 CHAR(1));
+FLUSH TABLES WITH READ LOCK;
+UPDATE t1 SET c1=1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+SELECT * FROM t1;
+c1
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR AS (CONCAT (0,DAYNAME (0))));
+FLUSH TABLES WITH READ LOCK;
+UPDATE t1 SET c1=1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+UPDATE t1 SET c1=1;
+SELECT * FROM t1;
+c1
+DROP TABLE t1;
+CREATE TABLE t1 (a int primary key, c1 CHAR AS (CONCAT (0,DAYNAME (0))));
+insert into t1 (a) values (1);
+FLUSH TABLES WITH READ LOCK;
+UPDATE t1 SET c1=1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+UPDATE t1 SET a=2;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+UPDATE t1 SET a=2;
+UPDATE t1 SET c1=1;
+ERROR HY000: The value specified for generated column 'c1' in table 't1' has been ignored
+SELECT * FROM t1;
+a	c1
+2	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+DROP TABLE t1;

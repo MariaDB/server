@@ -176,7 +176,7 @@ public:
   /*
     The following data member is wholly for debugging purpose.
     It can be used for possible crash analysis to determine how many times
-    the stored routine was executed before the mem_root marked read_only
+    the stored routine was executed before the mem_root marked ROOT_FLAG_READ_ONLY
     was requested for a memory chunk. Additionally, a value of this data
     member is output to the log with DBUG_PRINT.
   */
@@ -4489,7 +4489,7 @@ reexecute:
 #ifdef PROTECT_STATEMENT_MEMROOT
       // There was reprepare so the counter of runs should be reset
       executed_counter= 0;
-      mem_root->read_only= 0;
+      mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
 #endif
       goto reexecute;
     }
@@ -4498,7 +4498,7 @@ reexecute:
 #ifdef PROTECT_STATEMENT_MEMROOT
   if (!error)
   {
-    mem_root->read_only= 1;
+    mem_root->flags |= ROOT_FLAG_READ_ONLY;
     ++executed_counter;
 
     DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
@@ -4507,7 +4507,7 @@ reexecute:
   {
     // Error on call shouldn't be counted as a normal run
     executed_counter= 0;
-    mem_root->read_only= 0;
+    mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
   }
 #endif
 

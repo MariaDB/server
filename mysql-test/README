@@ -86,8 +86,8 @@ If the result is incorrect, you have found a bug. In this case, you should
 edit the test result to the correct results so that we can verify that
 the bug is corrected in future releases.
 
-If you want to submit your test case you can send it 
-to maria-developers@lists.launchpad.net or attach it to a bug report on
+If you want to submit your test case you can send it
+to developers@lists.mariadb.org or attach it to a bug report on
 http://mariadb.org/jira/.
 
 If the test case is really big or if it contains 'not public' data,

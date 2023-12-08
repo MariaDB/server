@@ -236,3 +236,10 @@ INSERT INTO t2 VALUES('G', 3);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
 DROP TABLE t2, t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
+CREATE TABLE t1(a SERIAL) ENGINE=InnoDB ROW_FORMAT=COMPRESSED PAGE_COMPRESSED=1;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=COMPRESSED
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB

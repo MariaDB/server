@@ -117,6 +117,7 @@ typedef struct st_handler_check_param
   uint progress_counter;             /* How often to call _report_progress() */
   ulonglong progress, max_progress;
 
+  void (*init_fix_record)(void *);
   int (*fix_record)(struct st_myisam_info *info, uchar *record, int keynum);
 
   mysql_mutex_t print_msg_mutex;

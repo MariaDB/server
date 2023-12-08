@@ -1,0 +1,20 @@
+--source include/not_embedded.inc
+--source include/load_sysvars.inc
+
+--echo '### MDEV-32844: THD::rli_fake/rgi_fake not cleared on new connection'
+--connect(con1,localhost,root,,)
+BINLOG '
+6ENbZQ8BAAAA/AAAAAABAAAAAAQAMTAuMTEuNi1NYXJpYURCLWRlYnVnLWxvZwAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAADoQ1tlEzgNAAgAEgAEBAQEEgAA5AAEGggAAAAICAgCAAAACgoKAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAEEwQADQgICAoKCgGbvv33
+';
+--disconnect con1
+--connect(con1,localhost,root,,)
+# The bug was that the THD::rli_fake was not cleared when the THD is re-used
+# for the new connection, and we would get a warning from the following
+# statement.
+SET SESSION pseudo_slave_mode= 1;
+--disconnect con1
+--connection default

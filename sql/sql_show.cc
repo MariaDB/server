@@ -2818,7 +2818,7 @@ static const char *thread_state_info(THD *tmp)
     if (cond)
       return "Waiting on cond";
   }
-  return NULL;
+  return "";
 }
 
 
@@ -8842,9 +8842,9 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     }
     List_iterator_fast<Item> it(sel->item_list);
     if (!(transl=
-          (Field_translator*)(thd->stmt_arena->
+          (Field_translator*)(thd->active_stmt_arena_to_use()->
                               alloc(sel->item_list.elements *
-                                    sizeof(Field_translator)))))
+                                    sizeof(Field_translator))))) // ???
     {
       DBUG_RETURN(1);
     }
@@ -9876,7 +9876,7 @@ ST_FIELD_INFO variables_fields_info[]=
 {
   {"VARIABLE_NAME", 64, MYSQL_TYPE_STRING, 0, 0, "Variable_name",
    SKIP_OPEN_TABLE},
-  {"VARIABLE_VALUE", 2048, MYSQL_TYPE_STRING, 0, 0, "Value", SKIP_OPEN_TABLE},
+  {"VARIABLE_VALUE", 4096, MYSQL_TYPE_STRING, 0, 0, "Value", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

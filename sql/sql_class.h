@@ -2790,6 +2790,17 @@ public:
   */
   Query_arena *stmt_arena;
 
+  /**
+    Get either call or statement arena. In case some function is called from
+    within a query the call arena has to be used for a memory allocation,
+    else use the statement arena.
+  */
+  Query_arena *active_stmt_arena_to_use()
+  {
+    return (state  == Query_arena::STMT_SP_QUERY_ARGUMENTS) ? this :
+                                                              stmt_arena;
+  }
+
   void *bulk_param;
 
   /*
@@ -4171,7 +4182,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (!killed_err)
+          killed_err= (err_info*) my_malloc(sizeof(*killed_err), MYF(MY_WME));
         if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
@@ -4630,13 +4642,24 @@ public:
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);
-  void set_command(enum enum_server_command command)
+  inline void set_command(enum enum_server_command command)
   {
+    DBUG_ASSERT(command != COM_SLEEP);
     m_command= command;
 #ifdef HAVE_PSI_THREAD_INTERFACE
     PSI_STATEMENT_CALL(set_thread_command)(m_command);
 #endif
   }
+  /* As sleep needs a bit of special handling, we have a special case for it */
+  inline void mark_connection_idle()
+  {
+    proc_info= 0;
+    m_command= COM_SLEEP;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_STATEMENT_CALL(set_thread_command)(m_command);
+#endif
+  }
+
   inline enum enum_server_command get_command() const
   { return m_command; }
 

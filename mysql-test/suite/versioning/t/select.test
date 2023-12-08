@@ -307,7 +307,7 @@ select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 --echo ### Issue #398, NOW is now non-magic
 create or replace table t1 (x int) with system versioning;
 select * from t1 for system_time as of current_timestamp;
---error ER_BAD_FIELD_ERROR
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 select * from t1 for system_time as of now;
 
 --echo ### Issue #405, NATURAL JOIN failure
@@ -470,5 +470,15 @@ drop table tmp1;
 drop tables x, x_p;
 
 call verify_trt_dummy(34);
+
+--echo #
+--echo # MDEV-32082 Server crash in find_field_in_table
+--echo #
+create table t0 (c0 int) with system versioning;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select x0 from (
+  select c0 x0 from t0
+) for system_time as of nowasdf deriv;
+drop table t0;
 
 -- source suite/versioning/common_finish.inc

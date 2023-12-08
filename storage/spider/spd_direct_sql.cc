@@ -116,7 +116,7 @@ int spider_udf_direct_sql_create_table_list(
   }
 #if MYSQL_VERSION_ID < 50500
   if (!(direct_sql->db_names = (char**)
-    spider_bulk_malloc(spider_current_trx, 31, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_TABLE_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &direct_sql->db_names, sizeof(char*) * table_count,
       &direct_sql->table_names, sizeof(char*) * table_count,
       &direct_sql->tables, sizeof(TABLE*) * table_count,
@@ -130,7 +130,7 @@ int spider_udf_direct_sql_create_table_list(
   )
 #else
   if (!(direct_sql->db_names = (char**)
-    spider_bulk_malloc(spider_current_trx, 31, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_TABLE_LIST_2, MYF(MY_WME | MY_ZEROFILL),
       &direct_sql->db_names, sizeof(char*) * table_count,
       &direct_sql->table_names, sizeof(char*) * table_count,
       &direct_sql->tables, sizeof(TABLE*) * table_count,
@@ -236,7 +236,7 @@ int spider_udf_direct_sql_create_conn_key(
   }
 #endif
   if (!(direct_sql->conn_key = (char *)
-    spider_malloc(spider_current_trx, 9, direct_sql->conn_key_length + 1,
+    spider_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_KEY_1, direct_sql->conn_key_length + 1,
       MYF(MY_WME | MY_ZEROFILL)))
   )
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -411,7 +411,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   {
 #endif
     if (!(conn = (SPIDER_CONN *)
-      spider_bulk_malloc(spider_current_trx, 32, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_1, MYF(MY_WME | MY_ZEROFILL),
         &conn, sizeof(*conn),
         &tmp_name, direct_sql->conn_key_length + 1,
         &tmp_host, direct_sql->tgt_host_length + 1,
@@ -434,11 +434,11 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_alloc_conn;
     }
-    conn->default_database.init_calc_mem(138);
+    conn->default_database.init_calc_mem(SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_2);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
     if (!(conn = (SPIDER_CONN *)
-      spider_bulk_malloc(spider_current_trx, 33, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_3, MYF(MY_WME | MY_ZEROFILL),
         &conn, sizeof(*conn),
         &tmp_name, direct_sql->conn_key_length + 1,
         &tmp_host, direct_sql->tgt_host_length + 1,
@@ -450,7 +450,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_alloc_conn;
     }
-    conn->default_database.init_calc_mem(103);
+    conn->default_database.init_calc_mem(SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_4);
   }
 #endif
 
@@ -1514,7 +1514,7 @@ long long spider_direct_sql_body(
   DBUG_ENTER("spider_direct_sql_body");
   SPIDER_BACKUP_DASTATUS;
   if (!(direct_sql = (SPIDER_DIRECT_SQL *)
-    spider_bulk_malloc(spider_current_trx, 34, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_DIRECT_SQL_BODY_1, MYF(MY_WME | MY_ZEROFILL),
       &direct_sql, sizeof(SPIDER_DIRECT_SQL),
       &sql, sizeof(char) * args->lengths[0],
       NullS))
@@ -1775,7 +1775,7 @@ my_bool spider_direct_sql_init_body(
   if (bg)
   {
     if (!(bg_direct_sql = (SPIDER_BG_DIRECT_SQL *)
-      spider_malloc(spider_current_trx, 10, sizeof(SPIDER_BG_DIRECT_SQL),
+      spider_malloc(spider_current_trx, SPD_MID_DIRECT_SQL_INIT_BODY_1, sizeof(SPIDER_BG_DIRECT_SQL),
       MYF(MY_WME | MY_ZEROFILL)))
     ) {
       strcpy(message, "spider_bg_direct_sql() out of memory");

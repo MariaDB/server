@@ -2,7 +2,7 @@ let $VERSION_COMPILE_OS_WIN=
   `SELECT IF(@@version_compile_os like 'Win%', 1, 0)`;
 if ($VERSION_COMPILE_OS_WIN)
 {
-  INSTALL PLUGIN spider SONAME 'ha_spider.dll';
+  INSTALL SONAME 'ha_spider';
   if ($CHILD2_1_MYPORT)
   {
     eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
@@ -66,7 +66,7 @@ if ($VERSION_COMPILE_OS_WIN)
 }
 if (!$VERSION_COMPILE_OS_WIN)
 {
-  INSTALL PLUGIN spider SONAME 'ha_spider.so';
+  INSTALL SONAME 'ha_spider';
   if ($CHILD2_1_MYSOCK)
   {
     eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
@@ -139,27 +139,6 @@ let $PLUGIN_VERSION=
   `SELECT SUBSTRING_INDEX(plugin_version, '.', 1)
      FROM information_schema.plugins
     WHERE plugin_name = 'SPIDER'`;
-if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
-{
-  let $HAS_REWRITE=
-    `SELECT IF (STRCMP('$SERVER_NAME', 'MariaDB') = 0,
-                IF ($SERVER_MAJOR_VERSION = 10,
-                    IF ($SERVER_MINOR_VERSION < 4,  0, 1),
-                    IF ($SERVER_MAJOR_VERSION < 10, 0, 1)),
-                0)`;
-  let $HAS_REWRITE= 0;
-  if ($HAS_REWRITE)
-  {
-    let $PLUGIN_NAME= spider_flush_rewrite_cache;
-    let $PLUGIN_EXIST=
-      `SELECT COUNT(*) FROM mysql.func WHERE name = '$PLUGIN_NAME'`;
-    while (!$PLUGIN_EXIST)
-    {
-      let $PLUGIN_EXIST=
-        `SELECT COUNT(*) FROM mysql.func WHERE name = '$PLUGIN_NAME'`;
-    }
-  }
-}
 let $PLUGIN_NAME= spider_flush_table_mon_cache;
 let $PLUGIN_EXIST=
   `SELECT COUNT(*) FROM mysql.func WHERE name = '$PLUGIN_NAME'`;

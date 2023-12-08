@@ -5548,7 +5548,7 @@ allocate:
   /* Create view fields translation table */
 
   if (!(transl=
-        (Field_translator*)(thd->stmt_arena->
+        (Field_translator*)(thd->
                             alloc(select->item_list.elements *
                                   sizeof(Field_translator)))))
   {
@@ -9965,6 +9965,11 @@ bool Vers_history_point::resolve_unit(THD *thd)
 {
   if (!item)
     return false;
+  if (item->real_type() == Item::FIELD_ITEM)
+  {
+    bad_expression_data_type_error(item->full_name());
+    return true;
+  }
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   return item->this_item()->real_type_handler()->

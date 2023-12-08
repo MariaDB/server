@@ -1,3 +1,5 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # Check backup and FTWRL
 #
@@ -95,7 +97,7 @@ drop table t1;
 #
 # BACKUP STAGE performs implicit commits
 #
-create table t1(a int) engine=InnoDB;
+create table t1(a int) stats_persistent=0, engine=InnoDB;
 begin;
 insert into t1 values(1);
 select lock_mode from information_schema.metadata_lock_info;
@@ -197,8 +199,9 @@ drop table t1;
 # CHECK: RO transaction under BACKUP STAGE is a potential deadlock
 # OTOH we most probably allow them under FTWRL as well
 #
-CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t1 (col1 INT)stats_persistent=0, ENGINE = InnoDB;
 insert into t1 values (1);
+InnoDB		0 transactions not purged
 backup stage start;
 backup stage block_commit;
 begin;
@@ -526,3 +529,4 @@ FLUSH TABLE t1 WITH READ LOCK;
 ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
 BACKUP STAGE END;
 DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

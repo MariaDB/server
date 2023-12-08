@@ -122,7 +122,8 @@ int sd_notifyf() { return 0; }
 int sys_var_init();
 
 /* === xtrabackup specific options === */
-char xtrabackup_real_target_dir[FN_REFLEN] = "./xtrabackup_backupfiles/";
+#define DEFAULT_TARGET_DIR "./xtrabackup_backupfiles/"
+char xtrabackup_real_target_dir[FN_REFLEN] = DEFAULT_TARGET_DIR;
 char *xtrabackup_target_dir= xtrabackup_real_target_dir;
 static my_bool xtrabackup_version;
 static my_bool verbose;
@@ -6756,9 +6757,10 @@ void handle_options(int argc, char **argv, char ***argv_server,
         server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
 
-	if (prepare && target_dir) {
+	if (prepare) {
 		snprintf(conf_file, sizeof(conf_file),
-			 "%s/backup-my.cnf", target_dir);
+			 "%s/backup-my.cnf", target_dir ? target_dir:
+			DEFAULT_TARGET_DIR);
 			if (!strncmp(argv[1], "--defaults-file=", 16)) {
 				/* Remove defaults-file*/
 				for (int i = 2; ; i++) {
