@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-32973: SHOW TABLES LIKE shows temporary tables with
+--echo #             non-matching names
+--echo #
+
+# Compare table names in a case-insensitive manner
+create temporary table t1 (a int);
+select table_name from information_schema.tables where
+  table_schema='test' and table_name='T1';
+SHOW TABLES LIKE 'T%';
+
+create database db;
+use db;
+create temporary table `t\_p` (a int);
+select table_schema, table_name from information_schema.tables where table_schema='db' and table_name='t\\_p';
+select table_schema, table_name from information_schema.tables where table_name='t\\_p';
+select table_schema, table_name from information_schema.tables where table_schema='db' and table_name='T\\_p';
+drop database db;
+
+create database `t\_p`;
+create temporary table `t\_p`.tmp (a int);
+select table_schema, table_name from information_schema.tables where table_schema='T\\_P';
+drop database `t\_p`;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #

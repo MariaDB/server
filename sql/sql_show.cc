@@ -5346,21 +5346,28 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
     TMP_TABLE_SHARE *share_temp;
     const char *lookup_db= plan->lookup_field_vals.db_value.str;
-    int (*cmp)(CHARSET_INFO *, const char *, const char *)=
-      plan->lookup_field_vals.wild_db_value
-      ? wild_case_compare : system_charset_info->coll->strcasecmp;
     while ((share_temp= it++))
     {
+      /* There is no need to check for lower_case_table_names since
+         lookup_field_vals are converted to lower case. It is enough only to use
+         wild_compare().
+      */
       if (lookup_db)
       {
-        if (cmp(system_charset_info, share_temp->db.str, lookup_db))
+        if (wild_compare(share_temp->db.str, lookup_db, 1))
           continue;
       }
 
       TABLE *tmp_tbl= share_temp->all_tmp_tables.front();
+      const char *lookup_table= plan->lookup_field_vals.table_value.str;
+      LEX_CSTRING *table_name= &tmp_tbl->s->table_name;
+      if (lookup_table)
+      {
+        if (wild_compare(table_name->str, lookup_table, 1))
+          continue;
+      }
       if (schema_table_idx == SCH_TABLE_NAMES)
       {
-        LEX_CSTRING *table_name= &tmp_tbl->s->table_name;
         restore_record(table, s->default_values);
         table->field[1]->store(share_temp->db.str, share_temp->db.length,
                                system_charset_info);
