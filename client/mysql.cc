@@ -44,6 +44,8 @@
 #include <source_revision.h>
 #if defined(HAVE_LOCALE_H)
 #include <locale.h>
+#include <string>
+#include <iostream>
 #endif
 
 const char *VER= "15.2";
@@ -2166,10 +2168,12 @@ static int read_and_execute(bool interactive)
   COMMANDS *com;
   size_t line_length= 0;
   status.exit_status=1;
+  bool okay_to_proceed= 1;
   
   real_binary_mode= !interactive && opt_binary_mode;
   while (!aborted)
   {
+    okay_to_proceed= 1;
     if (!interactive)
     {
       /*
@@ -2286,12 +2290,28 @@ static int read_and_execute(bool interactive)
 #endif
       continue;
     }
-    if (add_line(glob_buffer, line, line_length, &in_string, &ml_comment,
+
+    std::string line_as_string(line); // convert line to a string
+    if (line_as_string.find("DELETE") != std::string::npos || line_as_string.find("delete") != std::string::npos) {
+    	while (1) {
+	  std::cout << "Are you sure that you want to Delete these records? (y/n): ";
+	  std::string user_delete_response;
+	  std::cin >> user_delete_response;
+
+	  if (user_delete_response == "y" || user_delete_response == "Y") {
+	    break;
+	  } else if (user_delete_response == "n" || user_delete_response == "N") {
+	    okay_to_proceed= 0;
+	    break;
+	  }
+	}
+    }
+
+    if (okay_to_proceed && add_line(glob_buffer, line, line_length, &in_string, &ml_comment,
                  status.line_buff ? status.line_buff->truncated : 0))
       break;
   }
   /* if in batch mode, send last query even if it doesn't end with \g or go */
-
   if (!interactive && !status.exit_status)
   {
     remove_cntrl(glob_buffer);
