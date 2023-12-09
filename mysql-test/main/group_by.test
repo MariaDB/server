@@ -610,7 +610,9 @@ drop table t1;
                     
 CREATE TABLE t1 (n int);
 INSERT INTO t1 VALUES (1);
+--disable_ps2_protocol
 SELECT n+1 AS n FROM t1 GROUP BY n;
+--enable_ps2_protocol
 DROP TABLE t1;
 
 #
@@ -688,8 +690,10 @@ insert into t1 values ('aaa', 'bb1'), ('aaa', 'bb2');
 insert into t2 values ('aaa', 'bb1'), ('aaa', 'bb2');
 
 # query with ambiguous column reference 'c2'
+--disable_ps2_protocol
 select t1.c1 as c2 from t1, t2 where t1.c2 = t2.c4
 group by c2;
+--enable_ps2_protocol
 show warnings;
 
 # this query has no ambiguity
@@ -1372,6 +1376,7 @@ DROP TABLE t1;
 --echo #
 #creating view adds one new warning
 --disable_view_protocol
+--disable_ps2_protocol
 
 SET BIG_TABLES=1;
 CREATE TABLE t1(a INT);
@@ -1383,6 +1388,7 @@ SELECT 1 FROM t1 GROUP BY SUBSTRING(SYSDATE() FROM 'K' FOR 'jxW<');
 DROP TABLE t1;
 SET BIG_TABLES=0;
 
+--enable_ps2_protocol
 --enable_view_protocol
 
 --echo #

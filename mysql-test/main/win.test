@@ -2771,6 +2771,7 @@ drop table t1;
 CREATE TABLE t1 ( a char(25), b text);
 INSERT INTO t1 VALUES ('foo','bar');
 
+--disable_ps2_protocol
 SELECT
   SUM(b)       OVER (PARTITION BY a),
   ROW_NUMBER() OVER (PARTITION BY b)
@@ -2778,6 +2779,7 @@ FROM t1
 GROUP BY
   LEFT((SYSDATE()), 'foo')
 WITH ROLLUP;
+--enable_ps2_protocol
 drop table t1;
 
 --echo #

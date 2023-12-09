@@ -591,6 +591,7 @@ DROP TABLE t1;
 --echo # MDEV-17299 Assertion `maybe_null' failed in make_sortkey
 --echo #
 
+--disable_ps2_protocol
 CREATE TABLE t1 (pk int NOT NULL, d1 date, d2 date NOT NULL);
 INSERT INTO t1 values (1,'2018-06-22','2018-06-22'),(2,'2018-07-11','2018-07-11');
 CREATE VIEW v1 AS SELECT * FROM t1;
@@ -601,7 +602,7 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
-
+--enable_ps2_protocol
 
 --echo #
 --echo # MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table

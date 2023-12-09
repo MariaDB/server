@@ -842,6 +842,8 @@ set optimizer_switch=@save_derived_optimizer_switch;
 --echo # throws 1463 Error
 --echo #
 
+--disable_ps2_protocol
+
 set @save_sql_mode = @@sql_mode;
 set sql_mode='ONLY_FULL_GROUP_BY,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 
@@ -881,6 +883,8 @@ SELECT Customer, Success, SUM(OrderSize)
 
 DROP TABLE example1463;
 set sql_mode= @save_sql_mode;
+
+--enable_ps2_protocol
 
 --echo #
 --echo # MDEV-9028: SELECT DISTINCT constant column of  derived  table
