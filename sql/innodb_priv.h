@@ -28,7 +28,7 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 
 void sql_print_error(const char *format, ...);
-
+void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 #define thd_binlog_pos(X, Y, Z) mysql_bin_log_commit_pos(X, Z, Y)
 
 #endif /* INNODB_PRIV_INCLUDED */

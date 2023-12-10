@@ -51,6 +51,8 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <set>
 #include <new>
+/* Include necessary SQL headers */
+#include <innodb_priv.h>
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 const byte trx_id_max_bytes[8] = {
@@ -528,6 +530,8 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	ut_d(trx->apply_online_log = false);
+	ut_a(trx->state == TRX_STATE_PREPARED || !trx->mysql_log_file_name);
+	ut_d(trx->mysql_log_file_name = nullptr);
 	trx->commit_state();
 	trx->release_locks();
 	trx->mod_tables.clear();
@@ -550,7 +554,9 @@ void trx_disconnect_prepared(trx_t *trx)
 {
   ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
   ut_ad(trx->mysql_thd);
-  ut_ad(!trx->mysql_log_file_name);
+  /* trx->mysql_log_file_name
+  is left intact. Its non-NULL would be a marking for a future xa-commit
+  to designate it is also a binlog group commit memeber. */
   trx->read_view.close();
   trx_sys.trx_list.freeze();
   trx->is_recovered= true;
@@ -1996,18 +2002,25 @@ trx_prepare(
 		gather behind one doing the physical log write to disk.
 
 		We must not be holding any mutexes or latches here. */
+		bool is_user_xa_prepare = thd_sql_command(trx->mysql_thd) ==
+					  SQLCOM_XA_PREPARE;
+                if (is_user_xa_prepare)
+			thd_binlog_pos(trx->mysql_thd,
+                                       &trx->mysql_log_file_name,
+				       &trx->mysql_log_offset);
+		/* skip flush for being group-commit binlogged XA prepare */
+                bool skip_flush = is_user_xa_prepare &&
+			trx->mysql_log_file_name && trx->mysql_log_offset;
 		if (auto f = srv_flush_log_at_trx_commit) {
 			log_write_up_to(lsn, (f & 1) && srv_file_flush_method
-					!= SRV_NOSYNC);
+					!= SRV_NOSYNC && !skip_flush);
 		}
-
+		//trx->mysql_log_file_name = NULL;
 		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)
 		    || trx->isolation_level == TRX_ISO_SERIALIZABLE) {
 			/* Do not release any locks at the
 			SERIALIZABLE isolation level. */
-		} else if (!trx->mysql_thd
-			   || thd_sql_command(trx->mysql_thd)
-			   != SQLCOM_XA_PREPARE) {
+		} else if (!trx->mysql_thd || !is_user_xa_prepare) {
 			/* Do not release locks for XA COMMIT ONE PHASE
 			or for internal distributed transactions
 			(XID::get_my_xid() would be nonzero). */

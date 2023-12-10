@@ -4690,7 +4690,7 @@ innobase_rollback(
 #endif /* WITH_WSREP */
 	if (rollback_trx
 	    || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-
+		trx->mysql_log_file_name = NULL;
 		error = trx_rollback_for_mysql(trx);
 
 		trx_deregister_from_2pc(trx);
@@ -17144,8 +17144,18 @@ innobase_commit_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
+		bool is_skip_flush_set = false;
+		if (trx->mysql_log_file_name) {
+			/* the prepared part of trx was binlogged within
+                        a binlog group so to be done to the commit */
+			is_skip_flush_set= trx->flush_log_later = true;
+                        trx->mysql_log_file_name = NULL;
+		}
 		/* use cases are: disconnected xa, slave xa, recovery */
 		innobase_commit_low(trx);
+		if (is_skip_flush_set)
+			trx->flush_log_later = false;
+                trx->mysql_log_file_name = NULL;
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);    /* trx cache requirement */
@@ -17184,6 +17194,7 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 			trx->xid.null();
 		}
 #endif /* WITH_WSREP */
+		trx->mysql_log_file_name = NULL;
 		int ret = innobase_rollback_trx(trx);
 		ut_ad(!trx->will_lock);
 		trx->free();
