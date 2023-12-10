@@ -2096,6 +2096,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     for (; ha_info; ha_info= ha_info_next)
     {
       handlerton *ht= ha_info->ht();
+
+      DBUG_EXECUTE_IF("simulate_crash_after_first_engine_commit_or_rollback",
+                      if (!ha_info->next()) DBUG_SUICIDE(););
+
       if ((err= ht->commit(ht, thd, all)))
       {
         my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
@@ -2220,6 +2224,10 @@ int ha_rollback_trans(THD *thd, bool all)
     {
       int err;
       handlerton *ht= ha_info->ht();
+
+      DBUG_EXECUTE_IF("simulate_crash_after_first_engine_commit_or_rollback",
+                      if (!ha_info->next()) DBUG_SUICIDE(););
+
       if ((err= ht->rollback(ht, thd, all)))
       {
         // cannot happen

@@ -2230,6 +2230,11 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   if (!all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
 
+  DBUG_EXECUTE_IF("simulate_crash_after_binlog_commit_or_rollback",
+                  DBUG_SUICIDE(););
+  DEBUG_SYNC(thd, "simulate_hang_after_binlog_prepare");
+  DBUG_EXECUTE_IF("simulate_crash_after_binlog_prepare", DBUG_SUICIDE(););
+
   THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
@@ -2337,6 +2342,9 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   if (!all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
   thd->reset_binlog_for_next_statement();
+
+  DBUG_EXECUTE_IF("simulate_crash_after_binlog_commit_or_rollback",
+                  DBUG_SUICIDE(););
 
   DBUG_RETURN(error);
 }
