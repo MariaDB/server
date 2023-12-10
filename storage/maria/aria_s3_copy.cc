@@ -220,17 +220,15 @@ int main(int argc, char** argv)
 
   ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
 
-  if (opt_protocol_version)
+  if (opt_protocol_version > 2)
   {
     uint8_t protocol_version;
     switch (opt_protocol_version)
     {
-      case 1: /* Legacy means v1 */
+      case 3: /* Legacy means v1 */
       case 4: /* Path means v1 */
         protocol_version= 1;
         break;
-      case 2: /* Original means v2 */
-      case 3: /* Amazon means v2 */
       case 5: /* Domain means v2 */
         protocol_version= 2;
         break;
