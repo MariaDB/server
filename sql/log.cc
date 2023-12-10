@@ -2354,6 +2354,9 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
   thd->reset_binlog_for_next_statement();
 
+  DBUG_EXECUTE_IF("simulate_crash_after_binlog_commit_or_rollback",
+                  DBUG_SUICIDE(););
+
   DBUG_RETURN(error);
 }
 
@@ -8563,6 +8566,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
 
+  DBUG_EXECUTE_IF("crash_before_engine_commit_unlocked", { DBUG_SUICIDE(); });
   mysql_mutex_lock(&LOCK_commit_ordered);
   DBUG_EXECUTE_IF("crash_before_engine_commit",
       {
@@ -9431,6 +9435,7 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
   // else
   if (is_preparing_xa(thd))
   {
+    DEBUG_SYNC(thd, "hang_before_engine_prepare");
     for (; ha_info; ha_info= ha_info->next())
     {
       DBUG_ASSERT(all);

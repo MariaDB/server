@@ -2138,6 +2138,9 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     for (; ha_info; ha_info= ha_info_next)
     {
       handlerton *ht= ha_info->ht();
+
+      DBUG_EXECUTE_IF("simulate_crash_after_first_engine_commit_or_rollback",
+                      if (!ha_info->next()) DBUG_SUICIDE(););
       /*
         When binlog branch is registered for the user xa, its "binlog-ordered"
         commit, unlike rollback, has not been fully executed on ordered-commit
@@ -2288,6 +2291,9 @@ int ha_rollback_trans(THD *thd, bool all)
          ha_info; ha_info= ha_info_next)
     {
       handlerton *ht= ha_info->ht();
+
+      DBUG_EXECUTE_IF("simulate_crash_after_first_engine_commit_or_rollback",
+                      if (!ha_info->next()) DBUG_SUICIDE(););
 
       if ((ht != binlog_hton && !xa_already_done) &&
           (err= ht->rollback(ht, thd, all)))
