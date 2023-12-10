@@ -243,7 +243,7 @@ void xid_cache_free()
   Find recovered XA transaction by XID.
 */
 
-static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
+XID_cache_element *xid_cache_search(THD *thd, XID *xid)
 {
   DBUG_ASSERT(thd->xid_hash_pins);
   XID_cache_element *element=
@@ -308,7 +308,7 @@ bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid)
 }
 
 
-static void xid_cache_delete(THD *thd, XID_cache_element *&element)
+void xid_cache_delete(THD *thd, XID_cache_element *&element)
 {
   DBUG_ASSERT(thd->xid_hash_pins);
   element->mark_uninitialized();
@@ -575,6 +575,11 @@ bool trans_xa_commit(THD *thd)
   XID_STATE &xid_state= thd->transaction->xid_state;
 
   DBUG_ENTER("trans_xa_commit");
+
+  DBUG_EXECUTE_IF("trans_xa_commit_fail",
+                  { my_error(ER_OUT_OF_RESOURCES, MYF(0));
+                   DBUG_RETURN(TRUE); });
+
 
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
