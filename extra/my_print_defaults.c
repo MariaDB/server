@@ -183,6 +183,7 @@ int main(int argc, char **argv)
   if ((error= load_defaults(config_file, (const char **) load_default_groups,
 			   &count, &arguments)))
   {
+    my_free(load_default_groups);
     my_end(0);
     if (error == 4)
       return 0;
