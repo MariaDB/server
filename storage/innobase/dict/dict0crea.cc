@@ -677,6 +677,11 @@ dict_build_index_def_step(
 	index->trx_id = trx->id;
 	ut_ad(table->def_trx_id <= trx->id);
 	table->def_trx_id = trx->id;
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn) {
+		trx->add_scn_index(table->id, index->id);
+	}
+#endif
 	table->release();
 
 	return(DB_SUCCESS);
@@ -701,6 +706,8 @@ dict_build_index_def(
 
 	/* Note that the index was created by this transaction. */
 	index->trx_id = trx->id;
+	/* Init to zero, and will be set while committing the transaction */
+	index->trx_scn = 0;
 }
 
 /***************************************************************//**

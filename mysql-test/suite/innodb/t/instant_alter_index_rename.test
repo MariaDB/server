@@ -2,6 +2,10 @@
 --source include/have_debug.inc
 --source include/have_sequence.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 delimiter |;
 create function get_index_id(tbl_id int, index_name char(100))
   returns int

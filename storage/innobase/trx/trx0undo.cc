@@ -1005,9 +1005,16 @@ corrupted_type:
 		sql_print_error("InnoDB: corrupted TRX_ID %llx", trx_id);
 		goto corrupted;
 	}
+
 	/* We will increment rseg->needs_purge, like trx_undo_reuse_cached()
 	would do it, to avoid trouble on rollback or XA COMMIT. */
 	trx_id_t trx_no = trx_id + 1;
+	trx_id_t undo_trx_no = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
+	if (undo_trx_no >> 48) {
+		sql_print_error("InnoDB: corrupted TRX_NO %llx",
+				undo_trx_no);
+		goto corrupted;
+	}
 
 	switch (state) {
 	case TRX_UNDO_ACTIVE:
@@ -1035,12 +1042,7 @@ corrupted_type:
 			goto corrupted_type;
 		}
 	read_trx_no:
-		trx_no = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
-		if (trx_no >> 48) {
-			sql_print_error("InnoDB: corrupted TRX_NO %llx",
-					trx_no);
-			goto corrupted;
-		}
+		trx_no = undo_trx_no;
 		if (trx_no < trx_id) {
 			trx_no = trx_id;
 		}
@@ -1064,6 +1066,7 @@ corrupted_type:
 	if (!undo) {
 		return undo;
 	}
+	undo->trx_no = undo_trx_no;
 
 	undo->dict_operation = undo_header[TRX_UNDO_DICT_TRANS];
 	undo->size = flst_get_len(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST

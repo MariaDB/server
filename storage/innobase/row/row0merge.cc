@@ -2050,6 +2050,9 @@ corrupted_metadata:
 	updating bulk_trx_id while we read it. */
 	if (!online) {
 	} else if (trx_id_t bulk_trx_id = old_table->bulk_trx_id) {
+#ifdef WITH_INNODB_SCN
+		ut_ad(!innodb_use_scn);
+#endif
 		ut_ad(trx->read_view.is_open());
 		ut_ad(bulk_trx_id != trx->id);
 		if (!trx->read_view.changes_visible(bulk_trx_id)) {
@@ -2283,13 +2286,24 @@ end_of_index:
 			ut_ad(trx->read_view.is_open());
 			ut_ad(rec_trx_id != trx->id);
 
-			if (!trx->read_view.changes_visible(rec_trx_id)) {
-				if (rec_trx_id
-				    >= trx->read_view.low_limit_id()
-				    && rec_trx_id
-				    >= trx_sys.get_max_trx_id()) {
-					goto corrupted_rec;
-				}
+			if (!trx->read_view.changes_visible(clust_index, nullptr, rec, offsets, rec_trx_id)) {
+#ifdef WITH_INNODB_SCN
+			  if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+			  {
+			    if (rec_trx_id >= trx_sys.get_max_trx_scn()) {
+			      goto corrupted_rec;
+			    }
+			  }
+			  else
+#endif
+			  {
+			    if (rec_trx_id
+			        >= trx->read_view.low_limit_id()
+			        && rec_trx_id
+			        >= trx_sys.get_max_trx_id()) {
+			      goto corrupted_rec;
+			    }
+			  }
 
 				rec_t*	old_vers;
 
@@ -4578,7 +4592,13 @@ row_merge_is_index_usable(
 	       && (index->table->is_temporary() || index->table->no_rollback()
 		   || index->trx_id == 0
 		   || !trx->read_view.is_open()
-		   || trx->read_view.changes_visible(index->trx_id)));
+#ifdef WITH_INNODB_SCN
+		   || (!innodb_use_scn && trx->read_view.changes_visible(index->trx_id))
+		   || (innodb_use_scn && index->trx_scn > 0 && trx->read_view.sees_version(index->trx_scn))
+#else
+		   || trx->read_view.changes_visible(index->trx_id)
+#endif
+		  ));
 }
 
 /** Build indexes on a table by reading a clustered index, creating a temporary

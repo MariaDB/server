@@ -109,6 +109,7 @@ struct undo_node_t{
 	mem_heap_t*	heap;	/*!< memory heap used as auxiliary storage for
 				row; this must be emptied after undo is tried
 				on a row */
+	trx_id_t new_scn;
 };
 
 #endif

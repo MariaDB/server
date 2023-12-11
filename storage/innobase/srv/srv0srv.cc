@@ -1575,3 +1575,16 @@ void srv_purge_shutdown()
     srv_shutdown_purge_tasks();
   }
 }
+
+#ifdef WITH_INNODB_SCN
+uint32_t innodb_cleanout_threads;
+my_bool innodb_use_scn;
+void srv_scn_start()
+{
+  scn_mgr.start();
+}
+void srv_scn_shutdown()
+{
+  scn_mgr.stop();
+}
+#endif

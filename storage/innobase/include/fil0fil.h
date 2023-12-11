@@ -1807,4 +1807,10 @@ ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 @return encryption key found */
 bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name);
 
+/** Returns the size of the space in pages. The tablespace must be cached
+in the memory cache.
+@param[in]      space_id        Tablespace ID
+@return space size, 0 if space not found */
+ulint fil_space_get_size(uint32_t space_id);
+
 #endif /* UNIV_INNOCHECKSUM */

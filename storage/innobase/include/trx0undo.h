@@ -251,6 +251,7 @@ struct trx_undo_t {
 					segment */
 	trx_id_t	trx_id;		/*!< id of the trx assigned to the undo
 					log */
+	trx_id_t trx_no;  /*!< commit no of the trx */
 	XID		xid;		/*!< X/Open XA transaction
 					identification */
 	bool		dict_operation;	/*!< TRUE if a dict operation trx */

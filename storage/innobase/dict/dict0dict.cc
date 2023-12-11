@@ -1998,6 +1998,7 @@ dict_index_add_to_cache(
 
 	new_index->n_fields = new_index->n_def;
 	new_index->trx_id = index->trx_id;
+	new_index->trx_scn = index->trx_scn;
 	new_index->set_committed(index->is_committed());
 	new_index->nulls_equal = index->nulls_equal;
 
@@ -4836,4 +4837,38 @@ dict_tf_to_row_format_string(
 
 	ut_error;
 	return(0);
+}
+
+/** Get index object by table id and index id
+@param[in]  table_id          table id
+@param[in]  index_id          index id
+@param[in]  dict_sys_locked   dic_sys is locked or not
+@return index, NULL if does not exist */
+dict_index_t *dict_index_get_by_id(table_id_t table_id, index_id_t index_id,
+                                   const bool dict_sys_locked) {
+  /** Get table object by id */
+  if (!dict_sys_locked) {
+    dict_sys.freeze(SRW_LOCK_CALL);
+  }
+  dict_table_t *table= dict_sys.find_table(table_id);
+  if (table == nullptr) {
+    if (!dict_sys_locked) {
+      dict_sys.unfreeze();
+    }
+    return nullptr;
+  }
+  table->acquire();
+  if (!dict_sys_locked) {
+    dict_sys.unfreeze();
+  }
+  /* Get the index object by id */
+  for (dict_index_t* ind = UT_LIST_GET_FIRST(table->indexes); ind;
+       ind = UT_LIST_GET_NEXT(indexes, ind)) {
+    if (ind->id == index_id) {
+      /* Table will be released by caller */
+      return ind;
+    }
+  }
+  table->release();
+  return nullptr;
 }

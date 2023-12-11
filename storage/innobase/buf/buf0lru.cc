@@ -423,6 +423,9 @@ got_block:
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
 		block->page.zip.clear();
+#ifdef WITH_INNODB_SCN
+		block->clear_cursor();
+#endif
 		return block;
 	}
 

@@ -963,6 +963,9 @@ static void srv_shutdown_threads()
 	if (srv_n_fil_crypt_threads) {
 		fil_crypt_set_thread_cnt(0);
 	}
+#ifdef WITH_INNODB_SCN
+	srv_scn_shutdown();
+#endif
 }
 
 
@@ -1732,6 +1735,10 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		recv_sys.debug_free();
+
+#ifdef WITH_INNODB_SCN
+		srv_scn_start();
+#endif
 	}
 
 	ut_ad(err == DB_SUCCESS);
@@ -1988,6 +1995,10 @@ void innodb_preshutdown()
 
   if (srv_n_fil_crypt_threads)
     fil_crypt_set_thread_cnt(0);
+
+#ifdef WITH_INNODB_SCN
+  srv_scn_shutdown();
+#endif
 }
 
 

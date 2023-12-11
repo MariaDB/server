@@ -29,6 +29,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0new.h"
 
 #include <vector>
+#include <set>
 
 /** printf(3) format used for printing DB_TRX_ID and other system fields */
 #define TRX_ID_FMT	IB_ID_FMT
@@ -129,3 +130,5 @@ the 7 bits reserved for it in DB_ROLL_PTR. */
 static constexpr unsigned TRX_SYS_N_RSEGS= 128;
 /** Maximum number of undo tablespaces (not counting the system tablespace) */
 static constexpr unsigned TRX_SYS_MAX_UNDO_SPACES= TRX_SYS_N_RSEGS - 1;
+
+using trx_ids_set_t = std::set<trx_id_t>;

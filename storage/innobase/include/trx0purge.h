@@ -369,6 +369,9 @@ public:
       (end_view= view).
         clamp_low_limit_id(head.trx_no ? head.trx_no : tail.trx_no);
     latch.wr_unlock();
+#ifdef WITH_INNODB_SCN
+    version = view.version();
+#endif
   }
 
   /** Wake up the purge threads if there is work to do. */
@@ -403,6 +406,10 @@ public:
   @param	already_stopped	True indicates purge threads were
 				already stopped */
   void stop_FTS(const dict_table_t &table, bool already_stopped=false);
+
+public:
+  /** The scn of purge system before which undo can be purged */
+  std::atomic<trx_id_t> version;
 };
 
 /** The global data structure coordinating a purge */

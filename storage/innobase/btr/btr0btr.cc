@@ -1250,6 +1250,20 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
         block->page.id().page_no() != cursor->index->page ||
         !page_has_siblings(block->page.frame));
 
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn && cursor->index->is_clust())
+  {
+    if (!cursor->index->online_log)
+    {
+      scn_mgr.batch_write(block, mtr);
+    }
+    else
+    {
+      block->clear_cursor();
+    }
+  }
+#endif
+
   /* Save the cursor position. */
   const ulint pos= page_rec_get_n_recs_before(cursor->rec);
 
@@ -3459,6 +3473,20 @@ btr_compress(
 	block = btr_cur_get_block(cursor);
 	page = btr_cur_get_page(cursor);
 	index = btr_cur_get_index(cursor);
+
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn && index->is_clust())
+	{
+	  if (!index->online_log)
+	  {
+	    scn_mgr.batch_write(block, mtr);
+	  }
+	  else
+	  {
+	    block->clear_cursor();
+	  }
+	}
+#endif
 
 	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
 					 | MTR_MEMO_SX_LOCK));

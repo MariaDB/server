@@ -15212,6 +15212,15 @@ ha_innobase::check(
 		m_prebuilt->need_to_access_clustered =
 			!!(check_opt->flags & T_EXTEND);
 
+#ifdef WITH_INNODB_SCN
+		if (m_prebuilt->need_to_access_clustered && innodb_use_scn) {
+		  /* trx id on secondary index page can't be used to accurately determine
+		  visibility while scn is used, so disable it and print a warning */
+		  m_prebuilt->need_to_access_clustered = FALSE;
+		  sql_print_warning("InnoDB: check table ... extended is not supported by scn");
+		}
+#endif
+
 		dtuple_set_n_fields(m_prebuilt->search_tuple, 0);
 
 		m_prebuilt->select_lock_type = LOCK_NONE;
@@ -19581,6 +19590,18 @@ static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,
   "Shrink the temporary tablespace",
   NULL, innodb_trunc_temp_space_update, false);
 
+#ifdef WITH_INNODB_SCN
+static MYSQL_SYSVAR_UINT(cleanout_threads, innodb_cleanout_threads,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Number of threads to cleanout SCN",
+  NULL, NULL, 8, 1, 256, 0);
+
+static MYSQL_SYSVAR_BOOL(use_scn, innodb_use_scn,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Enable scn based snapshot.",
+  NULL, NULL, FALSE);
+#endif
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -19740,7 +19761,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
   MYSQL_SYSVAR(truncate_temporary_tablespace_now),
-
+#ifdef WITH_INNODB_SCN
+  MYSQL_SYSVAR(cleanout_threads),
+  MYSQL_SYSVAR(use_scn),
+#endif
   NULL
 };
 

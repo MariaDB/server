@@ -31,12 +31,23 @@ Created 3/26/1996 Heikki Tuuri
 #include "page0types.h"
 #include "que0types.h"
 
+#ifdef WITH_INNODB_SCN
+static inline ulint trx_undo_start_offset(const trx_undo_rec_t *undo_rec);
+#else
+static constexpr ulint trx_undo_start_offset(
+    const trx_undo_rec_t *undo_rec MY_ATTRIBUTE((__unused__)))
+{
+  return 2;
+}
+#endif
+
 /**********************************************************************//**
 Reads the undo log record number.
 @return undo no */
 inline undo_no_t trx_undo_rec_get_undo_no(const trx_undo_rec_t *undo_rec)
 {
-  return mach_u64_read_much_compressed(undo_rec + 3);
+  return mach_u64_read_much_compressed(undo_rec +
+                                       trx_undo_start_offset(undo_rec) + 1);
 }
 
 /**********************************************************************//**
@@ -293,7 +304,32 @@ extern const dtuple_t trx_undo_metadata;
 @return table id stored as a part of undo log record */
 inline table_id_t trx_undo_rec_get_table_id(const trx_undo_rec_t *rec)
 {
-  rec+= 3;
+  rec+= trx_undo_start_offset(rec) + 1;
   mach_read_next_much_compressed(&rec);
   return mach_read_next_much_compressed(&rec);
 }
+
+#ifdef WITH_INNODB_SCN
+static constexpr uint32_t TRX_UNDO_NEW_VERSION_TAG= 0;
+static inline ulint trx_undo_start_offset(const trx_undo_rec_t *undo_rec)
+{
+  const byte *ptr= undo_rec + 2;
+  if (*ptr == TRX_UNDO_NEW_VERSION_TAG)
+  {
+    return 11;
+  }
+  else
+  {
+    return 2;
+  }
+}
+
+bool trx_undo_rec_get_hdr(trx_id_t id, trx_undo_rec_t *undo_rec,
+                          uint32_t &undo_hdr_no, uint32_t &offset);
+
+trx_id_t trx_undo_hdr_get_scn(trx_id_t trx_id, page_id_t &page_id,
+                              uint32_t offset, mtr_t *mtr, page_t *undo_page);
+
+trx_id_t trx_undo_get_scn(const dict_index_t *index, roll_ptr_t roll_ptr,
+                          trx_id_t id);
+#endif /* WITH_INNODB_SCN */

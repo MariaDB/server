@@ -186,6 +186,7 @@ void mtr_t::start()
   m_user_space= nullptr;
   m_commit_lsn= 0;
   m_trim_pages= false;
+  m_in_scn_cleanout= false;
 }
 
 /** Release the resources */

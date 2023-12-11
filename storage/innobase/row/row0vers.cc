@@ -1203,7 +1203,7 @@ row_vers_build_for_consistent_read(
 
 	trx_id = row_get_rec_trx_id(rec, index, *offsets);
 
-	ut_ad(!view->changes_visible(trx_id));
+	ut_ad(!view->changes_visible(index, nullptr, rec, *offsets, trx_id));
 
 	ut_ad(!vrow || !(*vrow));
 
@@ -1246,7 +1246,7 @@ row_vers_build_for_consistent_read(
 
 		trx_id = row_get_rec_trx_id(prev_version, index, *offsets);
 
-		if (view->changes_visible(trx_id)) {
+		if (view->changes_visible(index, nullptr, prev_version, *offsets, trx_id)) {
 
 			/* The view already sees this version: we can copy
 			it to in_heap and return */
@@ -1263,10 +1263,22 @@ row_vers_build_for_consistent_read(
 				dtuple_dup_v_fld(*vrow, in_heap);
 			}
 			break;
-		} else if (trx_id >= view->low_limit_id()
+		} else {
+#ifdef WITH_INNODB_SCN
+			if (innodb_use_scn && SCN_Mgr::is_scn(trx_id))
+			{
+			  if (trx_id >= trx_sys.get_max_trx_scn()) {
+			    err = DB_CORRUPTION;
+			    break;
+			  }
+			}
+			else
+#endif
+			if (trx_id >= view->low_limit_id()
 			   && trx_id >= trx_sys.get_max_trx_id()) {
-			err = DB_CORRUPTION;
-			break;
+			  err = DB_CORRUPTION;
+			  break;
+			}
 		}
 		version = prev_version;
 	}

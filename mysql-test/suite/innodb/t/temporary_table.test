@@ -24,6 +24,7 @@ call mtr.add_suppression("innodb_temporary and innodb_system file names seem to 
 call mtr.add_suppression("Could not create the shared innodb_temporary");
 call mtr.add_suppression("InnoDB: syntax error in file path");
 call mtr.add_suppression("InnoDB: Unable to parse innodb_temp_data_file_path=");
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
 --enable_query_log
 
 let $MYSQL_TMP_DIR = `select @@tmpdir`;

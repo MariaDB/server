@@ -946,12 +946,13 @@ row_sel_test_other_conds(
 @param index    clustered index
 @param offsets  rec_get_offsets(rec, index)
 @param view     consistent read view
+@param pcur     cursor of rec, or NULL
 @retval DB_SUCCESS             if rec is visible in view
 @retval DB_SUCCESS_LOCKED_REC  if rec is not visible in view
 @retval DB_CORRUPTION          if the DB_TRX_ID is corrupted */
 static dberr_t row_sel_clust_sees(const rec_t *rec, const dict_index_t &index,
                                   const rec_offs *offsets,
-                                  const ReadView &view)
+                                  const ReadView &view, btr_pcur_t *pcur)
 {
   ut_ad(index.is_primary());
   ut_ad(page_rec_is_user_rec(rec));
@@ -961,8 +962,22 @@ static dberr_t row_sel_clust_sees(const rec_t *rec, const dict_index_t &index,
 
   const trx_id_t id= row_get_rec_trx_id(rec, &index, offsets);
 
-  if (view.changes_visible(id))
+  if (view.changes_visible(&index,
+                           (pcur != nullptr ? pcur->btr_cur.block() : nullptr),
+                           rec, offsets, id))
+  {
     return DB_SUCCESS;
+  }
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn && SCN_Mgr::is_scn(id))
+  {
+    if (id < trx_sys.get_max_trx_scn())
+    {
+      return DB_SUCCESS_LOCKED_REC;
+    }
+  }
+  else
+#endif
   if (UNIV_LIKELY(id < view.low_limit_id() || id < trx_sys.get_max_trx_id()))
     return DB_SUCCESS_LOCKED_REC;
 
@@ -1079,7 +1094,7 @@ row_sel_get_clust_rec(
 		old_vers = NULL;
 
 		err = row_sel_clust_sees(clust_rec, *index, offsets,
-                                         *node->read_view);
+                                         *node->read_view, &plan->clust_pcur);
 
 		switch (err) {
 		default:
@@ -1590,6 +1605,9 @@ row_sel_try_search_shortcut(
 	}
 
 	if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+#ifdef WITH_INNODB_SCN
+		ut_ad(!innodb_use_scn);
+#endif
 		/* See row_search_mvcc() for a comment on bulk_trx_id */
 		if (!node->read_view->changes_visible(bulk_trx_id)) {
 			return SEL_EXHAUSTED;
@@ -1607,7 +1625,7 @@ row_sel_try_search_shortcut(
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_index_is_clust(index)) {
-		if (row_sel_clust_sees(rec, *index, offsets, *node->read_view)
+		if (row_sel_clust_sees(rec, *index, offsets, *node->read_view, &plan->pcur)
 		    != DB_SUCCESS) {
 			return SEL_RETRY;
 		}
@@ -1778,6 +1796,9 @@ table_loop:
 	if (!node->read_view
 	    || trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
 	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+#ifdef WITH_INNODB_SCN
+		ut_ad(!innodb_use_scn);
+#endif
 		/* See row_search_mvcc() for a comment on bulk_trx_id */
 		if (!trx->read_view.changes_visible(bulk_trx_id)) {
 			goto table_exhausted;
@@ -1978,12 +1999,27 @@ skip_lock:
 			const trx_id_t id = row_get_rec_trx_id(
 				rec, index, offsets);
 
-			if (!node->read_view->changes_visible(id)) {
-				if (id >= node->read_view->low_limit_id()
-				    && id >= trx_sys.get_max_trx_id()) {
-					err = DB_CORRUPTION;
-					goto lock_wait_or_error;
-				}
+			if (!node->read_view->changes_visible(index,
+			                                      plan->pcur.btr_cur.block(),
+			                                      rec, offsets, id)) {
+#ifdef WITH_INNODB_SCN
+			  if (innodb_use_scn && SCN_Mgr::is_scn(id))
+			  {
+			    if (id >= trx_sys.get_max_trx_scn())
+			    {
+			      err = DB_CORRUPTION;
+			      goto lock_wait_or_error;
+			    }
+			  }
+			  else
+#endif
+			  {
+			    if (id >= node->read_view->low_limit_id()
+			        && id >= trx_sys.get_max_trx_id()) {
+			      err = DB_CORRUPTION;
+			      goto lock_wait_or_error;
+			    }
+			  }
 
 				err = row_sel_build_prev_vers(
 					node->read_view, index, rec,
@@ -3515,7 +3551,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			uncommitted data, then we never look for an
 			earlier version */
 			err = row_sel_clust_sees(clust_rec, *clust_index,
-						 *offsets, trx->read_view);
+						 *offsets, trx->read_view, prebuilt->clust_pcur);
 		}
 
 		switch (err) {
@@ -3983,6 +4019,9 @@ row_sel_try_search_shortcut_for_mysql(
 
 	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
 	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+#ifdef WITH_INNODB_SCN
+		ut_ad(!innodb_use_scn);
+#endif
 		/* See row_search_mvcc() for a comment on bulk_trx_id */
 		if (!trx->read_view.changes_visible(bulk_trx_id)) {
 			return SEL_EXHAUSTED;
@@ -3995,7 +4034,7 @@ row_sel_try_search_shortcut_for_mysql(
 	*offsets = rec_get_offsets(rec, index, *offsets, index->n_core_fields,
 				   ULINT_UNDEFINED, heap);
 
-	if (row_sel_clust_sees(rec, *index, *offsets, trx->read_view)
+	if (row_sel_clust_sees(rec, *index, *offsets, trx->read_view, nullptr)
 	    != DB_SUCCESS) {
 		return SEL_RETRY;
 	}
@@ -4883,6 +4922,9 @@ page_corrupted:
 	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED
 	    || !trx->read_view.is_open()) {
 	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+#ifdef WITH_INNODB_SCN
+		ut_ad(!innodb_use_scn);
+#endif
 		/* InnoDB should allow the transaction to read all
 		the rows when InnoDB intends to do any locking
 		on the record */
@@ -5352,7 +5394,7 @@ no_gap_lock:
 			by skipping this lookup */
 
 			err = row_sel_clust_sees(rec, *index, offsets,
-						 trx->read_view);
+						 trx->read_view, prebuilt->pcur);
 
 			switch (err) {
 			default:
@@ -6316,6 +6358,16 @@ rec_loop:
 
     trx_id_t rec_trx_id= row_get_rec_trx_id(rec, index, offsets);
 
+#ifdef WITH_INNODB_SCN
+    if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+    {
+      if (rec_trx_id >= trx_sys.get_max_trx_scn())
+      {
+        goto invalid_trx_id;
+      }
+    }
+    else
+#endif
     if (rec_trx_id >= prebuilt->trx->read_view.low_limit_id() &&
         UNIV_UNLIKELY(rec_trx_id >= trx_sys.get_max_trx_id()))
     {
@@ -6331,7 +6383,9 @@ rec_loop:
       goto next_rec;
     }
 
-    if (!prebuilt->trx->read_view.changes_visible(rec_trx_id))
+    if (!prebuilt->trx->read_view.changes_visible(index,
+		                                              nullptr,
+		                                              rec, offsets, rec_trx_id))
     {
       ut_ad(srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
       rec_t *old_vers;
@@ -6347,6 +6401,16 @@ rec_loop:
         rec= old_vers;
         rec_trx_id= row_get_rec_trx_id(rec, index, offsets);
 
+#ifdef WITH_INNODB_SCN
+        if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+        {
+          if (rec_trx_id >= trx_sys.get_max_trx_scn())
+          {
+            goto invalid_trx_id;
+          }
+        }
+        else
+#endif
         if (rec_trx_id >= prebuilt->trx->read_view.low_limit_id() &&
             UNIV_UNLIKELY(rec_trx_id >= trx_sys.get_max_trx_id()))
           goto invalid_trx_id;
@@ -6360,7 +6424,7 @@ rec_loop:
       goto next_rec;
     }
     else if (!rec_deleted && !rec_trx_id);
-    else if (!check_table_extended_view.changes_visible(rec_trx_id));
+    else if (!check_table_extended_view.changes_visible(index, nullptr, rec, offsets, rec_trx_id));
     else if (prebuilt->autoinc_error == DB_SUCCESS)
     {
       const char *msg= rec_deleted
@@ -6454,7 +6518,12 @@ rec_loop:
       bool found_in_view= false;
       trx_id_t visible_trx_id= ~0ULL;
 
-      if (ulint trx_id_offset= clust_index->trx_id_offset)
+      ulint trx_id_offset= clust_index->trx_id_offset;
+      if (trx_id_offset
+#ifdef WITH_INNODB_SCN
+          && !innodb_use_scn
+#endif
+         )
       {
         clust_offsets= nullptr;
       read_trx_id:
@@ -6471,11 +6540,22 @@ rec_loop:
           }
 
           /* This is the oldest available record version (fresh insert). */
-          if (!view.changes_visible(rec_trx_id))
+          if (!view.changes_visible(clust_index, nullptr, clust_rec, clust_offsets, rec_trx_id))
           {
+#ifdef WITH_INNODB_SCN
+            if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+            {
+              if (rec_trx_id >= trx_sys.get_max_trx_scn())
+              {
+                goto invalid_rec_trx_id;
+              }
+            }
+            else
+#endif
             if (rec_trx_id >= view.low_limit_id() &&
                 UNIV_UNLIKELY(rec_trx_id >= trx_sys.get_max_trx_id()))
               goto invalid_rec_trx_id;
+
             if (got_extended_match)
               goto check_latest_version;
             goto did_not_find;
@@ -6529,7 +6609,8 @@ rec_loop:
         got_extended_match= err == DB_SUCCESS;
         err= DB_SUCCESS;
 
-        if (!prebuilt->trx->read_view.changes_visible(rec_trx_id))
+        if (!prebuilt->trx->read_view.changes_visible(
+                clust_index, nullptr, clust_rec, clust_offsets, rec_trx_id))
           /* While CHECK TABLE ... EXTENDED checks for a matching
           clustered index record version for each secondary index
           record, it must count only those records that belong to its
@@ -6559,9 +6640,19 @@ rec_loop:
         mtr.rollback_to_savepoint(savepoint);
         goto count_row;
       }
-      else if (!view.changes_visible(rec_trx_id))
+      else if (!view.changes_visible(clust_index, nullptr, clust_rec, clust_offsets, rec_trx_id))
       {
       check_old_vers:
+#ifdef WITH_INNODB_SCN
+        if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+        {
+          if (rec_trx_id >= trx_sys.get_max_trx_scn())
+          {
+            goto invalid_rec_trx_id;
+          }
+        }
+        else
+#endif
         if (rec_trx_id >= view.low_limit_id() &&
             UNIV_UNLIKELY(rec_trx_id >= trx_sys.get_max_trx_id()))
         {
@@ -6640,7 +6731,17 @@ rec_loop:
 
           rec_trx_id= row_get_rec_trx_id(clust_rec, clust_index,
                                          clust_offsets);
-
+#ifdef WITH_INNODB_SCN
+          if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+          {
+            if (rec_trx_id >= trx_sys.get_max_trx_scn())
+            {
+              mem_heap_free(vers_heap);
+              goto invalid_rec_trx_id;
+            }
+          }
+	        else
+#endif
           if (UNIV_UNLIKELY(rec_trx_id >=
                             prebuilt->trx->read_view.low_limit_id() &&
                             rec_trx_id >= trx_sys.get_max_trx_id()))
@@ -6649,8 +6750,8 @@ rec_loop:
             goto invalid_rec_trx_id;
           }
 
-          const bool rec_visible=
-            prebuilt->trx->read_view.changes_visible(rec_trx_id);
+          const bool rec_visible= prebuilt->trx->read_view.changes_visible(
+              clust_index, nullptr, clust_rec, clust_offsets, rec_trx_id);
           const bool clust_rec_deleted=
             rec_get_deleted_flag(clust_rec, prebuilt->table->not_redundant());
 

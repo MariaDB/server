@@ -688,3 +688,10 @@ static inline void srv_start_periodic_timer(std::unique_ptr<tpool::timer>& t,
 
 void srv_thread_pool_init();
 void srv_thread_pool_end();
+
+#ifdef WITH_INNODB_SCN
+extern uint32_t innodb_cleanout_threads;
+extern my_bool innodb_use_scn;
+void srv_scn_start();
+void srv_scn_shutdown();
+#endif

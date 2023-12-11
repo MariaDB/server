@@ -523,7 +523,9 @@ class rw_trx_hash_t
     if (element->trx)
       validate_element(element->trx);
     element->mutex.wr_unlock();
+#ifndef WITH_INNODB_SCN
     ut_ad(element->id < element->no);
+#endif
     return arg->action(element, arg->argument);
   }
 #endif
@@ -856,7 +858,7 @@ class trx_sys_t
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<trx_id_t> m_max_trx_id;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) std::atomic<trx_id_t> m_max_trx_id;
 
 
   /**
@@ -1010,8 +1012,21 @@ public:
   */
   void assign_new_trx_no(trx_t *trx)
   {
-    trx->rw_trx_hash_element->no= get_new_trx_id_no_refresh();
-    refresh_rw_trx_hash_version();
+#ifdef WITH_INNODB_SCN
+    if (innodb_use_scn)
+    {
+      trx->scn_mutex.wr_lock();
+      trx->scn= get_new_trx_scn();
+      trx->rw_trx_hash_element->no= trx->scn;
+      refresh_rw_trx_hash_scn_version();
+      trx->scn_mutex.wr_unlock();
+    }
+    else
+#endif
+    {
+      trx->rw_trx_hash_element->no= get_new_trx_id_no_refresh();
+      refresh_rw_trx_hash_version();
+    }
   }
 
 
@@ -1058,8 +1073,27 @@ public:
   /** Initialiser for m_max_trx_id and m_rw_trx_hash_version. */
   void init_max_trx_id(trx_id_t value)
   {
+#ifdef WITH_INNODB_SCN
+    if (value < 2)
+    {
+      value= 3;
+    }
+    if (value % 2 == 0)
+    {
+      m_max_trx_id= value;
+      m_max_trx_scn= value + 1;
+    }
+    else
+    {
+      m_max_trx_id= value + 1;
+      m_max_trx_scn= value;
+    }
+    m_rw_trx_hash_version.store(m_max_trx_id, std::memory_order_relaxed);
+    m_rw_trx_hash_scn_version.store(m_max_trx_scn, std::memory_order_relaxed);
+#else
     m_max_trx_id= value;
     m_rw_trx_hash_version.store(value, std::memory_order_relaxed);
+#endif
   }
 
 
@@ -1130,6 +1164,13 @@ public:
   void deregister_rw(trx_t *trx)
   {
     rw_trx_hash.erase(trx);
+#ifdef WITH_INNODB_SCN
+    if (trx->scn != TRX_ID_MAX && innodb_use_scn)
+    {
+      assert(trx->id != 0);
+      scn_mgr.store_scn(trx->id, trx->scn);
+    }
+#endif
   }
 
 
@@ -1245,7 +1286,11 @@ private:
   /** Increments m_rw_trx_hash_version, must issue RELEASE memory barrier. */
   void refresh_rw_trx_hash_version()
   {
+#ifdef WITH_INNODB_SCN
+    m_rw_trx_hash_version.fetch_add(m_trx_id_interval, std::memory_order_release);
+#else
     m_rw_trx_hash_version.fetch_add(1, std::memory_order_release);
+#endif
   }
 
 
@@ -1264,10 +1309,114 @@ private:
 
   trx_id_t get_new_trx_id_no_refresh()
   {
-    return m_max_trx_id++;
+#ifdef WITH_INNODB_SCN
+    return m_max_trx_id.fetch_add(m_trx_id_interval);
+#else
+    return m_max_trx_id.fetch_add(1);
+#endif
   }
+
+#ifdef WITH_INNODB_SCN
+private:
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) std::atomic<trx_id_t> m_max_trx_scn;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+      std::atomic<trx_id_t> m_rw_trx_hash_scn_version;
+  bool m_start_from_scn{false};
+  ulint m_trx_id_interval{1};
+
+  static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
+                                         trx_id_t *id)
+  {
+    if (element->id < *id)
+    {
+      element->mutex.wr_lock();
+      /* We don't care about read-only transactions here. */
+      if (element->trx && element->trx->rsegs.m_redo.rseg)
+      {
+        *id= element->id;
+      }
+      element->mutex.wr_unlock();
+    }
+    return 0;
+  }
+
+  struct trx_id_no
+  {
+    trx_id_t id;
+    trx_id_t no;
+  };
+
+  static my_bool get_min_trx_id_no_callback(rw_trx_hash_element_t *element,
+                                            struct trx_id_no *arg)
+  {
+    trx_id_t ele_no= element->no;
+    if (ele_no != TRX_ID_MAX && ele_no < arg->no)
+    {
+      arg->no= ele_no;
+    }
+    if (element->id < arg->id)
+    {
+      element->mutex.wr_lock();
+      /* We don't care about read-only transactions here. */
+      if (element->trx && element->trx->rsegs.m_redo.rseg)
+      {
+        arg->id= element->id;
+      }
+      element->mutex.wr_unlock();
+    }
+    return 0;
+  }
+
+public:
+  void set_start_from_scn(bool start_from_scn)
+  {
+    m_start_from_scn= start_from_scn;
+  }
+  bool is_start_from_scn() const { return m_start_from_scn; }
+  dberr_t write_using_scn();
+  trx_id_t get_max_trx_scn() { return m_max_trx_scn.load(); }
+  trx_id_t get_rw_trx_hash_scn_version()
+  {
+    return m_rw_trx_hash_scn_version.load(std::memory_order_acquire);
+  }
+  void refresh_rw_trx_hash_scn_version()
+  {
+    m_rw_trx_hash_scn_version.fetch_add(2, std::memory_order_release);
+  }
+  trx_id_t get_new_trx_scn()
+  {
+    trx_id_t scn= m_max_trx_scn.fetch_add(2, std::memory_order_release);
+    return scn;
+  }
+  trx_id_t get_min_trx_id()
+  {
+    trx_id_t id= get_max_trx_id();
+    rw_trx_hash.iterate(nullptr, get_min_trx_id_callback, &id);
+    return id;
+  }
+  void get_min_trx_id_no(trx_id_t &id, trx_id_t &no)
+  {
+    id= get_rw_trx_hash_version();
+    no= get_rw_trx_hash_scn_version();
+
+    struct trx_id_no arg= {id, no};
+    rw_trx_hash.iterate(nullptr, get_min_trx_id_no_callback, &arg);
+
+    id= arg.id;
+    no= arg.no;
+  }
+#endif /* WITH_INNODB_SCN */
 };
 
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
+
+#ifdef WITH_INNODB_SCN
+/* As DATA_TRX_ID_LEN is 6 bytes, we use the highest bit as the scn flag.
+  0: traditional snapshot
+  1: scn based snapshot
+*/
+constexpr ulint TRX_SYS_TRX_ID_SCN_BIT_POS= 63;
+dberr_t trx_sys_write_using_scn(buf_block_t *block, mtr_t *mtr);
+#endif

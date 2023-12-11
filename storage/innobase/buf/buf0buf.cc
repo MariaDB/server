@@ -1040,6 +1040,11 @@ buf_block_init(buf_block_t* block, byte* frame)
 
 	MEM_MAKE_DEFINED(&block->page.hash, sizeof block->page.hash);
 	ut_ad(!block->page.hash);
+#ifdef WITH_INNODB_SCN
+	block->buf_lazy_recs = nullptr;
+	block->init_lazy_recs();
+	block->clear_cursor_no_mutex();
+#endif
 }
 
 /** Allocate a chunk of buffer frames.
@@ -1224,8 +1229,12 @@ bool buf_pool_t::create()
       {
         buf_block_t* block= chunk->blocks;
 
-        for (auto i= chunk->size; i--; block++)
+        for (auto i= chunk->size; i--; block++) {
           block->page.lock.free();
+#ifdef WITH_INNODB_SCN
+					block->destroy_lazy_recs();
+#endif
+				}
 
         allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
       }
@@ -1342,8 +1351,12 @@ void buf_pool_t::close()
   {
     buf_block_t *block= chunk->blocks;
 
-    for (auto i= chunk->size; i--; block++)
+    for (auto i= chunk->size; i--; block++) {
       block->page.lock.free();
+#ifdef WITH_INNODB_SCN
+			block->destroy_lazy_recs();
+#endif
+		}
 
     allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
   }
@@ -1445,6 +1458,9 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		buf_pool.page_hash.replace(chain, &block->page,
 					   &new_block->page);
 		buf_block_modify_clock_inc(block);
+#ifdef WITH_INNODB_SCN
+		block->clear_cursor();
+#endif
 		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
 		memset_aligned<4>(block->page.frame
 				  + FIL_PAGE_OFFSET, 0xff, 4);
@@ -1916,6 +1932,9 @@ withdraw_retry:
 
 			for (ulint j = chunk->size; j--; block++) {
 				block->page.lock.free();
+#ifdef WITH_INNODB_SCN
+				block->destroy_lazy_recs();
+#endif
 			}
 
 			allocator.deallocate_large_dodump(
@@ -2478,6 +2497,9 @@ buf_block_init_low(
 	block->n_bytes		= 0;
 	block->left_side	= TRUE;
 #endif /* BTR_CUR_HASH_ADAPT */
+#ifdef WITH_INNODB_SCN
+	block->clear_cursor();
+#endif
 }
 
 /********************************************************************//**
@@ -2706,7 +2728,8 @@ got_block:
 		if (mode == BUF_PEEK_IF_IN_POOL) {
 ignore_block:
 			ut_ad(mode == BUF_GET_POSSIBLY_FREED
-			      || mode == BUF_PEEK_IF_IN_POOL);
+			      || mode == BUF_PEEK_IF_IN_POOL
+			      || mtr->in_scn_cleanout());
 			block->unfix();
 			if (err) {
 				*err = DB_CORRUPTION;

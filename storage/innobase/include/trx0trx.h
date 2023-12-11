@@ -622,6 +622,8 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
+using SCNIndexIds = std::vector<std::pair<table_id_t, index_id_t>>;
+
 struct trx_t : ilist_node<>
 {
 private:
@@ -1193,6 +1195,20 @@ private:
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();
+
+#ifdef WITH_INNODB_SCN
+public:
+  /** Index ids set that need to set its SCN numnber */
+  SCNIndexIds scn_indexes;
+  /** Mutex protecting allocation of scn */
+  srw_mutex scn_mutex;
+  trx_id_t scn;
+  void add_scn_index(table_id_t table_id, index_id_t index_id)
+  {
+    ut_ad(innodb_use_scn);
+    scn_indexes.push_back(std::make_pair(table_id, index_id));
+  }
+#endif
 };
 
 /**

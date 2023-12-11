@@ -3125,7 +3125,7 @@ sub mysql_install_db {
   # need to be given to the bootstrap process as well as the
   # server process.
   foreach my $extra_opt ( @opt_extra_mysqld_opt ) {
-    if ($extra_opt =~ /--innodb/) {
+    if ($extra_opt =~ /--innodb|--loose-innodb/) {
       mtr_add_arg($args, $extra_opt);
     }
   }

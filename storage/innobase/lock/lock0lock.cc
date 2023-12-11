@@ -374,7 +374,18 @@ lock_check_trx_id_sanity(
   ut_ad(rec_offs_validate(rec, index, offsets));
   ut_ad(!rec_is_metadata(rec, *index));
 
-  trx_id_t max_trx_id= trx_sys.get_max_trx_id();
+  trx_id_t max_trx_id;
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn && SCN_Mgr::is_scn(trx_id))
+  {
+    max_trx_id= trx_sys.get_max_trx_scn();
+  }
+  else
+#endif
+  {
+    max_trx_id= trx_sys.get_max_trx_id();
+  }
+
   ut_ad(max_trx_id || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN);
 
   if (UNIV_LIKELY(max_trx_id != 0) && UNIV_UNLIKELY(trx_id >= max_trx_id))
@@ -4764,6 +4775,13 @@ lock_print_info_summary(
 
 	fprintf(file, "Trx id counter " TRX_ID_FMT "\n",
 		trx_sys.get_max_trx_id());
+
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn) {
+    fprintf(file, "Trx scn counter " TRX_ID_FMT "\n",
+      trx_sys.get_max_trx_scn());
+  }
+#endif
 
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT

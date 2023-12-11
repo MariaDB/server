@@ -2,6 +2,10 @@
 --source include/innodb_row_format.inc
 --source include/maybe_debug.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 -- echo #
 -- echo # MDEV-15563: Instant ROW_FORMAT=REDUNDANT column type change&extension
 -- echo # (reverted in MDEV-18627)

@@ -216,7 +216,17 @@ TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
   {
     if (!latch.is_write_locked())
     {
-      purgeable= view.changes_visible(trx_id);
+#ifdef WITH_INNODB_SCN
+      if (innodb_use_scn)
+      {
+        ut_a(SCN_Mgr::is_scn(trx_id) || trx_id == TRX_ID_MAX);
+        purgeable= view.sees_version(trx_id);
+      }
+      else
+#endif
+      {
+        purgeable= view.changes_visible(trx_id);
+      }
       xend();
     }
     else
@@ -226,7 +236,17 @@ TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
 #endif
   {
     latch.rd_lock(SRW_LOCK_CALL);
-    purgeable= view.changes_visible(trx_id);
+#ifdef WITH_INNODB_SCN
+    if (innodb_use_scn)
+    {
+      ut_a(SCN_Mgr::is_scn(trx_id) || trx_id == TRX_ID_MAX);
+      purgeable= view.sees_version(trx_id);
+    }
+    else
+#endif
+    {
+      purgeable= view.changes_visible(trx_id);
+    }
     latch.rd_unlock();
   }
   return purgeable;
@@ -579,10 +599,20 @@ TRANSACTIONAL_TARGET void trx_purge_truncate_history()
   purge_sys_t::iterator &head= purge_sys.head.trx_no
     ? purge_sys.head : purge_sys.tail;
 
-  if (head.trx_no >= purge_sys.low_limit_no())
+  trx_id_t limit_no;
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn)
+  {
+    limit_no= purge_sys.version;
+  }
+  else
+#endif
+  limit_no= purge_sys.low_limit_no();
+
+  if (head.trx_no >= limit_no)
   {
     /* This is sometimes necessary. TODO: find out why. */
-    head.trx_no= purge_sys.low_limit_no();
+    head.trx_no= limit_no;
     head.undo_no= 0;
   }
 
@@ -653,7 +683,12 @@ not_free:
       for (const trx_undo_t *undo= UT_LIST_GET_FIRST(rseg.undo_cached); undo;
            undo= UT_LIST_GET_NEXT(undo_list, undo))
       {
+#ifdef WITH_INNODB_SCN
+        if (head.trx_no &&
+            head.trx_no < (innodb_use_scn ? undo->trx_no : undo->trx_id))
+#else
         if (head.trx_no && head.trx_no < undo->trx_id)
+#endif
           goto not_free;
         else
           cached+= undo->size;
@@ -882,7 +917,16 @@ void purge_sys_t::rseg_get_next_history_log()
 #endif
   ut_a(rseg->last_page_no != FIL_NULL);
 
-  tail.trx_no= rseg->last_trx_no() + 1;
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn)
+  {
+    tail.trx_no= rseg->last_trx_no() + 2;
+  }
+  else
+#endif
+  {
+    tail.trx_no= rseg->last_trx_no() + 1;
+  }
   tail.undo_no= 0;
   next_stored= false;
 
@@ -993,7 +1037,11 @@ Get the next record to purge and update the info in the purge system.
 inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
 {
   ut_ad(next_stored);
+#ifdef WITH_INNODB_SCN
+  ut_ad(tail.trx_no < (innodb_use_scn ? version.load() : low_limit_no()));
+#else
   ut_ad(tail.trx_no < low_limit_no());
+#endif
 #ifndef SUX_LOCK_GENERIC
   ut_ad(rseg->latch.is_write_locked());
 #endif
@@ -1074,6 +1122,17 @@ inline trx_purge_rec_t purge_sys_t::fetch_next_rec()
     ut_ad(locked == next_stored);
     if (!locked)
       goto got_nothing;
+#ifdef WITH_INNODB_SCN
+    if (innodb_use_scn)
+    {
+      if (tail.trx_no >= version)
+      {
+        rseg->latch.wr_unlock();
+        goto got_nothing;
+      }
+    }
+    else
+#endif
     if (tail.trx_no >= low_limit_no())
     {
       rseg->latch.wr_unlock();
@@ -1084,7 +1143,12 @@ inline trx_purge_rec_t purge_sys_t::fetch_next_rec()
     roll_ptr= trx_undo_build_roll_ptr(false, trx_sys.rseg_id(rseg, true),
                                       page_no, offset);
   }
+#ifdef WITH_INNODB_SCN
+  else if ((innodb_use_scn ? tail.trx_no >= version
+                           : tail.trx_no >= low_limit_no()))
+#else
   else if (tail.trx_no >= low_limit_no())
+#endif
   got_nothing:
     return {nullptr, 0};
   else

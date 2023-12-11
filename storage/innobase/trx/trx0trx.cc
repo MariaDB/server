@@ -152,6 +152,10 @@ trx_init(
 #ifdef WITH_WSREP
 	ut_ad(!trx->wsrep);
 #endif /* WITH_WSREP */
+#ifdef WITH_INNODB_SCN
+  trx->scn_indexes.clear();
+  trx->scn = TRX_ID_MAX;
+#endif
 }
 
 /** For managing the life-cycle of the trx_t instance that we get
@@ -174,6 +178,10 @@ struct TrxFactory {
 
 		new(&trx->read_view) ReadView();
 
+#ifdef WITH_INNODB_SCN
+    new (&trx->scn_indexes) SCNIndexIds();
+#endif
+
 		trx->rw_trx_hash_pins = 0;
 		trx_init(trx);
 
@@ -195,6 +203,9 @@ struct TrxFactory {
 			&trx_named_savept_t::trx_savepoints);
 
 		trx->mutex_init();
+#ifdef WITH_INNODB_SCN
+    trx->scn_mutex.init();
+#endif
 	}
 
 	/** Release resources held by the transaction object.
@@ -241,6 +252,11 @@ struct TrxFactory {
 		trx->lock.table_locks.~lock_list();
 
 		trx->read_view.~ReadView();
+
+#ifdef WITH_INNODB_SCN
+    trx->scn_indexes.~vector();
+    trx->scn_mutex.destroy();
+#endif
 	}
 };
 
@@ -458,6 +474,9 @@ void trx_t::free()
   MEM_NOACCESS(&detailed_error, sizeof detailed_error);
   MEM_NOACCESS(&magic_n, sizeof magic_n);
   MEM_NOACCESS(&apply_online_log, sizeof apply_online_log);
+#ifdef WITH_INNODB_SCN
+  this->scn_indexes.clear();
+#endif
   trx_pools->mem_free(this);
 }
 
@@ -695,7 +714,25 @@ static dberr_t trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx_sys.rw_trx_hash.insert(trx);
   trx_sys.rw_trx_hash.put_pins(trx);
   if (trx_state_eq(trx, TRX_STATE_ACTIVE))
+  {
     *rows_to_undo+= trx->undo_no;
+#ifdef WITH_INNODB_SCN
+    trx->scn= TRX_ID_MAX;
+#endif
+  }
+#ifdef WITH_INNODB_SCN
+  else
+  {
+    if (undo->trx_no > 0)
+    {
+      trx->scn= undo->trx_no;
+    }
+    else
+    {
+      trx->scn= TRX_ID_MAX;
+    }
+  }
+#endif
   return trx_resurrect_table_locks(trx, *undo);
 }
 
@@ -726,9 +763,46 @@ corrupted:
 		return err;
 	}
 
+#ifdef WITH_INNODB_SCN
+  if (srv_operation == SRV_OPERATION_NORMAL) {
+    if (trx_sys.is_start_from_scn() && !innodb_use_scn) {
+      if (!trx_sys.is_undo_empty()) {
+        sql_print_error(
+            "Can't start with innodb_use_scn=OFF while undo is not empty.");
+        return DB_ERROR;
+      }
+    }
+    if (!trx_sys.is_start_from_scn() && innodb_use_scn) {
+      if (!trx_sys.is_undo_empty()) {
+        sql_print_error(
+            "Can't start with innodb_use_scn=ON while undo is not empty.");
+        return DB_ERROR;
+      }
+    }
+    err = trx_sys.write_using_scn();
+    if (err != DB_SUCCESS) {
+      sql_print_error("Write scn flag failed!");
+      return err;
+    }
+    if (innodb_use_scn)
+    {
+      /* background tasks is only for mariadb server */
+      scn_mgr.init_for_background_task();
+    }
+  }
+  else
+  {
+    /* For mariabackup we always use the status in trx sys page. */
+    innodb_use_scn= (trx_sys.is_start_from_scn() ? TRUE : FALSE);
+  }
+#endif
+
 	if (trx_sys.is_undo_empty()) {
 func_exit:
 		purge_sys.clone_oldest_view<true>();
+#ifdef WITH_INNODB_SCN
+    scn_mgr.set_startup_id(trx_sys.get_min_trx_id());
+#endif
 		return DB_SUCCESS;
 	}
 
@@ -752,6 +826,9 @@ func_exit:
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
 			trx_t *trx = trx_sys.find(0, undo->trx_id, false);
+#ifdef WITH_INNODB_SCN
+      scn_mgr.set_startup_id(undo->trx_id);
+#endif
 			if (!trx) {
 				err = trx_resurrect(undo, &rseg, start_time,
 						    start_time_micro,
@@ -923,6 +1000,9 @@ trx_start_low(
 #ifdef WITH_WSREP
 	trx->xid.null();
 #endif /* WITH_WSREP */
+#ifdef WITH_INNODB_SCN
+  trx->scn = TRX_ID_MAX;
+#endif
 
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
 	ut_a(trx->lock.table_locks.empty());
@@ -1415,6 +1495,42 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     if (id)
     {
       trx_sys.deregister_rw(this);
+
+#ifdef WITH_INNODB_SCN
+      if (!this->scn_indexes.empty())
+      {
+        ut_a(innodb_use_scn);
+        trx_id_t scn= this->scn;
+        if (scn == TRX_ID_MAX)
+        {
+          scn= trx_sys.get_new_trx_scn();
+          trx_sys.refresh_rw_trx_hash_scn_version();
+        }
+
+        for (auto &item : this->scn_indexes)
+        {
+          dict_index_t *index= dict_index_get_by_id(
+              item.first, item.second, this->dict_operation_lock_mode);
+
+          if (index != nullptr)
+          {
+            if (unlikely(index->trx_id > this->id))
+            {
+              trx_id_t curr_scn= scn_mgr.get_scn_fast(index->trx_id);
+
+              if (curr_scn != TRX_ID_MAX)
+              {
+                scn= std::max(curr_scn, scn);
+              }
+            }
+
+            index->trx_scn= scn;
+            index->table->release();
+          }
+        }
+        this->scn_indexes.clear();
+      }
+#endif
 
       /* Wait for any implicit-to-explicit lock conversions to cease,
       so that there will be no race condition in lock_release(). */

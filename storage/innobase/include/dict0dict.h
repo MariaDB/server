@@ -1722,6 +1722,15 @@ bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
 
+/** Get index object by table id and index id
+@param[in]  table_id          table id
+@param[in]  index_id          index id
+@param[in]  dict_sys_locked   dic_sys is locked or not
+@return index, NULL if does not exist */
+dict_index_t *dict_index_get_by_id(table_id_t table_id,
+                                   index_id_t index_id,
+                                   const bool dict_sys_locked);
+
 #include "dict0dict.inl"
 
 #endif

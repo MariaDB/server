@@ -224,13 +224,28 @@ static bool row_undo_mod_must_purge(const undo_node_t &node)
   const btr_cur_t &btr_cur= node.pcur.btr_cur;
   ut_ad(btr_cur.index()->is_primary());
   DEBUG_SYNC_C("rollback_purge_clust");
+#ifdef WITH_INNODB_SCN
+  trx_id_t new_trx_id= (innodb_use_scn ? node.new_scn : node.new_trx_id);
+#else
+  trx_id_t new_trx_id= node.new_trx_id;
+#endif
 
-  if (!purge_sys.is_purgeable(node.new_trx_id))
+  if (!purge_sys.is_purgeable(new_trx_id))
     return false;
 
   const rec_t *rec= btr_cur_get_rec(&btr_cur);
-  return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur.index())) ==
-    node.new_trx_id;
+  trx_id_t trx_id=
+      trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur.index()));
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn && SCN_Mgr::is_scn(trx_id))
+	{
+		return trx_id == node.new_scn;
+	}
+	else
+#endif
+  {
+    return trx_id == node.new_trx_id;
+  }
 }
 
 /***********************************************************//**
@@ -388,7 +403,13 @@ row_undo_mod_clust(
 		mtr.start();
 		if (pcur->restore_position(BTR_MODIFY_LEAF, &mtr)
 		    != btr_pcur_t::SAME_ALL
-		    || !purge_sys.is_purgeable(node->new_trx_id)) {
+		    || !purge_sys.is_purgeable(
+#ifdef WITH_INNODB_SCN
+		          innodb_use_scn ? node->new_scn : node->new_trx_id
+#else
+		          node->new_trx_id
+#endif
+																)) {
 			goto mtr_commit_exit;
 		}
 
@@ -432,7 +453,15 @@ row_undo_mod_clust(
 			ut_ad(len == DATA_TRX_ID_LEN);
 		}
 
-		if (trx_read_trx_id(rec + trx_id_offset) == node->new_trx_id) {
+		trx_id_t rec_trx_id = trx_read_trx_id(rec + trx_id_offset);
+		trx_id_t new_trx_id = node->new_trx_id;
+#ifdef WITH_INNODB_SCN
+		if (innodb_use_scn && SCN_Mgr::is_scn(rec_trx_id))
+		{
+			new_trx_id = node->new_scn;
+		}
+#endif
+		if (rec_trx_id == new_trx_id) {
 			ut_ad(!rec_get_deleted_flag(
 				      rec, dict_table_is_comp(node->table))
 			      || rec_is_alter_metadata(rec, *index));
@@ -1113,6 +1142,12 @@ close_table:
 				       roll_ptr, info_bits,
 				       node->heap, &(node->update));
 	node->new_trx_id = trx_id;
+#ifdef WITH_INNODB_SCN
+	node->new_scn = trx_id;
+	if (innodb_use_scn && !SCN_Mgr::is_scn(trx_id)) {
+	  node->new_scn= scn_mgr.get_scn(trx_id, clust_index, roll_ptr);
+	}
+#endif
 	node->cmpl_info = cmpl_info;
 	ut_ad(!node->ref->info_bits);
 

@@ -376,4 +376,9 @@ page_zip_reset_stat_per_index();
 #include "page0zip.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
+#ifndef UNIV_INNOCHECKSUM
+void page_zip_write_scn(buf_block_t *block, byte *rec, ulint trx_id_offset,
+                        mtr_t *mtr);
+#endif
+
 #endif /* page0zip_h */

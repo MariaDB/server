@@ -3388,3 +3388,19 @@ fil_space_t *fil_space_t::prev_in_unflushed_spaces()
 }
 
 #endif
+
+/** Returns the size of the space in pages. The tablespace must be cached
+in the memory cache.
+@param[in]      space_id        Tablespace ID
+@return space size, 0 if space not found */
+ulint fil_space_get_size(uint32_t space_id)
+{
+  ulint ret= 0;
+  mysql_mutex_lock(&fil_system.mutex);
+  if (fil_space_t *space= fil_space_get_space(space_id))
+  {
+    ret= space->size;
+  }
+  mysql_mutex_unlock(&fil_system.mutex);
+  return ret;
+}

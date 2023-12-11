@@ -764,4 +764,9 @@ private:
   fil_space_t *m_freed_space= nullptr;
   /** set of freed page ids */
   range_set *m_freed_pages= nullptr;
+
+  bool m_in_scn_cleanout= false;
+public:
+  void set_in_scn_cleanout() { m_in_scn_cleanout= true; }
+  bool in_scn_cleanout() { return m_in_scn_cleanout; }
 };

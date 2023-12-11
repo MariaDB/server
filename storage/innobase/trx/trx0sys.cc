@@ -136,6 +136,10 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
     return err;
   ut_a(r->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
 
+#ifdef WITH_INNODB_SCN
+  trx_sys_write_using_scn(block, mtr);
+#endif
+
   return trx_lists_init_at_db_start();
 }
 
@@ -146,6 +150,16 @@ void trx_sys_t::create()
   m_initialised= true;
   trx_list.create();
   rw_trx_hash.init();
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn)
+  {
+    m_trx_id_interval= 2;
+  }
+  else
+  {
+    m_trx_id_interval= 1;
+  }
+#endif
 }
 
 size_t trx_sys_t::history_size()
@@ -362,3 +376,59 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
 
   return total_trx;
 }
+
+#ifdef WITH_INNODB_SCN
+dberr_t trx_sys_write_using_scn(buf_block_t *sys_header, mtr_t *mtr)
+{
+  ut_a(sys_header->get_space_id() == TRX_SYS_SPACE);
+  ut_a(sys_header->get_page_no() == TRX_SYS_PAGE_NO);
+
+  trx_id_t max_trx_id =
+      mach_read_from_8(sys_header->page.frame + TRX_SYS + TRX_SYS_TRX_ID_STORE);
+  if (innodb_use_scn)
+  {
+    ib::info() << "innodb_use_scn=ON";
+    if (max_trx_id & (1ULL << TRX_SYS_TRX_ID_SCN_BIT_POS))
+    {
+      return DB_SUCCESS;
+    }
+    max_trx_id= (max_trx_id | (1ULL << TRX_SYS_TRX_ID_SCN_BIT_POS));
+  }
+  else
+  {
+    ib::info() << "innodb_use_scn=OFF";
+    if (max_trx_id & (1ULL << TRX_SYS_TRX_ID_SCN_BIT_POS))
+    {
+      max_trx_id= (max_trx_id & (~(1ULL << TRX_SYS_TRX_ID_SCN_BIT_POS)));
+    }
+    else
+    {
+      return DB_SUCCESS;
+    }
+  }
+  ib::info() << "set scn status in trx sys page to "
+             << (innodb_use_scn ? "ON" : "OFF");
+  mach_write_to_8(sys_header->page.frame + TRX_SYS + TRX_SYS_TRX_ID_STORE,
+                  max_trx_id);
+  mtr->memcpy(*sys_header, TRX_SYS + TRX_SYS_TRX_ID_STORE, 8);
+  return DB_SUCCESS;
+}
+
+dberr_t trx_sys_t::write_using_scn() {
+  dberr_t err= DB_SUCCESS;
+  if (srv_read_only_mode)
+  {
+    return err;
+  }
+  mtr_t mtr;
+  mtr_start(&mtr);
+  buf_block_t *sys_header=
+      buf_page_get_gen(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO), 0,
+                       RW_X_LATCH, nullptr, BUF_GET, &mtr, &err);
+  if (!sys_header) return err;
+  err = trx_sys_write_using_scn(sys_header, &mtr);
+  mtr_commit(&mtr);
+  log_buffer_flush_to_disk(true);
+  return err;
+}
+#endif /* WITH_INNODB_SCN */
