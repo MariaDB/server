@@ -1955,6 +1955,18 @@ static void trace_engine_stats(handler *file, Json_writer *writer)
   }
 }
 
+static void print_r_icp_filtered(handler *file, Table_access_tracker tracker,
+				 Json_writer *writer)
+{
+  if (file && file->handler_stats && file->pushed_idx_cond)
+  {
+    ha_handler_stats *hs= file->handler_stats;
+    double r_icp_filtered = hs->icp_attempts ?
+      (double)(hs->icp_match) / (double)(hs->icp_attempts) : 1.0;
+    writer->add_member("r_icp_filtered").add_double(r_icp_filtered * 100);
+  }
+}
+
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
@@ -2113,6 +2125,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
     trace_engine_stats(handler_for_stats, writer);
+    print_r_icp_filtered(handler_for_stats, tracker, writer);
   }
 
   /* `filtered` */
