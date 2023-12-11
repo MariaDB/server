@@ -4,6 +4,8 @@ connection master;
 set global binlog_alter_two_phase=true;
 connection slave;
 include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 set global gtid_strict_mode=1;
 # Legacy Master Slave
 connect master_node,127.0.0.1,root,,$db_name, $M_port;
