@@ -453,6 +453,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
+          "r_icp_filtered": 100,
           "filtered": 100,
           "r_filtered": 50,
           "index_condition": "t1.pk < 10",
@@ -1291,3 +1292,417 @@ ANALYZE
 }
 set join_cache_level=@tmp;
 drop table t10, t11;
+#
+# MDEV-18478: ANALYZE for statement should show selectivity of
+#             pushed index condition
+#
+create table t12 (a int, b varchar(10), c int, index(a,b), index(c));
+create table t13 (a int not null primary key, b int, index(b));
+insert into t12(a,b,c) values (1,"abc",100),
+(2,"abd",200),(2,"bfd",300),(2,"efg",400),
+(3,"abc",410),(3,"def",420),(3,"ghi",430),(3,"jkl",440),
+(4,"abc",600),(4,"def",700),(4,"ghi",800),(4,"jkl",900);
+insert into t13(a,b) values(1,1),(2,2),(3,3),(4,4),(5,5);
+analyze table t12;
+Table	Op	Msg_type	Msg_text
+test.t12	analyze	status	Engine-independent statistics collected
+test.t12	analyze	status	OK
+analyze table t13;
+Table	Op	Msg_type	Msg_text
+test.t13	analyze	status	Engine-independent statistics collected
+test.t13	analyze	status	OK
+# eq key condition only, no pushed condition
+analyze format=json select * from t12 where t12.a=2;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# pushed index condition
+analyze format=json select * from t12 where t12.a=2 and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 66.66666667,
+          "filtered": 100,
+          "r_filtered": 100,
+          "index_condition": "t12.b like '%f%'"
+        }
+      }
+    ]
+  }
+}
+# rowid filter only, no pushed condition
+analyze format=json select * from t12 where t12.a=2 and t12.c
+between 400 and 500;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 3,
+            "r_selectivity_pct": 33.33333333,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 41.66666794,
+          "r_filtered": 100,
+          "attached_condition": "t12.c between 400 and 500"
+        }
+      }
+    ]
+  }
+}
+# pushed index condition and rowid filter
+analyze format=json select * from t12 where t12.a=2 and t12.c
+between 400 and 500 and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 2,
+            "r_selectivity_pct": 50,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 66.66666667,
+          "filtered": 41.66666794,
+          "r_filtered": 100,
+          "index_condition": "t12.b like '%f%'",
+          "attached_condition": "t12.c between 400 and 500"
+        }
+      }
+    ]
+  }
+}
+# pushed index condition on the inner table (t12) of a join
+analyze format=json select * from t13,t12
+where t13.a between 1 and 2 and t12.a=t13.a and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t13",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 100,
+          "filtered": 100,
+          "r_filtered": 100,
+          "index_condition": "t13.a between 1 and 2"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t13.a"],
+          "loops": 2,
+          "r_loops": 2,
+          "rows": 3,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 50,
+          "filtered": 100,
+          "r_filtered": 100,
+          "index_condition": "t12.b like '%f%'"
+        }
+      }
+    ]
+  }
+}
+# rowid filter on inner table of a join, no ICP
+analyze format=json select * from t13,t12 where t13.b between 1 and 2 and t12.a=t13.a and t12.c
+between 400 and 450;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t13",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "b"],
+          "key": "b",
+          "key_length": "5",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 100,
+          "filtered": 100,
+          "r_filtered": 100,
+          "index_condition": "t13.b between 1 and 2"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t13.a"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 4,
+            "r_selectivity_pct": 25,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 2,
+          "r_loops": 2,
+          "rows": 3,
+          "r_rows": 0.5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 41.66666794,
+          "r_filtered": 100,
+          "attached_condition": "t12.c between 400 and 450"
+        }
+      }
+    ]
+  }
+}
+# rowid filter and ICP on inner table of a join
+analyze format=json select * from t13,t12 where t13.b between 1 and 2 and t12.a=t13.a and t12.c
+between 400 and 450 and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t13",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "b"],
+          "key": "b",
+          "key_length": "5",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 100,
+          "filtered": 100,
+          "r_filtered": 100,
+          "index_condition": "t13.b between 1 and 2"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t13.a"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 2,
+            "r_selectivity_pct": 50,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 2,
+          "r_loops": 2,
+          "rows": 3,
+          "r_rows": 0.5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "r_icp_filtered": 50,
+          "filtered": 41.66666794,
+          "r_filtered": 100,
+          "index_condition": "t12.b like '%f%'",
+          "attached_condition": "t12.c between 400 and 450"
+        }
+      }
+    ]
+  }
+}
+drop table t12,t13;

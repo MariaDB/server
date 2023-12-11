@@ -6989,11 +6989,13 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   if (unlikely(h->end_range) && h->compare_key2(h->end_range) > 0)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
+  h->active_handler_stats.icp_attempts++;
   res= CHECK_NEG;
   if  (h->pushed_idx_cond->val_int())
   {
     res= CHECK_POS;
     h->fast_increment_statistics(&SSV::ha_icp_match);
+    h->active_handler_stats.icp_match++;
   }
   return res;
 }
