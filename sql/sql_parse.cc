@@ -9371,11 +9371,13 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
 struct kill_threads_callback_arg
 {
-  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg):
-    thd(thd_arg), user(user_arg) {}
+  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg,
+                            killed_state kill_signal_arg):
+    thd(thd_arg), user(user_arg), kill_signal(kill_signal_arg), counter(0) {}
   THD *thd;
   LEX_USER *user;
-  List<THD> threads_to_kill;
+  killed_state kill_signal;
+  uint counter;
 };
 
 
@@ -9398,11 +9400,12 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
       {
         return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
       }
-      if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
-      {
-        mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
-        mysql_mutex_lock(&thd->LOCK_thd_data);
-      }
+      arg->counter++;
+      mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      thd->awake_no_mutex(arg->kill_signal);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
     }
   }
   return 0;
@@ -9412,42 +9415,17 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
 static uint kill_threads_for_user(THD *thd, LEX_USER *user,
                                   killed_state kill_signal, ha_rows *rows)
 {
-  kill_threads_callback_arg arg(thd, user);
+  kill_threads_callback_arg arg(thd, user, kill_signal);
   DBUG_ENTER("kill_threads_for_user");
-
-  *rows= 0;
-
-  if (unlikely(thd->is_fatal_error))        // If we run out of memory
-    DBUG_RETURN(ER_OUT_OF_RESOURCES);
-
   DBUG_PRINT("enter", ("user: %s  signal: %u", user->user.str,
                        (uint) kill_signal));
+
+  *rows= 0;
 
   if (server_threads.iterate(kill_threads_callback, &arg))
     DBUG_RETURN(ER_KILL_DENIED_ERROR);
 
-  if (!arg.threads_to_kill.is_empty())
-  {
-    List_iterator_fast<THD> it2(arg.threads_to_kill);
-    THD *next_ptr;
-    THD *ptr= it2++;
-    do
-    {
-      ptr->awake_no_mutex(kill_signal);
-      /*
-        Careful here: The list nodes are allocated on the memroots of the
-        THDs to be awakened.
-        But those THDs may be terminated and deleted as soon as we release
-        LOCK_thd_kill, which will make the list nodes invalid.
-        Since the operation "it++" dereferences the "next" pointer of the
-        previous list node, we need to do this while holding LOCK_thd_kill.
-      */
-      next_ptr= it2++;
-      mysql_mutex_unlock(&ptr->LOCK_thd_kill);
-      mysql_mutex_unlock(&ptr->LOCK_thd_data);
-      (*rows)++;
-    } while ((ptr= next_ptr));
-  }
+  *rows= arg.counter;
   DBUG_RETURN(0);
 }
 
