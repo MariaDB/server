@@ -3,6 +3,10 @@ Test bad binlog format.
 Test bad default storage engine.
 Test non-numeric value passed to number option.
 Test that bad value for plugin enum option is rejected correctly.
+Test to see if multiple invalid options will be displayed in the error output
+unknown option '--nonexistentoption'
+unknown option '--alsononexistent'
+unknown variable 'nonexistentvariable=1'
 Test that --help --verbose works
 Test that --not-known-option --help --verbose gives error
 Done.

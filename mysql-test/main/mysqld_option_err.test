@@ -46,6 +46,11 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --error 7
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --plugin-dir=$MYSQLTEST_VARDIR/plugins --plugin-load=example=ha_example.so --plugin-example-enum-var=noexist >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
+--echo Test to see if multiple invalid options will be displayed in the error output
+--replace_regex /^((?!nonexistent).)*$// /.*unknown/unknown/ 
+--error 2
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --nonexistentoption --alsononexistent --nonexistentvariable=1 2>&1
+
 #
 # Test that an wrong option with --help --verbose gives an error
 #
