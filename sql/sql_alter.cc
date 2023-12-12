@@ -554,7 +554,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     }
 
     wsrep::key_array keys;
-    if (wsrep_append_fk_parent_table(thd, first_table, &keys))
+    if (!wsrep_append_fk_parent_table(thd, first_table, &keys))
     {
       WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
                                      : first_table->db.str,
