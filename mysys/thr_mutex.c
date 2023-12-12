@@ -665,6 +665,7 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp)
     my_hash_free(mp->used_mutex);
     my_hash_free(mp->locked_mutex);
     my_free(mp->locked_mutex);
+    mp->locked_mutex= 0;
     mp->create_flags|= MYF_NO_DEADLOCK_DETECTION;
   }
 }
