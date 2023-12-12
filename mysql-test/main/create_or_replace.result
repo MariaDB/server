@@ -260,6 +260,7 @@ Note	1051	Unknown table 'test.t1,mysqltest2.t2'
 create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
+InnoDB		0 transactions not purged
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		

@@ -443,7 +443,7 @@ create or replace table t1 (x int) with system versioning;
 select * from t1 for system_time as of current_timestamp;
 x
 select * from t1 for system_time as of now;
-ERROR 42S22: Unknown column 'now' in 'FOR SYSTEM_TIME'
+ERROR HY000: Illegal parameter data type now for operation 'FOR SYSTEM_TIME'
 ### Issue #405, NATURAL JOIN failure
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int);
@@ -707,4 +707,13 @@ No	A	B	C	D
 32	1	1	1	1
 33	1	1	1	1
 34	1	1	1	1
+#
+# MDEV-32082 Server crash in find_field_in_table
+#
+create table t0 (c0 int) with system versioning;
+select x0 from (
+select c0 x0 from t0
+) for system_time as of nowasdf deriv;
+ERROR HY000: Illegal parameter data type nowasdf for operation 'FOR SYSTEM_TIME'
+drop table t0;
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

@@ -1502,6 +1502,7 @@ void trx_t::commit_cleanup()
 
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
+  *detailed_error= '\0';
   mod_tables.clear();
 
   check_foreigns= true;

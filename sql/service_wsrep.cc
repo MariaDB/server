@@ -400,12 +400,7 @@ extern "C" int wsrep_thd_append_table_key(MYSQL_THD thd,
                                     const char* table,
                                     enum Wsrep_service_key_type key_type)
 {
-  wsrep_key_arr_t key_arr = {0, 0};
-  int ret = wsrep_prepare_keys_for_isolation(thd, db, table, NULL, &key_arr);
-  ret = ret || wsrep_thd_append_key(thd, key_arr.keys,
-                                    (int)key_arr.keys_len, key_type);
-  wsrep_keys_free(&key_arr);
-  return ret;
+  return wsrep_append_table_keys(thd, db, table, nullptr, key_type);
 }
 
 extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)

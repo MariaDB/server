@@ -7005,6 +7005,14 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
 	(uint) (field->flags & NOT_NULL_FLAG))
       DBUG_RETURN(false);
 
+    if (field->vcol_info)
+    {
+      if (!tmp_new_field->field->vcol_info)
+        DBUG_RETURN(false);
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info))
+        DBUG_RETURN(false);
+    }
+
     /*
       mysql_prepare_alter_table() clears HA_OPTION_PACK_RECORD bit when
       preparing description of existing table. In ALTER TABLE it is later
@@ -8755,6 +8763,30 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
+        /* If this is DROP FOREIGN KEY without IF EXIST,
+        we can now check does it exists and if not report a error. */
+        if (!drop->drop_if_exists)
+        {
+          List <FOREIGN_KEY_INFO> fk_child_key_list;
+          table->file->get_foreign_key_list(thd, &fk_child_key_list);
+          if (fk_child_key_list.is_empty())
+          {
+	fk_not_found:
+            my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
+                     drop->name);
+            goto err;
+          }
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+          while (FOREIGN_KEY_INFO *f_key= fk_key_it++)
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                              drop->name) == 0)
+              goto fk_found;
+          }
+          goto fk_not_found;
+        fk_found:
+          break;
+        }
         break;
       }
     }
@@ -11734,13 +11766,18 @@ bool check_engine(THD *thd, const char *db_name,
   if (!*new_engine)
     DBUG_RETURN(true);
 
-  /* Enforced storage engine should not be used in
-  ALTER TABLE that does not use explicit ENGINE = x to
-  avoid unwanted unrelated changes.*/
-  if (!(thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
-        !(create_info->used_fields & HA_CREATE_USED_ENGINE)))
-    enf_engine= thd->variables.enforced_table_plugin ?
-       plugin_hton(thd->variables.enforced_table_plugin) : NULL;
+  /*
+    Enforced storage engine should not be used in ALTER TABLE that does not
+    use explicit ENGINE = x to avoid unwanted unrelated changes. It should not
+    be used in CREATE INDEX too.
+  */
+  if (!((thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+             !(create_info->used_fields & HA_CREATE_USED_ENGINE)) ||
+         thd->lex->sql_command == SQLCOM_CREATE_INDEX))
+  {
+    plugin_ref enf_plugin= thd->variables.enforced_table_plugin;
+    enf_engine= enf_plugin ? plugin_hton(enf_plugin) : NULL;
+  }
 
   if (enf_engine && enf_engine != *new_engine)
   {
@@ -11837,8 +11874,18 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
 
 #ifdef WITH_WSREP
+  bool wsrep_ctas= false;
   // If CREATE TABLE AS SELECT and wsrep_on
-  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+  if (WSREP(thd) && (select_lex->item_list.elements ||
+     // Only CTAS may be applied not using TOI.
+     (wsrep_thd_is_applying(thd) && !wsrep_thd_is_toi(thd))))
+  {
+    wsrep_ctas= true;
+
+    // MDEV-22232: Disable CTAS retry by setting the retry counter to the
+    // threshold value.
+    thd->wsrep_retry_counter= thd->variables.wsrep_retry_autocommit;
+  }
 
   // This will be used in THD::decide_logging_format if CTAS
   Enable_wsrep_ctas_guard wsrep_ctas_guard(thd, wsrep_ctas);

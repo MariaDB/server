@@ -283,7 +283,7 @@ int spider_udf_get_copy_tgt_tables(
   }
   do {
     if (!(table_conn = (SPIDER_COPY_TABLE_CONN *)
-      spider_bulk_malloc(spider_current_trx, 25, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_GET_COPY_TGT_TABLES_1, MYF(MY_WME | MY_ZEROFILL),
         &table_conn, (uint) (sizeof(SPIDER_COPY_TABLE_CONN)),
         &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
         &tmp_connect_info,
@@ -601,7 +601,7 @@ int spider_udf_copy_tables_create_table_list(
   }
 
   if (!(copy_tables->link_idxs[0] = (int *)
-    spider_bulk_malloc(spider_current_trx, 26, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_COPY_TABLES_CREATE_TABLE_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &copy_tables->link_idxs[0],
         (uint) (sizeof(int) * copy_tables->link_idx_count[0]),
       &copy_tables->link_idxs[1],
@@ -803,7 +803,7 @@ long long spider_copy_tables_body(
   }
 
   if (!(copy_tables = (SPIDER_COPY_TABLES *)
-    spider_bulk_malloc(spider_current_trx, 27, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_COPY_TABLES_BODY_1, MYF(MY_WME | MY_ZEROFILL),
       &copy_tables, (uint) (sizeof(SPIDER_COPY_TABLES)),
       NullS))
   ) {
@@ -1019,7 +1019,7 @@ long long spider_copy_tables_body(
   {
     tmp_spider = &spider[roop_count];
     if (!(tmp_spider->dbton_handler = (spider_db_handler **)
-      spider_bulk_alloc_mem(spider_current_trx, 205,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_COPY_TABLES_BODY_2,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &tmp_spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
@@ -1040,7 +1040,7 @@ long long spider_copy_tables_body(
     }
 */
     tmp_spider->conns = &table_conn->conn;
-    tmp_sql[roop_count].init_calc_mem(122);
+    tmp_sql[roop_count].init_calc_mem(SPD_MID_COPY_TABLES_BODY_3);
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
@@ -1065,7 +1065,7 @@ long long spider_copy_tables_body(
   {
     tmp_spider = &spider[roop_count];
     if (!(tmp_spider->dbton_handler = (spider_db_handler **)
-      spider_bulk_alloc_mem(spider_current_trx, 206,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_COPY_TABLES_BODY_4,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &tmp_spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
@@ -1086,7 +1086,7 @@ long long spider_copy_tables_body(
     }
 */
     tmp_spider->conns = &table_conn->conn;
-    tmp_sql[roop_count].init_calc_mem(201);
+    tmp_sql[roop_count].init_calc_mem(SPD_MID_COPY_TABLES_BODY_5);
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;

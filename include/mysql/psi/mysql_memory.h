@@ -29,6 +29,7 @@
 */
 
 #include "mysql/psi/psi.h"
+#include "mysql/psi/psi_memory.h"
 
 #ifdef HAVE_PSI_MEMORY_INTERFACE
 #define PSI_CALL_memory_alloc(A1,A2,A3) PSI_MEMORY_CALL(memory_alloc)(A1,A2,A3)

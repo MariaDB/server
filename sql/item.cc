@@ -1368,7 +1368,7 @@ Item *Item_num::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 */
 Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
                                     bool lossless,
-                                    const char *func_name)
+                                    const LEX_CSTRING &func_name)
 {
   DBUG_ASSERT(const_item());
   DBUG_ASSERT(fixed());
@@ -1377,7 +1377,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
   MEM_ROOT *mem_root= thd->mem_root;
 
   if (!s)
-    return new (mem_root) Item_null(thd, (char *) func_name, tocs);
+    return new (mem_root) Item_null(thd, func_name.str, tocs);
 
   if (!needs_charset_converter(s->length(), tocs))
   {
@@ -1388,9 +1388,9 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
   }
 
   uint conv_errors;
-  Item_string *conv= (func_name ?
+  Item_string *conv= (func_name.str ?
                       new (mem_root)
-                      Item_static_string_func(thd, Lex_cstring_strlen(func_name),
+                      Item_static_string_func(thd, func_name,
                                               s, tocs, &conv_errors,
                                               collation.derivation,
                                               collation.repertoire) :
@@ -2674,7 +2674,8 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     if (conv->fix_fields_if_needed(thd, arg))
       return TRUE;
 
-    if (!thd->stmt_arena->is_conventional())
+    if (!thd->stmt_arena->is_conventional() &&
+        thd->lex->current_select->first_cond_optimization)
     {
       Query_arena *arena, backup;
       arena= thd->activate_stmt_arena_if_needed(&backup);

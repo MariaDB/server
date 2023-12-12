@@ -36,7 +36,6 @@ connection slave;
 include/stop_slave.inc
 START SLAVE;
 include/wait_for_slave_sql_to_start.inc
-include/wait_for_slave_io_to_stop.inc
 ==== Verify that Slave IO thread stopped with error ====
 include/wait_for_slave_io_error.inc [errno=1045]
 ==== Cleanup (Note that slave IO thread is not running) ====

@@ -36,7 +36,8 @@ insert into t1 values (3);
 --connection slave
 --source include/start_slave.inc
 
---let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(-1)%' and  command LIKE 'Slave_worker';
+# Wildcard for `state` as it depends on whether WSREP is compiled in or not.
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%)%' and  command LIKE 'Slave_worker';
 --source include/wait_condition.inc
 --let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for prior transaction to commit%' and  command LIKE 'Slave_worker';
 --source include/wait_condition.inc
@@ -50,8 +51,8 @@ insert into t1 values (3);
 commit;
 
 --connection slave
---let $slave_timeout=1032
---source include/wait_for_slave_sql_to_stop.inc
+--let $slave_sql_errno=1032
+--source include/wait_for_slave_sql_error.inc
 
 update t1 set a=1 where a=2;
 set @@global.slave_parallel_threads = @save.slave_parallel_threads;

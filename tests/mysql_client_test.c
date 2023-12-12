@@ -21961,6 +21961,44 @@ static void test_mdev_30159()
   myquery(rc);
 }
 
+/*
+  Check that server_status returned after connecting to server
+  is consistent with the value of autocommit variable.
+*/
+static void test_connect_autocommit()
+{
+  int rc;
+  my_bool autocommit[]= {0, 1};
+  int i;
+  rc= mysql_query(mysql, "SET @save_autocommit=@@global.autocommit");
+  myquery(rc);
+  for (i= 0; i < 2; i++)
+  {
+    MYSQL *con;
+    char query[100];
+    int autocommit_val;
+
+    con= mysql_client_init(NULL);
+    DIE_UNLESS(con);
+    autocommit_val = autocommit[i];
+    snprintf(query, sizeof(query), "SET global autocommit=%d", autocommit_val);
+    rc= mysql_query(mysql, query);
+    myquery(rc);
+
+    if (!(mysql_real_connect(con, opt_host, opt_user, opt_password, current_db,
+                             opt_port, opt_unix_socket, 0)))
+    {
+      fprintf(stderr, "Failed to connect to database: Error: %s\n",
+              mysql_error(con));
+      exit(1);
+    }
+    DIE_UNLESS(!!(con->server_status & SERVER_STATUS_AUTOCOMMIT) == autocommit_val);
+    mysql_close(con);
+  }
+  rc= mysql_query(mysql, "SET global autocommit=@save_autocommit");
+  myquery(rc);
+}
+
 static void test_execute_direct()
 {
 #ifndef EMBEDDED_LIBRARY
@@ -22396,6 +22434,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
   { "test_mdev_30159", test_mdev_30159 },
+  { "test_connect_autocommit", test_connect_autocommit},
   { "test_execute_direct", test_execute_direct },
   { "test_cache_metadata", test_cache_metadata},
   { 0, 0 }

@@ -28,6 +28,7 @@
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
 #include "sql_time.h"
+#include "sql_schema.h"
 #include "mem_root_array.h"
 
 #include "cset_narrowing.h"
@@ -1957,7 +1958,8 @@ public:
                                        QT_ITEM_IDENT_SKIP_DB_NAMES |
                                        QT_ITEM_IDENT_SKIP_TABLE_NAMES |
                                        QT_NO_DATA_EXPANSION |
-                                       QT_TO_SYSTEM_CHARSET),
+                                       QT_TO_SYSTEM_CHARSET |
+                                       QT_FOR_FRM),
                      LOWEST_PRECEDENCE);
   }
   virtual void print(String *str, enum_query_type query_type);
@@ -2533,9 +2535,9 @@ public:
     return needs_charset_converter(1, tocs);
   }
   Item *const_charset_converter(THD *thd, CHARSET_INFO *tocs, bool lossless,
-                                const char *func_name);
+                                const LEX_CSTRING &func_name);
   Item *const_charset_converter(THD *thd, CHARSET_INFO *tocs, bool lossless)
-  { return const_charset_converter(thd, tocs, lossless, NULL); }
+  { return const_charset_converter(thd, tocs, lossless, null_clex_str); }
   void delete_self()
   {
     cleanup();
@@ -4583,7 +4585,8 @@ public:
   }
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
-    return const_charset_converter(thd, tocs, true, func_name);
+    return const_charset_converter(thd, tocs, true, {func_name, 
+                                                     strlen(func_name)});
   }
 };
 
@@ -4792,7 +4795,7 @@ public:
   {}
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
-    return const_charset_converter(thd, tocs, true, func_name.str);
+    return const_charset_converter(thd, tocs, true, func_name);
   }
 
   void print(String *str, enum_query_type) override
@@ -5477,6 +5480,14 @@ public:
     if (walk_args(processor, walk_subquery, arg))
       return true;
     return (this->*processor)(arg);
+  }
+  /*
+    Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema
+  */
+  virtual const Schema *schema() const
+  {
+    // A function does not belong to a built-in schema by default
+    return NULL;
   }
   /*
     This method is used for debug purposes to print the name of an

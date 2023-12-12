@@ -1,0 +1,46 @@
+--echo #
+--echo # MDEV-26247 Spider: Valid LEFT JOIN results in ERROR 1064
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE t1 (a int) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+eval CREATE TABLE t2 (a int) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+eval CREATE TABLE t3 (a int) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1), (2);
+INSERT INTO t3 VALUES (1), (2), (3);
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE t1 (a int) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='srv "s_2_1", table "t1"';
+eval CREATE TABLE t2 (a int) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='srv "s_2_1", table "t2"';
+eval CREATE TABLE t3 (a int) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='srv "s_2_1", table "t3"';
+
+select * from t3 left join t1 on t3.a = t1.a left join t2 on t3.a = t2.a;
+select * from t1 left join t2 on t1.a = t2.a right join t3 on t3.a = t1.a;
+select * from t3 left join (t1 left join t2 on t1.a = t2.a) on t3.a = t1.a;
+
+drop table t1, t2, t3;
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

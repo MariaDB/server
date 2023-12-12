@@ -101,7 +101,12 @@ START SLAVE UNTIL RELAY_LOG_FILE='slave-relay-bin.000002', MASTER_LOG_POS=561;
 --replace_result 740 MASTER_LOG_POS
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=740;
 
---source include/stop_slave.inc
+# Explicit wait for slave thread start and then stop. Otherwise the STOP SLAVE
+# command can abort the slave connecting to the master, and an error state
+# left which makes stop_slave.inc throw an error.
+--source include/wait_for_slave_io_to_start.inc
+--source include/wait_for_slave_sql_to_stop.inc
+--source include/stop_slave_io.inc
 RESET SLAVE;
 --source include/start_slave.inc
 

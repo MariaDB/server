@@ -211,7 +211,7 @@ SET sql_log_bin=0;
 call mtr.add_suppression("Failed to load slave replication state from table");
 call mtr.add_suppression("Unable to load replication GTID slave state");
 SET sql_log_bin=1;
-
+--let rpl_allow_error= 1
 --source include/start_slave.inc
 --connection server_1
 INSERT INTO t1 VALUES (9);

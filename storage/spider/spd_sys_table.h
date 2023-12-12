@@ -28,20 +28,6 @@
 #define SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN 20
 #define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR "spider_table_position_for_recovery"
 #define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN 34
-#define SPIDER_SYS_TABLE_STS_TABLE_NAME_STR "spider_table_sts"
-#define SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN 16
-#define SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR "spider_table_crd"
-#define SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN 16
-#define SPIDER_SYS_RW_TBLS_TABLE_NAME_STR "spider_rewrite_tables"
-#define SPIDER_SYS_RW_TBLS_TABLE_NAME_LEN 21
-#define SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR "spider_rewrite_table_tables"
-#define SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_LEN 27
-#define SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR "spider_rewrite_table_partitions"
-#define SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_LEN 31
-#define SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR "spider_rewrite_table_subpartitions"
-#define SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_LEN 34
-#define SPIDER_SYS_RWN_TBLS_TABLE_NAME_STR "spider_rewritten_tables"
-#define SPIDER_SYS_RWN_TBLS_TABLE_NAME_LEN 23
 
 #define SPIDER_SYS_XA_PREPARED_STR "PREPARED"
 #define SPIDER_SYS_XA_NOT_YET_STR "NOT YET"
@@ -65,11 +51,6 @@
 #define SPIDER_SYS_TABLE_STS_PK_COL_CNT 2
 #define SPIDER_SYS_TABLE_CRD_COL_CNT 4
 #define SPIDER_SYS_TABLE_CRD_PK_COL_CNT 3
-#define SPIDER_SYS_RW_TBLS_COL_CNT 3
-#define SPIDER_SYS_RW_TBL_TBLS_COL_CNT 8
-#define SPIDER_SYS_RW_TBL_PTTS_COL_CNT 7
-#define SPIDER_SYS_RW_TBL_SPTTS_COL_CNT 8
-#define SPIDER_SYS_RWN_TBLS_COL_CNT 4
 
 #define SPIDER_SYS_LINK_MON_TABLE_DB_NAME_SIZE 64
 #define SPIDER_SYS_LINK_MON_TABLE_TABLE_NAME_SIZE 64
@@ -316,21 +297,6 @@ int spider_insert_sys_table(
   TABLE *table
 );
 
-int spider_insert_or_update_table_sts(
-  TABLE *table,
-  const char *name,
-  uint name_length,
-  ha_statistics *stat
-);
-
-int spider_insert_or_update_table_crd(
-  TABLE *table,
-  const char *name,
-  uint name_length,
-  longlong *cardinality,
-  uint number_of_keys
-);
-
 int spider_log_tables_link_failed(
   TABLE *table,
   char *name,
@@ -474,17 +440,6 @@ int spider_get_sys_tables_static_link_id(
   MEM_ROOT *mem_root
 );
 
-void spider_get_sys_table_sts_info(
-  TABLE *table,
-  ha_statistics *stat
-);
-
-void spider_get_sys_table_crd_info(
-  TABLE *table,
-  longlong *cardinality,
-  uint number_of_keys
-);
-
 int spider_sys_update_tables_link_status(
   THD *thd,
   char *name,
@@ -534,54 +489,6 @@ int spider_get_link_statuses(
   TABLE *table,
   SPIDER_SHARE *share,
   MEM_ROOT *mem_root
-);
-
-int spider_sys_insert_or_update_table_sts(
-  THD *thd,
-  const char *name,
-  uint name_length,
-  ha_statistics *stat,
-  bool need_lock
-);
-
-int spider_sys_insert_or_update_table_crd(
-  THD *thd,
-  const char *name,
-  uint name_length,
-  longlong *cardinality,
-  uint number_of_keys,
-  bool need_lock
-);
-
-int spider_sys_delete_table_sts(
-  THD *thd,
-  const char *name,
-  uint name_length,
-  bool need_lock
-);
-
-int spider_sys_delete_table_crd(
-  THD *thd,
-  const char *name,
-  uint name_length,
-  bool need_lock
-);
-
-int spider_sys_get_table_sts(
-  THD *thd,
-  const char *name,
-  uint name_length,
-  ha_statistics *stat,
-  bool need_lock
-);
-
-int spider_sys_get_table_crd(
-  THD *thd,
-  const char *name,
-  uint name_length,
-  longlong *cardinality,
-  uint number_of_keys,
-  bool need_lock
 );
 
 int spider_sys_replace(

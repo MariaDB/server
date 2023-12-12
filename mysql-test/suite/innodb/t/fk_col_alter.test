@@ -149,4 +149,18 @@ ALTER TABLE t2 DROP INDEX idx;
 ALTER TABLE t2 MODIFY f2 VARCHAR(1023);
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-32638 MariaDB crashes with foreign_key_checks=0
+--echo #	when changing a column and adding a foreign
+--echo #		key at the same time
+--echo #
+CREATE TABLE t1(f1 VARCHAR(2) NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+                f2 VARCHAR(10) NOT NULL DEFAULT '')ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t2 CHANGE COLUMN f2 f3 VARCHAR(20) NOT NULL,
+        ADD CONSTRAINT t2_fk FOREIGN KEY(f3) REFERENCES t1(f1);
+DROP TABLE t2, t1;
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 --echo # End of 10.4 tests

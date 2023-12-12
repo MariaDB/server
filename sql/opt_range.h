@@ -1592,7 +1592,6 @@ private:
   uchar *group_prefix;    /* Key prefix consisting of the GROUP fields. */
   const uint group_prefix_len; /* Length of the group prefix. */
   uint group_key_parts;  /* A number of keyparts in the group prefix */
-  uchar *last_prefix;     /* Prefix of the last group for detecting EOF. */
   bool have_min;         /* Specify whether we are computing */
   bool have_max;         /*   a MIN, a MAX, or both.         */
   bool have_agg_distinct;/*   aggregate_function(DISTINCT ...).  */

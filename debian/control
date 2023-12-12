@@ -1,7 +1,7 @@
 Source: mariadb-10.6
 Section: database
 Priority: optional
-Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
+Maintainer: MariaDB Developers <developers@lists.mariadb.org>
 Build-Depends: bison,
                cmake,
                cracklib-runtime <!nocheck>,
