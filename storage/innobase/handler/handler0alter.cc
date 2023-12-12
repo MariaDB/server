@@ -2155,12 +2155,16 @@ innodb_instant_alter_column_allowed_reason:
 		}
 	}
 
+	bool need_rebuild = false;
+
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
-		if (alter_options_need_rebuild(ha_alter_info, table)) {
+		if ((srv_file_per_table && !m_prebuilt->table->space_id)
+		    || alter_options_need_rebuild(ha_alter_info, table)) {
 			reason_rebuild = my_get_err_msg(
 				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
 			ha_alter_info->unsupported_reason = reason_rebuild;
+			need_rebuild= true;
 			break;
 		}
 		/* fall through */
@@ -2272,7 +2276,7 @@ innodb_instant_alter_column_allowed_reason:
 
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE) or without rebuild. */
-	bool online = true, need_rebuild = false;
+	bool online = true;
 	const uint fulltext_indexes = innobase_fulltext_exist(altered_table);
 
 	/* Fix the key parts. */
