@@ -1,0 +1,32 @@
+# MDEV-30908 - Test INVOKING_USER() function
+#
+# Check that INVOKING_USER() and the ORA_INVOKING_USER() alias
+# returns the right user and host matching the content of
+# `mysql.user` table for the user executing the stored procedure.
+
+-- source include/not_embedded.inc
+
+--echo # Create a stored procedure which calls the different functions to retrieve the user
+CREATE FUNCTION test.func_invoking_user() RETURNS CHAR(80) SQL SECURITY DEFINER RETURN CONCAT(USER(), '; ', CURRENT_USER(), '; ', INVOKING_USER(), '; ' , ORA_INVOKING_USER());
+--echo # Create a view which calls the different functions to retrieve the user
+CREATE SQL SECURITY DEFINER VIEW test.view_invoking_user AS SELECT USER(), CURRENT_USER(), INVOKING_USER, ORA_INVOKING_USER;
+
+--echo # Create test_user
+CREATE USER 'test_user'@'%';
+GRANT EXECUTE, SELECT ON test.* TO 'test_user'@'%';
+
+--echo # Connect as test_user
+connect (test_user_con,localhost,test_user,,);
+
+--echo # Check the function called directly
+SELECT CURRENT_USER(), USER(), INVOKING_USER(), ORA_INVOKING_USER();
+--echo # Check the function inside of a stored procedure
+SELECT test.func_invoking_user();
+--echo # Check the function inside of a view
+SELECT * FROM test.view_invoking_user;
+
+--echo # Cleanup
+--connection default
+DROP USER 'test_user'@'%';
+DROP FUNCTION test.func_invoking_user;
+DROP VIEW test.view_invoking_user;

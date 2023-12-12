@@ -547,6 +547,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> INTERVAL_SYM                  /* SQL-2003-R */
 %token  <kwd> INTO                          /* SQL-2003-R */
 %token  <kwd> INT_SYM                       /* SQL-2003-R */
+%token  <kwd> INVOKING_USER_SYM
 %token  <kwd> IS                            /* SQL-2003-R */
 %token  <kwd> ITERATE_SYM
 %token  <kwd> JOIN_SYM                      /* SQL-2003-R */
@@ -600,6 +601,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> ORDER_SYM                     /* SQL-2003-R */
 %token  <kwd> ORDINALITY_SYM                /* SQL-2003-N */
 %token  <kwd> OR_SYM                        /* SQL-2003-R */
+%token  <kwd> ORA_INVOKING_USER_SYM
 %token  <kwd> OTHERS_ORACLE_SYM             /* SQL-2011-N, PLSQL-R */
 %token  <kwd> OUTER
 %token  <kwd> OUTFILE
@@ -10478,6 +10480,18 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | INVOKING_USER_SYM optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_invoking_user(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | ORA_INVOKING_USER_SYM optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_invoking_user(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         ;
 
 /*
@@ -16432,6 +16446,7 @@ reserved_keyword_udt_not_param_type:
         | INTO
         | IS
         | ITERATE_SYM
+        | INVOKING_USER_SYM
         | JOIN_SYM
         | KEYS
         | KEY_SYM
@@ -16474,6 +16489,7 @@ reserved_keyword_udt_not_param_type:
         | OPTIONALLY
         | ORDER_SYM
         | OR_SYM
+        | ORA_INVOKING_USER_SYM
         | OTHERS_ORACLE_SYM
         | OUTER
         | OUTFILE
