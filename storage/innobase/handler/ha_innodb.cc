@@ -21199,6 +21199,10 @@ Compare_keys ha_innobase::compare_key_parts(
     if (old_part.length >= new_part.length)
       return Compare_keys::NotEqual;
 
+    if (old_part.length == old_field.key_length() &&
+        new_part.length != new_field.key_length)
+      return Compare_keys::NotEqual;
+
     return Compare_keys::EqualButKeyPartLength;
   }
 
