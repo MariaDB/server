@@ -10,7 +10,7 @@ rmdir $targetdir;
 # backup fails without --no-lock, because of FTWRL
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log;
@@ -31,7 +31,7 @@ rmdir $targetdir;
 # --slave-info and galera info require REPLICA MONITOR
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 rmdir $targetdir;
 
@@ -47,16 +47,15 @@ REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
 
 # TODO need a query that would delay a BACKUP STAGE START/ BACKUP STAGE BLOCK_COMMIT longer than the kill-long-queries-timeout
 #--send SELECT SLEEP(9) kill_me
-## kill-long-query-type=(not empty) requires CONNECTION ADMIN
-#--disable_result_log
-#error 1;
-#--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup  --kill-long-query-type=all --kill-long-queries-timeout=4 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
-#--reap
-#--enable_result_log
-#rmdir $targetdir;
-#
-#--let SEARCH_PATTERN=  missing required privilege CONNECTION ADMIN
-#--source include/search_pattern_in_file.inc
+
+# kill-long-query-type=(not empty) requires CONNECTION ADMIN
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --kill-long-query-type=ALL --kill-long-queries-timeout=4 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+--enable_result_log
+rmdir $targetdir;
+
+--let SEARCH_PATTERN= missing required privilege CONNECTION ADMIN
+--source include/search_pattern_in_file.inc
 
 GRANT CONNECTION ADMIN ON *.* TO backup@localhost;
 --disable_result_log
