@@ -56,4 +56,7 @@ bool mysql_xa_recover(THD *thd);
 void xa_recover_get_fields(THD *thd, List<Item> *field_list,
                            my_hash_walk_action *action);
 
+XID_cache_element *xid_cache_search(THD *thd, XID *xid);
+void xid_cache_delete(THD *thd, XID_cache_element *&element);
+
 #endif /* XA_INCLUDED */

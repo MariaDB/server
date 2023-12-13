@@ -566,6 +566,8 @@ enum legacy_db_type
  */
 #define DB_TYPE_AUTOASSIGN DB_TYPE_UNKNOWN
 
+enum xa_binlog_state {XA_PREPARE=0, XA_COMPLETE};
+
 enum row_type { ROW_TYPE_NOT_USED=-1, ROW_TYPE_DEFAULT, ROW_TYPE_FIXED,
 		ROW_TYPE_DYNAMIC, ROW_TYPE_COMPRESSED,
 		ROW_TYPE_REDUNDANT, ROW_TYPE_COMPACT, ROW_TYPE_PAGE };
@@ -955,6 +957,18 @@ struct xid_t {
   }
 };
 typedef struct xid_t XID;
+
+/*
+  Struct to describe the user XA state for recovery.
+*/
+struct xa_recovery_member
+{
+  XID xid;
+  enum xa_binlog_state state;  // xid's binlog status - prepared or completed
+  uint in_engine_prepare;      // number of engines that have xid prepared
+};
+
+
 
 /*
   Enumerates a sequence in the order of
@@ -5393,7 +5407,7 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
-int ha_recover(HASH *commit_list, MEM_ROOT *mem_root= NULL);
+int ha_recover(HASH *commit_list, HASH *xa_recover_list, uint *xa_recover_htons, MEM_ROOT *mem_root= NULL);
 uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord= NULL);
 
 /* transactions: these functions never call handlerton functions directly */
@@ -5520,10 +5534,17 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
-uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
+uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info, bool count_through);
 bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
+xa_recovery_member*
+xa_member_insert(HASH *hash_arg, xid_t *xid_arg, xa_binlog_state state_arg,
+              MEM_ROOT *ptr_mem_root);
+
+/* Inserts or updates an existing hash member with a proper state */
+bool xa_member_replace(HASH *hash_arg, xid_t *xid_arg, bool is_prepare,
+                              bool from_engine, MEM_ROOT *ptr_mem_root);
 
 #endif /* HANDLER_INCLUDED */

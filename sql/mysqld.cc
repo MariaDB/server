@@ -5363,7 +5363,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 
-  if (ha_recover(0))
+  if (ha_recover(0, 0, NULL))
     unireg_abort(1);
 
 #ifndef EMBEDDED_LIBRARY
@@ -5771,6 +5771,7 @@ int mysqld_main(int argc, char **argv)
 
   initialize_information_schema_acl();
 
+
   /*
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no
     point in using ORIGINAL during startup
@@ -5833,12 +5834,15 @@ int mysqld_main(int argc, char **argv)
   {
     unireg_abort(1);
   }
+  
 
   if (opt_init_file && *opt_init_file)
   {
     if (read_init_file(opt_init_file))
       unireg_abort(1);
   }
+
+  tc_log->execute_xa_for_recovery();
 
   disable_log_notes= 0; /* Startup done, now we can give notes again */
 

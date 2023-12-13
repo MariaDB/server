@@ -1418,7 +1418,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
     transaction the handlerton is inserted into the list past its head.
   */
   bool link_past_head=
-    unlikely(thd->transaction.xid_state.is_explicit_XA() &&
+    unlikely(thd->transaction->xid_state.is_explicit_XA() &&
              trans->ha_list && trans->ha_list->ht() == binlog_hton);
   ha_info->register_ha(trans, ht_arg, link_past_head);
 
@@ -1535,17 +1535,18 @@ int ha_prepare(THD *thd)
   context.
   Also returns the last found rw ha_info through the 2nd argument.
 */
-uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
+uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info, bool count_through)
 {
   unsigned rw_ha_count= 0;
 
   for (auto ha_info= thd->transaction->all.ha_list; ha_info;
        ha_info= ha_info->next())
   {
-    if (ha_info->is_trx_read_write())
+    if (ha_info->is_trx_read_write() && ha_info->ht()->recover)
     {
-      *ptr_ha_info= ha_info;
-      if (++rw_ha_count > 1)
+      if (ptr_ha_info)
+        *ptr_ha_info= ha_info;
+      if (++rw_ha_count > 1 && !count_through)
         break;
     }
   }
@@ -2348,25 +2349,19 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
   xaop.xid= xid;
   xaop.result= 1;
 
- if (binlog_hton->recover)
- {
-    /*
-      When the binlogging service is enabled complete the transaction
-      by it first.
-    */
-    if (commit)
-      binlog_commit_by_xid(binlog_hton, xid);
-    else
-      binlog_rollback_by_xid(binlog_hton, xid);
- }
+  /*
+    When the binlogging service is enabled complete the transaction
+    by it first.
+  */
+  if (commit)
+    binlog_commit_by_xid(binlog_hton, xid);
+  else
+    binlog_rollback_by_xid(binlog_hton, xid);
 
   plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
-  if (binlog_hton->recover)
-  {
-    THD *thd= current_thd;
-    thd->reset_binlog_completed_by_xid();
-  }
+
+  current_thd->reset_binlog_completed_by_xid();
 
   return xaop.result;
 }
@@ -2474,13 +2469,16 @@ static my_xid wsrep_order_and_check_continuity(XID *list, int len)
     - automatic recovery for the semisync slave server: uncommitted
     transactions are rolled back and when they are in binlog it gets
     truncated to the first uncommitted transaction start offset.
+    - TODO Write
 */
 struct xarecover_st
 {
   int len, found_foreign_xids, found_my_xids;
   XID *list;
   HASH *commit_list;
+  HASH *xa_prepared_list; // prepared user xa list
   bool dry_run;
+  uint recover_htons;     // number of recoverable htons for XA recovery
   MEM_ROOT *mem_root;
   bool error;
 };
@@ -2533,6 +2531,73 @@ static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
   else
     member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, full_xid_arg,  server_id_arg);
 
+  return member == NULL;
+}
+
+/**
+  Auxiliary function for TC_LOG::recover().
+  @returns a successfully created and inserted @c xa_recovery_member
+             into hash @c hash_arg,
+           or NULL.
+*/
+xa_recovery_member*
+xa_member_insert(HASH *hash_arg, xid_t *xid_arg, xa_binlog_state state_arg,
+              MEM_ROOT *ptr_mem_root)
+{
+  xa_recovery_member *member= (xa_recovery_member*)
+    alloc_root(ptr_mem_root, sizeof(xa_recovery_member));
+  if (!member)
+    return NULL;
+
+  member->xid.set(xid_arg);
+  member->state= state_arg;
+  member->in_engine_prepare= 0;
+  return my_hash_insert(hash_arg, (uchar*) member) ? NULL : member;
+}
+
+/* Inserts or updates an existing hash member with a proper state */
+bool xa_member_replace(HASH *hash_arg, xid_t *xid_arg, bool is_prepare,
+                       bool from_engine, MEM_ROOT *ptr_mem_root)
+{
+  xa_recovery_member* member;
+  if(is_prepare)
+  {
+    if (!(member= (xa_recovery_member *) my_hash_search(
+             hash_arg, xid_arg->key(), xid_arg->key_length())))
+    {
+      /*
+        No member exists for this xid, so create one (func will return with err
+        if allocation fails)
+      */
+      member= xa_member_insert(hash_arg, xid_arg, XA_PREPARE, ptr_mem_root);
+    }
+  }
+  else
+  {
+    /*
+      Search if XID is already present in recovery_list. If found
+      and the state is 'XA_PREPRAED' mark it as XA_COMPLETE.
+      Effectively, there won't be XA-prepare event group replay.
+    */
+    if ((member= (xa_recovery_member *)
+         my_hash_search(hash_arg, xid_arg->key(), xid_arg->key_length())))
+    {
+      if (member->state == XA_PREPARE)
+        member->state= XA_COMPLETE;
+    }
+    else // We found only XA COMMIT during recovery insert to list
+    {
+      member= xa_member_insert(hash_arg, xid_arg, XA_COMPLETE, ptr_mem_root);
+    }
+  }
+
+  if (member && from_engine)
+    member->in_engine_prepare++;
+
+  /*
+    Return with err if member wasn't allocated; otherwise
+    return success
+  */
   return member == NULL;
 }
 
@@ -2678,6 +2743,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
 
   if (hton->recover)
   {
+    info->recover_htons++;
     while ((got= hton->recover(hton, info->list, info->len)) > 0 )
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
@@ -2722,7 +2788,33 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
             _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
           xid_cache_insert(info->list + i);
+          XID *foreign_xid= info->list + i;
+
           info->found_foreign_xids++;
+          /*
+            For each foreign xid prepraed in engine, check if it is present in
+            xa_prepared_list of binlog.
+          */
+          if (info->xa_prepared_list)
+          {
+            /*
+              TODO Mark the specific engine so we can decide to replay on a
+              per-engine basis
+            */
+            if (xa_member_replace(info->xa_prepared_list, foreign_xid, true,
+                                  true, info->mem_root))
+              break;
+
+
+            // &xa_recover_list, &gev->xid,
+            //                 gev->flags2 & Gtid_log_event::FL_PREPARED_XA,
+            //                 &mem_root))
+            //if ((member= (xa_recovery_member *) my_hash_search(
+            //         info->xa_prepared_list, foreign_xid->key(),
+            //         foreign_xid->key_length())))
+            //  member->in_engine_prepare++;
+          }
+
           continue;
         }
         if (IF_WSREP(!(wsrep_emulate_bin_log &&
@@ -2785,14 +2877,17 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
   return FALSE;
 }
 
-int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
+int ha_recover(HASH *commit_list, HASH *xa_prepared_list, uint *ptr_count,
+               MEM_ROOT *arg_mem_root)
 {
   struct xarecover_st info;
   DBUG_ENTER("ha_recover");
   info.found_foreign_xids= info.found_my_xids= 0;
   info.commit_list= commit_list;
+  info.xa_prepared_list= xa_prepared_list;
   info.dry_run= (info.commit_list==0 && tc_heuristic_recover==0);
   info.list= NULL;
+  info.recover_htons= 0;
   info.mem_root= arg_mem_root;
   info.error= false;
 
@@ -2824,6 +2919,9 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   plugin_foreach(NULL, xarecover_handlerton, 
                  MYSQL_STORAGE_ENGINE_PLUGIN, &info);
 
+  if (ptr_count)
+    *ptr_count= info.recover_htons;
+
   my_free(info.list);
   if (info.found_foreign_xids)
     sql_print_warning("Found %d prepared XA transactions", 
@@ -2842,7 +2940,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   if (info.error)
     DBUG_RETURN(1);
 
-  if (info.commit_list)
+  if (info.commit_list && !info.found_foreign_xids)
     sql_print_information("Crash table recovery finished.");
   DBUG_RETURN(0);
 }

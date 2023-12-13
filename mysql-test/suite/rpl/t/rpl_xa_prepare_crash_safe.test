@@ -23,9 +23,15 @@
 # MDEV-21469: Implement crash-safe logging of the user XA
 
 
+--source include/have_metadata_lock_info.inc
 --source include/have_innodb.inc
---source include/master-slave.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
 
 connect (master2,localhost,root,,);
 --connection master
