@@ -3889,6 +3889,7 @@ static const char *old_mode_names[]=
   "COMPAT_5_1_CHECKSUM",                // deprecated since 11.3
   "NO_NULL_COLLATION_IDS",              // deprecated since 11.3
   "LOCK_ALTER_TABLE_COPY",              // deprecated since 11.3
+  "SESSION_USER_IS_USER",
   0
 };
 

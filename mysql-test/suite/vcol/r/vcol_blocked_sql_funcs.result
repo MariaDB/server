@@ -119,7 +119,7 @@ create or replace table t1 (a varchar(32) as (schema()) PERSISTENT);
 ERROR HY000: Function or expression 'database()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # SESSION_USER()
 create or replace table t1 (a varchar(32) as (session_user()) PERSISTENT);
-ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+ERROR HY000: Function or expression 'session_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # SLEEP()
 create or replace table t1 (a int, b int as (sleep(a)));
 ERROR HY000: Function or expression 'sleep()' cannot be used in the GENERATED ALWAYS AS clause of `b`
