@@ -1266,7 +1266,13 @@ bool wsrep_sync_wait(THD* thd, enum enum_sql_command command)
   return res;
 }
 
-void wsrep_keys_free(wsrep_key_arr_t* key_arr)
+typedef struct wsrep_key_arr
+{
+    wsrep_key_t* keys;
+    size_t       keys_len;
+} wsrep_key_arr_t;
+
+static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 {
     for (size_t i= 0; i < key_arr->keys_len; ++i)
     {
@@ -1282,7 +1288,7 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
  * @param tables list of tables
  * @param keys   prepared keys
 
- * @return true if parent table append was successfull, otherwise false.
+ * @return 0 if parent table append was successful, non-zero otherwise.
 */
 bool
 wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
@@ -1331,6 +1337,8 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
     }
 
 exit:
+    DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
+
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -1341,6 +1349,24 @@ exit:
       table->mdl_request.ticket= NULL;
     }
 
+    /*
+      MDEV-32938: Check if DDL operation has been killed before.
+
+      It may be that during collecting foreign keys this operation gets BF-aborted
+      by another already-running TOI operation because it got MDL locks on the same
+      table for checking foreign keys.
+      After `close_thread_tables()` has been called it's safe to assume that no-one
+      can BF-abort this operation as it's not holding any MDL locks any more.
+    */
+    if (!fail)
+    {
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
+      if (thd->killed)
+      {
+        fail= true;
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    }
     return fail;
 }
 
@@ -1516,18 +1542,30 @@ err:
 }
 
 /*
- * Prepare key list from db/table and table_list
+ * Prepare key list from db/table and table_list and append it to Wsrep
+ * with the given key type.
  *
  * Return zero in case of success, 1 in case of failure.
  */
-
-bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                      const char*       db,
-                                      const char*       table,
-                                      const TABLE_LIST* table_list,
-                                      wsrep_key_arr_t*  ka)
+int wsrep_append_table_keys(THD* thd,
+                            TABLE_LIST* first_table,
+                            TABLE_LIST* table_list,
+                            Wsrep_service_key_type key_type)
 {
-  return wsrep_prepare_keys_for_isolation(thd, db, table, table_list, NULL, ka);
+   wsrep_key_arr_t key_arr= {0, 0};
+   const char* db_name= first_table ? first_table->db.str : NULL;
+   const char* table_name= first_table ? first_table->table_name.str : NULL;
+   int rcode= wsrep_prepare_keys_for_isolation(thd, db_name, table_name,
+                                               table_list, NULL, &key_arr);
+
+   if (!rcode && key_arr.keys_len)
+   {
+     rcode= wsrep_thd_append_key(thd, key_arr.keys,
+                                 key_arr.keys_len, key_type);
+   }
+
+   wsrep_keys_free(&key_arr);
+   return rcode;
 }
 
 bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
@@ -2276,6 +2314,15 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
                              Alter_info* alter_info, wsrep::key_array* fk_tables)
 {
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  const killed_state killed = thd->killed;
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  if (killed)
+  {
+    DBUG_ASSERT(FALSE);
+    return -1;
+  }
+
   /*
     No isolation for applier or replaying threads.
   */

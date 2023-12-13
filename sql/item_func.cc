@@ -2740,8 +2740,17 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
       No need to send a Rand log event if seed was given eg: RAND(seed),
       as it will be replicated in the query as such.
     */
+    DBUG_ASSERT((!rand &&
+                 (thd->active_stmt_arena_to_use()->
+                    is_stmt_prepare_or_first_stmt_execute() ||
+                  thd->active_stmt_arena_to_use()->
+                    is_conventional() ||
+                  thd->active_stmt_arena_to_use()->state ==
+                    Query_arena::STMT_SP_QUERY_ARGUMENTS
+                 )
+                ) || rand);
     if (!rand && !(rand= (struct my_rnd_struct*)
-                   thd->stmt_arena->alloc(sizeof(*rand))))
+                   thd->active_stmt_arena_to_use()->alloc(sizeof(*rand))))
       return TRUE;
   }
   else

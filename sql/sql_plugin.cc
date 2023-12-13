@@ -1646,7 +1646,6 @@ int plugin_init(int *argc, char **argv, int flags)
         }
       }
 
-      free_root(&tmp_root, MYF(MY_MARK_BLOCKS_FREE));
       tmp.state= PLUGIN_IS_UNINITIALIZED;
       if (register_builtin(plugin, &tmp, &plugin_ptr))
         goto err_unlock;
@@ -1930,7 +1929,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
       the mutex here to satisfy the assert
     */
     mysql_mutex_lock(&LOCK_plugin);
-    plugin_add(tmp_root, false, &name, &dl, MYF(ME_ERROR_LOG));
+    plugin_add(tmp_root, true, &name, &dl, MYF(ME_ERROR_LOG));
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }

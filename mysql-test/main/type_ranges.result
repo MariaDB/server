@@ -144,8 +144,10 @@ alter short drop default,
 DROP INDEX utiny,
 DROP INDEX ushort,
 DROP PRIMARY KEY,
-DROP FOREIGN KEY any_name,
+DROP FOREIGN KEY IF EXISTS any_name,
 ADD INDEX (auto);
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `any_name`; check that it exists
 LOCK TABLES t1 WRITE;
 ALTER TABLE t1 
 RENAME as t2,

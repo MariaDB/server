@@ -3115,8 +3115,9 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num) * 5;
   if (!ref_pointer_array.is_null())
     return false;
-  Item **array= static_cast<Item**>(thd->stmt_arena->alloc(sizeof(Item*) *
-                                                           n_elems));
+
+  Item **array= static_cast<Item**>(
+    thd->active_stmt_arena_to_use()->alloc(sizeof(Item*) * n_elems));
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;
@@ -4136,18 +4137,24 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 void st_select_lex::fix_prepare_information(THD *thd, Item **conds, 
                                             Item **having_conds)
 {
+  Query_arena *active_arena= thd->active_stmt_arena_to_use();
+
   DBUG_ENTER("st_select_lex::fix_prepare_information");
-  if (!thd->stmt_arena->is_conventional() &&
+
+  if (!active_arena->is_conventional() &&
       !(changed_elements & TOUCHED_SEL_COND))
   {
     Query_arena_stmt on_stmt_arena(thd);
     changed_elements|= TOUCHED_SEL_COND;
+    DBUG_ASSERT(
+      active_arena->is_stmt_prepare_or_first_stmt_execute() ||
+      active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS);
     if (group_list.first)
     {
       if (!group_list_ptrs)
       {
-        void *mem= thd->stmt_arena->alloc(sizeof(Group_list_ptrs));
-        group_list_ptrs= new (mem) Group_list_ptrs(thd->stmt_arena->mem_root);
+        void *mem= active_arena->alloc(sizeof(Group_list_ptrs));
+        group_list_ptrs= new (mem) Group_list_ptrs(active_arena->mem_root);
       }
       group_list_ptrs->reserve(group_list.elements);
       for (ORDER *order= group_list.first; order; order= order->next)
@@ -10697,8 +10704,9 @@ bool st_select_lex::save_item_list_names(THD *thd)
 
   while ((item= li++))
   {
-    if (unlikely(orig_names_of_item_list_elems->push_back(
-          new Lex_ident_sys(item->name.str, item->name.length), thd->mem_root)))
+    Lex_ident_sys *name= new (thd->mem_root) Lex_ident_sys(thd, &item->name);
+    if (unlikely(!name ||
+          orig_names_of_item_list_elems->push_back(name,  thd->mem_root)))
     {
       if (arena)
         thd->restore_active_arena(arena, &backup);

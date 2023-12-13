@@ -2790,6 +2790,17 @@ public:
   */
   Query_arena *stmt_arena;
 
+  /**
+    Get either call or statement arena. In case some function is called from
+    within a query the call arena has to be used for a memory allocation,
+    else use the statement arena.
+  */
+  Query_arena *active_stmt_arena_to_use()
+  {
+    return (state  == Query_arena::STMT_SP_QUERY_ARGUMENTS) ? this :
+                                                              stmt_arena;
+  }
+
   void *bulk_param;
 
   /*
@@ -4171,7 +4182,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (!killed_err)
+          killed_err= (err_info*) my_malloc(sizeof(*killed_err), MYF(MY_WME));
         if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;

@@ -1,0 +1,7 @@
+#
+# plugin-load-add=ha_spider
+#
+select * from mysql.plugin;
+name	dl
+create table t (c int) Engine=SPIDER;
+drop table t;

@@ -5805,5 +5805,15 @@ END;
 $
 ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 #
+#  MDEV-32965: Assertion `thd->active_stmt_arena_to_use()-> is_stmt_prepare_or_first_sp_execute() || thd->active_stmt_arena_to_use()-> is_conventional() || thd->active_stmt_arena_to_use()->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed
+#
+CREATE TABLE t (f VARCHAR(8)) CHARACTER SET utf8;
+INSERT INTO t VALUES ('foo'),('bar');
+EXECUTE IMMEDIATE 'SELECT GROUP_CONCAT(@x) FROM t GROUP BY @x := f';
+GROUP_CONCAT(@x)
+0
+0
+DROP TABLE t;
+#
 # End of 10.4 tests
 #

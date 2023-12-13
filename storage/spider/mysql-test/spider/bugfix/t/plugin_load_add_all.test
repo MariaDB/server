@@ -1,0 +1,7 @@
+--echo #
+--echo # plugin-load-add=ha_spider
+--echo #
+# A simple test that tests plugin-load-add=ha_spider
+select * from mysql.plugin;
+create table t (c int) Engine=SPIDER;
+drop table t;

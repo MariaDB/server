@@ -5548,7 +5548,7 @@ allocate:
   /* Create view fields translation table */
 
   if (!(transl=
-        (Field_translator*)(thd->stmt_arena->
+        (Field_translator*)(thd->
                             alloc(select->item_list.elements *
                                   sizeof(Field_translator)))))
   {

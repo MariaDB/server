@@ -121,6 +121,16 @@ CREATE TABLE t1 (c TIMESTAMP AUTO_INCREMENT UNIQUE) ENGINE=InnoDB;
 CREATE TABLE t1 (c DATETIME AUTO_INCREMENT UNIQUE) ENGINE=InnoDB;
 
 --echo #
---echo # End of 10.4 tests
+--echo # MDEV-31000 Assertion failed on ALTER TABLE...page_compressed=1
 --echo #
 
+SET @save_file_per_table=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE t (c INT PRIMARY KEY) ENGINE=INNODB;
+SET GLOBAL innodb_file_per_table=1;
+ALTER TABLE t page_compressed=1;
+SET GLOBAL innodb_file_per_table=@save_file_per_table;
+SELECT space>0 FROM information_schema.innodb_sys_tables WHERE name='test/t';
+DROP TABLE t;
+
+--echo # End of 10.4 tests

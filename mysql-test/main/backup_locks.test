@@ -10,7 +10,9 @@
 --echo #
 --echo # Test lock taken
 --echo #
-
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+--source ../suite/innodb/include/wait_all_purged.inc
 BACKUP LOCK test.t1;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 BACKUP UNLOCK;
@@ -29,7 +31,7 @@ BACKUP UNLOCK;
 connect (con1,localhost,root,,);
 
 connection default;
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent=0,engine=innodb;
 insert into t1 values (1);
 backup lock t1;
 select * from t1;
@@ -40,6 +42,7 @@ let $wait_condition=
     select count(*) = 1 from information_schema.processlist
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 --error ER_LOCK_DEADLOCK
 select * from t1;
@@ -107,6 +110,7 @@ LOCK TABLES t2 AS a2 WRITE;
 BACKUP LOCK t1;
 UNLOCK TABLES;
 INSERT INTO t1 VALUES(0);
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --source include/restart_mysqld.inc
 DROP TABLE t1;
 DROP TABLE t2;
@@ -187,7 +191,78 @@ LOCK TABLES t3 AS a2 WRITE, t3 AS a1 READ LOCAL;
 DROP TABLE t3;
 BACKUP UNLOCK;
 DROP TABLE t3;
+--echo #
+--echo #  MDEV-28367: BACKUP LOCKS on table to be accessible to those
+--echo #              with database LOCK TABLES privileges
+--echo #
 
+--source include/have_metadata_lock_info.inc
+create database db1;
+create table db1.t1(t int);
+create user user1@localhost;
+select user,host from mysql.user where user='user1';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_DBACCESS_DENIED_ERROR
+--connect (con1, localhost, user1, ,db1)
+
+grant reload on *.* to user1@localhost;
+# To access DB one need select privileges
+grant select on db1.* to user1@localhost;
+show grants for user1@localhost;
+--connect (con1, localhost, user1, ,db1)
+
+# This should work we have RELOAD privilege
+BACKUP UNLOCK;
+BACKUP LOCK db1.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+
+# Add LOCK TABLES DB privileges (all privileges for BACKUP LOCK are there)
+connection default;
+disconnect con1;
+grant lock tables on db1.* to user1@localhost;
+show grants for user1@localhost;
+--connect (con1, localhost, user1, ,db1)
+# This should work we have RELOAD & LOCK privilege
+BACKUP UNLOCK;
+BACKUP LOCK db1.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+
+# Remove reload privilege, leave only LOCK TABLES privilege
+connection default;
+disconnect con1;
+revoke reload on *.* from user1@localhost;
+show grants for user1@localhost;
+--connect (con1, localhost, user1, ,db1)
+# There is no reload priv needed for unlock and there is no mdl_backup_lock taken
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+BACKUP UNLOCK;
+# BACKUP LOCK should work, since we have LOCK privilege
+BACKUP LOCK db1.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+# This works since there was taken mdl_backup_lock before
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+
+# Remove LOCK TABLES privilege
+connection default;
+disconnect con1;
+revoke lock tables on db1.* from user1@localhost;
+show grants for user1@localhost;
+--connect (con1, localhost, user1, ,db1)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+BACKUP LOCK db1.t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+BACKUP UNLOCK;
+
+connection default;
+disconnect con1;
+
+drop database db1;
+drop user user1@localhost;
 --echo #
 --echo # End of MariaDB 10.4 tests
 --echo #

@@ -27,10 +27,12 @@
 #include "my_json_writer.h"
 #include <hash.h>
 #include <thr_alarm.h>
-#if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
+#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
+#if defined(HAVE_MALLOC_H)
 #include <malloc.h>
-#elif defined(HAVE_MALLINFO) && defined(HAVE_SYS_MALLOC_H)
+#elif defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
+#endif
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER

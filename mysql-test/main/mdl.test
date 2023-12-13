@@ -8,9 +8,12 @@
 --echo #                         mdl_ticket->m_type == MDL_SHARED_READ'
 --echo #                         failed in MDL_context::upgrade_shared_lock
 --echo #
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 --disable_service_connection
 CREATE TABLE t1(a INT) ENGINE=InnoDB;
 CREATE TABLE t3(a INT) ENGINE=myisam;
+--source ../suite/innodb/include/wait_all_purged.inc
 LOCK TABLES t1 WRITE CONCURRENT, t1 AS t2 READ;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 UNLOCK TABLES;
@@ -38,7 +41,7 @@ DROP TABLE t1,t3;
 --echo # Check MDL locks taken for different kind of tables by open
 --echo #
 
-CREATE TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TABLE t1(a INT) stats_persistent=0, ENGINE=InnoDB;
 CREATE TABLE t3(a INT) ENGINE=myisam;
 connect (locker,localhost,root,,);
 connection default;
@@ -52,6 +55,7 @@ let $wait_condition=
   select count(*) > 0 from information_schema.processlist
   where state = "Waiting for backup lock";
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 connection default;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 unlock tables;
@@ -69,6 +73,7 @@ let $wait_condition=
   select count(*) > 0 from information_schema.processlist
   where state = "Waiting for backup lock";
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 connection default;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 unlock tables;
@@ -121,7 +126,7 @@ connection default;
 set autocommit=default;
 drop table t2;
 --enable_view_protocol
-
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --echo #
 --echo # End of 10.4 tests
 --echo #

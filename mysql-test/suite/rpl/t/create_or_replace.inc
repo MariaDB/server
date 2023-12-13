@@ -212,12 +212,19 @@ set @@session.binlog_format=default;
 drop temporary table if exists t9;
 
 --connect(con1,localhost,root,,)
+--let $conid = `SELECT CONNECTION_ID()`
 set session binlog_format=default;
 create temporary table t9 (i int);
 --echo *** Must be no DROP logged for t9 when there was no CREATE, at disconnect too ***
 --disconnect con1
 
 --connection server_1
+# The disconnect runs asynchroneously. Wait for it to complete, otherwise the
+# DROP TEMPORARY TABLE may not have been binlogged yet when SHOW BINLOG EVENTS
+# is run.
+--let $wait_condition= SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID=$conid
+--source include/wait_condition.inc
+
 --source include/show_binlog_events.inc
 
 # Clean up
