@@ -1078,6 +1078,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SERIALIZABLE_SYM              /* SQL-2003-N */
 %token  <kwd>  SERIAL_SYM
 %token  <kwd>  SESSION_SYM                   /* SQL-2003-N */
+%token  <kwd>  SESSION_USER_SYM              /* SQL-2003-R */
 %token  <kwd>  SERVER_SYM
 %token  <kwd>  SETVAL_SYM                    /* PostgreSQL sequence function */
 %token  <kwd>  SHARE_SYM
@@ -10275,6 +10276,14 @@ function_call_keyword:
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
             Lex->safe_to_cache_query= 0;
           }
+        | SESSION_USER_SYM '(' ')'
+          {
+            $$= new (thd->mem_root) Item_func_session_user(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+            Lex->safe_to_cache_query=0;
+          }
         | TIME_SYM '(' expr ')'
           {
             $$= new (thd->mem_root) Item_time_typecast(thd, $3,
@@ -16438,6 +16447,7 @@ keyword_sp_var_and_label:
         | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | VALUE_SYM
         | WEIGHT_STRING_SYM
+        | SESSION_USER_SYM
         ;
 
 

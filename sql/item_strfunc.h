@@ -1283,6 +1283,23 @@ public:
   }
 };
 
+class Item_func_session_user :public Item_func_user
+{
+public:
+  Item_func_session_user(THD *thd):
+    Item_func_user(thd) {}
+  bool fix_fields(THD *thd, Item **ref) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("session_user") };
+    return name;
+  }
+  const Lex_ident_routine fully_qualified_func_name() const override
+  { return Lex_ident_routine("session_user()"_LEX_CSTRING); }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_session_user>(thd, this); }
+};
+
 
 class Item_func_current_role :public Item_func_sysconst
 {
