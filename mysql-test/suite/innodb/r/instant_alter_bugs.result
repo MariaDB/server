@@ -495,4 +495,28 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
 CREATE TABLE t1 (i int AS (0) STORED, j INT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD COLUMN i INT GENERATED ALWAYS AS (1), DROP COLUMN i;
 DROP TABLE t1;
+#
+# MDEV-18322 Assertion "wrong_page_type" on instant ALTER
+#
+BEGIN NOT ATOMIC
+DECLARE c TEXT
+DEFAULT(SELECT CONCAT('CREATE TABLE t1 (c',
+GROUP_CONCAT(seq SEPARATOR ' CHAR(200), c'),
+' CHAR(211)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT')
+FROM seq_1_to_40);
+EXECUTE IMMEDIATE c;
+END;
+$$
+INSERT INTO t1 SET c1=NULL;
+ALTER TABLE t1 ADD c41 INT FIRST;
+ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8123. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+ALTER TABLE t1 ADD c41 INT FIRST;
+ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8123. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+DROP TABLE t1;
 # End of 10.4 tests

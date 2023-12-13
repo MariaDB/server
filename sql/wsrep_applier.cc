@@ -196,6 +196,11 @@ int wsrep_apply_events(THD*        thd,
       (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
       (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);
 
+    if (ev->get_type_code() == GTID_EVENT)
+    {
+      thd->variables.option_bits &= ~OPTION_GTID_BEGIN;
+    }
+
     ev->thd= thd;
     exec_res= ev->apply_event(thd->wsrep_rgi);
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));

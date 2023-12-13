@@ -534,6 +534,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   THD* thd= m_thd;
 
   thd->variables.option_bits |= OPTION_BEGIN;
+  thd->variables.option_bits |= OPTION_GTID_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
@@ -570,6 +571,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }
   thd_proc_info(thd, "wsrep applied write set");
+
+  thd->variables.option_bits &= ~OPTION_GTID_BEGIN;
   DBUG_RETURN(ret);
 }
 
