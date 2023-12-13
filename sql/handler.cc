@@ -1418,7 +1418,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
     transaction the handlerton is inserted into the list past its head.
   */
   bool link_past_head=
-    unlikely(thd->transaction.xid_state.is_explicit_XA() &&
+    unlikely(thd->transaction->xid_state.is_explicit_XA() &&
              trans->ha_list && trans->ha_list->ht() == binlog_hton);
   ha_info->register_ha(trans, ht_arg, link_past_head);
 
@@ -1535,17 +1535,18 @@ int ha_prepare(THD *thd)
   context.
   Also returns the last found rw ha_info through the 2nd argument.
 */
-uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
+uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info, bool count_through)
 {
   unsigned rw_ha_count= 0;
 
   for (auto ha_info= thd->transaction->all.ha_list; ha_info;
        ha_info= ha_info->next())
   {
-    if (ha_info->is_trx_read_write())
+    if (ha_info->is_trx_read_write() && ha_info->ht()->recover)
     {
-      *ptr_ha_info= ha_info;
-      if (++rw_ha_count > 1)
+      if (ptr_ha_info)
+        *ptr_ha_info= ha_info;
+      if (++rw_ha_count > 1 && !count_through)
         break;
     }
   }
@@ -2480,7 +2481,9 @@ struct xarecover_st
   int len, found_foreign_xids, found_my_xids;
   XID *list;
   HASH *commit_list;
+  HASH *xa_prepared_list; // prepared user xa list
   bool dry_run;
+  uint recover_htons;     // number of recoverable htons for XA recovery
   MEM_ROOT *mem_root;
   bool error;
 };
@@ -2678,6 +2681,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
 
   if (hton->recover)
   {
+    info->recover_htons++;
     while ((got= hton->recover(hton, info->list, info->len)) > 0 )
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
@@ -2722,7 +2726,22 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
             _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
           xid_cache_insert(info->list + i);
+          XID *foreign_xid= info->list + i;
+
           info->found_foreign_xids++;
+          /*
+            For each foreign xid prepraed in engine, check if it is present in
+            xa_prepared_list of binlog.
+          */
+          if (info->xa_prepared_list)
+          {
+            struct xa_recovery_member *member= NULL;
+            if ((member= (xa_recovery_member *) my_hash_search(
+                     info->xa_prepared_list, foreign_xid->key(),
+                     foreign_xid->key_length())))
+              member->in_engine_prepare++;
+          }
+
           continue;
         }
         if (IF_WSREP(!(wsrep_emulate_bin_log &&
@@ -2785,14 +2804,17 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
   return FALSE;
 }
 
-int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
+int ha_recover(HASH *commit_list, HASH *xa_prepared_list, uint *ptr_count,
+               MEM_ROOT *arg_mem_root)
 {
   struct xarecover_st info;
   DBUG_ENTER("ha_recover");
   info.found_foreign_xids= info.found_my_xids= 0;
   info.commit_list= commit_list;
+  info.xa_prepared_list= xa_prepared_list;
   info.dry_run= (info.commit_list==0 && tc_heuristic_recover==0);
   info.list= NULL;
+  info.recover_htons= 0;
   info.mem_root= arg_mem_root;
   info.error= false;
 
@@ -2824,6 +2846,9 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   plugin_foreach(NULL, xarecover_handlerton, 
                  MYSQL_STORAGE_ENGINE_PLUGIN, &info);
 
+  if (ptr_count)
+    *ptr_count= info.recover_htons;
+
   my_free(info.list);
   if (info.found_foreign_xids)
     sql_print_warning("Found %d prepared XA transactions", 
@@ -2842,7 +2867,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   if (info.error)
     DBUG_RETURN(1);
 
-  if (info.commit_list)
+  if (info.commit_list && !info.found_foreign_xids)
     sql_print_information("Crash table recovery finished.");
   DBUG_RETURN(0);
 }

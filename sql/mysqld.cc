@@ -5363,7 +5363,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 
-  if (ha_recover(0))
+  if (ha_recover(0, 0, NULL))
     unireg_abort(1);
 
 #ifndef EMBEDDED_LIBRARY
@@ -5402,6 +5402,7 @@ static int init_server_components()
   if (ddl_log_execute_recovery() > 0)
     unireg_abort(1);
   ha_signal_ddl_recovery_done();
+  tc_log->execute_xa_for_recovery();
 
   if (opt_myisam_log)
     (void) mi_log(1);
