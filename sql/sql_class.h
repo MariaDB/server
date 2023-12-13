@@ -7025,6 +7025,7 @@ struct SORT_FIELD_ATTR
 
   /* Max. length of the original value, in bytes */
   uint original_length;
+  bool is_mem_comparable; /* use memcmp or field->cmp for comparison. */
   enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
   /*
     TRUE  : if the item or field is NULLABLE
@@ -7034,17 +7035,10 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                     uchar *b, size_t *b_len);
-  int compare_packed_varstrings(uchar *a, size_t *a_len,
-                                uchar *b, size_t *b_len);
-  int compare_packed_varstrings(uchar *a, uchar *b);
   bool check_if_packing_possible(THD *thd) const;
-  bool is_variable_sized() { return type == VARIABLE_SIZE; }
+  bool is_variable_sized() const { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);
-  void setup_key_part_for_variable_size_key(Field *fld);
-  void setup_key_part_for_fixed_size_key(Field *fld);
-  int compare_nullability(uchar *a, uchar *b);
+  void setup_key_part(Field *fld, bool is_mem_comparable);
 };
 
 
@@ -7053,11 +7047,17 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   Field *field;				/* Field to sort */
   Item	*item;				/* Item if not sorting fields */
   bool reverse;				/* if descending sort */
-  void setup_key_part_for_variable_size_key(Field *fld);
-  void setup_key_part_for_variable_size_key(Item *item);
-  void setup_key_part_for_fixed_size_key(Field *fld);
-  int compare_fixed_size_vals(uchar *a, size_t *a_len,
-                              uchar *b, size_t *b_len);
+  void setup_key_part(Field *fld, bool is_mem_comparable);
+  int compare_keys(const uchar *a, size_t *a_len,
+                   const uchar *b, size_t *b_len) const;
+
+private:
+  int compare_fixed_size_vals(const uchar *a, size_t *a_len,
+                              const uchar *b, size_t *b_len) const;
+  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                     const uchar *b, size_t *b_len) const;
+  int compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                const uchar *b, size_t *b_len) const;
 };
 
 
@@ -7169,7 +7169,7 @@ class SORT_INFO;
 class multi_delete :public select_result_interceptor
 {
   TABLE_LIST *delete_tables, *table_being_deleted;
-  Unique_impl **tempfiles;
+  Unique **tempfiles;
   ha_rows deleted, found;
   uint num_of_tables;
   int error;

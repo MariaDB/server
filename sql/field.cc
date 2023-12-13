@@ -1021,7 +1021,7 @@ CPP_UNNAMED_NS_END
   @param  length         fixed size of the sort column
 */
 
-void Field::make_sort_key_part(uchar *buff,uint length)
+void Field::make_sort_key_part(uchar *buff, uint length)
 {
   if (maybe_null())
   {
@@ -1043,6 +1043,9 @@ void Field::make_sort_key_part(uchar *buff,uint length)
   @param  buff           buffer where values are written
   @param  sort_field     sort column structure
 
+  This sort key part can be compared with other sort key parts with
+  memcmp to get the right ordering.
+
   @retval
     length of the bytes written, does not include the NULL bytes
 */
@@ -1054,7 +1057,7 @@ Field::make_packed_sort_key_part(uchar *buff,
   {
     if (is_null())
     {
-      *buff++= 0;
+      *buff= 0;
       return 0;  // For NULL values don't write any data
     }
     *buff++=1;
@@ -1066,19 +1069,18 @@ Field::make_packed_sort_key_part(uchar *buff,
 
 /*
   @brief
-    Create a packed sort key part
+    Create a packed key part
 
   @param  buff           buffer where values are written
   @param  sort_field     sort column structure
 
   @details
-   This function stores the original values for the fixed size columns and
-   does not covert them to mem-comparable images.
+   Copy the field's ptr value if the value is not null, otherwise
+   just stores the null flag.
 
   @retval
     length of the bytes written, does not include the NULL bytes
 */
-
 uint
 Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
 {
@@ -1086,7 +1088,7 @@ Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
   {
     if (is_null())
     {
-      *buff++= 0;
+      *buff= 0;
       return 0;  // For NULL values don't write any data
     }
     *buff++=1;
@@ -1096,13 +1098,16 @@ Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
 }
 
 
+/*
+  Field longstr needs the suffix stored too. We use make_packed_sort_key_part
+  for that.
+*/
 uint
 Field_longstr::make_packed_key_part(uchar *buff,
                                     const SORT_FIELD_ATTR *sort_field)
 {
   return make_packed_sort_key_part(buff, sort_field);
 }
-
 
 
 uint
@@ -1113,22 +1118,14 @@ Field_longstr::make_packed_sort_key_part(uchar *buff,
   {
     if (is_null())
     {
-      *buff++= 0;
+      *buff= 0;
       return 0;   // For NULL values don't write any data
     }
     *buff++=1;
   }
-  uchar *end= pack_sort_string(buff, sort_field);
-  return (uint) (end-buff);
-}
-
-
-uchar*
-Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
-{
   StringBuffer<LONGLONG_BUFFER_SIZE+1> buf;
   val_str(&buf, &buf);
-  return to + sort_field->pack_sort_string(to, &buf, field_charset());
+  return sort_field->pack_sort_string(buff, &buf, field_charset());
 }
 
 

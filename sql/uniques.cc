@@ -32,7 +32,6 @@
 */
 
 #include "mariadb.h"
-#include "sql_priv.h"
 #include "unireg.h"
 #include "sql_sort.h"
 #include "queues.h"                             // QUEUE
@@ -40,25 +39,28 @@
 #include "uniques.h"	                        // Unique
 #include "sql_sort.h"
 
-int unique_write_to_file(uchar* key, element_count count, Unique_impl *unique)
+int Unique::unique_write_to_file(uchar* key, element_count count,
+                                 Unique *unique)
 {
-  return unique->write_record_to_file(key) ? 1 : 0;
+  return my_b_write(&unique->file, key,
+                    unique->keys_descriptor->get_length_of_key(key)) ? 1 : 0;
 }
 
-int unique_write_to_file_with_count(uchar* key, element_count count, Unique_impl *unique)
+int Unique::unique_write_to_file_with_count(uchar* key, element_count count,
+                                            Unique *unique)
 {
   return unique_write_to_file(key, count, unique) ||
          my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
-int unique_write_to_ptrs(uchar* key, element_count count, Unique_impl *unique)
+int Unique::unique_write_to_ptrs(uchar* key, element_count count, Unique *unique)
 {
   memcpy(unique->sort.record_pointers, key, unique->size);
   unique->sort.record_pointers+=unique->size;
   return 0;
 }
 
-int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique_impl *unique)
+int Unique::unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique *unique)
 {
   if (count >= unique->min_dupl_count)
   {
@@ -71,22 +73,21 @@ int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique_impl 
 }
 
 
-Unique_impl::Unique_impl(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
-	             uint size_arg, size_t max_in_memory_size_arg,
-               uint min_dupl_count_arg, Descriptor *desc)
+Unique::Unique(Keys_descriptor *desc,
+               size_t max_in_memory_size_arg,
+               uint min_dupl_count_arg)
   :max_in_memory_size(max_in_memory_size_arg),
-   size(size_arg),
+   size(desc->get_max_key_length()),
+   full_size(min_dupl_count_arg ? size + sizeof(element_count) : size),
+   min_dupl_count(min_dupl_count_arg),
+   with_counters(MY_TEST(min_dupl_count_arg)),
    memory_used(0),
-   elements(0)
+   elements(0),
+   keys_descriptor(desc)
 {
   my_b_clear(&file);
-  min_dupl_count= min_dupl_count_arg;
-  full_size= size;
-  if (min_dupl_count_arg)
-    full_size+= sizeof(element_count);
-  with_counters= MY_TEST(min_dupl_count_arg);
-  init_tree(&tree, (max_in_memory_size / 16), 0, 0, comp_func,
-            NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
+  init_tree(&tree, (max_in_memory_size / 16), 0, 0, unique_compare_keys,
+            NULL, desc, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
                         16, MYF(MY_THREAD_SPECIFIC));
@@ -107,7 +108,6 @@ Unique_impl::Unique_impl(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
 
   (void) open_cached_file(&file, mysql_tmpdir,TEMP_PREFIX, DISK_BUFFER_SIZE,
                           MYF(MY_WME));
-  m_descriptor= desc;
 }
 
 
@@ -307,7 +307,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
       these will be random seeks.
 */
 
-double Unique_impl::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
+double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
                             size_t max_in_memory_size,
                             double compare_factor,
                             bool intersect_fl, bool *in_memory)
@@ -369,17 +369,17 @@ double Unique_impl::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
   return result;
 }
 
-Unique_impl::~Unique_impl()
+Unique::~Unique()
 {
   close_cached_file(&file);
   delete_tree(&tree, 0);
   delete_dynamic(&file_ptrs);
-  delete m_descriptor;
+  delete keys_descriptor;
 }
 
 
     /* Write tree to disk; clear tree */
-bool Unique_impl::flush()
+bool Unique::flush()
 {
   Merge_chunk file_ptr;
   elements+= tree.elements_in_tree;
@@ -408,7 +408,7 @@ bool Unique_impl::flush()
 */
 
 void
-Unique_impl::reset()
+Unique::reset()
 {
   reset_tree(&tree);
   /*
@@ -535,7 +535,6 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   DBUG_ASSERT(sort_param.res_length  == 0);
   DBUG_ASSERT(!sort_param.using_addon_fields());
   sort_param.set_using_packed_keys(packed);
-  uint size_of_dupl_count= min_dupl_count ? sizeof(element_count) : 0;
 
   /*
     Invariant: queue must contain top element from each tree, until a tree
@@ -564,13 +563,12 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       elements in each tree are unique. Action is applied only to unique
       elements.
     */
-    void *old_key= top->current_key();
+    uchar *old_key= top->current_key();
     /*
       read next key from the cache or from the file and push it to the
       queue; this gives new top.
     */
-    key_length= sort_param.get_key_length_for_unique((uchar*)old_key,
-                                                     size_of_dupl_count);
+    key_length= sort_param.compute_rec_length_for_unique(old_key);
 
     cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
     top->advance_current_key(key_length);
@@ -622,8 +620,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   {
     do
     {
-      key_length= sort_param.get_key_length_for_unique(top->current_key(),
-                                                       size_of_dupl_count);
+      key_length= sort_param.compute_rec_length_for_unique(top->current_key());
       cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
       cnt= with_counters ?
            get_counter_from_merged_element(top->current_key(), cnt_ofs) : 1;
@@ -665,7 +662,7 @@ end:
     <> 0 error
  */
 
-bool Unique_impl::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
+bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
 {
   int res= 0;
   uchar *merge_buffer;
@@ -714,7 +711,7 @@ bool Unique_impl::walk(TABLE *table, tree_walk_action action, void *walk_action_
   TRUE.
 
   SYNOPSIS
-    Unique_impl::merge()
+    Unique::merge()
   All params are 'IN':
     table               the parameter to access sort context
     buff                merge buffer
@@ -725,7 +722,7 @@ bool Unique_impl::walk(TABLE *table, tree_walk_action action, void *walk_action_
     <> 0 error
  */
 
-bool Unique_impl::merge(TABLE *table, uchar *buff, size_t buff_size,
+bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
                    bool without_last_merge)
 {
   IO_CACHE *outfile= &sort.io_cache;
@@ -806,12 +803,12 @@ err:
   rows will be read in priority order.
 */
 
-bool Unique_impl::get(TABLE *table)
+bool Unique::get(TABLE *table)
 {
   bool rc= 1;
   uchar *sort_buffer= NULL;
   sort.return_rows= elements+tree.elements_in_tree;
-  DBUG_ENTER("Unique_impl::get");
+  DBUG_ENTER("Unique::get");
 
   DBUG_ASSERT(is_variable_sized() == FALSE);
 
@@ -819,16 +816,15 @@ bool Unique_impl::get(TABLE *table)
   {
     /* Whole tree is in memory;  Don't use disk if you don't need to */
     if ((sort.record_pointers= (uchar*)
-	 my_malloc(key_memory_Filesort_info_record_pointers,
+         my_malloc(key_memory_Filesort_info_record_pointers,
                    size * tree.elements_in_tree, MYF(MY_THREAD_SPECIFIC))))
     {
       uchar *save_record_pointers= sort.record_pointers;
       tree_walk_action action= min_dupl_count ?
-		         (tree_walk_action) unique_intersect_write_to_ptrs :
-		         (tree_walk_action) unique_write_to_ptrs;
+        (tree_walk_action) unique_intersect_write_to_ptrs :
+        (tree_walk_action) unique_write_to_ptrs;
       filtered_out_elems= 0;
-      (void) tree_walk(&tree, action,
-		       this, left_root_right);
+      (void) tree_walk(&tree, action, this, TREE_WALK::left_root_right);
       /* Restore record_pointers that was changed in by 'action' above */
       sort.record_pointers= save_record_pointers;
       sort.return_rows-= filtered_out_elems;
@@ -859,102 +855,15 @@ err:
 }
 
 
-/*
-  @brief
-    Write an intermediate unique record to the file
-
-  @param key                  key to be written
-
-  @retval
-    >0   Error
-    =0   Record successfully written
-*/
-
-int Unique_impl::write_record_to_file(uchar *key)
-{
-  return my_b_write(get_file(), key, m_descriptor->get_length_of_key(key));
-}
-
-
 /*                VARIABLE SIZE KEYS DESCRIPTOR                             */
 
 
 Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
 {
   max_length= length;
-  flags= (1 << VARIABLE_SIZED_KEYS);
+  keys_type= VARIABLE_SIZED_KEYS;
   sort_keys= NULL;
   sortorder= NULL;
-}
-
-
-/*
-  @brief
-    Setup the structures that are used when Unique stores packed values
-
-  @param thd                   thread structure
-  @param item                  item of aggregate function
-  @param non_const_args        number of non constant arguments
-  @param arg_count             total number of arguments
-
-  @note
-    This implementation is used by GROUP_CONCAT and COUNT_DISTINCT
-    as it can have more than one arguments in the argument list.
-
-  @retval
-    TRUE  error
-    FALSE setup successful
-*/
-
-bool
-Variable_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
-                                              uint non_const_args,
-                                              uint arg_count)
-{
-  SORT_FIELD *pos;
-  if (init(thd, non_const_args))
-    return true;
-  pos= sortorder;
-
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg= item->get_arg(i);
-    if (arg->const_item())
-      continue;
-
-    if (arg->type() == Item::FIELD_ITEM)
-    {
-      Field *field= ((Item_field*)arg)->field;
-      pos->setup_key_part_for_variable_size_key(field);
-    }
-    else
-      pos->setup_key_part_for_variable_size_key(arg);
-    pos++;
-  }
-  return false;
-}
-
-
-/*
-  @brief
-    Setup the structures that are used when Unique stores packed values
-
-  @param thd                   thread structure
-  @param field                 field structure
-
-  @retval
-    TRUE  error
-    FALSE setup successful
-*/
-
-bool Variable_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
-{
-  SORT_FIELD *pos;
-  if (init(thd, 1))
-    return true;
-  pos= sortorder;
-  pos->setup_key_part_for_variable_size_key(field);
-  return false;
 }
 
 
@@ -971,77 +880,10 @@ bool Variable_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
     <0   key a_ptr less than b_ptr
 
 */
-
-int Variable_size_composite_key_desc::compare_keys(uchar *a_ptr,
-                                                uchar *b_ptr)
+int Variable_size_keys_descriptor::compare_keys(const uchar *a, const uchar *b) const
 {
-  uchar *a= a_ptr + Variable_size_keys_descriptor::size_of_length_field;
-  uchar *b= b_ptr + Variable_size_keys_descriptor::size_of_length_field;
-  int retval= 0;
-  size_t a_len, b_len;
-  for (SORT_FIELD *sort_field= sort_keys->begin();
-       sort_field != sort_keys->end(); sort_field++)
-  {
-    retval= sort_field->is_variable_sized() ?
-            sort_field->compare_packed_varstrings(a, &a_len, b, &b_len) :
-            sort_field->compare_packed_fixed_size_vals(a, &a_len, b, &b_len);
-
-    if (retval)
-      return sort_field->reverse ? -retval : retval;
-
-    a+= a_len;
-    b+= b_len;
-  }
-  return retval;
-}
-
-
-int Variable_size_composite_key_desc_for_gconcat::compare_keys(uchar *a_ptr,
-                                                               uchar *b_ptr)
-{
-  uchar *a= a_ptr + Variable_size_keys_descriptor::size_of_length_field;
-  uchar *b= b_ptr + Variable_size_keys_descriptor::size_of_length_field;
-  int retval= 0;
-  size_t a_len, b_len;
-  for (SORT_FIELD *sort_field= sort_keys->begin();
-       sort_field != sort_keys->end(); sort_field++)
-  {
-    retval= sort_field->is_variable_sized() ?
-            sort_field->compare_packed_varstrings(a, &a_len, b, &b_len) :
-            sort_field->compare_fixed_size_vals(a, &a_len, b, &b_len);
-
-    if (retval)
-      return sort_field->reverse ? -retval : retval;
-
-    a+= a_len;
-    b+= b_len;
-  }
-  return retval;
-}
-
-
-int Variable_size_keys_simple::compare_keys(uchar *a, uchar *b)
-{
-  return sort_keys->compare_keys_for_single_arg(a + size_of_length_field,
-                                                b + size_of_length_field);
-}
-
-
-uchar* Variable_size_composite_key_desc::make_record(bool exclude_nulls)
-{
-  return make_encoded_record(sort_keys, exclude_nulls);
-}
-
-uchar*
-Variable_size_composite_key_desc_for_gconcat::make_record(bool exclude_nulls)
-{
-  return make_encoded_record(sort_keys, exclude_nulls);
-}
-
-
-uchar* Variable_size_keys_simple::make_record(bool exclude_nulls)
-{
-  return make_encoded_record(sort_keys, exclude_nulls);
+  return sort_keys->compare_keys(a + SIZE_OF_LENGTH_FIELD,
+                                 b + SIZE_OF_LENGTH_FIELD);
 }
 
 
@@ -1057,7 +899,7 @@ uchar* Variable_size_keys_simple::make_record(bool exclude_nulls)
     FALSE                      structures successfully created
 */
 
-bool Descriptor::init(THD *thd, uint count)
+bool Keys_descriptor::init(THD *thd, uint count)
 {
   if (sortorder)
     return false;
@@ -1072,32 +914,69 @@ bool Descriptor::init(THD *thd, uint count)
 }
 
 
-bool Variable_size_composite_key_desc::init(THD *thd, uint count)
+bool Variable_size_keys_descriptor::init(THD *thd, uint count)
 {
-  return Descriptor::init(thd, count) ||
-         Encode_variable_size_key::init(max_length);
+  bool result= Keys_descriptor::init(thd, count);
+
+  if (result || tmp_buffer.alloc(max_length))
+    return true;
+  rec_buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
+                              max_length,
+                              MYF(MY_WME | MY_THREAD_SPECIFIC));
+  return rec_buf == NULL;
 }
 
 
-bool Variable_size_composite_key_desc_for_gconcat::init(THD *thd, uint count)
+/*                   FIXED SIZE KEYS DESCRIPTOR                             */
+
+Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
 {
-  return Descriptor::init(thd, count) ||
-         Encode_key_for_group_concat::init(max_length);
+  max_length= length;
+  keys_type= FIXED_SIZED_KEYS;
+  sort_keys= NULL;
+  sortorder= NULL;
 }
 
 
-bool Variable_size_keys_simple::init(THD *thd, uint count)
+int Fixed_size_keys_descriptor::compare_keys(const uchar *a,
+                                             const uchar *b) const
 {
-  return Descriptor::init(thd, count) ||
-         Encode_variable_size_key::init(max_length);
+  DBUG_ASSERT(sort_keys);
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    DBUG_ASSERT(sort_field->field);
+    Field *field= sort_field->field;
+    int res = field->cmp(a, b);
+    if (res)
+      return res;
+    a += sort_field->length;
+    b += sort_field->length;
+  }
+  return 0;
 }
 
 
 bool
-Variable_size_composite_key_desc_for_gconcat::setup_for_item(THD *thd,
-                                                          Item_sum *item,
-                                                          uint non_const_args,
-                                                          uint arg_count)
+Keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
+                                uint non_const_args,
+                                uint arg_count)
+{
+  return setup_for_item_impl(thd, item, non_const_args, arg_count, true);
+}
+
+
+bool Keys_descriptor::setup_for_field(THD *thd, Field *field)
+{
+  return setup_for_field_impl(thd, field, true);
+}
+
+
+bool
+Keys_descriptor::setup_for_item_impl(THD *thd, Item_sum *item,
+                                     uint non_const_args,
+                                     uint arg_count,
+                                     bool is_mem_comparable)
 {
   if (init(thd, non_const_args))
     return true;
@@ -1111,105 +990,63 @@ Variable_size_composite_key_desc_for_gconcat::setup_for_item(THD *thd,
       continue;
 
     Field *field= arg->get_tmp_table_field();
-    pos->setup_key_part_for_variable_size_key(field);
-    pos++;
-  }
-  return false;
-}
-
-
-/*                   FIXED SIZE KEYS DESCRIPTOR                             */
-
-
-Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
-{
-  max_length= length;
-  flags= (1 << FIXED_SIZED_KEYS);
-  sort_keys= NULL;
-  sortorder= NULL;
-}
-
-
-int Fixed_size_keys_descriptor::compare_keys(uchar *a, uchar *b)
-{
-  DBUG_ASSERT(sort_keys);
-  SORT_FIELD *sort_field= sort_keys->begin();
-  DBUG_ASSERT(sort_field->field);
-  return sort_field->field->cmp(a, b);
-}
-
-
-bool
-Fixed_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
-                                           uint non_const_args,
-                                           uint arg_count)
-{
-  SORT_FIELD *pos;
-  if (Descriptor::init(thd, non_const_args))
-    return true;
-  pos= sortorder;
-
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg= item->get_arg(i);
-    if (arg->const_item())
-      continue;
-
-    Field *field= arg->get_tmp_table_field();
 
     DBUG_ASSERT(field);
-    pos->setup_key_part_for_fixed_size_key(field);
+    pos->setup_key_part(field, is_mem_comparable);
     pos++;
   }
   return false;
 }
 
 
-bool
-Fixed_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
+bool Keys_descriptor::setup_for_field_impl(THD *thd, Field *field,
+                                           bool is_mem_comparable)
 {
-  SORT_FIELD *pos;
-  if (Descriptor::init(thd, 1))
+  if (init(thd, 1))
     return true;
-  pos= sortorder;
-  pos->setup_key_part_for_fixed_size_key(field);
+  sortorder->setup_key_part(field, true);
+
+  return false;
+}
+
+bool Variable_size_key_desc_for_gconcat::setup_for_field(THD *thd, Field *field)
+{
+  if (init(thd, 1))
+    return true;
+
+  sortorder->setup_key_part(field, false);
 
   return false;
 }
 
 
-int Fixed_size_keys_mem_comparable::compare_keys(uchar *key1, uchar *key2)
+bool
+Variable_size_key_desc_for_gconcat::setup_for_item(THD *thd, Item_sum *item,
+                                                    uint non_const_args,
+                                                    uint arg_count)
+{
+  return Keys_descriptor::setup_for_item_impl(thd, item, non_const_args,
+                                              arg_count, false);
+}
+
+
+int Fixed_size_keys_mem_comparable::compare_keys(const uchar *key1,
+                                                 const uchar *key2) const
 {
   return memcmp(key1, key2, max_length);
 }
 
 
-int
-Fixed_size_composite_keys_descriptor::compare_keys(uchar *key1, uchar *key2)
-{
-  for (SORT_FIELD *sort_field= sort_keys->begin();
-       sort_field != sort_keys->end(); sort_field++)
-  {
-    Field *field= sort_field->field;
-    int res = field->cmp(key1, key2);
-    if (res)
-      return res;
-    key1 += sort_field->length;
-    key2 += sort_field->length;
-  }
-  return 0;
-}
-
-
-int Fixed_size_keys_for_rowids::compare_keys(uchar *key1, uchar *key2)
+int Fixed_size_keys_for_rowids::compare_keys(const uchar *key1,
+                                             const uchar *key2) const
 {
   return file->cmp_ref(key1, key2);
 }
 
 
 int
-Fixed_size_keys_descriptor_with_nulls::compare_keys(uchar *key1_arg,
-                                                    uchar *key2_arg)
+Fixed_size_keys_descriptor_with_nulls::compare_keys(const uchar *key1_arg,
+                                                    const uchar *key2_arg) const
 {
 
   /*
@@ -1244,7 +1081,8 @@ Fixed_size_keys_descriptor_with_nulls::compare_keys(uchar *key1_arg,
 }
 
 
-int Fixed_size_keys_for_group_concat::compare_keys(uchar *key1, uchar *key2)
+int Fixed_size_keys_for_gconcat::compare_keys(const uchar *key1,
+                                              const uchar *key2) const
 {
   for (SORT_FIELD *sort_field= sort_keys->begin();
        sort_field != sort_keys->end(); sort_field++)
@@ -1259,21 +1097,9 @@ int Fixed_size_keys_for_group_concat::compare_keys(uchar *key1, uchar *key2)
   return 0;
 }
 
-
-bool Encode_key::init(uint length)
+Variable_size_keys_descriptor::~Variable_size_keys_descriptor()
 {
-  if (tmp_buffer.alloc(length))
-    return true;
-  rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
-                              length,
-                              MYF(MY_WME | MY_THREAD_SPECIFIC));
-  return rec_ptr == NULL;
-}
-
-
-Encode_key::~Encode_key()
-{
-  my_free(rec_ptr);
+  my_free(rec_buf);
 }
 
 
@@ -1285,81 +1111,71 @@ Encode_key::~Encode_key()
     0         NULL value
     >0        length of the packed record
 */
-uchar* Encode_variable_size_key::make_encoded_record(Sort_keys *sort_keys,
-                                                     bool exclude_nulls)
+uchar* Variable_size_keys_descriptor::create_keys_record(uchar *orig_record)
 {
-  Field *field;
-  SORT_FIELD *sort_field;
-  uint length;
-  uchar *orig_to, *to;
+  /*
+    TODO(cvicentiu) orig_record should be used instead of indirectly
+    going through sort_keys->fields|items.
+  */
+  uchar *to= rec_buf + Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD;
 
-  orig_to= to= rec_ptr;
-  to+= Variable_size_keys_descriptor::size_of_length_field;
-
-  for (sort_field=sort_keys->begin() ;
-       sort_field != sort_keys->end() ;
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end();
        sort_field++)
   {
-    bool maybe_null=0;
-    if ((field=sort_field->field))
-    {
-      // Field
-      length= field->make_packed_sort_key_part(to, sort_field);
+    uint length;
+    if (sort_field->field)
+    { // Field
+      length= sort_field->field->make_packed_sort_key_part(to, sort_field);
     }
     else
-    {           // Item
+    { // Item
       Item *item= sort_field->item;
       length= item->type_handler()->make_packed_sort_key_part(to, item,
                                                               sort_field,
                                                               &tmp_buffer);
     }
 
-    if ((maybe_null= sort_field->maybe_null))
-    {
-      if (exclude_nulls && length == 0)  // rejecting NULLS
-        return NULL;
+    if (sort_field->maybe_null)
       to++;
-    }
     to+= length;
   }
 
-  length= static_cast<uint>(to - orig_to);
-  Variable_size_keys_descriptor::store_packed_length(orig_to, length);
-  return rec_ptr;
+  Variable_size_keys_descriptor::store_packed_length(
+    rec_buf, static_cast<uint>(to - rec_buf));
+  return rec_buf;
 }
 
 
-uchar*
-Encode_key_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
-                                                 bool exclude_nulls)
+Variable_size_key_desc_for_gconcat::
+Variable_size_key_desc_for_gconcat(uint length):
+  Variable_size_keys_descriptor(length) {}
+
+uchar* Variable_size_key_desc_for_gconcat::create_keys_record(
+  uchar *orig_record)
 {
-  Field *field;
-  SORT_FIELD *sort_field;
-  uint length;
-  uchar *orig_to, *to;
+  uchar *to= rec_buf + Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD;
 
-  orig_to= to= rec_ptr;
-  to+= Variable_size_keys_descriptor::size_of_length_field;
-
-  for (sort_field=sort_keys->begin() ;
-       sort_field != sort_keys->end() ;
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end();
        sort_field++)
   {
-    bool maybe_null=0;
     DBUG_ASSERT(sort_field->field);
-    field=sort_field->field;
-    length= field->make_packed_key_part(to, sort_field);
+    uint length= sort_field->field->make_packed_key_part(to, sort_field);
 
-    if ((maybe_null= sort_field->maybe_null))
-    {
-      if (exclude_nulls && length == 0)  // rejecting NULLS
-        return NULL;
+    if (sort_field->maybe_null)
       to++;
-    }
     to+= length;
   }
 
-  length= static_cast<uint>(to - orig_to);
-  Variable_size_keys_descriptor::store_packed_length(orig_to, length);
-  return rec_ptr;
+  Variable_size_keys_descriptor::store_packed_length(
+    rec_buf, static_cast<uint>(to - rec_buf));
+  return rec_buf;
+}
+
+int Unique::unique_compare_keys(void *arg, const void *key1, const void *key2)
+{
+  Keys_descriptor *desc= static_cast<Keys_descriptor *>(arg);
+  return desc->compare_keys(static_cast<const uchar *>(key1),
+                            static_cast<const uchar *>(key2));
 }

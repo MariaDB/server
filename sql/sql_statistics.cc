@@ -1582,7 +1582,7 @@ public:
 
 uint get_offset_to_value(Field *field)
 {
-  return Variable_size_keys_descriptor::size_of_length_field +
+  return Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD +
          MY_TEST(field->maybe_null());
 }
 
@@ -1716,7 +1716,7 @@ protected:
 
   /* Field for which the number of distinct values is to be find out */
   Field *table_field;  
-  Unique_impl *tree;       /* The helper object to contain distinct values */
+  Unique *tree;       /* The helper object to contain distinct values */
   uint tree_key_length; /* The length of the keys for the elements of 'tree */
 
   ulonglong distincts;
@@ -1778,7 +1778,7 @@ public:
   uint compute_packable_length(Field *field)
   {
     return table_field->max_packed_col_length(table_field->pack_length()) +
-           Variable_size_keys_descriptor::size_of_length_field +
+           Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD +
            MY_TEST(table_field->maybe_null());
   }
 
@@ -1798,11 +1798,11 @@ public:
 
   virtual bool setup(THD *thd, size_t max_heap_table_size)
   {
-    Descriptor *desc;
+    Keys_descriptor *desc;
     if (table_field->is_packable())
     {
       tree_key_length= compute_packable_length(table_field);
-      desc= new Variable_size_keys_simple(tree_key_length);
+      desc= new Variable_size_keys_descriptor(tree_key_length);
     }
     else
     {
@@ -1811,12 +1811,10 @@ public:
     }
     if (!desc)
       return true;  // OOM
-    tree= new Unique_impl((qsort_cmp2) key_cmp,
-                          (void*) this, tree_key_length,
-                           max_heap_table_size, 1, desc);
-    if (!tree)
+    tree= new Unique(desc, max_heap_table_size, 1);
+    if (!tree || tree->setup_for_field(thd, table_field))
       return true; // OOM
-    return tree->get_descriptor()->setup_for_field(thd, table_field);
+    return false;
   }
 
 
@@ -1828,13 +1826,10 @@ public:
   {
     table_field->mark_unused_memory_as_defined();
     DBUG_ASSERT(tree);
-    if (tree->is_variable_sized())
-    {
-      Descriptor *descriptor= tree->get_descriptor();
-      uchar *rec_ptr=  descriptor->make_record(true);
-      DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr) <= tree->get_size());
-      return tree->unique_add(rec_ptr);
-    }
+    // Skip nulls.
+    if (table_field->is_real_null(0))
+      return 0;
+
     return tree->unique_add(table_field->ptr);
   }
 
@@ -1890,31 +1885,7 @@ public:
   {
     return table_field->collected_stats->histogram.get_values();
   }
-
-  static int key_cmp(void* arg, uchar* key1, uchar* key2);
 };
-
-/*
-  @brief
-    Compare function for packed keys
-  @param    arg     Pointer to the relevant class instance
-  @param    key1    left key image
-  @param    key2    right key image
-
-
-  @return   comparison result
-    @retval < 0       if key1 < key2
-    @retval = 0       if key1 = key2
-    @retval > 0       if key1 > key2
-*/
-int Count_distinct_field::key_cmp(void* arg,
-                                  uchar* key1,
-                                  uchar* key2)
-{
-  Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
-  DBUG_ASSERT(compare_arg->tree->get_descriptor());
-  return compare_arg->tree->get_descriptor()->compare_keys(key1, key2);
-}
 
 
 /* 
@@ -1929,48 +1900,21 @@ public:
 
   Count_distinct_field_bit(Field *field): Count_distinct_field(field){}
 
-  bool add()
+  bool add() override
   {
     longlong val= table_field->val_int();
-    return tree->unique_add(&val);
+    return tree->unique_add((uchar *)&val);
   }
   bool setup(THD *thd, size_t max_heap_table_size) override
   {
     tree_key_length= sizeof(ulonglong);
-    Descriptor *desc= new Fixed_size_keys_mem_comparable(tree_key_length);
+    Keys_descriptor *desc= new Fixed_size_keys_mem_comparable(tree_key_length);
     if (!desc)
       return true;
-    tree= new Unique_impl((qsort_cmp2) simple_ulonglong_key_cmp,
-                          (void*) this,
-                          tree_key_length, max_heap_table_size, 1, desc);
+    tree= new Unique(desc, max_heap_table_size, 1);
     return tree == NULL;
   }
-  static int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2);
 };
-
-
-/*
-  @brief
-    Compare function for Bit fields
-
-  @param    arg     Pointer to the relevant class instance
-  @param    key1    left key image
-  @param    key2    right key image
-
-
-  @return   comparison result
-    @retval < 0       if key1 < key2
-    @retval = 0       if key1 = key2
-    @retval > 0       if key1 > key2
-*/
-int Count_distinct_field_bit::simple_ulonglong_key_cmp(void* arg,
-                                                       uchar* key1,
-                                                       uchar* key2)
-{
-  Count_distinct_field_bit *compare_arg= (Count_distinct_field_bit*)arg;
-  DBUG_ASSERT(compare_arg->tree->get_descriptor());
-  return compare_arg->tree->get_descriptor()->compare_keys(key1, key2);
-}
 
 
 /* 
