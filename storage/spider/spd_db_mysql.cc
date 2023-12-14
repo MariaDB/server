@@ -1566,10 +1566,13 @@ int spider_db_mbase_result::fetch_index_for_discover_table_structure(
     }
     DBUG_RETURN(0);
   }
-  if (num_fields() != 13)
+  if (num_fields() < 13)
   {
-    DBUG_PRINT("info",("spider num_fields != 13"));
-    my_printf_error(ER_SPIDER_UNKNOWN_NUM, ER_SPIDER_UNKNOWN_STR, MYF(0));
+    DBUG_PRINT("info",("spider num_fields < 13"));
+    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(0),
+                    "fetch index for table structure discovery because of "
+                    "wrong number of columns in SHOW INDEX FROM output: ",
+                    num_fields());
     DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
   }
   bool first = TRUE;
