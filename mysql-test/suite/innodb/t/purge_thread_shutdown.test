@@ -7,7 +7,7 @@ create table t1 (a int) engine=innodb;
 insert t1 values (1),(2),(3),(4);
 delete from t1 where a=1;
 
-select user,state from information_schema.processlist order by 2;
+select user from information_schema.processlist order by 1;
 
 set global debug_dbug='+d,only_kill_system_threads';
 set global innodb_fast_shutdown=0;
@@ -21,12 +21,12 @@ connection default;
 disconnect con1;
 
 sleep 5;
-select user,state from information_schema.processlist order by 2;
+select user from information_schema.processlist order by 1;
 set global innodb_fast_shutdown=1;
 
 let $wait_condition=select count(*) = 0 from information_schema.processlist where user='system user';
 source include/wait_condition.inc;
-select user,state from information_schema.processlist order by 2;
+select user from information_schema.processlist order by 1;
 
 delete from t1 where a=3;
 error ER_WRONG_VALUE_FOR_VAR;

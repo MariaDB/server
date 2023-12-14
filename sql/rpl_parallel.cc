@@ -2537,23 +2537,10 @@ rpl_parallel::stop_during_until()
 
 
 bool
-rpl_parallel::workers_idle()
+rpl_parallel::workers_idle(Relay_log_info *rli)
 {
-  struct rpl_parallel_entry *e;
-  uint32 i, max_i;
-
-  max_i= domain_hash.records;
-  for (i= 0; i < max_i; ++i)
-  {
-    bool active;
-    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
-    mysql_mutex_lock(&e->LOCK_parallel_entry);
-    active= e->current_sub_id > e->last_committed_sub_id;
-    mysql_mutex_unlock(&e->LOCK_parallel_entry);
-    if (active)
-      break;
-  }
-  return (i == max_i);
+  return rli->last_inuse_relaylog->queued_count ==
+         rli->last_inuse_relaylog->dequeued_count;
 }
 
 

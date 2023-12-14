@@ -117,5 +117,16 @@ ERROR 42000: Incorrect column specifier for column 'c'
 CREATE TABLE t1 (c DATETIME AUTO_INCREMENT UNIQUE) ENGINE=InnoDB;
 ERROR 42000: Incorrect column specifier for column 'c'
 #
-# End of 10.4 tests
+# MDEV-31000 Assertion failed on ALTER TABLE...page_compressed=1
 #
+SET @save_file_per_table=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE t (c INT PRIMARY KEY) ENGINE=INNODB;
+SET GLOBAL innodb_file_per_table=1;
+ALTER TABLE t page_compressed=1;
+SET GLOBAL innodb_file_per_table=@save_file_per_table;
+SELECT space>0 FROM information_schema.innodb_sys_tables WHERE name='test/t';
+space>0
+1
+DROP TABLE t;
+# End of 10.4 tests
