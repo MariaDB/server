@@ -10,6 +10,7 @@
 --source include/count_sessions.inc
 
 --source include/default_charset.inc
+--source include/have_perfschema.inc
 
 connect (ssl_con,localhost,root,,,,,SSL);
 
