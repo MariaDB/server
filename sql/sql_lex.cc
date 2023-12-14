@@ -4922,7 +4922,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       if (linkage == DERIVED_TABLE_TYPE)
       {
         bool is_pushed_master_unit= master_unit()->derived &&
-	                            master_unit()->derived->pushdown_derived;
+                                    master_unit()->derived->is_pushed_down();
         if (is_pushed_master_unit)
           type= pushed_derived_text;
         else if (is_uncacheable & UNCACHEABLE_DEPENDENT)

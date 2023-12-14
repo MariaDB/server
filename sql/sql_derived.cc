@@ -351,13 +351,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if (derived->dt_handler)
-  {
-    derived->change_refs_to_fields();
-    derived->set_materialized_derived();
-    DBUG_RETURN(FALSE);
-  }
-
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
   if (!derived->merged_for_insert || 
@@ -376,6 +369,12 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     {
       /* There is no enough table bits, fall back to materialization. */
       cause= "Not enough table bits to merge subquery";
+      goto unconditional_materialization;
+    }
+
+    if (derived->is_pushed_down())
+    {
+      cause= "Pushed down derived tables must always be materialized";
       goto unconditional_materialization;
     }
 
@@ -869,6 +868,12 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->is_derived() && derived->is_merged_derived())
     first_select->mark_as_belong_to_derived(derived);
 
+  /*
+    Choosing an external executor of a derived table (also called the
+    "pushdown handler") must be the last step in mysql_derived_prepare,
+    because the external engine requires the preparation of the DT to be
+    fully completed.
+  */
   derived->dt_handler= derived->find_derived_handler(thd);
   if (derived->dt_handler)
   {

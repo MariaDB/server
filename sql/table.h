@@ -2894,6 +2894,11 @@ struct TABLE_LIST
   {
     derived_type|= DTYPE_MULTITABLE;
   }
+  bool is_pushed_down() const
+  {
+    return dt_handler != NULL;
+  }
+
   bool set_as_with_table(THD *thd, With_element *with_elem);
   void reset_const_table();
   bool handle_derived(LEX *lex, uint phases);
