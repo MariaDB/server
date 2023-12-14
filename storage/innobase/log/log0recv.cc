@@ -855,7 +855,22 @@ processed:
           filename= tbl_name + 1;
       }
     }
-    space->add(filename, OS_FILE_CLOSED, size, false, false);
+    pfs_os_file_t handle= OS_FILE_CLOSED;
+    if (srv_operation == SRV_OPERATION_RESTORE)
+    {
+      /* During mariadb-backup --backup, a table could be renamed,
+      created and dropped, and we may be missing the file at this
+      point of --prepare. Try to create the file if it does not exist
+      already. If the file exists, we'll pass handle=OS_FILE_CLOSED
+      and the file will be opened normally in fil_space_t::acquire()
+      inside recv_sys_t::recover_deferred(). */
+      bool success;
+      handle= os_file_create(innodb_data_file_key, filename,
+                             OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT |
+                             OS_FILE_ON_ERROR_SILENT,
+                             OS_FILE_AIO, OS_DATA_FILE, false, &success);
+    }
+    space->add(filename, handle, size, false, false);
     space->recv_size= it->second.size;
     space->size_in_header= size;
     return space;
@@ -1278,7 +1293,8 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 
 	file_name_t&	f = p.first->second;
 
-	if (auto d = deferred_spaces.find(space_id)) {
+	auto d = deferred_spaces.find(space_id);
+	if (d) {
 		if (deleted) {
 			d->deleted = true;
 			goto got_deleted;
@@ -1345,23 +1361,37 @@ same_space:
 			FILE_* record. */
 			ut_ad(space == NULL);
 
-			if (srv_force_recovery) {
+			if (srv_operation == SRV_OPERATION_RESTORE && d
+			    && ftype == FILE_RENAME) {
+rename:
+				d->file_name = fname.name;
+				f.name = fname.name;
+				break;
+			}
+
+			if (srv_force_recovery
+			    || srv_operation == SRV_OPERATION_RESTORE) {
 				/* Without innodb_force_recovery,
 				missing tablespaces will only be
 				reported in
 				recv_init_crash_recovery_spaces().
 				Enable some more diagnostics when
 				forcing recovery. */
-
-				ib::info()
-					<< "At LSN: " << recv_sys.recovered_lsn
-					<< ": unable to open file "
-					<< fname.name
-					<< " for tablespace " << space_id;
+				sql_print_information("InnoDB: At LSN: " LSN_PF
+						      ": unable to open file "
+						      "%s for tablespace "
+						      UINT32PF,
+						      recv_sys.recovered_lsn,
+						      fname.name.c_str(),
+						      space_id);
 			}
 			break;
 
 		case FIL_LOAD_DEFER:
+			if (d && ftype == FILE_RENAME
+			    && srv_operation == SRV_OPERATION_RESTORE) {
+				goto rename;
+			}
 			/* Skip the deferred spaces
 			when lsn is already processed */
 			if (store != store_t::STORE_IF_EXISTS) {
