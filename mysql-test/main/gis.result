@@ -5048,5 +5048,15 @@ SELECT AsText(a) FROM t1;
 AsText(a)
 DROP TABLE t1, t2;
 #
+# MDEV-27666 User variable not parsed as geometry variable in geometry function.
+#
+set @g=  point(1, 1);
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+ST_AsWKT(GeometryCollection(Point(44, 6), @g))
+GEOMETRYCOLLECTION(POINT(44 6),POINT(1 1))
+set @g=  "just a string";
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+ERROR HY000: Illegal parameter data type longblob for operation 'geometrycollection'
+#
 # End of 10.4 tests
 #

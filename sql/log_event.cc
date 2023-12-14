@@ -9170,7 +9170,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
   else
   {
     switch (type) {
-    case REAL_RESULT:
+    case VAR_REAL:
     {
       double real_val;
       char buf2[MY_GCVT_MAX_FIELD_WIDTH+1];
@@ -9185,7 +9185,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
     }
-    case INT_RESULT:
+    case VAR_INT:
     {
       char buf2[22];
       char buf_mem[FN_REFLEN + 22];
@@ -9199,7 +9199,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
     }
-    case DECIMAL_RESULT:
+    case VAR_DECIMAL:
     {
       char buf_mem[FN_REFLEN + DECIMAL_MAX_STR_LENGTH];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
@@ -9213,7 +9213,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
     }
-    case STRING_RESULT:
+    case VAR_STRING:
+    case VAR_GEOMETRY:
     {
       /* 15 is for 'COLLATE' and other chars */
       char buf_mem[FN_REFLEN + 512 + 1 + 2*MY_CS_NAME_SIZE+15];
@@ -9248,7 +9249,6 @@ void User_var_log_event::pack_info(Protocol* protocol)
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
     }
-    case ROW_RESULT:
     default:
       DBUG_ASSERT(0);
       return;
@@ -9298,7 +9298,7 @@ User_var_log_event(const char* buf, uint event_len,
   flags= User_var_log_event::UNDEF_F;    // defaults to UNDEF_F
   if (is_null)
   {
-    type= STRING_RESULT;
+    type= VAR_STRING;
     charset_number= my_charset_bin.number;
     val_len= 0;
     val= 0;  
@@ -9314,7 +9314,7 @@ User_var_log_event(const char* buf, uint event_len,
       goto err;
     }
 
-    type= (Item_result) buf[UV_VAL_IS_NULL];
+    type= (user_var_type) buf[UV_VAL_IS_NULL];
     charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
     val_len= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
                        UV_CHARSET_NUMBER_SIZE);
@@ -9374,14 +9374,14 @@ bool User_var_log_event::write()
     int4store(buf1 + 2, charset_number);
 
     switch (type) {
-    case REAL_RESULT:
+    case VAR_REAL:
       float8store(buf2, *(double*) val);
       break;
-    case INT_RESULT:
+    case VAR_INT:
       int8store(buf2, *(longlong*) val);
       unsigned_len= 1;
       break;
-    case DECIMAL_RESULT:
+    case VAR_DECIMAL:
     {
       my_decimal *dec= (my_decimal *)val;
       dec->fix_buffer_pointer();
@@ -9391,10 +9391,10 @@ bool User_var_log_event::write()
       val_len= decimal_bin_size(buf2[0], buf2[1]) + 2;
       break;
     }
-    case STRING_RESULT:
+    case VAR_STRING:
+    case VAR_GEOMETRY:
       pos= (uchar*) val;
       break;
-    case ROW_RESULT:
     default:
       DBUG_ASSERT(0);
       return 0;
@@ -9446,7 +9446,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   else
   {
     switch (type) {
-    case REAL_RESULT:
+    case VAR_REAL:
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
       float8get(real_val, val);
@@ -9455,7 +9455,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
                       print_event_info->delimiter))
         goto err;
       break;
-    case INT_RESULT:
+    case VAR_INT:
       char int_buf[22];
       longlong10_to_str(uint8korr(val), int_buf, 
                         ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10));
@@ -9463,7 +9463,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
                       print_event_info->delimiter))
         goto err;
       break;
-    case DECIMAL_RESULT:
+    case VAR_DECIMAL:
     {
       char str_buf[200];
       int str_len= sizeof(str_buf) - 1;
@@ -9482,7 +9482,8 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
         goto err;
       break;
     }
-    case STRING_RESULT:
+    case VAR_STRING:
+    case VAR_GEOMETRY:
     {
       /*
         Let's express the string in hex. That's the most robust way. If we
@@ -9529,7 +9530,6 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
         goto err;
       break;
     }
-    case ROW_RESULT:
     default:
       DBUG_ASSERT(0);
       break;
@@ -9630,7 +9630,6 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     case STRING_RESULT:
       it= new (thd->mem_root) Item_string(thd, val, (uint)val_len, charset);
       break;
-    case ROW_RESULT:
     default:
       DBUG_ASSERT(0);
       DBUG_RETURN(0);

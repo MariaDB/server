@@ -4554,7 +4554,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
       by Item_func_get_user_var (because that's not necessary).
     */
     entry->used_query_id=current_thd->query_id;
-    entry->type=STRING_RESULT;
+    entry->type= VAR_STRING;
     memcpy((char*) entry->name.str, name->str, name->length+1);
     if (my_hash_insert(hash,(uchar*) entry))
     {
@@ -4628,9 +4628,12 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:
-    set_handler(type_handler_long_blob.
-                type_handler_adjusted_to_max_octet_length(max_length,
-                                                          collation.collation));
+    if (args[0]->field_type() == MYSQL_TYPE_GEOMETRY)
+      set_handler(&type_handler_geometry);
+    else
+      set_handler(type_handler_long_blob.
+         type_handler_adjusted_to_max_octet_length(max_length,
+                                                   collation.collation));
     break;
   case REAL_RESULT:
     set_handler(&type_handler_double);
@@ -4751,7 +4754,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 
 bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-            Item_result type, CHARSET_INFO *cs,
+            user_var_type type, CHARSET_INFO *cs,
             bool unsigned_arg)
 {
   if (set_null)
@@ -4764,7 +4767,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
   }
   else
   {
-    if (type == STRING_RESULT)
+    if (type == VAR_STRING)
       length++;					// Store strings with end \0
     if (length <= extra_size)
     {
@@ -4793,14 +4796,14 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	  return 1;
       }
     }
-    if (type == STRING_RESULT)
+    if (type == VAR_STRING)
     {
       length--;					// Fix length change above
       entry->value[length]= 0;			// Store end \0
     }
     if (length)
       memmove(entry->value, ptr, length);
-    if (type == DECIMAL_RESULT)
+    if (type == VAR_DECIMAL)
       ((my_decimal*)entry->value)->fix_buffer_pointer();
     entry->length= length;
     entry->set_charset(cs);
@@ -4813,7 +4816,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 
 bool
 Item_func_set_user_var::update_hash(void *ptr, size_t length,
-                                    Item_result res_type,
+                                    user_var_type res_type,
                                     CHARSET_INFO *cs,
                                     bool unsigned_arg)
 {
@@ -4848,16 +4851,16 @@ double user_var_entry::val_real(bool *null_value)
     return 0.0;
 
   switch (type) {
-  case REAL_RESULT:
+  case VAR_REAL:
     return *(double*) value;
-  case INT_RESULT:
+  case VAR_INT:
     return (double) *(longlong*) value;
-  case DECIMAL_RESULT:
+  case VAR_DECIMAL:
     return ((my_decimal *)value)->to_double();
-  case STRING_RESULT:
+  case VAR_STRING:
+  case VAR_GEOMETRY:
     return my_atof(value);                      // This is null terminated
-  case ROW_RESULT:
-  case TIME_RESULT:
+  default:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -4873,19 +4876,19 @@ longlong user_var_entry::val_int(bool *null_value) const
     return 0;
 
   switch (type) {
-  case REAL_RESULT:
+  case VAR_REAL:
     return (longlong) *(double*) value;
-  case INT_RESULT:
+  case VAR_INT:
     return *(longlong*) value;
-  case DECIMAL_RESULT:
+  case VAR_DECIMAL:
     return ((my_decimal *)value)->to_longlong(false);
-  case STRING_RESULT:
+  case VAR_STRING:
+  case VAR_GEOMETRY:
   {
     int error;
     return my_strtoll10(value, (char**) 0, &error);// String is null terminated
   }
-  case ROW_RESULT:
-  case TIME_RESULT:
+  default:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -4902,24 +4905,24 @@ String *user_var_entry::val_str(bool *null_value, String *str,
     return (String*) 0;
 
   switch (type) {
-  case REAL_RESULT:
+  case VAR_REAL:
     str->set_real(*(double*) value, decimals, charset());
     break;
-  case INT_RESULT:
+  case VAR_INT:
     if (!unsigned_flag)
       str->set(*(longlong*) value, charset());
     else
       str->set(*(ulonglong*) value, charset());
     break;
-  case DECIMAL_RESULT:
+  case VAR_DECIMAL:
     str_set_decimal((my_decimal *) value, str, charset());
     break;
-  case STRING_RESULT:
+  case VAR_STRING:
+  case VAR_GEOMETRY:
     if (str->copy(value, length, charset()))
       str= 0;					// EOM error
     break;
-  case ROW_RESULT:
-  case TIME_RESULT:
+  default:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -4934,20 +4937,20 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
     return 0;
 
   switch (type) {
-  case REAL_RESULT:
+  case VAR_REAL:
     double2my_decimal(E_DEC_FATAL_ERROR, *(double*) value, val);
     break;
-  case INT_RESULT:
+  case VAR_INT:
     int2my_decimal(E_DEC_FATAL_ERROR, *(longlong*) value, 0, val);
     break;
-  case DECIMAL_RESULT:
+  case VAR_DECIMAL:
     my_decimal2decimal((my_decimal *) value, val);
     break;
-  case STRING_RESULT:
+  case VAR_STRING:
+  case VAR_GEOMETRY:
     str2my_decimal(E_DEC_FATAL_ERROR, value, length, charset(), val);
     break;
-  case ROW_RESULT:
-  case TIME_RESULT:
+  default:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5072,32 +5075,34 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, default_charset(), 0);
+		     VAR_REAL, default_charset(), 0);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, default_charset(), unsigned_flag);
+                     VAR_INT, default_charset(), unsigned_flag);
     break;
   }
   case STRING_RESULT:
   {
     if (!save_result.vstr)					// Null value
-      res= update_hash((void*) 0, 0, STRING_RESULT, &my_charset_bin, 0);
+      res= update_hash((void*) 0, 0, VAR_STRING, &my_charset_bin, 0);
     else
       res= update_hash((void*) save_result.vstr->ptr(),
-		       save_result.vstr->length(), STRING_RESULT,
+		       save_result.vstr->length(),
+                       field_type() == MYSQL_TYPE_GEOMETRY ?
+                                         VAR_GEOMETRY : VAR_STRING,
 		       save_result.vstr->charset(), 0);
     break;
   }
   case DECIMAL_RESULT:
   {
     if (!save_result.vdec)					// Null value
-      res= update_hash((void*) 0, 0, DECIMAL_RESULT, &my_charset_bin, 0);
+      res= update_hash((void*) 0, 0, VAR_DECIMAL, &my_charset_bin, 0);
     else
       res= update_hash((void*) save_result.vdec,
-                       sizeof(my_decimal), DECIMAL_RESULT,
+                       sizeof(my_decimal), VAR_DECIMAL,
                        default_charset(), 0);
     break;
   }
@@ -5538,7 +5543,11 @@ bool Item_func_get_user_var::fix_length_and_dec()
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-    set_handler_by_result_type(m_var_entry->type);
+    set_handler_by_result_type(m_var_entry->result_type());
+    set_handler_by_result_type(m_var_entry->result_type());
+    if (m_var_entry->type == VAR_GEOMETRY)
+      set_handler(&type_handler_geometry);
+
     switch (result_type()) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
@@ -5619,7 +5628,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(thd->lex->exchange);
   if (!(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
-  entry->type= STRING_RESULT;
+  entry->type= VAR_STRING;
   /*
     Let us set the same collation which is used for loading
     of fields in LOAD DATA INFILE.
@@ -5635,14 +5644,14 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 
 void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
 {
-  ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
+  ::update_hash(entry, TRUE, 0, 0, VAR_STRING, cs, 0 /* unsigned_arg */);
 }
 
 
 void Item_user_var_as_out_param::set_value(const char *str, uint length,
                                            CHARSET_INFO* cs)
 {
-  ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
+  ::update_hash(entry, FALSE, (void*)str, length, VAR_STRING, cs,
                 0 /* unsigned_arg */);
 }
 

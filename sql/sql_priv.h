@@ -426,4 +426,13 @@ bool db_name_is_in_ignore_db_dirs_list(const char *dbase);
 
 #endif /* MYSQL_CLIENT */
 
+enum user_var_type
+{
+  VAR_STRING=STRING_RESULT,
+  VAR_REAL= REAL_RESULT,
+  VAR_INT= INT_RESULT,
+  VAR_DECIMAL= DECIMAL_RESULT,
+  VAR_GEOMETRY= 100
+};
+
 #endif /* SQL_PRIV_INCLUDED */

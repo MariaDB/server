@@ -264,7 +264,7 @@ typedef struct st_user_var_events
   user_var_entry *user_var_event;
   char *value;
   size_t length;
-  Item_result type;
+  user_var_type type;
   uint charset_number;
   bool unsigned_flag;
 } BINLOG_USER_VAR_EVENT;
@@ -6400,7 +6400,7 @@ class user_var_entry
   char *value;
   size_t length;
   query_id_t update_query_id, used_query_id;
-  Item_result type;
+  user_var_type type;
   bool unsigned_flag;
 
   double val_real(bool *null_value);
@@ -6409,6 +6409,10 @@ class user_var_entry
   my_decimal *val_decimal(bool *null_value, my_decimal *result);
   CHARSET_INFO *charset() const { return m_charset; }
   void set_charset(CHARSET_INFO *cs) { m_charset= cs; }
+  Item_result result_type() const
+  {
+    return type == VAR_GEOMETRY ? STRING_RESULT : (Item_result) type;
+  }
 };
 
 user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,

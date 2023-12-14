@@ -21,6 +21,14 @@
 */
 
 #include <my_config.h>
+
+#include <my_global.h>
+#include <debug_sync.h>
+#include <gstream.h>
+#include <log.h>
+#include <mysys_err.h>
+#include <innodb_priv.h>
+
 #include <ctype.h>
 #include <mysql_version.h>
 #include <item.h>

@@ -3161,6 +3161,15 @@ INSERT INTO t1 SELECT * FROM t2;
 SELECT AsText(a) FROM t1;
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-27666 User variable not parsed as geometry variable in geometry function.
+--echo #
+
+set @g=  point(1, 1);
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+set @g=  "just a string";
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
 
 --echo #
 --echo # End of 10.4 tests

@@ -3104,7 +3104,7 @@ public:
   size_t name_len;
   const char *val;
   size_t val_len;
-  Item_result type;
+  user_var_type type;
   uint charset_number;
   bool is_null;
   uchar flags;
@@ -3112,7 +3112,8 @@ public:
   bool deferred;
   query_id_t query_id;
   User_var_log_event(THD* thd_arg, const char *name_arg, size_t name_len_arg,
-                     const char *val_arg, size_t val_len_arg, Item_result type_arg,
+                     const char *val_arg, size_t val_len_arg,
+                     user_var_type type_arg,
 		     uint charset_number_arg, uchar flags_arg,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),
