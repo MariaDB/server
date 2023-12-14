@@ -6096,7 +6096,7 @@ void Regexp_processor_pcre::init(CHARSET_INFO *data_charset, int extra_flags)
 
   // Convert text data to utf-8.
   m_library_charset= data_charset == &my_charset_bin ?
-                     &my_charset_bin : &my_charset_utf8mb3_general_ci;
+                     &my_charset_bin : &my_charset_utf8mb4_general_ci;
 
   m_conversion_is_needed= (data_charset != &my_charset_bin) &&
                           !my_charset_same(data_charset, m_library_charset);
