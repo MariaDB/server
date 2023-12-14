@@ -52,6 +52,8 @@ DROP TABLE t1, t4;
 SET SQL_LOG_BIN=OFF;
 DROP TABLE t2, t3;
 connection node_3;
+BINLOG_POSITIONS_MATCH
+1
 STOP SLAVE;
 RESET SLAVE ALL;
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');

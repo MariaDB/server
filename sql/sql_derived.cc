@@ -1227,6 +1227,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       goto err;
     JOIN *join= unit->first_select()->join;
     join->first_record= false;
+    if (join->zero_result_cause)
+      goto err;
+
     for (uint i= join->top_join_tab_count;
          i < join->top_join_tab_count + join->aggr_tables;
          i++)
