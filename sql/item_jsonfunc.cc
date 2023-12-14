@@ -761,7 +761,7 @@ bool Item_func_json_unquote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  max_length= args[0]->max_length;
+  max_length= args[0]->max_char_length() * collation.collation->mbmaxlen;
   maybe_null= 1;
   return FALSE;
 }
@@ -1730,7 +1730,22 @@ bool Item_func_json_array::fix_length_and_dec()
     return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
-    char_length+= args[n_arg]->max_char_length() + 4;
+  {
+    ulonglong arg_length;
+    Item *arg= args[n_arg];
+
+    if (!arg->is_json_type() && arg->result_type() == STRING_RESULT)
+      arg_length= arg->max_char_length() * 2; /*escaping possible */
+    else if (arg->type_handler()->is_bool_type())
+      arg_length= 5;
+    else
+      arg_length= arg->max_char_length();
+
+    if (arg_length < 4)
+      arg_length= 4; /* can be 'null' */
+
+    char_length+= arg_length + 4;
+  }
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
@@ -2874,7 +2889,7 @@ longlong Item_func_json_depth::val_int()
 bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci);
-  max_length= 12;
+  max_length= 12 * collation.collation->mbmaxlen;
   maybe_null= 1;
   return FALSE;
 }
@@ -2940,6 +2955,11 @@ bool Item_func_json_insert::fix_length_and_dec()
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
+    /*
+      In the resulting JSON we can insert the property
+      name from the path, and the value itself.
+    */
+    char_length+= args[n_arg/2]->max_char_length() + 6;
     char_length+= args[n_arg/2+1]->max_char_length() + 4;
   }
 
@@ -3749,7 +3769,20 @@ bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   collation.set(args[0]->collation);
-  max_length= args[0]->max_length;
+  switch (fmt)
+  {
+  case COMPACT:
+    max_length= args[0]->max_length;
+    break;
+  case LOOSE:
+    max_length= args[0]->max_length * 2;
+    break;
+  case DETAILED:
+    max_length= MAX_BLOB_WIDTH;
+    break;
+  default:
+    DBUG_ASSERT(0);
+  };
   maybe_null= 1;
   return FALSE;
 }
