@@ -385,6 +385,7 @@ public:
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool invisible_mode();
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
   void reset_cache() { cache= NULL; }
   virtual void print(String *str, enum_query_type query_type);
   void restore_first_argument();
