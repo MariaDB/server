@@ -1783,13 +1783,7 @@ int spider_conn_queue_and_merge_loop_check(
     lcptr->flag = SPIDER_LOP_CHK_MERAGED;
     lcptr->next = NULL;
     if (!conn->loop_check_meraged_first)
-    {
       conn->loop_check_meraged_first = lcptr;
-      conn->loop_check_meraged_last = lcptr;
-    } else {
-      conn->loop_check_meraged_last->next = lcptr;
-      conn->loop_check_meraged_last = lcptr;
-    }
   }
   DBUG_RETURN(0);
 
