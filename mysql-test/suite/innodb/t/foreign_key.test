@@ -733,7 +733,9 @@ SELECT a FROM t1 FORCE INDEX(a);
 # the "goto rollback_to_savept" in row_mysql_handle_errors() is reverted.
 SELECT * FROM t1;
 # Allow purge to continue by closing the read view.
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 
 # Wait for purge. With the fix reverted, the server would crash here.
 --source include/wait_all_purged.inc
@@ -952,6 +954,36 @@ CREATE TABLE t2 (
 ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-31441 BLOB corruption on UPDATE of PRIMARY KEY with FOREIGN KEY
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY (pk) REFERENCES t1(pk))
+  ENGINE=InnoDB;
+
+SET @blob = REPEAT('A', @@innodb_page_size / 2);
+INSERT INTO t1 SET pk=1, t=@blob;
+INSERT INTO t2 SET pk=1;
+--connection con1
+BEGIN;
+DELETE FROM t2;
+--connection default
+# The following will be blocked by a FOREIGN KEY check on pk=1 in t2.
+--send
+UPDATE t1 SET pk=12;
+--connection con1
+let $wait_condition=
+SELECT count(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE state='Updating';
+--source include/wait_condition.inc
+COMMIT;
+--disconnect con1
+--connection default
+--reap
+UPDATE t1 SET pk=1;
+SELECT pk,t=@blob FROM t1;
+DROP TABLE t2, t1;
 
 --echo #
 --echo # End of 10.4 tests

@@ -725,7 +725,9 @@ pk	a	b
 13	0	1
 14	0	1
 15	1	0
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 InnoDB		0 transactions not purged
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -902,6 +904,29 @@ CONSTRAINT FK_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id)
 );
 ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
 DROP TABLE t1,t2;
+#
+# MDEV-31441 BLOB corruption on UPDATE of PRIMARY KEY with FOREIGN KEY
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY (pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+SET @blob = REPEAT('A', @@innodb_page_size / 2);
+INSERT INTO t1 SET pk=1, t=@blob;
+INSERT INTO t2 SET pk=1;
+connection con1;
+BEGIN;
+DELETE FROM t2;
+connection default;
+UPDATE t1 SET pk=12;
+connection con1;
+COMMIT;
+disconnect con1;
+connection default;
+UPDATE t1 SET pk=1;
+SELECT pk,t=@blob FROM t1;
+pk	t=@blob
+1	1
+DROP TABLE t2, t1;
 #
 # End of 10.4 tests
 #

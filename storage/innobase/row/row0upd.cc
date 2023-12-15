@@ -2158,6 +2158,25 @@ row_upd_clust_rec_by_insert_inherit_func(
 	return(inherit);
 }
 
+/** Mark 'disowned' BLOBs as 'owned' and 'inherited' again,
+after resuming from a lock wait.
+@param entry  clustered index entry */
+static ATTRIBUTE_COLD void row_upd_reown_inherited_fields(dtuple_t *entry)
+{
+  for (ulint i= 0; i < entry->n_fields; i++)
+  {
+    const dfield_t *dfield= dtuple_get_nth_field(entry, i);
+    if (dfield_is_ext(dfield))
+    {
+      byte *blob_len= static_cast<byte*>(dfield->data) +
+        dfield->len - (BTR_EXTERN_FIELD_REF_SIZE - BTR_EXTERN_LEN);
+      ut_ad(*blob_len & BTR_EXTERN_OWNER_FLAG);
+      *blob_len= byte(*blob_len & ~BTR_EXTERN_OWNER_FLAG) |
+        BTR_EXTERN_INHERITED_FLAG;
+    }
+  }
+}
+
 /***********************************************************//**
 Marks the clustered index record deleted and inserts the updated version
 of the record to the index. This function should be used when the ordering
@@ -2236,12 +2255,16 @@ row_upd_clust_rec_by_insert(
 			/* If the clustered index record is already delete
 			marked, then we are here after a DB_LOCK_WAIT.
 			Skip delete marking clustered index and disowning
-			its blobs. */
+			its blobs. Mark the BLOBs in the index entry
+			(which we copied from the already "disowned" rec)
+			as "owned", like it was on the previous call of
+			row_upd_clust_rec_by_insert(). */
 			ut_ad(row_get_rec_trx_id(rec, index, offsets)
 			      == trx->id);
 			ut_ad(!trx_undo_roll_ptr_is_insert(
 			              row_get_rec_roll_ptr(rec, index,
 							   offsets)));
+			row_upd_reown_inherited_fields(entry);
 			goto check_fk;
 		}
 
