@@ -9,6 +9,7 @@
 #FIXME: this is a workaround.
 set @old_spider_disable_group_by_handler=@@spider_disable_group_by_handler;
 set spider_disable_group_by_handler=1;
+set spider_same_server_link=1;
 evalp CREATE SERVER s FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
 CREATE TABLE t1 (a INT);
