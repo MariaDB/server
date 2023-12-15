@@ -629,7 +629,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 
 
 const char *hton_no_exts[]= { 0 };
-
+static bool ddl_recovery_done= false;
 
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
@@ -778,6 +778,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
+
+  if (ddl_recovery_done && hton->signal_ddl_recovery_done)
+    hton->signal_ddl_recovery_done(hton);
 
   DBUG_RETURN(ret);
 
@@ -975,6 +978,7 @@ void ha_signal_ddl_recovery_done()
   DBUG_ENTER("ha_signal_ddl_recovery_done");
   plugin_foreach(NULL, signal_ddl_recovery_done, MYSQL_STORAGE_ENGINE_PLUGIN,
                  NULL);
+  ddl_recovery_done= true;
   DBUG_VOID_RETURN;
 }
 

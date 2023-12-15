@@ -7123,6 +7123,15 @@ bool spider_init_system_tables()
 }
 
 
+/*
+  Spider is typically loaded before ddl_recovery, but DDL statements
+  cannot be executed before ddl_recovery, so we delay system table creation.
+*/
+static void spider_after_ddl_recovery(handlerton *)
+{
+  spider_init_system_tables();
+}
+
 int spider_db_init(
   void *p
 ) {
@@ -7153,6 +7162,7 @@ int spider_db_init(
   spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
   */
   spider_hton->panic = spider_panic;
+  spider_hton->signal_ddl_recovery_done= spider_after_ddl_recovery;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
   spider_hton->flush_logs = spider_flush_logs;
@@ -7490,11 +7500,6 @@ int spider_db_init(
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
   }
 
-  if (spider_init_system_tables())
-  {
-    goto error_system_table_creation;
-  }
-
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (!(spider_table_sts_threads = (SPIDER_THREAD *)
     spider_bulk_malloc(NULL, SPD_MID_DB_INIT_12, MYF(MY_WME | MY_ZEROFILL),
@@ -7595,7 +7600,6 @@ error_init_udf_table_mon_list_hash:
 error_init_udf_table_mon_cond:
   for (; roop_count >= 0; roop_count--)
     pthread_cond_destroy(&spider_udf_table_mon_conds[roop_count]);
-error_system_table_creation:
   roop_count = spider_param_udf_table_mon_mutex_count() - 1;
 error_init_udf_table_mon_mutex:
   for (; roop_count >= 0; roop_count--)
