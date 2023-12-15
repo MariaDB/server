@@ -3708,4 +3708,12 @@ SELECT JSON_SCHEMA_VALID(NULL, NULL);
 --error ER_JSON_NO_VARIABLE_SCHEMA
 PREPARE s FROM 'SELECT JSON_SCHEMA_VALID (?,''{}'') FROM DUAL';
 
+--echo #
+--echo # MDEV-33015: Server crashes upon JSON_SCHEMA_VALID reading NULL from a user variable
+--echo #
+
+SET @a= NULL;
+SELECT JSON_SCHEMA_VALID(@a,'{}');
+
+
 --echo # End of 11.1 test
