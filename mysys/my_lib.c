@@ -115,7 +115,10 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   DIR		*dirp;
   struct dirent *dp;
   char		tmp_path[FN_REFLEN + 2], *tmp_file;
-  char	dirent_tmp[sizeof(struct dirent)+_POSIX_PATH_MAX+1];
+  union {
+    char storage[sizeof(struct dirent)+_POSIX_PATH_MAX+1];
+    struct dirent d;
+  } dirent_tmp;
 
   DBUG_ENTER("my_dir");
   DBUG_PRINT("my",("path: '%s' MyFlags: %lu",path,MyFlags));
@@ -139,9 +142,9 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
                   MYF(MyFlags));
 
-  dp= (struct dirent*) dirent_tmp;
+  dp= &dirent_tmp.d;
   
-  while (!(READDIR(dirp,(struct dirent*) dirent_tmp,dp)))
+  while (!(READDIR(dirp,&dirent_tmp.d,dp)))
   {
     MY_STAT statbuf, *mystat= 0;
     
