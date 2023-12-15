@@ -336,8 +336,20 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
         flags & MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES ?
         my_space_weight(scanner->level) : 0;
 
-      res.nchars= 1;
       (*generated)++;
+      res.nchars++; /* Count all ignorable characters and the padded space */
+      if (res.nchars > nchars)
+      {
+        /*
+          We scanned a number of ignorable characters at the end of the
+          string and reached the "nchars" limit, so the virtual padded space
+          does not fit. This is possible with CONCAT('a', x'00') with
+          nchars=2 on the second iteration when we scan the x'00'.
+        */
+        if (scanner->cs->state & MY_CS_NOPAD)
+          res.weight= 0;
+        res.nchars= (uint) nchars;
+      }
     }
     else if (res.nchars > nchars)
     {

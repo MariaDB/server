@@ -1005,7 +1005,8 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   {
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
 
-    lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
+    lex->unit.print(&view_query, enum_query_type(QT_FOR_FRM |
+                                                 QT_VIEW_INTERNAL |
                                                  QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                                  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
     lex->unit.print(&is_query, enum_query_type(QT_TO_SYSTEM_CHARSET |
@@ -1725,7 +1726,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         objects of the view.
       */
       if (!(table->view_sctx= (Security_context *)
-            thd->stmt_arena->calloc(sizeof(Security_context))))
+            thd->active_stmt_arena_to_use()->calloc(sizeof(Security_context))))
         goto err;
       security_ctx= table->view_sctx;
     }

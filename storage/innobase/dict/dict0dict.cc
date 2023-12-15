@@ -2810,8 +2810,7 @@ dict_foreign_find_index(
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index;
 	     index = dict_table_get_next_index(index)) {
-		if (types_idx != index
-		    && !index->to_be_dropped
+		if (!index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
@@ -3531,6 +3530,7 @@ dict_foreign_parse_drop_constraints(
 	const char*		ptr1;
 	const char*		id;
 	CHARSET_INFO*		cs;
+	bool			if_exists = false;
 
 	ut_a(trx->mysql_thd);
 
@@ -3584,6 +3584,7 @@ loop:
 		ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
 		if (success) {
 			ptr = ptr1;
+			if_exists = true;
 		}
 	}
 
@@ -3594,14 +3595,14 @@ loop:
 		goto syntax_error;
 	}
 
-	ut_a(*n < 1000);
-	(*constraints_to_drop)[*n] = id;
-	(*n)++;
-
 	if (std::find_if(table->foreign_set.begin(),
-			 table->foreign_set.end(),
-			 dict_foreign_matches_id(id))
-	    == table->foreign_set.end()) {
+			    table->foreign_set.end(),
+			    dict_foreign_matches_id(id))
+	        == table->foreign_set.end()) {
+
+		if (if_exists) {
+			goto loop;
+		}
 
 		if (!srv_read_only_mode) {
 			FILE*	ef = dict_foreign_err_file;
@@ -3623,6 +3624,9 @@ loop:
 		return(DB_CANNOT_DROP_CONSTRAINT);
 	}
 
+	ut_a(*n < 1000);
+	(*constraints_to_drop)[*n] = id;
+	(*n)++;
 	goto loop;
 
 syntax_error:

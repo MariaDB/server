@@ -5,6 +5,10 @@ if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
 endif()
 
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
+  add_definitions(-DHAVE_PSI_INTERFACE=)
+ENDIF()
+
 
 # this does everything, gets the var from the correct scope, appends new
 # values, sets in the correct scope

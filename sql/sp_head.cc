@@ -1554,7 +1554,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     {
       // Don't count a call ended with an error as normal run
       executed_counter= 0;
-      main_mem_root.read_only= 0;
+      main_mem_root.flags &= ~ROOT_FLAG_READ_ONLY;
       reset_instrs_executed_counter();
     }
 #endif
@@ -1675,10 +1675,10 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #ifdef PROTECT_STATEMENT_MEMROOT
   if (!err_status)
   {
-    if (!main_mem_root.read_only &&
+    if (!(main_mem_root.flags & ROOT_FLAG_READ_ONLY) &&
         has_all_instrs_executed())
     {
-      main_mem_root.read_only= 1;
+      main_mem_root.flags |= ROOT_FLAG_READ_ONLY;
     }
     ++executed_counter;
     DBUG_PRINT("info", ("execute counter: %lu", executed_counter));

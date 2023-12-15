@@ -37,8 +37,7 @@
   This intends to support *BSD's, macOS, Solaris, AIX, HP-UX, and Linux.
 
   specificly:
-  FreeBSD/OpenBSD/DragonFly (statfs) NetBSD (statvfs) uses getmntinfo().
-  macOS uses getmntinfo64().
+  FreeBSD/OpenBSD/DragonFly/macOS (statfs) NetBSD (statvfs) uses getmntinfo().
   Linux can use getmntent_r(), but we've just used getmntent for simplification.
   Linux/Solaris/AIX/HP-UX uses setmntent()/getmntent().
   Solaris uses getmntent() with a diffent prototype, return structure, and
@@ -46,8 +45,6 @@
 */
 #if defined(HAVE_GETMNTINFO_TAKES_statvfs) || defined(HAVE_GETMNTENT)
 typedef struct statvfs st_info;
-#elif defined(HAVE_GETMNTINFO64)
-typedef struct statfs64 st_info;
 #else // GETMNTINFO
 typedef struct statfs st_info;
 #endif
@@ -150,8 +147,6 @@ static int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
 
 #if defined(HAVE_GETMNTINFO_TAKES_statvfs)
     count= getmntinfo(&s, ST_WAIT);
-#elif defined(HAVE_GETMNTINFO64)
-    count= getmntinfo64(&s, MNT_WAIT);
 #else
     count= getmntinfo(&s, MNT_WAIT);
 #endif

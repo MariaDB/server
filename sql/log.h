@@ -824,6 +824,7 @@ public:
   int  write_cache(THD *thd, IO_CACHE *cache);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
+  bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);

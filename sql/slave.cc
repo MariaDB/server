@@ -46,7 +46,7 @@
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
-
+#include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
 #include "tztime.h"                             // struct Time_zone
 #include "log_event.h"                          // Rotate_log_event,
@@ -63,7 +63,6 @@ Master_info_index *master_info_index;
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
-#include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
 #include "semisync_slave.h"
@@ -4863,7 +4862,13 @@ connected:
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
+    DBUG_EXECUTE_IF("fail_com_register_slave",
+                    {
+                      mi->report(ERROR_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
+                      ER(ER_SLAVE_MASTER_COM_FAILURE), "COM_REGISTER_SLAVE",
+                      "Debug Induced Error");
+                      goto err;
+                    });
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));

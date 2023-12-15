@@ -15107,13 +15107,6 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 {
   if (group_prefix) /* Already initialized. */
     return 0;
-  
-  /*
-    We allocate one byte more to serve the case when the last field in
-    the buffer is compared using uint3korr (e.g. a Field_newdate field)
-  */
-  if (!(last_prefix= (uchar*) alloc_root(&alloc, group_prefix_len+1)))
-      return 1;
   /*
     We may use group_prefix to store keys with all select fields, so allocate
     enough space for it.
@@ -15370,8 +15363,7 @@ void QUICK_GROUP_MIN_MAX_SELECT::update_key_stat()
     QUICK_GROUP_MIN_MAX_SELECT::reset()
 
   DESCRIPTION
-    Initialize the index chosen for access and find and store the prefix
-    of the last group. The method is expensive since it performs disk access.
+    Initialize the index chosen for access.
 
   RETURN
     0      OK
@@ -15393,12 +15385,6 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   }
   if (quick_prefix_select && quick_prefix_select->reset())
     DBUG_RETURN(1);
-  result= file->ha_index_last(record);
-  if (result == HA_ERR_END_OF_FILE)
-    DBUG_RETURN(0);
-  /* Save the prefix of the last group. */
-  key_copy(last_prefix, record, index_info, group_prefix_len);
-
   DBUG_RETURN(0);
 }
 
@@ -15444,34 +15430,20 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
 #else
   int result;
 #endif
-  int is_last_prefix= 0;
-
   DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::get_next");
 
   /*
-    Loop until a group is found that satisfies all query conditions or the last
-    group is reached.
+    Loop until a group is found that satisfies all query conditions or
+    there are no satisfying groups left
   */
   do
   {
     result= next_prefix();
-    /*
-      Check if this is the last group prefix. Notice that at this point
-      this->record contains the current prefix in record format.
-    */
-    if (!result)
-    {
-      is_last_prefix= key_cmp(index_info->key_part, last_prefix,
-                              group_prefix_len);
-      DBUG_ASSERT(is_last_prefix <= 0);
-    }
-    else 
-    {
-      if (result == HA_ERR_KEY_NOT_FOUND)
-        continue;
+    if (result != 0)
       break;
-    }
-
+    /*
+      At this point this->record contains the current prefix in record format.
+    */
     if (have_min)
     {
       min_res= next_min();
@@ -15500,8 +15472,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
                                       HA_READ_KEY_EXACT);
 
     result= have_min ? min_res : have_max ? max_res : result;
-  } while ((result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE) &&
-           is_last_prefix != 0);
+  } while (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE);
 
   if (result == HA_ERR_KEY_NOT_FOUND)
     result= HA_ERR_END_OF_FILE;

@@ -1165,6 +1165,7 @@ struct THD_count
 {
   static Atomic_counter<uint32_t> count;
   static uint value() { return static_cast<uint>(count); }
+  static uint connection_thd_count();
   THD_count() { count++; }
   ~THD_count() { count--; }
 };
@@ -3200,6 +3201,17 @@ public:
   */
   Query_arena *stmt_arena;
 
+  /**
+    Get either call or statement arena. In case some function is called from
+    within a query the call arena has to be used for a memory allocation,
+    else use the statement arena.
+  */
+  Query_arena *active_stmt_arena_to_use()
+  {
+    return (state  == Query_arena::STMT_SP_QUERY_ARGUMENTS) ? this :
+                                                              stmt_arena;
+  }
+
   void *bulk_param;
 
   /*
@@ -3344,6 +3356,13 @@ public:
     auto_inc_intervals_forced.empty(); // in case of multiple SET INSERT_ID
     auto_inc_intervals_forced.append(next_id, ULONGLONG_MAX, 0);
   }
+  inline void set_binlog_bit()
+  {
+    if (variables.sql_log_bin)
+      variables.option_bits |= OPTION_BIN_LOG;
+    else
+      variables.option_bits &= ~OPTION_BIN_LOG;
+  }
 
   ulonglong  limit_found_rows;
 
@@ -3424,7 +3443,11 @@ public:
   { return m_sent_row_count; }
 
   ha_rows get_examined_row_count() const
-  { return m_examined_row_count; }
+  {
+    DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
+                    return (ULONGLONG_MAX - 1000000););
+    return m_examined_row_count;
+  }
 
   ulonglong get_affected_rows() const
   { return affected_rows; }
@@ -4040,6 +4063,11 @@ public:
     user_time= t;
     set_time();
   }
+  inline void force_set_time(my_time_t t, ulong sec_part)
+  {
+    start_time= system_time.sec= t;
+    start_time_sec_part= system_time.sec_part= sec_part;
+  }
   /*
     this is only used by replication and BINLOG command.
     usecs > TIME_MAX_SECOND_PART means "was not in binlog"
@@ -4051,15 +4079,9 @@ public:
     else
     {
       if (sec_part <= TIME_MAX_SECOND_PART)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= sec_part;
-      }
+        force_set_time(t, sec_part);
       else if (t != system_time.sec)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= 0;
-      }
+        force_set_time(t, 0);
       else
       {
         start_time= t;
@@ -4600,7 +4622,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (!killed_err)
+          killed_err= (err_info*) my_malloc(PSI_INSTRUMENT_ME, sizeof(*killed_err), MYF(MY_WME));
         if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
@@ -5059,13 +5082,24 @@ public:
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);
-  void set_command(enum enum_server_command command)
+  inline void set_command(enum enum_server_command command)
   {
+    DBUG_ASSERT(command != COM_SLEEP);
     m_command= command;
 #ifdef HAVE_PSI_THREAD_INTERFACE
     PSI_STATEMENT_CALL(set_thread_command)(m_command);
 #endif
   }
+  /* As sleep needs a bit of special handling, we have a special case for it */
+  inline void mark_connection_idle()
+  {
+    proc_info= 0;
+    m_command= COM_SLEEP;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_STATEMENT_CALL(set_thread_command)(m_command);
+#endif
+  }
+
   inline enum enum_server_command get_command() const
   { return m_command; }
 

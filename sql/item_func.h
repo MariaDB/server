@@ -55,7 +55,39 @@ protected:
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
   void print_cast_temporal(String *str, enum_query_type query_type);
+
+  void print_schema_qualified_name(String *to,
+                                   const LEX_CSTRING &schema_name,
+                                   const LEX_CSTRING &function_name) const
+  {
+    // e.g. oracle_schema.func()
+    to->append(schema_name);
+    to->append('.');
+    to->append(function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to,
+                                     enum_query_type query_type,
+                                     const LEX_CSTRING &function_name) const
+  {
+    const Schema *func_schema= schema();
+    if (!func_schema || func_schema == Schema::find_implied(current_thd))
+      to->append(function_name);
+    else
+      print_schema_qualified_name(to, func_schema->name(), function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to, enum_query_type query_type)
+                                                                       const
+  {
+    return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
+  }
+
 public:
+
+  // Print an error message for a builtin-schema qualified function call
+  static void wrong_param_count_error(const LEX_CSTRING &schema_name,
+                                      const LEX_CSTRING &func_name);
 
   table_map not_null_tables_cache;
 
@@ -202,9 +234,15 @@ public:
                       List<Item> &fields, uint flags) override;
   void print(String *str, enum_query_type query_type) override;
   void print_op(String *str, enum_query_type query_type);
-  void print_args(String *str, uint from, enum_query_type query_type);
+  void print_args(String *str, uint from, enum_query_type query_type) const;
+  void print_args_parenthesized(String *str, enum_query_type query_type) const
+  {
+    str->append('(');
+    print_args(str, 0, query_type);
+    str->append(')');
+  }
   bool is_null() override
-  { 
+  {
     update_null_value();
     return null_value; 
   }

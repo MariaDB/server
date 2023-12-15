@@ -1,0 +1,18 @@
+#
+# MDEV-27575 Spider: UBSAN member access within null pointer of type 'struct st_plugin_int and SIGSEGV in intern_plugin_lock on SHUTDOWN when setting Spider as default storage engine (temporary or global)
+#
+for master_1
+for child2
+for child3
+call mtr.add_suppression("\\[ERROR\\] Table 'mysql.spider_table_sts' doesn't exist");
+call mtr.add_suppression("\\[ERROR\\] Server shutdown in progress");
+SET GLOBAL default_tmp_storage_engine=spider;
+# restart
+SET GLOBAL default_storage_engine=Spider;
+# restart
+for master_1
+for child2
+for child3
+#
+# end of test mdev_27575
+#

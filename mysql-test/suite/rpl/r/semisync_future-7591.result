@@ -13,7 +13,7 @@ connection master;
 insert into t1 values (1);
 reset master;
 connection slave;
-include/stop_slave.inc
+include/stop_slave_sql.inc
 reset slave;
 include/start_slave.inc
 set global rpl_semi_sync_slave_enabled = OFF;

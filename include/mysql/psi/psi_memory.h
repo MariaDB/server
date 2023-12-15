@@ -53,13 +53,6 @@ extern "C" {
 
 struct PSI_thread;
 
-/**
-  Instrumented memory key.
-  To instrument memory, a memory key must be obtained using @c register_memory.
-  Using a zero key always disable the instrumentation.
-*/
-typedef unsigned int PSI_memory_key;
-
 #ifdef HAVE_PSI_1
 
 /**

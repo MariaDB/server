@@ -1328,7 +1328,8 @@ public:
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check);
+                                   my_bool crc_check,
+                                   my_bool print_errors= 1);
 
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
@@ -1472,7 +1473,8 @@ public:
   static Log_event* read_log_event(const uchar *buf, uint event_len,
 				   const char **error,
                                    const Format_description_log_event
-                                   *description_event, my_bool crc_check);
+                                   *description_event, my_bool crc_check,
+                                   my_bool print_errors= 1);
   /**
     Returns the human readable name of the given event type.
   */

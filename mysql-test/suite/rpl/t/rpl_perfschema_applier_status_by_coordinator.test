@@ -209,6 +209,7 @@ drop table t;
 reset master;
 
 --connection slave
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 reset slave;
 reset master;
