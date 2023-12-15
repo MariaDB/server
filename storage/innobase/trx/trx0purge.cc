@@ -681,6 +681,13 @@ void trx_purge_truncate_history()
 
         if (prev != buf_pool.flush_hp.get())
         {
+          /* The functions buf_pool_t::release_freed_page() or
+          buf_do_flush_list_batch() may be right now holding
+          buf_pool.mutex and waiting to acquire
+          buf_pool.flush_list_mutex. Ensure that they can proceed,
+          to avoid extreme waits. */
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
           /* Rescan, because we may have lost the position. */
           bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
           continue;
