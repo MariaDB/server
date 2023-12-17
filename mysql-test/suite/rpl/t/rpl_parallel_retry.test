@@ -497,6 +497,7 @@ if (`SELECT count(*) = 1 FROM t1 WHERE a = 2`)
 # Clean up
 #
 --connection server_2
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 SET @@GLOBAL.slave_parallel_threads=@old_parallel_threads;
 SET @@GLOBAL.slave_parallel_mode=@old_parallel_mode;

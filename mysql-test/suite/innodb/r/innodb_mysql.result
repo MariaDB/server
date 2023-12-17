@@ -2382,6 +2382,10 @@ key_len	NULL
 ref	NULL
 rows	6
 Extra	Using where
+Warnings:
+Level	Note
+Code	1105
+Message	Cannot use key `PRIMARY` part[0] for lookup: `test`.`bar`.`c` of type `char` > "2" of type `int`
 EXPLAIN SELECT c FROM foo WHERE c>2;;
 id	1
 select_type	SIMPLE
@@ -2393,6 +2397,10 @@ key_len	NULL
 ref	NULL
 rows	6
 Extra	Using where
+Warnings:
+Level	Note
+Code	1105
+Message	Cannot use key `PRIMARY` part[0] for lookup: `test`.`foo`.`c` of type `char` > "2" of type `int`
 EXPLAIN SELECT c FROM foo2 WHERE c>2;;
 id	1
 select_type	SIMPLE
@@ -2404,6 +2412,10 @@ key_len	5
 ref	NULL
 rows	6
 Extra	Using where; Using index
+Warnings:
+Level	Note
+Code	1105
+Message	Cannot use key `PRIMARY` part[0] for lookup: `test`.`foo2`.`c` of type `char` > "2" of type `int`
 DROP TABLE foo, bar, foo2;
 #
 # Bug#41348: INSERT INTO tbl SELECT * FROM temp_tbl overwrites locking type of temp table

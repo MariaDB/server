@@ -52,6 +52,12 @@ let $counter=10;
 let $sleep_period=10;
  
 echo checking error log for 'BF lock wait long' message for $counter times every $sleep_period seconds ...;
+
+--let assert_text= BF lock wait long
+--let assert_select= BF lock wait long
+--let assert_count= 0
+--let assert_only_after= CURRENT_TEST: galera.galera_bf_lock_wait
+
 while($counter > 0)
 {
 --disable_query_log
@@ -60,9 +66,11 @@ while($counter > 0)
 --enable_query_log
 --enable_result_log
 
-# use error 0,1 instead if want test to continue
-  --error 1
-  exec grep 'BF lock wait long' $MYSQLTEST_VARDIR/log/mysqld.*.err;
+--let assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--source include/assert_grep.inc
+
+--let assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--source include/assert_grep.inc
   dec $counter;
 }
 

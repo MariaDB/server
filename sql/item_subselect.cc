@@ -3281,8 +3281,12 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
           if (eqs.at(i).outer_exp->
               walk(&Item::find_item_processor, TRUE, upper->item))
             break;
+        DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+                    thd->stmt_arena->is_conventional());
+        DBUG_ASSERT(thd->stmt_arena->mem_root == thd->mem_root);
         if (i == (uint)eqs.elements() &&
-            (in_subs->upper_refs.push_back(upper, thd->stmt_arena->mem_root)))
+            (in_subs->upper_refs.push_back(
+               upper, thd->mem_root)))
           goto out;
       }
     }
@@ -3989,14 +3993,14 @@ bool subselect_union_engine::fix_length_and_dec(Item_cache **row)
 
   if (unit->first_select()->item_list.elements == 1)
   {
-    if (set_row(unit->types, row))
+    if (set_row(unit->item_list, row))
       return TRUE;
     item->collation.set(row[0]->collation);
   }
   else
   {
     bool maybe_null_saved= maybe_null;
-    if (set_row(unit->types, row))
+    if (set_row(unit->item_list, row))
       return TRUE;
     maybe_null= maybe_null_saved;
   }

@@ -787,6 +787,14 @@ void buf_page_make_young(buf_page_t *bpage)
   mysql_mutex_unlock(&buf_pool.mutex);
 }
 
+bool buf_page_make_young_if_needed(buf_page_t *bpage)
+{
+  const bool not_first{bpage->set_accessed()};
+  if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage)))
+    buf_page_make_young(bpage);
+  return not_first;
+}
+
 /** Try to free a block. If bpage is a descriptor of a compressed-only
 ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
 The caller must hold buf_pool.mutex.

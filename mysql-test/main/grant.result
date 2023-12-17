@@ -1991,6 +1991,11 @@ GRANT EXECUTE                 ON mysqltest_db1.* TO mysqltest_u1@localhost;
 GRANT FILE                    ON *.* TO mysqltest_u1@localhost;
 GRANT CREATE USER             ON *.* TO mysqltest_u1@localhost;
 GRANT PROCESS                 ON *.* TO mysqltest_u1@localhost;
+GRANT RELOAD                  ON mysqltest_db1.* TO mysqltest_u1@localhost;
+ERROR HY000: Incorrect usage of DB GRANT and GLOBAL PRIVILEGES
+connect(localhost,mysqltest_u1,,db1,MASTER_PORT,MASTER_SOCKET);
+connect  con1, localhost, mysqltest_u1, ,db1;
+ERROR 42000: Access denied for user 'mysqltest_u1'@'localhost' to database 'db1'
 GRANT RELOAD                  ON *.* TO mysqltest_u1@localhost;
 GRANT REPLICATION CLIENT      ON *.* TO mysqltest_u1@localhost;
 GRANT REPLICATION SLAVE       ON *.* TO mysqltest_u1@localhost;

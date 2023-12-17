@@ -2217,7 +2217,7 @@ static MYSQL_SYSVAR_UINT(
   "Static thread count of table sts",
   NULL,
   NULL,
-  10,
+  1,
   1,
   4294967295U,
   0
@@ -2236,7 +2236,7 @@ static MYSQL_SYSVAR_UINT(
   "Static thread count of table crd",
   NULL,
   NULL,
-  10,
+  1,
   1,
   4294967295U,
   0

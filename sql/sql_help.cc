@@ -667,7 +667,8 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
 
   SQL_SELECT *res= make_select(table, 0, 0, cond, 0, 0, error);
   if (unlikely(*error) ||
-      (likely(res) && unlikely(res->check_quick(thd, 0, HA_POS_ERROR))) ||
+      (likely(res) && unlikely(res->check_quick(thd, 0, HA_POS_ERROR,
+                                                Item_func::BITMAP_ALL))) ||
       (likely(res) && res->quick && unlikely(res->quick->reset())))
   {
     delete res;

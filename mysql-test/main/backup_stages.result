@@ -17,6 +17,7 @@ FROM information_schema.processlist WHERE id = @con1_id;
 ID	USER	COMMAND	STATE	INFO	STAGE	MAX_STAGE	INFO_BINARY
 <con1_id>	root	Query	Waiting for backup lock	BACKUP STAGE START	0	0	BACKUP STAGE START
 BACKUP STAGE END;
+InnoDB		0 transactions not purged
 connection con1;
 # The connection default has removed the backup lock.
 # And so the current connection con1 can reap for its BACKUP STAGE START

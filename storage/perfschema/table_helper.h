@@ -659,7 +659,7 @@ public:
 private:
   void make_row(const CHARSET_INFO *cs, const char* str, size_t length);
 
-  char m_str[1024];
+  char m_str[2048];
   uint m_length;
   const CHARSET_INFO *m_charset;
 };

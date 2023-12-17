@@ -8082,6 +8082,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
+  case OPT_SECURE_AUTH:
+    WARN_DEPRECATED_NO_REPLACEMENT(NULL, "--secure-auth");
+    break;
   case OPT_THREAD_CONCURRENCY:
     WARN_DEPRECATED_NO_REPLACEMENT(NULL, "THREAD_CONCURRENCY");
     break;

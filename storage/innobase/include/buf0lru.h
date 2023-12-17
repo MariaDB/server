@@ -108,6 +108,16 @@ buf_LRU_add_block(
 				blocks in the LRU list, else put to the
 				start; if the LRU list is very short, added to
 				the start regardless of this parameter */
+
+/** Move a block to the start of the buf_pool.LRU list.
+@param bpage  buffer pool page */
+void buf_page_make_young(buf_page_t *bpage);
+/** Flag a page accessed in buf_pool and move it to the start of buf_pool.LRU
+if it is too old.
+@param bpage  buffer pool page
+@return whether this is not the first access */
+bool buf_page_make_young_if_needed(buf_page_t *bpage);
+
 /******************************************************************//**
 Adds a block to the LRU list of decompressed zip pages. */
 void

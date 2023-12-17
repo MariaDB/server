@@ -1143,7 +1143,6 @@ block_and_ahi_release_and_fail:
 	}
 
 	block->page.fix();
-	block->page.set_accessed();
 	buf_page_make_young_if_needed(&block->page);
 	static_assert(ulint{MTR_MEMO_PAGE_S_FIX} == ulint{BTR_SEARCH_LEAF},
 		      "");

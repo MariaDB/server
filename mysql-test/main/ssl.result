@@ -1,4 +1,22 @@
 connect  ssl_con,localhost,root,,,,,SSL;
+select variable_name from performance_schema.status_by_thread where VARIABLE_NAME LIKE 'Ssl%';
+variable_name
+Ssl_cipher
+Ssl_cipher_list
+Ssl_default_timeout
+Ssl_server_not_after
+Ssl_server_not_before
+Ssl_verify_depth
+Ssl_verify_mode
+Ssl_version
+Ssl_cipher
+Ssl_cipher_list
+Ssl_default_timeout
+Ssl_server_not_after
+Ssl_server_not_before
+Ssl_verify_depth
+Ssl_verify_mode
+Ssl_version
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl
 1

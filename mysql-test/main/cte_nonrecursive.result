@@ -2607,4 +2607,29 @@ src	path	dest	distance	population
 E	FD	D	251	80000
 drop procedure sp;
 drop table distances, city_population;
+#
+# MDEV-28615: Multi-table UPDATE over derived table containing
+#             row that uses subquery with hanging CTE
+#
+CREATE TABLE t1 (a int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (3), (7), (1);
+UPDATE
+(SELECT (5, (WITH cte AS (SELECT 1) SELECT a FROM t1))) dt
+JOIN t1 t
+ON t.a=dt.a
+SET t.a = 1;
+ERROR 21000: Operand should contain 1 column(s)
+UPDATE
+(SELECT a FROM t1
+WHERE (5, (WITH cte AS (SELECT 1) SELECT a FROM t1 WHERE a > 4)) <=
+(5,a)) dt
+JOIN t1 t
+ON t.a=dt.a
+SET t.a = 1;
+SELECT * FROM t1;
+a
+3
+1
+1
+DROP TABLE t1;
 # End of 10.4 tests

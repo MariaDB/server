@@ -468,7 +468,7 @@ ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
     rseg->init(nullptr, FIL_NULL);
   }
 
-  if (trx_sys.recovered_binlog_lsn
+  if (*trx_sys.recovered_binlog_filename
 #ifdef WITH_WSREP
       || !trx_sys.recovered_wsrep_xid.is_null()
 #endif /* WITH_WSREP */
@@ -476,7 +476,7 @@ ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
   {
     /* Update binlog offset, binlog file name & wsrep xid in
     system tablespace rollback segment */
-    if (trx_sys.recovered_binlog_lsn)
+    if (*trx_sys.recovered_binlog_filename)
     {
       ut_d(const size_t len = strlen(trx_sys.recovered_binlog_filename) + 1);
       ut_ad(len > 1);

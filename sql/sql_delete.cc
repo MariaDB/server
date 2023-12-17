@@ -534,7 +534,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (unlikely(error))
     DBUG_RETURN(TRUE);
-  if ((select && select->check_quick(thd, safe_update, limit)) || !limit)
+  if ((select && select->check_quick(thd, safe_update, limit,
+                                     Item_func::BITMAP_ALL)) || !limit)
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
@@ -1268,6 +1269,13 @@ multi_delete::initialize_tables(JOIN *join)
   {
     TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
     tables_to_delete_from|= tbl->table->map;
+
+    /*
+      Ensure that filesort re-reads the row from the engine before
+      delete is called.
+    */
+    join->map2table[tbl->table->tablenr]->keep_current_rowid= true;
+
     if (delete_while_scanning &&
         unique_table(thd, tbl, join->tables_list, 0))
     {
