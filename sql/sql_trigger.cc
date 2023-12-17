@@ -2237,7 +2237,7 @@ bool
 Table_triggers_list::
 add_tables_and_routines_for_triggers(THD *thd,
                                      Query_tables_list *prelocking_ctx,
-                                     TABLE_LIST *table_list)
+                                     TABLE_LIST *table_list,bool *need_prelocking)
 {
   DBUG_ASSERT(static_cast<int>(table_list->lock_type) >=
               static_cast<int>(TL_WRITE_ALLOW_WRITE));
@@ -2253,6 +2253,7 @@ add_tables_and_routines_for_triggers(THD *thd,
 
         for ( ; triggers ; triggers= triggers->next)
         {
+          *need_prelocking = TRUE;
           sp_head *trigger= triggers->body;
 
           if (!triggers->body)                  // Parse error

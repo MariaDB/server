@@ -269,7 +269,7 @@ public:
 
   bool add_tables_and_routines_for_triggers(THD *thd,
                                             Query_tables_list *prelocking_ctx,
-                                            TABLE_LIST *table_list);
+                                            TABLE_LIST *table_list,bool *need_prelocking);
 
   Field **nullable_fields() { return record0_field; }
   void reset_extra_null_bitmap()
