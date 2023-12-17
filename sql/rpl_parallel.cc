@@ -856,8 +856,7 @@ do_retry:
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate that we get deadlock killed at this exact point. */
-      rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-      thd->set_killed(KILL_CONNECTION);
+      slave_background_kill_request(thd);
   });
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
