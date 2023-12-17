@@ -2538,8 +2538,10 @@ rpl_parallel::stop_during_until()
 bool
 rpl_parallel::workers_idle(Relay_log_info *rli)
 {
-  return rli->last_inuse_relaylog->queued_count ==
-         rli->last_inuse_relaylog->dequeued_count;
+  mysql_mutex_assert_owner(&rli->data_lock);
+  return !rli->last_inuse_relaylog ||
+    rli->last_inuse_relaylog->queued_count ==
+    rli->last_inuse_relaylog->dequeued_count;
 }
 
 
