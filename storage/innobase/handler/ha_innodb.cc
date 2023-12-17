@@ -4484,7 +4484,8 @@ innobase_commit_ordered_2(
 
 		/* Don't do write + flush right now. For group commit
 		to work we want to do the flush later. */
-		trx->flush_log_later = true;
+		if (trx->mysql_log_offset > 0)
+			trx->flush_log_later = true;
 	}
 
 #ifdef WITH_WSREP
@@ -17148,7 +17149,8 @@ innobase_commit_by_xid(
 		if (trx->mysql_log_file_name) {
 			/* the prepared part of trx was binlogged within
                         a binlog group so to be done to the commit */
-			is_skip_flush_set= trx->flush_log_later = true;
+			if (trx->mysql_log_offset)
+				is_skip_flush_set= trx->flush_log_later = true;
                         trx->mysql_log_file_name = NULL;
 		}
 		/* use cases are: disconnected xa, slave xa, recovery */

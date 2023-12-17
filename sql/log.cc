@@ -8368,6 +8368,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DBUG_ASSERT(is_open());
   if (likely(is_open()))                       // Should always be true
   {
+    binlog_cache_mngr *last_xa_cache_mngr= NULL;
     commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);
     DBUG_EXECUTE_IF("binlog_force_commit_id",
       {
@@ -8409,6 +8410,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
       commit_offset= my_b_write_tell(&log_file);
       cache_mngr->last_commit_pos_offset= commit_offset;
+      if (current->thd->transaction->xid_state.is_explicit_XA())
+        last_xa_cache_mngr= cache_mngr;
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
         /*
@@ -8430,7 +8433,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       }
     }
     set_current_thd(leader->thd);
-
+    if (last_xa_cache_mngr)
+      last_xa_cache_mngr->last_commit_pos_offset= 0; // force fsync
     bool synced= 0;
     if (unlikely(flush_and_sync(&synced)))
     {
