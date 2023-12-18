@@ -1893,6 +1893,7 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 
 
 void Explain_rowid_filter::print_explain_json(Explain_query *query,
+                                              ha_rows loops,
                                               Json_writer *writer,
                                               bool is_analyze)
 {
@@ -1904,7 +1905,13 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_rows").add_double(tracker->get_container_elements());
-    writer->add_member("r_lookups").add_ll(tracker->get_container_lookups());
+
+    double r_lookups= tracker->get_container_lookups();
+    /* if loops==0 then we should have lookups==0, too: */
+    DBUG_ASSERT(loops != 0 || tracker->get_container_lookups() == 0);
+    r_lookups= loops? r_lookups / rows2double(loops) : r_lookups;
+    writer->add_member("r_lookups").add_double(r_lookups);
+
     writer->add_member("r_selectivity_pct").
       add_double(tracker->get_r_selectivity_pct() * 100.0);
     writer->add_member("r_buffer_size").
@@ -2046,7 +2053,8 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
   if (rowid_filter)
   {
-    rowid_filter->print_explain_json(query, writer, is_analyze);
+    rowid_filter->print_explain_json(query, tracker.get_loops(), writer,
+                                     is_analyze);
   }
 
   if (loops != 0.0)
