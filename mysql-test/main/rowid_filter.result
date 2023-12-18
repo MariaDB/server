@@ -453,7 +453,7 @@ ANALYZE
             "rows": 98,
             "selectivity_pct": 1.631973356,
             "r_rows": 98,
-            "r_lookups": 476,
+            "r_lookups": 6.704225352,
             "r_selectivity_pct": 2.31092437,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
@@ -801,7 +801,7 @@ ANALYZE
             "rows": 139,
             "selectivity_pct": 9.266666667,
             "r_rows": 144,
-            "r_lookups": 34,
+            "r_lookups": 1,
             "r_selectivity_pct": 26.47058824,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
@@ -1133,7 +1133,7 @@ ANALYZE
             "rows": 509,
             "selectivity_pct": 8.476269775,
             "r_rows": 510,
-            "r_lookups": 476,
+            "r_lookups": 6.704225352,
             "r_selectivity_pct": 7.773109244,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"

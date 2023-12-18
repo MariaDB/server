@@ -1618,7 +1618,7 @@ ANALYZE
             "rows": 5,
             "selectivity_pct": 41.66666667,
             "r_rows": 5,
-            "r_lookups": 4,
+            "r_lookups": 2,
             "r_selectivity_pct": 25,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
@@ -1695,7 +1695,7 @@ ANALYZE
             "rows": 5,
             "selectivity_pct": 41.66666667,
             "r_rows": 5,
-            "r_lookups": 2,
+            "r_lookups": 1,
             "r_selectivity_pct": 50,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
