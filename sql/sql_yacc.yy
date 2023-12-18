@@ -7508,11 +7508,7 @@ alter:
         | ALTER SEQUENCE_SYM opt_if_exists
           {
             LEX *lex= Lex;
-            lex->name= null_clex_str;
-            lex->table_type= TABLE_TYPE_UNKNOWN;
             lex->sql_command= SQLCOM_ALTER_SEQUENCE;
-            lex->create_info.init();
-            lex->no_write_to_binlog= 0;
             DBUG_ASSERT(!lex->m_sql_cmd);
             if (Lex->main_select_push())
               MYSQL_YYABORT;

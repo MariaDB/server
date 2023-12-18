@@ -4285,7 +4285,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     String *new_separator;
 
     DBUG_ASSERT(thd->active_stmt_arena_to_use()->
-                  is_stmt_prepare_or_first_sp_execute() ||
+                  is_stmt_prepare_or_first_stmt_execute() ||
                 thd->active_stmt_arena_to_use()->
                   is_conventional() ||
                 thd->active_stmt_arena_to_use()->state ==
