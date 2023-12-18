@@ -1,3 +1,4 @@
+--source include/not_asan.inc # 10.4 uses an old buggy PCRE library
 --disable_service_connection
 SET NAMES utf8;
 
