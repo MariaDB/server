@@ -11,4 +11,3 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
-import_update_stats: MDEV-32725 fails in MSAN, uninit access

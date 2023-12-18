@@ -93,3 +93,17 @@ SELECT col_1_text = REPEAT("a", 3500) , col_2_text  = REPEAT("o", 3500) FROM
 worklog5743;
 
 DROP TABLE worklog5743;
+
+--echo #
+--echo # MDEV-21245 InnoDB: Using a partial-field key prefix in search
+--echo #
+CREATE TABLE t1 (a VARCHAR(255), KEY k(a)) DEFAULT CHARSET=utf8mb3
+ENGINE=InnoDB;
+INSERT INTO t1 set a='';
+--enable_info
+alter table t1 change a a varchar(3000);
+--disable_info
+SELECT * FROM t1 WHERE a IN ('');
+DROP TABLE t1;
+
+--echo # End of 10.4 tests
