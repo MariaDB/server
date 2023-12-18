@@ -87,3 +87,10 @@ CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
 ERROR HY000: Plugin 'non_existing_plugin' is not loaded
 DROP ROLE r;
 DROP USER bar;
+# Beginning of 10.6 test
+#
+# MDEV-17943: Unfortunate error code/message upon SET DEFAULT ROLE FOR
+#
+set default role none for foo;
+ERROR HY000: The user specified as a definer ('foo'@'%') does not exist
+# End of 10.6 test

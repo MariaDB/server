@@ -66,3 +66,14 @@ GRANT r TO foo;
 CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
 DROP ROLE r;
 DROP USER bar;
+
+--echo # Beginning of 10.6 test
+
+--echo #
+--echo # MDEV-17943: Unfortunate error code/message upon SET DEFAULT ROLE FOR
+--echo #
+
+--error ER_NO_SUCH_USER
+set default role none for foo;
+
+--echo # End of 10.6 test
