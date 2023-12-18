@@ -67,7 +67,7 @@ set @@session.debug_dbug= @old_dbug;
 start slave;
 
 --echo # Waiting for first transaction to start (and be held at innodb row lock)..
---let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%)' and  command LIKE 'Slave_worker';
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%)%' and  command LIKE 'Slave_worker';
 --source include/wait_condition.inc
 
 --echo # Waiting for next transaction to start and hold at do_gco_wait()..
