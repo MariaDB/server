@@ -1489,6 +1489,7 @@ memory_by_user_by_current_bytes	NO
 memory_global_by_current_bytes	YES
 memory_global_total	NO
 metrics	NO
+privileges_by_table_by_level	NO
 processlist	NO
 ps_check_lost_instrumentation	YES
 schema_auto_increment_columns	NO

@@ -1,0 +1,264 @@
+DESC sys.privileges_by_table_by_level;
+Field	Type	Null	Key	Default	Extra
+TABLE_SCHEMA	varchar(64)	NO		NULL	
+TABLE_NAME	varchar(64)	NO		NULL	
+GRANTEE	varchar(385)	NO			
+PRIVILEGE	varchar(64)	NO			
+LEVEL	varchar(6)	NO			
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1 (a int);
+CREATE USER test1_user;
+GRANT ALL PRIVILEGES ON test1.* TO test1_user;
+# Grant all table privileges
+GRANT ALL ON t1 to test1_user;
+SELECT table_schema, table_name,
+CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END,
+       privilege, level
+  FROM sys.privileges_by_table_by_level WHERE table_name='t1';
+table_schema	table_name	CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END	privilege	level
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	'test1_user'@'%'	SELECT	SCHEMA
+test1	t1	'test1_user'@'%'	INSERT	SCHEMA
+test1	t1	'test1_user'@'%'	UPDATE	SCHEMA
+test1	t1	'test1_user'@'%'	DELETE	SCHEMA
+test1	t1	'test1_user'@'%'	CREATE	SCHEMA
+test1	t1	'test1_user'@'%'	DROP	SCHEMA
+test1	t1	'test1_user'@'%'	REFERENCES	SCHEMA
+test1	t1	'test1_user'@'%'	INDEX	SCHEMA
+test1	t1	'test1_user'@'%'	ALTER	SCHEMA
+test1	t1	'test1_user'@'%'	SHOW VIEW	SCHEMA
+test1	t1	'test1_user'@'%'	TRIGGER	SCHEMA
+test1	t1	'test1_user'@'%'	DELETE HISTORY	SCHEMA
+test1	t1	'test1_user'@'%'	SELECT	TABLE
+test1	t1	'test1_user'@'%'	INSERT	TABLE
+test1	t1	'test1_user'@'%'	UPDATE	TABLE
+test1	t1	'test1_user'@'%'	DELETE	TABLE
+test1	t1	'test1_user'@'%'	CREATE	TABLE
+test1	t1	'test1_user'@'%'	DROP	TABLE
+test1	t1	'test1_user'@'%'	REFERENCES	TABLE
+test1	t1	'test1_user'@'%'	INDEX	TABLE
+test1	t1	'test1_user'@'%'	ALTER	TABLE
+test1	t1	'test1_user'@'%'	SHOW VIEW	TABLE
+test1	t1	'test1_user'@'%'	TRIGGER	TABLE
+test1	t1	'test1_user'@'%'	DELETE HISTORY	TABLE
+# Revoke some table privileges
+REVOKE REFERENCES, DELETE, ALTER, DROP ON t1 FROM test1_user;
+SELECT table_schema, table_name,
+CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END,
+       privilege, level
+  FROM sys.privileges_by_table_by_level WHERE table_name='t1';
+table_schema	table_name	CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END	privilege	level
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	<some-root-user>	SELECT	GLOBAL
+test1	t1	<some-root-user>	INSERT	GLOBAL
+test1	t1	<some-root-user>	UPDATE	GLOBAL
+test1	t1	<some-root-user>	DELETE	GLOBAL
+test1	t1	<some-root-user>	CREATE	GLOBAL
+test1	t1	<some-root-user>	DROP	GLOBAL
+test1	t1	<some-root-user>	REFERENCES	GLOBAL
+test1	t1	<some-root-user>	INDEX	GLOBAL
+test1	t1	<some-root-user>	ALTER	GLOBAL
+test1	t1	<some-root-user>	SHOW VIEW	GLOBAL
+test1	t1	<some-root-user>	TRIGGER	GLOBAL
+test1	t1	<some-root-user>	DELETE HISTORY	GLOBAL
+test1	t1	'test1_user'@'%'	SELECT	SCHEMA
+test1	t1	'test1_user'@'%'	INSERT	SCHEMA
+test1	t1	'test1_user'@'%'	UPDATE	SCHEMA
+test1	t1	'test1_user'@'%'	DELETE	SCHEMA
+test1	t1	'test1_user'@'%'	CREATE	SCHEMA
+test1	t1	'test1_user'@'%'	DROP	SCHEMA
+test1	t1	'test1_user'@'%'	REFERENCES	SCHEMA
+test1	t1	'test1_user'@'%'	INDEX	SCHEMA
+test1	t1	'test1_user'@'%'	ALTER	SCHEMA
+test1	t1	'test1_user'@'%'	SHOW VIEW	SCHEMA
+test1	t1	'test1_user'@'%'	TRIGGER	SCHEMA
+test1	t1	'test1_user'@'%'	DELETE HISTORY	SCHEMA
+test1	t1	'test1_user'@'%'	SELECT	TABLE
+test1	t1	'test1_user'@'%'	INSERT	TABLE
+test1	t1	'test1_user'@'%'	UPDATE	TABLE
+test1	t1	'test1_user'@'%'	CREATE	TABLE
+test1	t1	'test1_user'@'%'	INDEX	TABLE
+test1	t1	'test1_user'@'%'	SHOW VIEW	TABLE
+test1	t1	'test1_user'@'%'	TRIGGER	TABLE
+test1	t1	'test1_user'@'%'	DELETE HISTORY	TABLE
+CREATE ROLE test1_role;
+GRANT SELECT, UPDATE, DELETE, DROP, INDEX ON t1 to test1_role;
+# Must show both the user and the role
+SELECT * FROM sys.privileges_by_table_by_level
+WHERE table_schema='test1' AND table_name='t1' AND grantee LIKE '%test1%';
+TABLE_SCHEMA	TABLE_NAME	GRANTEE	PRIVILEGE	LEVEL
+test1	t1	'test1_user'@'%'	SELECT	SCHEMA
+test1	t1	'test1_user'@'%'	INSERT	SCHEMA
+test1	t1	'test1_user'@'%'	UPDATE	SCHEMA
+test1	t1	'test1_user'@'%'	DELETE	SCHEMA
+test1	t1	'test1_user'@'%'	CREATE	SCHEMA
+test1	t1	'test1_user'@'%'	DROP	SCHEMA
+test1	t1	'test1_user'@'%'	REFERENCES	SCHEMA
+test1	t1	'test1_user'@'%'	INDEX	SCHEMA
+test1	t1	'test1_user'@'%'	ALTER	SCHEMA
+test1	t1	'test1_user'@'%'	SHOW VIEW	SCHEMA
+test1	t1	'test1_user'@'%'	TRIGGER	SCHEMA
+test1	t1	'test1_user'@'%'	DELETE HISTORY	SCHEMA
+test1	t1	'test1_user'@'%'	SELECT	TABLE
+test1	t1	'test1_user'@'%'	INSERT	TABLE
+test1	t1	'test1_user'@'%'	UPDATE	TABLE
+test1	t1	'test1_user'@'%'	CREATE	TABLE
+test1	t1	'test1_user'@'%'	INDEX	TABLE
+test1	t1	'test1_user'@'%'	SHOW VIEW	TABLE
+test1	t1	'test1_user'@'%'	TRIGGER	TABLE
+test1	t1	'test1_user'@'%'	DELETE HISTORY	TABLE
+test1	t1	'test1_role'@''	SELECT	TABLE
+test1	t1	'test1_role'@''	UPDATE	TABLE
+test1	t1	'test1_role'@''	DELETE	TABLE
+test1	t1	'test1_role'@''	DROP	TABLE
+test1	t1	'test1_role'@''	INDEX	TABLE
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM sys.privileges_by_table_by_level
+WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
+TABLE_SCHEMA	TABLE_NAME	GRANTEE	PRIVILEGE	LEVEL
+test1	v1	'test1_user'@'%'	SELECT	SCHEMA
+test1	v1	'test1_user'@'%'	INSERT	SCHEMA
+test1	v1	'test1_user'@'%'	UPDATE	SCHEMA
+test1	v1	'test1_user'@'%'	DELETE	SCHEMA
+test1	v1	'test1_user'@'%'	CREATE	SCHEMA
+test1	v1	'test1_user'@'%'	DROP	SCHEMA
+test1	v1	'test1_user'@'%'	REFERENCES	SCHEMA
+test1	v1	'test1_user'@'%'	INDEX	SCHEMA
+test1	v1	'test1_user'@'%'	ALTER	SCHEMA
+test1	v1	'test1_user'@'%'	SHOW VIEW	SCHEMA
+test1	v1	'test1_user'@'%'	TRIGGER	SCHEMA
+test1	v1	'test1_user'@'%'	DELETE HISTORY	SCHEMA
+GRANT SELECT ON v1 TO test1_role;
+SELECT * FROM sys.privileges_by_table_by_level
+WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
+TABLE_SCHEMA	TABLE_NAME	GRANTEE	PRIVILEGE	LEVEL
+test1	v1	'test1_user'@'%'	SELECT	SCHEMA
+test1	v1	'test1_user'@'%'	INSERT	SCHEMA
+test1	v1	'test1_user'@'%'	UPDATE	SCHEMA
+test1	v1	'test1_user'@'%'	DELETE	SCHEMA
+test1	v1	'test1_user'@'%'	CREATE	SCHEMA
+test1	v1	'test1_user'@'%'	DROP	SCHEMA
+test1	v1	'test1_user'@'%'	REFERENCES	SCHEMA
+test1	v1	'test1_user'@'%'	INDEX	SCHEMA
+test1	v1	'test1_user'@'%'	ALTER	SCHEMA
+test1	v1	'test1_user'@'%'	SHOW VIEW	SCHEMA
+test1	v1	'test1_user'@'%'	TRIGGER	SCHEMA
+test1	v1	'test1_user'@'%'	DELETE HISTORY	SCHEMA
+test1	v1	'test1_role'@''	SELECT	TABLE
+GRANT ALL ON v1 TO test1_user;
+SELECT * FROM sys.privileges_by_table_by_level
+WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
+TABLE_SCHEMA	TABLE_NAME	GRANTEE	PRIVILEGE	LEVEL
+test1	v1	'test1_user'@'%'	SELECT	SCHEMA
+test1	v1	'test1_user'@'%'	INSERT	SCHEMA
+test1	v1	'test1_user'@'%'	UPDATE	SCHEMA
+test1	v1	'test1_user'@'%'	DELETE	SCHEMA
+test1	v1	'test1_user'@'%'	CREATE	SCHEMA
+test1	v1	'test1_user'@'%'	DROP	SCHEMA
+test1	v1	'test1_user'@'%'	REFERENCES	SCHEMA
+test1	v1	'test1_user'@'%'	INDEX	SCHEMA
+test1	v1	'test1_user'@'%'	ALTER	SCHEMA
+test1	v1	'test1_user'@'%'	SHOW VIEW	SCHEMA
+test1	v1	'test1_user'@'%'	TRIGGER	SCHEMA
+test1	v1	'test1_user'@'%'	DELETE HISTORY	SCHEMA
+test1	v1	'test1_user'@'%'	SELECT	TABLE
+test1	v1	'test1_user'@'%'	INSERT	TABLE
+test1	v1	'test1_user'@'%'	UPDATE	TABLE
+test1	v1	'test1_user'@'%'	DELETE	TABLE
+test1	v1	'test1_user'@'%'	CREATE	TABLE
+test1	v1	'test1_user'@'%'	DROP	TABLE
+test1	v1	'test1_user'@'%'	REFERENCES	TABLE
+test1	v1	'test1_user'@'%'	INDEX	TABLE
+test1	v1	'test1_user'@'%'	ALTER	TABLE
+test1	v1	'test1_user'@'%'	SHOW VIEW	TABLE
+test1	v1	'test1_user'@'%'	TRIGGER	TABLE
+test1	v1	'test1_user'@'%'	DELETE HISTORY	TABLE
+test1	v1	'test1_role'@''	SELECT	TABLE
+DROP TABLE t1;
+DROP VIEW v1;
+DROP USER test1_user;
+DROP ROLE test1_role;
+DROP DATABASE test1;

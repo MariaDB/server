@@ -1,0 +1,54 @@
+-- source include/not_embedded.inc
+# Tests for sys schema
+# Verify the sys.privileges_by_table_by_level view
+
+# Ensure structure changes don't slip in
+DESC sys.privileges_by_table_by_level;
+
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1 (a int);
+CREATE USER test1_user;
+
+GRANT ALL PRIVILEGES ON test1.* TO test1_user;
+
+--echo # Grant all table privileges
+GRANT ALL ON t1 to test1_user;
+SELECT table_schema, table_name,
+       CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END,
+       privilege, level
+  FROM sys.privileges_by_table_by_level WHERE table_name='t1';
+
+--echo # Revoke some table privileges
+REVOKE REFERENCES, DELETE, ALTER, DROP ON t1 FROM test1_user;
+SELECT table_schema, table_name,
+       CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END,
+       privilege, level
+  FROM sys.privileges_by_table_by_level WHERE table_name='t1';
+
+CREATE ROLE test1_role;
+GRANT SELECT, UPDATE, DELETE, DROP, INDEX ON t1 to test1_role;
+
+--echo # Must show both the user and the role
+SELECT * FROM sys.privileges_by_table_by_level
+  WHERE table_schema='test1' AND table_name='t1' AND grantee LIKE '%test1%';
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM sys.privileges_by_table_by_level
+  WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
+
+GRANT SELECT ON v1 TO test1_role;
+SELECT * FROM sys.privileges_by_table_by_level
+  WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
+
+GRANT ALL ON v1 TO test1_user;
+SELECT * FROM sys.privileges_by_table_by_level
+  WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
+
+DROP TABLE t1;
+DROP VIEW v1;
+DROP USER test1_user;
+DROP ROLE test1_role;
+DROP DATABASE test1;
+
+

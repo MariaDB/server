@@ -3440,6 +3440,7 @@ public:
   bool default_used:1;    /* using default() function */
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
+  bool without_validation:1; /* exchange or convert partition WITHOUT VALIDATION */
 
   /*
     This variable is used in post-parse stage to declare that sum-functions,

@@ -1151,6 +1151,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  UPGRADE_SYM
 %token  <kwd>  USER_SYM                      /* SQL-2003-R */
 %token  <kwd>  USE_FRM
+%token  <kwd>  VALIDATION_SYM                /* MYSQL */
 %token  <kwd>  VALUE_SYM                     /* SQL-2003-R */
 %token  <kwd>  VARCHAR2_MARIADB_SYM
 %token  <kwd>  VARCHAR2_ORACLE_SYM           /* Oracle-R, PLSQL-R */
@@ -4932,6 +4933,10 @@ part_name:
           }
         ;
 
+opt_than:
+          /* empty */
+          | THAN_SYM;
+
 opt_part_values:
           /* empty */
           {
@@ -4949,7 +4954,7 @@ opt_part_values:
             else
               part_info->part_type= HASH_PARTITION;
           }
-        | VALUES_LESS_SYM THAN_SYM
+        | VALUES_LESS_SYM opt_than
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -7497,13 +7502,13 @@ alter_commands:
           }
         | reorg_partition_rule
         | EXCHANGE_SYM PARTITION_SYM alt_part_name_item
-          WITH TABLE_SYM table_ident have_partitioning
+          WITH TABLE_SYM table_ident opt_without_validation have_partitioning
           {
             if (Lex->stmt_alter_table_exchange_partition($6))
               MYSQL_YYABORT;
           }
         | CONVERT_SYM PARTITION_SYM alt_part_name_item
-          TO_SYM TABLE_SYM table_ident have_partitioning
+          TO_SYM TABLE_SYM table_ident opt_without_validation have_partitioning
           {
             LEX *lex= Lex;
             if (Lex->stmt_alter_table($6))
@@ -7543,7 +7548,7 @@ alter_commands:
             lex->alter_info.partition_flags|= ALTER_PARTITION_ADD |
                                               ALTER_PARTITION_CONVERT_IN;
           }
-          TO_SYM PARTITION_SYM part_definition
+          TO_SYM PARTITION_SYM part_definition opt_without_validation have_partitioning
           {
             LEX *lex= Lex;
             lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
@@ -7868,6 +7873,18 @@ alter_list_item:
             Lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             Lex->alter_info.flags|= ALTER_DROP_CHECK_CONSTRAINT;
           }
+        ;
+
+opt_without_validation:
+          /* empty */
+        | WITH VALIDATION_SYM
+        {
+          Lex->without_validation= 0;
+        }
+        | WITHOUT VALIDATION_SYM
+        {
+          Lex->without_validation= 1;
+        }
         ;
 
 opt_index_lock_algorithm:
@@ -16303,6 +16320,7 @@ keyword_sp_var_and_label:
         | VIEW_SYM
         | VIRTUAL_SYM
         | VISIBLE_SYM
+        | VALIDATION_SYM
         | VALUE_SYM
         | WARNINGS
         | WAIT_SYM

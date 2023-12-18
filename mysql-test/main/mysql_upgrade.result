@@ -57,6 +57,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -210,6 +211,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -362,6 +364,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -520,6 +523,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -678,6 +682,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -839,6 +844,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1040,6 +1046,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1212,6 +1219,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1392,6 +1400,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1614,6 +1623,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1794,6 +1804,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -2026,6 +2037,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -2246,6 +2258,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
