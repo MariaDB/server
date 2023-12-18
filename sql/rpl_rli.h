@@ -688,6 +688,19 @@ struct rpl_group_info
   uint64 wait_commit_sub_id;
   rpl_group_info *wait_commit_group_info;
   /*
+    A mechanism to run an alternate domain_id out-of-order, but only after
+    any prior event group, not before. Eg. to replicate CREATE INDEX
+    out-of-order immediately after ADD COLUMN.
+
+    If main_domain_entry is non-NULL, then it must be locked and checked. If
+    last_committed_sub_id < main_domain_wait_sub_id then a wait_for_prior_commit
+    must be registered and waited for before starting to replicate the event
+    group.
+  */
+  rpl_parallel_entry *main_domain_entry;
+  uint64 main_domain_wait_sub_id;
+  rpl_group_info *main_domain_wait_rgi;
+  /*
     This holds a pointer to a struct that keeps track of the need to wait
     for the previous batch of event groups to reach the commit stage, before
     this batch can start to execute.

@@ -15,6 +15,9 @@
 */
 
 
+/* ToDo: this should be replaced with configurable alternate domain for CREATE INDEX. */
+static const uint32 todo_alt_domain_id= 1;
+
 /*
   Maximum number of queued events to accumulate in a local free list, before
   moving them to the global free list. There is additional a limit of how much
@@ -362,6 +365,40 @@ register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
     wait_for_commit *waitee=
       &rgi->wait_commit_group_info->commit_orderer;
     rgi->commit_orderer.register_wait_for_prior_commit(waitee);
+  }
+}
+
+
+/*
+  Wait for prior transactions in the default domain_id to complete before
+  starting to replicate in an alternate domain_id configured to replicate
+  out-of-order, but never ahead of the default domain.
+*/
+static void
+do_alt_domain_wait(rpl_group_info *rgi)
+{
+  THD *thd= rgi->thd;
+  rpl_parallel_entry *e= rgi->main_domain_entry;
+  int err= 0;
+  bool need_wait= false;
+
+  thd->wait_for_commit_ptr= &rgi->commit_orderer;
+  mysql_mutex_lock(&e->LOCK_parallel_entry);
+  if (rgi->main_domain_wait_sub_id > e->last_committed_sub_id)
+  {
+    rgi->commit_orderer.
+      register_wait_for_prior_commit(&rgi->main_domain_wait_rgi->commit_orderer);
+    need_wait= true;
+  }
+  mysql_mutex_unlock(&e->LOCK_parallel_entry);
+  if (need_wait)
+    err= thd->wait_for_prior_commit();
+  thd->wait_for_commit_ptr= NULL;
+
+  if (err)
+  {
+    slave_output_error_info(rgi, thd);
+    signal_error_to_sql_driver_thread(thd, rgi, 1);
   }
 }
 
@@ -1340,6 +1377,9 @@ handle_rpl_parallel_thread(void *arg)
               debug_sync_set_action(thd,
                   STRING_WITH_LEN("now SIGNAL gco_wait_paused WAIT_FOR gco_wait_cont"));
             } });
+
+        if (rgi->main_domain_entry)
+          do_alt_domain_wait(rgi);
 
         mysql_mutex_lock(&entry->LOCK_parallel_entry);
         do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
@@ -2926,6 +2966,24 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     */
     rgi->wait_commit_sub_id= e->current_sub_id;
     rgi->wait_commit_group_info= e->current_group_info;
+
+    {
+      rpl_parallel_entry *main_entry;
+      uint32 main_domain_id= rli->sql_driver_thd->variables.gtid_domain_id;
+      if (gtid_ev->domain_id == todo_alt_domain_id &&
+          rli->mi->using_gtid != Master_info::USE_GTID_NO &&
+          rli->mi->parallel_mode > SLAVE_PARALLEL_MINIMAL &&
+          (main_entry= find(main_domain_id)) != NULL)
+      {
+        /*
+          Out-of-order parallel replication in an alternate domain_id configured
+          to never run ahead of the primary domain_id.
+        */
+        rgi->main_domain_entry= main_entry;
+        rgi->main_domain_wait_sub_id= main_entry->current_sub_id;
+        rgi->main_domain_wait_rgi= main_entry->current_group_info;
+      }
+    }
 
     speculation= rpl_group_info::SPECULATE_NO;
     new_gco= true;

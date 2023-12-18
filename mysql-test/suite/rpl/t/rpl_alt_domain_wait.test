@@ -1,0 +1,68 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_mode= optimistic;
+SET GLOBAL slave_parallel_threads= 4;
+CHANGE MASTER to master_use_gtid= slave_pos;
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 2);
+INSERT INTO t1 VALUES (3, 3);
+INSERT INTO t1 VALUES (4, 4);
+INSERT INTO t1 VALUES (5, 5);
+INSERT INTO t1 VALUES (6, 6);
+INSERT INTO t1 VALUES (7, 7);
+
+# Use GTID 0-1-100 for the ADD COLUMN; this together with the error injection
+# rpl_parallel_delay_gtid_0_x_100_start below will delay the replication of the
+# ADD COLUMN and check that the CREATE INDEX will wait instead of failing with
+# unknown column error.
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD COLUMN (c INT);
+
+# Run the CREATE INDEX in a separate domain to replicate out-of-order
+SET STATEMENT gtid_domain_id= 1 FOR CREATE INDEX c_idx ON t1 (c);
+
+UPDATE t1 SET c=a+2*b WHERE a BETWEEN 3 and 5;
+INSERT INTO t1 VALUES (8, 8, 100);
+INSERT INTO t1 VALUES (9, 9, 200);
+INSERT INTO t1 VALUES (10, 10, 200);
+
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= "+d,rpl_parallel_delay_gtid_0_x_100_start";
+
+--source include/start_slave.inc
+--let $slave_timeout= 10
+--source include/sync_with_master_gtid.inc
+
+SET GLOBAL debug_dbug= @old_dbug;
+SELECT * FROM t1 ORDER BY a;
+
+
+# Cleanup
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode= @old_parallel_mode;
+SET GLOBAL slave_parallel_threads= @old_parallel_threads;
+--source include/start_slave.inc
+
+--connection master
+
+DROP TABLE t1;
+
+--source include/rpl_end.inc
