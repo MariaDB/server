@@ -3141,7 +3141,7 @@ static int check_user_can_set_role(THD *thd, const char *user, const char *host,
     /* get the current user */
     acl_user= find_user_wild(host, user, ip);
     if (acl_user == NULL)
-      result= ER_INVALID_CURRENT_USER;
+      result= ER_NO_SUCH_USER;
     else if (access)
       *access= acl_user->access;
 
@@ -3190,8 +3190,8 @@ end:
      privileges to know if the INVALID_ROLE exists. */
   switch (result)
   {
-    case ER_INVALID_CURRENT_USER:
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+    case ER_NO_SUCH_USER:
+      my_error(ER_NO_SUCH_USER, MYF(0), user, host);
       break;
     case ER_INVALID_ROLE:
       /* Role doesn't exist at all */
