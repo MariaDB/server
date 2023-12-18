@@ -448,16 +448,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 10,
+          "r_index_rows": 10,
           "r_rows": 10,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 100,
           "filtered": 100,
           "r_filtered": 50,
           "index_condition": "t1.pk < 10",
-          "attached_condition": "t1.b > 4"
+          "r_icp_filtered": 100,
+          "attached_condition": "t1.b > 4",
+          "r_condition_filtered": 50
         }
       }
     ]
@@ -1373,15 +1375,16 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 3,
+          "r_index_rows": 3,
           "r_rows": 2,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 66.66666667,
           "filtered": 100,
-          "r_filtered": 100,
-          "index_condition": "t12.b like '%f%'"
+          "r_filtered": 66.66666667,
+          "index_condition": "t12.b like '%f%'",
+          "r_icp_filtered": 66.66666667
         }
       }
     ]
@@ -1426,14 +1429,16 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 3,
+          "r_index_rows": 3,
           "r_rows": 1,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 41.66666794,
-          "r_filtered": 100,
-          "attached_condition": "t12.c between 400 and 500"
+          "r_filtered": 33.33333333,
+          "attached_condition": "t12.c between 400 and 500",
+          "r_condition_filtered": 100
         }
       }
     ]
@@ -1478,16 +1483,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 3,
+          "r_index_rows": 3,
           "r_rows": 1,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 66.66666667,
           "filtered": 41.66666794,
-          "r_filtered": 100,
+          "r_filtered": 33.33333333,
           "index_condition": "t12.b like '%f%'",
-          "attached_condition": "t12.c between 400 and 500"
+          "r_icp_filtered": 66.66666667,
+          "attached_condition": "t12.c between 400 and 500",
+          "r_condition_filtered": 100
         }
       }
     ]
@@ -1518,15 +1525,16 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 2,
+          "r_index_rows": 2,
           "r_rows": 2,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 100,
           "filtered": 100,
           "r_filtered": 100,
-          "index_condition": "t13.a between 1 and 2"
+          "index_condition": "t13.a between 1 and 2",
+          "r_icp_filtered": 100
         }
       },
       {
@@ -1541,15 +1549,16 @@ ANALYZE
           "loops": 2,
           "r_loops": 2,
           "rows": 3,
+          "r_index_rows": 2,
           "r_rows": 1,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 50,
           "filtered": 100,
-          "r_filtered": 100,
-          "index_condition": "t12.b like '%f%'"
+          "r_filtered": 50,
+          "index_condition": "t12.b like '%f%'",
+          "r_icp_filtered": 50
         }
       }
     ]
@@ -1580,15 +1589,16 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 2,
+          "r_index_rows": 2,
           "r_rows": 2,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 100,
           "filtered": 100,
           "r_filtered": 100,
-          "index_condition": "t13.b between 1 and 2"
+          "index_condition": "t13.b between 1 and 2",
+          "r_icp_filtered": 100
         }
       },
       {
@@ -1616,14 +1626,16 @@ ANALYZE
           "loops": 2,
           "r_loops": 2,
           "rows": 3,
+          "r_index_rows": 2,
           "r_rows": 0.5,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 41.66666794,
-          "r_filtered": 100,
-          "attached_condition": "t12.c between 400 and 450"
+          "r_filtered": 25,
+          "attached_condition": "t12.c between 400 and 450",
+          "r_condition_filtered": 100
         }
       }
     ]
@@ -1654,15 +1666,16 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 2,
+          "r_index_rows": 2,
           "r_rows": 2,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 100,
           "filtered": 100,
           "r_filtered": 100,
-          "index_condition": "t13.b between 1 and 2"
+          "index_condition": "t13.b between 1 and 2",
+          "r_icp_filtered": 100
         }
       },
       {
@@ -1690,16 +1703,18 @@ ANALYZE
           "loops": 2,
           "r_loops": 2,
           "rows": 3,
+          "r_index_rows": 2,
           "r_rows": 0.5,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "r_icp_filtered": 50,
           "filtered": 41.66666794,
-          "r_filtered": 100,
+          "r_filtered": 25,
           "index_condition": "t12.b like '%f%'",
-          "attached_condition": "t12.c between 400 and 450"
+          "r_icp_filtered": 50,
+          "attached_condition": "t12.c between 400 and 450",
+          "r_condition_filtered": 100
         }
       }
     ]
