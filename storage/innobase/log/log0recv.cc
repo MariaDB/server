@@ -3234,7 +3234,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 			skipped_after_init = false;
 			ut_ad(end_lsn == page_lsn);
 			if (end_lsn != page_lsn) {
-				sql_print_warning(
+				sql_print_information(
 					"InnoDB: The last skipped log record"
 					" LSN " LSN_PF
 					" is not equal to page LSN " LSN_PF,
