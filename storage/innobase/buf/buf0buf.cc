@@ -2447,7 +2447,6 @@ lookup:
     ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
   }
 
-  bpage->set_accessed();
   buf_page_make_young_if_needed(bpage);
 
 #ifdef UNIV_DEBUG
@@ -2585,7 +2584,7 @@ or BUF_PEEK_IF_IN_POOL
 @return pointer to the block or NULL */
 TRANSACTIONAL_TARGET
 buf_block_t*
-buf_page_get_low(
+buf_page_get_gen(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
@@ -2778,7 +2777,7 @@ free_unfixed_block:
 wait_for_unzip:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
-			in buf_page_get_low() on it. */
+			in buf_page_get_gen() on it. */
 			block->page.unfix();
 			std::this_thread::sleep_for(
 				std::chrono::microseconds(100));
@@ -2801,10 +2800,7 @@ wait_for_unfix:
 		ut_ad(&block->page == buf_pool.page_hash.get(page_id, chain));
 
 		/* Wait for any other threads to release their buffer-fix
-		on the compressed-only block descriptor.
-		FIXME: Never fix() before acquiring the lock.
-		Only in buf_page_get_gen(), buf_page_get_low(), buf_page_free()
-		we are violating that principle. */
+		on the compressed-only block descriptor. */
 		state = block->page.state();
 
 		switch (state) {
@@ -2830,7 +2826,7 @@ wait_for_unfix:
 			goto wait_for_unfix;
 		}
 
-		/* Ensure that another buf_page_get_low() will wait for
+		/* Ensure that another buf_page_get_gen() will wait for
 		new_block->page.lock.x_unlock(). */
 		block->page.set_state(buf_page_t::READ_FIX);
 
@@ -2941,70 +2937,7 @@ page_id_mismatch:
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
 			page_get_page_no(block->page.frame)) == page_id);
 
-	if (mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL) {
-		return block;
-	}
-
-	const bool not_first_access{block->page.set_accessed()};
-	buf_page_make_young_if_needed(&block->page);
-	if (!not_first_access) {
-		buf_read_ahead_linear(page_id, block->zip_size());
-	}
-
 	return block;
-}
-
-/** Get access to a database page. Buffered redo log may be applied.
-@param[in]	page_id			page id
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
-@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-or BUF_PEEK_IF_IN_POOL
-@param[in,out]	mtr			mini-transaction, or NULL
-@param[out]	err			DB_SUCCESS or error code
-@return pointer to the block or NULL */
-buf_block_t*
-buf_page_get_gen(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			rw_latch,
-	buf_block_t*		guess,
-	ulint			mode,
-	mtr_t*			mtr,
-	dberr_t*		err)
-{
-  buf_block_t *block= recv_sys.recover(page_id);
-  if (UNIV_LIKELY(!block))
-    return buf_page_get_low(page_id, zip_size, rw_latch,
-                            guess, mode, mtr, err);
-  else if (UNIV_UNLIKELY(block == reinterpret_cast<buf_block_t*>(-1)))
-  {
-  corrupted:
-    if (err)
-      *err= DB_CORRUPTION;
-    return nullptr;
-  }
-  if (err)
-    *err= DB_SUCCESS;
-  /* Recovery is a special case; we fix() before acquiring lock. */
-  auto s= block->page.fix();
-  ut_ad(s >= buf_page_t::FREED);
-  /* The block may be write-fixed at this point because we are not
-  holding a lock, but it must not be read-fixed. */
-  ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
-  if (s < buf_page_t::UNFIXED)
-  {
-    ut_ad(mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL);
-    mysql_mutex_lock(&buf_pool.mutex);
-    block->page.unfix();
-    buf_LRU_free_page(&block->page, true);
-    mysql_mutex_unlock(&buf_pool.mutex);
-    goto corrupted;
-  }
-
-  mtr->page_lock(block, rw_latch);
-  return block;
 }
 
 /********************************************************************//**
@@ -3081,7 +3014,6 @@ bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
 
     block->page.fix();
     ut_ad(!block->page.is_read_fixed());
-    block->page.set_accessed();
     buf_page_make_young_if_needed(&block->page);
     mtr->memo_push(block, mtr_memo_type_t(rw_latch));
   }

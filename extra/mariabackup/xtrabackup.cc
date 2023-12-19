@@ -127,7 +127,8 @@ int sd_notifyf() { return 0; }
 int sys_var_init();
 
 /* === xtrabackup specific options === */
-char xtrabackup_real_target_dir[FN_REFLEN] = "./mariadb_backup_files/";
+#define DEFAULT_TARGET_DIR "./mariadb_backup_files/"
+char xtrabackup_real_target_dir[FN_REFLEN] = DEFAULT_TARGET_DIR;
 char *xtrabackup_target_dir= xtrabackup_real_target_dir;
 static my_bool xtrabackup_version;
 static my_bool verbose;
@@ -409,6 +410,9 @@ uint opt_debug_sleep_before_unlock = 0;
 uint opt_safe_slave_backup_timeout = 0;
 
 const char *opt_history = NULL;
+
+/* Whether xtrabackup_binlog_info should be created on recovery */
+static bool recover_binlog_info;
 
 
 char mariabackup_exe[FN_REFLEN];
@@ -1269,22 +1273,25 @@ struct my_option xb_client_options[]= {
 
     {"compress", OPT_XTRA_COMPRESS,
      "Compress individual backup files using the "
-     "specified compression algorithm. Currently the only supported algorithm "
-     "is 'quicklz'. It is also the default algorithm, i.e. the one used when "
-     "--compress is used without an argument.",
+     "specified compression algorithm. It uses no longer maintained QuickLZ "
+     "library hence this option was deprecated with MariaDB 10.1.31 and 10.2.13.",
      (G_PTR *) &xtrabackup_compress_alg, (G_PTR *) &xtrabackup_compress_alg, 0,
      GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"compress-threads", OPT_XTRA_COMPRESS_THREADS,
      "Number of threads for parallel data compression. The default value is "
-     "1.",
+     "1. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (G_PTR *) &xtrabackup_compress_threads,
      (G_PTR *) &xtrabackup_compress_threads, 0, GET_UINT, REQUIRED_ARG, 1, 1,
      UINT_MAX, 0, 0, 0},
 
     {"compress-chunk-size", OPT_XTRA_COMPRESS_CHUNK_SIZE,
      "Size of working buffer(s) for compression threads in bytes. The default "
-     "value is 64K.",
+     "value is 64K. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (G_PTR *) &xtrabackup_compress_chunk_size,
      (G_PTR *) &xtrabackup_compress_chunk_size, 0, GET_ULL, REQUIRED_ARG,
      (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
@@ -1405,7 +1412,9 @@ struct my_option xb_client_options[]= {
 
     {"decompress", OPT_DECOMPRESS,
      "Decompresses all files with the .qp "
-     "extension in a backup previously made with the --compress option.",
+     "extension in a backup previously made with the --compress option. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (uchar *) &opt_decompress, (uchar *) &opt_decompress, 0, GET_BOOL, NO_ARG,
      0, 0, 0, 0, 0, 0},
 
@@ -2448,6 +2457,7 @@ xtrabackup_read_metadata(char *filename)
 {
 	FILE	*fp;
 	my_bool	 r = TRUE;
+	int	 t;
 
 	fp = fopen(filename,"r");
 	if(!fp) {
@@ -2478,6 +2488,9 @@ xtrabackup_read_metadata(char *filename)
 	}
 	/* Optional fields */
 
+	if (fscanf(fp, "recover_binlog_info = %d\n", &t) == 1) {
+		recover_binlog_info = (t == 1);
+	}
 end:
 	fclose(fp);
 
@@ -2527,11 +2540,13 @@ xtrabackup_print_metadata(char *buf, size_t buf_len)
 		 "backup_type = %s\n"
 		 "from_lsn = " UINT64PF "\n"
 		 "to_lsn = " UINT64PF "\n"
-		 "last_lsn = " UINT64PF "\n",
+		 "last_lsn = " UINT64PF "\n"
+		 "recover_binlog_info = %d\n",
 		 metadata_type,
 		 metadata_from_lsn,
 		 metadata_to_lsn,
-		 metadata_last_lsn);
+		 metadata_last_lsn,
+		 MY_TEST(opt_binlog_info == BINLOG_INFO_LOCKLESS));
 }
 
 /***********************************************************************
@@ -5966,6 +5981,26 @@ static ibool prepare_handle_del_files(const char *datadir, const char *db, const
 	return TRUE;
 }
 
+
+/**************************************************************************
+Store the current binary log coordinates in a specified file.
+@return 'false' on error. */
+static bool
+store_binlog_info(const char *filename, const char* name, ulonglong pos)
+{
+	FILE *fp = fopen(filename, "w");
+
+	if (!fp) {
+		msg("mariabackup: failed to open '%s'\n", filename);
+		return(false);
+	}
+
+	fprintf(fp, "%s\t%llu\n", name, pos);
+	fclose(fp);
+
+	return(true);
+}
+
 /** Implement --prepare
 @return	whether the operation succeeded */
 static bool xtrabackup_prepare_func(char** argv)
@@ -6151,6 +6186,20 @@ error:
 		msg("Last binlog file %s, position %lld",
 		    trx_sys.recovered_binlog_filename,
 		    longlong(trx_sys.recovered_binlog_offset));
+
+                /* output to xtrabackup_binlog_pos_innodb and (if
+                backup_safe_binlog_info was available on the server) to
+                xtrabackup_binlog_info. In the latter case
+                xtrabackup_binlog_pos_innodb becomes redundant and is created
+                only for compatibility. */
+                ok = store_binlog_info(
+                        "xtrabackup_binlog_pos_innodb",
+                        trx_sys.recovered_binlog_filename,
+                        trx_sys.recovered_binlog_offset)
+                        && (!recover_binlog_info || store_binlog_info(
+                                    XTRABACKUP_BINLOG_INFO,
+                                    trx_sys.recovered_binlog_filename,
+                                    trx_sys.recovered_binlog_offset));
 	}
 
 	/* Check whether the log is applied enough or not. */
@@ -6352,7 +6401,7 @@ static bool check_all_privileges()
 	}
 
 	/* KILL ... */
-	if (!opt_no_lock && (opt_kill_long_queries_timeout || opt_kill_long_query_type)) {
+	if (!opt_no_lock && opt_kill_long_queries_timeout) {
 		check_result |= check_privilege(
 			granted_privileges,
 			"CONNECTION ADMIN", "*", "*",
@@ -6373,7 +6422,7 @@ static bool check_all_privileges()
 	if (opt_galera_info || opt_slave_info
 		|| opt_safe_slave_backup) {
 		check_result |= check_privilege(granted_privileges,
-			"SLAVE MONITOR", "*", "*",
+			"REPLICA MONITOR", "*", "*",
 			PRIVILEGE_WARNING);
 	}
 
@@ -6586,9 +6635,10 @@ void handle_options(int argc, char **argv, char ***argv_server,
         server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
 
-	if (prepare && target_dir) {
+	if (prepare) {
 		snprintf(conf_file, sizeof(conf_file),
-			 "%s/backup-my.cnf", target_dir);
+			 "%s/backup-my.cnf", target_dir ? target_dir:
+			DEFAULT_TARGET_DIR);
 			if (!strncmp(argv[1], "--defaults-file=", 16)) {
 				/* Remove defaults-file*/
 				for (int i = 2; ; i++) {

@@ -296,8 +296,13 @@ buf_block_t *trx_rseg_t::get(mtr_t *mtr, dberr_t *err) const
     if (err) *err= DB_TABLESPACE_NOT_FOUND;
     return nullptr;
   }
-  return buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
-                          BUF_GET, mtr, err);
+
+  buf_block_t *block= buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
+                                       BUF_GET, mtr, err);
+  if (UNIV_LIKELY(block != nullptr))
+    buf_page_make_young_if_needed(&block->page);
+
+  return block;
 }
 
 /** Upgrade a rollback segment header page to MariaDB 10.3 format.
@@ -462,20 +467,31 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
       TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_hdr->page.frame;
     if (*binlog_name)
     {
-      lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
-                                  (FIL_PAGE_LSN + rseg_hdr->page.frame));
       static_assert(TRX_RSEG_BINLOG_NAME_LEN ==
                     sizeof trx_sys.recovered_binlog_filename, "compatibility");
-      if (lsn > trx_sys.recovered_binlog_lsn)
-      {
-        trx_sys.recovered_binlog_lsn= lsn;
-        trx_sys.recovered_binlog_offset=
-          mach_read_from_8(TRX_RSEG + TRX_RSEG_BINLOG_OFFSET +
-                           rseg_hdr->page.frame);
-        memcpy(trx_sys.recovered_binlog_filename, binlog_name,
-               TRX_RSEG_BINLOG_NAME_LEN);
-      }
 
+      /* Always prefer a position from rollback segment over
+      a legacy position from before version 10.3.5. */
+      int cmp = *trx_sys.recovered_binlog_filename &&
+                 !trx_sys.recovered_binlog_is_legacy_pos
+                 ? strncmp((const char*)(binlog_name),
+			   trx_sys.recovered_binlog_filename,
+                           TRX_RSEG_BINLOG_NAME_LEN)
+                 : 1;
+
+      if (cmp >= 0) {
+        uint64_t binlog_offset =
+          mach_read_from_8(TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
+			   + rseg_hdr->page.frame);
+        if (cmp) {
+          memcpy(trx_sys.recovered_binlog_filename, binlog_name,
+                 TRX_RSEG_BINLOG_NAME_LEN);
+          trx_sys.recovered_binlog_offset = binlog_offset;
+        } else if (binlog_offset > trx_sys.recovered_binlog_offset) {
+          trx_sys.recovered_binlog_offset = binlog_offset;
+        }
+        trx_sys.recovered_binlog_is_legacy_pos= false;
+      }
 #ifdef WITH_WSREP
       trx_rseg_read_wsrep_checkpoint(rseg_hdr, trx_sys.recovered_wsrep_xid);
 #endif
@@ -546,6 +562,7 @@ static void trx_rseg_init_binlog_info(const page_t* page)
 		trx_sys.recovered_binlog_offset = mach_read_from_8(
 			TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_OFFSET
 			+ TRX_SYS + page);
+		trx_sys.recovered_binlog_is_legacy_pos= true;
 	}
 
 #ifdef WITH_WSREP
@@ -560,6 +577,7 @@ dberr_t trx_rseg_array_init()
 
 	*trx_sys.recovered_binlog_filename = '\0';
 	trx_sys.recovered_binlog_offset = 0;
+	trx_sys.recovered_binlog_is_legacy_pos= false;
 #ifdef WITH_WSREP
 	trx_sys.recovered_wsrep_xid.null();
 	XID wsrep_sys_xid;

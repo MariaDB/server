@@ -1,0 +1,29 @@
+--echo #
+--echo # MDEV-28683 Spider: SIGSEGV in spider_db_direct_delete, SIGSEGV in spider_db_connect, ASAN: heap-use-after-free in spider_db_direct_delete
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+CREATE TABLE t (c INT) ENGINE=Spider;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO t (SELECT 1 FROM t);
+LOCK TABLES t WRITE CONCURRENT;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+DELETE FROM t;
+
+UNLOCK TABLES;
+DROP TABLE t;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_28683
+--echo #

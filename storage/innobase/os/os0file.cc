@@ -4164,7 +4164,6 @@ bool fil_node_t::read_page0()
         != DB_SUCCESS)
     {
       sql_print_error("InnoDB: Unable to read first page of file %s", name);
-corrupted:
       aligned_free(page);
       return false;
     }
@@ -4181,25 +4180,35 @@ corrupted:
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
-      if (cflags == UINT32_MAX)
+      if (cflags != UINT32_MAX)
       {
-invalid:
-        ib::error() << "Expected tablespace flags "
-          << ib::hex(space->flags)
-          << " but found " << ib::hex(flags)
-          << " in the file " << name;
-        goto corrupted;
+        uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
+        uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
+
+        if (fil_space_t::is_flags_equal(cf, sf) ||
+            fil_space_t::is_flags_equal(sf, cf))
+        {
+          flags= cflags;
+          goto flags_ok;
+        }
       }
 
-      uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
-      uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
-
-      if (!fil_space_t::is_flags_equal(cf, sf) &&
-          !fil_space_t::is_flags_equal(sf, cf))
-        goto invalid;
-      flags= cflags;
+      aligned_free(page);
+      goto invalid;
     }
 
+    if (!fil_space_t::is_flags_equal((flags & ~FSP_FLAGS_MEM_MASK),
+                                     (space->flags & ~FSP_FLAGS_MEM_MASK)) &&
+        !fil_space_t::is_flags_equal((space->flags & ~FSP_FLAGS_MEM_MASK),
+                                     (flags & ~FSP_FLAGS_MEM_MASK)))
+    {
+invalid:
+      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+                      " in the file %s", space->flags, flags, name);
+      return false;
+    }
+
+  flags_ok:
     ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
     /* Try to read crypt_data from page 0 if it is not yet read. */

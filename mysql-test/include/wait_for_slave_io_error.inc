@@ -59,7 +59,7 @@ let $_wfsie_errno= query_get_value(SHOW SLAVE STATUS, Last_IO_Errno, 1);
 
 if ($slave_io_errno == '') {
   --echo !!!ERROR IN TEST: you must set \$slave_io_errno before you source
-  --echo !!!wait_for_slave_sql_error.inc. The error we got this time was '$_wfsie_errno',
+  --echo !!!wait_for_slave_io_error.inc. The error we got this time was '$_wfsie_errno',
   --echo !!!so you probably want to add the following line to your test case:
   --echo !!!  --let \$slave_io_errno= $_wfsie_errno
   --die !!!ERROR IN TEST: you must set \$slave_io_errno before sourcing wait_for_slave_io_error.inc

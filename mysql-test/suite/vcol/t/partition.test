@@ -78,3 +78,24 @@ partition by range columns (x) (
 insert into t1 (x, b) values (1, ''), (2, ''), (3, 'a'), (4, 'b');
 update t1 set b= 'bar' where x > 0 order by v limit 2;
 drop table t1;
+
+--echo #
+--echo # MDEV-28127 EXCHANGE PARTITION with non-matching vcol expression segfault
+--echo #
+set @old_mode= @@sql_mode;
+set sql_mode='';
+create table t1 (a int, key(a)) partition by range (a) (partition p values less than (1));
+create table t (a int generated always as (1) virtual, key(a));
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t1 exchange partition p with table t;
+create or replace table t (a int, key(a));
+alter table t1 exchange partition p with table t;
+create or replace table t1 (a int generated always as (1) virtual, key(a)) partition by range (a) (partition p values less than (1));
+create or replace table t (a int generated always as (1) virtual, key(a));
+alter table t1 exchange partition p with table t;
+create or replace table t (a int generated always as (1) stored, key(a));
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t1 exchange partition p with table t;
+insert into t values (1);
+drop tables t1, t;
+set sql_mode= @old_mode;

@@ -55,7 +55,39 @@ protected:
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
   void print_cast_temporal(String *str, enum_query_type query_type);
+
+  void print_schema_qualified_name(String *to,
+                                   const LEX_CSTRING &schema_name,
+                                   const LEX_CSTRING &function_name) const
+  {
+    // e.g. oracle_schema.func()
+    to->append(schema_name);
+    to->append('.');
+    to->append(function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to,
+                                     enum_query_type query_type,
+                                     const LEX_CSTRING &function_name) const
+  {
+    const Schema *func_schema= schema();
+    if (!func_schema || func_schema == Schema::find_implied(current_thd))
+      to->append(function_name);
+    else
+      print_schema_qualified_name(to, func_schema->name(), function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to, enum_query_type query_type)
+                                                                       const
+  {
+    return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
+  }
+
 public:
+
+  // Print an error message for a builtin-schema qualified function call
+  static void wrong_param_count_error(const LEX_CSTRING &schema_name,
+                                      const LEX_CSTRING &func_name);
 
   table_map not_null_tables_cache;
 
@@ -80,6 +112,38 @@ public:
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
                   DATE_FUNC, YEAR_FUNC
                 };
+
+  /*
+    A function bitmap. Useful when some operation needs to be applied only
+    to certain functions. For now we only need to distinguish some
+    comparison predicates.
+  */
+  enum Bitmap : ulonglong
+  {
+    BITMAP_NONE= 0,
+    BITMAP_EQ=         1ULL << EQ_FUNC,
+    BITMAP_EQUAL=      1ULL << EQUAL_FUNC,
+    BITMAP_NE=         1ULL << NE_FUNC,
+    BITMAP_LT=         1ULL << LT_FUNC,
+    BITMAP_LE=         1ULL << LE_FUNC,
+    BITMAP_GE=         1ULL << GE_FUNC,
+    BITMAP_GT=         1ULL << GT_FUNC,
+    BITMAP_LIKE=       1ULL << LIKE_FUNC,
+    BITMAP_BETWEEN=    1ULL << BETWEEN,
+    BITMAP_IN=         1ULL << IN_FUNC,
+    BITMAP_MULT_EQUAL= 1ULL << MULT_EQUAL_FUNC,
+    BITMAP_OTHER=      1ULL << 63,
+    BITMAP_ALL=        0xFFFFFFFFFFFFFFFFULL,
+    BITMAP_ANY_EQUALITY= BITMAP_EQ | BITMAP_EQUAL | BITMAP_MULT_EQUAL,
+    BITMAP_EXCEPT_ANY_EQUALITY= BITMAP_ALL & ~BITMAP_ANY_EQUALITY,
+  };
+
+  ulonglong bitmap_bit() const
+  {
+    Functype type= functype();
+    return 1ULL << (type > 63 ? 63 : type);
+  }
+
   static scalar_comparison_op functype_to_scalar_comparison_op(Functype type)
   {
     switch (type) {
@@ -171,9 +235,15 @@ public:
                       List<Item> &fields, uint flags) override;
   void print(String *str, enum_query_type query_type) override;
   void print_op(String *str, enum_query_type query_type);
-  void print_args(String *str, uint from, enum_query_type query_type);
+  void print_args(String *str, uint from, enum_query_type query_type) const;
+  void print_args_parenthesized(String *str, enum_query_type query_type) const
+  {
+    str->append('(');
+    print_args(str, 0, query_type);
+    str->append(')');
+  }
   bool is_null() override
-  { 
+  {
     update_null_value();
     return null_value; 
   }
