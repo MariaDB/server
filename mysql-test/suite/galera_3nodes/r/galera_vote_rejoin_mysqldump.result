@@ -39,6 +39,9 @@ SELECT VARIABLE_VALUE AS expect_Disconnected FROM INFORMATION_SCHEMA.GLOBAL_STAT
 expect_Disconnected
 Disconnected
 SET SESSION wsrep_on=ON;
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+expect_3
+3
 SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 expect_Primary
 Primary
@@ -49,17 +52,11 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection node_2;
-SET SESSION wsrep_on=OFF;
-SET SESSION wsrep_on=ON;
-# restart
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT COUNT(*) AS expect_0 FROM t1;
-expect_0
-0
 CALL mtr.add_suppression("is inconsistent with group");
 connection node_3;
 SHOW CREATE TABLE t1;
@@ -81,3 +78,6 @@ CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");
 CALL mtr.add_suppression("Native table .* has the wrong structure");
 CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");
+connection node_2;
+# restart
+connection node_1;
