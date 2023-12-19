@@ -1309,7 +1309,8 @@ bool buf_pool_t::create()
   btr_search_sys_create();
 
 #ifdef __linux__
-  buf_mem_pressure_detect_init();
+  if (srv_operation == SRV_OPERATION_NORMAL)
+    buf_mem_pressure_detect_init();
 #endif
   ut_ad(is_initialised());
   return false;
