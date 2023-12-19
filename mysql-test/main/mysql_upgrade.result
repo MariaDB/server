@@ -2504,6 +2504,14 @@ Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 set global sql_safe_updates=@orig_sql_safe_updates;
+#
+# MDEV-32043 Remove plugins previously external that are now built in (unix_socket)
+#
+INSERT INTO mysql.plugin SELECT 'unix_socket', 'auth_socket.so'
+    FROM dual WHERE convert(@@version_compile_os using latin1) not in ('Win32', 'Win64', 'Windows');
+# mariadb-upgrade --force --silent 2>&1
+SELECT * FROM mysql.plugin WHERE name='unix_socket';
+name	dl
 # End of 10.4 tests
 #
 # Check that mysql_upgrade can be run on mysqldump

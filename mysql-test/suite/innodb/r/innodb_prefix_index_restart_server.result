@@ -90,3 +90,19 @@ worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text  = REPEAT("o", 3500)
 1	1
 DROP TABLE worklog5743;
+#
+# MDEV-21245 InnoDB: Using a partial-field key prefix in search
+#
+CREATE TABLE t1 (a VARCHAR(255), KEY k(a)) DEFAULT CHARSET=utf8mb3
+ENGINE=InnoDB;
+INSERT INTO t1 set a='';
+alter table t1 change a a varchar(3000);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+SELECT * FROM t1 WHERE a IN ('');
+a
+
+DROP TABLE t1;
+# End of 10.4 tests

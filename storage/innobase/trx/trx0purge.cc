@@ -687,7 +687,16 @@ not_free:
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
+
   rescan:
+    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
+        srv_fast_shutdown)
+    {
+    fast_shutdown:
+      mtr.commit();
+      return;
+    }
+
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
     {
@@ -747,6 +756,10 @@ not_free:
     }
 
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
+        srv_fast_shutdown)
+      goto fast_shutdown;
 
     /* Re-initialize tablespace, in a single mini-transaction. */
     const ulint size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;

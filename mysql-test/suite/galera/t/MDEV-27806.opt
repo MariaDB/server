@@ -1,0 +1,1 @@
+--log-bin --log-slave-updates --gtid-strict-mode --wsrep_gtid_mode=on

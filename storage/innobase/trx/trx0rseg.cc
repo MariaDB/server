@@ -467,24 +467,25 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 
       /* Always prefer a position from rollback segment over
       a legacy position from before version 10.3.5. */
-      int cmp = *trx_sys.recovered_binlog_filename &&
-                 !trx_sys.recovered_binlog_is_legacy_pos
-                 ? strncmp((const char*)(binlog_name),
-			   trx_sys.recovered_binlog_filename,
-                           TRX_RSEG_BINLOG_NAME_LEN)
-                 : 1;
+      int cmp= *trx_sys.recovered_binlog_filename &&
+        !trx_sys.recovered_binlog_is_legacy_pos
+        ? strncmp(reinterpret_cast<const char*>(binlog_name),
+                  trx_sys.recovered_binlog_filename,
+                  TRX_RSEG_BINLOG_NAME_LEN)
+        : 1;
 
       if (cmp >= 0) {
         uint64_t binlog_offset =
-          mach_read_from_8(TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
-			   + rseg_hdr->page.frame);
-        if (cmp) {
+          mach_read_from_8(TRX_RSEG + TRX_RSEG_BINLOG_OFFSET +
+                           rseg_hdr->page.frame);
+        if (cmp)
+        {
           memcpy(trx_sys.recovered_binlog_filename, binlog_name,
                  TRX_RSEG_BINLOG_NAME_LEN);
-          trx_sys.recovered_binlog_offset = binlog_offset;
-        } else if (binlog_offset > trx_sys.recovered_binlog_offset) {
-          trx_sys.recovered_binlog_offset = binlog_offset;
+          trx_sys.recovered_binlog_offset= binlog_offset;
         }
+        else if (binlog_offset > trx_sys.recovered_binlog_offset)
+          trx_sys.recovered_binlog_offset= binlog_offset;
         trx_sys.recovered_binlog_is_legacy_pos= false;
       }
 #ifdef WITH_WSREP

@@ -4,7 +4,6 @@
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
---source include/not_valgrind.inc # MDEV-32725 FIXME
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 SET @old_innodb_file_per_table = @@innodb_file_per_table;

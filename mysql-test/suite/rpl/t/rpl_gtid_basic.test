@@ -162,6 +162,13 @@ eval SELECT BINLOG_GTID_POS('$valid_binlog_name',0);
 eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551615);
 eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551616);
 
+# MDEV-33045: Server crashes in Item_func_binlog_gtid_pos::val_str / Binary_string::c_ptr_safe
+SET sql_log_bin= 0;
+CREATE TABLE t1 AS SELECT MASTER_POS_WAIT(@binlog_file, 4, 0);
+SELECT BINLOG_GTID_POS(@binlog_file, 4);
+DROP TABLE t1;
+SET sql_log_bin= 1;
+
 
 --echo *** Some tests of @@GLOBAL.gtid_binlog_state ***
 --connection server_2

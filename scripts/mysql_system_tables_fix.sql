@@ -219,6 +219,11 @@ UPDATE user
   SET plugin='unix_socket' WHERE plugin='auth_socket';
 DELETE FROM plugin
   WHERE name='auth_socket';
+# Delete plugins that are now inbuilt but might not have been before (MDEV-32043)
+DELETE plugin
+  FROM information_schema.PLUGINS is_p
+  JOIN plugin ON plugin.name = is_p.PLUGIN_NAME
+  WHERE is_p.PLUGIN_LIBRARY IS NULL;
 
 ALTER TABLE user
   MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',
