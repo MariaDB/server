@@ -28,10 +28,13 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
-SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_5 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 5 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_5 FROM mysql.wsrep_streaming_log;
 
 #
 # Trigger CC . The transaction is aborted and we expect the SR tables to be cleaned up
@@ -52,7 +55,9 @@ SET SESSION wsrep_sync_wait = DEFAULT;
 INSERT INTO t1 VALUES (6);
 
 --connection node_1
-SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 # Restore cluster
 
@@ -69,8 +74,10 @@ SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2b
 --source include/galera_wait_ready.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
 SELECT * FROM mysql.wsrep_streaming_log;
-SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 # Repeat transaction to confirm no locks are left from previous transaction
 
@@ -83,11 +90,13 @@ INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 COMMIT;
 
-SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_5 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 
@@ -98,3 +107,6 @@ CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
 --connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc
+
+--disconnect node_2a
+--disconnect node_2b
