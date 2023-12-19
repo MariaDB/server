@@ -228,8 +228,6 @@ buf_block_t*
 buf_page_create_deferred(uint32_t space_id, ulint zip_size, mtr_t *mtr,
                          buf_block_t *free_block);
 
-/** Move a block to the start of the LRU list. */
-void buf_page_make_young(buf_page_t *bpage);
 /** Mark the page status as FREED for the given tablespace and page number.
 @param[in,out]	space	tablespace
 @param[in]	page	page number
@@ -250,15 +248,6 @@ there is danger of dropping from the buffer pool.
 @param[in]	bpage		buffer pool page
 @return true if bpage should be made younger */
 inline bool buf_page_peek_if_too_old(const buf_page_t *bpage);
-
-/** Move a page to the start of the buffer pool LRU list if it is too old.
-@param[in,out]	bpage		buffer pool page */
-inline void buf_page_make_young_if_needed(buf_page_t *bpage)
-{
-	if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage))) {
-		buf_page_make_young(bpage);
-	}
-}
 
 /********************************************************************//**
 Increments the modify clock of a frame by 1. The caller must (1) own the

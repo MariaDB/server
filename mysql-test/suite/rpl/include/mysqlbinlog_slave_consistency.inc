@@ -128,6 +128,7 @@ if (!$slave_sql_errno)
 }
 
 --echo # Stop $con2 so it stops receiving $con1 events.
+--let $rpl_allow_error= 1
 --source include/stop_slave.inc
 
 --connection $con1

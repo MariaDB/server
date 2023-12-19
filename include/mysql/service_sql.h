@@ -68,6 +68,9 @@ extern struct sql_service_st {
   int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
   unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
   int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
+  my_bool (STDCALL *mysql_ssl_set_func)(MYSQL *mysql, const char *key,
+                                        const char *cert, const char *ca,
+                                        const char *capath, const char *cipher);
 } *sql_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -89,6 +92,7 @@ extern struct sql_service_st {
 #define mysql_set_character_set(M,C) sql_service->mysql_set_character_set_func(M,C)
 #define mysql_num_fields(R) sql_service->mysql_num_fields_func(R)
 #define mysql_select_db(M,D) sql_service->mysql_select_db_func(M,D)
+#define mysql_ssl_set(M,K,C,A,P,H) sql_service->mysql_ssl_set_func(M,K,C,A,P,H)
 
 #else
 
@@ -111,5 +115,3 @@ MYSQL *mysql_real_connect_local(MYSQL *mysql);
 #endif
 
 #endif /*MYSQL_SERVICE_SQL */
-
-

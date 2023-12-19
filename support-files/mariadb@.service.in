@@ -252,6 +252,12 @@ PrivateTmp=false
 TimeoutStartSec=900
 TimeoutStopSec=900
 
+# Set the maximium number of tasks (threads) to 99% of what the system can
+# handle as set by the kernel, reserve the 1% for a remote ssh connection,
+# some monitoring, or that backup cron job. Without the directive this would
+# be 15% (see DefaultTasksMax in systemd man pages).
+TasksMax=99%
+
 # Controlling how multiple instances are separated. See top of this file.
 # Note: This service isn't User=mysql by default so we need to be explicit.
 # It is as an option here as a user may want to use the MYSQLD_MULTI_INSTANCE

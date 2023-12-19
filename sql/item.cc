@@ -2672,7 +2672,8 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     if (conv->fix_fields_if_needed(thd, arg))
       return TRUE;
 
-    if (!thd->stmt_arena->is_conventional())
+    if (!thd->stmt_arena->is_conventional() &&
+        thd->lex->current_select->first_cond_optimization)
     {
       Query_arena *arena, backup;
       arena= thd->activate_stmt_arena_if_needed(&backup);

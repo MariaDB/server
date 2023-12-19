@@ -2447,7 +2447,6 @@ lookup:
     ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
   }
 
-  bpage->set_accessed();
   buf_page_make_young_if_needed(bpage);
 
 #ifdef UNIV_DEBUG
@@ -2938,16 +2937,6 @@ page_id_mismatch:
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
 			page_get_page_no(block->page.frame)) == page_id);
 
-	if (mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL) {
-		return block;
-	}
-
-	const bool not_first_access{block->page.set_accessed()};
-	buf_page_make_young_if_needed(&block->page);
-	if (!not_first_access) {
-		buf_read_ahead_linear(page_id, block->zip_size());
-	}
-
 	return block;
 }
 
@@ -3025,7 +3014,6 @@ bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
 
     block->page.fix();
     ut_ad(!block->page.is_read_fixed());
-    block->page.set_accessed();
     buf_page_make_young_if_needed(&block->page);
     mtr->memo_push(block, mtr_memo_type_t(rw_latch));
   }

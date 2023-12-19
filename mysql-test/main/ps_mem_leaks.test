@@ -13,6 +13,19 @@
 CREATE TABLE t1 (a VARCHAR(10)) ENGINE=MYISAM;
 CREATE TABLE t2 (b VARCHAR(10) CHARACTER SET utf8) ENGINE=MYISAM;
 
+INSERT INTO t1 VALUES ('b'), ('a'), ('c');
+INSERT INTO t2 VALUES ('c'), ('d'), ('b');
+
+PREPARE stmt FROM "SELECT t1.a FROM t1 WHERE t1.a IN (SELECT t2.b FROM t2)";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+DELETE FROM t1;
+DELETE FROM t2;
+
 INSERT INTO t1 VALUES ('b');
 INSERT INTO t2 VALUES ('b');
 
@@ -25,3 +38,75 @@ DEALLOCATE PREPARE stmt;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-32569: Failure when executing PS for query using IN subquery
+--echo #
+
+CREATE TABLE t1 (a varchar(10)) ENGINE=MYISAM;
+CREATE TABLE t2 (b varchar(10) CHARACTER SET utf8) ENGINE=MYISAM;
+
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+
+PREPARE stmt FROM
+"SELECT STRAIGHT_JOIN  t1.a FROM t1 WHERE t1.a IN (SELECT t2.b FROM t2)";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-32733: Two JSON related tests running in PS mode fail on server
+--echo #              built with -DWITH_PROTECT_STATEMENT_MEMROOT=YES
+--echo #
+PREPARE stmt FROM "select json_contains_path('{\"key1\":1}', 'oNE', '$.key2[1]') as exp";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # MDEV-32466: Potential memory leak on execuing of create view statement
+--echo #
+
+--delimiter |
+
+CREATE FUNCTION f1 () RETURNS VARCHAR(1)
+BEGIN
+  DECLARE rec1 ROW TYPE OF v1;
+  SELECT z INTO rec1 FROM v1;
+  RETURN 1;
+END|
+--delimiter ;
+
+CREATE FUNCTION f2 () RETURNS VARCHAR(1) RETURN '!';
+CREATE VIEW v1 AS SELECT f2() z;
+
+PREPARE stmt FROM "SELECT f1()";
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+# Clean up
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP FUNCTION f2;
+
+--echo #
+--echo # MDEV-32867: ASAN errors in Item_func_json_contains_path::val_int upon PS execution
+--echo #
+CREATE TABLE t1 (f BLOB) ENGINE=MyISAM;
+
+PREPARE stmt FROM "SELECT * FROM t1 WHERE JSON_EXISTS(JSON_ARRAY('[true,1234567890]'), '$**.*') != JSON_CONTAINS_PATH(JSON_INSERT('{}', '$[1]', NULL), 'all', '$[1]')";
+EXECUTE stmt;
+
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 10.4 tests

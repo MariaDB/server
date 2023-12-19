@@ -25,9 +25,10 @@ Created 2/23/1996 Heikki Tuuri
 *******************************************************/
 
 #include "btr0pcur.h"
-#include "ut0byte.h"
+#include "buf0rea.h"
 #include "rem0cmp.h"
 #include "trx0trx.h"
+#include "ibuf0ibuf.h"
 
 /**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
@@ -255,13 +256,15 @@ static bool btr_pcur_optimistic_latch_leaves(buf_block_t *block,
         buf_page_get_gen(page_id_t(id.space(), left_page_no), zip_size,
                          mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
 
-      if (left_block &&
-          btr_page_get_next(left_block->page.frame) != id.page_no())
+      if (!left_block);
+      else if (btr_page_get_next(left_block->page.frame) != id.page_no())
       {
 release_left_block:
         mtr->release_last_page();
         return false;
       }
+      else
+        buf_page_make_young_if_needed(&left_block->page);
     }
 
     if (buf_page_optimistic_get(mode, block, pcur->modify_clock, mtr))

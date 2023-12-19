@@ -1358,13 +1358,10 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
-  st_select_lex *sl= unit->first_select();
 
   // reset item names to that saved after wildcard expansion in JOIN::prepare
-  do
-  {
+  for(st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
     sl->restore_item_list_names();
-  } while ((sl=  sl->next_select()));
 
   derived->merged_for_insert= FALSE;
   unit->unclean();

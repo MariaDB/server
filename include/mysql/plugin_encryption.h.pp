@@ -494,6 +494,9 @@ extern struct sql_service_st {
   int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
   unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
   int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
+  my_bool (STDCALL *mysql_ssl_set_func)(MYSQL *mysql, const char *key,
+                                        const char *cert, const char *ca,
+                                        const char *capath, const char *cipher);
 } *sql_service;
 MYSQL *mysql_real_connect_local(MYSQL *mysql);
 }

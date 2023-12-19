@@ -2030,9 +2030,14 @@ bool JOIN::make_range_rowid_filters()
     filter_map.set_bit(tab->range_rowid_filter_info->get_key_no());
     filter_map.merge(tab->table->with_impossible_ranges);
     quick_select_return rc;
+    /*
+      EQ_FUNC and EQUAL_FUNC already sent unusable key notes (if any)
+      during update_ref_and_keys(). Have only other functions raise notes
+      from can_optimize_scalar_range().
+    */
     rc= sel->test_quick_select(thd, filter_map, (table_map) 0,
                                (ha_rows) HA_POS_ERROR, true, false, true,
-                               true);
+                               true, Item_func::BITMAP_EXCEPT_ANY_EQUALITY);
     if (rc == SQL_SELECT::ERROR || thd->is_error())
     {
       DBUG_RETURN(true); /* Fatal error */
@@ -5283,13 +5288,19 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
   if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
     DBUG_RETURN(false);                           // Fatal error flag is set
   if (select)
-  {
+  {
     select->head=table;
     table->reginfo.impossible_range=0;
+    /*
+      EQ_FUNC and EQUAL_FUNC already sent unusable key notes (if any)
+      during update_ref_and_keys(). Have only other functions raise notes
+      from can_optimize_scalar_range().
+    */
     error= select->test_quick_select(thd, *(key_map *)keys, (table_map) 0,
                                      limit, 0, FALSE,
                                      TRUE,     /* remove_where_parts*/
-                                     FALSE, TRUE);
+                                     FALSE,
+                                     Item_func::BITMAP_EXCEPT_ANY_EQUALITY);
 
     if (error == SQL_SELECT::OK)
     {
@@ -7145,6 +7156,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
           {
             field->raise_note_cannot_use_key_part(thd, key, part,
                                                   equal_str,
+                                                  key_field->cond->compare_collation(),
                                                   key_field->val,
                                                   compat);
           }
@@ -14038,7 +14050,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                               HA_POS_ERROR :
                                               join->unit->lim.get_select_limit()),
                                               0,
-                                             FALSE, FALSE, FALSE)) ==
+                                             FALSE, FALSE, FALSE,
+                                             Item_func::BITMAP_ALL)) ==
                 SQL_SELECT::IMPOSSIBLE_RANGE)
             {
 	      /*
@@ -14053,7 +14066,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                                 OPTION_FOUND_ROWS ?
                                                 HA_POS_ERROR :
                                                 join->unit->lim.get_select_limit()),
-                                                0, FALSE, FALSE, FALSE, TRUE)) ==
+                                                0, FALSE, FALSE, FALSE,
+                                                Item_func::BITMAP_NONE)) ==
                   SQL_SELECT::IMPOSSIBLE_RANGE)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
@@ -24462,7 +24476,9 @@ test_if_quick_select(JOIN_TAB *tab)
   res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                       (table_map) 0, HA_POS_ERROR, 0,
                                       FALSE, /*remove where parts*/FALSE,
-                                      FALSE, /* no warnings */ TRUE);
+                                      FALSE,
+                                      /* no unusable key notes */
+                                      Item_func::BITMAP_NONE);
   if (tab->explain_plan && tab->explain_plan->range_checked_fer)
     tab->explain_plan->range_checked_fer->collect_data(tab->select->quick);
 
@@ -26539,7 +26555,8 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                           HA_POS_ERROR :
                                           tab->join->unit->
                                             lim.get_select_limit(),
-                                          TRUE, TRUE, FALSE, FALSE);
+                                          TRUE, TRUE, FALSE, FALSE,
+                                          Item_func::BITMAP_ALL);
           // if we cannot use quick select
           if (res != SQL_SELECT::OK || !tab->select->quick)
           {
@@ -26643,7 +26660,8 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                       join->select_options & OPTION_FOUND_ROWS ?
                                       HA_POS_ERROR :
                                       join->unit->lim.get_select_limit(),
-                                      TRUE, FALSE, FALSE, FALSE);
+                                      TRUE, FALSE, FALSE, FALSE,
+                                      Item_func::BITMAP_ALL);
       if (res == SQL_SELECT::ERROR)
       {
         *fatal_error= true;

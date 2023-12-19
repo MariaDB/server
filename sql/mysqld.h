@@ -854,7 +854,7 @@ enum options_mysqld
   OPT_WSREP_SYNC_WAIT,
 #endif /* WITH_WSREP */
   OPT_MYSQL_COMPATIBILITY,
-  OPT_TLS_VERSION,
+  OPT_TLS_VERSION, OPT_SECURE_AUTH,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_SEQURE_FILE_PRIV,
   OPT_which_is_always_the_last
@@ -896,6 +896,11 @@ enum enum_query_type
   /// good for parsing
   QT_PARSABLE= (1 << 8),
 
+  // If an expression is constant, print the expression, not the value
+  // it evaluates to. Should be used for error messages, so that they
+  // don't reveal values.
+  QT_NO_DATA_EXPANSION= (1 << 9),
+
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
                         QT_ITEM_IDENT_SKIP_DB_NAMES |
@@ -916,12 +921,12 @@ enum enum_query_type
   QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET|
                         QT_SHOW_SELECT_NUMBER,
 
-  // If an expression is constant, print the expression, not the value
-  // it evaluates to. Should be used for error messages, so that they
-  // don't reveal values.
-  QT_NO_DATA_EXPANSION= (1 << 9),
   // Remove wrappers added for TVC when creating or showing view
-  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12)
+  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12),
+
+  /// Print for FRM file. Focus on parse-back.
+  /// e.g. VIEW expressions and virtual column expressions
+  QT_FOR_FRM= (1 << 13)
 };
 
 

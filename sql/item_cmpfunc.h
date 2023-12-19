@@ -2461,9 +2461,10 @@ public:
   Item_func_decode_oracle(THD *thd, List<Item> &list)
    :Item_func_case_simple(thd, list)
   { }
+  const Schema *schema() const override { return &oracle_schema_ref; }
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("decode_oracle") };
+    static LEX_CSTRING name= {STRING_WITH_LEN("decode") };
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
