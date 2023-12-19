@@ -645,6 +645,16 @@ void trx_purge_truncate_history()
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
+
+  rescan:
+    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
+        srv_fast_shutdown)
+    {
+    fast_shutdown:
+      mtr.commit();
+      return;
+    }
+
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
@@ -687,10 +697,7 @@ void trx_purge_truncate_history()
           buf_pool.flush_list_mutex. Ensure that they can proceed,
           to avoid extreme waits. */
           mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-          /* Rescan, because we may have lost the position. */
-          bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
-          continue;
+          goto rescan;
         }
       }
 
@@ -698,6 +705,10 @@ void trx_purge_truncate_history()
     }
 
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
+        srv_fast_shutdown)
+      goto fast_shutdown;
 
     /* Adjust the tablespace metadata. */
     if (!fil_truncate_prepare(space.id))
