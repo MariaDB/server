@@ -8501,7 +8501,10 @@ int ha_spider::create(
     if (
       thd->lex->create_info.or_replace() &&
       (error_num = spider_delete_tables(
-        table_tables, tmp_share.table_name, &dummy))
+        table_tables, tmp_share.table_name, &dummy)) &&
+      /* In this context, no key found in mysql.spider_tables means
+      the Spider table does not exist */
+      error_num != HA_ERR_KEY_NOT_FOUND
     ) {
       goto error;
     }
@@ -8914,6 +8917,10 @@ int ha_spider::delete_table(
       (error_num = spider_delete_tables(
         table_tables, name, &old_link_count))
     ) {
+      /* In this context, no key found in mysql.spider_tables means
+      the Spider table does not exist */
+      if (error_num == HA_ERR_KEY_NOT_FOUND)
+        error_num= HA_ERR_NO_SUCH_TABLE;
       goto error;
     }
     spider_sys_close_table(current_thd, &open_tables_backup);
