@@ -81,6 +81,7 @@ struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
 class MYSQL_LOG;
+struct rpl_group_info;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1937,6 +1938,9 @@ public:
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
+#ifdef HAVE_REPLICATION
+  void vers_fix_old_timestamp(rpl_group_info *rgi);
+#endif
   void find_constraint_correlated_indexes();
 
 /** Number of additional fields used in versioned tables */

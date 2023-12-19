@@ -1728,7 +1728,8 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   int err_code= 0;
   MYSQL_RES *master_res= 0;
   MYSQL_ROW master_row;
-  uint version= mysql_get_server_version(mysql) / 10000;
+  uint full_version= mysql_get_server_version(mysql);
+  uint version= full_version/ 10000;
   DBUG_ENTER("get_master_version_and_clock");
 
   /*
@@ -1737,6 +1738,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   */
   delete mi->rli.relay_log.description_event_for_queue;
   mi->rli.relay_log.description_event_for_queue= 0;
+  mi->mysql_version= full_version;
 
   if (!my_isdigit(&my_charset_bin,*mysql->server_version))
   {

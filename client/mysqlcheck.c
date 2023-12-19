@@ -801,7 +801,7 @@ static int fix_table_storage_name(const char *name)
               name, name + 9);
 
   rc= run_query(qbuf, 1);
-  if (verbose)
+  if (!opt_silent)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
 }
@@ -817,7 +817,7 @@ static int fix_database_storage_name(const char *name)
   my_snprintf(qbuf, sizeof(qbuf), "ALTER DATABASE %`s UPGRADE DATA DIRECTORY "
               "NAME", name);
   rc= run_query(qbuf, 1);
-  if (verbose)
+  if (!opt_silent)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
 }
@@ -840,8 +840,8 @@ static int rebuild_table(char *name)
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
     rc= 1;
   }
-  if (verbose)
-    printf("%-50s %s\n", name, rc ? "FAILED" : "FIXED");
+  if (!opt_silent)
+    printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   my_free(query);
   DBUG_RETURN(rc);
 }
@@ -1035,7 +1035,6 @@ static void __attribute__((noinline)) print_result()
   MYSQL_RES *res;
   MYSQL_ROW row;
   char prev[(NAME_LEN+9)*3+2];
-  char prev_alter[MAX_ALTER_STR_SIZE];
   size_t length_of_db= strlen(sock->db);
   my_bool found_error=0, table_rebuild=0;
   DYNAMIC_ARRAY *array4repair= &tables4repair;
@@ -1044,7 +1043,6 @@ static void __attribute__((noinline)) print_result()
   res = mysql_use_result(sock);
 
   prev[0] = '\0';
-  prev_alter[0]= 0;
   while ((row = mysql_fetch_row(res)))
   {
     int changed = strcmp(prev, row[0]);
@@ -1061,19 +1059,13 @@ static void __attribute__((noinline)) print_result()
 	  strcmp(row[3],"OK"))
       {
         if (table_rebuild)
-        {
-          if (prev_alter[0])
-            insert_dynamic(&alter_table_cmds, (uchar*) prev_alter);
-          else
-            insert_table_name(&tables4rebuild, prev, length_of_db);
-        }
+          insert_table_name(&tables4rebuild, prev, length_of_db);
         else
           insert_table_name(array4repair, prev, length_of_db);
       }
       array4repair= &tables4repair;
       found_error=0;
       table_rebuild=0;
-      prev_alter[0]= 0;
       if (opt_silent)
 	continue;
     }
@@ -1083,20 +1075,28 @@ static void __attribute__((noinline)) print_result()
     {
       /*
         If the error message includes REPAIR TABLE, we assume it means
-        we have to run upgrade on it. In this case we write a nicer message
+        we have to run REPAIR on it. In this case we write a nicer message
         than "Please do "REPAIR TABLE""...
+        If the message inclused ALTER TABLE then there is something wrong
+        with the table definition and we have to run ALTER TABLE to fix it.
+        Write also a nice error message for this csae.
       */
       if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR "))
       {
-        printf("%-50s %s", row[0], "Needs upgrade");
+        printf("%-50s %s", row[0], "Needs upgrade with REPAIR");
         array4repair= strstr(row[3], "VIEW") ? &views4repair : &tables4repair;
+      }
+      else if (!strcmp(row[2],"error") && strstr(row[3],"ALTER TABLE"))
+      {
+        printf("%-50s %s", row[0], "Needs upgrade with ALTER TABLE FORCE");
+        array4repair= &tables4rebuild;
       }
       else
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
-      if (opt_auto_repair && strcmp(row[2],"note"))
+      if (strcmp(row[2],"note"))
       {
         found_error=1;
-        if (opt_auto_repair && strstr(row[3], "ALTER TABLE") != NULL)
+        if (strstr(row[3], "ALTER TABLE"))
           table_rebuild=1;
       }
     }
@@ -1109,12 +1109,7 @@ static void __attribute__((noinline)) print_result()
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)
   {
     if (table_rebuild)
-    {
-      if (prev_alter[0])
-        insert_dynamic(&alter_table_cmds, prev_alter);
-      else
-        insert_table_name(&tables4rebuild, prev, length_of_db);
-    }
+      insert_table_name(&tables4rebuild, prev, length_of_db);
     else
       insert_table_name(array4repair, prev, length_of_db);
   }

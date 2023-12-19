@@ -48,7 +48,8 @@
 #include "sql_db.h"              // get_default_db_collation
 #include "sql_update.h"          // class Sql_cmd_update
 #include "sql_delete.h"          // class Sql_cmd_delete
-
+#include "rpl_rli.h"             // class rpl_group_info
+#include "rpl_mi.h"              // class Master_info
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -9554,6 +9555,34 @@ void TABLE::vers_update_end()
                                         in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
 }
+
+
+#ifdef HAVE_REPLICATION
+void TABLE::vers_fix_old_timestamp(rpl_group_info *rgi)
+{
+  /*
+    rgi->rli->mi is not set if we are not connected to a slave.
+    This can happen in case of
+    - Data sent from mariadb-binlog
+    - online_alter_read_from_binlog (in this case no transformation is needed)
+  */
+  if (rgi->rli->mi &&
+      file->check_versioned_compatibility(rgi->rli->mi->mysql_version))
+  {
+    Field *end_field= vers_end_field();
+
+    if (!memcmp(end_field->ptr, timestamp_old_bytes,
+                sizeof(timestamp_old_bytes)))
+    {
+      /*
+        Upgrade timestamp.
+        Check Field::do_field_versioned_timestamp() for details
+      */
+      end_field->ptr[0]= 0xff;
+    }
+  }
+}
+#endif /* HAVE_REPLICATION */
 
 /**
    Reset markers that fields are being updated

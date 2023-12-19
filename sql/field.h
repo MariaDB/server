@@ -82,6 +82,8 @@ enum enum_conv_type
   CONV_TYPE_IMPOSSIBLE
 };
 
+/* Old 32 bit timestamp */
+extern const uchar timestamp_old_bytes[7];
 
 class Conv_param
 {
@@ -774,6 +776,7 @@ protected:
   static void do_field_temporal(const Copy_field *copy, date_mode_t fuzzydate);
   static void do_field_datetime(const Copy_field *copy);
   static void do_field_timestamp(const Copy_field *copy);
+  static void do_field_versioned_timestamp(const Copy_field *copy);
   static void do_field_decimal(const Copy_field *copy);
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()

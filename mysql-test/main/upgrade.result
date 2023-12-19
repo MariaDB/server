@@ -24,6 +24,9 @@ show tables in `#mysql50#mysqltest-1`;
 Tables_in_#mysql50#mysqltest-1
 #mysql50#t-1
 t1
+#mysql50#mysqltest-1                               OK
+#mysql50#t-1                                       OK
+#mysql50#t-1                                       OK
 show create database `mysqltest1`;
 Database	Create Database
 mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */

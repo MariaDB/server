@@ -305,17 +305,18 @@ CHECK TABLE bug47205 FOR UPGRADE;
 DROP TABLE bug47205;
 
 --echo #
---echo # Test 3: MyISAM - REPAIR supported
+--echo # Test 3: MyISAM - ALTER TABLE supported
 
 --echo # Use an old FRM that will require upgrade
 --copy_file std_data/bug36055.frm $MYSQLD_DATADIR/test/bug47205.frm
 --copy_file std_data/bug36055.MYD $MYSQLD_DATADIR/test/bug47205.MYD
 --copy_file std_data/bug36055.MYI $MYSQLD_DATADIR/test/bug47205.MYI
 
---echo # Should indicate that REPAIR TABLE is needed
+--echo # Should indicate that ALTER TABLE is needed
 CHECK TABLE bug47205 FOR UPGRADE;
 
 --echo # Running mysqlcheck to check and upgrade
+
 --exec $MYSQL_CHECK --check-upgrade --auto-repair test
 
 --echo # Table should now be ok

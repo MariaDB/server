@@ -6779,6 +6779,7 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     // Check whether a row came from unversioned table and fix vers fields.
     if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
       table->vers_update_fields();
+    table->vers_fix_old_timestamp(rgi);
   }
 
   /* 
@@ -7514,6 +7515,11 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       table->vers_end_field()->set_max();
       m_vers_from_plain= true;
     }
+    else if (m_table->versioned(VERS_TIMESTAMP))
+    {
+      /* Change row_end in record[0] to new end date if old server */
+      m_table->vers_fix_old_timestamp(rgi);
+    }
   }
 
   DBUG_PRINT("info",("looking for the following record"));
@@ -8080,8 +8086,12 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
   if (m_table->versioned())
   {
-    if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
-      m_table->vers_update_fields();
+    if (m_table->versioned(VERS_TIMESTAMP))
+    {
+      if (m_vers_from_plain)
+        m_table->vers_update_fields();
+      m_table->vers_fix_old_timestamp(rgi);
+    }
     if (!history_change && !m_table->vers_end_field()->is_max())
     {
       tl->trg_event_map|= trg2bit(TRG_EVENT_DELETE);
