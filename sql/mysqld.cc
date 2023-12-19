@@ -5363,7 +5363,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 
-  if (ha_recover(0))
+  if (ha_recover(0, 0, NULL))
     unireg_abort(1);
 
 #ifndef EMBEDDED_LIBRARY
@@ -5770,6 +5770,7 @@ int mysqld_main(int argc, char **argv)
 #endif
 
   initialize_information_schema_acl();
+  tc_log->execute_xa_for_recovery();
 
   /*
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no

@@ -362,7 +362,7 @@ bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid)
 }
 
 
-static void xid_cache_delete(THD *thd, XID_cache_element *&element)
+void xid_cache_delete(THD *thd, XID_cache_element *&element)
 {
   DBUG_ASSERT(thd->xid_hash_pins);
   element->mark_uninitialized();
@@ -1201,7 +1201,7 @@ static bool slave_applier_reset_xa_trans(THD *thd)
     Ha_trx_info *ha_info= NULL;
     DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec) ||
                 thd->is_current_stmt_binlog_disabled() ||
-                (ha_count_rw_all(thd, &ha_info) == 0));
+                (ha_count_rw_all(thd, &ha_info, false) == 0));
 #endif
     thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
     thd->transaction->xid_state.xid_cache_element= 0;
