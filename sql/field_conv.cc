@@ -420,8 +420,25 @@ void Field::do_field_decimal(const Copy_field *copy)
 
 void Field::do_field_timestamp(const Copy_field *copy)
 {
-  // XXX why couldn't we do it everywhere?
+  /* Use general but slow copy function */
   copy->from_field->save_in_field(copy->to_field);
+}
+
+/* Binary representation of the maximum possible pre-11.4 TIMESTAMP(6) */
+static const uchar timestamp_old_bytes[7]=
+{
+  0x7f, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
+};
+
+
+void Field::do_field_versioned_timestamp(const Copy_field *copy)
+{
+  memcpy(copy->to_ptr, copy->from_ptr, copy->to_length);
+  if (!memcmp(copy->to_ptr, timestamp_old_bytes, sizeof(timestamp_old_bytes)))
+  {
+    /* Convert row_end to max possible timestamp (2106) */
+    copy->to_ptr[0]= 0xff;
+  }
 }
 
 
@@ -761,10 +778,16 @@ void Copy_field::set(Field *to,Field *from,bool save)
 Field::Copy_func *Field_timestamp::get_copy_func(const Field *from) const
 {
   Field::Copy_func *copy= Field_temporal::get_copy_func(from);
-  if (copy == do_field_datetime && from->type() == MYSQL_TYPE_TIMESTAMP)
-    return do_field_timestamp;
-  else
-    return copy;
+  if (from->type() == MYSQL_TYPE_TIMESTAMP)
+  {
+    if (copy == do_field_datetime)
+      return do_field_timestamp;
+    if (copy == do_field_eq &&
+        from->table->file->check_versioned_compatibility() &&
+        (flags & VERS_ROW_END) && (from->flags & VERS_ROW_END))
+      return do_field_versioned_timestamp;
+  }
+  return copy;
 }
 
 

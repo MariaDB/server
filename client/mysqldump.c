@@ -129,7 +129,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
-                opt_header=0,
+                opt_header=0, opt_update_history= 0,
                 opt_drop_trigger= 0, opt_dump_history= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
@@ -151,7 +151,8 @@ static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static double opt_max_statement_time= 0.0;
 static MYSQL mysql_connection,*mysql=0;
-static DYNAMIC_STRING insert_pat, select_field_names, select_field_names_for_header;
+static DYNAMIC_STRING insert_pat, select_field_names,
+                      select_field_names_for_header, insert_field_names;
 static char  *opt_password=0,*current_user=0,
              *current_host=0,*path=0,*fields_terminated=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
@@ -355,8 +356,15 @@ static struct my_option my_long_options[] =
    &opt_dump_date, &opt_dump_date, 0,
    GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"dump-history", 'H', "Dump system-versioned tables with history (only for "
-    "timestamp based versioning)", &opt_dump_history,
-    &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+    "timestamp based versioning). Use also --update-history-timestamp if "
+   "upgrading to MariaDB 10.4 or newer",
+   &opt_dump_history, &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"update-history", 'U',
+   "Update row_end history timestamp to support dates up to year 2106. "
+   "This option will also enable tz-utc. "
+   "Should be used when upgrading to MariaDB 11.4 or above.",
+   &opt_update_history, &opt_update_history,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
    "This causes the binary log position and filename of the master to be "
    "appended to the dumped data output. Setting the value to 1, will print"
@@ -1310,23 +1318,31 @@ static int get_options(int *argc, char ***argv)
     fprintf(stderr, "%s: --xml can't be used with --tab.\n", my_progname_short);
     return(EX_USAGE);
   }
-  if (opt_xml && opt_dump_history)
+  if (opt_dump_history)
   {
-    fprintf(stderr, "%s: --xml can't be used with --dump-history.\n",
-            my_progname_short);
-    return(EX_USAGE);
-  }
-  if (opt_replace_into && opt_dump_history)
-  {
-    fprintf(stderr, "%s: --dump-history can't be used with --replace.\n",
-            my_progname_short);
-    return(EX_USAGE);
-  }
-  if (opt_asof_timestamp && opt_dump_history)
-  {
-    fprintf(stderr, "%s: --dump-history can't be used with --as-of.\n",
-            my_progname_short);
-    return(EX_USAGE);
+    if (opt_update_history)
+    {
+      /* dump history requires timezone "+00:00" */
+      opt_tz_utc= 1;
+    }
+    if (opt_xml)
+    {
+      fprintf(stderr, "%s: --xml can't be used with --dump-history.\n",
+              my_progname_short);
+      return(EX_USAGE);
+    }
+    if (opt_replace_into)
+    {
+      fprintf(stderr, "%s: --dump-history can't be used with --replace.\n",
+              my_progname_short);
+      return(EX_USAGE);
+    }
+    if (opt_asof_timestamp)
+    {
+      fprintf(stderr, "%s: --dump-history can't be used with --as-of.\n",
+              my_progname_short);
+      return(EX_USAGE);
+    }
   }
   if (opt_asof_timestamp && strchr(opt_asof_timestamp, '\''))
   {
@@ -1940,6 +1956,7 @@ static void free_resources()
   dynstr_free(&insert_pat);
   dynstr_free(&select_field_names);
   dynstr_free(&select_field_names_for_header);
+  dynstr_free(&insert_field_names);
   if (defaults_argv)
     free_defaults(defaults_argv);
   mysql_library_end();
@@ -3060,12 +3077,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   my_ulonglong num_fields;
   char       *result_table, *opt_quoted_table;
   const char *insert_option;
-  char	     name_buff[NAME_LEN+3],table_buff[NAME_LEN*2+3];
+  char	     name_buff[NAME_LEN*2+3],table_buff[NAME_LEN*2+3];
   char       table_buff2[NAME_LEN*2+3], query_buff[QUERY_LENGTH];
   char       temp_buff[NAME_LEN*2 + 3], temp_buff2[NAME_LEN*2 + 3];
+  char       *last_name;
   FILE       *sql_file= md_result_file;
   size_t     len;
-  my_bool    is_log_table;
+  my_bool    is_log_table, dummy_versioned;
   MYSQL_RES  *result;
   MYSQL_ROW  row;
   const char *s3_engine_ptr;
@@ -3104,12 +3122,14 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   {
     select_field_names_inited= 1;
     init_dynamic_string_checked(&select_field_names, "", 1024, 1024);
+    init_dynamic_string_checked(&insert_field_names, "", 1024, 1024);
     if (opt_header)
       init_dynamic_string_checked(&select_field_names_for_header, "", 1024, 1024);
   }
   else
   {
     dynstr_set_checked(&select_field_names, "");
+    dynstr_set_checked(&insert_field_names, "");
     if (opt_header)
       dynstr_set_checked(&select_field_names_for_header, "");
   }
@@ -3121,7 +3141,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   if (versioned)
   {
     if (!opt_asof_timestamp && !opt_dump_history)
-      versioned= NULL;
+      *versioned= 0;
     else
     {
       my_snprintf(query_buff, sizeof(query_buff), "select 1 from"
@@ -3136,6 +3156,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       else
         *versioned= 0;
     }
+  }
+  else
+  {
+    versioned= &dummy_versioned;
+    dummy_versioned= 0;
   }
 
   len= my_snprintf(query_buff, sizeof(query_buff),
@@ -3152,7 +3177,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
   if (!opt_xml && !mysql_query_with_error_report(mysql, 0, query_buff))
   {
-    int vers_hidden= opt_dump_history && versioned && *versioned;
+    int vers_hidden= opt_dump_history && *versioned;
     /* using SHOW CREATE statement */
     if (!opt_no_create_info)
     {
@@ -3379,12 +3404,28 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");
+        dynstr_append_checked(&insert_field_names, ", ");
         if (opt_header)
           dynstr_append_checked(&select_field_names_for_header, ", ");
       }
       init=1;
-      dynstr_append_checked(&select_field_names,
-                            quote_name(row[0], name_buff, 0));
+
+      last_name= quote_name(row[0], name_buff, 0);
+      if (opt_dump_history && *versioned && opt_update_history &&
+          row[2] && strcmp(row[2], "ROW END") == 0)
+      {
+        dynstr_append_checked(&select_field_names, "if(");
+        dynstr_append_checked(&select_field_names, last_name);
+        dynstr_append_checked(&select_field_names,
+                              "= \"2038-01-19 03:14:07.999999\","
+                              "\"2106-02-07 06:28:15.999999\", ");
+        dynstr_append_checked(&select_field_names, last_name);
+        dynstr_append_checked(&select_field_names, ") as ");
+        dynstr_append_checked(&select_field_names, last_name);
+      }
+      else
+        dynstr_append_checked(&select_field_names, last_name);
+      dynstr_append_checked(&insert_field_names, last_name);
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
                               quote_for_equal(row[0], name_buff));
@@ -3393,7 +3434,14 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     if (vers_hidden)
     {
       complete_insert= 1;
-      dynstr_append_checked(&select_field_names, ", row_start, row_end");
+      dynstr_append_checked(&select_field_names, ", row_start,");
+      dynstr_append_checked(&select_field_names,
+                            opt_update_history ?
+                            "if(row_end = \"2038-01-19 03:14:07.999999\","
+                            "\"2106-02-07 06:28:15.999999\", row_end) as "
+                            "row_end" :
+                            "row_end");
+      dynstr_append_checked(&insert_field_names, ", row_start, row_end");
     }
 
     /*
@@ -3425,7 +3473,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     }
 
     if (complete_insert)
-      dynstr_append_checked(&insert_pat, select_field_names.str);
+      dynstr_append_checked(&insert_pat, insert_field_names.str);
     num_fields= mysql_num_rows(result) + (vers_hidden ? 2 : 0);
     mysql_free_result(result);
   }
@@ -3687,6 +3735,7 @@ continue_xml:
   }
   DBUG_RETURN((uint) num_fields);
 } /* get_table_structure */
+
 
 static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
                              MYSQL_ROW *show_trigger_row,

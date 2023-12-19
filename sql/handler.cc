@@ -4914,6 +4914,15 @@ int handler::check_long_hash_compatibility() const
   return 0;
 }
 
+int handler::check_versioned_compatibility() const
+{
+  /* Versioned timestamp extended in 11.4.0 for 64 bit systems */
+  if (table->s->mysql_version <= 110400 && table->versioned() &&
+      TIMESTAMP_MAX_YEAR == 2106)
+    return HA_ADMIN_NEEDS_ALTER;
+  return 0;
+}
+
 
 int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
 {
@@ -4956,6 +4965,9 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   if (unlikely((error= check_long_hash_compatibility())))
     return error;
     
+  if (unlikely((error= check_versioned_compatibility())))
+    return error;
+
   return check_for_upgrade(check_opt);
 }
 
@@ -5161,7 +5173,7 @@ bool non_existing_table_error(int error)
   @retval
     HA_ADMIN_OK               Successful upgrade
   @retval
-    HA_ADMIN_NEEDS_UPGRADE    Table has structures requiring upgrade
+    HA_ADMIN_NEEDS_UPGRADE    Table has structures requiring REPAIR TABLE
   @retval
     HA_ADMIN_NEEDS_ALTER      Table has structures requiring ALTER TABLE
   @retval
