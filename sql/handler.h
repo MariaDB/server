@@ -3604,6 +3604,7 @@ protected:
 public:
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
+  int check_versioned_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);

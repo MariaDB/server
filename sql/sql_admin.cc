@@ -1320,7 +1320,7 @@ send_result_message:
           table->table->file->ha_table_flags() & HA_CAN_REPAIR ? "TABLE" : 0;
 
       protocol->store(&error_clex_str, system_charset_info);
-      if (what_to_upgrade)
+      if (what_to_upgrade && result_code != HA_ADMIN_NEEDS_ALTER)
         length= my_snprintf(buf, sizeof(buf),
                             ER_THD(thd, ER_TABLE_NEEDS_UPGRADE),
                             what_to_upgrade, table->table_name.str);
