@@ -786,16 +786,7 @@ public:
       if ((m_fds[m_num_fds].fd=
              open(memcgroup.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC)) < 0)
       {
-        switch (errno) {
-        case EPERM:
-        /* https://lore.kernel.org/all/CAMw=ZnQ56cm4Txgy5EhGYvR+Jt4s-KVgoA9_65HKWVMOXp7a9A@mail.gmail.com/T/#m3bd2a73c5ee49965cb73a830b1ccaa37ccf4e427 */
-          sql_print_information("InnoDB: Failed to initialize memory pressure EPERM, "
-                                "file permissions.");
-          break;
-        default:
-          sql_print_information("InnoDB: Failed to initialize memory pressure: %s",
-                                strerror(errno));
-        }
+        /* User can't do anything about it, no point giving warning */
         shutdown();
         return false;
       }
@@ -803,7 +794,7 @@ public:
       ssize_t slen= strlen(*trig);
       if (write(m_fds[m_num_fds].fd, *trig, slen) < slen)
       {
-        sql_print_warning("InnoDB: Failed create trigger for memory pressure \"%s\"", *trig);
+        /* we may fail this one, but continue to the next */
         my_close(m_fds[m_num_fds].fd, MYF(MY_WME));
         continue;
       }
@@ -815,7 +806,7 @@ public:
 
     if ((m_event_fd= eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK)) == -1)
     {
-      sql_print_warning("InnoDB: No memory pressure - can't create eventfd");
+      /* User can't do anything about it, no point giving warning */
       shutdown();
       return false;
     }
@@ -824,6 +815,7 @@ public:
     m_fds[m_num_fds].events= POLLIN;
     m_num_fds++;
     m_thd= std::thread(pressure_routine, this);
+    sql_print_information("InnoDB: Initialized memory pressure event listener");
     return true;
   }
 
