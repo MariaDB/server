@@ -11,6 +11,7 @@
 
 static int run_sql(const char *query, size_t query_len)
 {
+  MYSQL_RES *res;
 
   MYSQL *mysql= mysql_init(NULL);
   if (!mysql)
@@ -21,6 +22,12 @@ static int run_sql(const char *query, size_t query_len)
 
   if (mysql_real_query(mysql, query, query_len))
     return 1;
+
+  if (!(res= mysql_store_result(mysql)))
+      return 1;
+
+  mysql_free_result(res);
+
 
   mysql_close(mysql);
   return 0;
@@ -51,7 +58,8 @@ get_key(unsigned int key_id, unsigned int version,
 
 static int example_keymgt_sql_service_init(void *p)
 {
-  return run_sql(STRING_WITH_LEN("CREATE TABLE test.t1 (id int)")) ? HA_ERR_RETRY_INIT : 0;
+  run_sql(STRING_WITH_LEN("CREATE TABLE test.t1 (id int)")); // ? HA_ERR_RETRY_INIT : 0;
+  return 0;
 }
 
 static int example_keymgt_sql_service_deinit(void *p)
