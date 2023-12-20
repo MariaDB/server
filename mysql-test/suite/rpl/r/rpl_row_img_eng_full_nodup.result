@@ -4752,6 +4752,21 @@ include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
+CREATE TABLE t1(c1 INT NOT NULL PRIMARY KEY, c2 varchar(10) DEFAULT NULL,
+c3 decimal(12,4) DEFAULT NULL);
+INSERT INTO t1(c1) VALUES (1);
+include/save_master_pos.inc
+UPDATE t1 SET c2 = 'c2';
+include/rpl_sync.inc
+FLUSH BINARY LOGS;
+UPDATE t1 SET c2 = "c2_new";
+# Use 'BINLOG' statement to apply the first update row event
+# BINLOG statement is same to slave applier, it should work well.
+# After 'BINLOG' statement c2's value should be "c2"
+SELECT * FROM t1;
+c1	c2	c3
+1	c2	NULL
+DROP TABLE t1;
 CON: 'server_1', IMG: 'FULL', RESTART SLAVE: 'N'
 connection server_1;
 SET SESSION binlog_row_image= 'FULL';
