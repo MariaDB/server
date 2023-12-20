@@ -844,3 +844,24 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-27143 Rollup results should have NULL for non-aggregated result columns
+#
+create table t (c int);
+insert into t values (20121212),(9),(19800101),(20121212),(19800101);
+select c, count(*) from t group by c desc with rollup;
+c	count(*)
+20121212	2
+19800101	2
+9	1
+NULL	5
+select c, count(*) from t group by convert(c, int) desc with rollup;
+c	count(*)
+20121212	2
+19800101	2
+9	1
+NULL	5
+drop table t;
+#
+# End of 10.2 tests
+#

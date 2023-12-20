@@ -466,3 +466,17 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-27143 Rollup results should have NULL for non-aggregated result columns
+--echo #
+
+create table t (c int);
+insert into t values (20121212),(9),(19800101),(20121212),(19800101);
+select c, count(*) from t group by c desc with rollup;
+select c, count(*) from t group by convert(c, int) desc with rollup;
+drop table t;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
