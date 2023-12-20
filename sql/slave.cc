@@ -3199,6 +3199,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     mysql_mutex_lock(&mi->err_lock);
     /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
+
+    DBUG_EXECUTE_IF("hold_sss_with_err_lock", {
+      DBUG_ASSERT(!debug_sync_set_action(
+          thd, STRING_WITH_LEN("now SIGNAL sss_got_err_lock "
+                               "WAIT_FOR sss_continue")));
+      DBUG_SET("-d,hold_sss_with_err_lock");
+    });
+
     protocol->store_string_or_null(mi->host, &my_charset_bin);
     protocol->store_string_or_null(mi->user, &my_charset_bin);
     protocol->store((uint32) mi->port);
@@ -3278,7 +3286,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
           while the slave is processing ignored events, such as those skipped
           due to slave_skip_counter.
         */
-        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle &&
+            !rpl_parallel::workers_idle(&mi->rli))
           idle= false;
       }
       if (idle)
@@ -5518,19 +5527,25 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   else
     rli->gtid_skip_flag = GTID_SKIP_NOT;
+  mysql_mutex_lock(&rli->data_lock);
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
-                         1 /*need data lock*/, &errmsg,
+                         0 /*need data lock*/, &errmsg,
                          1 /*look for a description_event*/))
   { 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                 "Error initializing relay log position: %s", errmsg);
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
   }
   rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+  {
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
+  }
+  mysql_mutex_unlock(&rli->data_lock);
 
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);

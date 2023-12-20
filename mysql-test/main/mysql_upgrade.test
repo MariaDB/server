@@ -496,6 +496,17 @@ set global sql_safe_updates=ON;
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 set global sql_safe_updates=@orig_sql_safe_updates;
 
+--echo #
+--echo # MDEV-32043 Remove plugins previously external that are now built in (unix_socket)
+--echo #
+
+INSERT INTO mysql.plugin SELECT 'unix_socket', 'auth_socket.so'
+    FROM dual WHERE convert(@@version_compile_os using latin1) not in ('Win32', 'Win64', 'Windows');
+--echo # mariadb-upgrade --force --silent 2>&1
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+SELECT * FROM mysql.plugin WHERE name='unix_socket';
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
 --echo # End of 10.4 tests
 
 #

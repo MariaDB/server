@@ -120,8 +120,12 @@ create table t1 (a int);
 alter sequence t1 minvalue=100;
 drop table t1;
 
---error ER_UNKNOWN_SEQUENCES
+--echo #
+--echo # MDEV-32795: ALTER SEQUENCE IF NOT EXISTS non_existing_seq Errors rather than note
+--echo #
+
 alter sequence if exists t1 minvalue=100;
+
 --error ER_UNKNOWN_SEQUENCES
 alter sequence t1 minvalue=100;
 

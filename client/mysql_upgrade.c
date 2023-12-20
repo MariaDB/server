@@ -1477,7 +1477,12 @@ int main(int argc, char **argv)
   open_mysql_upgrade_file();
 
   if (opt_check_upgrade)
-    exit(upgrade_already_done(0) == 0);
+  {
+    int upgrade_needed = upgrade_already_done(0);
+    free_used_memory();
+    my_end(my_end_arg);
+    exit(upgrade_needed == 0);
+  }
 
   /* Find mysqlcheck */
   find_tool(mysqlcheck_path, IF_WIN("mariadb-check.exe", "mariadb-check"), self_name);

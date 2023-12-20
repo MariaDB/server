@@ -752,16 +752,9 @@ dict_stats_empty_index(
 	}
 }
 
-/*********************************************************************//**
-Write all zeros (or 1 where it makes sense) into a table and its indexes'
-statistics members. The resulting stats correspond to an empty table. */
-static
-void
-dict_stats_empty_table(
-/*===================*/
-	dict_table_t*	table,	/*!< in/out: table */
+void dict_stats_empty_table(
+	dict_table_t*	table,
 	bool		empty_defrag_stats)
-				/*!< in: whether to empty defrag stats */
 {
 	/* Initialize table/index level stats is now protected by
 	table level lock_mutex.*/

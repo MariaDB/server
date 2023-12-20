@@ -91,6 +91,8 @@ static my_bool non_blocking_api_enabled= 0;
 
 #define CLOSED_CONNECTION "-closed_connection-"
 
+#define dynstr_append DO_NO_USE
+
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
 #endif
@@ -1878,7 +1880,7 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
     if (strncmp(arg, "--", 2) == 0)
       dynstr_append_os_quoted(&ds_cmdline, arg, NullS);
     else
-      dynstr_append(&ds_cmdline, arg);
+      dynstr_append_mem(&ds_cmdline, arg, strlen(arg));
     dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN(" "));
   }
 
@@ -2035,11 +2037,11 @@ void show_diff(DYNAMIC_STRING* ds,
     dynstr_append_mem(&ds_tmp, message, sizeof(message));
 
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" --- "));
-    dynstr_append(&ds_tmp, filename1);
+    dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
     cat_file(&ds_tmp, filename1);
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<\n --- "));
-    dynstr_append(&ds_tmp, filename1);
+    dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
     cat_file(&ds_tmp, filename2);
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<<\n"));
@@ -3295,13 +3297,15 @@ static int replace(DYNAMIC_STRING *ds_str,
 {
   DYNAMIC_STRING ds_tmp;
   const char *start= strstr(ds_str->str, search_str);
+  size_t prefixlen= start - ds_str->str;
   if (!start)
     return 1;
   init_dynamic_string(&ds_tmp, "",
                       ds_str->length + replace_len, 256);
-  dynstr_append_mem(&ds_tmp, ds_str->str, start - ds_str->str);
+  dynstr_append_mem(&ds_tmp, ds_str->str, prefixlen);
   dynstr_append_mem(&ds_tmp, replace_str, replace_len);
-  dynstr_append(&ds_tmp, start + search_len);
+  dynstr_append_mem(&ds_tmp, start + search_len,
+                    ds_str->length - prefixlen - search_len);
   dynstr_set(ds_str, ds_tmp.str);
   dynstr_free(&ds_tmp);
   return 0;
@@ -3806,7 +3810,7 @@ void do_remove_files_wildcard(struct st_command *command)
         wild_compare(file->name, ds_wild.str, 0))
       continue;
     ds_file_to_remove.length= directory_length;
-    dynstr_append(&ds_file_to_remove, file->name);
+    dynstr_append_mem(&ds_file_to_remove, file->name, strlen(file->name));
     DBUG_PRINT("info", ("removing file: %s", ds_file_to_remove.str));
     if ((error= (my_delete(ds_file_to_remove.str, MYF(MY_WME)) != 0)))
       sys_errno= my_errno;
@@ -7685,7 +7689,7 @@ void append_field(DYNAMIC_STRING *ds, uint col_idx, MYSQL_FIELD* field,
   }
   else
   {
-    dynstr_append(ds, field->name);
+    dynstr_append_mem(ds, field->name, strlen(field->name));
     dynstr_append_mem(ds, "\t", 1);
     replace_dynstr_append_mem(ds, val, len);
     dynstr_append_mem(ds, "\n", 1);
@@ -7858,12 +7862,12 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
   char buf[40], buff2[21];
-  sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
-  dynstr_append(ds, buf);
+  size_t len= sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
+  dynstr_append_mem(ds, buf, len);
   if (info)
   {
     dynstr_append_mem(ds, STRING_WITH_LEN("info: "));
-    dynstr_append(ds, info);
+    dynstr_append_mem(ds, info, strlen(info));
     dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
 }
@@ -7913,7 +7917,8 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
       dynstr_append_mem(ds, STRING_WITH_LEN("-- "));
       if (type <= SESSION_TRACK_END)
       {
-        dynstr_append(ds, trking_info_desc[type]);
+        dynstr_append_mem(ds, trking_info_desc[type],
+                          strlen(trking_info_desc[type]));
       }
       else
       {
@@ -9805,7 +9810,7 @@ void mark_progress(struct st_command* command __attribute__((unused)),
   dynstr_append_mem(&ds_progress, "\t", 1);
 
   /* Filename */
-  dynstr_append(&ds_progress, cur_file->file_name);
+  dynstr_append_mem(&ds_progress, cur_file->file_name, strlen(cur_file->file_name));
   dynstr_append_mem(&ds_progress, ":", 1);
 
   /* Line in file */
@@ -12105,7 +12110,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
   for (i= 0; i < lines.elements ; i++)
   {
     const char **line= dynamic_element(&lines, i, const char**);
-    dynstr_append(ds, *line);
+    dynstr_append_mem(ds, *line, strlen(*line));
     dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
 
