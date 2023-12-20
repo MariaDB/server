@@ -5408,6 +5408,69 @@ static void rename_force(const char *from, const char *to) {
 }
 
 
+/**
+ * Given an ibd file path, this returns the space id.
+ * @param file The ibd file
+ * @return space id for the ibd file, -1 if an error.
+ */
+static
+ulint get_space_id(const char *file) {
+	// make sure this is an ibd file ...
+	if (!ends_with(file, ".ibd"))
+		die("Error: Requesting space id for a non-ibd file: %s", file);;
+
+	int fd = open(file, O_RDONLY, 0);
+	if (fd < 0)
+		die("Error: Unable to open file for reading: %s", file);
+
+	// read first page to the buffer ...
+	// we are reading the base backup ibd file, therefore,
+	// srv_page_size should work (no need to read page size
+	// from delta meta file)
+	unsigned char *page = new unsigned char[srv_page_size];
+	memset(page, 0, srv_page_size);
+
+	ulong bytes_read;
+	if ((bytes_read = read(fd, page, srv_page_size)) == srv_page_size) {
+		// read the space id ...
+		ulint space_id = mach_read_from_4(
+				page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+
+		delete[] page;
+		close(fd);
+
+		return space_id;
+	} else {
+		delete[] page;
+		close(fd);
+
+		die("Error: Unable to open file for reading: %s", file);
+	}
+}
+
+
+/** Very similar to rename_force except if file exists,
+ * then, rename it to xtrabackup#<space_id> and populate it to
+ * .new existing set.*/
+static
+void safe_rename(const char *from, const char *to, const char *dest_db_dir) {
+	if (access(to, R_OK) == 0) {
+		ulint to_space_id = get_space_id(to);
+
+		// do the rename ...
+		char new_to_name[FN_REFLEN];
+		snprintf(new_to_name, FN_REFLEN, "%s/xtrabackup_tmp_#" ULINTPF ".ibd",
+				dest_db_dir, to_space_id);
+
+		msg("mariabackup: .new file found for %s. Renaming existing %s to %s.ibd",
+			to, to, new_to_name);
+		rename_file(to, new_to_name);
+	}
+
+	rename_file(from, to);
+}
+
+
 /** During prepare phase, rename ".new" files, that were created in
 backup_fix_ddl() and backup_optimized_ddl_op(), to ".ibd". In the case of
 incremental backup, i.e. of arg argument is set, move ".new" files to
@@ -5448,7 +5511,18 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
 	size_t index = dest_path.find(".new");
 	DBUG_ASSERT(index != std::string::npos);
 	dest_path.replace(index, strlen(".ibd"), ".ibd");
-	rename_force(src_path.c_str(),dest_path.c_str());
+
+	if (xtrabackup_incremental_dir) {
+		// doing a safe rename for incremental backups ...
+		// if file exists in the dest, then it will be renamed to
+		// xtrabackup_tmp_<space_id>
+		std::string dest_db_dir = dest_dir ? std::string(dest_dir) + '/' + std::string(db_name) +
+				'/' : std::string(data_home_dir) + '/' + std::string(db_name) + '/';
+
+		safe_rename(src_path.c_str(), dest_path.c_str(), dest_db_dir.c_str());
+	} else {
+		rename_force(src_path.c_str(), dest_path.c_str());
+	}
 
 	if (dest_dir) {
 		/* remove delta and meta files to avoid delta applying for new file */
