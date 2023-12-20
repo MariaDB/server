@@ -80,7 +80,7 @@ release_lock('test_bug16407')
 set global event_scheduler= off;
 select event_schema, event_name, sql_mode from information_schema.events order by event_schema, event_name;
 event_schema	event_name	sql_mode
-events_test	e_16407	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
+events_test	e_16407	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,NO_NEW_TRANS_IN_TRANS
 "Let's check whether we change the sql_mode on ALTER EVENT"
 set sql_mode='traditional';
 alter event e_16407 do select 1;

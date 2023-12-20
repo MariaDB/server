@@ -194,6 +194,7 @@ enum enum_binlog_row_image {
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
 #define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
 #define MODE_TIME_ROUND_FRACTIONAL      (1ULL << 34)
+#define MODE_NO_NEW_TRANS_IN_TRANS      (1ULL << 35)
 /* The following modes are specific to MySQL */
 #define MODE_MYSQL80_TIME_TRUNCATE_FRACTIONAL (1ULL << 32)
 

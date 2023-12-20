@@ -4522,6 +4522,8 @@ int spider_db_mbase_util::append_wait_timeout(
 #define SPIDER_SIMULTANEOUS_ASSIGNMENT_LEN    (sizeof(SPIDER_SIMULTANEOUS_ASSIGNMENT_STR) - 1)
 #define SPIDER_TIME_ROUND_FRACTIONAL_STR      "time_round_fractional"
 #define SPIDER_TIME_ROUND_FRACTIONAL_LEN      (sizeof(SPIDER_TIME_ROUND_FRACTIONAL_STR) - 1)
+#define SPIDER_NO_NEW_TRANS_IN_TRANS_STR      "no_new_trans_in_trans"
+#define SPIDER_NO_NEW_TRANS_IN_TRANS_LEN      (sizeof(SPIDER_NO_NEW_TRANS_IN_TRANS_STR) - 1)
 
 sql_mode_t full_sql_mode =
 #ifdef MODE_REAL_AS_FLOAT
@@ -4628,6 +4630,9 @@ sql_mode_t full_sql_mode =
 #endif
 #ifdef MODE_TIME_ROUND_FRACTIONAL
   MODE_TIME_ROUND_FRACTIONAL |
+#endif
+#ifdef MODE_NO_NEW_TRANS_IN_TRANS
+  MODE_NO_NEW_TRANS_IN_TRANS |
 #endif
   0;
 
@@ -4754,6 +4759,10 @@ sql_mode_t full_sql_mode =
 /* pushdown */
 #define SPIDER_SQL_MODE_TIME_ROUND_FRACTIONAL
 #endif
+#ifdef MODE_NO_NEW_TRANS_IN_TRANS
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_NEW_TRANS_IN_TRANS
+#endif
 
 sql_mode_t pushdown_sql_mode =
 #ifdef SPIDER_SQL_MODE_REAL_AS_FLOAT
@@ -4860,6 +4869,9 @@ sql_mode_t pushdown_sql_mode =
 #endif
 #ifdef SPIDER_SQL_MODE_TIME_ROUND_FRACTIONAL
   MODE_TIME_ROUND_FRACTIONAL |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_NEW_TRANS_IN_TRANS
+  MODE_NO_NEW_TRANS_IN_TRANS |
 #endif
   0;
 
@@ -5266,6 +5278,17 @@ int spider_db_mariadb_util::append_sql_mode_internal(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
     str->q_append(SPIDER_TIME_ROUND_FRACTIONAL_STR, SPIDER_TIME_ROUND_FRACTIONAL_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_NEW_TRANS_IN_TRANS
+  if (sql_mode & MODE_NO_NEW_TRANS_IN_TRANS)
+  {
+    if (str->reserve(SPIDER_NO_NEW_TRANS_IN_TRANS_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_NEW_TRANS_IN_TRANS_STR, SPIDER_NO_NEW_TRANS_IN_TRANS_LEN);
     str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   }
 #endif

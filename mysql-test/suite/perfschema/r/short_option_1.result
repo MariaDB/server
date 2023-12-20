@@ -3,10 +3,10 @@ result
 Ok, the server started
 select @@SQL_MODE;
 @@SQL_MODE
-REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
+REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,NO_NEW_TRANS_IN_TRANS
 show global variables like 'sql_mode';
 Variable_name	Value
-sql_mode	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
+sql_mode	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,NO_NEW_TRANS_IN_TRANS
 select @@character_set_server;
 @@character_set_server
 utf8mb3

@@ -90,7 +90,7 @@ set sql_mode=default;
 select * from t1;
 a
 STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
-REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
+REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,NO_NEW_TRANS_IN_TRANS
 drop table t1;
 set time_zone='+00:00';
 create table t1 (a int, b datetime default from_unixtime(a), c datetime);
