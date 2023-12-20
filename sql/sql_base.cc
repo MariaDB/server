@@ -76,7 +76,9 @@ No_such_table_error_handler::handle_condition(THD *,
   *cond_hdl= NULL;
   if (!first_error)
     first_error= sql_errno;
-  if (sql_errno == ER_NO_SUCH_TABLE || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE)
+  if (sql_errno == ER_NO_SUCH_TABLE
+      || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE
+      || sql_errno == ER_UNKNOWN_SEQUENCES)
   {
     m_handled_errors++;
     return TRUE;

@@ -1,0 +1,4 @@
+Running mysql_upgrade with --check-if-upgrade-is-needed
+Checking for absence of temporary files by mysql_upgrade
+No temporary files found
+End of 10.4 tests

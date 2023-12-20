@@ -9,5 +9,4 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-import_update_stats: MDEV-32725 fails in MSAN, uninit access
 pr_statement_performance_analyzer : MDEV-29822 perfschema specific and Windows specific problems.
