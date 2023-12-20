@@ -536,10 +536,11 @@ btr_pcur_move_to_next_page(
 	}
 
 	dberr_t err;
+	bool first_access = false;
 	buf_block_t* next_block = btr_block_get(
 		*cursor->index(), next_page_no,
 		rw_lock_type_t(cursor->latch_mode & (RW_X_LATCH | RW_S_LATCH)),
-		mtr, &err);
+		mtr, &err, &first_access);
 
 	if (UNIV_UNLIKELY(!next_block)) {
 		return err;
@@ -558,6 +559,10 @@ btr_pcur_move_to_next_page(
 
 	const auto s = mtr->get_savepoint();
 	mtr->rollback_to_savepoint(s - 2, s - 1);
+	if (first_access) {
+		buf_read_ahead_linear(next_block->page.id(),
+				      next_block->zip_size());
+	}
 	return DB_SUCCESS;
 }
 
