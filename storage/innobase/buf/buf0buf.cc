@@ -847,8 +847,11 @@ public:
   {
     uint64_t u= 1;
     m_abort= true;
-    if (write(m_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
-      sql_print_warning("InnoDB: Failed to write memory pressure quit message");
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+    /* return result ignored, cannot do anything with it */
+    write(m_event_fd, &u, sizeof(uint64_t));
+#pragma GCC diagnostic pop
   }
 
   void join()
@@ -893,11 +896,7 @@ void mem_pressure::pressure_routine(mem_pressure *m)
       if (errno == EINTR)
         continue;
       else
-      {
-        sql_print_warning("InnoDB: memory pressure poll error %s",
-                          strerror(errno));
         break;
-      }
     }
     if (!m->m_abort)
       break;
