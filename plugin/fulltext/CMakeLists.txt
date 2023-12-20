@@ -15,3 +15,7 @@
 
 MYSQL_ADD_PLUGIN(ftexample plugin_example.c
   MODULE_ONLY MODULE_OUTPUT_NAME "mypluglib" COMPONENT Test)
+
+# n-gram parser
+MYSQL_ADD_PLUGIN(ftngram plugin_ngram.cc
+  MODULE_ONLY MODULE_OUTPUT_NAME "fulltext_ngram")
