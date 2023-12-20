@@ -1235,6 +1235,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       goto err;
     JOIN *join= unit->first_select()->join;
     join->first_record= false;
+    if (join->zero_result_cause)
+      goto err;
+
     for (uint i= join->top_join_tab_count;
          i < join->top_join_tab_count + join->aggr_tables;
          i++)
@@ -1342,13 +1345,10 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
-  st_select_lex *sl= unit->first_select();
 
   // reset item names to that saved after wildcard expansion in JOIN::prepare
-  do
-  {
+  for(st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
     sl->restore_item_list_names();
-  } while ((sl=  sl->next_select()));
 
   derived->merged_for_insert= FALSE;
   unit->unclean();

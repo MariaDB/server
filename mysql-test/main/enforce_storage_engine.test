@@ -1,4 +1,5 @@
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/have_partition.inc
 
 set local sql_mode="";
 set global sql_mode="";
@@ -106,6 +107,16 @@ SET SESSION enforce_storage_engine=Memory;
 ALTER TABLE t3 ADD COLUMN c3 INT;
 SHOW CREATE TABLE t3;
 DROP TABLE t3;
+
+--echo #
+--echo # MDEV-21618 CREATE UNIQUE INDEX fails with "ERROR 1286 (42000): Unknown storage engine 'partition'"
+--echo #
+SET SESSION enforce_storage_engine=MyISAM;
+
+CREATE TABLE t4 (a INT) ENGINE=MyISAM PARTITION BY HASH(a);
+CREATE INDEX x on t4 (a);
+
+DROP TABLE t4;
 
 SET SESSION enforce_storage_engine=NULL;
 SET GLOBAL enforce_storage_engine=NULL;

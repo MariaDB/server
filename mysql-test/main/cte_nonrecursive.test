@@ -1796,8 +1796,6 @@ with data as (select 1 as id)
 select id into @myid from data;
 set sql_mode= @save_sql_mode;
 
-
-
 --echo #
 --echo # MDEV-31995 Bogus error executing PS for query using CTE with renaming of columns
 --echo #
@@ -1953,5 +1951,32 @@ call sp();
 drop procedure sp;
 
 drop table distances, city_population;
+
+--echo #
+--echo # MDEV-28615: Multi-table UPDATE over derived table containing
+--echo #             row that uses subquery with hanging CTE
+--echo #
+
+CREATE TABLE t1 (a int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (3), (7), (1);
+
+--error ER_OPERAND_COLUMNS
+UPDATE
+  (SELECT (5, (WITH cte AS (SELECT 1) SELECT a FROM t1))) dt
+  JOIN t1 t
+  ON t.a=dt.a
+SET t.a = 1;
+
+UPDATE
+  (SELECT a FROM t1
+     WHERE (5, (WITH cte AS (SELECT 1) SELECT a FROM t1 WHERE a > 4)) <=
+           (5,a)) dt
+  JOIN t1 t
+  ON t.a=dt.a
+SET t.a = 1;
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
 
 --echo # End of 10.4 tests

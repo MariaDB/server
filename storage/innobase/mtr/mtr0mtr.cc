@@ -423,7 +423,8 @@ void mtr_t::commit()
           break;
         default:
           buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
-          const auto s= bpage->unfix();
+          ut_d(const auto s=)
+            bpage->unfix();
           if (slot.type & MTR_MEMO_MODIFY)
           {
             ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||

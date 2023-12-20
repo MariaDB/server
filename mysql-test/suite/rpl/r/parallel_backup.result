@@ -73,8 +73,6 @@ include/stop_slave.inc
 # Normal XA ROLLBACK
 connection slave;
 include/stop_slave.inc
-Warnings:
-Note	1255	Slave already has been stopped
 connection master;
 connection aux_slave;
 BEGIN;
@@ -110,8 +108,6 @@ include/stop_slave.inc
 # Errored out XA COMMIT
 connection slave;
 include/stop_slave.inc
-Warnings:
-Note	1255	Slave already has been stopped
 connection master;
 connection aux_slave;
 BEGIN;

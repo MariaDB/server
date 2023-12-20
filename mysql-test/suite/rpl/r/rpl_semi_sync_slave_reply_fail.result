@@ -32,7 +32,7 @@ connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 set statement sql_log_bin=0 for call mtr.add_suppression("Read semi-sync reply magic number error");
-SET @save_debug_master= @@global.debug;
+SET @save_debug_master= @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,semisync_corrupt_magic";
 insert into t1 values (11);
 connection slave;

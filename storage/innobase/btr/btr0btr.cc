@@ -212,10 +212,11 @@ ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index)
 @param[in]	mode	latch mode
 @param[in,out]	mtr	mini-transaction
 @param[out]	err	error code
+@param[out]	first	set if this is a first-time access to the page
 @return block */
 buf_block_t *btr_block_get(const dict_index_t &index,
                            uint32_t page, rw_lock_type_t mode,
-                           mtr_t *mtr, dberr_t *err)
+                           mtr_t *mtr, dberr_t *err, bool *first)
 {
   ut_ad(mode != RW_NO_LATCH);
   dberr_t local_err;
@@ -238,6 +239,8 @@ buf_block_t *btr_block_get(const dict_index_t &index,
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
     }
+    else if (!buf_page_make_young_if_needed(&block->page) && first)
+      *first= true;
   }
   else if (*err == DB_DECRYPTION_FAILED)
     btr_decryption_failed(index);
@@ -297,6 +300,8 @@ btr_root_block_get(
       *err= DB_CORRUPTION;
       block= nullptr;
     }
+    else
+      buf_page_make_young_if_needed(&block->page);
   }
   else if (*err == DB_DECRYPTION_FAILED)
     btr_decryption_failed(*index);
@@ -1113,9 +1118,9 @@ void btr_drop_temporary_table(const dict_table_t &table)
   for (const dict_index_t *index= table.indexes.start; index;
        index= dict_table_get_next_index(index))
   {
-    if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page}, 0,
-                                             RW_X_LATCH, nullptr, BUF_GET, &mtr,
-                                             nullptr))
+    if (buf_block_t *block= buf_page_get_gen({SRV_TMP_SPACE_ID, index->page},
+                                             0, RW_X_LATCH, nullptr, BUF_GET,
+                                             &mtr, nullptr))
     {
       btr_free_but_not_root(block, MTR_LOG_NO_REDO);
       mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -1221,6 +1226,7 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
   if (buf_block_t *root= buf_page_get(page_id_t(space->id, index->page),
 				      space->zip_size(), RW_SX_LATCH, &mtr))
   {
+    buf_page_make_young_if_needed(&root->page);
     mtr.set_named_space(space);
     page_set_autoinc(root, autoinc, &mtr, reset);
   }

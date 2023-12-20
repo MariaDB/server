@@ -429,9 +429,6 @@ public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
-    if (thd->variables.sql_mode & MODE_ORACLE)
-      return Create_func_decode_oracle::s_singleton.create_native(thd, name,
-                                                                  item_list);
     if (unlikely(!item_list || item_list->elements != 2))
     {
       my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
@@ -1630,9 +1627,7 @@ public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
-    return thd->variables.sql_mode & MODE_ORACLE ?
-           create_native_oracle(thd, name, item_list) :
-           create_native_std(thd, name, item_list);
+    return create_native_std(thd, name, item_list);
   }
   static Create_func_lpad s_singleton;
 
@@ -2051,9 +2046,7 @@ public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
-    return thd->variables.sql_mode & MODE_ORACLE ?
-           create_native_oracle(thd, name, item_list) :
-           create_native_std(thd, name, item_list);
+    return create_native_std(thd, name, item_list);
   }
   static Create_func_rpad s_singleton;
 
@@ -3209,9 +3202,7 @@ Create_func_concat::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return thd->variables.sql_mode & MODE_ORACLE ?
-    new (thd->mem_root) Item_func_concat_operator_oracle(thd, *item_list) :
-    new (thd->mem_root) Item_func_concat(thd, *item_list);
+  return new (thd->mem_root) Item_func_concat(thd, *item_list);
 }
 
 Create_func_concat_operator_oracle
@@ -4593,10 +4584,7 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-  if (thd->variables.sql_mode & MODE_ORACLE)
-    return new (thd->mem_root) Item_func_char_length(thd, arg1);
-  else
-    return new (thd->mem_root) Item_func_octet_length(thd, arg1);
+  return new (thd->mem_root) Item_func_octet_length(thd, arg1);
 }
 
 Create_func_octet_length Create_func_octet_length::s_singleton;
@@ -4814,7 +4802,7 @@ Create_func_ltrim Create_func_ltrim::s_singleton;
 Item*
 Create_func_ltrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return Lex_trim(TRIM_LEADING, arg1).make_item_func_trim(thd);
+  return Lex_trim(TRIM_LEADING, arg1).make_item_func_trim_std(thd);
 }
 
 
@@ -5329,7 +5317,7 @@ Create_func_rtrim Create_func_rtrim::s_singleton;
 Item*
 Create_func_rtrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return Lex_trim(TRIM_TRAILING, arg1).make_item_func_trim(thd);
+  return Lex_trim(TRIM_TRAILING, arg1).make_item_func_trim_std(thd);
 }
 
 
@@ -6072,9 +6060,25 @@ const Native_func_registry func_array[] =
 Native_func_registry_array
   native_func_registry_array(func_array, array_elements(func_array));
 
-const size_t func_array_length= sizeof(func_array) / sizeof(Native_func_registry) - 1;
+const Native_func_registry func_array_oracle_overrides[] =
+{
+  { { STRING_WITH_LEN("CONCAT") },  BUILDER(Create_func_concat_operator_oracle)},
+  { { STRING_WITH_LEN("DECODE") },  BUILDER(Create_func_decode_oracle)},
+  { { STRING_WITH_LEN("LENGTH") },  BUILDER(Create_func_char_length)},
+  { { STRING_WITH_LEN("LPAD") },    BUILDER(Create_func_lpad_oracle)},
+  { { STRING_WITH_LEN("LTRIM") },   BUILDER(Create_func_ltrim_oracle)},
+  { { STRING_WITH_LEN("RPAD") },    BUILDER(Create_func_rpad_oracle)},
+  { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)},
+  { {0, 0}, NULL}
+};
+
+Native_func_registry_array
+  oracle_func_registry_array(func_array_oracle_overrides,
+                             array_elements(func_array_oracle_overrides));
 
 Native_functions_hash native_functions_hash;
+Native_functions_hash native_functions_hash_oracle;
+
 
 /*
   Load the hash table for native functions.
@@ -6203,13 +6207,30 @@ int item_create_init()
                                    native_func_registry_array_geom.count()))
     return true;
 #endif
-  return false;
+
+  count+= oracle_func_registry_array.count();
+
+  if (native_functions_hash_oracle.init(count) ||
+      native_functions_hash_oracle.append(native_func_registry_array.elements(),
+                                          native_func_registry_array.count()))
+    return true;
+
+#ifdef HAVE_SPATIAL
+  if (native_functions_hash_oracle.append(native_func_registry_array_geom.elements(),
+                                          native_func_registry_array_geom.count()))
+    return true;
+#endif
+
+  return 
+    native_functions_hash_oracle.replace(oracle_func_registry_array.elements(),
+                                         oracle_func_registry_array.count());
 }
 
 
 void item_create_cleanup()
 {
   native_functions_hash.cleanup();
+  native_functions_hash_oracle.cleanup();
 }
 
 

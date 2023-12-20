@@ -7808,20 +7808,6 @@ ha_innobase::write_row(
 #endif
 
 		if ((error_result = update_auto_increment())) {
-			/* We don't want to mask autoinc overflow errors. */
-
-			/* Handle the case where the AUTOINC sub-system
-			failed during initialization. */
-			if (m_prebuilt->autoinc_error == DB_UNSUPPORTED) {
-				error_result = ER_AUTOINC_READ_FAILED;
-				/* Set the error message to report too. */
-				my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-				goto func_exit;
-			} else if (m_prebuilt->autoinc_error != DB_SUCCESS) {
-				error = m_prebuilt->autoinc_error;
-				goto report_error;
-			}
-
 			/* MySQL errors are passed straight back. */
 			goto func_exit;
 		}
@@ -7959,7 +7945,6 @@ set_max_autoinc:
 		}
 	}
 
-report_error:
 	/* Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
@@ -11813,8 +11798,6 @@ index_bad:
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
 	DBUG_RETURN(true);
 }
@@ -14730,12 +14713,7 @@ ha_innobase::info_low(
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (!ib_table->is_readable()) {
-		ib_table->stats_mutex_lock();
-		ib_table->stat_initialized = true;
-		ib_table->stat_n_rows = 0;
-		ib_table->stat_clustered_index_size = 0;
-		ib_table->stat_sum_of_other_index_sizes = 0;
-		ib_table->stats_mutex_unlock();
+		dict_stats_empty_table(ib_table);
 	}
 
 	if (flag & HA_STATUS_TIME) {
@@ -18204,11 +18182,15 @@ static
 void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync();
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  if (!*(my_bool*) save)
+    return;
+  const uint s= srv_fil_make_page_dirty_debug;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (s)
+    buf_flush_sync();
+  else
+    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
@@ -20478,6 +20460,10 @@ Compare_keys ha_innobase::compare_key_parts(
       return Compare_keys::NotEqual;
 
     if (old_part.length >= new_part.length)
+      return Compare_keys::NotEqual;
+
+    if (old_part.length == old_field.key_length() &&
+        new_part.length != new_field.length)
       return Compare_keys::NotEqual;
 
     return Compare_keys::EqualButKeyPartLength;

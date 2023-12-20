@@ -289,12 +289,6 @@ private:
   @retval -1      if the page cannot be recovered due to corruption */
   inline buf_block_t *recover_low(const map::iterator &p, mtr_t &mtr,
                                   buf_block_t *b, lsn_t init_lsn);
-  /** Attempt to initialize a page based on redo log records.
-  @param page_id  page identifier
-  @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  ATTRIBUTE_COLD buf_block_t *recover_low(const page_id_t page_id);
 
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
@@ -439,15 +433,14 @@ public:
   /** @return whether log file corruption was found */
   bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
 
-  /** Attempt to initialize a page based on redo log records.
+  /** Read a page or recover it based on redo log records.
   @param page_id  page identifier
-  @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  buf_block_t *recover(const page_id_t page_id)
-  {
-    return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
-  }
+  @param mtr      mini-transaction
+  @param err      error code
+  @return the requested block
+  @retval nullptr if the page cannot be accessed due to corruption */
+  ATTRIBUTE_COLD
+  buf_block_t *recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err);
 
   /** Try to recover a tablespace that was not readable earlier
   @param p          iterator

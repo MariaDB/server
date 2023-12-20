@@ -405,7 +405,7 @@ static void dict_stats_schedule(int ms)
 
 void dict_stats_schedule_now()
 {
-  dict_stats_schedule(0);
+  dict_stats_schedule(10);
 }
 
 /** Shut down the dict_stats_thread. */

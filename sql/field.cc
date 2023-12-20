@@ -11337,6 +11337,7 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
 void Field::raise_note_cannot_use_key_part(THD *thd,
                                            uint keynr, uint part,
                                            const LEX_CSTRING &op,
+                                           CHARSET_INFO *op_collation,
                                            Item *value,
                                            Data_type_compatibility reason)
                                            const
@@ -11357,7 +11358,7 @@ void Field::raise_note_cannot_use_key_part(THD *thd,
   case Data_type_compatibility::INCOMPATIBLE_COLLATION:
     {
       const LEX_CSTRING colf(charset()->coll_name);
-      const LEX_CSTRING colv(value->collation.collation->coll_name);
+      const LEX_CSTRING colv(op_collation->coll_name);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_ERROR,
                           "Cannot use key %`.*s part[%u] for lookup: "

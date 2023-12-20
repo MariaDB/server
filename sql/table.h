@@ -2165,7 +2165,6 @@ public:
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
   bool check_unit(THD *thd);
-  void bad_expression_data_type_error(const char *type) const;
   bool eq(const vers_history_point_t &point) const;
 };
 

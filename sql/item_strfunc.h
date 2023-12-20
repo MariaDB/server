@@ -331,6 +331,12 @@ protected:
 public:
   Item_func_concat(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
   Item_func_concat(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
+  {
+    print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
+  }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -357,10 +363,17 @@ public:
    :Item_func_concat(thd, a, b)
   { }
   String *val_str(String *) override;
-  LEX_CSTRING func_name_cstring() const override
+  const Schema *schema() const override { return &oracle_schema_ref; }
+  void print(String *str, enum_query_type query_type) override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("concat_operator_oracle") };
-    return name;
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(STRING_WITH_LEN("concat_operator_oracle"));
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
   }
   Item *get_copy(THD *thd) override
   {
@@ -459,6 +472,12 @@ public:
   String *val_str(String *to) override { return val_str_internal(to, NULL); };
   bool fix_length_and_dec(THD *thd) override;
   String *val_str_internal(String *str, String *empty_string_for_null);
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
+  {
+    print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("replace") };
@@ -477,10 +496,17 @@ public:
     Item_func_replace(thd, org, find, replace) {}
   String *val_str(String *to) override
   { return val_str_internal(to, &tmp_emtpystr); };
-  LEX_CSTRING func_name_cstring() const override
+  const Schema *schema() const override { return &oracle_schema_ref; }
+  void print(String *str, enum_query_type query_type) override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("replace_oracle") };
-    return name;
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(STRING_WITH_LEN("replace_oracle"));
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_replace_oracle>(thd, this); }
@@ -644,8 +670,16 @@ public:
   Item_func_substr(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
   Item_func_substr(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c) {}
+  Item_func_substr(THD *thd, List<Item> &list)
+    :Item_str_func(thd, list) {}
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
+  {
+    print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("substr") };
@@ -684,16 +718,25 @@ public:
     Item_func_substr(thd, a, b) {}
   Item_func_substr_oracle(THD *thd, Item *a, Item *b, Item *c):
     Item_func_substr(thd, a, b, c) {}
+  Item_func_substr_oracle(THD *thd, List<Item> &list)
+    :Item_func_substr(thd, list) {}
   bool fix_length_and_dec(THD *thd) override
   {
     bool res= Item_func_substr::fix_length_and_dec(thd);
     set_maybe_null();
     return res;
   }
-  LEX_CSTRING func_name_cstring() const override
+  const Schema *schema() const override { return &oracle_schema_ref; }
+  void print(String *str, enum_query_type query_type) override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("substr_oracle") };
-    return name;
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(STRING_WITH_LEN("substr_oracle"));
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_substr_oracle>(thd, this); }
@@ -741,17 +784,13 @@ protected:
   {
     return trimmed_value(res, 0, res->length());
   }
-  virtual LEX_CSTRING func_name_ext() const
-  {
-    static LEX_CSTRING name_ext= {STRING_WITH_LEN("") };
-    return name_ext;
-  }
 public:
   Item_func_trim(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
   Item_func_trim(THD *thd, Item *a): Item_str_func(thd, a) {}
   Sql_mode_dependency value_depends_on_sql_mode() const override;
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
+  const Schema *schema() const override { return &mariadb_schema; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("trim") };
@@ -769,20 +808,11 @@ class Item_func_trim_oracle :public Item_func_trim
 protected:
   String *make_empty_result(String *str) override
   { null_value= 1; return NULL; }
-  LEX_CSTRING func_name_ext() const override
-  {
-    static LEX_CSTRING name_ext= {STRING_WITH_LEN("_oracle") };
-    return name_ext;
-  }
 public:
   Item_func_trim_oracle(THD *thd, Item *a, Item *b):
     Item_func_trim(thd, a, b) {}
   Item_func_trim_oracle(THD *thd, Item *a): Item_func_trim(thd, a) {}
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("trim_oracle") };
-    return name;
-  }
+  const Schema *schema() const override { return &oracle_schema_ref; }
   bool fix_length_and_dec(THD *thd) override
   {
     bool res= Item_func_trim::fix_length_and_dec(thd);
@@ -804,6 +834,7 @@ public:
     return Item_func::value_depends_on_sql_mode();
   }
   String *val_str(String *) override;
+  const Schema *schema() const override { return &mariadb_schema; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("ltrim") };
@@ -821,20 +852,11 @@ class Item_func_ltrim_oracle :public Item_func_ltrim
 protected:
   String *make_empty_result(String *str) override
   { null_value= 1; return NULL; }
-  LEX_CSTRING func_name_ext() const override
-  {
-    static LEX_CSTRING name_ext= {STRING_WITH_LEN("_oracle") };
-    return name_ext;
-  }
 public:
   Item_func_ltrim_oracle(THD *thd, Item *a, Item *b):
     Item_func_ltrim(thd, a, b) {}
   Item_func_ltrim_oracle(THD *thd, Item *a): Item_func_ltrim(thd, a) {}
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("ltrim_oracle") };
-    return name;
-  }
+  const Schema *schema() const override { return &oracle_schema_ref; }
   bool fix_length_and_dec(THD *thd) override
   {
     bool res= Item_func_ltrim::fix_length_and_dec(thd);
@@ -852,6 +874,7 @@ public:
   Item_func_rtrim(THD *thd, Item *a, Item *b): Item_func_trim(thd, a, b) {}
   Item_func_rtrim(THD *thd, Item *a): Item_func_trim(thd, a) {}
   String *val_str(String *) override;
+  const Schema *schema() const override { return &mariadb_schema; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("rtrim") };
@@ -869,20 +892,11 @@ class Item_func_rtrim_oracle :public Item_func_rtrim
 protected:
   String *make_empty_result(String *str) override
   { null_value= 1; return NULL; }
-  LEX_CSTRING func_name_ext() const override
-  {
-    static LEX_CSTRING name_ext= {STRING_WITH_LEN("_oracle") };
-    return name_ext;
-  }
 public:
   Item_func_rtrim_oracle(THD *thd, Item *a, Item *b):
     Item_func_rtrim(thd, a, b) {}
   Item_func_rtrim_oracle(THD *thd, Item *a): Item_func_rtrim(thd, a) {}
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("rtrim_oracle") };
-    return name;
-  }
+  const Schema *schema() const override { return &oracle_schema_ref; }
   bool fix_length_and_dec(THD *thd) override
   {
     bool res= Item_func_rtrim::fix_length_and_dec(thd);
@@ -1055,6 +1069,12 @@ class Item_func_decode :public Item_func_encode
 {
 public:
   Item_func_decode(THD *thd, Item *a, Item *seed_arg): Item_func_encode(thd, a, seed_arg) {}
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
+  {
+    print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("decode") };
@@ -1425,6 +1445,8 @@ public:
     Item_str_func(thd, arg1, arg2, arg3) {}
   Item_func_pad(THD *thd, Item *arg1, Item *arg2):
     Item_str_func(thd, arg1, arg2) {}
+  Item_func_pad(THD *thd, List<Item> &list):
+    Item_str_func(thd,list) {}
   bool fix_length_and_dec(THD *thd) override;
 };
 
@@ -1436,7 +1458,15 @@ public:
     Item_func_pad(thd, arg1, arg2, arg3) {}
   Item_func_rpad(THD *thd, Item *arg1, Item *arg2):
     Item_func_pad(thd, arg1, arg2) {}
+  Item_func_rpad(THD *thd, List<Item> &list):
+    Item_func_pad(thd,list) {}
   String *val_str(String *) override;
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
+  {
+    print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("rpad") };
@@ -1457,16 +1487,25 @@ public:
     Item_func_rpad(thd, arg1, arg2, arg3) {}
   Item_func_rpad_oracle(THD *thd, Item *arg1, Item *arg2):
     Item_func_rpad(thd, arg1, arg2) {}
+  Item_func_rpad_oracle(THD *thd, List<Item> &list):
+    Item_func_rpad(thd,list) {}
   bool fix_length_and_dec(THD *thd) override
   {
     bool res= Item_func_rpad::fix_length_and_dec(thd);
     set_maybe_null();
     return res;
   }
-  LEX_CSTRING func_name_cstring() const override
+  const Schema *schema() const override { return &oracle_schema_ref; }
+  void print(String *str, enum_query_type query_type) override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("rpad_oracle") };
-    return name;
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(STRING_WITH_LEN("rpad_oracle"));
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_rpad_oracle>(thd, this); }
@@ -1480,7 +1519,15 @@ public:
     Item_func_pad(thd, arg1, arg2, arg3) {}
   Item_func_lpad(THD *thd, Item *arg1, Item *arg2):
     Item_func_pad(thd, arg1, arg2) {}
+  Item_func_lpad(THD *thd, List<Item> &list):
+    Item_func_pad(thd,list) {}
   String *val_str(String *) override;
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
+  {
+    print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("lpad") };
@@ -1500,16 +1547,25 @@ public:
     Item_func_lpad(thd, arg1, arg2, arg3) {}
   Item_func_lpad_oracle(THD *thd, Item *arg1, Item *arg2):
     Item_func_lpad(thd, arg1, arg2) {}
+  Item_func_lpad_oracle(THD *thd, List<Item> &list):
+    Item_func_lpad(thd,list) {}
   bool fix_length_and_dec(THD *thd) override
   {
     bool res= Item_func_lpad::fix_length_and_dec(thd);
     set_maybe_null();
     return res;
   }
-  LEX_CSTRING func_name_cstring() const override
+  const Schema *schema() const override { return &oracle_schema_ref; }
+  void print(String *str, enum_query_type query_type) override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("lpad_oracle") };
-    return name;
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(STRING_WITH_LEN("lpad_oracle"));
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type);
+    print_args_parenthesized(str, query_type);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_lpad_oracle>(thd, this); }

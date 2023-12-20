@@ -2568,10 +2568,10 @@ public:
   like sql_slave_skip_counter are GLOBAL.
 */
 
-#define MASTER_INFO_VAR(X) my_offsetof(Master_info, X), sizeof(((Master_info *)0x10)->X)
 class Sys_var_multi_source_ulonglong;
 class Master_info;
 
+typedef ulonglong (Master_info::*mi_ulonglong_accessor_function)(void);
 typedef bool (*on_multi_source_update_function)(sys_var *self, THD *thd,
                                                 Master_info *mi);
 bool update_multi_source_variable(sys_var *self,
@@ -2580,26 +2580,23 @@ bool update_multi_source_variable(sys_var *self,
 
 class Sys_var_multi_source_ulonglong :public Sys_var_ulonglong
 { 
-  ptrdiff_t master_info_offset;
+  mi_ulonglong_accessor_function mi_accessor_func;
   on_multi_source_update_function update_multi_source_variable_func;
 public:
   Sys_var_multi_source_ulonglong(const char *name_arg,
                              const char *comment, int flag_args,
                              ptrdiff_t off, size_t size,
                              CMD_LINE getopt,
-                             ptrdiff_t master_info_offset_arg,
-                             size_t master_info_arg_size,
+                             mi_ulonglong_accessor_function mi_accessor_arg,
                              ulonglong min_val, ulonglong max_val,
                              ulonglong def_val, uint block_size,
                              on_multi_source_update_function on_update_func)
     :Sys_var_ulonglong(name_arg, comment, flag_args, off, size,
                        getopt, min_val, max_val, def_val, block_size,
                        0, VARIABLE_NOT_IN_BINLOG, 0, update_multi_source_variable),
-    master_info_offset(master_info_offset_arg),
+    mi_accessor_func(mi_accessor_arg),
     update_multi_source_variable_func(on_update_func)
-  {
-    SYSVAR_ASSERT(master_info_arg_size == size);
-  }
+  { }
   bool global_update(THD *thd, set_var *var)
   {
     return session_update(thd, var);
@@ -2613,7 +2610,7 @@ public:
   {
     ulonglong *tmp, res;
     tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
-    res= get_master_info_ulonglong_value(thd, master_info_offset);
+    res= get_master_info_ulonglong_value(thd);
     *tmp= res;
     return (uchar*) tmp;
   }
@@ -2621,7 +2618,7 @@ public:
   {
     return session_value_ptr(thd, base);
   }
-  ulonglong get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const;
+  ulonglong get_master_info_ulonglong_value(THD *thd) const;
   bool update_variable(THD *thd, Master_info *mi)
   {
     return update_multi_source_variable_func(this, thd, mi);

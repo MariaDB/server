@@ -881,7 +881,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 
 Log_event* Log_event::read_log_event(IO_CACHE* file,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check,
+                                     my_bool crc_check, my_bool print_errors,
                                      size_t max_allowed_packet)
 {
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,Format_description_log_event*...)");
@@ -922,8 +922,12 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
       goto err;
   }
 
+  /*
+    print_errors is false to prevent redundant error messages cluttering up the
+    log, as it will be printed below (if _our_ print_errors is true)
+  */
   if ((res= read_log_event((uchar*) event.ptr(), event.length(),
-                           &error, fdle, crc_check)))
+                           &error, fdle, crc_check, false)))
     res->register_temp_buf((uchar*) event.release(), true);
 
 err:
@@ -934,13 +938,7 @@ err:
     if (force_opt)
       DBUG_RETURN(new Unknown_log_event());
 #endif
-    if (event.length() >= LOG_EVENT_MINIMAL_HEADER_LEN)
-      sql_print_error("Error in Log_event::read_log_event(): '%s',"
-                      " data_len: %lu, event_type: %u", error,
-                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
-                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
-    else
-      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
+
     /*
       The SQL slave thread will check if file->error<0 to know
       if there was an I/O error. Even if there is no "low-level" I/O errors
@@ -950,6 +948,19 @@ err:
       only corrupt the slave's databases. So stop.
     */
     file->error= -1;
+
+#ifndef MYSQL_CLIENT
+    if (!print_errors)
+      DBUG_RETURN(res);
+#endif
+
+    if (event.length() >= LOG_EVENT_MINIMAL_HEADER_LEN)
+      sql_print_error("Error in Log_event::read_log_event(): '%s',"
+                      " data_len: %lu, event_type: %u", error,
+                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
+                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
+    else
+      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
   }
   DBUG_RETURN(res);
 }
@@ -963,7 +974,8 @@ err:
 Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check)
+                                     my_bool crc_check,
+                                     my_bool print_errors)
 {
   Log_event* ev;
   enum enum_binlog_checksum_alg alg;
@@ -1031,7 +1043,8 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       DBUG_RETURN(NULL);
 #else
     *error= ER_THD_OR_DEFAULT(current_thd, ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
-    sql_print_error("%s", *error);
+    if (print_errors)
+      sql_print_error("%s", *error);
     DBUG_RETURN(NULL);
 #endif
   }

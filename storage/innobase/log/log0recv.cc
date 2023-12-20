@@ -821,7 +821,22 @@ processed:
           filename= tbl_name + 1;
       }
     }
-    space->add(filename, OS_FILE_CLOSED, size, false, false);
+    pfs_os_file_t handle= OS_FILE_CLOSED;
+    if (srv_operation == SRV_OPERATION_RESTORE)
+    {
+      /* During mariadb-backup --backup, a table could be renamed,
+      created and dropped, and we may be missing the file at this
+      point of --prepare. Try to create the file if it does not exist
+      already. If the file exists, we'll pass handle=OS_FILE_CLOSED
+      and the file will be opened normally in fil_space_t::acquire()
+      inside recv_sys_t::recover_deferred(). */
+      bool success;
+      handle= os_file_create(innodb_data_file_key, filename,
+                             OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT |
+                             OS_FILE_ON_ERROR_SILENT,
+                             OS_FILE_AIO, OS_DATA_FILE, false, &success);
+    }
+    space->add(filename, handle, size, false, false);
     space->recv_size= it->second.size;
     space->size_in_header= size;
     return space;
@@ -1146,7 +1161,8 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 
 	file_name_t&	f = p.first->second;
 
-	if (auto d = deferred_spaces.find(space_id)) {
+	auto d = deferred_spaces.find(space_id);
+	if (d) {
 		if (deleted) {
 			d->deleted = true;
 			goto got_deleted;
@@ -1219,7 +1235,16 @@ same_space:
 			FILE_* record. */
 			ut_ad(space == NULL);
 
-			if (srv_force_recovery) {
+			if (srv_operation == SRV_OPERATION_RESTORE && d
+			    && ftype == FILE_RENAME) {
+rename:
+				d->file_name = fname.name;
+				f.name = fname.name;
+				break;
+			}
+
+			if (srv_force_recovery
+			    || srv_operation == SRV_OPERATION_RESTORE) {
 				/* Without innodb_force_recovery,
 				missing tablespaces will only be
 				reported in
@@ -1238,7 +1263,11 @@ same_space:
 			break;
 
 		case FIL_LOAD_DEFER:
-			/** Skip the deferred spaces
+			if (d && ftype == FILE_RENAME
+			    && srv_operation == SRV_OPERATION_RESTORE) {
+				goto rename;
+			}
+			/* Skip the deferred spaces
 			when lsn is already processed */
 			if (!if_exists) {
 				deferred_spaces.add(
@@ -3115,7 +3144,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 			skipped_after_init = false;
 			ut_ad(end_lsn == page_lsn);
 			if (end_lsn != page_lsn) {
-				sql_print_warning(
+				sql_print_information(
 					"InnoDB: The last skipped log record"
 					" LSN " LSN_PF
 					" is not equal to page LSN " LSN_PF,
@@ -3655,33 +3684,70 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
   return block ? block : reinterpret_cast<buf_block_t*>(-1);
 }
 
-/** Attempt to initialize a page based on redo log records.
+/** Read a page or recover it based on redo log records.
 @param page_id  page identifier
-@return recovered block
-@retval nullptr if the page cannot be initialized based on log records */
-ATTRIBUTE_COLD buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
+@param mtr      mini-transaction
+@param err      error code
+@return the requested block
+@retval nullptr if the page cannot be accessed due to corruption */
+ATTRIBUTE_COLD
+buf_block_t *
+recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
 {
+  if (!recovery_on)
+  must_read:
+    return buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
+                            err);
+
   mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
 
-  if (p != pages.end() && !p->second.being_processed && p->second.skip_read)
+  if (p == pages.end() || p->second.being_processed || !p->second.skip_read)
   {
-    p->second.being_processed= 1;
-    const lsn_t init_lsn{mlog_init.last(page_id)};
     mysql_mutex_unlock(&mutex);
-    buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
-    mtr_t mtr;
-    buf_block_t *block= recover_low(p, mtr, free_block, init_lsn);
-    p->second.being_processed= -1;
-    ut_ad(!block || block == reinterpret_cast<buf_block_t*>(-1) ||
-          block == free_block);
-    if (UNIV_UNLIKELY(!block))
-      buf_pool.free_block(free_block);
-    return block;
+    goto must_read;
   }
 
+  p->second.being_processed= 1;
+  const lsn_t init_lsn{mlog_init.last(page_id)};
   mysql_mutex_unlock(&mutex);
-  return nullptr;
+  buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
+  buf_block_t *block;
+  {
+    mtr_t local_mtr;
+    block= recover_low(p, local_mtr, free_block, init_lsn);
+  }
+  p->second.being_processed= -1;
+  if (UNIV_UNLIKELY(!block))
+  {
+    buf_pool.free_block(free_block);
+    goto must_read;
+  }
+  else if (block == reinterpret_cast<buf_block_t*>(-1))
+  {
+  corrupted:
+    if (err)
+      *err= DB_CORRUPTION;
+    return nullptr;
+  }
+
+  ut_ad(block == free_block);
+  auto s= block->page.fix();
+  ut_ad(s >= buf_page_t::FREED);
+  /* The block may be write-fixed at this point because we are not
+  holding a latch, but it must not be read-fixed. */
+  ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
+  if (s < buf_page_t::UNFIXED)
+  {
+    mysql_mutex_lock(&buf_pool.mutex);
+    block->page.unfix();
+    buf_LRU_free_page(&block->page, true);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    goto corrupted;
+  }
+
+  mtr->page_lock(block, RW_S_LATCH);
+  return block;
 }
 
 inline fil_space_t *fil_system_t::find(const char *path) const

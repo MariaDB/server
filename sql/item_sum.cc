@@ -4292,8 +4292,14 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     char *buf;
     String *new_separator;
 
-    if (!(buf= (char*) thd->stmt_arena->alloc(buflen)) ||
-        !(new_separator= new(thd->stmt_arena->mem_root)
+    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
+                  is_stmt_prepare_or_first_stmt_execute() ||
+                thd->active_stmt_arena_to_use()->
+                  is_conventional() ||
+                thd->active_stmt_arena_to_use()->state ==
+                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
+    if (!(buf= (char*) thd->active_stmt_arena_to_use()->alloc(buflen)) ||
+        !(new_separator= new(thd->active_stmt_arena_to_use()->mem_root)
                            String(buf, buflen, collation.collation)))
       return TRUE;
     

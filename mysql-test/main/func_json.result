@@ -4737,6 +4737,13 @@ NULL
 #
 PREPARE s FROM 'SELECT JSON_SCHEMA_VALID (?,''{}'') FROM DUAL';
 ERROR HY000: Variable schema is not supported.
+#
+# MDEV-33015: Server crashes upon JSON_SCHEMA_VALID reading NULL from a user variable
+#
+SET @a= NULL;
+SELECT JSON_SCHEMA_VALID(@a,'{}');
+JSON_SCHEMA_VALID(@a,'{}')
+NULL
 # End of 11.1 test
 # Beginning of 11.2
 #

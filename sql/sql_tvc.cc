@@ -271,7 +271,10 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
 
   if (!holders)
   {
-    holders= type_holders= new (thd->stmt_arena->mem_root) Type_holder[cnt];
+    DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+                thd->stmt_arena->is_conventional());
+    holders= type_holders=
+      new (thd->active_stmt_arena_to_use()->mem_root) Type_holder[cnt];
     if (!holders ||
          join_type_handlers_for_tvc(thd, li, holders, cnt) ||
          get_type_attributes_for_tvc(thd, li, holders,

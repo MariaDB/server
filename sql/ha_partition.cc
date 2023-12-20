@@ -4312,9 +4312,12 @@ int ha_partition::external_lock(THD *thd, int lock_type)
       (void) (*file)->ha_external_lock(thd, lock_type);
     } while (*(++file));
   }
-  if (lock_type == F_WRLCK && m_part_info->part_expr)
-    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-
+  if (lock_type == F_WRLCK)
+  {
+    if (m_part_info->part_expr)
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+    need_info_for_auto_inc();
+  }
   DBUG_RETURN(0);
 
 err_handler:
@@ -4628,33 +4631,8 @@ int ha_partition::write_row(const uchar * buf)
   */
   if (have_auto_increment)
   {
-    if (!table_share->next_number_keypart)
-      if (unlikely(error= update_next_auto_inc_val()))
-        goto exit;
-
-    /*
-      If we have failed to set the auto-increment value for this row,
-      it is highly likely that we will not be able to insert it into
-      the correct partition. We must check and fail if necessary.
-    */
     if (unlikely(error= update_auto_increment()))
       goto exit;
-
-    /*
-      Don't allow generation of auto_increment value the partitions handler.
-      If a partitions handler would change the value, then it might not
-      match the partition any longer.
-      This can occur if 'SET INSERT_ID = 0; INSERT (NULL)',
-      So allow this by adding 'MODE_NO_AUTO_VALUE_ON_ZERO' to sql_mode.
-      The partitions handler::next_insert_id must always be 0. Otherwise
-      we need to forward release_auto_increment, or reset it for all
-      partitions.
-    */
-    if (table->next_number_field->val_int() == 0)
-    {
-      table->auto_increment_field_not_null= TRUE;
-      thd->variables.sql_mode|= MODE_NO_AUTO_VALUE_ON_ZERO;
-    }
   }
   old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id, &func_value);
@@ -11043,10 +11021,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
   else
   {
     THD *thd= ha_thd();
-    /*
-      This is initialized in the beginning of the first write_row call.
-    */
-    DBUG_ASSERT(part_share->auto_inc_initialized);
+    update_next_auto_inc_val();
     /*
       Get a lock for handling the auto_increment in part_share
       for avoiding two concurrent statements getting the same number.

@@ -402,6 +402,7 @@ public:
                                        bool is_transactional);
   void set_write_error(THD *thd, bool is_transactional);
   static bool check_write_error(THD *thd);
+  static bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
   int write_cache(THD *thd, IO_CACHE *cache);
   int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
@@ -987,6 +988,7 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   bool write_table_map(THD *thd, TABLE *table, bool with_annotate);
+
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
