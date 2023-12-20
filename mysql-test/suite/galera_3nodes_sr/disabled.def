@@ -10,4 +10,4 @@
 #
 ##############################################################################
 
-galera_sr_kill_slave_after_apply_rollback2 : MDEV-29892 Galera test failure on galera_sr_kill_slave_after_apply_rollback2
+
