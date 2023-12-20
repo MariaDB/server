@@ -254,7 +254,10 @@ int update_portion_of_time(THD *thd, TABLE *table,
     res= src->save_in_field(table->field[dst_fieldno], true);
 
   if (likely(!res))
+  {
+    table->period_prepare_autoinc();
     res= table->update_generated_fields();
+  }
 
   if(likely(!res))
     res= table->file->ha_update_row(table->record[1], table->record[0]);
