@@ -2486,18 +2486,18 @@ row_upd_sec_index_entry(
 				case DB_NO_REFERENCED_ROW:
 					err = DB_SUCCESS;
 					break;
-				case DB_INTERRUPTED:
+				case DB_LOCK_WAIT:
 				case DB_DEADLOCK:
 				case DB_LOCK_WAIT_TIMEOUT:
 					WSREP_DEBUG("Foreign key check fail: "
 						"%s on table %s index %s query %s",
-						ut_strerr(err), index->table->name.m_name, index->name(),
+						ut_strerr(err), index->name(), index->table->name.m_name,
 						wsrep_thd_query(trx->mysql_thd));
 					break;
 				default:
 					WSREP_ERROR("Foreign key check fail: "
 						"%s on table %s index %s query %s",
-						ut_strerr(err), index->table->name.m_name, index->name(),
+						ut_strerr(err), index->name(), index->table->name.m_name,
 						wsrep_thd_query(trx->mysql_thd));
 					break;
 				}
@@ -2506,7 +2506,7 @@ row_upd_sec_index_entry(
 		}
 
 #ifdef WITH_WSREP
-		ut_ad(err == DB_SUCCESS || err == DB_INTERRUPTED
+		ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
 		      || err == DB_DEADLOCK || err == DB_LOCK_WAIT_TIMEOUT);
 #else
 		ut_ad(err == DB_SUCCESS);
