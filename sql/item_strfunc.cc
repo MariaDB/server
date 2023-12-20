@@ -3481,11 +3481,11 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   String name_str, *name;
   longlong pos;
 
-  if (args[0]->null_value || args[1]->null_value)
-    goto err;
-
   name= args[0]->val_str(&name_str);
   pos= args[1]->val_int();
+
+  if (args[0]->null_value || args[1]->null_value)
+    goto err;
 
   if (pos < 0 || pos > UINT_MAX32)
     goto err;

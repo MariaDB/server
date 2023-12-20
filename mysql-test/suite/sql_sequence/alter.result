@@ -210,8 +210,12 @@ create table t1 (a int);
 alter sequence t1 minvalue=100;
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop table t1;
+#
+# MDEV-32795: ALTER SEQUENCE IF NOT EXISTS non_existing_seq Errors rather than note
+#
 alter sequence if exists t1 minvalue=100;
-ERROR 42S02: Unknown SEQUENCE: 't1'
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.t1'
 alter sequence t1 minvalue=100;
 ERROR 42S02: Unknown SEQUENCE: 't1'
 create sequence t1;
