@@ -4782,6 +4782,19 @@ void do_wait_for_slave_to_stop(struct st_command *c __attribute__((unused)))
   return;
 }
 
+static const char *get_col_value(MYSQL_RES *res, MYSQL_ROW row, const char *name)
+{
+  uint num_fields= mysql_num_fields(res);
+  MYSQL_FIELD *fields= mysql_fetch_fields(res);
+
+  for (uint i= 0; i < num_fields; i++)
+  {
+    if (strcmp(fields[i].name, name) == 0)
+      return row[i];
+  }
+  return "NULL";
+}
+
 
 void do_sync_with_master2(struct st_command *command, long offset,
                           const char *connection_name)
@@ -4789,7 +4802,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
   MYSQL_RES *res;
   MYSQL_ROW row;
   MYSQL *mysql= cur_con->mysql;
-  char query_buf[FN_REFLEN+128];
+  char query_buf[FN_REFLEN+128], query_buf2[120];
   int timeout= opt_wait_for_pos_timeout;
 
   if (!master_pos.file[0])
@@ -4823,6 +4836,23 @@ void do_sync_with_master2(struct st_command *command, long offset,
     /* master_pos_wait returned NULL or < 0 */
     fprintf(stderr, "analyze: sync_with_master\n");
 
+    sprintf(query_buf2, "show slave \"%s\" status", connection_name);
+
+    if (!mysql_query(mysql, query_buf2))
+    {
+      if ((res= mysql_store_result(mysql)))
+      {
+        if ((row= mysql_fetch_row(res)))
+        {
+          fprintf(stderr, "Slave position:  file: %s  position: %s\n",
+                  get_col_value(res, row, "Relay_Master_Log_File"),
+                  get_col_value(res, row, "Read_Master_Log_Pos"));
+          fprintf(stderr, "Master position: file: %s  position: %lld\n",
+                  master_pos.file, (longlong) (master_pos.pos + offset));
+        }
+        mysql_free_result(res);
+      }
+    }
     if (!result_str)
     {
       /*
@@ -4831,10 +4861,9 @@ void do_sync_with_master2(struct st_command *command, long offset,
         information is not initialized, the arguments are
         incorrect, or an error has occurred
       */
-      die("%.*b failed: '%s' returned NULL "          \
+      die("%.*b failed: '%s' returned NULL "            \
           "indicating slave SQL thread failure",
           command->first_word_len, command->query, query_buf);
-
     }
 
     if (result == -1)
