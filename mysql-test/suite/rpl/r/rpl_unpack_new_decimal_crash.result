@@ -1,0 +1,17 @@
+include/master-slave.inc
+[connection master]
+SET binlog_row_image = FULL_NODUP;
+CREATE TABLE t1(c1 INT NOT NULL PRIMARY KEY, c2 varchar(10) DEFAULT NULL,
+c3 decimal(12,4) DEFAULT NULL);
+INSERT INTO t1(c1) VALUES (1);
+include/save_master_pos.inc
+UPDATE t1 SET c2 = 'c2';
+include/rpl_sync.inc
+FLUSH BINARY LOGS;
+UPDATE t1 SET c2 = "c2_new";
+SELECT * FROM t1;
+c1	c2	c3
+1	c2	NULL
+DROP TABLE t1;
+SET binlog_row_image = default;
+include/rpl_end.inc
