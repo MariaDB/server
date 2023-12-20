@@ -13,6 +13,7 @@ usr/bin/aria_pack
 usr/bin/aria_read_log
 usr/bin/galera_new_cluster
 usr/bin/galera_recovery
+usr/bin/mariadb-execstartpre-check
 usr/bin/mariadb-service-convert
 usr/bin/msql2mysql
 usr/bin/my_print_defaults

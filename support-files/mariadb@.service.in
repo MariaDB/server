@@ -76,6 +76,13 @@ PermissionsStartOnly=true
 
 @SYSTEMD_EXECSTARTPRE@
 
+# Check if there is system variables/path permission problems prevent starting.
+# Turn off with:
+# [Service]
+# Environment=MARIADB_DO_NOT_PRE_CHECK=1
+# per the instructions at the top of this file.
+ExecStartPre=@bindir@/mariadb-execstartpre-check mariadb@%i.service
+
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.
