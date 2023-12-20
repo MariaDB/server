@@ -921,5 +921,5 @@ show create table t1;
 drop table t1;
 
 --echo #
---echo # End of 10.10 tests
+--echo # End of 10.5 tests
 --echo #
