@@ -48,7 +48,7 @@ extern uchar days_in_month[];
 #define TIMESTAMP_MAX_VALUE ((longlong) UINT_MAX32)
 #define TIMESTAMP_MAX_MONTH 2
 #define TIMESTAMP_MAX_DAY 7
-#endif /* SIZEOF_LONG */
+#endif /* SIZEOF_VOIDP */
 
 #define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
 /* two-digit years < this are 20..; >= this are 19.. */

@@ -57,7 +57,7 @@ const byte trx_id_max_bytes[8] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
-#if SIZEOF_LONG == 4
+#if SIZEOF_VOIDP == 4
 /* Max timestamp before 11.3 */
 const byte timestamp_max_bytes[7] = {
 	0x7f, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
@@ -67,7 +67,7 @@ const byte timestamp_max_bytes[7] = {
 const byte timestamp_max_bytes[7] = {
 	0xff, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
 };
-#endif /* SIZEOF_LONG == 4 */
+#endif /* SIZEOF_VOIDP */
 
 static const ulint MAX_DETAILED_ERROR_LEN = 256;
 

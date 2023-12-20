@@ -20,20 +20,22 @@
 /*
   Portable time_t replacement.
   For 32 bit systems holds seconds for 1970 - 2038-01-19 range
-  For 64 bit systems (where long is 64 bit) holds seconds for 1970 - 2106
+  For 64 bit systems holds seconds for 1970 - 2106
 
   Using the system built in time_t is not an option as
   we rely on the above requirements in the time functions   
 */
 
 #ifndef MYSQL_ABI_CHECK
-#if SIZEOF_LONG == 4 && SIZEOF_VOIDP == 8
-/* Windows 64 bit */
-typedef unsigned int my_time_t;
+/*
+  long is 64bit on all 64bit systems, except Windows.
+  it is 32bit on all 32bit systems.
+*/
+#ifdef _WIN64
+typedef long long my_time_t;
 #else
-/* 32 bit or Linux 64 bit. For Linux 64 bit my_time_t is same as longlong */
 typedef long my_time_t;
-#endif /* SIZEOF_LONG.. */
+#endif
 #endif /* MYSQL_ABI_CHECK */
 
 /*

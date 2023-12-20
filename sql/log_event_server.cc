@@ -825,7 +825,7 @@ int Log_event_writer::write_footer()
 bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
 {
   uchar header[LOG_EVENT_HEADER_LEN];
-  ulong now;
+  my_time_t now;
   DBUG_ENTER("Log_event::write_header");
   DBUG_PRINT("enter", ("filepos: %lld  length: %zu type: %d",
                        (longlong) writer->pos(), event_data_length,
