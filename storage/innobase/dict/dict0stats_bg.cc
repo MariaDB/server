@@ -373,15 +373,18 @@ done:
 }
 
 static tpool::timer* dict_stats_timer;
-
+static THD *dict_stats_thd;
 static void dict_stats_func(void*)
 {
-  THD *thd= innobase_create_background_thd("InnoDB statistics");
-  set_current_thd(thd);
-  while (dict_stats_process_entry_from_recalc_pool(thd)) {}
-  dict_defrag_process_entries_from_defrag_pool(thd);
+  if (!dict_stats_thd)
+    dict_stats_thd= innobase_create_background_thd("InnoDB statistics");
+  set_current_thd(dict_stats_thd);
+
+  while (dict_stats_process_entry_from_recalc_pool(dict_stats_thd)) {}
+  dict_defrag_process_entries_from_defrag_pool(dict_stats_thd);
+
+  innobase_reset_background_thd(dict_stats_thd);
   set_current_thd(nullptr);
-  destroy_background_thd(thd);
 }
 
 
@@ -408,4 +411,10 @@ void dict_stats_shutdown()
 {
   delete dict_stats_timer;
   dict_stats_timer= 0;
+
+  if (dict_stats_thd)
+  {
+    destroy_background_thd(dict_stats_thd);
+    dict_stats_thd= 0;
+  }
 }
