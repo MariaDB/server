@@ -9770,7 +9770,7 @@ Item *LEX::make_item_func_call_generic(THD *thd,
   if (!db_int.str || check_routine_name(&name))
     return NULL;
 
-  return make_item_func_call_generic(thd, (Lex_ident_sys)db, name, args);
+  return make_item_func_call_generic(thd, Lex_ident_sys(db_int.str, db_int.length), name, args);
 }
 
 
