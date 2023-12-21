@@ -373,7 +373,6 @@ done:
 }
 
 static tpool::timer* dict_stats_timer;
-static std::mutex dict_stats_mutex;
 
 static void dict_stats_func(void*)
 {
@@ -388,25 +387,14 @@ static void dict_stats_func(void*)
 
 void dict_stats_start()
 {
-  std::lock_guard<std::mutex> lk(dict_stats_mutex);
-  if (!dict_stats_timer)
-    dict_stats_timer= srv_thread_pool->create_timer(dict_stats_func);
+  DBUG_ASSERT(!dict_stats_timer);
+  dict_stats_timer= srv_thread_pool->create_timer(dict_stats_func);
 }
 
 
 static void dict_stats_schedule(int ms)
 {
-  std::unique_lock<std::mutex> lk(dict_stats_mutex, std::defer_lock);
-  /*
-    Use try_lock() to avoid deadlock in dict_stats_shutdown(), which
-    uses dict_stats_mutex too. If there is simultaneous timer reschedule,
-    the first one will win, which is fine.
-  */
-  if (!lk.try_lock())
-  {
-    return;
-  }
-  if (dict_stats_timer)
+  if(dict_stats_timer)
     dict_stats_timer->set_time(ms,0);
 }
 
@@ -418,7 +406,6 @@ void dict_stats_schedule_now()
 /** Shut down the dict_stats_thread. */
 void dict_stats_shutdown()
 {
-  std::lock_guard<std::mutex> lk(dict_stats_mutex);
   delete dict_stats_timer;
   dict_stats_timer= 0;
 }
