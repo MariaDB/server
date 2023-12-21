@@ -2874,8 +2874,8 @@ private:
   @return  the value of the buffer pointer
 */
 
-inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
-                           const char *dat)
+inline char *serialize_xid(char *buf, size_t buf_len, long fmt, long gln,
+                           long bln, const char *dat)
 {
   int i;
   char *c= buf;
@@ -2907,7 +2907,8 @@ inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
     c+= 2;
   }
   c[0]= '\'';
-  sprintf(c+1, ",%lu", fmt);
+  // TODO: use real value, struggling with imports here
+  snprintf(c+1, (buf + buf_len) - (c + 1), ",%lu", fmt);
 
  return buf;
 }
@@ -2928,7 +2929,7 @@ struct event_mysql_xid_t :  MYSQL_XID
   char buf[ser_buf_size];
   char *serialize()
   {
-    return serialize_xid(buf, formatID, gtrid_length, bqual_length, data);
+    return serialize_xid(buf, sizeof(buf), formatID, gtrid_length, bqual_length, data);
   }
 };
 
@@ -2937,13 +2938,13 @@ struct event_xid_t : XID
 {
   char buf[ser_buf_size];
 
-  char *serialize(char *buf_arg)
+  char *serialize(char *buf_arg, size_t buf_len)
   {
-    return serialize_xid(buf_arg, formatID, gtrid_length, bqual_length, data);
+    return serialize_xid(buf_arg, buf_len, formatID, gtrid_length, bqual_length, data);
   }
   char *serialize()
   {
-    return serialize(buf);
+    return serialize(buf, sizeof(buf));
   }
 };
 #endif
@@ -2991,7 +2992,7 @@ private:
   int do_commit();
   const char* get_query()
   {
-    sprintf(query,
+    snprintf(query, sizeof(query),
             (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
             m_xid.serialize());
     return query;

@@ -454,6 +454,7 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
   // 3. Convert binary data to string.
 
   char *p= dst;
+  char *p_end = dst+dstsize;
 
   for (int i= 0; i < (int) IN6_ADDR_NUM_WORDS; ++i)
   {
@@ -500,7 +501,7 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
       //
       // If it is not the last field, append closing ':'.
 
-      p += sprintf(p, "%x", ipv6_words[i]);
+      p += snprintf(p, p_end-p, "%x", ipv6_words[i]);
 
       if (i + 1 != IN6_ADDR_NUM_WORDS)
       {

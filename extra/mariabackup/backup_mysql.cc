@@ -98,7 +98,7 @@ xb_mysql_connect()
 	MYSQL *connection = mysql_init(NULL);
 	char mysql_port_str[std::numeric_limits<int>::digits10 + 3];
 
-	sprintf(mysql_port_str, "%d", opt_port);
+	snprintf(mysql_port_str, sizeof(mysql_port_str), "%d", opt_port);
 
 	if (connection == NULL) {
 		msg("Failed to init MariaDB struct: %s.",

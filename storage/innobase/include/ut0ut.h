@@ -50,6 +50,9 @@ Created 1/20/1994 Heikki Tuuri
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
 
+/** Expected minimum buffer length for printing a timestamp */
+#define UT_TS_BUF_MIN_LEN 32
+
 #define ut_max	std::max
 #define ut_min	std::min
 
@@ -185,7 +188,8 @@ Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
 void
 ut_sprintf_timestamp(
 /*=================*/
-	char*	buf); /*!< in: buffer where to sprintf */
+	char*	buf); /*!< in: buffer where to sprintf. Must be at least
+			`UT_BUF_MIN_LEN` long. */
 
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */

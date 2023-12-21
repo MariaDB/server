@@ -1607,7 +1607,8 @@ dict_foreign_def_get(
 	dict_foreign_t*	foreign,/*!< in: foreign */
 	trx_t*		trx)	/*!< in: trx */
 {
-	char* fk_def = (char *)mem_heap_alloc(foreign->heap, 4*1024);
+	size_t fk_len = 4*1024;
+	char* fk_def = (char *)mem_heap_alloc(foreign->heap, fk_len);
 	const char* tbname;
 	char tablebuf[MAX_TABLE_NAME_LEN + 1] = "";
 	unsigned i;
@@ -1618,7 +1619,7 @@ dict_foreign_def_get(
 				tbname, strlen(tbname), trx->mysql_thd);
 	tablebuf[bufend - tablebuf] = '\0';
 
-	sprintf(fk_def,
+	snprintf(fk_def, fk_len,
 		(char *)"CONSTRAINT %s FOREIGN KEY (", (char *)tablebuf);
 
 	for(i = 0; i < foreign->n_fields; i++) {

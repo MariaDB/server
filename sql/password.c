@@ -112,7 +112,7 @@ void hash_password(ulong *result, const char *password, uint password_len)
     Used for pre-4.1 password handling
   SYNOPSIS
     my_make_scrambled_password_323()
-    to        OUT store scrambled password here
+    to        OUT store scrambled password here. At least 64 bytes.
     password  IN  user-supplied password
     pass_len  IN  length of password string
 */
@@ -122,7 +122,7 @@ void my_make_scrambled_password_323(char *to, const char *password,
 {
   ulong hash_res[2];
   hash_password(hash_res, password, (uint) pass_len);
-  sprintf(to, "%08lx%08lx", hash_res[0], hash_res[1]);
+  snprintf(to, 64, "%08lx%08lx", hash_res[0], hash_res[1]);
 }
 
 
@@ -270,7 +270,7 @@ void get_salt_from_password_323(ulong *res, const char *password)
 
 void make_password_from_salt_323(char *to, const ulong *salt)
 {
-  sprintf(to,"%08lx%08lx", salt[0], salt[1]);
+  snprintf(to, 17, "%08lx%08lx", salt[0], salt[1]);
 }
 
 

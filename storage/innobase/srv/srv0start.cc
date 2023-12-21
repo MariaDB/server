@@ -1265,13 +1265,13 @@ dberr_t srv_start(bool create_new_db)
 
 	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
-
+			size_t file_name_len = strlen(fil_path_to_mysql_datadir)
+				+ 20 + sizeof "/innodb_status.";
 			srv_monitor_file_name = static_cast<char*>(
-				ut_malloc_nokey(
-					strlen(fil_path_to_mysql_datadir)
-					+ 20 + sizeof "/innodb_status."));
+				ut_malloc_nokey(file_name_len));
 
-			sprintf(srv_monitor_file_name,
+			snprintf(srv_monitor_file_name,
+				file_name_len,
 				"%s/innodb_status." ULINTPF,
 				fil_path_to_mysql_datadir,
 				static_cast<ulint>
