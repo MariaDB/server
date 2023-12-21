@@ -897,8 +897,9 @@ int ha_spider::external_lock(
     }
   }
 
-  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
-    DBUG_RETURN(error_num);
+  if (lock_type != F_UNLCK)
+    if ((error_num= spider_check_trx_and_get_conn(thd, this)))
+      DBUG_RETURN(error_num);
   if (!partition_handler || !partition_handler->handlers)
   {
     DBUG_RETURN(lock_tables()); /* Non-partitioned table */
