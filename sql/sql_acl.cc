@@ -957,6 +957,7 @@ class User_table_tabular: public User_table
 
   int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const
   {
+    mysql_mutex_assert_owner(&acl_cache->lock);
     u->alloc_auth(root, 1);
     if (have_password())
     {
@@ -2305,6 +2306,9 @@ static bool validate_password(THD *thd, const LEX_CSTRING &user,
 static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
 {
   st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
   if (info->interface_version >= 0x0202 && info->preprocess_hash &&
       auth->auth_string.length)
   {
@@ -2339,6 +2343,8 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
   bool unlock_plugin= false;
   plugin_ref plugin= get_auth_plugin(thd, auth->plugin, &unlock_plugin);
   int res= 1;
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
 
   if (!plugin)
   {
@@ -2416,10 +2422,13 @@ static bool set_user_salt_if_needed(ACL_USER *user_copy, int curr_auth,
   if (auth_copy->salt.str)
     return 0; // already done
 
-  if (set_user_salt(auth_copy, plugin))
-    return 1;
-
   mysql_mutex_lock(&acl_cache->lock);
+  if (set_user_salt(auth_copy, plugin))
+  {
+    mysql_mutex_unlock(&acl_cache->lock);
+    return 1;
+  }
+
   ACL_USER *user= find_user_exact(user_copy->host.hostname, user_copy->user.str);
   // make sure the user wasn't altered or dropped meanwhile
   if (user)
@@ -3394,10 +3403,18 @@ end:
                                                 check_role_is_granted_callback,
                                                 NULL) == -1))
       {
-        /* Role is not granted but current user can see the role */
-        my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
-                        MYF(0), thd->security_ctx->priv_user,
-                        thd->security_ctx->priv_host, rolename);
+        /* This happens for SET ROLE case and when `--skip-name-resolve` option
+           is used. In that situation host can be NULL and current user is always
+           target user, so printing `priv_user@priv_host` is not incorrect.
+         */
+        if (!host)
+          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                          MYF(0), thd->security_ctx->priv_user,
+                          thd->security_ctx->priv_host, rolename);
+        else
+          /* Role is not granted but current user can see the role */
+          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                          MYF(0), user, host, rolename);
       }
       else
       {
@@ -3468,6 +3485,7 @@ ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
                    const Account_options &options,
                    const privilege_t privileges)
 {
+  mysql_mutex_assert_owner(&acl_cache->lock);
   user= safe_lexcstrdup_root(&acl_memroot, combo.user);
   update_hostname(&host, safe_strdup_root(&acl_memroot, combo.host.str));
   hostname_length= combo.host.length;
@@ -3484,6 +3502,8 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const privilege_t privileges)
 {
   ACL_USER_PARAM::AUTH *work_copy= NULL;
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
   if (nauth)
   {
     if (!(work_copy= (ACL_USER_PARAM::AUTH*)
@@ -5192,6 +5212,7 @@ update_role_mapping(LEX_CSTRING *user, LEX_CSTRING *host, LEX_CSTRING *role,
     return 0;
   }
 
+  mysql_mutex_assert_owner(&acl_cache->lock);
   /* allocate a new entry that will go in the hash */
   ROLE_GRANT_PAIR *hash_entry= new (&acl_memroot) ROLE_GRANT_PAIR;
   if (hash_entry->init(&acl_memroot, user->str, host->str,
@@ -5256,6 +5277,7 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
 
   DBUG_ENTER("replace_proxies_priv_table");
 
+  mysql_mutex_assert_owner(&acl_cache->lock);
   if (!table)
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), MYSQL_SCHEMA_NAME.str,
@@ -5435,6 +5457,15 @@ public:
                   0, 0, 0, (my_hash_get_key) get_key_column, 0, 0, 0);
   }
 };
+
+
+privilege_t GRANT_INFO::all_privilege()
+{
+  return (grant_table_user ? grant_table_user->cols : NO_ACL) |
+         (grant_table_role ? grant_table_role->cols : NO_ACL) |
+         (grant_public ?  grant_public->cols : NO_ACL) |
+         privilege;
+}
 
 
 void GRANT_NAME::set_user_details(const char *h, const char *d,
@@ -8454,8 +8485,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (!(~t_ref->grant.privilege & want_access))
       continue;
 
-    if ((want_access&= ~(t_ref->grant.aggregate_cols() |
-                         t_ref->grant.privilege)))
+    if ((want_access&= ~t_ref->grant.all_privilege()))
     {
       goto err;                                 // impossible
     }
@@ -8511,6 +8541,7 @@ inline privilege_t GRANT_INFO::aggregate_cols()
          (grant_table_role ?  grant_table_role->cols : NO_ACL) |
          (grant_public ?  grant_public->cols : NO_ACL);
 }
+
 
 void GRANT_INFO::refresh(const Security_context *sctx,
                          const char *db, const char *table)
@@ -13550,8 +13581,37 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   DBUG_RETURN(0);
 }
 
+
+/**
+  Determine if the client is MySQL Connector/NET.
+
+  Checks whether the given connection attributes blob corresponds to
+  MySQL Connector/NET by examining the "_client_name" attribute, which is
+  expected to be the first attribute in the blob.
+
+  @param connection_attrs - The connection attributes blob.
+  @param length - The length of the blob.
+
+  @return true if the client is MySQL Connector/NET, false otherwise.
+*/
+static inline bool is_connector_net_client(const char *connection_attrs,
+                                           size_t length)
+{
+  constexpr LEX_CSTRING prefix=
+    {STRING_WITH_LEN("\x0c_client_name\x13mysql-connector-net")};
+
+  if (length < prefix.length)
+    return false;
+
+  /* Optimization to avoid following memcmp in common cases.*/
+  if (connection_attrs[prefix.length - 1] != prefix.str[prefix.length - 1])
+    return false;
+
+  return !memcmp(connection_attrs, prefix.str, prefix.length);
+}
+
 static bool
-read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
+read_client_connect_attrs(char **ptr, char *end, THD* thd)
 {
   ulonglong length;
   char *ptr_save= *ptr;
@@ -13574,10 +13634,14 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
   if (length > 65535)
     return true;
 
-  if (PSI_CALL_set_thread_connect_attrs(*ptr, (uint)length, from_cs) &&
+  if (PSI_CALL_set_thread_connect_attrs(*ptr, (uint)length, thd->charset()) &&
       current_thd->variables.log_warnings)
     sql_print_warning("Connection attributes of length %llu were truncated",
                       length);
+
+  /* Connector/Net crashes, when "show collations" returns NULL IDs*/
+  if (is_connector_net_client(*ptr, length))
+    thd->variables.old_behavior |= OLD_MODE_NO_NULL_COLLATION_IDS;
   return false;
 }
 
@@ -13711,7 +13775,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   }
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
-      read_client_connect_attrs(&next_field, end, thd->charset()))
+      read_client_connect_attrs(&next_field, end, thd))
   {
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
@@ -14005,7 +14069,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
-                                mpvio->auth_info.thd->charset()))
+                                mpvio->auth_info.thd))
     return packet_error;
 
   /*

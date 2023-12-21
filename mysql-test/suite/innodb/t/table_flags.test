@@ -34,7 +34,6 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
 --let $d=$d --innodb-undo-tablespaces=0
---let $d=$d --innodb-purge-rseg-truncate-frequency=1
 --let $d=$d --skip-innodb-fast-shutdown
 --let $restart_noprint=1
 --let $restart_parameters=$d --innodb-stats-persistent=0
@@ -157,7 +156,9 @@ SHOW CREATE TABLE tr;
 SHOW CREATE TABLE tc;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM tc;
+--error ER_GET_ERRNO
 SHOW CREATE TABLE td;
+--error ER_GET_ERRNO
 SELECT * FROM td;
 # This table was converted to NO_ROLLBACK due to the SYS_TABLES.TYPE change.
 SHOW CREATE TABLE tz;

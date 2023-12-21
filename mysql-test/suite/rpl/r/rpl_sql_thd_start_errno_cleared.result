@@ -34,6 +34,7 @@ set debug_sync= "now wait_for sql_thread_run_lock_released";
 # Validating that Last_SQL_Errno is cleared..
 # ..success
 set debug_sync= "now signal sql_thread_continue";
+# Wait for debug_sync signal to have been received before issuing RESET
 set @@global.debug_dbug= @saved_dbug;
 set debug_sync= "RESET";
 # Cleanup

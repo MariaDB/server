@@ -343,6 +343,9 @@ protected:
   /* The length of an embedded key value */ 
   uint emb_key_length;
 
+  /* This flag is used only when 'not exists' optimization can be applied */
+  bool not_exists_opt_is_applicable;
+
   /*
     This object provides the methods to iterate over records of
     the joined table join_tab when looking for join matches between
@@ -539,6 +542,7 @@ protected:
     prev_cache= next_cache= 0;
     buff= 0;
     min_buff_size= max_buff_size= 0;            // Caches
+    not_exists_opt_is_applicable= false;
   }
 
   /* 

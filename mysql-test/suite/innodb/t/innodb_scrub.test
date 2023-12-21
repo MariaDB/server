@@ -4,7 +4,7 @@
 let $MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t1(f1 int auto_increment primary key,
                 f2 varchar(256),
-                f3 text) engine = innodb;
+                f3 text) engine = innodb stats_persistent=0;
 let $numinserts = 500;
 --disable_query_log
 begin;

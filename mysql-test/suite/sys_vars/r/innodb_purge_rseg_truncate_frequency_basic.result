@@ -4,7 +4,11 @@ SELECT @global_start_value;
 128
 '#--------------------FN_DYNVARS_046_01------------------------#'
 SET @@global.innodb_purge_rseg_truncate_frequency = 1;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SET @@global.innodb_purge_rseg_truncate_frequency = DEFAULT;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 128
@@ -17,31 +21,41 @@ SELECT @@innodb_purge_rseg_truncate_frequency;
 SELECT local.innodb_purge_rseg_truncate_frequency;
 ERROR 42S02: Unknown table 'local' in field list
 SET global innodb_purge_rseg_truncate_frequency = 1;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 1
 '#--------------------FN_DYNVARS_046_03------------------------#'
 SET @@global.innodb_purge_rseg_truncate_frequency = 1;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 1
 SET @@global.innodb_purge_rseg_truncate_frequency = 1;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 1
 SET @@global.innodb_purge_rseg_truncate_frequency = 128;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 128
 '#--------------------FN_DYNVARS_046_05-------------------------#'
 SET @@global.innodb_purge_rseg_truncate_frequency = -1;
 Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 Warning	1292	Truncated incorrect innodb_purge_rseg_truncate_fr... value: '-1'
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 1
 SET @@global.innodb_purge_rseg_truncate_frequency = -1024;
 Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 Warning	1292	Truncated incorrect innodb_purge_rseg_truncate_fr... value: '-1024'
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
@@ -98,16 +112,21 @@ SELECT @@global.innodb_purge_rseg_truncate_frequency;
 1
 '#---------------------FN_DYNVARS_046_08----------------------#'
 SET @@global.innodb_purge_rseg_truncate_frequency = TRUE;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 1
 SET @@global.innodb_purge_rseg_truncate_frequency = FALSE;
 Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 Warning	1292	Truncated incorrect innodb_purge_rseg_truncate_fr... value: '0'
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 1
 SET @@global.innodb_purge_rseg_truncate_frequency = @global_start_value;
+Warnings:
+Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release
 SELECT @@global.innodb_purge_rseg_truncate_frequency;
 @@global.innodb_purge_rseg_truncate_frequency
 128

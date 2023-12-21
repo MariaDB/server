@@ -307,6 +307,22 @@ void mtr_t::release()
   m_memo.clear();
 }
 
+inline lsn_t log_t::get_write_target() const
+{
+#ifndef SUX_LOCK_GENERIC
+  ut_ad(latch.is_locked());
+#endif
+  if (UNIV_LIKELY(buf_free < max_buf_free))
+    return 0;
+  ut_ad(!is_pmem());
+  /* The LSN corresponding to the end of buf is
+  write_lsn - (first_lsn & 4095) + buf_free,
+  but we use simpler arithmetics to return a smaller write target in
+  order to minimize waiting in log_write_up_to(). */
+  ut_ad(max_buf_free >= 4096 * 4);
+  return write_lsn + max_buf_free / 2;
+}
+
 /** Commit a mini-transaction. */
 void mtr_t::commit()
 {
@@ -329,6 +345,7 @@ void mtr_t::commit()
     std::pair<lsn_t,page_flush_ahead> lsns{do_write()};
     process_freed_pages();
     size_t modified= 0;
+    const lsn_t write_lsn= log_sys.get_write_target();
 
     if (m_made_dirty)
     {
@@ -406,7 +423,8 @@ void mtr_t::commit()
           break;
         default:
           buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
-          const auto s= bpage->unfix();
+          ut_d(const auto s=)
+            bpage->unfix();
           if (slot.type & MTR_MEMO_MODIFY)
           {
             ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
@@ -418,13 +436,10 @@ void mtr_t::commit()
             ut_ad(s < buf_page_t::READ_FIX);
             ut_ad(mach_read_from_8(bpage->frame + FIL_PAGE_LSN) <=
                   m_commit_lsn);
-            if (s >= buf_page_t::UNFIXED)
-            {
-              mach_write_to_8(bpage->frame + FIL_PAGE_LSN, m_commit_lsn);
-              if (UNIV_LIKELY_NULL(bpage->zip.data))
-                memcpy_aligned<8>(FIL_PAGE_LSN + bpage->zip.data,
-                                  FIL_PAGE_LSN + bpage->frame, 8);
-            }
+            mach_write_to_8(bpage->frame + FIL_PAGE_LSN, m_commit_lsn);
+            if (UNIV_LIKELY_NULL(bpage->zip.data))
+              memcpy_aligned<8>(FIL_PAGE_LSN + bpage->zip.data,
+                                FIL_PAGE_LSN + bpage->frame, 8);
             modified++;
           }
           switch (auto latch= slot.type & ~MTR_MEMO_MODIFY) {
@@ -449,6 +464,9 @@ void mtr_t::commit()
 
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
+
+    if (UNIV_UNLIKELY(write_lsn != 0))
+      log_write_up_to(write_lsn, false);
   }
   else
   {
@@ -585,7 +603,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(space.is_being_truncated);
-  ut_ad(space.is_stopping());
+  ut_ad(space.is_stopping_writes());
   space.clear_stopping();
   space.is_being_truncated= false;
   mysql_mutex_unlock(&fil_system.mutex);
@@ -597,14 +615,8 @@ void mtr_t::commit_shrink(fil_space_t &space)
 /** Commit a mini-transaction that is deleting or renaming a file.
 @param space   tablespace that is being renamed or deleted
 @param name    new file name (nullptr=the file will be deleted)
-@param detached_handle if detached_handle != nullptr and if space is detached
-                       during the function execution the file handle if its
-                       node will be set to OS_FILE_CLOSED, and the previous
-                       value of the file handle will be assigned to the
-                       address, pointed by detached_handle.
 @return whether the operation succeeded */
-bool mtr_t::commit_file(fil_space_t &space, const char *name,
-    pfs_os_file_t *detached_handle)
+bool mtr_t::commit_file(fil_space_t &space, const char *name)
 {
   ut_ad(is_active());
   ut_ad(!high_level_read_only);
@@ -654,7 +666,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
   m_latch_ex= false;
 
   char *old_name= space.chain.start->name;
-  bool success;
+  bool success= true;
 
   if (name)
   {
@@ -667,37 +679,6 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name,
       old_name= new_name;
     mysql_mutex_unlock(&fil_system.mutex);
     ut_free(old_name);
-  }
-  else
-  {
-    /* Remove any additional files. */
-    if (char *cfg_name= fil_make_filepath(old_name,
-					  fil_space_t::name_type{}, CFG,
-                                          false))
-    {
-      os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
-      ut_free(cfg_name);
-    }
-
-    if (FSP_FLAGS_HAS_DATA_DIR(space.flags))
-      RemoteDatafile::delete_link_file(space.name());
-
-    /* Remove the directory entry. The file will actually be deleted
-    when our caller closes the handle. */
-    os_file_delete(innodb_data_file_key, old_name);
-
-    mysql_mutex_lock(&fil_system.mutex);
-    /* Sanity checks after reacquiring fil_system.mutex */
-    ut_ad(&space == fil_space_get_by_id(space.id));
-    ut_ad(!space.referenced());
-    ut_ad(space.is_stopping());
-
-    pfs_os_file_t handle = fil_system.detach(&space, true);
-    if (detached_handle)
-      *detached_handle = handle;
-    mysql_mutex_unlock(&fil_system.mutex);
-
-    success= true;
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -713,7 +694,7 @@ The caller must hold exclusive log_sys.latch.
 This is to be used at log_checkpoint().
 @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
 @return current LSN */
-lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
+ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
 #ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
@@ -872,26 +853,26 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
 }
 
 /** Wait in append_prepare() for buffer to become available
+@param lsn  log sequence number to write up to
 @param ex   whether log_sys.latch is exclusively locked */
-ATTRIBUTE_COLD void log_t::append_prepare_wait(bool ex) noexcept
+ATTRIBUTE_COLD void log_t::append_prepare_wait(lsn_t lsn, bool ex) noexcept
 {
-  log_sys.waits++;
-  log_sys.unlock_lsn();
+  waits++;
+  unlock_lsn();
 
   if (ex)
-    log_sys.latch.wr_unlock();
+    latch.wr_unlock();
   else
-    log_sys.latch.rd_unlock();
+    latch.rd_unlock();
 
-  DEBUG_SYNC_C("log_buf_size_exceeded");
-  log_buffer_flush_to_disk(log_sys.is_pmem());
+  log_write_up_to(lsn, is_pmem());
 
   if (ex)
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock(SRW_LOCK_CALL);
   else
-    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    latch.rd_lock(SRW_LOCK_CALL);
 
-  log_sys.lock_lsn();
+  lock_lsn();
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -910,34 +891,30 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 # endif
 #endif
   ut_ad(pmem == is_pmem());
-  const lsn_t checkpoint_margin{last_checkpoint_lsn + log_capacity - size};
-  const size_t avail{(pmem ? size_t(capacity()) : buf_size) - size};
   lock_lsn();
   write_to_buf++;
 
-  for (ut_d(int count= 50);
-       UNIV_UNLIKELY((pmem
-                      ? size_t(get_lsn() -
-                               get_flushed_lsn(std::memory_order_relaxed))
-                      : size_t{buf_free}) > avail); )
+  const lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
+  size_t b{buf_free};
+
+  if (UNIV_UNLIKELY(pmem
+                    ? (end_lsn -
+                       get_flushed_lsn(std::memory_order_relaxed)) > capacity()
+                    : b + size >= buf_size))
   {
-    append_prepare_wait(ex);
-    ut_ad(count--);
+    append_prepare_wait(l, ex);
+    b= buf_free;
   }
 
-  const lsn_t l{lsn.load(std::memory_order_relaxed)};
-  lsn.store(l + size, std::memory_order_relaxed);
-  const size_t b{buf_free};
-  size_t new_buf_free{b};
-  new_buf_free+= size;
+  lsn.store(end_lsn, std::memory_order_relaxed);
+  size_t new_buf_free= b + size;
   if (pmem && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
   buf_free= new_buf_free;
   unlock_lsn();
 
-  if (UNIV_UNLIKELY(l > checkpoint_margin) ||
-      (!pmem && b >= max_buf_free))
-    set_check_flush_or_checkpoint();
+  if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
+    set_check_for_checkpoint();
 
   return {l, &buf[b]};
 }
@@ -962,7 +939,7 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
     return mtr_t::PAGE_FLUSH_ASYNC;
 
-  log_sys.set_check_flush_or_checkpoint();
+  log_sys.set_check_for_checkpoint();
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
@@ -1182,9 +1159,6 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
   }
 }
 
-/** Write the mini-transaction log to the redo log buffer.
-@param len   number of bytes to write
-@return {start_lsn,flush_ahead} */
 std::pair<lsn_t,mtr_t::page_flush_ahead>
 mtr_t::finish_write(size_t len)
 {

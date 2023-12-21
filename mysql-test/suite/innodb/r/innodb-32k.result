@@ -1,5 +1,25 @@
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
+SET SESSION innodb_strict_mode=ON;
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SET SESSION innodb_strict_mode=OFF;
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+Warnings:
+Warning	1478	InnoDB: Cannot create a COMPRESSED table when innodb_page_size > 16k. Assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: Cannot create a COMPRESSED table when innodb_page_size > 16k. Assuming ROW_FORMAT=DYNAMIC.
+DROP TABLE t1;
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
+Warnings:
+Warning	1478	InnoDB: Cannot create a COMPRESSED table when innodb_page_size > 16k. Assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: Cannot create a COMPRESSED table when innodb_page_size > 16k. Assuming ROW_FORMAT=DYNAMIC.
+DROP TABLE t1;
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_page_size';

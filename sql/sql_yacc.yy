@@ -821,8 +821,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  DATE_SYM                      /* SQL-2003-R, Oracle-R, PLSQL-R */
 %token  <kwd>  DAY_SYM                       /* SQL-2003-R */
 %token  <kwd>  DEALLOCATE_SYM                /* SQL-2003-R */
-%token  <kwd>  DECODE_MARIADB_SYM            /* Function, non-reserved */
-%token  <kwd>  DECODE_ORACLE_SYM             /* Function, non-reserved */
 %token  <kwd>  DEFINER_SYM
 %token  <kwd>  DELAYED_SYM
 %token  <kwd>  DELAY_KEY_WRITE_SYM
@@ -1557,7 +1555,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_list>
         expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
-        decode_when_list_oracle
         execute_using
         execute_params
 
@@ -1858,8 +1855,17 @@ rule:
 %type <spvar> sp_param_anchored
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
-%type <trim> trim_operands
-%type <substring_spec> substring_operands
+
+%type <trim>
+        trim_operands
+        trim_operands_regular
+        trim_operands_special
+
+%type <substring_spec>
+        substring_operands
+        substring_operands_regular
+        substring_operands_special
+
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_parameter_type
 %type <index_hint> index_hint_type
@@ -7310,11 +7316,7 @@ alter:
         | ALTER SEQUENCE_SYM opt_if_exists
           {
             LEX *lex= Lex;
-            lex->name= null_clex_str;
-            lex->table_type= TABLE_TYPE_UNKNOWN;
             lex->sql_command= SQLCOM_ALTER_SEQUENCE;
-            lex->create_info.init();
-            lex->no_write_to_binlog= 0;
             DBUG_ASSERT(!lex->m_sql_cmd);
             if (Lex->main_select_push())
               MYSQL_YYABORT;
@@ -9848,8 +9850,16 @@ explicit_cursor_attr:
 
 
 trim_operands:
+          trim_operands_regular
+        | trim_operands_special
+        ;
+
+trim_operands_regular:
           expr                     { $$.set(TRIM_BOTH, $1);         }
-        | LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
+        ;
+
+trim_operands_special:
+          LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
         | TRAILING expr FROM expr  { $$.set(TRIM_TRAILING, $2, $4); }
         | BOTH     expr FROM expr  { $$.set(TRIM_BOTH, $2, $4);     }
         | LEADING       FROM expr  { $$.set(TRIM_LEADING, $3);      }
@@ -10266,6 +10276,11 @@ function_call_keyword:
         ;
 
 substring_operands:
+          substring_operands_regular
+        | substring_operands_special
+        ;
+
+substring_operands_regular:
           expr ',' expr ',' expr
           {
             $$= Lex_substring_spec_st::init($1, $3, $5);
@@ -10274,7 +10289,10 @@ substring_operands:
           {
             $$= Lex_substring_spec_st::init($1, $3);
           }
-        | expr FROM expr FOR_SYM expr
+        ;
+
+substring_operands_special:
+          expr FROM expr FOR_SYM expr
           {
             $$= Lex_substring_spec_st::init($1, $3, $5);
           }
@@ -10354,18 +10372,6 @@ function_call_nonkeyword:
           {
             $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5, $7);
             if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DECODE_MARIADB_SYM '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_decode(thd, $3, $5);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DECODE_ORACLE_SYM '(' expr ',' decode_when_list_oracle ')'
-          {
-            $5->push_front($3, thd->mem_root);
-            if (unlikely(!($$= new (thd->mem_root) Item_func_decode_oracle(thd, *$5))))
               MYSQL_YYABORT;
           }
         | EXTRACT_SYM '(' interval FROM expr ')'
@@ -10752,7 +10758,9 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            if ((builder= native_functions_hash.find(thd, $1)))
+            builder= Schema::find_implied(thd)->
+                       find_native_function_builder(thd, $1);
+            if (builder)
             {
               item= builder->create_func(thd, &$1, $4);
             }
@@ -10816,6 +10824,43 @@ function_call_generic:
             if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
               MYSQL_YYABORT;
           }
+        | ident_cli '.' REPLACE '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_replace(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' SUBSTRING '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_substr(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' SUBSTRING '(' substring_operands_special ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_substr(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' TRIM '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_trim(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' TRIM '(' trim_operands_special ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_trim(thd, $1, $3, $5))))
+              MYSQL_YYABORT;
+          }
+          /*
+            We don't add a qualified syntax for TRIM_ORACLE here,
+            as this syntax is not absolutely required:
+              SELECT mariadb_schema.TRIM_ORACLE(..);
+            What absolutely required is only:
+              SELECT mariadb_schema.TRIM(..);
+            Adding a qualified syntax for TRIM_ORACLE would be tricky because
+            it is a non-reserved keyword. To avoid new shift/reduce conflicts
+            it would require grammar changes, like introducing a new rule
+            ident_step2_cli (which would include everything that ident_cli
+            includes but TRIM_ORACLE).
+          */
         ;
 
 fulltext_options:
@@ -11539,25 +11584,6 @@ when_list_opt_else:
             $$= $1;
           }
         ;
-
-decode_when_list_oracle:
-          expr ',' expr
-          {
-            $$= new (thd->mem_root) List<Item>;
-            if (unlikely($$ == NULL) ||
-                unlikely($$->push_back($1, thd->mem_root)) ||
-                unlikely($$->push_back($3, thd->mem_root)))
-              MYSQL_YYABORT;
-
-          }
-        | decode_when_list_oracle ',' expr
-          {
-            $$= $1;
-            if (unlikely($$->push_back($3, thd->mem_root)))
-              MYSQL_YYABORT;
-          }
-        ;
-
 
 /* Equivalent to <table reference> in the SQL:2003 standard. */
 /* Warning - may return NULL in case of incomplete SELECT */
@@ -15398,10 +15424,7 @@ with_column_list:
 ident_sys_alloc:
           ident_cli
           {
-            void *buf= thd->alloc(sizeof(Lex_ident_sys));
-            if (!buf)
-              MYSQL_YYABORT;
-            $$= new (buf) Lex_ident_sys(thd, &$1);
+            $$= new (thd->mem_root) Lex_ident_sys(thd, &$1);
           }
         ;
 
@@ -16083,8 +16106,6 @@ keyword_sp_var_and_label:
         | DATAFILE_SYM
         | DATE_FORMAT_SYM
         | DAY_SYM
-        | DECODE_MARIADB_SYM
-        | DECODE_ORACLE_SYM
         | DEFINER_SYM
         | DELAY_KEY_WRITE_SYM
         | DES_KEY_FILE

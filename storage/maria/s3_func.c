@@ -39,7 +39,7 @@ static int s3_read_file_from_disk(const char *filename, uchar **to,
 
 /* Used by ha_s3.cc and tools to define different protocol options */
 
-static const char *protocol_types[]= {"Auto", "Original", "Amazon", NullS};
+static const char *protocol_types[]= {"Auto", "Original", "Amazon", "Legacy", "Path", "Domain", NullS};
 TYPELIB s3_protocol_typelib= {array_elements(protocol_types)-1,"",
                               protocol_types, NULL};
 
@@ -154,9 +154,23 @@ ms3_st *s3_open_connection(S3_INFO *s3)
                     errno, ms3_error(errno));
     my_errno= HA_ERR_NO_SUCH_TABLE;
   }
-  if (s3->protocol_version)
+  if (s3->protocol_version > 2)
+  {
+    uint8_t protocol_version;
+    switch (s3->protocol_version)
+    {
+      case 3: /* Legacy means v1 */
+      case 4: /* Path means v1 */
+        protocol_version= 1;
+        break;
+      case 5: /* Domain means v2 */
+        protocol_version= 2;
+        break;
+    }
+
     ms3_set_option(s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
-                   &s3->protocol_version);
+                   &protocol_version);
+  }
   if (s3->port)
     ms3_set_option(s3_client, MS3_OPT_PORT_NUMBER, &s3->port);
 

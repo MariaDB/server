@@ -402,6 +402,7 @@ public:
                                        bool is_transactional);
   void set_write_error(THD *thd, bool is_transactional);
   static bool check_write_error(THD *thd);
+  static bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
   int write_cache(THD *thd, binlog_cache_data *cache_data);
   int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
@@ -989,6 +990,7 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   bool write_table_map(THD *thd, TABLE *table, bool with_annotate);
+
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
@@ -1349,9 +1351,8 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
-int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
-                                const uchar *after_record, Log_func *log_func);
-online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table);
+int online_alter_log_row(TABLE* table, const uchar *before_record,
+                         const uchar *after_record, Log_func *log_func);
 binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
@@ -1445,8 +1446,4 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
-
-int online_alter_savepoint_set(THD *thd, LEX_CSTRING name);
-int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name);
-
 #endif /* LOG_H */

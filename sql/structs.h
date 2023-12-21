@@ -34,6 +34,7 @@ struct TABLE;
 class Type_handler;
 class Field;
 class Index_statistics;
+struct Lex_ident_cli_st;
 
 class THD;
 
@@ -873,12 +874,9 @@ public:
   {
     m_index= 0;
     m_target_bound= 0;
+    m_cursor_offset= 0;
     m_direction= 0;
     m_implicit_cursor= false;
-  }
-  void init(const Lex_for_loop_st &other)
-  {
-    *this= other;
   }
   bool is_for_loop_cursor() const { return m_target_bound == NULL; }
   bool is_for_loop_explicit_cursor() const
@@ -908,12 +906,6 @@ public:
   }
   Item *make_item_func_trim_std(THD *thd) const;
   Item *make_item_func_trim_oracle(THD *thd) const;
-  /*
-    This method is still used to handle LTRIM and RTRIM,
-    while the special syntax TRIM(... BOTH|LEADING|TRAILING)
-    is now handled by Schema::make_item_func_trim().
-  */
-  Item *make_item_func_trim(THD *thd) const;
 };
 
 

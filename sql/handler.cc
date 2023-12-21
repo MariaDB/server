@@ -659,6 +659,7 @@ static bool update_optimizer_costs(handlerton *hton)
 }
 
 const char *hton_no_exts[]= { 0 };
+static bool ddl_recovery_done= false;
 
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
@@ -811,6 +812,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
+
+  if (ddl_recovery_done && hton->signal_ddl_recovery_done)
+    hton->signal_ddl_recovery_done(hton);
 
   DBUG_RETURN(ret);
 
@@ -1008,6 +1012,7 @@ void ha_signal_ddl_recovery_done()
   DBUG_ENTER("ha_signal_ddl_recovery_done");
   plugin_foreach(NULL, signal_ddl_recovery_done, MYSQL_STORAGE_ENGINE_PLUGIN,
                  NULL);
+  ddl_recovery_done= true;
   DBUG_VOID_RETURN;
 }
 
@@ -1764,8 +1769,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
   /* rw_trans is TRUE when we in a transaction changing data */
-  bool rw_trans= is_real_trans &&
-                 (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+  bool rw_trans= is_real_trans && rw_ha_count > 0;
   MDL_request mdl_backup;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
@@ -2597,7 +2601,7 @@ static bool xarecover_decide_to_commit(xid_recovery_member* member,
 static void xarecover_do_commit_or_rollback(handlerton *hton,
                                             xarecover_complete_arg *arg)
 {
-  xid_t x;
+  XA_data x;
   my_bool rc;
   xid_recovery_member *member= arg->member;
   Binlog_offset *ptr_commit_max= arg->binlog_coord;
@@ -7314,8 +7318,8 @@ int handler::binlog_log_row(const uchar *before_record,
 
 #ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog && is_root_handler()))
-    error= binlog_log_row_online_alter(table, before_record, after_record,
-                                       log_func);
+    error= online_alter_log_row(table, before_record, after_record,
+                                log_func);
 #endif // HAVE_REPLICATION
 
   DBUG_RETURN(error);
@@ -7853,7 +7857,12 @@ int handler::ha_write_row(const uchar *buf)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
+    {
+      if (table->next_number_field && buf == table->record[0])
+        if (int err= update_auto_increment())
+          error= err;
       DBUG_RETURN(error);
+    }
   }
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);

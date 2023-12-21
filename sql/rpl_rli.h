@@ -625,7 +625,7 @@ struct inuse_relaylog {
   rpl_gtid *relay_log_state;
   uint32 relay_log_state_count;
   /* Number of events in this relay log queued for worker threads. */
-  int64 queued_count;
+  Atomic_counter<int64> queued_count;
   /* Number of events completed by worker threads. */
   Atomic_counter<int64> dequeued_count;
   /* Set when all events have been read from a relaylog. */

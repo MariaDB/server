@@ -45,7 +45,7 @@
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
-
+#include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
 #include "tztime.h"                             // struct Time_zone
 #include "log_event.h"                          // Rotate_log_event,
@@ -62,7 +62,6 @@ Master_info_index *master_info_index;
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
-#include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
 #include "semisync_slave.h"
@@ -3200,6 +3199,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     mysql_mutex_lock(&mi->err_lock);
     /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
+
+    DBUG_EXECUTE_IF("hold_sss_with_err_lock", {
+      DBUG_ASSERT(!debug_sync_set_action(
+          thd, STRING_WITH_LEN("now SIGNAL sss_got_err_lock "
+                               "WAIT_FOR sss_continue")));
+      DBUG_SET("-d,hold_sss_with_err_lock");
+    });
+
     protocol->store_string_or_null(mi->host, &my_charset_bin);
     protocol->store_string_or_null(mi->user, &my_charset_bin);
     protocol->store((uint32) mi->port);
@@ -3279,7 +3286,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
           while the slave is processing ignored events, such as those skipped
           due to slave_skip_counter.
         */
-        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle &&
+            !rpl_parallel::workers_idle(&mi->rli))
           idle= false;
       }
       if (idle)
@@ -4402,8 +4410,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
-          rli->sql_thread_caught_up= false;
         }
+        rli->sql_thread_caught_up= false;
       }
 
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
@@ -4930,7 +4938,13 @@ connected:
       goto err;
     goto connected;
   }
-  DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
+  DBUG_EXECUTE_IF("fail_com_register_slave",
+                  {
+                    mi->report(ERROR_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
+                    ER(ER_SLAVE_MASTER_COM_FAILURE), "COM_REGISTER_SLAVE",
+                    "Debug Induced Error");
+                    goto err;
+                  });
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
   thd->set_command(COM_SLAVE_IO);
@@ -5510,19 +5524,25 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   else
     rli->gtid_skip_flag = GTID_SKIP_NOT;
+  mysql_mutex_lock(&rli->data_lock);
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
-                         1 /*need data lock*/, &errmsg,
+                         0 /*need data lock*/, &errmsg,
                          1 /*look for a description_event*/))
   { 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                 "Error initializing relay log position: %s", errmsg);
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
   }
   rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+  {
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
+  }
+  mysql_mutex_unlock(&rli->data_lock);
 
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);

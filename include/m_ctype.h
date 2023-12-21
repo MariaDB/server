@@ -448,7 +448,8 @@ enum my_lex_states
   MY_LEX_IDENT_OR_KEYWORD,
   MY_LEX_IDENT_OR_HEX, MY_LEX_IDENT_OR_BIN, MY_LEX_IDENT_OR_NCHAR,
   MY_LEX_STRING_OR_DELIMITER, MY_LEX_MINUS_OR_COMMENT, MY_LEX_PLACEHOLDER,
-  MY_LEX_COMMA
+  MY_LEX_COMMA,
+  MY_LEX_IDENT_OR_QUALIFIED_SPECIAL_FUNC
 };
 
 struct charset_info_st;
@@ -1865,6 +1866,9 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
 #define USE_TIS620
 #include "t_ctype.h"
 #endif
+
+int my_wc_mb_utf8mb4_bmp_only(CHARSET_INFO *cs, my_wc_t wc, uchar *r,
+                              uchar *e);
 
 #ifdef	__cplusplus
 }

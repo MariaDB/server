@@ -2575,7 +2575,8 @@ add_tables_and_routines_for_triggers(THD *thd,
 
           MDL_key key(MDL_key::TRIGGER, trigger->m_db.str, trigger->m_name.str);
 
-          if (sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+          if (sp_add_used_routine(prelocking_ctx,
+                                  thd->active_stmt_arena_to_use(),
                                   &key, &sp_handler_trigger,
                                   table_list->belong_to_view))
           {

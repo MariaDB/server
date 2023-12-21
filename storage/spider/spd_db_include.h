@@ -383,12 +383,6 @@ public:
     IO_CACHE *file,
     uint32 arg_length
   );
-  bool append_with_prefill(
-    const char *s,
-    uint32 arg_length,
-    uint32 full_length,
-    char fill_char
-  );
   int strstr(
     const String &search,
     uint32 offset = 0
@@ -548,34 +542,26 @@ typedef struct spider_conn_holder
   spider_conn_holder *next;
 } SPIDER_CONN_HOLDER;
 
+/* Record information of a local (spider) table, for use of the spider
+group by handler. */
 typedef struct spider_table_holder
 {
   TABLE *table;
   ha_spider *spider;
+  /* alias of the table, in the form of tk, where k is the index of
+  the table from `query->from' indexed by next_local. */
   spider_string *alias;
 } SPIDER_TABLE_HOLDER;
 
-typedef struct spider_field_holder
-{
-  Field *field;
-  ha_spider *spider;
-  spider_string *alias;
-  spider_field_holder *next;
-} SPIDER_FIELD_HOLDER;
-
-typedef struct spider_field_chain
-{
-  spider_field_holder *field_holder;
-  spider_field_chain *next;
-} SPIDER_FIELD_CHAIN;
-
+/* For use of the spider group by handler. */
 class spider_fields
 {
   uint dbton_count;
   uint current_dbton_num;
   uint dbton_ids[SPIDER_DBTON_SIZE];
+  /* Number of tables in `query->from'. */
   uint table_count;
-  uint current_table_num;
+  /* All tables in `query->from', in the same order by next_local. */
   SPIDER_TABLE_HOLDER *table_holder;
   SPIDER_LINK_IDX_CHAIN *first_link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *last_link_idx_chain;
@@ -584,13 +570,6 @@ class spider_fields
   SPIDER_CONN_HOLDER *first_conn_holder;
   SPIDER_CONN_HOLDER *last_conn_holder;
   SPIDER_CONN_HOLDER *current_conn_holder;
-  SPIDER_FIELD_HOLDER *first_field_holder;
-  SPIDER_FIELD_HOLDER *last_field_holder;
-  SPIDER_FIELD_HOLDER *current_field_holder;
-  SPIDER_FIELD_CHAIN *first_field_chain;
-  SPIDER_FIELD_CHAIN *last_field_chain;
-  SPIDER_FIELD_CHAIN *current_field_chain;
-  Field **first_field_ptr;
   Field **current_field_ptr;
 public:
   spider_fields();
@@ -633,8 +612,6 @@ public:
     long access_balance
   );
   SPIDER_CONN_HOLDER *create_conn_holder();
-  void set_pos_to_first_conn_holder();
-  SPIDER_CONN_HOLDER *get_next_conn_holder();
   bool has_conn_holder();
   void clear_conn_holder_from_conn();
   bool check_conn_same_conn(
@@ -648,24 +625,14 @@ public:
   void free_conn_holder(
     SPIDER_CONN_HOLDER *conn_holder_arg
   );
-  SPIDER_TABLE_HOLDER *add_table(
-    ha_spider *spider_arg
-  );
-  bool all_query_fields_are_query_table_members();
-  int create_table_holder(
+  SPIDER_TABLE_HOLDER *find_table(Field *field);
+  void set_table_holder(
+    SPIDER_TABLE_HOLDER *table_holder_arg,
     uint table_count_arg
   );
-  void set_pos_to_first_table_holder();
-  SPIDER_TABLE_HOLDER *get_next_table_holder();
+  SPIDER_TABLE_HOLDER *get_first_table_holder();
   SPIDER_TABLE_HOLDER *get_table_holder(TABLE *table);
   uint get_table_count();
-  int add_field(Field *field_arg);
-  SPIDER_FIELD_HOLDER *create_field_holder();
-  void set_pos_to_first_field_holder();
-  SPIDER_FIELD_HOLDER *get_next_field_holder();
-  SPIDER_FIELD_CHAIN *create_field_chain();
-  void set_pos_to_first_field_chain();
-  SPIDER_FIELD_CHAIN *get_next_field_chain();
   void set_field_ptr(Field **field_arg);
   Field **get_next_field_ptr();
   int ping_table_mon_from_table(
@@ -804,11 +771,6 @@ public:
     spider_string *str,
     TABLE_LIST *table_list,
     uint table_count
-  ) = 0;
-  virtual int reappend_tables(
-    spider_fields *fields,
-    SPIDER_LINK_IDX_CHAIN *link_idx_chain,
-    spider_string *str
   ) = 0;
   virtual int append_where(
     spider_string *str
@@ -1535,10 +1497,6 @@ public:
     ulong sql_type
   ) = 0;
   virtual int append_from_and_tables_part(
-    spider_fields *fields,
-    ulong sql_type
-  ) = 0;
-  virtual int reappend_tables_part(
     spider_fields *fields,
     ulong sql_type
   ) = 0;

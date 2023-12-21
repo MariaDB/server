@@ -3,6 +3,9 @@
 
 let $datadir=`select @@datadir`;
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
@@ -44,8 +47,6 @@ connect analyze, localhost, root;
 connection default;
 SET timestamp = 42;
 SET time_zone='+03:00';
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
@@ -906,7 +907,6 @@ DROP TABLE t1;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
-SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
 
 --echo #
@@ -967,3 +967,4 @@ remove_file $datadir/test/mdev28822_100427_innodb.frm;
 copy_file std_data/mysql_upgrade/mdev28822_100427_innodb.frm $datadir/test/mdev28822_100427_innodb.frm;
 ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
 DROP TABLE mdev28822_100427_innodb;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

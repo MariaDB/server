@@ -2435,7 +2435,7 @@ resume:
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   /* Reset values shown in processlist */
   thd->examined_row_count_for_statement= thd->sent_row_count_for_statement= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
 
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
@@ -2449,6 +2449,8 @@ resume:
   */
   thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  DBUG_EXECUTE_IF("print_allocated_thread_memory",
+                  SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id()););
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -4893,9 +4895,55 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       my_ok(thd);
     break;
   case SQLCOM_BACKUP_LOCK:
-    if (check_global_access(thd, RELOAD_ACL))
-      goto error;
-    /* first table is set for lock. For unlock the list is empty */
+    if (check_global_access(thd, RELOAD_ACL, true))
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        In case there is no global privilege, check DB privilege for LOCK TABLES.
+      */
+      if (first_table) // BACKUP LOCK
+      {
+        if (check_single_table_access(thd, LOCK_TABLES_ACL, first_table, true))
+        {
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+      else // BACKUP UNLOCK
+      {
+        /*
+          We test mdl_backup_lock here because, if a user could obtain a lock
+          it would be silly to error and say `you can't BACKUP UNLOCK`
+          (because its obvious you did a `BACKUP LOCK`).
+          As `BACKUP UNLOCK` doesn't have a database reference,
+          there's no way we can check if the `BACKUP LOCK` privilege is missing.
+          Testing `thd->db` would involve faking a `TABLE_LIST` structure,
+          which because of the depth of inspection
+          in `check_single_table_access` makes the faking likely to cause crashes,
+          or unintended effects. The outcome of this is,
+          if a user does an `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
+          there may be a` ER_SPECIFIC_ACCESS_DENIED` error even though
+          user has the privilege.
+          Its a bit different to what happens if the user has RELOAD_ACL,
+          where the error is silently ignored.
+        */
+        if (!thd->mdl_backup_lock)
+        {
+
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+#endif
+    }
+    /*
+      There is reload privilege, first table is set for lock.
+      For unlock the list is empty
+    */
     if (first_table)
       res= backup_lock(thd, first_table);
     else
@@ -5865,7 +5913,7 @@ finish:
       thd->release_transactional_locks();
     }
   }
-  else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
+  else if (! thd->in_sub_stmt && ! thd->in_active_multi_stmt_transaction())
   {
     /*
       - If inside a multi-statement transaction,
@@ -6779,6 +6827,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      FALSE, FALSE))
           return TRUE; /* Access denied */
 
+    thd->col_access= dst_table->grant.privilege; // for sql_show.cc
     /*
       Check_grant will grant access if there is any column privileges on
       all of the tables thanks to the fourth parameter (bool show_table).
@@ -7648,6 +7697,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     thd->wsrep_retry_query      = NULL;
     thd->wsrep_retry_query_len  = 0;
     thd->wsrep_retry_command    = COM_CONNECT;
+    thd->proc_info= 0;
   }
   return false;
 }

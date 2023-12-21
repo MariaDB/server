@@ -15,6 +15,8 @@
 let $mdl= LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
 WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 
+--source ../suite/innodb/include/wait_all_purged.inc
+
 BACKUP STAGE START;
 eval SELECT $mdl;
 BACKUP STAGE FLUSH;
@@ -39,7 +41,8 @@ connection default;
 --echo # testing if BACKUP STAGE FLUSH causes deadlocks with ALTER TABLE
 --echo #
 
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent= 0, engine=innodb;
+--source ../suite/innodb/include/wait_all_purged.inc
 
 connection con2;
 backup stage start;
@@ -129,7 +132,8 @@ drop table t1;
 --echo # testing if BACKUP STAGE FLUSH causes deadlocks with DROP TABLE
 --echo #
 
-create table t1 (a int) engine=innodb;
+create table t1 (a int)stats_persistent=0, engine=innodb;
+--source ../suite/innodb/include/wait_all_purged.inc
 start transaction;
 # Acquires MDL lock
 insert into t1 values (1);
@@ -165,6 +169,7 @@ connection default;
 --echo #
 
 create table t1 (a int) engine=innodb;
+--source ../suite/innodb/include/wait_all_purged.inc
 backup stage start;
 backup stage block_ddl;
 connection con1;

@@ -666,15 +666,19 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
-#ifndef DBUG_OFF
-#define DEFAULT_THREAD_STACK	(1024*1024L)
-#else
-#define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
-#endif
-#else
-#define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
-#endif
+# if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+/*
+  Optimized WITH_ASAN=ON executables produced
+  by GCC 12.3.0, GCC 13.2.0, or clang 16.0.6
+  would fail ./mtr main.1st when the stack size is 5 MiB.
+  The minimum is more than 6 MiB for CMAKE_BUILD_TYPE=RelWithDebInfo and
+  more than 8 MiB for CMAKE_BUILD_TYPE=Debug.
+  Let us add some safety margin.
+*/
+#  define DEFAULT_THREAD_STACK	(10L<<20)
+# else
+#  define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
+# endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0

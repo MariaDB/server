@@ -909,7 +909,7 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
   {
     if (*tmp_paths == 0)
     {
-      MEM_ROOT *root= thd->stmt_arena->mem_root;
+      MEM_ROOT *root= thd->active_stmt_arena_to_use()->mem_root;
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
@@ -941,21 +941,47 @@ static void mark_constant_paths(json_path_with_flags *p,
 }
 
 
-bool Item_json_str_multipath::fix_fields(THD *thd, Item **ref)
-{
-  return alloc_tmp_paths(thd, get_n_paths(), &paths, &tmp_paths) ||
-         Item_str_func::fix_fields(thd, ref);
-}
-
-
-void Item_json_str_multipath::cleanup()
+Item_json_str_multipath::~Item_json_str_multipath()
 {
   if (tmp_paths)
   {
-    for (uint i= get_n_paths(); i>0; i--)
+    for (uint i= n_paths; i>0; i--)
       tmp_paths[i-1].free();
   }
-  Item_str_func::cleanup();
+}
+
+
+bool Item_json_str_multipath::fix_fields(THD *thd, Item **ref)
+{
+  if (!tmp_paths)
+  {
+    /*
+      Remember the number of paths and allocate required memory on first time
+      the method fix_fields() is invoked. For prepared statements the method
+      fix_fields can be called several times for the same item because its
+      clean up is performed every item a prepared statement finishing its
+      execution. In result, the data member fixed is reset and the method
+      fix_field() is invoked on next time the same prepared statement be
+      executed. On the other side, any memory allocations on behalf of
+      the prepared statement must be performed only once on its first execution.
+      The data member tmp_path is kind a guard to do these activities only once
+      on first time the method fix_field() is called.
+    */
+    n_paths= get_n_paths();
+
+    if (alloc_tmp_paths(thd, n_paths, &paths, &tmp_paths))
+      return true;
+  }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+   Check that the number of paths remembered on first run of a statement
+   never changed later.
+  */
+  DBUG_ASSERT(n_paths == get_n_paths());
+#endif
+
+  return Item_str_func::fix_fields(thd, ref);
 }
 
 
@@ -1496,10 +1522,19 @@ return_null:
 
 bool Item_func_json_contains_path::fix_fields(THD *thd, Item **ref)
 {
-  return alloc_tmp_paths(thd, arg_count-2, &paths, &tmp_paths) ||
-         (p_found= (bool *) alloc_root(thd->mem_root,
-                                       (arg_count-2)*sizeof(bool))) == NULL ||
-         Item_int_func::fix_fields(thd, ref);
+  /*
+    See comments on Item_json_str_multipath::fix_fields regarding
+    the aim of the condition 'if (!tmp_paths)'.
+  */
+  if (!tmp_paths)
+  {
+    if (alloc_tmp_paths(thd, arg_count-2, &paths, &tmp_paths) ||
+        (p_found= (bool *) alloc_root(thd->active_stmt_arena_to_use()->mem_root,
+                                       (arg_count-2)*sizeof(bool))) == NULL)
+      return true;
+  }
+
+  return Item_int_func::fix_fields(thd, ref);
 }
 
 
@@ -1512,8 +1547,7 @@ bool Item_func_json_contains_path::fix_length_and_dec(THD *thd)
   return Item_bool_func::fix_length_and_dec(thd);
 }
 
-
-void Item_func_json_contains_path::cleanup()
+Item_func_json_contains_path::~Item_func_json_contains_path()
 {
   if (tmp_paths)
   {
@@ -1521,7 +1555,6 @@ void Item_func_json_contains_path::cleanup()
       tmp_paths[i-1].free();
     tmp_paths= 0;
   }
-  Item_int_func::cleanup();
 }
 
 
@@ -2081,7 +2114,7 @@ return_null:
 String *Item_func_json_array_insert::val_str(String *str)
 {
   json_engine_t je;
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= args[0]->val_str(&tmp_js);
   uint n_arg, n_path;
   THD *thd= current_thd;
 
@@ -4086,6 +4119,13 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
 
+bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
+{
+  bool res= Item_func_group_concat::fix_fields(thd, ref);
+  m_tmp_json.set_charset(collation.collation);
+  return res;
+}
+
 
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
@@ -4812,11 +4852,21 @@ If any of them fails, return false, else return true.
 bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
 {
   json_engine_t je;
-  bool res= 0;
+  bool res= 0, is_schema_constant= args[0]->const_item();
 
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= NULL;
 
-  if ((null_value= args[0]->null_value))
+  if (!is_schema_constant)
+  {
+
+    my_error(ER_JSON_NO_VARIABLE_SCHEMA, MYF(0));
+    null_value= 1;
+    return 0;
+  }
+  null_value= args[0]->null_value;
+  js= args[0]->val_json(&tmp_js);
+
+  if (!js)
   {
     null_value= 1;
     return 0;
@@ -5155,8 +5205,21 @@ String* Item_func_json_array_intersect::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
 
-  json_engine_t je2, res_je;
-  String *js2= args[1]->val_json(&tmp_js2);
+  json_engine_t je2, res_je, je1;
+  String *js2= args[1]->val_json(&tmp_js2), *js1= args[0]->val_json(&tmp_js1);
+
+  if (parse_for_each_row)
+  {
+    if (args[0]->null_value)
+      goto null_return;
+    if (hash_inited)
+      my_hash_free(&items);
+    if (root_inited)
+      free_root(&hash_root, MYF(0));
+    root_inited= false;
+    hash_inited= false;
+    prepare_json_and_create_hash(&je1, js1);
+  }
 
   if (null_value || args[1]->null_value)
     goto null_return;
@@ -5197,18 +5260,10 @@ null_return:
   return NULL;
 }
 
-bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
+void Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
 {
-  json_engine_t je1;
-  String *js1= args[0]->val_json(&tmp_js1);
-
-  if (args[0]->null_value)
-  {
-    null_value= true;
-    return FALSE;
-  }
-  json_scan_start(&je1, js1->charset(), (const uchar *) js1->ptr(),
-                  (const uchar *) js1->ptr() + js1->length());
+  json_scan_start(je1, js->charset(), (const uchar *) js->ptr(),
+                  (const uchar *) js->ptr() + js->length());
   /*
     Scan value uses the hash table to get the intersection of two arrays.
   */
@@ -5217,18 +5272,40 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
     init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
-  if (json_read_value(&je1) || je1.value_type != JSON_VALUE_ARRAY ||
-      create_hash(&je1, &items, hash_inited, &hash_root))
+  if (json_read_value(je1) || je1->value_type != JSON_VALUE_ARRAY ||
+      create_hash(je1, &items, hash_inited, &hash_root))
+    {
+      if (je1->s.error)
+        report_json_error(js, je1, 0);
+      null_value= 1;
+    }
+
+    max_length= (args[0]->max_length < args[1]->max_length) ?
+                 args[0]->max_length : args[1]->max_length;
+}
+
+bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
+{
+  json_engine_t je1;
+  String *js1;
+
+  if (!args[0]->const_item())
   {
-    if (je1.s.error)
-      report_json_error(js1, &je1, 0);
-    null_value= 1;
-    return FALSE;
+    if (args[1]->const_item())
+    {
+      std::swap(args[0], args[1]);
+    }
+    else
+    {
+      parse_for_each_row= true;
+      goto end;
+    }
   }
 
-  max_length= (args[0]->max_length < args[1]->max_length) ?
-               args[0]->max_length : args[1]->max_length;
+  js1= args[0]->val_json(&tmp_js1);
+  prepare_json_and_create_hash(&je1, js1);
 
+end:
   set_maybe_null();
   return FALSE;
 }

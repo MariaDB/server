@@ -415,3 +415,86 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # MDEV-32957 Unusable key notes report wrong predicates for > and >=
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (a INT, i CHAR(32), KEY(i));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (i, 10+i);
+END FOR;
+$$
+DELIMITER ;$$
+EXPLAIN SELECT * FROM t1 WHERE i>30 ORDER BY i LIMIT 5;
+EXPLAIN SELECT * FROM t1 WHERE i>=30 ORDER BY i LIMIT 5;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # MDEV-32958 Unusable key notes do not get reported for some operations
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (c1 varchar(10), KEY(c1)) CHARACTER SET latin1;
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t1 VALUES ('c');
+INSERT INTO t1 VALUES ('d');
+INSERT INTO t1 VALUES ('e');
+INSERT INTO t1 VALUES ('f');
+INSERT INTO t1 VALUES ('g');
+INSERT INTO t1 VALUES ('h');
+INSERT INTO t1 VALUES ('i');
+INSERT INTO t1 VALUES ('j');
+
+EXPLAIN SELECT * FROM t1 WHERE c1=10;
+SELECT * FROM t1 WHERE c1=10;
+
+EXPLAIN SELECT * FROM t1 WHERE c1<10;
+SELECT * FROM t1 WHERE c1<10;
+
+EXPLAIN SELECT * FROM t1 WHERE c1 BETWEEN 10 AND 11;
+SELECT * FROM t1 WHERE c1 BETWEEN 10 AND 11;
+
+EXPLAIN SELECT * FROM t1 WHERE c1 BETWEEN 10 AND '11';
+SELECT * FROM t1 WHERE c1 BETWEEN 10 AND '11';
+
+EXPLAIN SELECT * FROM t1 WHERE c1 IN (10,20);
+SELECT * FROM t1 WHERE c1 IN (10,20);
+
+EXPLAIN SELECT * FROM t1 WHERE c1 IN (_latin1'a' COLLATE latin1_german2_ci,'b');
+SELECT * FROM t1 WHERE c1 IN (_latin1'a' COLLATE latin1_german2_ci,'b');
+
+EXPLAIN SELECT * FROM t1 WHERE c1 IN ('a',_latin1'b' COLLATE latin1_german2_ci);
+SELECT * FROM t1 WHERE c1 IN ('a',_latin1'b' COLLATE latin1_german2_ci);
+
+DROP TABLE t1;
+
+
+CREATE TABLE t1(a INT, i CHAR(2), INDEX(i(1)));
+INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
+                          (20),(21),(22),(23),(24),(25),(26),(27),(28),(29),
+                          (30),(31),(32),(33),(34),(35);
+
+EXPLAIN SELECT * FROM t1 WHERE i >= 10 ORDER BY i LIMIT 5;
+SELECT * FROM t1 WHERE i >= 10 ORDER BY i LIMIT 5;
+
+EXPLAIN UPDATE t1 SET a = 1 WHERE i = 10 ORDER BY a, i LIMIT 5;
+EXPLAIN UPDATE t1 SET a = 1 WHERE i < 10 ORDER BY a, i LIMIT 5;
+EXPLAIN DELETE FROM t1 WHERE i = 10 ORDER BY a, i LIMIT 5;
+EXPLAIN DELETE FROM t1 WHERE i < 10 ORDER BY a, i LIMIT 5;
+
+EXPLAIN UPDATE t1 SET a = 1 WHERE i = 10;
+EXPLAIN UPDATE t1 SET a = 1 WHERE i < 10;
+EXPLAIN DELETE FROM t1 WHERE i = 10;
+EXPLAIN DELETE FROM t1 WHERE i < 10;
+
+DROP TABLE t1;
+
+SET note_verbosity=DEFAULT;

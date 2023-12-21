@@ -151,6 +151,7 @@ void Expression_cache_tmptable::init()
   }
   cache_table->s->keys= 1;
   ref.null_rejecting= 1;
+  ref.const_ref_part_map= 0;
   ref.disable_cache= FALSE;
   ref.has_record= 0;
   ref.use_count= 0;

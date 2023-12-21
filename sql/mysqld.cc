@@ -5322,7 +5322,6 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-change-buffering"),
 
       /* removed in 11.3 */
-      MARIADB_REMOVED_OPTION("debug"),
       MARIADB_REMOVED_OPTION("date-format"),
       MARIADB_REMOVED_OPTION("datetime-format"),
       MARIADB_REMOVED_OPTION("time-format"),
@@ -8105,6 +8104,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case 'T':
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
+    break;
+  case OPT_SECURE_AUTH:
+    warn_deprecated<1006>("--secure-auth");
     break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;

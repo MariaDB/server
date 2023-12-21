@@ -1,5 +1,5 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 CREATE TABLE tab(a BIGINT PRIMARY KEY,c1 TINYTEXT,c2 TEXT,c3 MEDIUMTEXT,
 c4 TINYBLOB,c5 BLOB,c6 MEDIUMBLOB,c7 LONGBLOB) ENGINE=InnoDB;
 CREATE INDEX index1 ON tab(c1(255)) COMMENT 'Check index level merge MERGE_THRESHOLD=51';
@@ -1309,4 +1309,4 @@ name	count_reset
 index_page_merge_attempts	2
 index_page_merge_successful	2
 DROP TABLE tab1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

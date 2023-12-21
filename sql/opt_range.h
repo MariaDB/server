@@ -891,7 +891,10 @@ public:
   */
   bool remove_false_where_parts;
 
-  bool note_unusable_keys;        // Give SQL notes for unusable keys
+  /*
+    Which functions should give SQL notes for unusable keys.
+  */
+  Item_func::Bitmap note_unusable_keys;
 
   /*
     used_key_no -> table_key_no translation table. Only makes sense if
@@ -1777,7 +1780,6 @@ private:
   uchar *group_prefix;    /* Key prefix consisting of the GROUP fields. */
   const uint group_prefix_len; /* Length of the group prefix. */
   uint group_key_parts;  /* A number of keyparts in the group prefix */
-  uchar *last_prefix;     /* Prefix of the last group for detecting EOF. */
   bool have_min;         /* Specify whether we are computing */
   bool have_max;         /*   a MIN, a MAX, or both.         */
   bool have_agg_distinct;/*   aggregate_function(DISTINCT ...).  */
@@ -1898,13 +1900,22 @@ class SQL_SELECT :public Sql_alloc {
   ~SQL_SELECT();
   void cleanup();
   void set_quick(QUICK_SELECT_I *new_quick) { delete quick; quick= new_quick; }
-  bool check_quick(THD *thd, bool force_quick_range, ha_rows limit)
+
+  /*
+    @return
+      true  - for ERROR and IMPOSSIBLE_RANGE
+      false   - Ok
+  */
+  bool check_quick(THD *thd, bool force_quick_range, ha_rows limit,
+                   Item_func::Bitmap note_unusable_keys)
   {
     key_map tmp;
     tmp.set_all();
     return test_quick_select(thd, tmp, 0, limit, force_quick_range,
-                             FALSE, FALSE, FALSE) < 0;
+                             FALSE, FALSE, FALSE,
+                             note_unusable_keys) != OK;
   }
+
   /* 
     RETURN
       0   if record must be skipped <-> (cond && cond->val_int() == 0)
@@ -1918,12 +1929,24 @@ class SQL_SELECT :public Sql_alloc {
       rc= -1;
     return rc;
   }
-  int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
-			ha_rows limit, bool force_quick_range, 
-                        bool ordered_output, bool remove_false_parts_of_where,
-                        bool only_single_index_range_scan,
-                        bool suppress_unusable_key_notes = 0);
+
+  enum quick_select_return_type {
+    IMPOSSIBLE_RANGE = -1,
+    ERROR,
+    OK
+  };
+
+  enum quick_select_return_type
+  test_quick_select(THD *thd, key_map keys, table_map prev_tables,
+                    ha_rows limit,
+                    bool force_quick_range,
+                    bool ordered_output,
+                    bool remove_false_parts_of_where,
+                    bool only_single_index_range_scan,
+                    Item_func::Bitmap note_unusable_keys);
 };
+
+typedef enum SQL_SELECT::quick_select_return_type quick_select_return;
 
 
 class SQL_SELECT_auto

@@ -1,0 +1,51 @@
+#
+# MDEV-27806 GTIDs diverge after CTAS
+#
+--source include/galera_cluster.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE ts1 AS SELECT * FROM t1;
+--let binlog_pos= `SELECT @@gtid_binlog_pos`
+
+--let $MASTER_MYPORT=$NODE_MYPORT_1
+--let $binlog_file=LAST
+--let $binlog_limit=8,20
+--source include/show_binlog_events.inc
+
+--connection node_2
+--let $binlog_limit=7,20
+--source include/show_binlog_events.inc
+
+--disable_query_log
+--eval SELECT STRCMP(@@gtid_binlog_pos, "$binlog_pos") = 0 AS BINLOG_POSITIONS_MATCH;
+--enable_query_log
+
+DROP TABLE t1,ts1;
+
+
+#
+# Same as above, with empty CREATE TABLE AS SELECT
+#
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+CREATE TABLE ts1 AS SELECT * FROM t1;
+--let binlog_pos= `SELECT @@gtid_binlog_pos`
+
+--let $MASTER_MYPORT=$NODE_MYPORT_1
+--let $binlog_file=LAST
+--let $binlog_limit=18,20
+--source include/show_binlog_events.inc
+
+--connection node_2
+--let $binlog_limit=17,20
+--source include/show_binlog_events.inc
+
+--disable_query_log
+--eval SELECT STRCMP(@@gtid_binlog_pos, "$binlog_pos") = 0 AS BINLOG_POSITIONS_MATCH;
+--enable_query_log
+
+DROP TABLE t1,ts1;
+
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

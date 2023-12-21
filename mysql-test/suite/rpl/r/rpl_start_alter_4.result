@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 set global binlog_alter_two_phase = ON;
 set binlog_alter_two_phase = ON;
 connection slave;

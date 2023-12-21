@@ -132,7 +132,8 @@ if (`SELECT strcmp("$gsp","")`)
 SHOW TABLES;
 
 --disable_connect_log
---source include/stop_slave.inc
+# IO thread is stopped, wait for SQL thread to be stopped
+--source include/stop_slave_sql.inc
 --enable_connect_log
 reset slave;
 
