@@ -428,8 +428,8 @@ void dict_stats_start()
 
 static void dict_stats_schedule(int ms)
 {
-  DBUG_ASSERT(dict_stats_timer);
-  dict_stats_timer->set_time(ms,0);
+  if(dict_stats_timer)
+    dict_stats_timer->set_time(ms,0);
 }
 
 void dict_stats_schedule_now()
