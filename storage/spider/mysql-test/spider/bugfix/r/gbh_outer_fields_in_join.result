@@ -20,13 +20,23 @@ connection master_1;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 CREATE TABLE t1 (a int) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 (a int) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (a int) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t3"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select * from t3 left join t1 on t3.a = t1.a left join t2 on t3.a = t2.a;
 a	a	a
 1	1	1
 2	NULL	2
 3	NULL	NULL
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select * from t1 left join t2 on t1.a = t2.a right join t3 on t3.a = t1.a;
 a	a	a
 1	1	1

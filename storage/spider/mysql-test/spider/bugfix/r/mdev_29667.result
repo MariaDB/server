@@ -19,10 +19,14 @@ USE auto_test_local;
 CREATE TABLE tbl_a (
 a INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_b (
 a INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8;
 LOCK TABLES tbl_a WRITE;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 LOCK TABLES tbl_b READ, tbl_a READ;
 ERROR HY000: Unable to connect to foreign data source: localhost
 connection master_1;
