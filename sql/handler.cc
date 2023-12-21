@@ -1834,12 +1834,17 @@ int ha_commit_trans(THD *thd, bool all)
       // Issue a message to the client and roll back the transaction.
       if (trans->no_2pc && rw_ha_count > 1)
       {
-        my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
-                   "by involved engine(s)", MYF(0));
-        error= 1;
+	// REPLACE|INSERT INTO ... SELECT uses TOI for MyISAM|Aria
+	if (WSREP(thd) && thd->wsrep_cs().mode() != wsrep::client_state::m_toi)
+	{
+          my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                     "by involved engine(s)", MYF(0));
+          error= 1;
+        }
       }
-      else
-        error= wsrep_before_commit(thd, all);
+
+      if (!error)
+          error= wsrep_before_commit(thd, all);
     }
     if (error)
     {
@@ -2212,8 +2217,12 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-  (void) wsrep_before_rollback(thd, all);
+  // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
+  if (thd->wsrep_consistency_check != CONSISTENCY_CHECK_RUNNING)
+    if (thd->wsrep_cs().mode() != wsrep::client_state::m_toi)
+      (void) wsrep_before_rollback(thd, all);
 #endif /* WITH_WSREP */
+
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -2250,7 +2259,11 @@ int ha_rollback_trans(THD *thd, bool all)
                 thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
-  (void) wsrep_after_rollback(thd, all);
+
+  // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
+  if (thd->wsrep_consistency_check != CONSISTENCY_CHECK_RUNNING)
+    if (thd->wsrep_cs().mode() != wsrep::client_state::m_toi)
+      (void) wsrep_after_rollback(thd, all);
 #endif /* WITH_WSREP */
 
   if (all || !thd->in_active_multi_stmt_transaction())
