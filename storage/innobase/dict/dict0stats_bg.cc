@@ -361,15 +361,21 @@ done:
   {
     ut_ad(i->state == recalc::IN_PROGRESS);
     recalc_pool.erase(i);
-    const bool reschedule= !update_now && recalc_pool.empty();
     if (err == DB_SUCCESS_LOCKED_REC)
       recalc_pool.emplace_back(recalc{table_id, recalc::IDLE});
     mysql_mutex_unlock(&recalc_pool_mutex);
-    if (reschedule)
-      dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);
   }
 
   return update_now;
+}
+
+/** Check if the recalc pool is empty. */
+static bool is_recalc_pool_empty()
+{
+  mysql_mutex_lock(&recalc_pool_mutex);
+  bool empty= recalc_pool.empty();
+  mysql_mutex_unlock(&recalc_pool_mutex);
+  return empty;
 }
 
 static tpool::timer* dict_stats_timer;
@@ -385,6 +391,8 @@ static void dict_stats_func(void*)
 
   innobase_reset_background_thd(dict_stats_thd);
   set_current_thd(nullptr);
+  if (!is_recalc_pool_empty())
+    dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);
 }
 
 
@@ -403,7 +411,7 @@ static void dict_stats_schedule(int ms)
 
 void dict_stats_schedule_now()
 {
-  dict_stats_schedule(10);
+  dict_stats_schedule(0);
 }
 
 /** Shut down the dict_stats_thread. */
