@@ -693,7 +693,7 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
   SQL_SELECT *res= make_select(table, 0, 0, cond, 0, 0, error);
   if (unlikely(!res) || unlikely(*error))
     goto error;
-  (void) res->check_quick(thd, 0, HA_POS_ERROR);
+  (void) res->check_quick(thd, 0, HA_POS_ERROR, Item_func::BITMAP_ALL);
   if (!res->quick || res->quick->reset() == 0)
     return res;
 

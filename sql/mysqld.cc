@@ -8137,6 +8137,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
+  case OPT_SECURE_AUTH:
+    warn_deprecated<1006>("--secure-auth");
+    break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
     break;

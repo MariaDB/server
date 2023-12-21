@@ -201,34 +201,12 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err = NULL)
-	MY_ATTRIBUTE((nonnull(6)));
-
-/** This is the low level function used to get access to a database page.
-@param[in]	page_id			page id
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
-@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-or BUF_PEEK_IF_IN_POOL
-@param[in,out]	mtr			mini-transaction, or NULL if a
-					block with page_id is to be evicted
-@param[out]	err			DB_SUCCESS or error code
-@return pointer to the block or NULL */
-buf_block_t*
-buf_page_get_low(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			rw_latch,
-	buf_block_t*		guess,
-	ulint			mode,
-	mtr_t*			mtr,
-	dberr_t*		err);
+	dberr_t*		err = nullptr);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED => LRU
-(the other is buf_page_get_low()).
+(the other is buf_page_get_gen()).
 @param[in,out]	space		space object
 @param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
@@ -250,8 +228,6 @@ buf_block_t*
 buf_page_create_deferred(uint32_t space_id, ulint zip_size, mtr_t *mtr,
                          buf_block_t *free_block);
 
-/** Move a block to the start of the LRU list. */
-void buf_page_make_young(buf_page_t *bpage);
 /** Mark the page status as FREED for the given tablespace and page number.
 @param[in,out]	space	tablespace
 @param[in]	page	page number
@@ -272,15 +248,6 @@ there is danger of dropping from the buffer pool.
 @param[in]	bpage		buffer pool page
 @return true if bpage should be made younger */
 inline bool buf_page_peek_if_too_old(const buf_page_t *bpage);
-
-/** Move a page to the start of the buffer pool LRU list if it is too old.
-@param[in,out]	bpage		buffer pool page */
-inline void buf_page_make_young_if_needed(buf_page_t *bpage)
-{
-	if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage))) {
-		buf_page_make_young(bpage);
-	}
-}
 
 /********************************************************************//**
 Increments the modify clock of a frame by 1. The caller must (1) own the

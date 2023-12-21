@@ -11630,6 +11630,7 @@ drop table t1;
 # (on optimized builds)
 #
 CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+insert t1 values (2,3);
 SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
 sum(b)	row_number() OVER (order by b)
 NULL	1
@@ -11645,8 +11646,8 @@ JS
             "rowid_ordered": true,
             "using_mrr": false,
             "index_only": false,
-            "rows": 0,
-            "cost": 0.001340684,
+            "rows": 1,
+            "cost": 0.002483968,
             "chosen": true
         }
     ]

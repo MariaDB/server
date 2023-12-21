@@ -1242,8 +1242,7 @@ void prepare_new_connection_state(THD* thd)
     embedded server library.
     TODO: refactor this to avoid code duplication there
   */
-  thd->proc_info= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->init_for_queries();
 
   if (opt_init_connect.length &&

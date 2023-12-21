@@ -581,7 +581,13 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
 #  ifdef BTR_CUR_HASH_ADAPT
   { &btr_search_latch_key, "btr_search_latch", 0 },
 #  endif
-  { &dict_operation_lock_key, "dict_operation_lock", 0 },
+  { &dict_operation_lock_key, "dict_operation_lock",
+#  ifdef UNIV_DEBUG
+    PSI_RWLOCK_FLAG_SX
+#  else
+    0
+#  endif
+  },
   { &fil_space_latch_key, "fil_space_latch", 0 },
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
@@ -4238,6 +4244,11 @@ innobase_end(handlerton*, ha_panic_function)
 		 	}
 		}
 
+		/* Do system tablespace truncation during slow shutdown */
+		if (!srv_fast_shutdown
+		    && srv_operation == SRV_OPERATION_NORMAL) {
+			fsp_system_tablespace_truncate();
+		}
 
 		innodb_shutdown();
 		mysql_mutex_destroy(&log_requests.mutex);
@@ -7799,20 +7810,6 @@ ha_innobase::write_row(
 #endif
 
 		if ((error_result = update_auto_increment())) {
-			/* We don't want to mask autoinc overflow errors. */
-
-			/* Handle the case where the AUTOINC sub-system
-			failed during initialization. */
-			if (m_prebuilt->autoinc_error == DB_UNSUPPORTED) {
-				error_result = ER_AUTOINC_READ_FAILED;
-				/* Set the error message to report too. */
-				my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-				goto func_exit;
-			} else if (m_prebuilt->autoinc_error != DB_SUCCESS) {
-				error = m_prebuilt->autoinc_error;
-				goto report_error;
-			}
-
 			/* MySQL errors are passed straight back. */
 			goto func_exit;
 		}
@@ -7950,7 +7947,6 @@ set_max_autoinc:
 		}
 	}
 
-report_error:
 	/* Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
@@ -11804,8 +11800,6 @@ index_bad:
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
 	DBUG_RETURN(true);
 }
@@ -13490,14 +13484,7 @@ int ha_innobase::delete_table(const char *name)
       /* FOREIGN KEY constraints cannot exist on partitioned tables. */;
 #endif
     else
-    {
-      dict_sys.freeze(SRW_LOCK_CALL);
-      for (const dict_foreign_t* f : table->referenced_set)
-        if (dict_table_t* child= f->foreign_table)
-          if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
-            break;
-      dict_sys.unfreeze();
-    }
+      err= lock_table_children(table, trx);
   }
 
   dict_table_t *table_stats= nullptr, *index_stats= nullptr;
@@ -13895,14 +13882,7 @@ int ha_innobase::truncate()
   dict_table_t *table_stats = nullptr, *index_stats = nullptr;
   MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 
-  dberr_t error= DB_SUCCESS;
-
-  dict_sys.freeze(SRW_LOCK_CALL);
-  for (const dict_foreign_t *f : ib_table->referenced_set)
-    if (dict_table_t *child= f->foreign_table)
-      if ((error= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
-        break;
-  dict_sys.unfreeze();
+  dberr_t error= lock_table_children(ib_table, trx);
 
   if (error == DB_SUCCESS)
     error= lock_table_for_trx(ib_table, trx, LOCK_X);
@@ -14093,16 +14073,7 @@ ha_innobase::rename_table(
 		/* There is no need to lock any FOREIGN KEY child tables. */
 	} else if (dict_table_t *table = dict_table_open_on_name(
 		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		for (const dict_foreign_t* f : table->referenced_set) {
-			if (dict_table_t* child = f->foreign_table) {
-				error = lock_table_for_trx(child, trx, LOCK_X);
-				if (error != DB_SUCCESS) {
-					break;
-				}
-			}
-		}
-		dict_sys.unfreeze();
+		error = lock_table_children(table, trx);
 		if (error == DB_SUCCESS) {
 			error = lock_table_for_trx(table, trx, LOCK_X);
 		}
@@ -14744,12 +14715,7 @@ ha_innobase::info_low(
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (!ib_table->is_readable()) {
-		ib_table->stats_mutex_lock();
-		ib_table->stat_initialized = true;
-		ib_table->stat_n_rows = 0;
-		ib_table->stat_clustered_index_size = 0;
-		ib_table->stat_sum_of_other_index_sizes = 0;
-		ib_table->stats_mutex_unlock();
+		dict_stats_empty_table(ib_table);
 	}
 
 	if (flag & HA_STATUS_TIME) {
@@ -15630,15 +15596,17 @@ ha_innobase::extra(
 {
 	/* Warning: since it is not sure that MariaDB calls external_lock()
 	before calling this function, m_prebuilt->trx can be obsolete! */
-	trx_t* trx = check_trx_exists(ha_thd());
+	trx_t* trx;
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
+		(void)check_trx_exists(ha_thd());
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
+		trx = check_trx_exists(ha_thd());
 		reset_template();
 		trx->duplicates = 0;
 	stmt_boundary:
@@ -15647,18 +15615,23 @@ ha_innobase::extra(
 		trx->bulk_insert = false;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 	case HA_EXTRA_INSERT_WITH_UPDATE:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates |= TRX_DUP_IGNORE;
 		goto stmt_boundary;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates &= ~TRX_DUP_IGNORE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15670,9 +15643,11 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates |= TRX_DUP_REPLACE;
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates &= ~TRX_DUP_REPLACE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15681,6 +15656,7 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
+		trx = check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15693,6 +15669,7 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
+		trx = check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
@@ -18207,11 +18184,15 @@ static
 void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync();
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  if (!*(my_bool*) save)
+    return;
+  const uint s= srv_fil_make_page_dirty_debug;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (s)
+    buf_flush_sync();
+  else
+    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
@@ -20502,6 +20483,10 @@ Compare_keys ha_innobase::compare_key_parts(
       return Compare_keys::NotEqual;
 
     if (old_part.length >= new_part.length)
+      return Compare_keys::NotEqual;
+
+    if (old_part.length == old_field.key_length() &&
+        new_part.length != new_field.length)
       return Compare_keys::NotEqual;
 
     return Compare_keys::EqualButKeyPartLength;

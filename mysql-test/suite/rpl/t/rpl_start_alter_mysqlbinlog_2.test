@@ -57,6 +57,10 @@ SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
 SET GLOBAL binlog_alter_two_phase = ON;
 
 --connection server_3
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression("The table mysql.gtid_slave_pos was removed. This change will not take full effect until all SQL threads have been restarted");
+SET STATEMENT sql_log_bin=0 FOR
+  ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET @save_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
 SET @slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
 SET @slave_parallel_mode= @@GLOBAL.slave_parallel_mode;

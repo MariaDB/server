@@ -55,6 +55,7 @@ class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
 class Item_bool_func2;
+class Item_bool_rowready_func2;
 class Item_func_between;
 class Item_func_in;
 class Item_func_round;
@@ -150,8 +151,8 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   case SCALAR_CMP_EQUAL: return LEX_CSTRING{STRING_WITH_LEN("<=>")};
   case SCALAR_CMP_LT:    return LEX_CSTRING{STRING_WITH_LEN("<")};
   case SCALAR_CMP_LE:    return LEX_CSTRING{STRING_WITH_LEN("<=")};
-  case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">")};
-  case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
+  case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
+  case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">")};
   }
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
@@ -3689,7 +3690,6 @@ public:
   static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
-  static const Type_handler *get_handler_by_cmp_type(Item_result type);
   static const Type_collection *
     type_collection_for_aggregation(const Type_handler *h1,
                                     const Type_handler *h2);
@@ -4257,6 +4257,8 @@ public:
   }
   virtual bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                              Item *a, Item *b) const= 0;
+  virtual bool Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const LEX_CSTRING &name,
                                                Type_handler_hybrid_field_type *,

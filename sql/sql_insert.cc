@@ -83,6 +83,7 @@
 #include "rpl_rli.h"
 
 #ifdef WITH_WSREP
+#include "wsrep_mysqld.h" /* wsrep_append_table_keys() */
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
 #endif /* WITH_WSREP */
 
@@ -591,7 +592,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
       Open tables used for sub-selects or in stored functions, will also
       cache these functions.
     */
-    if (open_and_lock_tables(thd, table_list->next_global, TRUE,
+    if (table_list->next_global &&
+        open_and_lock_tables(thd, table_list->next_global, TRUE,
                              MYSQL_OPEN_IGNORE_ENGINE_STATS))
     {
       end_delayed_insert(thd);
@@ -2722,7 +2724,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     }
     THD_STAGE_INFO(client_thd, stage_got_handler_lock);
     if (client_thd->killed)
-      goto error;
+      goto error2;
     if (thd.killed)
     {
       /*
@@ -2747,7 +2749,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         my_message(thd.get_stmt_da()->sql_errno(),
                    thd.get_stmt_da()->message(), MYF(0));
       }
-      goto error;
+      goto error2;
     }
   }
   share= table->s;
@@ -2776,11 +2778,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                         &record, (uint) share->reclength,
                         &bitmap, (uint) share->column_bitmap_size*4,
                         NullS))
-    goto error;
+    goto error2;
 
   /* Copy the TABLE object. */
   copy= new (copy_tmp) TABLE;
   *copy= *table;
+  copy->vcol_refix_list.empty();
+  init_sql_alloc(key_memory_TABLE, &copy->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   /* We don't need to change the file handler here */
   /* Assign the pointers for the field pointers array and the record. */
@@ -2864,11 +2869,15 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
   copy->read_set=  &copy->def_read_set;
   copy->write_set= &copy->def_write_set;
+  move_root(client_thd->mem_root, &copy->mem_root);
+  free_root(&copy->mem_root, 0);
 
   DBUG_RETURN(copy);
 
   /* Got fatal error */
  error:
+  free_root(&copy->mem_root, 0);
+error2:
   tables_in_use--;
   mysql_cond_signal(&cond);                     // Inform thread about abort
   DBUG_RETURN(0);
@@ -5116,17 +5125,13 @@ bool select_create::send_eof()
                   thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
 
       /*
-        append table level exclusive key for CTAS
+        For CTAS, append table level exclusive key for created table
+        and table level shared key for selected table.
       */
-      wsrep_key_arr_t key_arr= {0, 0};
-      wsrep_prepare_keys_for_isolation(thd,
-                                       table_list->db.str,
-                                       table_list->table_name.str,
-                                       table_list,
-                                       &key_arr);
-      int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,
-                                      WSREP_SERVICE_KEY_EXCLUSIVE);
-      wsrep_keys_free(&key_arr);
+      int rcode= wsrep_append_table_keys(thd, table_list, table_list,
+              WSREP_SERVICE_KEY_EXCLUSIVE);
+      rcode= rcode || wsrep_append_table_keys(thd, nullptr, select_tables,
+              WSREP_SERVICE_KEY_SHARED);
       if (rcode)
       {
         DBUG_PRINT("wsrep", ("row key failed: %d", rcode));

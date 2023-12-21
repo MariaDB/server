@@ -600,6 +600,7 @@ drop table t1;
 --echo #
 
 CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+insert t1 values (2,3);
 SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
 UPDATE t1 SET b=10 WHERE a=1;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;

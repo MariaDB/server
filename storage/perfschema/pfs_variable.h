@@ -212,7 +212,7 @@ public:
       return false;
 
     /* Hold this lock to keep THD during materialization. */
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
     return true;
   }
   void set_unsafe_thd(THD *unsafe_thd) { m_unsafe_thd= unsafe_thd; }

@@ -1430,6 +1430,14 @@ int main(int argc, char **argv)
     tests_to_run[i]= NULL;
   }
 
+#ifdef _WIN32
+  /* must be the same in C/C and embedded, 1208 on 64bit, 968 on 32bit */
+  compile_time_assert(sizeof(MYSQL) == 60*sizeof(void*)+728);
+#else
+  /* must be the same in C/C and embedded, 1272 on 64bit, 964 on 32bit */
+  compile_time_assert(sizeof(MYSQL) == 77*sizeof(void*)+656);
+#endif
+
   if (mysql_server_init(embedded_server_arg_count,
                         embedded_server_args,
                         (char**) embedded_server_groups))

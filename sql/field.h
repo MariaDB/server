@@ -1662,6 +1662,7 @@ public:
   void print_key_value_binary(String *out, const uchar* key, uint32 length);
   void raise_note_cannot_use_key_part(THD *thd, uint keynr, uint part,
                                       const LEX_CSTRING &op,
+                                      CHARSET_INFO *op_collation,
                                       Item *value,
                                       const Data_type_compatibility reason)
                                       const;
@@ -1839,6 +1840,16 @@ public:
   bool vers_sys_field() const
   {
     return flags & (VERS_ROW_START | VERS_ROW_END);
+  }
+
+  bool vers_sys_start() const
+  {
+    return flags & VERS_ROW_START;
+  }
+
+  bool vers_sys_end() const
+  {
+    return flags & VERS_ROW_END;
   }
 
   bool vers_update_unversioned() const

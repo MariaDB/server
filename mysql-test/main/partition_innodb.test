@@ -208,6 +208,7 @@ INSERT INTO t1 VALUES (90);
 INSERT INTO t1 VALUES (100);
 --error ER_NO_PARTITION_FOR_GIVEN_VALUE
 insert INTO t1 VALUES (110);
+ANALYZE TABLE t1;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a > 90;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a >= 90;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a = 90;
@@ -420,7 +421,9 @@ partition by key (a);
 --replace_column 12 Create_time
 show table status;
 insert into t1 values (0), (1), (2), (3);
---replace_column 12 Create_time 13 Update_time
+# Mask `Rows`, as it can fluctuate slightly if background statistics are
+# running simultaneously with insert (MDEV-20169).
+--replace_column 5 Rows 6 Avg_row_length 12 Create_time 13 Update_time
 show table status;
 drop table t1;
 
@@ -430,10 +433,10 @@ partition by key (a);
 --replace_column 12 Create_time
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
---replace_column 12 Create_time 13 Update_time
+--replace_column 5 Rows 6 Avg_row_length 12 Create_time 13 Update_time
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
---replace_column 12 Create_time 13 Update_time
+--replace_column 5 Rows 6 Avg_row_length 12 Create_time 13 Update_time
 show table status;
 drop table t1;
 

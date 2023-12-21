@@ -909,7 +909,7 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
   {
     if (*tmp_paths == 0)
     {
-      MEM_ROOT *root= thd->stmt_arena->mem_root;
+      MEM_ROOT *root= thd->active_stmt_arena_to_use()->mem_root;
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
@@ -941,21 +941,47 @@ static void mark_constant_paths(json_path_with_flags *p,
 }
 
 
-bool Item_json_str_multipath::fix_fields(THD *thd, Item **ref)
-{
-  return alloc_tmp_paths(thd, get_n_paths(), &paths, &tmp_paths) ||
-         Item_str_func::fix_fields(thd, ref);
-}
-
-
-void Item_json_str_multipath::cleanup()
+Item_json_str_multipath::~Item_json_str_multipath()
 {
   if (tmp_paths)
   {
-    for (uint i= get_n_paths(); i>0; i--)
+    for (uint i= n_paths; i>0; i--)
       tmp_paths[i-1].free();
   }
-  Item_str_func::cleanup();
+}
+
+
+bool Item_json_str_multipath::fix_fields(THD *thd, Item **ref)
+{
+  if (!tmp_paths)
+  {
+    /*
+      Remember the number of paths and allocate required memory on first time
+      the method fix_fields() is invoked. For prepared statements the method
+      fix_fields can be called several times for the same item because its
+      clean up is performed every item a prepared statement finishing its
+      execution. In result, the data member fixed is reset and the method
+      fix_field() is invoked on next time the same prepared statement be
+      executed. On the other side, any memory allocations on behalf of
+      the prepared statement must be performed only once on its first execution.
+      The data member tmp_path is kind a guard to do these activities only once
+      on first time the method fix_field() is called.
+    */
+    n_paths= get_n_paths();
+
+    if (alloc_tmp_paths(thd, n_paths, &paths, &tmp_paths))
+      return true;
+  }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+   Check that the number of paths remembered on first run of a statement
+   never changed later.
+  */
+  DBUG_ASSERT(n_paths == get_n_paths());
+#endif
+
+  return Item_str_func::fix_fields(thd, ref);
 }
 
 
@@ -1496,10 +1522,19 @@ return_null:
 
 bool Item_func_json_contains_path::fix_fields(THD *thd, Item **ref)
 {
-  return alloc_tmp_paths(thd, arg_count-2, &paths, &tmp_paths) ||
-         (p_found= (bool *) alloc_root(thd->mem_root,
-                                       (arg_count-2)*sizeof(bool))) == NULL ||
-         Item_int_func::fix_fields(thd, ref);
+  /*
+    See comments on Item_json_str_multipath::fix_fields regarding
+    the aim of the condition 'if (!tmp_paths)'.
+  */
+  if (!tmp_paths)
+  {
+    if (alloc_tmp_paths(thd, arg_count-2, &paths, &tmp_paths) ||
+        (p_found= (bool *) alloc_root(thd->active_stmt_arena_to_use()->mem_root,
+                                       (arg_count-2)*sizeof(bool))) == NULL)
+      return true;
+  }
+
+  return Item_int_func::fix_fields(thd, ref);
 }
 
 
@@ -1512,8 +1547,7 @@ bool Item_func_json_contains_path::fix_length_and_dec(THD *thd)
   return Item_bool_func::fix_length_and_dec(thd);
 }
 
-
-void Item_func_json_contains_path::cleanup()
+Item_func_json_contains_path::~Item_func_json_contains_path()
 {
   if (tmp_paths)
   {
@@ -1521,7 +1555,6 @@ void Item_func_json_contains_path::cleanup()
       tmp_paths[i-1].free();
     tmp_paths= 0;
   }
-  Item_int_func::cleanup();
 }
 
 
@@ -4823,17 +4856,21 @@ bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
 
   String *js= NULL;
 
-  if (!is_schema_constant || (null_value= args[0]->null_value))
+  if (!is_schema_constant)
   {
-    if (!is_schema_constant)
-    {
-      my_error(ER_JSON_NO_VARIABLE_SCHEMA, MYF(0));
-    }
+
+    my_error(ER_JSON_NO_VARIABLE_SCHEMA, MYF(0));
     null_value= 1;
     return 0;
   }
+  null_value= args[0]->null_value;
   js= args[0]->val_json(&tmp_js);
 
+  if (!js)
+  {
+    null_value= 1;
+    return 0;
+  }
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   if (!create_object_and_handle_keyword(thd, &je, &keyword_list,

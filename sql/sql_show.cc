@@ -2803,7 +2803,7 @@ static const char *thread_state_info(THD *tmp)
     if (cond)
       return "Waiting on cond";
   }
-  return NULL;
+  return "";
 }
 
 
@@ -6496,7 +6496,8 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_CONTEXT);
         LEX_CSTRING full_collation_name=
           tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_FULL);
-        bool is_context= cmp(context_collation_name, full_collation_name);
+        bool is_context= cmp(context_collation_name, full_collation_name) &&
+            !(thd->variables.old_behavior & OLD_MODE_NO_NULL_COLLATION_IDS);
         /*
           Some collations are applicable to multiple character sets.
           Display them only once, with the short name (without the
@@ -8938,9 +8939,9 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     }
     List_iterator_fast<Item> it(sel->item_list);
     if (!(transl=
-          (Field_translator*)(thd->stmt_arena->
+          (Field_translator*)(thd->active_stmt_arena_to_use()->
                               alloc(sel->item_list.elements *
-                                    sizeof(Field_translator)))))
+                                    sizeof(Field_translator))))) // ???
     {
       DBUG_RETURN(1);
     }
@@ -9950,7 +9951,7 @@ ST_FIELD_INFO partitions_fields_info[]=
 ST_FIELD_INFO variables_fields_info[]=
 {
   Column("VARIABLE_NAME",  Varchar(64),   NOT_NULL, "Variable_name"),
-  Column("VARIABLE_VALUE", Varchar(2048), NOT_NULL, "Value"),
+  Column("VARIABLE_VALUE", Varchar(4096), NOT_NULL, "Value"),
   CEnd()
 };
 

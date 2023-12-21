@@ -1356,8 +1356,7 @@ PFS_connection_status_visitor::~PFS_connection_status_visitor() = default;
 /** Aggregate from global status. */
 void PFS_connection_status_visitor::visit_global()
 {
-   /* NOTE: Requires lock on LOCK_status. */
-   mysql_mutex_assert_owner(&LOCK_status);
+   /* NOTE: Requires lock on LOCK_all_status_vars. */
    add_to_status(m_status_vars, &global_status_var);
 }
 
