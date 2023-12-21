@@ -6047,12 +6047,17 @@ int spider_db_mbase_util::print_item_func(
           item_count -= 2;
           break;
         }
-      } else if (func_name_length == 6 &&
-        !strncasecmp("istrue", func_name, func_name_length)
-      ) {
-        last_str = SPIDER_SQL_IS_TRUE_STR;
-        last_str_length = SPIDER_SQL_IS_TRUE_LEN;
-        break;
+      } else if (func_name_length == 6)
+      {
+        if (!strncasecmp("istrue", func_name, func_name_length))
+        {
+          last_str= SPIDER_SQL_IS_TRUE_STR;
+          last_str_length= SPIDER_SQL_IS_TRUE_LEN;
+          break;
+        }
+        else if (!strncasecmp("regexp", func_name, func_name_length))
+          /* Keep the infix expression */
+          break;
       } else if (func_name_length == 7)
       {
         if (!strncasecmp("isfalse", func_name, func_name_length))
