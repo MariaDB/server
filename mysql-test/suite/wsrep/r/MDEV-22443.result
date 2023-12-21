@@ -1,3 +1,0 @@
-SET SESSION wsrep_sync_wait=15;
-SET SESSION wsrep_on=1;
-START TRANSACTION READ WRITE;
