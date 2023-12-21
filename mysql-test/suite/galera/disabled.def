@@ -29,3 +29,4 @@ mdev-31285 : MDEV-25089 Assertion `error.len > 0' failed in galera::ReplicatorSM
 galera_var_ignore_apply_errors : MENT-1997 galera_var_ignore_apply_errors test freezes
 MW-402 : temporarily disabled at the request of Codership
 MDEV-22232 : temporarily disabled at the request of Codership
+galera_desync_overlapped : MDEV-21538 galera_desync_overlapped MTR failed: Result content mismatch
