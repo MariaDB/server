@@ -8219,6 +8219,9 @@ best_access_path(JOIN      *join,
                 trace_access_idx.add("used_range_estimates", true);
                 tmp= adjust_quick_cost(table->opt_range[key].cost,
                                        table->opt_range[key].rows);
+                keyread_tmp= table->file->keyread_time(key, 1,
+                                                       table->opt_range[key].
+                                                       rows);
                 goto got_cost;
               }
               else
