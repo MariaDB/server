@@ -143,7 +143,7 @@ static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const ch
 # define POSIX_FADV_NORMAL
 # define POSIX_FADV_SEQUENTIAL
 # define POSIX_FADV_DONTNEED
-# define posix_fadvise(a,b,c,d) do {} while(0)
+# define posix_fadvise(fd, offset, len, advice) do { (void)offset; } while(0)
 #endif
 
 /***********************************************************************
