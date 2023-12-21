@@ -1489,3 +1489,4 @@ indexed_col	not_indexed_col
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+# End of 10.6 tests
