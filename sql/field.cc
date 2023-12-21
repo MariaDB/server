@@ -75,14 +75,6 @@ bool Field::marked_for_read() const
 
 bool Field::marked_for_write_or_computed() const
 {
-  /*
-    Field_new_decimal::store_value() will be called if the field is null when
-    binlog applier is unpacking a row image. In that case, write_set should not
-    be checked.
-  */
-  if (get_thd() && get_thd()->lex->is_stmt_row_injection())
-    return true;
-
   return (!table ||
           (!table->write_set ||
            bitmap_is_set(table->write_set, field_index) ||

@@ -201,7 +201,16 @@ static bool unpack_field(const table_def *tabledef, Field *f,
               the assertions triggered need to be
               addressed/revisited.
        */
+#ifndef DBUG_OFF
+      bool was_not_set;
+      if ((was_not_set= !bitmap_is_set(f->table->write_set, f->field_index)))
+        bitmap_set_bit(f->table->write_set, f->field_index);
+#endif
       f->reset();
+#ifndef DBUG_OFF
+      if (was_not_set)
+        bitmap_clear_bit(f->table->write_set, f->field_index);
+#endif
       f->set_null();
     }
     else
