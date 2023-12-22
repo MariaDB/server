@@ -52,21 +52,6 @@ static void icu_get_tzinfo(time_t t, my_tz* tz)
       (wchar_t *) u_tz_abbr, sizeof(u_tz_abbr));
 }
 
-/*
-  Return GMT offset and TZ abbreviation using Windows C runtime.
-
-  Only used if TZ environment variable is set, and there is no
-  corresponding timezone in ICU data.
-*/
-static void win_get_tzinfo(time_t t, my_tz* tz)
-{
-  struct tm local_time;
-  localtime_r(&t, &local_time);
-  int is_dst= local_time.tm_isdst?1:0;
-  tz->seconds_offset= (long)(_mkgmtime(&local_time) - t);
-  snprintf(tz->abbreviation, sizeof(tz->abbreviation), "%s", _tzname[is_dst]);
-}
-
 #define MAX_TIMEZONE_LEN 128
 
 /*
@@ -194,6 +179,42 @@ extern "C" void my_tzname(char* sys_timezone, size_t size)
   snprintf(sys_timezone, size, "%s", tz_name);
 }
 
+#ifndef STRUCT_TM_HAS_TM_GMTOFF
+/*
+  Portable timegm()
+
+  Based on http://howardhinnant.github.io/date_algorithms.html
+  by Howard Hinnant, of the C++ <chrono> library fame.
+*/
+
+/** Returns number of days since Unix epoch. */
+static int days_from_epoch(int y, int m, int d)
+{
+  y-= m <= 2;
+  int era= y / 400;
+  int yoe= y - era * 400;                                  // [0, 399]
+  int doy= (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1; // [0, 365]
+  int doe= yoe * 365 + yoe / 4 - yoe / 100 + doy;          // [0, 146096]
+  return era * 146097 + doe - 719468;
+}
+
+/**
+  Converts a UTC time represented by a struct tm to time_t.
+
+  Unlike libc's timegm() or Windows' _mkgmtime(), this function
+  does not modify the input struct.
+*/
+static time_t my_timegm(const struct tm *t)
+{
+  longlong days, hours, minutes, seconds;
+  days= (longlong) days_from_epoch(t->tm_year+1900, t->tm_mon+1, t->tm_mday);
+  hours= 24LL * days + t->tm_hour;
+  minutes= 60LL * hours + t->tm_min;
+  seconds= 60LL * minutes + t->tm_sec;
+  return (time_t) seconds;
+}
+#endif /* STRUCT_TM_HAS_TM_GMTOFF */
+
 /**
   Return timezone information (GMT offset, timezone abbreviation)
   corresponding to specific timestamp.
@@ -207,13 +228,20 @@ void my_tzinfo(time_t t, struct my_tz* tz)
 {
 #ifdef _WIN32
   if (use_icu_for_tzinfo)
+  {
     icu_get_tzinfo(t, tz);
-  else
-    win_get_tzinfo(t, tz);
+    return;
+  }
+#endif
+
+  struct tm loc_time;
+  localtime_r(&t, &loc_time);
+#ifdef STRUCT_TM_HAS_TM_GMTOFF
+  tz->seconds_offset= loc_time.tm_gmtoff;
+  snprintf(tz->abbreviation, sizeof(tz->abbreviation), "%s", loc_time.tm_zone);
 #else
-  struct tm tm_local_time;
-  localtime_r(&t, &tm_local_time);
-  snprintf(tz->abbreviation, sizeof(tz->abbreviation), "%s", tm_local_time.tm_zone);
-  tz->seconds_offset= tm_local_time.tm_gmtoff;
+  tz->seconds_offset= (long) (my_timegm(&loc_time) - t);
+  int is_dst= loc_time.tm_isdst ? 1 : 0;
+  snprintf(tz->abbreviation, sizeof(tz->abbreviation), "%s", tzname[is_dst]);
 #endif
 }
