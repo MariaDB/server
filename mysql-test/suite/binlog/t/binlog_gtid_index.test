@@ -85,6 +85,8 @@ SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
 INSERT INTO t1 VALUES (304);
 INSERT INTO t1 VALUES (305);
 
+# BINLOG_GTID_POS() has a side effect: it increments binlog_gtid_index_hit
+--disable_ps2_protocol
 FLUSH NO_WRITE_TO_BINLOG STATUS;
 --echo +++ Initial status:
 SHOW STATUS LIKE 'binlog_gtid_index_%';
@@ -204,5 +206,6 @@ FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
 --replace_result $file FILE
 eval SELECT BINLOG_GTID_POS('$file', 100000000);
 SHOW STATUS LIKE 'binlog_gtid_index_%';
+--enable_ps2_protocol
 
 DROP TABLE t1;
