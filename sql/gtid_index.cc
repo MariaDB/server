@@ -833,7 +833,7 @@ Gtid_index_reader::next_page()
 int
 Gtid_index_reader::find_bytes(uint32 num_bytes)
 {
-  if (read_ptr - read_page->page + num_bytes <=
+  if ((my_ptrdiff_t)(read_ptr - read_page->page + num_bytes) <=
       (my_ptrdiff_t)(page_size - CHECKSUM_LEN))
     return 0;
   return next_page();
