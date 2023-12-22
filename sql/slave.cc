@@ -7390,7 +7390,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                              mi->port, 0, client_flag) == 0))
   {
     /* Don't repeat last error */
-    if ((int)mysql_errno(mysql) != last_errno)
+    if ((int)mysql_errno(mysql) != last_errno && !mi->abort_slave)
     {
       last_errno=mysql_errno(mysql);
       suppress_warnings= 0;
