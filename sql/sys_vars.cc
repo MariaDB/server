@@ -2817,6 +2817,19 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
+    "optimizer_adjust_secondary_key_costs",
+    "0 = No changes. "
+    "1 = Update secondary key costs for ranges to be at least 5x of clustered "
+    "primary key costs. "
+    "2 = Remove 'max_seek optimization' for secondary keys and slight "
+    "adjustment of filter cost. "
+    "This option will be deleted in MariaDB 11.0 as it is not needed with the "
+    "new 11.0 optimizer.",
+    SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1));
+
+
 static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),
