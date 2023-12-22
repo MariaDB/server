@@ -6854,7 +6854,7 @@ Sys_binlog_gtid_index(
        DEFAULT(TRUE));
 
 
-static Sys_var_on_access_global<Sys_var_ulong,
+static Sys_var_on_access_global<Sys_var_uint,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_PAGE_SIZE>
 Sys_binlog_gtid_index_page_size(
        "binlog_gtid_index_page_size",
@@ -6863,7 +6863,7 @@ Sys_binlog_gtid_index_page_size(
        VALID_RANGE(64, 1<<24), DEFAULT(4096), BLOCK_SIZE(1));
 
 
-static Sys_var_on_access_global<Sys_var_ulong,
+static Sys_var_on_access_global<Sys_var_uint,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_SPAN_MIN>
 Sys_binlog_gtid_index_span_min(
        "binlog_gtid_index_span_min",
