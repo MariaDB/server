@@ -69,6 +69,8 @@ static recalc_pool_t		recalc_pool;
 /** Whether the global data structures have been initialized */
 static bool			stats_initialised;
 
+static THD *dict_stats_thd;
+
 /*****************************************************************//**
 Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
@@ -90,6 +92,9 @@ static void dict_stats_recalc_pool_deinit()
 	defrag_pool_t defrag_empty_pool;
 	recalc_pool.swap(recalc_empty_pool);
 	defrag_pool.swap(defrag_empty_pool);
+
+	if (dict_stats_thd)
+		destroy_background_thd(dict_stats_thd);
 }
 
 /*****************************************************************//**
@@ -379,7 +384,6 @@ static bool is_recalc_pool_empty()
 }
 
 static tpool::timer* dict_stats_timer;
-static THD *dict_stats_thd;
 static void dict_stats_func(void*)
 {
   if (!dict_stats_thd)
@@ -419,10 +423,4 @@ void dict_stats_shutdown()
 {
   delete dict_stats_timer;
   dict_stats_timer= 0;
-
-  if (dict_stats_thd)
-  {
-    destroy_background_thd(dict_stats_thd);
-    dict_stats_thd= 0;
-  }
 }
