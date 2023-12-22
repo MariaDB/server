@@ -5895,11 +5895,15 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         This is can't be to high as otherwise we are likely to use
         table scan.
       */
-      s->worst_seeks= MY_MIN((double) s->found_records / 10,
-        (double) s->read_time*3);
-      if (s->worst_seeks < 2.0)			// Fix for small tables
-        s->worst_seeks=2.0;
-
+      /* Largest integer that can be stored in double (no compiler warning) */
+      s->worst_seeks= (double) (1ULL << 53);
+      if (thd->variables.optimizer_adjust_secondary_key_costs != 2)
+      {
+        s->worst_seeks= MY_MIN((double) s->found_records / 10,
+                               (double) s->read_time*3);
+        if (s->worst_seeks < 2.0)			// Fix for small tables
+          s->worst_seeks=2.0;
+      }
       /*
         Add to stat->const_keys those indexes for which all group fields or
         all select distinct fields participate in one index.
@@ -7817,8 +7821,27 @@ double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
     if (table->covering_keys.is_set(key))
     cost= file->keyread_time(key, 1, records);
   else
+  {
     cost= ((file->keyread_time(key, 0, records) +
             file->read_time(key, 1, MY_MIN(records, worst_seeks))));
+    if (thd->variables.optimizer_adjust_secondary_key_costs == 1 &&
+        file->is_clustering_key(0))
+    {
+      /*
+        According to benchmarks done in 11.0 to calculate the new cost
+        model secondary key ranges are about 7x slower than primary
+        key ranges for big tables. Here we are a bit conservative and
+        only calculate with 5x. The reason for having it only 5x and
+        not for example 7x is is that choosing plans with more rows
+        that are read (ignored by the WHERE clause) causes the 10.x
+        optimizer to believe that there are more rows in the result
+        set, which can cause problems in finding the best join order.
+        Note: A clustering primary key is always key 0.
+      */
+      double clustering_key_cost= file->read_time(0, 1, records);
+      cost= MY_MAX(cost, clustering_key_cost * 5);
+    }
+  }
 
   DBUG_PRINT("statistics", ("cost: %.3f", cost));
   DBUG_RETURN(cost);
@@ -7992,6 +8015,14 @@ best_access_path(JOIN      *join,
   double keyread_tmp= 0;
   ha_rows rec;
   bool best_uses_jbuf= FALSE;
+  /*
+    if optimizer_use_condition_selectivity adjust filter cost to be slightly
+    higher to ensure that ref|filter is not less than range over same
+    number of rows
+  */
+  double filter_setup_cost= (thd->variables.
+                             optimizer_adjust_secondary_key_costs == 2 ?
+                             1.0 : 0.0);
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
   SplM_plan_info *spl_plan= 0;
@@ -8548,6 +8579,7 @@ best_access_path(JOIN      *join,
 	       type == JT_EQ_REF ? 0.5 * tmp : MY_MIN(tmp, keyread_tmp);
         double access_cost_factor= MY_MIN((tmp - key_access_cost) / rows, 1.0);
 
+
         if (!(records < s->worst_seeks &&
               records <= thd->variables.max_seeks_for_key))
         {
@@ -8564,7 +8596,9 @@ best_access_path(JOIN      *join,
         }
         if (filter)
         {
-          tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+          tmp-= (filter->get_adjusted_gain(rows) -
+                 filter->get_cmp_gain(rows) -
+                 filter_setup_cost);
           DBUG_ASSERT(tmp >= 0);
           trace_access_idx.add("rowid_filter_key",
                                table->key_info[filter->key_no].name);
@@ -8810,7 +8844,7 @@ best_access_path(JOIN      *join,
                                                             access_cost_factor);
         if (filter)
         {
-          tmp-= filter->get_adjusted_gain(rows);
+          tmp-= filter->get_adjusted_gain(rows) - filter_setup_cost;
           DBUG_ASSERT(tmp >= 0);
         }
 
