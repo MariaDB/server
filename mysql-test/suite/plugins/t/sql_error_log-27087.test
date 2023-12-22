@@ -10,8 +10,9 @@ set global sql_error_log_rate=1;
 select * from t_doesnt_exist;
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
---let SEARCH_FILE= $MYSQLD_DATADIR/sql_errors.log
---let SEARCH_PATTERN=\d+ test 20\d\d-\d\d-\d\d \d\d:\d\d:\d\d root\[root\] @ localhost \[\] ERROR 1146: Table 'test.t_doesnt_exist' doesn't exist : select \* from t_doesnt_exist
---source include/search_pattern_in_file.inc
+let grep_file=$MYSQLD_DATADIR/sql_errors.log;
+let grep_regex=t_doesnt_exist;
+replace_regex /^\d+ test 20\d\d-\d\d-\d\d \d\d:\d\d:\d\d/ID test TIMESTAMP/ /::1//;
+source include/grep.inc;
 
 remove_file $MYSQLD_DATADIR/sql_errors.log;

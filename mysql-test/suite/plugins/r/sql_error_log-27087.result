@@ -10,4 +10,4 @@ sql_error_log_with_db_and_thread_info	ON
 set global sql_error_log_rate=1;
 select * from t_doesnt_exist;
 ERROR 42S02: Table 'test.t_doesnt_exist' doesn't exist
-FOUND 1 /\d+ test 20\d\d-\d\d-\d\d \d\d:\d\d:\d\d root\[root\] @ localhost \[\] ERROR 1146: Table 'test.t_doesnt_exist' doesn't exist : select \* from t_doesnt_exist/ in sql_errors.log
+ID test TIMESTAMP root[root] @ localhost [] ERROR 1146: Table 'test.t_doesnt_exist' doesn't exist : select * from t_doesnt_exist 
