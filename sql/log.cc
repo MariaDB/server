@@ -12086,6 +12086,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 
       case GTID_EVENT:
         ctx.process_gtid(round, (Gtid_log_event *)ev, linfo);
+        recover_gtid_index_process(gtid_index_recover, end_pos,
+                                   (Gtid_log_event *)ev);
         break;
 
       case XA_PREPARE_LOG_EVENT:
@@ -12120,8 +12122,6 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                      (((Query_log_event *)ev)->is_commit() ||
                       ((Query_log_event *)ev)->is_rollback()))));
 
-        recover_gtid_index_process(gtid_index_recover, end_pos,
-                                   (Gtid_log_event *)ev);
         if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid))
           goto err2;
         ctx.last_gtid_valid= false;
