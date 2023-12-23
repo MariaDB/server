@@ -322,7 +322,8 @@ public:
 
   friend
   bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
-                                      TABLE_LIST **tables_last);
+                                      TABLE_LIST **tables_last,
+                                      st_select_lex_unit *excl_spec);
 };
 
 const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
@@ -422,7 +423,8 @@ public:
 
   void move_anchors_ahead();
 
-  With_element *find_table_def(TABLE_LIST *table, With_element *barrier);
+  With_element *find_table_def(TABLE_LIST *table, With_element *barrier,
+                               st_select_lex_unit *excl_spec);
 
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
 

@@ -2624,4 +2624,49 @@ a
 1
 1
 DROP TABLE t1;
+#
+# MDEV-31657: CTE with the same name as base table used twice
+#             in another CTE
+#
+create table t (a int);
+insert into t values (3), (7), (1);
+with
+t as (select * from t),
+cte as (select t1.a as t1a, t2.a as t2a from t as t1, t as t2 where t1.a=t2.a)
+select * from cte;
+t1a	t2a
+3	3
+7	7
+1	1
+create table s (a int);
+insert into s values (1), (4), (7);
+with
+t as (select * from t),
+s as (select a-1 as a from s),
+cte as (select t.a as ta, s.a as sa from t, s where t.a=s.a
+union
+select t.a+1, s.a+1 from t, s where t.a=s.a+1)
+select * from cte;
+ta	sa
+3	3
+2	1
+8	7
+with
+t as (select * from t),
+cte as (select t.a as ta, s.a as sa from t, s where t.a=s.a
+union
+select t.a+1, s.a+1 from t, s where t.a=s.a),
+s as (select a+10 as a from s)
+select * from cte;
+ta	sa
+1	1
+7	7
+2	2
+8	8
+drop table t,s;
+with
+t as (select * from t),
+cte as (select t1.a as t1a, t2.a as t2a from t as t1, t as t2 where t1.a=t2.a)
+select * from cte;
+ERROR 42S02: Table 'test.t' doesn't exist
 # End of 10.4 tests

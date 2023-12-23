@@ -105,6 +105,7 @@ bool LEX::check_dependencies_in_with_clauses()
 
   @param tables      Points to the beginning of the sub-chain
   @param tables_last Points to the address with the sub-chain barrier
+  @param excl_spec   Ignore the definition with this spec
 
   @details
     The method resolves tables references to CTE from the chain of
@@ -146,7 +147,8 @@ bool LEX::check_dependencies_in_with_clauses()
 */
 
 bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
-                                    TABLE_LIST **tables_last)
+                                    TABLE_LIST **tables_last,
+                                    st_select_lex_unit *excl_spec)
 {
   With_element *with_elem= 0;
 
@@ -155,7 +157,8 @@ bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
     if (tbl->derived)
       continue;
     if (!tbl->db.str && !tbl->with)
-      tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
+      tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl,
+                                                                 excl_spec);
     if (!tbl->with)    // no CTE matches table reference tbl
     {
       if (only_cte_resolution)
@@ -243,7 +246,7 @@ LEX::check_cte_dependencies_and_resolve_references()
     return true;
   if (!with_cte_resolution)
     return false;
-  if (resolve_references_to_cte(query_tables, query_tables_last))
+  if (resolve_references_to_cte(query_tables, query_tables_last, NULL))
     return true;
   return false;
 }
@@ -387,6 +390,7 @@ bool With_element::check_dependencies_in_spec()
  
   @param table    The reference to the table that is looked for
   @param barrier  The barrier with element for the search
+  @param excl_spec Ignore the definition with this spec
 
   @details
     The function looks through the elements of this with clause trying to find
@@ -400,12 +404,15 @@ bool With_element::check_dependencies_in_spec()
 */    
 
 With_element *With_clause::find_table_def(TABLE_LIST *table,
-                                          With_element *barrier)
+                                          With_element *barrier,
+                                          st_select_lex_unit *excl_spec)
 {
   for (With_element *with_elem= with_list.first; 
        with_elem != barrier;
        with_elem= with_elem->next)
   {
+    if (excl_spec && with_elem->spec == excl_spec)
+      continue;
     if (my_strcasecmp(system_charset_info, with_elem->get_name_str(),
                       table->table_name.str) == 0 &&
         !table->is_fqtn)
@@ -465,7 +472,7 @@ With_element *find_table_def_in_with_clauses(TABLE_LIST *tbl,
           top_unit->with_element &&
           top_unit->with_element->get_owner() == with_clause)
         barrier= top_unit->with_element;
-      found= with_clause->find_table_def(tbl, barrier);
+      found= with_clause->find_table_def(tbl, barrier, NULL);
       if (found)
         break;
     }
@@ -520,10 +527,11 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
     {
       With_clause *with_clause= sl->master_unit()->with_clause;
       if (with_clause)
-        tbl->with= with_clause->find_table_def(tbl, NULL);
+        tbl->with= with_clause->find_table_def(tbl, NULL, NULL);
       if (!tbl->with)
         tbl->with= owner->find_table_def(tbl,
-                                         owner->with_recursive ? NULL : this);
+                                         owner->with_recursive ? NULL : this,
+                                         NULL);
     }
     if (!tbl->with)
       tbl->with= find_table_def_in_with_clauses(tbl, ctxt);
@@ -1098,7 +1106,8 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   */
   lex->only_cte_resolution= old_lex->only_cte_resolution;
   if (lex->resolve_references_to_cte(lex->query_tables,
-                                     lex->query_tables_last))
+                                     lex->query_tables_last,
+                                     spec))
   {
     res= NULL;
     goto err;
@@ -1264,6 +1273,7 @@ bool With_element::is_anchor(st_select_lex *sel)
      Search for the definition of the given table referred in this select node
 
   @param table  reference to the table whose definition is searched for
+  @param excl_spec  ignore the definition with this spec
      
   @details  
     The method looks for the definition of the table whose reference is occurred
@@ -1276,7 +1286,8 @@ bool With_element::is_anchor(st_select_lex *sel)
     NULL -  otherwise
 */    
 
-With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
+With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table,
+                                                 st_select_lex_unit *excl_spec)
 {
   With_element *found= NULL;
   With_clause *containing_with_clause= NULL;
@@ -1293,7 +1304,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
     With_clause *attached_with_clause= sl->get_with_clause();
     if (attached_with_clause &&
         attached_with_clause != containing_with_clause &&
-        (found= attached_with_clause->find_table_def(table, NULL)))
+        (found= attached_with_clause->find_table_def(table, NULL, excl_spec)))
       break;
     master_unit= sl->master_unit();
     outer_sl= master_unit->outer_select();
@@ -1303,7 +1314,8 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
       containing_with_clause= with_elem->get_owner();
       With_element *barrier= containing_with_clause->with_recursive ?
                                NULL : with_elem;
-      if ((found= containing_with_clause->find_table_def(table, barrier)))
+      if ((found= containing_with_clause->find_table_def(table, barrier,
+                                                         excl_spec)))
         break;
       if (outer_sl && !outer_sl->get_with_element())
         break;

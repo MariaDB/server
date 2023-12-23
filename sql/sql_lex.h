@@ -1531,7 +1531,8 @@ public:
            master_unit()->cloned_from->with_element :
            master_unit()->with_element;
   }
-  With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
+  With_element *find_table_def_in_with_clauses(TABLE_LIST *table,
+                                               st_select_lex_unit * excl_spec);
   bool check_unrestricted_recursive(bool only_standard_compliant);
   bool check_subqueries_with_recursive_references();
   void collect_grouping_fields_for_derived(THD *thd, ORDER *grouping_list);
@@ -4708,7 +4709,8 @@ public:
   bool check_dependencies_in_with_clauses();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
-                                 TABLE_LIST **tables_last);
+                                 TABLE_LIST **tables_last,
+                                 st_select_lex_unit *excl_spec);
 };
 
 
