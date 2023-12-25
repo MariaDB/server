@@ -25,7 +25,7 @@ extern PSI_cond_key key_COND_ack_receiver;
 extern PSI_thread_key key_thread_ack_receiver;
 #endif
 
-int global_ack_signal_fd= -1;
+my_socket global_ack_signal_fd= -1;
 
 /* Callback function of ack receive thread */
 pthread_handler_t ack_receive_handler(void *arg)
@@ -242,6 +242,13 @@ void Ack_receiver::run()
   Select_socket_listener listener(m_slaves);
 #endif //HAVE_POLL
 
+  if (listener.got_error())
+  {
+    sql_print_error("Got error %M starting ack receiver thread",
+                    listener.got_error());
+    return;
+  }
+
   sql_print_information("Starting ack receiver thread");
   thd->system_thread= SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND;
   thd->thread_stack= (char*) &thd;
@@ -258,7 +265,7 @@ void Ack_receiver::run()
 
   while (1)
   {
-    int ret, slave_count;
+    int ret, slave_count= 0;
     Slave *slave;
 
     mysql_mutex_lock(&m_mutex);
@@ -315,7 +322,9 @@ void Ack_receiver::run()
     Slave_ilist_iterator it(m_slaves);
     while ((slave= it++))
     {
-      if (slave->active)                        // Set in init_slave_sockets()
+      if (slave->active &&
+          ((slave->vio.read_pos < slave->vio.read_end) ||
+           listener.is_socket_active(slave)))
       {
         ulong len;
 
@@ -341,6 +350,7 @@ void Ack_receiver::run()
               Delete it from listener
             */
             it.remove();
+            m_slaves_changed= true;
           }
         }
         else if (net.last_errno == ER_NET_READ_ERROR)
@@ -351,6 +361,7 @@ void Ack_receiver::run()
                               net.last_errno, ER_DEFAULT(net.last_errno),
                               slave->server_id());
           it.remove();
+          m_slaves_changed= true;
         }
       }
     }
