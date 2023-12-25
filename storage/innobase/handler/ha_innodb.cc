@@ -2865,6 +2865,7 @@ innobase_trx_init(
 
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
+
 	trx->snapshot_isolation = THDVAR(thd, snapshot_isolation) & 1;
 
 	DBUG_VOID_RETURN;
