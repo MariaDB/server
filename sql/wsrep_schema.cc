@@ -155,6 +155,24 @@ private:
   my_bool m_wsrep_on;
 };
 
+class wsrep_ignore_table
+{
+public:
+  wsrep_ignore_table(THD* thd)
+    : m_thd(thd)
+    , m_wsrep_ignore_table(thd->wsrep_ignore_table)
+  {
+    thd->wsrep_ignore_table= true;
+  }
+  ~wsrep_ignore_table()
+  {
+    m_thd->wsrep_ignore_table= m_wsrep_ignore_table;
+  }
+private:
+  THD* m_thd;
+  my_bool m_wsrep_ignore_table;
+};
+
 class thd_server_status
 {
 public:
@@ -739,6 +757,12 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
+  if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_WRITE))
+  {
+    WSREP_ERROR("Failed to start transaction for store view");
+    goto out_not_started;
+  }
+
   /*
     Clean up cluster table and members table.
   */
@@ -832,7 +856,22 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
   ret= 0;
  out:
+  if (ret)
+  {
+    trans_rollback_stmt(thd);
+    if (!trans_rollback(thd))
+    {
+      close_thread_tables(thd);
+    }
+  }
+  else if (trans_commit(thd))
+  {
+    ret= 1;
+    WSREP_ERROR("Failed to commit transaction for store view");
+  }
+  thd->release_transactional_locks();
 
+out_not_started:
   DBUG_RETURN(ret);
 }
 
@@ -1184,7 +1223,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   int ret= 0;
 
   WSREP_DEBUG("Removing %zu fragments", fragments.size());
-  Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
+  Wsrep_schema_impl::wsrep_ignore_table wsrep_ignore_table(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 

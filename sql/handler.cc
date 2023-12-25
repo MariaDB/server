@@ -7885,7 +7885,9 @@ int handler::ha_delete_row(const uchar *buf)
     }
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
-    if (WSREP_NNULL(thd))
+    /* For streaming replication, when removing fragments, don't call
+    wsrep_after_row() as that would initiate new streaming transaction */
+    if (WSREP_NNULL(thd) && !thd->wsrep_ignore_table)
     {
       /* for streaming replication, the following wsrep_after_row()
       may replicate a fragment, so we have to declare potential PA

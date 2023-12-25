@@ -5068,6 +5068,9 @@ MYSQL_THD create_background_thd()
   thd->real_id= 0;
   thd->thread_id= 0;
   thd->query_id= 0;
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= FALSE;
+#endif /* WITH_WSREP */
   return thd;
 }
 
@@ -6411,7 +6414,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       wsrep_is_active(this) &&
       variables.wsrep_trx_fragment_size > 0)
   {
-    if (!is_current_stmt_binlog_format_row())
+    if (!is_current_stmt_binlog_disabled() &&
+        !is_current_stmt_binlog_format_row())
     {
       my_message(ER_NOT_SUPPORTED_YET,
                  "Streaming replication not supported with "
