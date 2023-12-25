@@ -27,6 +27,11 @@ extern "C" my_bool wsrep_on(const THD *thd)
   return my_bool(WSREP(thd));
 }
 
+extern "C" void wsrep_thd_off(THD *thd)
+{
+  thd->variables.wsrep_on= FALSE;
+}
+
 extern "C" void wsrep_thd_LOCK(const THD *thd)
 {
   mysql_mutex_lock(&thd->LOCK_thd_data);
