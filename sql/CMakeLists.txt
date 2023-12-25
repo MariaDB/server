@@ -175,6 +175,7 @@ SET (SQL_SOURCE
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
+               socketpair.c socketpair.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

@@ -20,6 +20,7 @@
 #include "my_pthread.h"
 #include "sql_class.h"
 #include "semisync.h"
+#include "socketpair.h"
 #include <vector>
 
 struct Slave :public ilink
@@ -127,31 +128,53 @@ private:
 };
 
 
-extern int global_ack_signal_fd;
+extern my_socket global_ack_signal_fd;
 
 class Ack_listener
 {
 public:
-  int local_read_signal;
+  my_socket local_read_signal;
   const Slave_ilist &m_slaves;
+  int error;
 
   Ack_listener(const Slave_ilist &slaves)
-    :m_slaves(slaves)
+    :local_read_signal(-1), m_slaves(slaves), error(0)
   {
-    int pipes[2];
-    pipe(pipes);
-    global_ack_signal_fd= pipes[1];
+    my_socket pipes[2];
+#ifdef _WIN32
+    error= create_socketpair(pipes);
+#else
+    if (!pipe(pipes))
+    {
+      fcntl(pipes[0], F_SETFL, O_NONBLOCK);
+      fcntl(pipes[1], F_SETFL, O_NONBLOCK);
+    }
+    else
+    {
+      pipes[0]= pipes[1]= -1;
+    }
+#endif /* _WIN32 */
     local_read_signal= pipes[0];
-    fcntl(pipes[0], F_SETFL, O_NONBLOCK);
-    fcntl(pipes[1], F_SETFL, O_NONBLOCK);
+    global_ack_signal_fd= pipes[1];
   }
 
   virtual ~Ack_listener()
   {
-    close(global_ack_signal_fd);
-    close(local_read_signal);
-    global_ack_signal_fd= -1;
+#ifdef _WIN32
+    my_socket pipes[2];
+    pipes[0]= local_read_signal;
+    pipes[1]= global_ack_signal_fd;
+    close_socketpair(pipes);
+#else
+    if (global_ack_signal_fd >= 0)
+      close(global_ack_signal_fd);
+    if (local_read_signal >= 0)
+      close(local_read_signal);
+#endif /* _WIN32 */
+    global_ack_signal_fd= local_read_signal= -1;
   }
+
+  int got_error()  { return error; }
 
   virtual bool has_signal_data()= 0;
 
@@ -162,14 +185,22 @@ public:
     {
       char buff[100];
       /* Clear the signal message */
+#ifndef _WIN32
       read(local_read_signal, buff, sizeof(buff));
+#else
+      recv(local_read_signal, buff, sizeof(buff), 0);
+#endif /* _WIN32 */
     }
   }
 };
 
 static inline void signal_listener()
 {
+#ifndef _WIN32
   my_write(global_ack_signal_fd, (uchar*) "a", 1, MYF(0));
+#else
+  send(global_ack_signal_fd, "a", 1, 0);
+#endif /* _WIN32 */
 }
 
 #ifdef HAVE_POLL
