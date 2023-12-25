@@ -148,6 +148,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_xid_seqno,
   wsrep_xid_uuid,
   wsrep_on,
+  wsrep_thd_off,
   wsrep_prepare_key_for_innodb,
   wsrep_thd_LOCK,
   wsrep_thd_TRYLOCK,
