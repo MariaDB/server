@@ -2953,8 +2953,19 @@ static int innobase_rollback_by_xid(XID *xid) noexcept
     ut_ad(trx->xid.is_null() || wsrep_is_wsrep_xid(&trx->xid));
     trx->xid.null();
     trx_deregister_from_2pc(trx);
-    THD* thd= trx->mysql_thd;
+    ut_ad(!trx->mysql_thd);
+    THD* thd = current_thd;
+    if (thd)
+    {
+      /* Symmetrically to innobase_commit_by_xid the flush is
+      delayed in binlog coordinated order commit. */
+      thd_binlog_pos(thd, &trx->mysql_log_file_name, &trx->mysql_log_offset);
+      if (trx->mysql_log_offset > 0)
+        trx->flush_log_later = true;
+    }
     dberr_t err= trx_rollback_for_mysql(trx);
+    trx->mysql_log_file_name = NULL;  /* ordered commit cleanup */
+    trx->flush_log_later = false;     /* ditto */
     ut_ad(!trx->will_lock);
     trx->free();
     return convert_error_code_to_mysql(err, 0, thd);
@@ -17234,8 +17245,19 @@ innobase_commit_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
+		THD *thd = current_thd;
+		/* Similarly to innobase_commit_ordered_2 the flush is
+		delayed in binlog coordinated order commit. */
+		if (thd) {
+			thd_binlog_pos(thd, &trx->mysql_log_file_name,
+				       &trx->mysql_log_offset);
+			if (trx->mysql_log_offset > 0)
+				trx->flush_log_later = true;
+		}
 		/* use cases are: disconnected xa, slave xa, recovery */
 		innobase_commit_low(trx);
+                trx->mysql_log_file_name = NULL; /* ordered commit cleanup */
+		trx->flush_log_later = false;    /* ditto */
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);    /* trx cache requirement */

@@ -900,7 +900,7 @@ XA COMMIT 'trx_6';
 XA COMMIT 'trx_7';
 XA COMMIT 'trx_8';
 XA COMMIT 'trx_9';
-# Kill and restart
+# restart
 #
 # III. Post server-restart verification.
 # It concludes survived XA:s with a number of commits and rollbacks

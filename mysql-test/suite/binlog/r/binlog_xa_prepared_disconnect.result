@@ -324,6 +324,7 @@ XA COMMIT 'trx_6';
 XA COMMIT 'trx_7';
 XA COMMIT 'trx_8';
 XA COMMIT 'trx_9';
+FLUSH LOGS;
 # restart
 #
 # III. Post server-restart verification.
@@ -900,6 +901,7 @@ XA COMMIT 'trx_6';
 XA COMMIT 'trx_7';
 XA COMMIT 'trx_8';
 XA COMMIT 'trx_9';
+FLUSH LOGS;
 # Kill and restart
 #
 # III. Post server-restart verification.
@@ -1274,7 +1276,7 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	XA COMMIT X'7472785f38',X'',1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	XA COMMIT X'7472785f39',X'',1
-master-bin.000001	#	Stop	#	#	
+master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
 All transactions must be completed, to empty-list the following:
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data

@@ -225,6 +225,13 @@ while ($i < $term_number)
     --inc $i
 }
 
+if (`select @@log_bin`)
+{
+  # This test may be run on binlog-off server,
+  # wait of the above XA-complete:s durable
+  FLUSH LOGS;
+  --source include/wait_for_binlog_checkpoint.inc
+}
 --source include/$how_to_restart
 
 --echo #
