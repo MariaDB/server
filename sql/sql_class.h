@@ -7088,20 +7088,21 @@ public:
   }
 
   // Export as a qualified name string, allocate on mem_root.
-  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
+  LEX_CSTRING make_qname(MEM_ROOT *mem_root) const
   {
-    const uint dot= !!m_name[0].length;
-    char *tmp;
+    LEX_STRING dst;
     /* format: [pkg + dot] + name + '\0' */
-    dst->length= m_name[0].length + dot + m_name[1].length;
-    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
-                                                     dst->length + 1))))
-      return true;
-    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
-            (int) m_name[0].length, (m_name[0].length ? m_name[0].str : ""),
-            dot, ".",
-            (int) m_name[1].length, m_name[1].str);
-    return false;
+    size_t dst_size= m_name[0].length + 1 /*dot*/ + m_name[1].length + 1/*\0*/;
+    if (unlikely(!(dst.str= (char*) alloc_root(mem_root, dst_size))))
+      return {NULL, 0};
+    if (!m_name[0].length)
+    {
+      dst.length= my_snprintf(dst.str, dst_size, "%.*s",
+                              (int) m_name[1].length, m_name[1].str);
+      return {dst.str, dst.length};
+    }
+    dst.length= make_qname(dst.str, dst_size);
+    return {dst.str, dst.length};
   }
 };
 
@@ -7154,10 +7155,10 @@ public:
     return Identifier_chain2(m_db, m_name).make_qname(dst, dstlen);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
-  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
+  LEX_CSTRING make_qname(MEM_ROOT *mem_root) const
   {
     DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
-    return Identifier_chain2(m_db, m_name).make_qname(mem_root, dst);
+    return Identifier_chain2(m_db, m_name).make_qname(mem_root);
   }
 
   bool make_package_routine_name(MEM_ROOT *mem_root,
