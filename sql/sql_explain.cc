@@ -1908,7 +1908,7 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
 
     double r_lookups= tracker->get_container_lookups();
     /* if loops==0 then we should have lookups==0, too: */
-    DBUG_ASSERT(loops !=0 || tracker->get_container_lookups() == 0);
+    DBUG_ASSERT(loops != 0 || tracker->get_container_lookups() == 0);
     r_lookups= loops? r_lookups / rows2double(loops) : r_lookups;
     writer->add_member("r_lookups").add_double(r_lookups);
 
