@@ -29,8 +29,15 @@ public:
   ulonglong pages_read_time;             /* Time reading pages, in microsec. */
   ulonglong undo_records_read;
   ulonglong engine_time;                 /* Time spent in engine in microsec */
-  ulonglong icp_attempts;                /* number of records read           */
-  ulonglong icp_match;                   /* number of records qualified icp  */
+  /*
+    Index Condition Pushdown: number of times condition was checked for index
+    tuple
+  */
+  ulonglong icp_attempts;
+  /*
+    Index Condition Pushdown: number times condition check evaluated to TRUE
+  */
+  ulonglong icp_match;
   uint      active;                      /* <> 0 if status has to be updated */
 #define first_stat pages_accessed
 #define last_stat  icp_match

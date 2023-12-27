@@ -616,7 +616,7 @@ public:
   */
   const char *join_alg;
 
-  /* true iff BKA is used */
+  /* true <=> BKA is used */
   bool is_bka;
 
   /* Information about MRR usage.  */
