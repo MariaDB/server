@@ -2431,7 +2431,8 @@ loop_end:
     group.direction= ORDER::ORDER_ASC;
     group.item= (Item**) temp_fields.head_ref();
 
-    tmp_param->quick_group= 1;
+    tmp_param->init();
+    tmp_param->tmp_name="update";
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
     calc_group_buffer(tmp_param, &group);
