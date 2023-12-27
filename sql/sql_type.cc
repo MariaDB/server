@@ -2248,6 +2248,34 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
 }
 
 
+const Type_handler *
+Type_handler::handler_by_log_event_data_type(THD *thd,
+                                             const Log_event_data_type &type)
+{
+  if (type.data_type_name().length)
+  {
+    const Type_handler *th= handler_by_name(thd, type.data_type_name());
+    if (th)
+      return th;
+  }
+  switch (type.type()) {
+  case STRING_RESULT:
+  case ROW_RESULT:
+  case TIME_RESULT:
+    break;
+  case REAL_RESULT:
+    return &type_handler_double;
+  case INT_RESULT:
+    if (type.is_unsigned())
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
+  case DECIMAL_RESULT:
+    return &type_handler_newdecimal;
+  }
+  return &type_handler_long_blob;
+}
+
+
 /**
   Create a DOUBLE field by default.
 */

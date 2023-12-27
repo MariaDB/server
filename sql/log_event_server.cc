@@ -4170,11 +4170,16 @@ bool XA_prepare_log_event::write()
 #if defined(HAVE_REPLICATION)
 static bool
 user_var_append_name_part(THD *thd, String *buf,
-                          const char *name, size_t name_len)
+                          const char *name, size_t name_len,
+                          const LEX_CSTRING &data_type_name)
 {
   return buf->append("@") ||
     append_identifier(thd, buf, name, name_len) ||
-    buf->append("=");
+    buf->append("=") ||
+    (data_type_name.length &&
+     (buf->append("/*") ||
+      buf->append(data_type_name.str, data_type_name.length) ||
+      buf->append("*/")));
 }
 
 void User_var_log_event::pack_info(Protocol* protocol)
@@ -4184,14 +4189,15 @@ void User_var_log_event::pack_info(Protocol* protocol)
     char buf_mem[FN_REFLEN+7];
     String buf(buf_mem, sizeof(buf_mem), system_charset_info);
     buf.length(0);
-    if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+    if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                  m_data_type_name) ||
         buf.append("NULL"))
       return;
     protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
     {
       double real_val;
@@ -4200,7 +4206,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       float8get(real_val, val);
       buf.length(0);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2, my_gcvt(real_val, MY_GCVT_ARG_DOUBLE,
                                    MY_GCVT_MAX_FIELD_WIDTH, buf2, NULL)))
         return;
@@ -4213,10 +4220,11 @@ void User_var_log_event::pack_info(Protocol* protocol)
       char buf_mem[FN_REFLEN + 22];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       buf.length(0);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2,
                  longlong10_to_str(uint8korr(val), buf2,
-                   ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10))-buf2))
+                   (is_unsigned() ? 10 : -10))-buf2))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
@@ -4229,7 +4237,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String str(buf2, sizeof(buf2), &my_charset_bin);
       buf.length(0);
       my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -4242,7 +4251,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       CHARSET_INFO *cs;
       buf.length(0);
-      if (!(cs= get_charset(charset_number, MYF(0))))
+      if (!(cs= get_charset(m_charset_number, MYF(0))))
       {
         if (buf.append("???"))
           return;
@@ -4251,7 +4260,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       {
         size_t old_len;
         char *beg, *end;
-        if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+        if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                      m_data_type_name) ||
             buf.append("_") ||
             buf.append(cs->csname) ||
             buf.append(" "))
@@ -4299,10 +4309,10 @@ bool User_var_log_event::write()
   }    
   else
   {
-    buf1[1]= type;
-    int4store(buf1 + 2, charset_number);
+    buf1[1]= m_type;
+    int4store(buf1 + 2, m_charset_number);
 
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       float8store(buf2, *(double*) val);
       break;
@@ -4332,15 +4342,28 @@ bool User_var_log_event::write()
     buf1_length= 10;
   }
 
-  /* Length of the whole event */
-  event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len;
+  uchar data_type_name_chunk_signature= (uchar) CHUNK_DATA_TYPE_NAME;
+  uint data_type_name_chunk_signature_length= m_data_type_name.length ? 1 : 0;
+  uchar data_type_name_length_length= m_data_type_name.length ? 1 : 0;
 
+  /* Length of the whole event */
+  event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len +
+                data_type_name_chunk_signature_length +
+                data_type_name_length_length +
+                (uint) m_data_type_name.length;
+
+  uchar unsig= m_is_unsigned ? CHUNK_UNSIGNED : CHUNK_SIGNED;
+  uchar data_type_name_length= (uchar) m_data_type_name.length;
   return write_header(event_length) ||
          write_data(buf, sizeof(buf))   ||
          write_data(name, name_len)     ||
          write_data(buf1, buf1_length) ||
          write_data(pos, val_len) ||
-         write_data(&flags, unsigned_len) ||
+         write_data(&unsig, unsigned_len) ||
+         write_data(&data_type_name_chunk_signature,
+                    data_type_name_chunk_signature_length) ||
+         write_data(&data_type_name_length, data_type_name_length_length) ||
+         write_data(m_data_type_name.str, (uint) m_data_type_name.length) ||
          write_footer();
 }
 
@@ -4364,7 +4387,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     current_thd->query_id= query_id; /* recreating original time context */
   }
 
-  if (!(charset= get_charset(charset_number, MYF(MY_WME))))
+  if (!(charset= get_charset(m_charset_number, MYF(MY_WME))))
   {
     rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                 ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4383,7 +4406,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       if (val_len != 8)
       {
@@ -4447,13 +4470,10 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   if (e->fix_fields(thd, 0))
     DBUG_RETURN(1);
 
-  /*
-    A variable can just be considered as a table with
-    a single record and with a single column. Thus, like
-    a column value, it could always have IMPLICIT derivation.
-   */
-  e->update_hash((void*) val, val_len, type, charset,
-                 (flags & User_var_log_event::UNSIGNED_F));
+  const Type_handler *th= Type_handler::handler_by_log_event_data_type(thd,
+                                                                       *this);
+  e->update_hash((void*) val, val_len, th, charset);
+
   if (!is_deferred())
     free_root(thd->mem_root, 0);
   else

@@ -5328,5 +5328,112 @@ SELECT BIT_XOR(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'bit_xor('
 DROP TABLE t1;
 #
+# MDEV-27666 User variable not parsed as geometry variable in geometry function.
+#
+set @g= point(1, 1);
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+ST_AsWKT(GeometryCollection(Point(44, 6), @g))
+GEOMETRYCOLLECTION(POINT(44 6),POINT(1 1))
+set @g=  "just a string";
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+ERROR HY000: Illegal parameter data type longblob for operation 'geometrycollection'
+SET @g= LineString(Point(0,0), Point(0,1));
+SELECT AsText(PointN(@g, 1));
+AsText(PointN(@g, 1))
+POINT(0 0)
+SELECT AsText(PointN(@g, 2));
+AsText(PointN(@g, 2))
+POINT(0 1)
+SET @g= Point(1, 1);
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+POINT(1 1)
+DROP TABLE t1;
+SET @g= MultiPoint(Point(1, 1), Point(-1,-1));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` multipoint DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+MULTIPOINT(1 1,-1 -1)
+DROP TABLE t1;
+SET @g= LineString(Point(1, 1), Point(2,2));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` linestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+LINESTRING(1 1,2 2)
+DROP TABLE t1;
+SET @g= MultiLineString(LineString(Point(1, 1), Point(2,2)),
+LineString(Point(-1, -1), Point(-2,-2)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` multilinestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+MULTILINESTRING((1 1,2 2),(-1 -1,-2 -2))
+DROP TABLE t1;
+SET @g= Polygon(LineString(Point(0, 0), Point(30, 0), Point(30, 30), Point(0, 0)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+POLYGON((0 0,30 0,30 30,0 0))
+DROP TABLE t1;
+SET @g= MultiPolygon(Polygon(LineString(Point(0, 3), Point(3, 3),
+Point(3, 0), Point(0, 3))));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` multipolygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+MULTIPOLYGON(((0 3,3 3,3 0,0 3)))
+DROP TABLE t1;
+SET @g= GeometryCollection(Point(44, 6), LineString(Point(3, 6), Point(7, 9)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+GEOMETRYCOLLECTION(POINT(44 6),LINESTRING(3 6,7 9))
+DROP TABLE t1;
+SET @g= GeometryFromText('POINT(1 1)');
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+POINT(1 1)
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #

@@ -6794,18 +6794,12 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
             BINLOG_USER_VAR_EVENT *user_var_event;
             get_dynamic(&thd->user_var_events,(uchar*) &user_var_event, i);
 
-            /* setting flags for user var log event */
-            uchar flags= User_var_log_event::UNDEF_F;
-            if (user_var_event->unsigned_flag)
-              flags|= User_var_log_event::UNSIGNED_F;
-
             User_var_log_event e(thd, user_var_event->user_var_event->name.str,
                                  user_var_event->user_var_event->name.length,
                                  user_var_event->value,
                                  user_var_event->length,
-                                 user_var_event->type,
-                                 user_var_event->charset_number,
-                                 flags,
+                            user_var_event->th->user_var_log_event_data_type(
+                               user_var_event->charset_number),
                                  using_trans,
                                  direct);
             if (write_event(&e, cache_data, file))

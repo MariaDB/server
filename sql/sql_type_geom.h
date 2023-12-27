@@ -81,6 +81,13 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
+  Log_event_data_type user_var_log_event_data_type(uint charset_nr)
+                                                              const override
+  {
+    return Log_event_data_type(name().lex_cstring(), result_type(),
+                               charset_nr, false/*unsigned*/);
+  }
+
   uint Column_definition_gis_options_image(uchar *buff,
                                            const Column_definition &def)
                                            const override;
