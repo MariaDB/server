@@ -11826,14 +11826,21 @@ set_binlog_snapshot_file(const char *src)
 void
 TC_LOG_BINLOG::set_status_variables(THD *thd)
 {
-  binlog_cache_mngr *cache_mngr;
+  bool have_snapshot= false;
 
   if (thd && opt_bin_log)
-    cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-  else
-    cache_mngr= 0;
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    auto cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+    have_snapshot= cache_mngr && cache_mngr->last_commit_pos_file[0];
+    if (have_snapshot)
+    {
+      set_binlog_snapshot_file(cache_mngr->last_commit_pos_file);
+      binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
 
-  bool have_snapshot= (cache_mngr && cache_mngr->last_commit_pos_file[0] != 0);
   mysql_mutex_lock(&LOCK_commit_ordered);
   binlog_status_var_num_commits= this->num_commits;
   binlog_status_var_num_group_commits= this->num_group_commits;
@@ -11848,12 +11855,6 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   binlog_status_group_commit_trigger_timeout= this->group_commit_trigger_timeout;
   binlog_status_group_commit_trigger_lock_wait= this->group_commit_trigger_lock_wait;
   mysql_mutex_unlock(&LOCK_prepare_ordered);
-
-  if (have_snapshot)
-  {
-    set_binlog_snapshot_file(cache_mngr->last_commit_pos_file);
-    binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
-  }
 }
 
 

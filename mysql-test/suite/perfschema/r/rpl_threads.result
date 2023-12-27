@@ -58,4 +58,10 @@ select NAME, TYPE, PROCESSLIST_COMMAND, PROCESSLIST_STATE
 from performance_schema.threads
 where PROCESSLIST_ID = @slave_sql_pid;
 NAME	TYPE	PROCESSLIST_COMMAND	PROCESSLIST_STATE
+#
+# MDEV-33031 Assertion failure upon reading from performance schema with binlog enabled
+#
+select variable_name, variable_value from performance_schema.status_by_thread
+where variable_name like '%impossible%';
+variable_name	variable_value
 include/rpl_end.inc
