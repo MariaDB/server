@@ -7080,15 +7080,18 @@ public:
   }
 
   // Export as a qualified name string: 'db.name'
-  size_t make_qname(char *dst, size_t dstlen) const
+  size_t make_qname(char *dst, size_t dstlen, bool casedn_part1) const
   {
-    return my_snprintf(dst, dstlen, "%.*s.%.*s",
-                       (int) m_name[0].length, m_name[0].str,
-                       (int) m_name[1].length, m_name[1].str);
+    size_t res= my_snprintf(dst, dstlen, "%.*s.%.*s",
+                            (int) m_name[0].length, m_name[0].str,
+                            (int) m_name[1].length, m_name[1].str);
+    if (casedn_part1 && dstlen > m_name[0].length)
+      my_casedn_str(system_charset_info, dst + m_name[0].length + 1);
+    return res;
   }
 
   // Export as a qualified name string, allocate on mem_root.
-  LEX_CSTRING make_qname(MEM_ROOT *mem_root) const
+  LEX_CSTRING make_qname(MEM_ROOT *mem_root, bool casedn_part1) const
   {
     LEX_STRING dst;
     /* format: [pkg + dot] + name + '\0' */
@@ -7097,11 +7100,12 @@ public:
       return {NULL, 0};
     if (!m_name[0].length)
     {
+      DBUG_ASSERT(!casedn_part1); // Should not be called this way
       dst.length= my_snprintf(dst.str, dst_size, "%.*s",
                               (int) m_name[1].length, m_name[1].str);
       return {dst.str, dst.length};
     }
-    dst.length= make_qname(dst.str, dst_size);
+    dst.length= make_qname(dst.str, dst_size, casedn_part1);
     return {dst.str, dst.length};
   }
 };
@@ -7150,15 +7154,15 @@ public:
                                 const LEX_CSTRING &name);
 
   // Export db and name as a qualified name string: 'db.name'
-  size_t make_qname(char *dst, size_t dstlen) const
+  size_t make_qname(char *dst, size_t dstlen, bool casedn_name) const
   {
-    return Identifier_chain2(m_db, m_name).make_qname(dst, dstlen);
+    return Identifier_chain2(m_db, m_name).make_qname(dst, dstlen, casedn_name);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
-  LEX_CSTRING make_qname(MEM_ROOT *mem_root) const
+  LEX_CSTRING make_qname(MEM_ROOT *mem_root, bool casedn_name) const
   {
     DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
-    return Identifier_chain2(m_db, m_name).make_qname(mem_root);
+    return Identifier_chain2(m_db, m_name).make_qname(mem_root, casedn_name);
   }
 
   bool make_package_routine_name(MEM_ROOT *mem_root,
@@ -7169,7 +7173,8 @@ public:
     size_t length= package.length + 1 + routine.length + 1;
     if (unlikely(!(tmp= (char *) alloc_root(mem_root, length))))
       return true;
-    m_name.length= Identifier_chain2(package, routine).make_qname(tmp, length);
+    m_name.length= Identifier_chain2(package, routine).make_qname(tmp, length,
+                                                                  false);
     m_name.str= tmp;
     return false;
   }
@@ -7198,7 +7203,7 @@ public:
   { }
   const char *ptr() const
   {
-    m_name->make_qname(err_buffer, sizeof(err_buffer));
+    m_name->make_qname(err_buffer, sizeof(err_buffer), false);
     return err_buffer;
   }
 };

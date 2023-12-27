@@ -195,7 +195,7 @@ sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
   sp_cache *c= *cp;
   if (! c)
     return NULL;
-  return c->lookup(buf, name->make_qname(buf, sizeof(buf)));
+  return c->lookup(buf, name->make_qname(buf, sizeof(buf), true));
 }
 
 
@@ -302,7 +302,7 @@ sp_cache::~sp_cache()
 void
 sp_cache::init()
 {
-  my_hash_init(&m_hashtable, system_charset_info, 0, 0, 0,
+  my_hash_init(&m_hashtable, &my_charset_bin, 0, 0, 0,
                hash_get_key_for_sp_head, hash_free_sp_head, 0);
 }
 
