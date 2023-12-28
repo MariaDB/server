@@ -6651,7 +6651,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     }
     glev= static_cast<Gtid_list_log_event *>(tmp);
     event_pos= glev->log_pos;
-    flags= glev->gl_flags;
+    flags= glev->l_flags;
     delete glev;
 
     /*

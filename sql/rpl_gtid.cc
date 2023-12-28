@@ -1064,6 +1064,18 @@ static int rpl_gtid_cmp_cb(const void *id1, const void *id2)
   return 0;
 }
 
+/* Append a rpl_gtid to a string. */
+bool
+rpl_gtid_tostring(String *dest, const rpl_gtid *gtid)
+{
+  return
+    dest->append_ulonglong(gtid->domain_id) ||
+    dest->append('-') ||
+    dest->append_ulonglong(gtid->server_id) ||
+    dest->append('-') ||
+    dest->append_ulonglong(gtid->seq_no);
+}
+
 /* Format the specified gtid and store it in the given string buffer. */
 bool
 rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
@@ -1073,12 +1085,7 @@ rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
   else
     if (dest->append(','))
       return true;
-  return
-    dest->append_ulonglong(gtid->domain_id) ||
-    dest->append('-') ||
-    dest->append_ulonglong(gtid->server_id) ||
-    dest->append('-') ||
-    dest->append_ulonglong(gtid->seq_no);
+  return rpl_gtid_tostring(dest, gtid);
 }
 
 /*

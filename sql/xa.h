@@ -46,12 +46,22 @@ struct XID_STATE {
 #endif
 };
 
+class XID_collector
+{
+public:
+  virtual ~XID_collector() {};
+  virtual void collect_xid(XID *xid)= 0;
+};
+
 void xid_cache_init(void);
 void xid_cache_free(void);
 bool xid_cache_insert(XID *xid);
 bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid);
 void xid_cache_delete(THD *thd, XID_STATE *xid_state);
 void xid_cache_delete(THD *thd);
+void xid_cache_update_xa_binlog_state(THD *thd, XID_STATE *xid_state, bool is_xap);
+void xid_cache_get_binlogged_xaps(THD *thd, XID_collector *collector);
+int32 xid_cache_get_count_binlogged_xaps(THD *thd);
 
 bool trans_xa_start(THD *thd);
 bool trans_xa_end(THD *thd);

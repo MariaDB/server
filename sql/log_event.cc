@@ -663,6 +663,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case EXEC_LOAD_EVENT: return "Exec_load";
   case RAND_EVENT: return "RAND";
   case XID_EVENT: return "Xid";
+  case XID_LIST_EVENT: return "Xid_list";
   case USER_VAR_EVENT: return "User var";
   case FORMAT_DESCRIPTION_EVENT: return "Format_desc";
   case TABLE_MAP_EVENT: return "Table_map";
@@ -1183,6 +1184,9 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       break;
     case XID_EVENT:
       ev= new Xid_log_event(buf, fdle);
+      break;
+    case XID_LIST_EVENT:
+      ev= new Xid_list_log_event(buf, event_len, fdle);
       break;
     case XA_PREPARE_LOG_EVENT:
       ev= new XA_prepare_log_event(buf, fdle);
@@ -2151,6 +2155,8 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
 
+      post_header_len[XID_LIST_EVENT-1]= XID_LIST_HEADER_LEN;
+
       // Sanity-check that all post header lengths are initialized.
       int i;
       for (i=0; i<number_of_event_types; i++)
@@ -2594,6 +2600,46 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
 }
 
 
+
+/* Log_list_event base */
+
+template <typename T>
+List_log_event<T>::List_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event,
+    Log_event_type type_code,
+    void (*reader_func)(T *dst, const uchar *src, uint32 *read_size))
+    : Log_event(buf, description_event), l_flags(0), count(0), list(NULL)
+{
+  uint32 i;
+  uint32 val;
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[type_code-1];
+  if (event_len < (uint) header_size + (uint) post_header_len ||
+      post_header_len < XID_LIST_HEADER_LEN)
+    return;
+
+  buf+= header_size;
+  val= uint4korr(buf);
+  count= val & ((1<<28)-1);
+  l_flags= val & ((uint32)0xf << 28);
+  buf+= 4;
+  if (event_len - (header_size + post_header_len) < count*get_element_size() ||
+      (!(list=
+      (T *)
+      my_malloc(PSI_INSTRUMENT_ME,
+                            count*sizeof(*list) + (count == 0), MYF(MY_WME)))))
+    return;
+
+  for (i= 0; i < count; ++i)
+  {
+    uint32 size_read= 0;
+    reader_func(&list[i], buf, &size_read);
+    buf+= size_read;
+  }
+}
+
+
 /**************************************************************************
         Global transaction ID stuff
 **************************************************************************/
@@ -2676,41 +2722,26 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
 
 /* GTID list. */
 
-Gtid_list_log_event::Gtid_list_log_event(const uchar *buf, uint event_len,
-                                         const Format_description_log_event
-                                         *description_event)
-  : Log_event(buf, description_event), count(0), list(0), sub_id_list(0)
+void read_logged_gtid(rpl_gtid *dst, const uchar *src, uint32 *size_read)
 {
-  uint32 i;
-  uint32 val;
-  uint8 header_size= description_event->common_header_len;
-  uint8 post_header_len= description_event->post_header_len[GTID_LIST_EVENT-1];
-  if (event_len < (uint) header_size + (uint) post_header_len ||
-      post_header_len < GTID_LIST_HEADER_LEN)
-    return;
+  *size_read= 0;
+  dst->domain_id= uint4korr(src);
+  *size_read+= 4;
+  dst->server_id= uint4korr(src + *size_read);
+  *size_read+= 4;
+  dst->seq_no= uint8korr(src + *size_read);
+  *size_read+= 8;
+}
 
-  buf+= header_size;
-  val= uint4korr(buf);
-  count= val & ((1<<28)-1);
-  gl_flags= val & ((uint32)0xf << 28);
-  buf+= 4;
-  if (event_len - (header_size + post_header_len) < count*element_size ||
-      (!(list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
-                            count*sizeof(*list) + (count == 0), MYF(MY_WME)))))
-    return;
-
-  for (i= 0; i < count; ++i)
-  {
-    list[i].domain_id= uint4korr(buf);
-    buf+= 4;
-    list[i].server_id= uint4korr(buf);
-    buf+= 4;
-    list[i].seq_no= uint8korr(buf);
-    buf+= 8;
-  }
-
+Gtid_list_log_event::Gtid_list_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : List_log_event(buf, event_len, description_event, GTID_LIST_EVENT,
+                     read_logged_gtid),
+      sub_id_list(0)
+{
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-  if ((gl_flags & FLAG_IGN_GTIDS))
+  if ((l_flags & FLAG_IGN_GTIDS))
   {
     uint32 i;
     if (!(sub_id_list= (uint64 *)my_malloc(PSI_INSTRUMENT_ME,
@@ -2864,6 +2895,40 @@ Xid_log_event(const uchar *buf,
     description_event->post_header_len[XID_EVENT-1];
   memcpy((char*) &xid, buf, sizeof(xid));
 }
+
+/**************************************************************************
+  Xid_list_log_event methods
+**************************************************************************/
+
+void read_logged_xid(
+#ifdef MYSQL_SERVER
+    event_xid_t *dst,
+#else
+    event_mysql_xid_t *dst,
+#endif
+    const uchar *src, uint32 *size_read)
+{
+  long key_len= 0;
+  *size_read= 0;
+  dst->formatID= uint4korr(src);
+  *size_read+= 4;
+  dst->gtrid_length= uint4korr(src + *size_read);
+  *size_read+= 4;
+  dst->bqual_length= uint4korr(src + *size_read);
+  *size_read+= 4;
+  key_len= dst->gtrid_length + dst->bqual_length;
+  memcpy(dst->data, src + *size_read, key_len);
+  *size_read+= key_len;
+}
+
+Xid_list_log_event::Xid_list_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : List_log_event(buf, event_len, description_event, XID_LIST_EVENT,
+                     read_logged_xid)
+{
+}
+
 
 /**************************************************************************
   XA_prepare_log_event methods

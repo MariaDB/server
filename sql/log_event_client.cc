@@ -2294,26 +2294,23 @@ bool Binlog_checkpoint_log_event::print(FILE *file,
 }
 
 
-bool
-Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
+template <typename T> bool
+List_log_event<T>::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 {
+  uint32 i;
   if (print_event_info->short_form)
     return 0;
 
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
-  char buf[21];
-  uint32 i;
-
   if (print_header(&cache, print_event_info, FALSE) ||
-      my_b_printf(&cache, "\tGtid list ["))
+      my_b_printf(&cache, "\t%s [", get_pretty_printed_element_type_str()))
     goto err;
 
   for (i= 0; i < count; ++i)
   {
-    longlong10_to_str(list[i].seq_no, buf, 10);
-    if (my_b_printf(&cache, "%u-%u-%s", list[i].domain_id,
-                    list[i].server_id, buf))
+    T *t= &list[i];
+    if (pretty_print_element(&cache, t))
       goto err;
     if (i < count-1)
       if (my_b_printf(&cache, ",\n# "))
@@ -2325,6 +2322,24 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   return cache.flush_data();
 err:
   return 1;
+}
+
+
+bool
+Gtid_list_log_event::pretty_print_element(IO_CACHE *io_cache, rpl_gtid *gtid)
+{
+  char buf[21];
+  longlong10_to_str(gtid->seq_no, buf, 10);
+  return my_b_printf(io_cache, "%u-%u-%s", gtid->domain_id, gtid->server_id,
+                     buf);
+}
+
+
+bool
+Xid_list_log_event::pretty_print_element(IO_CACHE *io_cache, event_mysql_xid_t *xid)
+{
+  xid->serialize();
+  return my_b_write(io_cache, (uchar *) xid->buf, strlen(xid->buf));
 }
 
 

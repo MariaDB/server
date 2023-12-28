@@ -3894,6 +3894,10 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         if (write_event(&gl_ev))
           goto err;
 
+        Xid_list_log_event xl_ev(current_thd);
+        if (write_event(&xl_ev))
+          goto err;
+
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
         /*
@@ -8468,6 +8472,18 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
           any_error= true;
         }
 #endif
+
+        /*
+          While we have LOCK_log, if there are any XA transactions, we need to
+          cache their binlog states for the Xid_list_log_event on rotate
+        */
+        XID_STATE *xid_state= &current->thd->transaction->xid_state;
+        if (xid_state->is_explicit_XA())
+        {
+          xid_cache_update_xa_binlog_state(
+              current->thd, xid_state,
+              (current->thd->lex->sql_command == SQLCOM_XA_PREPARE));
+        }
       }
 
       /*
