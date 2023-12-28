@@ -116,16 +116,20 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
       MYSQL_SYSVAR_NAME(param_name).def_val;                            \
   }
 
+extern handlerton *spider_hton_ptr;
 static int spider_trx_status_var(THD *thd, SHOW_VAR *var, char *buff,
                                  ulonglong SPIDER_TRX::*counter)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_update");
   var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &(trx->*counter);
-  DBUG_RETURN(error_num);
+  var->value= buff;
+  if (thd != current_thd)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+  SPIDER_TRX *trx = (SPIDER_TRX*)thd_get_ha_data(thd, spider_hton_ptr);
+  *(ulonglong*)buff= trx ? trx->*counter : 0;
+  if (thd != current_thd)
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  DBUG_RETURN(0);
 }
 
 
