@@ -54,7 +54,7 @@ class XID_cache_element
     Newly allocated and deleted elements have m_state set to 0.
 
     On lock() m_state is atomically incremented. It also creates load-ACQUIRE
-    memory barrier to make sure m_state is actually updated before furhter
+    memory barrier to make sure m_state is actually updated before further
     memory accesses. Attempting to lock an element that has neither ACQUIRED
     nor RECOVERED flag set returns failure and further accesses to element
     memory are forbidden.

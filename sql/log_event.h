@@ -223,6 +223,7 @@ class String;
 #define GTID_LIST_HEADER_LEN   4
 #define START_ENCRYPTION_HEADER_LEN 0
 #define XA_PREPARE_HEADER_LEN 0
+#define XA_PREPARED_TRX_HEADER_LEN (4 + 1 + 1)
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -708,6 +709,9 @@ enum Log_event_type
   WRITE_ROWS_COMPRESSED_EVENT = 169,
   UPDATE_ROWS_COMPRESSED_EVENT = 170,
   DELETE_ROWS_COMPRESSED_EVENT = 171,
+  XA_PREPARED_TRX_EVENT = 172,
+  XA_PREPARED_DATA_EVENT = 173,
+  XA_PREPARED_ROLLBACK_EVENT = 174,
 
   /* Add new MariaDB events here - right above this comment!  */
 
@@ -5506,6 +5510,104 @@ private:
 #if defined(MYSQL_CLIENT)
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
+};
+
+
+/**
+  @class Xa_prepared_trx_log_event
+
+  @section Xa_prepared_trx_log_event Binary Format
+
+  The Post-Header has the following components:
+
+  <table>
+  <caption>Post-Header for Xa_prepared_trx_log_event</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>xid_format_id</td>
+    <td>4 bytes unsigned integer</td>
+    <td>The formatID component of the XA XID.</td>
+  </tr>
+
+  <tr>
+    <td>xid_gtrid_len</td>
+    <td>1 bytes unsigned integer</td>
+    <td>The length of the gtrid component of the XA XID.</td>
+  </tr>
+
+  <tr>
+    <td>xid_bqual_len</td>
+    <td>1 bytes unsigned integer</td>
+    <td>The length of the bqual component of the XA XID.</td>
+  </tr>
+
+  </table>
+
+  The Body has the following components:
+
+  <table>
+  <caption>Body for Xa_prepared_trx_log_event</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>xid_gtrid_value</td>
+    <td>byte string, length xid_gtrid_len</td>
+    <td>The gtrid component of the XA XID.</td>
+  </tr>
+
+  <tr>
+    <td>xid_bqual_value</td>
+    <td>byte string, length xid_bqual_len</td>
+    <td>The bqual component of the XA XID.</td>
+  </tr>
+
+  </table>
+*/
+
+class Xa_prepared_trx_log_event: public Log_event
+{
+public:
+  MYSQL_XID xid;
+  uchar *trx_cache_data;
+  size_t trx_cache_len;
+
+#ifdef MYSQL_SERVER
+  Xa_prepared_trx_log_event(THD* thd, IO_CACHE *trx_cache, const XID *xid);
+#ifdef HAVE_REPLICATION
+  void pack_info(Protocol* protocol);
+#endif /* HAVE_REPLICATION */
+#else
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+#endif
+
+  Xa_prepared_trx_log_event(const char* buf, uint event_len,
+                            const Format_description_log_event
+                            *description_event);
+  ~Xa_prepared_trx_log_event() = default;
+  Log_event_type get_type_code() { return XA_PREPARED_TRX_EVENT;}
+  int get_data_size() { return XA_PREPARED_TRX_HEADER_LEN + xid.gtrid_length +
+                               xid.bqual_length + trx_cache_len; }
+  bool is_valid() const { return trx_cache_data != nullptr; }
+#ifdef MYSQL_SERVER
+  bool write();
+#endif
+
+private:
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  virtual int do_apply_event(rpl_group_info *rgi);
+#endif
+  uint xid_len;
 };
 
 

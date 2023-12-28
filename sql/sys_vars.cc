@@ -6556,6 +6556,13 @@ Sys_binlog_row_metadata(
        ON_UPDATE(NULL));
 
 
+static Sys_var_mybool Sys_xa_binlog_prepare(
+       "xa_binlog_prepare", "Enables binlogging XA PREPARE statements. This "
+       "can be used to recover such transactions on a replication slave.",
+       READ_ONLY GLOBAL_VAR(opt_xa_binlog_prepare), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
+
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
   longlong previous_val= thd->variables.pseudo_slave_mode;

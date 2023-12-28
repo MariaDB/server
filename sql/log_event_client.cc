@@ -3940,3 +3940,12 @@ bool XA_prepare_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 error:
   return TRUE;
 }
+
+
+bool
+Xa_prepared_trx_log_event::print(FILE* file,
+                                 PRINT_EVENT_INFO* print_event_info)
+{
+  DBUG_ASSERT(0 /* ToDo */);
+  return true;
+}

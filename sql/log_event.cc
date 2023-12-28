@@ -2160,6 +2160,11 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
 
+      // Current --xa-binlog-prepare events.
+      post_header_len[XA_PREPARED_TRX_EVENT-1]= XA_PREPARED_TRX_HEADER_LEN;
+      post_header_len[XA_PREPARED_DATA_EVENT-1]= 0;
+      post_header_len[XA_PREPARED_ROLLBACK_EVENT-1]= 0;
+
       // Sanity-check that all post header lengths are initialized.
       int i;
       for (i=0; i<number_of_event_types; i++)

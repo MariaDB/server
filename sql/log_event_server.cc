@@ -8483,6 +8483,59 @@ uint8 Update_rows_log_event::get_trg_event_map()
 #endif
 
 
+Xa_prepared_trx_log_event::Xa_prepared_trx_log_event(
+  THD* thd, IO_CACHE *trx_cache, const XID *xid_arg)
+{
+  xid.formatID= xid_arg->formatID;
+  xid.gtrid_length= xid_arg->gtrid_length;
+  xid.bqual_length= xid_arg->bqual_length;
+  memcpy(xid.data, xid_arg->data, xid_arg->gtrid_length + xid_arg->bqual_length);
+  trx_cache_len= my_b_tell(trx_cache);
+  trx_cache_data=
+    (uchar *)my_malloc(PSI_INSTRUMENT_ME, trx_cache_len, MYF(MY_WME));
+  if (trx_cache_data)
+  {
+    if (reinit_io_cache(trx_cache, READ_CACHE, 0, 0, 0) ||
+        my_b_read(trx_cache, trx_cache_data, trx_cache_len))
+    {
+      my_free(trx_cache_data);
+      trx_cache_data= nullptr;
+    }
+  }
+}
+
+
+bool
+Xa_prepared_trx_log_event::write()
+{
+  uchar buf[XA_PREPARED_TRX_HEADER_LEN];
+  int4store(buf, xid.formatID);
+  buf[4]= xid.gtrid_length;
+  buf[5]= xid.bqual_length;
+  return write_header(get_data_size()) ||
+    write_data(buf, XA_PREPARED_TRX_HEADER_LEN) ||
+    write_data((const uchar *)&xid.data, xid.gtrid_length + xid.bqual_length) ||
+    write_data(trx_cache_data, trx_cache_len) ||
+    write_footer();
+}
+
+
+#ifdef HAVE_REPLICATION
+void
+Xa_prepared_trx_log_event::pack_info(Protocol* protocol)
+{
+  DBUG_ASSERT(0 /* ToDo */);
+}
+
+int
+Xa_prepared_trx_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  DBUG_ASSERT(0 /* ToDo */);
+  return 0;
+}
+#endif
+
+
 void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];

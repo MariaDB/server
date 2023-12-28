@@ -2125,6 +2125,10 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
       strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
     cache_data= cache_mngr->get_binlog_cache_data(true);
     file= &cache_data->cache_log;
+
+    /* ToDo: Actually do something with this... */
+    Xa_prepared_trx_log_event xa_prepared_ev(thd, file, xid);
+
     thd->lex->sql_command= SQLCOM_XA_END;
     Query_log_event xa_end(thd, buf, buflen, true, false, true, 0);
     if (mysql_bin_log.write_event(&xa_end, cache_data, file))
