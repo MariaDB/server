@@ -116,73 +116,56 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
       MYSQL_SYSVAR_NAME(param_name).def_val;                            \
   }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_trx_status_var(THD *thd, SHOW_VAR *var, char *buff,
+                                 ulonglong SPIDER_TRX::*counter)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_update");
   var->type = SHOW_LONGLONG;
   if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_update_count;
+    var->value = (char *) &(trx->*counter);
   DBUG_RETURN(error_num);
+}
+
+
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
+{
+  DBUG_ENTER("spider_direct_update");
+  DBUG_RETURN(spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_update_count));
 }
 
 static int spider_direct_delete(THD *thd, SHOW_VAR *var, char *buff)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_delete");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_delete_count;
-  DBUG_RETURN(error_num);
+  DBUG_RETURN(spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_delete_count));
 }
 #endif
 
 static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, char *buff)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_order_limit");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_order_limit_count;
-  DBUG_RETURN(error_num);
+  DBUG_RETURN(spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_order_limit_count));
 }
 
 static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, char *buff)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_aggregate");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_aggregate_count;
-  DBUG_RETURN(error_num);
+  DBUG_RETURN(spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_aggregate_count));
 }
 
 static int spider_parallel_search(THD *thd, SHOW_VAR *var, char *buff)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_parallel_search");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->parallel_search_count;
-  DBUG_RETURN(error_num);
+  DBUG_RETURN(spider_trx_status_var(thd, var, buff, &SPIDER_TRX::parallel_search_count));
 }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 static int spider_hs_result_free(THD *thd, SHOW_VAR *var, char *buff)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_hs_result_free");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->hs_result_free_count;
-  DBUG_RETURN(error_num);
+  DBUG_RETURN(spider_trx_status_var(thd, var, buff, &SPIDER_TRX::hs_result_free_count));
 }
 #endif
 
