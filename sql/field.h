@@ -2356,6 +2356,7 @@ public:
 
 
 class Field_decimal final  :public Field_real {
+  int store_string(const char *to,size_t length,CHARSET_INFO *charset);
 public:
   Field_decimal(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 		uchar null_bit_arg,

@@ -2776,7 +2776,7 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
 int
 Field_decimal::reset(void)
 {
-  Field_decimal::store(STRING_WITH_LEN("0"),&my_charset_bin);
+  store_string(STRING_WITH_LEN("0"),&my_charset_bin);
   return 0;
 }
 
@@ -2819,9 +2819,17 @@ void Field_decimal::overflow(bool negative)
 }
 
 
-int Field_decimal::store(const char *from_arg, size_t len, CHARSET_INFO *cs)
+int Field_decimal::store(const char *from_arg, size_t len,
+                         const CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  return store_string(from_arg, len, cs);
+}
+
+
+int Field_decimal::store_string(const char *from_arg, size_t len, 
+                                const CHARSET_INFO *cs)
+{
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff,sizeof(buff), &my_charset_bin);
   const uchar *from= (uchar*) from_arg;
@@ -3420,7 +3428,10 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
 
 int Field_new_decimal::reset(void)
 {
-  store_value(&decimal_zero);
+  IF_DBUG(int error=,)
+  decimal_zero.to_binary(ptr, precision, dec,
+                         E_DEC_FATAL_ERROR & ~E_DEC_OVERFLOW);
+  DBUG_ASSERT(!error);
   return 0;
 }
 
