@@ -12,6 +12,5 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 #
-# Clean up
+# Clean up is done automatically
 #
---remove_file $MYSQLD_DATADIR/test/users.json
