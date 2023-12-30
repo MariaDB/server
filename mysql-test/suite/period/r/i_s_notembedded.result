@@ -58,3 +58,25 @@ def	test	t2	mytime	s	e
 connection default;
 drop user periods_hidden@localhost;
 drop tables t1, t2;
+# MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
+create table t (a int, b date, c date, period for app(b,c),
+unique idx(a, app without overlaps));
+set names latin1 collate latin1_general_cs;
+select table_name from information_schema.periods where table_schema = 'TEST';
+table_name
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+table_name
+set names latin1 collate latin1_general_ci;
+select table_name from information_schema.periods where table_schema = 'TEST';
+table_name
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+table_name
+# [DUPLICATE] MDEV-32504 Search by I_S.KEY_PERIOD_USAGE.CONSTRAINT_NAME
+# does not work
+select constraint_name from information_schema.key_period_usage where table_name = 't';
+constraint_name
+idx
+select constraint_name from information_schema.key_period_usage where constraint_name = 'idx';
+constraint_name
+idx
+drop table t;

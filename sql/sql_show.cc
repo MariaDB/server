@@ -10360,7 +10360,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    get_all_tables, 0, get_schema_key_column_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"KEY_PERIOD_USAGE", Show::key_period_usage_fields_info, 0,
-   get_all_tables, 0, get_schema_key_period_usage_record, 1, 2, 0,
+   get_all_tables, 0, get_schema_key_period_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE | OPEN_FRM_FILE_ONLY},
   {"OPEN_TABLES", Show::open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},

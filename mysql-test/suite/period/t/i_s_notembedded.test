@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/platform.inc
 
 select * from information_schema.periods;
 
@@ -47,3 +48,27 @@ select * from information_schema.periods where table_schema = 'test';
 --connection default
 drop user periods_hidden@localhost;
 drop tables t1, t2;
+
+--echo # MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
+
+create table t (a int, b date, c date, period for app(b,c),
+                unique idx(a, app without overlaps));
+
+
+set names latin1 collate latin1_general_cs;
+
+select table_name from information_schema.periods where table_schema = 'TEST';
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+set names latin1 collate latin1_general_ci;
+
+select table_name from information_schema.periods where table_schema = 'TEST';
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+
+--echo # [DUPLICATE] MDEV-32504 Search by I_S.KEY_PERIOD_USAGE.CONSTRAINT_NAME
+--echo # does not work
+disable_warnings; # storage engine 'Innodb' is not found 
+select constraint_name from information_schema.key_period_usage where table_name = 't';
+select constraint_name from information_schema.key_period_usage where constraint_name = 'idx';
+enable_warnings;
+
+drop table t;
