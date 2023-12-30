@@ -710,16 +710,6 @@ my_bool mi_killed_in_mariadb(MI_INFO *info)
   return (((TABLE*) (info->external_ref))->in_use->killed != 0);
 }
 
-static void init_compute_vcols(void *table)
-{
-  /*
-    To evaluate vcols we must have current_thd set.
-    This will set current_thd in all threads to the same THD, but it's
-    safe, because vcols are always evaluated under info->s->intern_lock.
-  */
-  set_current_thd(static_cast<TABLE *>(table)->in_use);
-}
-
 static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
 {
   /* This mutex is needed for parallel repair */
@@ -1032,7 +1022,6 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
   }
   DBUG_ASSERT(file->s->base.reclength < file->s->vreclength ||
               !table->s->stored_fields);
-  param->init_fix_record= init_compute_vcols;
   param->fix_record= compute_vcols;
   table->use_all_columns();
 }
@@ -1286,6 +1275,25 @@ int ha_myisam::optimize(THD* thd, HA_CHECK_OPT *check_opt)
 }
 
 
+/*
+  Set current_thd() for parallel worker thread
+  This is needed to evaluate vcols as we must have current_thd set.
+  This will set current_thd in all threads to the same THD, but it's
+  safe, because vcols are always evaluated under info->s->intern_lock.
+
+  This is also used temp_file_size_cb_func() to tmp_space_usage by THD.
+*/
+
+C_MODE_START
+void myisam_setup_thd_for_repair_thread(void *arg)
+{
+  THD *thd= (THD*) arg;
+  DBUG_ASSERT(thd->shared_thd);
+  set_current_thd(thd);
+}
+C_MODE_END
+
+
 int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
 {
   int error=0;
@@ -1357,8 +1365,18 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       {
         /* TODO: respect myisam_repair_threads variable */
         thd_proc_info(thd, "Parallel repair");
-        error = mi_repair_parallel(&param, file, fixed_name,
-                                   MY_TEST(param.testflag & T_QUICK));
+        param.testflag|= T_REP_PARALLEL;
+        /*
+          Ensure that all threads are using the same THD. This is needed
+          to get limit of tmp files to work
+        */
+        param.init_repair_thread= myisam_setup_thd_for_repair_thread;
+        param.init_repair_thread_arg= table->in_use;
+        /* Mark that multiple threads are using the thd */
+        table->in_use->shared_thd= 1;
+        error= mi_repair_parallel(&param, file, fixed_name,
+                                  MY_TEST(param.testflag & T_QUICK));
+        table->in_use->shared_thd= 0;
       }
       else
       {

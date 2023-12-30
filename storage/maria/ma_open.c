@@ -993,6 +993,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       share->w_locks++;			/* We don't have to update status */
       share->tot_locks++;
     }
+    share->tracked= MY_TEST(open_flags & HA_OPEN_SIZE_TRACKING);
 
     _ma_set_index_pagecache_callbacks(&share->kfile, share);
     share->this_process=(ulong) getpid();

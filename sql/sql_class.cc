@@ -816,6 +816,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   net.reading_or_writing= 0;
   client_capabilities= 0;                       // minimalistic client
   system_thread= NON_SYSTEM_THREAD;
+  shared_thd= 0;
   cleanup_done= free_connection_done= abort_on_warning= got_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
   transaction= &default_transaction;
@@ -1314,7 +1315,8 @@ void THD::init()
   update_charset();             // plugin_thd_var() changed character sets
   reset_current_stmt_binlog_format_row();
   reset_binlog_local_stmt_filter();
-  set_status_var_init();
+  /* local_memory_used was setup in THD::THD() */
+  set_status_var_init(clear_for_new_connection);
   status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
@@ -1694,6 +1696,12 @@ void THD::free_connection()
 
 void THD::reset_for_reuse()
 {
+  if (status_var.tmp_space_used)
+  {
+    DBUG_PRINT("error", ("tmp_space_usage: %lld", status_var.tmp_space_used));
+    DBUG_ASSERT(status_var.tmp_space_used == 0 ||
+                !debug_assert_on_not_freed_memory);
+  }
   mysql_audit_init_thd(this);
   change_user();                                // Calls cleanup() & init()
   get_stmt_da()->reset_diagnostics_area();
@@ -1811,6 +1819,13 @@ THD::~THD()
     DBUG_ASSERT(status_var.local_memory_used == 0 ||
                 !debug_assert_on_not_freed_memory);
   }
+  if (status_var.tmp_space_used)
+  {
+    DBUG_PRINT("error", ("tmp_space_usage: %lld", status_var.tmp_space_used));
+    DBUG_ASSERT(status_var.tmp_space_used == 0 ||
+                !debug_assert_on_not_freed_memory);
+  }
+
   update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
@@ -1840,7 +1855,9 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   while (to != end)
     *(to++)+= *(from++);
 
-  /* Handle the not ulong variables. See end of system_status_var */
+  /*
+    Handle the not ulong variables. See end of system_status_var
+  */
   to_var->bytes_received+=      from_var->bytes_received;
   to_var->bytes_sent+=          from_var->bytes_sent;
   to_var->rows_read+=           from_var->rows_read;
@@ -1856,6 +1873,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   /*
     Update global_memory_used. We have to do this with atomic_add as the
     global value can change outside of LOCK_status.
+    Note that local_memory_used is handled in calc_sum_callback().
   */
   if (to_var == &global_status_var)
   {
@@ -1863,9 +1881,14 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
                         (longlong) global_status_var.global_memory_used,
                         (longlong) from_var->global_memory_used));
     update_global_memory_status(from_var->global_memory_used);
+    /* global_tmp_space_used is always kept up to date */
+    to_var->tmp_space_used= global_tmp_space_used;
   }
   else
+  {
    to_var->global_memory_used+= from_var->global_memory_used;
+   to_var->tmp_space_used+= from_var->tmp_space_used;
+  }
 }
 
 /*
@@ -1913,6 +1936,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   /*
     We don't need to accumulate memory_used as these are not reset or used by
     the calling functions.  See execute_show_status().
+    tmp_space_usage also does not need to be accumulated.
   */
 }
 
@@ -4546,11 +4570,15 @@ void thd_increment_bytes_received(void *thd, size_t length)
     ((THD*) thd)->status_var.bytes_received+= length;
 }
 
+/*
+  Clear status variables
 
-void THD::set_status_var_init()
+  @param offset How much to clear. See clear_for_flush_status
+*/
+
+void THD::set_status_var_init(ulong offset)
 {
-  bzero((char*) &status_var, offsetof(STATUS_VAR,
-                                      last_cleared_system_status_var));
+  bzero((char*) &status_var, offset);
   /*
     Session status for Threads_running is always 1. It can only be queried
     by thread itself via INFORMATION_SCHEMA.SESSION_STATUS or SHOW [SESSION]
@@ -5968,6 +5996,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
 void THD::store_slow_query_state(Sub_statement_state *backup)
 {
   backup->affected_rows=           affected_rows;
+  backup->max_tmp_space_used=      max_tmp_space_used;
   backup->bytes_sent_old=          bytes_sent_old;
   backup->examined_row_count=      m_examined_row_count;
   backup->examined_row_count_for_statement= examined_row_count_for_statement;
@@ -5986,6 +6015,7 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
 void THD::reset_slow_query_state(Sub_statement_state *backup)
 {
   affected_rows=                0;
+  max_tmp_space_used=           0;
   bytes_sent_old=               status_var.bytes_sent;
   m_examined_row_count=         0;
   m_sent_row_count=             0;
@@ -6025,6 +6055,7 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
   tmp_tables_size+=              backup->tmp_tables_size;
   tmp_tables_used+=              backup->tmp_tables_used;
+  max_tmp_space_used= MY_MAX(max_tmp_space_used, backup->max_tmp_space_used);
   if (backup->in_stored_procedure)
   {
     /*
@@ -7465,11 +7496,12 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
 
-  auto *cache_mngr= binlog_get_cache_mngr();
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
   if (!cache_mngr)
     DBUG_RETURN(0);
-  auto *cache= binlog_get_cache_data(cache_mngr,
-                                     use_trans_cache(this, is_transactional));
+  binlog_cache_data *cache=
+    binlog_get_cache_data(cache_mngr,
+                          use_trans_cache(this, is_transactional));
 
   int error=
     ::binlog_flush_pending_rows_event(this, stmt_end, is_transactional,
@@ -7764,22 +7796,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   }
 
   /*
-    If we are not in prelocked mode, mysql_unlock_tables() will be
-    called after this binlog_query(), so we have to flush the pending
-    rows event with the STMT_END_F set to unlock all tables at the
-    slave side as well.
-
-    If we are in prelocked mode, the flushing will be done inside the
-    top-most close_thread_tables().
+    We should not flush row events for sub-statements, like a trigger or
+    function. The main statement will take care of the flushing when
+    calling binlog_query().
   */
-  if (this->locked_tables_mode <= LTM_LOCK_TABLES)
+  if (!in_sub_stmt)
   {
-    int error;
-    if (unlikely(error= binlog_flush_pending_rows_event(TRUE, is_trans)))
-    {
-      DBUG_ASSERT(error > 0);
-      DBUG_RETURN(error);
-    }
+    if (unlikely(binlog_flush_pending_rows_event(TRUE, is_trans)))
+      DBUG_RETURN(my_errno);          // Return error code as required
   }
 
   /*

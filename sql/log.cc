@@ -41,6 +41,7 @@
 #include "mysqld.h"
 #include "ddl_log.h"
 #include "gtid_index.h"
+#include "mysys_err.h"          // EE_LOCAL_TMP_SPACE_FULL
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -310,11 +311,6 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
 }
 
 
-/*
-  Helper classes to store non-transactional and transactional data
-  before copying it to the binary log.
-*/
-
 void Log_event_writer::add_status(enum_logged_status status)
 {
   if (likely(cache_data))
@@ -440,6 +436,28 @@ private:
   binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
+
+
+/*
+  Remove all row event from all binlog caches and clear all caches.
+  This is only called from CREATE .. SELECT, in which case it safe to delete
+  also events from the statement cache.
+*/
+
+void THD::binlog_remove_rows_events()
+{
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
+  DBUG_ENTER("THD::binlog_remove_rows_events");
+
+  if (!cache_mngr ||
+      (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open()))
+    DBUG_VOID_RETURN;
+
+  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->stmt_cache);
+  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->trx_cache);
+  cache_mngr->reset(1,1);
+  DBUG_VOID_RETURN;
+}
 
 /**
   The function handles the first phase of two-phase binlogged ALTER.
@@ -1908,20 +1926,19 @@ binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
 static int
 binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
 {
+  int error=0;
   DBUG_ENTER("binlog_truncate_trx_cache");
 
   if(!WSREP_EMULATE_BINLOG_NNULL(thd) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
-
-  int error=0;
 
   DBUG_PRINT("info", ("thd->options={ %s %s}, transaction: %s",
                       FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
                       FLAGSTR(thd->variables.option_bits, OPTION_BEGIN),
                       all ? "all" : "stmt"));
 
-  auto &trx_cache= cache_mngr->trx_cache;
-  MYSQL_BIN_LOG::remove_pending_rows_event(thd, &trx_cache);
+  binlog_cache_data *trx_cache= &cache_mngr->trx_cache;
+  MYSQL_BIN_LOG::remove_pending_rows_event(thd, trx_cache);
   thd->reset_binlog_for_next_statement();
 
   /*
@@ -1930,7 +1947,7 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
   */
   if (ending_trans(thd, all))
   {
-    if (trx_cache.has_incident())
+    if (trx_cache->has_incident())
       error= mysql_bin_log.write_incident(thd);
 
     DBUG_ASSERT(thd->binlog_table_maps == 0);
@@ -1942,9 +1959,9 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
     transaction cache to remove the statement.
   */
   else
-    trx_cache.restore_prev_position();
+    trx_cache->restore_prev_position();
 
-  DBUG_ASSERT(trx_cache.pending() == NULL);
+  DBUG_ASSERT(trx_cache->pending() == NULL);
   DBUG_RETURN(error);
 }
 
@@ -2201,6 +2218,11 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
         cache_mngr->need_unlog= false;
       }
   }
+  else if (thd->lock)
+  {
+    /* If not in LOCK TABLES, flush the transaction log */
+    error= thd->binlog_flush_pending_rows_event(TRUE, TRUE);
+  }
   /*
     This is part of the stmt rollback.
   */
@@ -2388,6 +2410,8 @@ bool Event_log::check_write_error(THD *thd)
     case ER_TRANS_CACHE_FULL:
     case ER_STMT_CACHE_FULL:
     case ER_ERROR_ON_WRITE:
+    case EE_LOCAL_TMP_SPACE_FULL:
+    case EE_GLOBAL_TMP_SPACE_FULL:
     case ER_BINLOG_LOGGING_IMPOSSIBLE:
       checked= TRUE;
     break;
@@ -3266,15 +3290,22 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
       goto err;
     }
 
-    if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
-        thd->tmp_tables_used &&
-        my_b_printf(&log_file,
-                    "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
-                    "Tmp_table_sizes: %s\n",
-                    (ulong) thd->tmp_tables_used,
-                    (ulong) thd->tmp_tables_disk_used,
-                    llstr(thd->tmp_tables_size, llbuff)))
-      goto err;
+    if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN))
+    {
+      if (thd->tmp_tables_used &&
+          my_b_printf(&log_file,
+                      "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
+                      "Tmp_table_sizes: %s\n",
+                      (ulong) thd->tmp_tables_used,
+                      (ulong) thd->tmp_tables_disk_used,
+                      llstr(thd->tmp_tables_size, llbuff)))
+        goto err;
+      if (thd->max_tmp_space_used &&
+          my_b_printf(&log_file,
+                      "# Max_tmp_disk_space_used: %s\n",
+                      llstr(thd->max_tmp_space_used, llbuff)))
+        goto err;
+    }
 
     if (thd->spcont &&
         my_b_printf(&log_file, "# Stored_routine: %s\n",
@@ -4169,7 +4200,7 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
       goto err;
   }
   /* The following will either truncate the file or fill the end with \n' */
-  if (mysql_file_chsize(file, offset - init_offset, '\n', MYF(MY_WME)) ||
+  if (mysql_file_chsize(file, offset - init_offset, '\n', MYF(MY_WME)) > 0 ||
       mysql_file_sync(file, MYF(MY_WME)))
     goto err;
 
@@ -6122,9 +6153,11 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
                                                    MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
+                       LOG_PREFIX, (size_t)binlog_stmt_cache_size,
+                       MYF(MY_WME | MY_TRACK_WITH_LIMIT)) ||
       open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
+                       LOG_PREFIX, (size_t)binlog_cache_size,
+                       MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
   {
     my_free(cache_mngr);
     return NULL;
@@ -6275,7 +6308,8 @@ THD::binlog_start_trans_and_stmt()
         // Replicated events in writeset doesn't have checksum
       Log_event_writer writer(&tmp_io_cache, 0, BINLOG_CHECKSUM_ALG_OFF, NULL);
       if(!open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
-                          128, MYF(MY_WME)))
+                          128,
+                           MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
       {
         uint64 seqno= this->variables.gtid_seq_no;
         uint32 domain_id= this->variables.gtid_domain_id;
@@ -6582,6 +6616,26 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
 }
 
 
+/*
+  Check if there are pending row events in the binlog cache
+
+  @return 0  no
+  @return 1  rows in stmt_cache
+  @return 2  rows in trx_cache
+  @return 3  rows in both
+*/
+
+uint THD::has_pending_row_events()
+{
+  binlog_cache_mngr *cache_mngr;
+  if (!mysql_bin_log.is_open() ||
+      !(cache_mngr= binlog_get_cache_mngr()))
+    return 0;
+  return ((cache_mngr->stmt_cache.pending() ? 1 : 0) |
+          (cache_mngr->trx_cache.pending() ? 2 : 0));
+}
+
+
 /**
   This function removes the pending rows event, discarding any outstanding
   rows. If there is no pending rows event available, this is effectively a
@@ -6650,7 +6704,8 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     {
       set_write_error(thd, is_transactional);
       if (check_cache_error(thd, cache_data) &&
-          stmt_has_updated_non_trans_table(thd))
+          (stmt_has_updated_non_trans_table(thd) ||
+           !is_transactional))
         cache_data->set_incident();
       delete pending;
       cache_data->set_pending(NULL);
@@ -7820,6 +7875,11 @@ int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
 
   IO_CACHE *file= get_log_file();
   IF_DBUG(size_t total= cache->end_of_file,);
+
+  /*
+    Note that for the first loop there is nothing to write if
+    the full file fits into the cache.
+  */
   do
   {
     size_t read_len= cache->read_end - cache->read_pos;
@@ -7851,8 +7911,10 @@ int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
 
 int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
 {
-  DBUG_ENTER("Event_log::write_cache");
+  int res;
   IO_CACHE *cache= &cache_data->cache_log;
+  DBUG_ENTER("Event_log::write_cache");
+
   mysql_mutex_assert_owner(&LOCK_log);
 
   /*
@@ -7868,8 +7930,16 @@ int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
     DBUG_RETURN(res ? ER_ERROR_ON_WRITE : 0);
   }
 
-  if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
+  /*
+    Allow flush of transaction logs to temporary go over the tmp space limit
+    as we do not want the commit to fail
+  */
+  cache->myflags&= ~MY_TRACK_WITH_LIMIT;
+  res= reinit_io_cache(cache, READ_CACHE, 0, 0, 0);
+  cache->myflags|= MY_TRACK_WITH_LIMIT;
+  if (res)
     DBUG_RETURN(ER_ERROR_ON_WRITE);
+
   /* Amount of remaining bytes in the IO_CACHE read buffer. */
   size_t log_file_pos;
   uchar header_buf[LOG_EVENT_HEADER_LEN];
@@ -10056,7 +10126,7 @@ int TC_LOG_MMAP::open(const char *opt_name)
       goto err;
     inited=1;
     file_length= opt_tc_log_size;
-    if (mysql_file_chsize(fd, file_length, 0, MYF(MY_WME)))
+    if (mysql_file_chsize(fd, file_length, 0, MYF(MY_WME)) > 0)
       goto err;
   }
   else
@@ -10673,7 +10743,7 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
 
     // Trim index file
     error= mysql_file_chsize(index_file.file, index_file_offset, '\n',
-                             MYF(MY_WME));
+                             MYF(MY_WME) > 0);
     if (!error)
       error= mysql_file_sync(index_file.file, MYF(MY_WME));
     if (error)
@@ -10715,14 +10785,14 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
   old_size= s.st_size;
   clear_inuse_flag_when_closing(file);
   /* Change binlog file size to truncate_pos */
-  error= mysql_file_chsize(file, pos, 0, MYF(MY_WME));
+  error= mysql_file_chsize(file, pos, 0, MYF(MY_WME)) > 0;
   if (!error)
     error= mysql_file_sync(file, MYF(MY_WME));
   if (error)
   {
     sql_print_error("Failed to truncate the "
-                    "binlog file:%s to size:%llu. Error:%d",
-                    file_name, pos, error);
+                    "binlog file: %s to size: %llu. Error: %d",
+                    file_name, pos, my_errno);
     goto end;
   }
   else

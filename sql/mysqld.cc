@@ -285,6 +285,7 @@ extern "C"
 {
   static void my_malloc_size_cb_func(long long size,
                                      my_bool is_thread_specific);
+  static int temp_file_size_cb_func(struct tmp_file_tracking *track, int no_error);
 }
 
 /* Constants */
@@ -476,6 +477,8 @@ ulong slave_run_triggers_for_rbr= 0;
 ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
+ulonglong global_max_tmp_space_usage;
+Atomic_counter<ulonglong> global_tmp_space_used;
 ulonglong binlog_cache_size=0;
 ulonglong binlog_file_cache_size=0;
 uint slave_connections_needed_for_purge;
@@ -1947,6 +1950,11 @@ static void mysqld_exit(int exit_code)
     if (exit_code == 0 || opt_endinfo)
       SAFEMALLOC_REPORT_MEMORY(0);
   }
+  if (global_tmp_space_used)
+    fprintf(stderr, "Warning: Internal tmp_space accounting error of %lld "
+            "bytes\n",
+            (longlong) global_tmp_space_used);
+
   DBUG_LEAVE;
 #ifdef _WIN32
   my_report_svc_status(SERVICE_STOPPED, exit_code, 0);
@@ -3726,7 +3734,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
                 !debug_assert_on_not_freed_memory);
   }
-  else if (likely(thd))
+  else if (likely(thd) && likely(!thd->shared_thd))
   {
     DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
                         (longlong) thd->status_var.global_memory_used, size));
@@ -3734,6 +3742,77 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
   }
   else
     update_global_memory_status(size);
+}
+
+
+/* Collect temporary file space usage */
+
+static int temp_file_size_cb_func(struct tmp_file_tracking *track,
+                                  int no_error)
+{
+  THD *thd= current_thd;
+  int error= 0;
+  longlong size_change= (longlong) (track->file_size -
+                                    track->previous_file_size);
+  DBUG_ENTER("temp_file_size_cb_func");
+  DBUG_PRINT("enter", ("last: %llu  current: %llu  diff: %lld",
+                       track->previous_file_size,
+                       track->file_size,
+                       (longlong) (track->file_size -
+                                   track->previous_file_size)));
+  DBUG_ASSERT(thd);
+  if (thd)
+  {
+    /*
+      This has to be true as thd must contain all tmp space used and
+      any thus must have been called before with an allocation of
+      track->previous_file_size.
+    */
+    DBUG_ASSERT(thd->status_var.tmp_space_used >= track->previous_file_size);
+    if (unlikely(thd->shared_thd))
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+
+    global_tmp_space_used+= size_change;
+    if (size_change > 0)
+    {
+      /* Cache to avoid reading global_tmp_space_used too many times */
+      ulonglong cached_space= global_tmp_space_used;
+
+      if (cached_space > global_max_tmp_space_usage && !no_error &&
+          global_max_tmp_space_usage)
+      {
+        global_tmp_space_used-= size_change;
+        error= my_errno= EE_GLOBAL_TMP_SPACE_FULL;
+        goto exit;
+      }
+      if (thd->status_var.tmp_space_used + size_change >
+          thd->variables.max_tmp_space_usage && !no_error &&
+          thd->variables.max_tmp_space_usage)
+      {
+        global_tmp_space_used-= size_change;
+        error= my_errno= EE_LOCAL_TMP_SPACE_FULL;
+        goto exit;
+      }
+      set_if_bigger(global_status_var.max_tmp_space_used, cached_space);
+    }
+    thd->status_var.tmp_space_used+= size_change;
+    /* Max value for the connection */
+    set_if_bigger(thd->status_var.max_tmp_space_used,
+                  thd->status_var.tmp_space_used);
+    /* Max value for the query */
+    set_if_bigger(thd->max_tmp_space_used,
+                  thd->status_var.tmp_space_used);
+    DBUG_ASSERT((longlong) global_tmp_space_used >= 0);
+    DBUG_ASSERT((longlong) thd->status_var.tmp_space_used >= 0);
+
+    /* Record that we have registered the change */
+    track->previous_file_size= track->file_size;
+
+exit:
+    if (unlikely(thd->shared_thd))
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+  DBUG_RETURN(error);
 }
 
 int json_escape_string(const char *str,const char *str_end,
@@ -3798,6 +3877,7 @@ static int init_early_variables()
 {
   set_current_thd(0);
   set_malloc_size_cb(my_malloc_size_cb_func);
+  update_tmp_file_size= temp_file_size_cb_func;
   global_status_var.global_memory_used= 0;
   init_alloc_root(PSI_NOT_INSTRUMENTED, &startup_root, 1024, 0, MYF(0));
   init_alloc_root(PSI_NOT_INSTRUMENTED, &read_only_root, 1024, 0,
@@ -7452,6 +7532,7 @@ SHOW_VAR status_vars[]= {
   {"Master_gtid_wait_count",   (char*) offsetof(STATUS_VAR, master_gtid_wait_count), SHOW_LONG_STATUS},
   {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONG_STATUS},
   {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONG_STATUS},
+  {"Max_tmp_space_used",       (char*) offsetof(STATUS_VAR, max_tmp_space_used), SHOW_LONGLONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
   {"Max_used_connections_time",(char*) &show_max_used_connections_time, SHOW_SIMPLE_FUNC},
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
@@ -7576,6 +7657,7 @@ SHOW_VAR status_vars[]= {
   {"Tc_log_page_size",         (char*) &tc_log_page_size,       SHOW_LONG_NOFLUSH},
   {"Tc_log_page_waits",        (char*) &tc_log_page_waits,      SHOW_LONG},
 #endif
+  {"Tmp_space_used",           (char*) offsetof(STATUS_VAR, tmp_space_used), SHOW_LONGLONG_STATUS},
 #ifdef HAVE_POOL_OF_THREADS
   {"Threadpool_idle_threads",  (char *) &show_threadpool_idle_threads, SHOW_SIMPLE_FUNC},
   {"Threadpool_threads",       (char *) &show_threadpool_threads, SHOW_SIMPLE_FUNC},
@@ -7796,9 +7878,7 @@ static int mysql_init_variables(void)
   prepared_stmt_count= 0;
   mysqld_unix_port= opt_mysql_tmpdir= my_bind_addr_str= NullS;
   bzero((uchar*) &mysql_tmpdir_list, sizeof(mysql_tmpdir_list));
-  /* Clear all except global_memory_used */
-  bzero((char*) &global_status_var, offsetof(STATUS_VAR,
-                                             last_cleared_system_status_var));
+  bzero((char*) &global_status_var, clear_for_server_start);
   opt_large_pages= 0;
   opt_super_large_pages= 0;
 #if defined(ENABLED_DEBUG_SYNC)
@@ -9118,7 +9198,7 @@ void refresh_session_status(THD *thd)
   mysql_mutex_unlock(&LOCK_status);
 
   /* Reset thread's status variables */
-  thd->set_status_var_init();
+  thd->set_status_var_init(clear_for_flush_status);
   thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
@@ -9142,7 +9222,7 @@ void refresh_global_status()
     Reset accoumulated thread's status variables.
     These are the variables in 'status_vars[]' mwith the prefix _STATUS.
  */
-  bzero((char*) &global_status_var, clear_up_to_tmp_space_used);
+  bzero((char*) &global_status_var, clear_for_flush_status);
 
 #ifdef WITH_WSREP
   if (WSREP_ON)

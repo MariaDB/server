@@ -1580,7 +1580,8 @@ public:
       return true;
 
     if (open_cached_file(&io_cache, mysql_tmpdir, TEMP_PREFIX,
-                         1024, MYF(MY_WME)))
+                         1024,
+                         MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
       return true;
 
     handler *h= owner->stat_file;
@@ -1604,12 +1605,14 @@ public:
 
     do {
       h->position(owner->record[0]);
-      my_b_write(&io_cache, h->ref, rowid_size);
+      if (my_b_write(&io_cache, h->ref, rowid_size))
+        return true;
 
     } while (!h->ha_index_next_same(owner->record[0], key, prefix_len));
 
     /* Prepare for reading */
-    reinit_io_cache(&io_cache, READ_CACHE, 0L, 0, 0);
+    if (reinit_io_cache(&io_cache, READ_CACHE, 0L, 0, 0))
+      return true;
     h->ha_index_or_rnd_end();
     if (h->ha_rnd_init(false))
       return true;

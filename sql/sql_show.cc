@@ -345,11 +345,32 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+/* Ignore common errors from plugin load */
+
+class plugin_show_error_handler : public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    if (sql_errno == ER_CANT_FIND_DL_ENTRY)
+      return true;
+    return false;
+  }
+};
+
+
 int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("fill_all_plugins");
   TABLE *table= tables->table;
   LOOKUP_FIELD_VALUES lookup;
+  plugin_show_error_handler err_handler;
+  const char *wstr, *wend;
 
   if (get_lookup_field_values(thd, cond, true, tables, &lookup))
     DBUG_RETURN(0);
@@ -364,10 +385,16 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(1);
   }
 
-  if (!lookup.db_value.str)
-    plugin_dl_foreach(thd, 0, show_plugins, table);
+  thd->push_internal_handler(&err_handler);
 
-  const char *wstr= lookup.db_value.str, *wend= wstr + lookup.db_value.length;
+  if (!lookup.db_value.str)
+  {
+    if (plugin_dl_foreach(thd, 0, show_plugins, table) && thd->is_error())
+      goto end;
+  }
+
+  wstr= lookup.db_value.str;
+  wend= wstr + lookup.db_value.length;
   for (size_t i=0; i < dirp->number_of_files; i++)
   {
     FILEINFO *file= dirp->dir_entry+i;
@@ -394,12 +421,14 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
       }
     }
 
-    plugin_dl_foreach(thd, &dl, show_plugins, table);
-    thd->clear_error();
+    if (plugin_dl_foreach(thd, &dl, show_plugins, table) && thd->is_error())
+      break;
   }
 
+end:
+  thd->pop_internal_handler();
   my_dirend(dirp);
-  DBUG_RETURN(0);
+  DBUG_RETURN(thd->is_error());
 }
 
 
@@ -3459,6 +3488,8 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
 
   arg->table->field[18]->store(tmp->os_thread_id);
 
+  arg->table->field[19]->store((longlong) tmp->status_var.tmp_space_used, TRUE);
+
   if (schema_table_store_record(arg->thd, arg->table))
     return 1;
   return 0;
@@ -4824,10 +4855,15 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
                && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
                && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
       if (!run)
+      {
         thd->clear_error();
+        result= false;
+      }
       else if (!ext_error_handling)
+      {
         convert_error_to_warning(thd);
-      result= false;
+        result= false;
+      }
     }
   }
 
@@ -10140,6 +10176,7 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
   Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),
+  Column("TMP_SPACE_USED", SLonglong(10),             NOT_NULL, "Tmp_space_used"),
   CEnd()
 };
 
