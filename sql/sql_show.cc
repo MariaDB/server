@@ -3582,6 +3582,8 @@ void reset_status_vars()
     /* Note that SHOW_LONG_NOFLUSH variables are not reset */
     if (ptr->type == SHOW_LONG)
       *(ulong*) ptr->value= 0;
+    if (ptr->type == SHOW_LONGLONG)
+      *(ulonglong*) ptr->value= 0;
   }
 }
 
@@ -3780,6 +3782,7 @@ const char* get_one_variable(THD *thd,
   case SHOW_SLONG:
     end= int10_to_str(*value.as_long, buff, -10);
     break;
+  case SHOW_LONGLONG_NOFLUSH: // the difference lies in refresh_status()
   case SHOW_SLONGLONG:
     end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;

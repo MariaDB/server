@@ -54,6 +54,7 @@ static inline SHOW_SCOPE show_scope_from_type(enum enum_mysql_show_type type)
     case SHOW_UINT:
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
+    case SHOW_LONGLONG_NOFLUSH:
       return SHOW_SCOPE_GLOBAL;
 
     case SHOW_DOUBLE_STATUS:
@@ -734,6 +735,7 @@ bool PFS_status_variable_cache::can_aggregate(enum_mysql_show_type variable_type
     case SHOW_DOUBLE_STATUS:
     case SHOW_HA_ROWS:
     case SHOW_LONG_NOFLUSH:
+    case SHOW_LONGLONG_NOFLUSH:
     case SHOW_SLONG:
     default:
       return false;
