@@ -1227,7 +1227,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 	/* Enlarge files */
   DBUG_PRINT("info", ("enlarge to keystart: %lu",
                       (ulong) share.base.keystart));
-  if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)))
+  if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)) > 0)
     goto err;
 
   if (!internal_table && sync_dir && mysql_file_sync(file, MYF(0)))
@@ -1237,7 +1237,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
 #ifdef USE_RELOC
     if (mysql_file_chsize(key_file_dfile, dfile,
-                          share.base.min_pack_length*ci->reloc_rows,0,MYF(0)))
+                          share.base.min_pack_length*ci->reloc_rows,0,MYF(0))
+        > 0)
       goto err;
 #endif
     if (!internal_table && sync_dir && mysql_file_sync(dfile, MYF(0)))

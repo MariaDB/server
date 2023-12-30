@@ -49,6 +49,7 @@
 #define HA_OPEN_MERGE_TABLE		2048U
 #define HA_OPEN_FOR_CREATE              4096U
 #define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
+#define HA_OPEN_SIZE_TRACKING           (1U << 14)
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
@@ -536,7 +537,9 @@ enum ha_base_keytype {
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
 #define HA_ERR_NO_ENCRYPTION      199
-#define HA_ERR_LAST               199  /* Copy of last error nr * */
+#define HA_ERR_LOCAL_TMP_SPACE_FULL   200
+#define HA_ERR_GLOBAL_TMP_SPACE_FULL  201
+#define HA_ERR_LAST               201  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
