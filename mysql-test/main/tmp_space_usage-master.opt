@@ -1,0 +1,4 @@
+--log-bin
+--binlog-format=row
+--max_tmp_space_usage=512K
+--max_total_tmp_space_usage=768K

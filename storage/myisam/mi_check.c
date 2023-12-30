@@ -1651,7 +1651,7 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   {
     (void) fputs("          \r",stdout); (void) fflush(stdout);
   }
-  if (mysql_file_chsize(share->kfile, info->state->key_file_length, 0, MYF(0)))
+  if (mysql_file_chsize(share->kfile, info->state->key_file_length, 0, MYF(0)) > 0)
   {
     mi_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
@@ -2495,7 +2495,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
       skr=share->base.reloc*share->base.min_pack_length;
 #endif
     if (skr != sort_info.filelength)
-      if (mysql_file_chsize(info->dfile, skr, 0, MYF(0)))
+      if (mysql_file_chsize(info->dfile, skr, 0, MYF(0)) > 0)
 	mi_check_print_warning(param,
 			       "Can't change size of datafile,  error: %d",
 			       my_errno);
@@ -2503,7 +2503,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   if (param->testflag & T_CALC_CHECKSUM)
     info->state->checksum=param->glob_crc;
 
-  if (mysql_file_chsize(share->kfile, info->state->key_file_length, 0, MYF(0)))
+  if (mysql_file_chsize(share->kfile, info->state->key_file_length, 0, MYF(0)) > 0)
     mi_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
 			   my_errno);
@@ -3033,7 +3033,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       skr=share->base.reloc*share->base.min_pack_length;
 #endif
     if (skr != sort_info.filelength)
-      if (mysql_file_chsize(info->dfile, skr, 0, MYF(0)))
+      if (mysql_file_chsize(info->dfile, skr, 0, MYF(0)) > 0)
 	mi_check_print_warning(param,
 			       "Can't change size of datafile,  error: %d",
 			       my_errno);
@@ -3041,7 +3041,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   if (param->testflag & T_CALC_CHECKSUM)
     info->state->checksum=param->glob_crc;
 
-  if (mysql_file_chsize(share->kfile, info->state->key_file_length, 0, MYF(0)))
+  if (mysql_file_chsize(share->kfile, info->state->key_file_length, 0, MYF(0)) > 0)
     mi_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d", my_errno);
 

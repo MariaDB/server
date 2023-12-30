@@ -2860,7 +2860,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
     fputs("          \r",stdout); fflush(stdout);
   }
   if (mysql_file_chsize(share->kfile.file,
-                        share->state.state.key_file_length, 0, MYF(0)))
+                        share->state.state.key_file_length, 0, MYF(0)) > 0)
   {
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
@@ -4165,7 +4165,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
       skr=share->base.reloc*share->base.min_pack_length;
 #endif
     if (skr != sort_info.filelength)
-      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)))
+      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)) > 0)
 	_ma_check_print_warning(param,
 			       "Can't change size of datafile,  error: %d",
 			       my_errno);
@@ -4175,7 +4175,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
     share->state.state.checksum=param->glob_crc;
 
   if (mysql_file_chsize(share->kfile.file,
-                        share->state.state.key_file_length, 0, MYF(0)))
+                        share->state.state.key_file_length, 0, MYF(0)) > 0)
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
 			   my_errno);
@@ -4713,7 +4713,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       skr=share->base.reloc*share->base.min_pack_length;
 #endif
     if (skr != sort_info.filelength)
-      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)))
+      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)) > 0)
 	_ma_check_print_warning(param,
 			       "Can't change size of datafile,  error: %d",
 			       my_errno);
@@ -4722,7 +4722,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     share->state.state.checksum=param->glob_crc;
 
   if (mysql_file_chsize(share->kfile.file,
-                        share->state.state.key_file_length, 0, MYF(0)))
+                        share->state.state.key_file_length, 0, MYF(0)) > 0)
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
                             my_errno);

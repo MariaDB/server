@@ -1314,7 +1314,8 @@ void THD::init()
   update_charset();             // plugin_thd_var() changed character sets
   reset_current_stmt_binlog_format_row();
   reset_binlog_local_stmt_filter();
-  set_status_var_init();
+  /* local_memory_used was setup in THD::THD() */
+  set_status_var_init(clear_up_to_memory_used);
   status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
@@ -1694,6 +1695,12 @@ void THD::free_connection()
 
 void THD::reset_for_reuse()
 {
+  if (status_var.tmp_space_used)
+  {
+    DBUG_PRINT("error", ("tmp_space_usage: %lld", status_var.tmp_space_used));
+    DBUG_ASSERT(status_var.tmp_space_used == 0 ||
+                !debug_assert_on_not_freed_memory);
+  }
   mysql_audit_init_thd(this);
   change_user();                                // Calls cleanup() & init()
   get_stmt_da()->reset_diagnostics_area();
@@ -1810,6 +1817,13 @@ THD::~THD()
     DBUG_ASSERT(status_var.local_memory_used == 0 ||
                 !debug_assert_on_not_freed_memory);
   }
+  if (status_var.tmp_space_used)
+  {
+    DBUG_PRINT("error", ("tmp_space_usage: %lld", status_var.tmp_space_used));
+    DBUG_ASSERT(status_var.tmp_space_used == 0 ||
+                !debug_assert_on_not_freed_memory);
+  }
+
   update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
@@ -1839,7 +1853,9 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   while (to != end)
     *(to++)+= *(from++);
 
-  /* Handle the not ulong variables. See end of system_status_var */
+  /*
+    Handle the not ulong variables. See end of system_status_var
+  */
   to_var->bytes_received+=      from_var->bytes_received;
   to_var->bytes_sent+=          from_var->bytes_sent;
   to_var->rows_read+=           from_var->rows_read;
@@ -1855,6 +1871,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   /*
     Update global_memory_used. We have to do this with atomic_add as the
     global value can change outside of LOCK_status.
+    Note that local_memory_used is handled in calc_sum_callback().
   */
   if (to_var == &global_status_var)
   {
@@ -1862,9 +1879,14 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
                         (longlong) global_status_var.global_memory_used,
                         (longlong) from_var->global_memory_used));
     update_global_memory_status(from_var->global_memory_used);
+    /* global_tmp_space_used is always kept up to date */
+    to_var->tmp_space_used= global_tmp_space_used;
   }
   else
+  {
    to_var->global_memory_used+= from_var->global_memory_used;
+   to_var->tmp_space_used+= from_var->tmp_space_used;
+  }
 }
 
 /*
@@ -1912,6 +1934,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   /*
     We don't need to accumulate memory_used as these are not reset or used by
     the calling functions.  See execute_show_status().
+    tmp_space_usage also does not need to be accumulated.
   */
 }
 
@@ -4545,11 +4568,15 @@ void thd_increment_bytes_received(void *thd, size_t length)
     ((THD*) thd)->status_var.bytes_received+= length;
 }
 
+/*
+  Clear status variables
 
-void THD::set_status_var_init()
+  @param offset How much to clear. See clear_up_to_tmp_space_used
+*/
+
+void THD::set_status_var_init(ulong offset)
 {
-  bzero((char*) &status_var, offsetof(STATUS_VAR,
-                                      last_cleared_system_status_var));
+  bzero((char*) &status_var, offset);
   /*
     Session status for Threads_running is always 1. It can only be queried
     by thread itself via INFORMATION_SCHEMA.SESSION_STATUS or SHOW [SESSION]
