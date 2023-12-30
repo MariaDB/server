@@ -257,7 +257,8 @@ ret:
       the effect of the background thread on SHOW STATUS.
     */
     server_threads.erase(thd);
-    thd->set_status_var_init();
+    DBUG_ASSERT(thd->status_var.tmp_space_used == 0);
+    thd->set_status_var_init(clear_up_to_memory_used);
     thd->killed= KILL_CONNECTION;
     delete thd;
     thd= 0;

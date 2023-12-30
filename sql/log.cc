@@ -40,6 +40,7 @@
 #include "sql_audit.h"
 #include "mysqld.h"
 #include "ddl_log.h"
+#include "mysys_err.h"          // EE_LOCAL_TMP_SPACE_FULL
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -330,13 +331,13 @@ public:
   {
     bool cache_was_empty= empty();
     bool truncate_file= (cache_log.file != -1 &&
-                         my_b_write_tell(&cache_log) > CACHE_FILE_TRUNC_SIZE);
+                         my_b_write_tell(&cache_log) >
+                         MY_MIN(CACHE_FILE_TRUNC_SIZE, binlog_stmt_cache_size));
     truncate(0,1);                              // Forget what's in cache
     if (!cache_was_empty)
       compute_statistics();
     if (truncate_file)
-      my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
-
+      truncate_io_cache(&cache_log);
     status= 0;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
@@ -494,7 +495,6 @@ private:
   binlog_cache_data& operator=(const binlog_cache_data& info);
   binlog_cache_data(const binlog_cache_data& info);
 };
-
 
 void Log_event_writer::add_status(enum_logged_status status)
 {
@@ -2530,6 +2530,8 @@ bool MYSQL_BIN_LOG::check_write_error(THD *thd)
     case ER_TRANS_CACHE_FULL:
     case ER_STMT_CACHE_FULL:
     case ER_ERROR_ON_WRITE:
+    case EE_LOCAL_TMP_SPACE_FULL:
+    case EE_GLOBAL_TMP_SPACE_FULL:
     case ER_BINLOG_LOGGING_IMPOSSIBLE:
       checked= TRUE;
     break;
@@ -4257,7 +4259,7 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
       goto err;
   }
   /* The following will either truncate the file or fill the end with \n' */
-  if (mysql_file_chsize(file, offset - init_offset, '\n', MYF(MY_WME)) ||
+  if (mysql_file_chsize(file, offset - init_offset, '\n', MYF(MY_WME)) > 0 ||
       mysql_file_sync(file, MYF(MY_WME)))
     goto err;
 
@@ -5944,9 +5946,11 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
                                   sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
+                       LOG_PREFIX, (size_t)binlog_stmt_cache_size,
+                       MYF(MY_WME | MY_TRACK | MY_TRACK_WITH_LIMIT)) ||
       open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
+                       LOG_PREFIX, (size_t)binlog_cache_size,
+                       MYF(MY_WME | MY_TRACK | MY_TRACK_WITH_LIMIT)))
   {
     my_free(cache_mngr);
     DBUG_RETURN(0);                      // Didn't manage to set it up
@@ -6071,7 +6075,8 @@ THD::binlog_start_trans_and_stmt()
       IO_CACHE tmp_io_cache;
       Log_event_writer writer(&tmp_io_cache, 0);
       if(!open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
-                          128, MYF(MY_WME)))
+                          128,
+                           MYF(MY_WME | MY_TRACK | MY_TRACK_WITH_LIMIT)))
       {
         uint64 seqno= this->variables.gtid_seq_no;
         uint32 domain_id= this->variables.gtid_domain_id;
@@ -7503,13 +7508,21 @@ public:
   {
     DBUG_ENTER("CacheWriter::write");
     if (first)
-      write_header(pos, len);
+    {
+      if (write_header(pos, len))
+        DBUG_RETURN(1);
+    }
     else
-      write_data(pos, len);
-
+    {
+      if (write_data(pos, len))
+        DBUG_RETURN(1);
+    }
     remains -= len;
     if ((first= !remains))
-      write_footer();
+    {
+      if (write_footer())
+        DBUG_RETURN(1);
+    }
     DBUG_RETURN(0);
   }
 private:
@@ -7539,6 +7552,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
 
   mysql_mutex_assert_owner(&LOCK_log);
+
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   size_t length= my_b_bytes_in_cache(cache), group, carry, hdr_offs;
@@ -9729,7 +9743,7 @@ int TC_LOG_MMAP::open(const char *opt_name)
       goto err;
     inited=1;
     file_length= opt_tc_log_size;
-    if (mysql_file_chsize(fd, file_length, 0, MYF(MY_WME)))
+    if (mysql_file_chsize(fd, file_length, 0, MYF(MY_WME)) > 0)
       goto err;
   }
   else
@@ -10346,7 +10360,7 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
 
     // Trim index file
     error= mysql_file_chsize(index_file.file, index_file_offset, '\n',
-                             MYF(MY_WME));
+                             MYF(MY_WME) > 0);
     if (!error)
       error= mysql_file_sync(index_file.file, MYF(MY_WME));
     if (error)
@@ -10388,14 +10402,14 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
   old_size= s.st_size;
   clear_inuse_flag_when_closing(file);
   /* Change binlog file size to truncate_pos */
-  error= mysql_file_chsize(file, pos, 0, MYF(MY_WME));
+  error= mysql_file_chsize(file, pos, 0, MYF(MY_WME)) > 0;
   if (!error)
     error= mysql_file_sync(file, MYF(MY_WME));
   if (error)
   {
     sql_print_error("Failed to truncate the "
-                    "binlog file:%s to size:%llu. Error:%d",
-                    file_name, pos, error);
+                    "binlog file: %s to size: %llu. Error: %d",
+                    file_name, pos, my_errno);
     goto end;
   }
   else

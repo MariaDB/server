@@ -132,8 +132,15 @@ int maria_delete_all_rows(MARIA_HA *info)
   if (_ma_flush_table_files(info, MARIA_FLUSH_DATA|MARIA_FLUSH_INDEX,
                             FLUSH_IGNORE_CHANGED, FLUSH_IGNORE_CHANGED) ||
       mysql_file_chsize(info->dfile.file, 0, 0, MYF(MY_WME)) ||
-      mysql_file_chsize(share->kfile.file, share->base.keystart, 0, MYF(MY_WME)))
+      mysql_file_chsize(share->kfile.file, share->base.keystart, 0,
+                        MYF(MY_WME)))
     goto err;
+
+  if (info->s->tracked)
+  {
+    _ma_update_tmp_file_size(&info->s->track_data, 0);
+    _ma_update_tmp_file_size(&info->s->track_index, share->base.keystart);
+  }
 
   if (_ma_initialize_data_file(share, info->dfile.file))
     goto err;

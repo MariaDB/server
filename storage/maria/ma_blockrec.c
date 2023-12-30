@@ -2091,7 +2091,8 @@ static my_bool write_tail(MARIA_HA *info,
         data_file_length after writing any log record (FILE_ID/REDO/UNDO) (see
         collect_tables()).
       */
-      _ma_set_share_data_file_length(share, position + block_size);
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        res= 1;
     }
   }
   DBUG_RETURN(res);
@@ -2194,7 +2195,10 @@ static my_bool write_full_pages(MARIA_HA *info,
     DBUG_ASSERT(block->used & BLOCKUSED_USED);
   }
   if (share->state.state.data_file_length < max_position)
-    _ma_set_share_data_file_length(share, max_position);
+  {
+    if (_ma_set_share_data_file_length(info, max_position))
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
@@ -3216,7 +3220,10 @@ static my_bool write_block_record(MARIA_HA *info,
     /* Increase data file size, if extended */
     position= (my_off_t) head_block->page * block_size;
     if (share->state.state.data_file_length <= position)
-      _ma_set_share_data_file_length(share, position + block_size);
+    {
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        goto disk_err;
+    }
   }
 
   if (share->now_transactional && (tmp_data_used || blob_full_pages_exists))

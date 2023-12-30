@@ -417,6 +417,13 @@ my_off_t _ma_new(register MARIA_HA *info, int level,
       DBUG_RETURN(HA_OFFSET_ERROR);
     }
     share->state.state.key_file_length+= block_size;
+    if (info->s->tracked &&
+        _ma_update_tmp_file_size(&share->track_index,
+                                 share->state.state.key_file_length))
+    {
+      mysql_mutex_unlock(&share->intern_lock);
+      DBUG_RETURN(HA_OFFSET_ERROR);
+    }
     /* Following is for not transactional tables */
     info->state->key_file_length= share->state.state.key_file_length;
     mysql_mutex_unlock(&share->intern_lock);
