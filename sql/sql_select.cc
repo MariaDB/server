@@ -29964,6 +29964,12 @@ AGGR_OP::end_send()
   bool keep_last_filesort_result = join_tab->filesort ? false : true;
   if (join_tab->window_funcs_step)
   {
+    /*
+      Item_copy_xxx objects may be involved in window functions processing,
+      so it needs to actualize their values by copying from the temp table
+    */
+    copy_fields(&join->tmp_table_param);
+
     if (join_tab->window_funcs_step->exec(join, keep_last_filesort_result))
       return NESTED_LOOP_ERROR;
   }

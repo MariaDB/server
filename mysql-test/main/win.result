@@ -4391,3 +4391,13 @@ row_number() OVER (order by a)
 2
 3
 drop table t1;
+#
+# MDEV-32302: Window functions operate on uninitialized Item_copy objects
+#
+SELECT CONVERT('2607:f0d0:1002:0051:0000:0000:0000:0004', INET6) x,
+ROW_NUMBER() OVER (ORDER BY avg(1), x LIKE '1');
+x	ROW_NUMBER() OVER (ORDER BY avg(1), x LIKE '1')
+2607:f0d0:1002:51::4	1
+#
+# End of 10.5 tests
+#
