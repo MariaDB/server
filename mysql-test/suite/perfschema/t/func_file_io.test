@@ -17,7 +17,7 @@ update performance_schema.threads SET instrumented = 'YES'
 
 # reset lost counters
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;

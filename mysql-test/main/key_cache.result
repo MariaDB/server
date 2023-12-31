@@ -551,7 +551,7 @@ KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_B
 default	1	NULL	2097152	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 flush tables;
-flush status;
+flush global status;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	1	NULL	2097152	1024	4	#	0	0	0	0	0
@@ -632,7 +632,7 @@ Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 flush tables;
-flush status;
+flush global status;
 update t1 set a='zzzz' where a='qqqq';
 set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 select * from information_schema.key_caches where segment_number is null;

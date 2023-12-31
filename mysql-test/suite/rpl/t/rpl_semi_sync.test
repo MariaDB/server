@@ -313,7 +313,7 @@ SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 # Do not write the FLUSH STATUS to binlog, to make sure we'll get a
 # clean status after this.
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 echo [ Semi-sync master status variables after FLUSH STATUS ];
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';

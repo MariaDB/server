@@ -262,7 +262,7 @@ Rpl_semi_sync_master_no_tx	12
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	15
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 [ Semi-sync master status variables after FLUSH STATUS ]
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
