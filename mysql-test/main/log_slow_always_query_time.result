@@ -1,0 +1,22 @@
+select @@session.log_slow_always_query_time;
+@@session.log_slow_always_query_time
+31536000.000000
+SET GLOBAL log_slow_always_query_time= 20.2;
+SET SESSION log_slow_always_query_time=20.2;
+select @@global.log_slow_always_query_time, @@session.log_slow_always_query_time;
+@@global.log_slow_always_query_time	@@session.log_slow_always_query_time
+20.200000	20.200000
+set GLOBAL log_slow_always_query_time= default;
+SET log_slow_query_time=0.5;
+SET log_slow_rate_limit=999;
+SET log_slow_always_query_time=1.5;
+SET log_slow_min_examined_row_limit= 100;
+[slow_log_start.inc] log_slow_always_query_time-1
+SELECT sleep(2) as 'this-should-be-logged';
+this-should-be-logged
+0
+SELECT sleep(1) as 'this-should-not-be-logged';
+this-should-not-be-logged
+0
+[log_grep.inc] file: log_slow_always_query_time-1 pattern: this-should expected_matches: 1
+[log_grep.inc] lines:   1
