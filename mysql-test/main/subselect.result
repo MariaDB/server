@@ -7126,9 +7126,10 @@ MIN(b)
 NULL
 # The following shows that t2 was indeed scanned with a full scan.
 show table_statistics;
-Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
-test	t1	2	0	0
-test	t2	3	0	0
+Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes	Rows_inserted	Rows_updated	Rows_deleted	Key_read_hits	Key_read_misses
+test	t1	2	0	0	0	0	0	0	0
+test	t2	3	0	0	0	0	0	1	0
+test	t3	0	0	0	0	0	0	0	1
 show index_statistics;
 Table_schema	Table_name	Index_name	Rows_read
 test	t2	b	1

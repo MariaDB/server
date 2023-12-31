@@ -15,6 +15,8 @@ ROWS_SENT	bigint(21)	NO		NULL
 ROWS_DELETED	bigint(21)	NO		NULL	
 ROWS_INSERTED	bigint(21)	NO		NULL	
 ROWS_UPDATED	bigint(21)	NO		NULL	
+KEY_READ_HITS	bigint(21)	NO		NULL	
+KEY_READ_MISSES	bigint(21)	NO		NULL	
 SELECT_COMMANDS	bigint(21)	NO		NULL	
 UPDATE_COMMANDS	bigint(21)	NO		NULL	
 OTHER_COMMANDS	bigint(21)	NO		NULL	
@@ -42,6 +44,8 @@ ROWS_SENT	bigint(21)	NO		NULL
 ROWS_DELETED	bigint(21)	NO		NULL	
 ROWS_INSERTED	bigint(21)	NO		NULL	
 ROWS_UPDATED	bigint(21)	NO		NULL	
+KEY_READ_HITS	bigint(21)	NO		NULL	
+KEY_READ_MISSES	bigint(21)	NO		NULL	
 SELECT_COMMANDS	bigint(21)	NO		NULL	
 UPDATE_COMMANDS	bigint(21)	NO		NULL	
 OTHER_COMMANDS	bigint(21)	NO		NULL	
@@ -66,6 +70,11 @@ TABLE_NAME	varchar(192)	NO		NULL
 ROWS_READ	bigint(21)	NO		NULL	
 ROWS_CHANGED	bigint(21)	NO		NULL	
 ROWS_CHANGED_X_INDEXES	bigint(21)	NO		NULL	
+ROWS_INSERTED	bigint(21)	NO		NULL	
+ROWS_UPDATED	bigint(21)	NO		NULL	
+ROWS_DELETED	bigint(21)	NO		NULL	
+KEY_READ_HITS	bigint(21)	NO		NULL	
+KEY_READ_MISSES	bigint(21)	NO		NULL	
 set @save_general_log=@@global.general_log;
 set @@global.general_log=0;
 set @@global.userstat=1;
@@ -116,7 +125,7 @@ Handler_mrr_key_refills	0
 Handler_mrr_rowid_refills	0
 Handler_prepare	18
 Handler_read_first	0
-Handler_read_key	17
+Handler_read_key	9
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -134,15 +143,15 @@ Handler_update	5
 Handler_write	7
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
 handler_read_key
-17
+9
 disconnect ssl_con;
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
 select * from information_schema.table_statistics;
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES
 show table_statistics;
-Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
+Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes	Rows_inserted	Rows_updated	Rows_deleted	Key_read_hits	Key_read_misses
 show index_statistics;
 Table_schema	Table_name	Index_name	Rows_read
 select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;;
@@ -190,7 +199,7 @@ flush index_statistics;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
 select * from information_schema.table_statistics;
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES
 show status like "%generic%";
 Variable_name	Value
 Com_show_generic	2
@@ -239,12 +248,18 @@ set @@global.general_log=@save_general_log;
 #
 create function f() returns int return (select 1 from performance_schema.threads);
 set global userstat= 1;
+create table t1 (a int primary key);
+insert into t1 values (1),(2);
+select * from t1 where a=1;
+a
+1
 select f() from information_schema.table_statistics;
 ERROR 21000: Subquery returns more than 1 row
 select f() from information_schema.index_statistics;
 ERROR 21000: Subquery returns more than 1 row
 set global userstat= 0;
 drop function f;
+drop table t1;
 #
 # End of 10.2 tests
 #
