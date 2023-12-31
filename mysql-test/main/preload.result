@@ -45,7 +45,7 @@ select count(*) from t2;
 count(*)
 20672
 flush tables;
-flush status;
+flush global status;
 show status like "key_read%";
 Variable_name	Value
 Key_read_requests	0
@@ -65,7 +65,7 @@ Variable_name	Value
 Key_read_requests	588
 Key_reads	60
 flush tables;
-flush status;
+flush global status;
 select @@preload_buffer_size;
 @@preload_buffer_size
 32768
@@ -84,7 +84,7 @@ Variable_name	Value
 Key_read_requests	1068
 Key_reads	774
 flush tables;
-flush status;
+flush global status;
 show status like "key_read%";
 Variable_name	Value
 Key_read_requests	0
@@ -108,7 +108,7 @@ Variable_name	Value
 Key_read_requests	311
 Key_reads	75
 flush tables;
-flush status;
+flush global status;
 show status like "key_read%";
 Variable_name	Value
 Key_read_requests	0
@@ -136,7 +136,7 @@ Variable_name	Value
 Key_read_requests	1266
 Key_reads	821
 flush tables;
-flush status;
+flush global status;
 show status like "key_read%";
 Variable_name	Value
 Key_read_requests	0
@@ -151,7 +151,7 @@ Variable_name	Value
 Key_read_requests	478
 Key_reads	478
 flush tables;
-flush status;
+flush global status;
 show status like "key_read%";
 Variable_name	Value
 Key_read_requests	0

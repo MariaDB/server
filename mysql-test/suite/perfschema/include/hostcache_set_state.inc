@@ -2,7 +2,7 @@
 
 # Set a known initial state for the test
 
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;
