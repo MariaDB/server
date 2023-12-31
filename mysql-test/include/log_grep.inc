@@ -9,7 +9,6 @@ perl;
 
   open my $command_file, ">", "$ENV{'LOG_GREP_PERL_RESULT'}" or die "Cannot create file";
 
-  $log_file=           $ENV{'log_file'};
   $log_file_full_path= $ENV{'log_file_full_path'};
   $log_slow_rate_test= $ENV{'log_slow_rate_test'};
   open(FILE, "$log_file_full_path")
