@@ -5123,7 +5123,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
     E.g., lets consider the following statements
       SET slow_query_log= 1;
-      SET @@long_query_time=0.01;
+      SET @@log_slow_query_time=0.01;
       PREPARE stmt FROM 'set statement slow_query_log=0 for select sleep(0.1)';
       EXECUTE stmt;
 

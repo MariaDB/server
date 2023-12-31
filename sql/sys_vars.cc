@@ -1624,38 +1624,64 @@ static Sys_var_ulong Sys_log_warnings(
        CMD_LINE(OPT_ARG, 'W'),
        VALID_RANGE(0, UINT_MAX), DEFAULT(2), BLOCK_SIZE(1));
 
-static bool update_cached_long_query_time(sys_var *self, THD *thd,
-                                          enum_var_type type)
+
+static bool update_cached_log_slow_query_time(sys_var *self, THD *thd,
+                                              enum_var_type type)
 {
   if (type == OPT_SESSION)
-    thd->variables.long_query_time=
-      double2ulonglong(thd->variables.long_query_time_double * 1e6);
+    thd->variables.log_slow_query_time=
+      double2ulonglong(thd->variables.log_slow_query_time_double * 1e6);
   else
-    global_system_variables.long_query_time=
-      double2ulonglong(global_system_variables.long_query_time_double * 1e6);
+    global_system_variables.log_slow_query_time=
+      double2ulonglong(global_system_variables.log_slow_query_time_double * 1e6);
+  return false;
+}
+
+static bool update_log_slow_always_query_time(sys_var *self, THD *thd,
+                                              enum_var_type type)
+{
+  if (type == OPT_SESSION)
+    thd->variables.log_slow_always_query_time=
+      double2ulonglong(thd->variables.
+                       log_slow_always_query_time_double * 1e6);
+  else
+    global_system_variables.log_slow_always_query_time=
+      double2ulonglong(global_system_variables.
+                       log_slow_always_query_time_double * 1e6);
   return false;
 }
 
 static Sys_var_double Sys_long_query_time(
        "long_query_time",
-       "Alias for log_slow_query_time. "
-       "Log all queries that have taken more than long_query_time seconds "
-       "to execute to the slow query log file. The argument will be treated "
-       "as a decimal value with microsecond precision",
-       SESSION_VAR(long_query_time_double),
+       "Alias for log_slow_query_time. ",
+       SESSION_VAR(log_slow_query_time_double),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_cached_long_query_time));
+       ON_UPDATE(update_cached_log_slow_query_time));
 
 static Sys_var_double Sys_log_slow_query_time(
        "log_slow_query_time",
        "Log all queries that have taken more than log_slow_query_time seconds "
        "to execute to the slow query log file. The argument will be treated "
-       "as a decimal value with microsecond precision",
-       SESSION_VAR(long_query_time_double),
+       "as a decimal value with microsecond precision. "
+       "Affected by log_slow_rate_limit and log_slow_min_examined_row_limit",
+       SESSION_VAR(log_slow_query_time_double),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_cached_long_query_time));
+       ON_UPDATE(update_cached_log_slow_query_time));
+
+static Sys_var_double Sys_log_slow_always_query_time(
+       "log_slow_always_query_time",
+       "Queries slower than log_slow_always_query_time are not affected "
+       "by log_slow_rate_limit or log_slow_min_examined_row_limit. Query "
+       "will be logged if execution time of the query is longer than "
+       "log_slow_query_time and log_slow_always_query_time. "
+       "The argument will be treated as a decimal value with microsecond "
+       "precision. ",
+       SESSION_VAR(log_slow_always_query_time_double),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(LONG_TIMEOUT),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_log_slow_always_query_time));
 
 static bool update_cached_max_statement_time(sys_var *self, THD *thd,
                                          enum_var_type type)

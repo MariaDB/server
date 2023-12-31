@@ -1912,6 +1912,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	LOG_SLOW_ALWAYS_QUERY_TIME
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Queries slower than log_slow_always_query_time are not affected by log_slow_rate_limit or log_slow_min_examined_row_limit. Query will be logged if execution time of the query is longer than log_slow_query_time and log_slow_always_query_time. The argument will be treated as a decimal value with microsecond precision. 
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_DISABLED_STATEMENTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
@@ -1975,7 +1985,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_QUERY_TIME
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Log all queries that have taken more than log_slow_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision
+VARIABLE_COMMENT	Log all queries that have taken more than log_slow_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision. Affected by log_slow_rate_limit and log_slow_min_examined_row_limit
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL
@@ -2025,7 +2035,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LONG_QUERY_TIME
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Alias for log_slow_query_time. Log all queries that have taken more than long_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision
+VARIABLE_COMMENT	Alias for log_slow_query_time. 
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL
