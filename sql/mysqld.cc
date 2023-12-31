@@ -8734,10 +8734,12 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (my_assert_on_error)
     debug_assert_if_crashed_table= 1;
 
-  global_system_variables.long_query_time= (ulonglong)
-    (global_system_variables.long_query_time_double * 1e6 + 0.1);
+  global_system_variables.log_slow_query_time= (ulonglong)
+    (global_system_variables.log_slow_query_time_double * 1e6 + 0.1);
   global_system_variables.max_statement_time= (ulonglong)
     (global_system_variables.max_statement_time_double * 1e6 + 0.1);
+  global_system_variables.log_slow_always_query_time= (ulonglong)
+    (global_system_variables.log_slow_always_query_time_double * 1e6 + 0.1);
 
   if (opt_short_log_format)
     opt_specialflag|= SPECIAL_SHORT_LOG_FORMAT;

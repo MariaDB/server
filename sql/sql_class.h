@@ -708,7 +708,8 @@ typedef struct system_variables
   ulonglong max_heap_table_size;
   ulonglong tmp_memory_table_size;
   ulonglong tmp_disk_table_size;
-  ulonglong long_query_time;
+  ulonglong log_slow_query_time;
+  ulonglong log_slow_always_query_time;
   ulonglong max_statement_time;
   ulonglong optimizer_switch;
   ulonglong optimizer_trace;
@@ -736,7 +737,8 @@ typedef struct system_variables
   ulonglong max_relay_log_size;
 
   double optimizer_where_cost, optimizer_scan_setup_cost;
-  double long_query_time_double, max_statement_time_double;
+  double log_slow_query_time_double, max_statement_time_double;
+  double log_slow_always_query_time_double;
   double sample_percentage;
 
   ha_rows select_limit;
@@ -4353,8 +4355,13 @@ public:
   void update_server_status()
   {
     set_time_for_next_stage();
-    if (utime_after_query >= utime_after_lock + variables.long_query_time)
+    if (utime_after_query >= utime_after_lock + variables.log_slow_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
+  }
+  /* True if query took longer than log_slow_always_query_time */
+  bool log_slow_always_query_time()
+  {
+    return (utime_after_query >= utime_after_lock + variables.log_slow_always_query_time);
   }
   inline ulonglong found_rows(void)
   {

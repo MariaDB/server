@@ -540,6 +540,14 @@ The following specify which files/extra groups are read (specified before remain
  Resets or sets the option 'admin' in log_slow_filter.
  Deprecated, use log_slow_filter without 'admin'.
  (Defaults to on; use --skip-log-slow-admin-statements to disable.)
+ --log-slow-always-query-time=# 
+ Queries slower than log_slow_always_query_time are not
+ affected by log_slow_rate_limit or
+ log_slow_min_examined_row_limit. Query will be logged if
+ execution time of the query is longer than
+ log_slow_query_time and log_slow_always_query_time. The
+ argument will be treated as a decimal value with
+ microsecond precision
  --log-slow-disabled-statements=name 
  Don't log certain types of statements to slow log. Any
  combination of: admin, call, slave, sp
@@ -572,7 +580,8 @@ The following specify which files/extra groups are read (specified before remain
  Log all queries that have taken more than
  log_slow_query_time seconds to execute to the slow query
  log file. The argument will be treated as a decimal value
- with microsecond precision
+ with microsecond precision. Affected by
+ log_slow_rate_limit and log_slow_min_examined_row_limit
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -593,10 +602,7 @@ The following specify which files/extra groups are read (specified before remain
  -W, --log-warnings[=#] 
  Log some non critical warnings to the error log.Value can
  be between 0 and 11. Higher values mean more verbosity
- --long-query-time=# Alias for log_slow_query_time. Log all queries that have
- taken more than long_query_time seconds to execute to the
- slow query log file. The argument will be treated as a
- decimal value with microsecond precision
+ --long-query-time=# Alias for log_slow_query_time
  --low-priority-updates 
  INSERT/DELETE/UPDATE has lower priority than selects
  --lower-case-table-names[=#] 
@@ -1737,6 +1743,7 @@ log-queries-not-using-indexes FALSE
 log-short-format FALSE
 log-slave-updates FALSE
 log-slow-admin-statements TRUE
+log-slow-always-query-time 3.1536e+07
 log-slow-disabled-statements sp
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-max-warnings 10
