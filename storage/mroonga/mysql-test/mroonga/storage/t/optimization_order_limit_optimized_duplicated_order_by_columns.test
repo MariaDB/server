@@ -21,7 +21,7 @@
 DROP TABLE IF EXISTS ids;
 --enable_warnings
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 SET NAMES utf8mb4;
 

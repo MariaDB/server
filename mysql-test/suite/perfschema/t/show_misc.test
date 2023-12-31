@@ -8,6 +8,7 @@ select 2;
 SHOW STATUS LIKE 'Last_query_cost';
 
 flush status;
+flush global status;
 SHOW STATUS LIKE 'Created_tmp_tables';
 
 --echo #

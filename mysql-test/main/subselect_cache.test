@@ -23,7 +23,7 @@ insert into t2 values (2,3),(3,4),(5,6),(4,1);
 --echo *
 --echo #single value subquery test (SELECT list)
 --disable_ps2_protocol
-flush status;
+flush global status; flush status;
 select a, (select d from t2 where b=c) from t1;
 
 show status like "subquery_cache%";
@@ -42,7 +42,7 @@ select a, (select d from t2 where b=c) from t1;
 explain format=json
 select a, (select d from t2 where b=c), (select d from t2 where b=c union select 1 order by 1 limit 1) from t1;
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 
 select a, (select d from t2 where b=c) from t1;
 
@@ -52,14 +52,14 @@ set optimizer_switch='subquery_cache=on';
 
 
 --echo #single value subquery test (where)
-flush status;
+flush global status; flush status;
 select a from t1 where (select d from t2 where b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 
 select a from t1 where (select d from t2 where b=c);
 
@@ -68,14 +68,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (having)
-flush status;
+flush global status; flush status;
 select a from t1 where a > 0 having (select d from t2 where b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 
 select a from t1 where a > 0 having (select d from t2 where b=c);
 
@@ -84,14 +84,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (OUTER JOIN ON)
-flush status;
+flush global status; flush status;
 select ta.a, tb.a from t1 ta join t1 tb on (select d from t2 where tb.b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 
 select ta.a, tb.a from t1 ta join t1 tb on (select d from t2 where tb.b=c);
 
@@ -100,14 +100,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (GROUP BY)
-flush status;
+flush global status; flush status;
 select max(a) from t1  GROUP BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=off';
 
-flush status;
+flush global status; flush status;
 select max(a) from t1  GROUP BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
@@ -115,14 +115,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (distinct GROUP BY)
-flush status;
+flush global status; flush status;
 select distinct max(a) from t1  GROUP BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=off';
 
-flush status;
+flush global status; flush status;
 select distinct max(a) from t1  GROUP BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
@@ -130,14 +130,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (ORDER BY)
-flush status;
+flush global status; flush status;
 select a from t1 ORDER BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=off';
 
-flush status;
+flush global status; flush status;
 select a from t1 ORDER BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
@@ -145,14 +145,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (distinct ORDER BY)
-flush status;
+flush global status; flush status;
 select distinct a from t1 ORDER BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=off';
 
-flush status;
+flush global status; flush status;
 select distinct a from t1 ORDER BY (select d from t2 where b=c);
 
 show status like "subquery_cache%";
@@ -160,14 +160,14 @@ show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
 
 --echo #single value subquery test (LEFT JOIN ON)
-flush status;
+flush global status; flush status;
 select ta.a, tb.a from t1 ta left join t1 tb on (select d from t2 where tb.b=c);
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 
 select ta.a, tb.a from t1 ta left join t1 tb on (select d from t2 where tb.b=c);
 
@@ -192,7 +192,7 @@ call p1;
 drop procedure p1;
 
 --echo #IN subquery test
-flush status;
+flush global status; flush status;
 
 show status like "subquery_cache%";
 select a, b , b in (select d from t2) as SUBS from t1;
@@ -207,7 +207,7 @@ select a, b , b in (select d from t2) as SUBS from t1;
 show status like "subquery_cache%";
 
 --echo # multicolumn NOT IN with NULLs
-flush status;
+flush global status; flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (b, a) not in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
@@ -217,7 +217,7 @@ select a, b, (b, a) not in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
 
 --echo # multicolumn NOT IN with NULLs (other order)
-flush status;
+flush global status; flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (a, b) not in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
@@ -227,7 +227,7 @@ select a, b, (a, b) not in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
 
 --echo # multicolumn IN with NULLs
-flush status;
+flush global status; flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (b, a) in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
@@ -237,7 +237,7 @@ select a, b, (b, a) in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
 
 --echo # multicolumn IN with NULLs (other order)
-flush status;
+flush global status; flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (a, b) in (select d, c from t2) as SUBS from t1;
 show status like "subquery_cache%";
@@ -317,30 +317,30 @@ drop procedure p1;
 
 --echo #several subqueries
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 select a, b , exists (select * from t2 where b=d) as SUBSE, b in (select d from t2) as SUBSI, (select d from t2 where b=c) SUBSR from t1;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 set optimizer_switch='subquery_cache=on';
-flush status;
+flush global status; flush status;
 select a, b , exists (select * from t2 where b=d) as SUBSE, b in (select d from t2) as SUBSI, (select d from t2 where b=c) SUBSR from t1;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 --echo #several subqueries (several levels)
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 select a, b, (select exists (select * from t2 where b=d) from t2 where b=c) as SUNS1 from t1;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 
 set optimizer_switch='subquery_cache=on';
-flush status;
+flush global status; flush status;
 select a, b, (select exists (select * from t2 where b=d) from t2 where b=c) as SUNS1 from t1;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -425,7 +425,7 @@ DROP TABLE t1;
 
 --echo #uncacheable queries test (random and side effect)
 --disable_ps2_protocol
-flush status;
+flush global status; flush status;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (2), (4), (1), (3);
 select a, a in (select a from t1) from t1 as ext;
@@ -464,25 +464,25 @@ insert into t2 values (1,1),(3,3),(20,20);
 --disable_ps2_protocol
 --echo aggregate function as parameter of subquery
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 select max(a), (select max(a) from t2 where max(a)=c) from t1 group by b;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 set optimizer_switch='subquery_cache=on';
-flush status;
+flush global status; flush status;
 select max(a), (select max(a) from t2 where max(a)=c) from t1 group by b;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 --echo argument of aggregate function as parameter of subquery (illegal use)
 set optimizer_switch='subquery_cache=off';
-flush status;
+flush global status; flush status;
 select max(a), (select a from t2 where a=c) from t1 group by b;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
 
 set optimizer_switch='subquery_cache=on';
-flush status;
+flush global status; flush status;
 select max(a), (select a from t2 where a=c) from t1 group by b;
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -503,7 +503,7 @@ insert into t2 select a,a from t0;
 
 --disable_ps2_protocol
 set optimizer_switch='default,semijoin=on,materialization=on,subquery_cache=on';
-flush status;
+flush global status; flush status;
 select * from t1 where a in (select pk from t2);
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -512,7 +512,7 @@ alter table t2 drop primary key;
 set optimizer_switch='default,semijoin=off,materialization=off,subquery_cache=off';
 
 explain select * from t1 where a in (select pk from t2);
-flush status;
+flush global status; flush status;
 select * from t1 where a in (select pk from t2);
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -520,7 +520,7 @@ show status like '%Handler_read%';
 set optimizer_switch='default,semijoin=off,materialization=off,subquery_cache=on';
 
 explain select * from t1 where a in (select pk from t2);
-flush status;
+flush global status; flush status;
 select * from t1 where a in (select pk from t2);
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -529,7 +529,7 @@ show status like '%Handler_read%';
 set optimizer_switch='default,semijoin=off,materialization=on,subquery_cache=on';
 
 explain select * from t1 where a in (select pk from t2);
-flush status;
+flush global status; flush status;
 select * from t1 where a in (select pk from t2);
 show status like "subquery_cache%";
 show status like '%Handler_read%';

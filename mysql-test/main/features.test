@@ -11,7 +11,7 @@ set sql_mode="";
 
 --disable_ps2_protocol
 
-flush status;
+flush global status;
 
 show status like "feature%";
 

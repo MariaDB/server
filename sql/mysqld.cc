@@ -9102,27 +9102,42 @@ static void delete_pid_file(myf flags)
 }
 
 
-/** Clear most status variables. */
-void refresh_status(THD *thd)
+/** Clear session (connection) status variables */
+
+void refresh_session_status(THD *thd)
 {
+  /* Add thread's status variables to global status */
   mysql_mutex_lock(&LOCK_status);
-
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  /* Reset aggregated status counters. */
-  reset_pfs_status_stats();
-#endif
-
-  /* Add thread's status variabels to global status */
   add_to_status(&global_status_var, &thd->status_var);
+  mysql_mutex_unlock(&LOCK_status);
 
   /* Reset thread's status variables */
   thd->set_status_var_init();
   thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
+}
 
-  /* Reset some global variables */
+
+/*
+  Refresh (reset) global status variables
+*/
+
+void refresh_global_status()
+{
+  mysql_mutex_lock(&LOCK_status);
+
+  /*
+    Reset variables of type SHOW_LONG and SHOW_LONGLONG registered in
+    'all_status_vars' (includes all variables in 'status_vars[])
+  */
   reset_status_vars();
+  /*
+    Reset accoumulated thread's status variables.
+    These are the variables in 'status_vars[]' mwith the prefix _STATUS.
+ */
+  bzero((char*) &global_status_var, clear_up_to_tmp_space_used);
+
 #ifdef WITH_WSREP
   if (WSREP_ON)
   {
@@ -9130,10 +9145,19 @@ void refresh_status(THD *thd)
   }
 #endif /* WITH_WSREP */
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  /* Reset aggregated status counters. */
+  reset_pfs_status_stats();
+#endif
+
   /* Reset the counters of all key caches (default and named). */
   process_key_caches(reset_key_cache_counters, 0);
   flush_status_time= time((time_t*) 0);
   mysql_mutex_unlock(&LOCK_status);
+
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.reset_stats();
+#endif
 
   /*
     Set max_used_connections to the number of currently open
@@ -9142,6 +9166,7 @@ void refresh_status(THD *thd)
   max_used_connections= connection_count + extra_connection_count;
   max_used_connections_time= time(nullptr);
 }
+
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_file_info all_server_files[]=

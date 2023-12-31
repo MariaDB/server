@@ -12,7 +12,7 @@ drop procedure if exists check_instrument;
 
 # reset counters
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 
 # Print known global memory instruments (PSI_FLAG_GLOBAL),
 # see maintenance of count_global_expected below.

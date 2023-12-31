@@ -1,6 +1,6 @@
 drop table if exists t1;
 set sql_mode="";
-flush status;
+flush global status;
 show status like "feature%";
 Variable_name	Value
 Feature_application_time_periods	0

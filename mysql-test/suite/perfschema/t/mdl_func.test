@@ -109,7 +109,7 @@ prepare dump_waits_history_long from
 
 # reset lost counters
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 
 flush tables;
 

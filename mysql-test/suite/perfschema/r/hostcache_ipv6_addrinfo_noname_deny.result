@@ -1,5 +1,5 @@
 call mtr.add_suppression("santa.claus.ipv6.example.com");
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;
