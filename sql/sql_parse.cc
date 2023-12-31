@@ -2543,7 +2543,8 @@ void log_slow_statement(THD *thd)
   }
 
   if ((thd->server_status & SERVER_QUERY_WAS_SLOW) &&
-      thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
+      (thd->get_examined_row_count() >= thd->variables.min_examined_row_limit ||
+       thd->log_slow_always_query_time()))
   {
     thd->status_var.long_query_count++;
 
@@ -2563,6 +2564,7 @@ void log_slow_statement(THD *thd)
       this query to the log or not.
     */ 
     if (thd->variables.log_slow_rate_limit > 1 &&
+        !thd->log_slow_always_query_time() &&
         (global_query_id % thd->variables.log_slow_rate_limit) != 0)
       goto end;
 
