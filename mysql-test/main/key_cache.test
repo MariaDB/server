@@ -369,7 +369,7 @@ delete from t2;
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 
-flush tables; flush status;
+flush tables; flush global status;
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 
@@ -423,7 +423,7 @@ select * from t2 where p between 1010 and 1020 ;
 select * from information_schema.key_caches where segment_number is null;
 
 analyze table t2;
-flush tables; flush status;
+flush tables; flush global status;
 update t1 set a='zzzz' where a='qqqq';
 set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 --replace_column 6 # 7 #

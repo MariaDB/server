@@ -5,7 +5,7 @@ insert into t1 values (1), (2), (3);
 SET GLOBAL query_cache_size=1355776;
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 select * from t1;
 a
 1
@@ -70,4 +70,4 @@ Variable_name	Value
 Qcache_hits	1
 SET GLOBAL query_cache_size=@save_query_cache_size;
 drop table t1;
-flush status;
+flush global status;

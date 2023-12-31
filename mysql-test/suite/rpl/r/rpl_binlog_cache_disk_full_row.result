@@ -5,7 +5,7 @@ SET @save_binlog_stmt_cache_size= @@GLOBAL.binlog_stmt_cache_size;
 SET GLOBAL binlog_stmt_cache_size= 4096;
 CALL mtr.add_suppression('"No space left on device".*An incident event is written to binary log');
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=MyISAM;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SHOW STATUS LIKE "binlog_stmt_cache%";
 Variable_name	Value
 Binlog_stmt_cache_disk_use	0
