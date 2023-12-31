@@ -318,6 +318,8 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
 
     if (lex_string_eq(&TRANSACTION_REG_NAME, name))
       return TABLE_CATEGORY_LOG;
+
+    return TABLE_CATEGORY_MYSQL;
   }
 
   return TABLE_CATEGORY_USER;
