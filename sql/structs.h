@@ -337,6 +337,21 @@ typedef struct  user_conn {
   }
 } USER_CONN;
 
+
+/* Statistics used by user_stats */
+
+struct rows_stats
+{
+  ha_rows key_read_hit;
+  ha_rows key_read_miss;
+  ha_rows read;
+  ha_rows tmp_read;
+  ha_rows updated;
+  ha_rows inserted;
+  ha_rows deleted;
+};
+
+
 typedef struct st_user_stats
 {
   char user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
@@ -352,8 +367,8 @@ typedef struct st_user_stats
   uint total_ssl_connections;
   uint concurrent_connections;
   time_t connected_time;  // in seconds
-  ha_rows rows_read, rows_sent;
-  ha_rows rows_updated, rows_deleted, rows_inserted;
+  struct rows_stats rows_stats;
+  ha_rows rows_sent;
   ulonglong bytes_received;
   ulonglong bytes_sent;
   ulonglong binlog_bytes_written;
@@ -366,15 +381,17 @@ typedef struct st_user_stats
   double cpu_time;        // in seconds
 } USER_STATS;
 
+
 typedef struct st_table_stats
 {
   char table[NAME_LEN * 2 + 2];  // [db] + '\0' + [table] + '\0'
   size_t table_name_length;
-  ulonglong rows_read, rows_changed;
+  struct rows_stats rows_stats;
   ulonglong rows_changed_x_indexes;
   /* Stores enum db_type, but forward declarations cannot be done */
   int engine_type;
 } TABLE_STATS;
+
 
 typedef struct st_index_stats
 {

@@ -950,6 +950,7 @@ typedef struct system_status_var
   ulong ha_read_first_count;
   ulong ha_read_last_count;
   ulong ha_read_key_count;
+  ulong ha_read_key_miss;
   ulong ha_read_next_count;
   ulong ha_read_prev_count;
   ulong ha_read_retry_count;

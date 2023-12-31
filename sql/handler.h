@@ -3325,9 +3325,7 @@ public:
     inserter.
   */
   /* Statistics  variables */
-  ulonglong rows_read;
-  ulonglong rows_tmp_read;
-  ulonglong rows_changed;
+  struct rows_stats rows_stats;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
   ha_copy_info copy_info;
@@ -3713,7 +3711,7 @@ public:
   { DBUG_ASSERT(false); return(false); }
   void reset_statistics()
   {
-    rows_read= rows_changed= rows_tmp_read= 0;
+    bzero(&rows_stats, sizeof(rows_stats));
     bzero(index_rows_read, sizeof(index_rows_read));
     bzero(&copy_info, sizeof(copy_info));
   }
@@ -4263,9 +4261,9 @@ protected:
   inline void update_rows_read()
   {
     if (likely(!internal_tmp_table))
-      rows_read++;
+      rows_stats.read++;
     else
-      rows_tmp_read++;
+      rows_stats.tmp_read++;
   }
   inline void update_index_statistics()
   {

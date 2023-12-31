@@ -3627,7 +3627,8 @@ int handler::ha_close(void)
     In_use is 0 for tables that was closed from the table cache.
   */
   if (table->in_use)
-    status_var_add(table->in_use->status_var.rows_tmp_read, rows_tmp_read);
+    status_var_add(table->in_use->status_var.rows_tmp_read,
+                   rows_stats.tmp_read);
   PSI_CALL_close_table(table_share, m_psi);
   m_psi= NULL; /* instrumentation handle, invalid after close_table() */
   DBUG_ASSERT(m_psi_batch_mode == PSI_BATCH_MODE_NONE);
@@ -3738,9 +3739,15 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
   increment_statistics(&SSV::ha_read_key_count);
   if (!result)
   {
+    rows_stats.key_read_hit++;                  // For userstat
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
       table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+  }
+  else
+  {
+    status_var_increment(table->in_use->status_var.ha_read_key_miss);
+    rows_stats.key_read_miss++;                 // For userstat
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -3766,10 +3773,16 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   increment_statistics(&SSV::ha_read_key_count);
   if (!result)
   {
+    rows_stats.key_read_hit++;
     update_rows_read();
     index_rows_read[index]++;
     if (table->vfield && buf == table->record[0])
       table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+  }
+  else
+  {
+    status_var_increment(table->in_use->status_var.ha_read_key_miss);
+    rows_stats.key_read_miss++;
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -6006,19 +6019,19 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
 
 void handler::update_global_table_stats()
 {
+  ulonglong changed;
   TABLE_STATS * table_stats;
 
-  status_var_add(table->in_use->status_var.rows_read, rows_read);
-  DBUG_ASSERT(rows_tmp_read == 0);
+  status_var_add(table->in_use->status_var.rows_read, rows_stats.read);
+  DBUG_ASSERT(rows_stats.tmp_read == 0);
 
-  if (!table->in_use->userstat_running)
-  {
-    rows_read= rows_changed= 0;
-    return;
-  }
+  if (!table->in_use->userstat_running ||
+      table->s->table_category != TABLE_CATEGORY_USER)
+    goto reset;
 
-  if (rows_read + rows_changed == 0)
-    return;                                     // Nothing to update.
+  if (rows_stats.read + rows_stats.updated + rows_stats.inserted +
+      rows_stats.deleted + rows_stats.key_read_miss == 0)
+    goto reset;                                   // Nothing to update.
 
   DBUG_ASSERT(table->s);
   DBUG_ASSERT(table->s->table_cache_key.str);
@@ -6051,14 +6064,20 @@ void handler::update_global_table_stats()
     }
   }
   // Updates the global table stats.
-  table_stats->rows_read+=    rows_read;
-  table_stats->rows_changed+= rows_changed;
-  table_stats->rows_changed_x_indexes+= (rows_changed *
+  table_stats->rows_stats.read+=          rows_stats.read;
+  table_stats->rows_stats.updated+=       rows_stats.updated;
+  table_stats->rows_stats.inserted+=      rows_stats.inserted;
+  table_stats->rows_stats.deleted+=       rows_stats.deleted;
+  table_stats->rows_stats.key_read_hit+=  rows_stats.key_read_hit;
+  table_stats->rows_stats.key_read_miss+= rows_stats.key_read_miss;
+  changed= rows_stats.updated + rows_stats.inserted + rows_stats.deleted;
+  table_stats->rows_changed_x_indexes+= (changed *
                                          (table->s->keys ? table->s->keys :
                                           1));
-  rows_read= rows_changed= 0;
 end:
   mysql_mutex_unlock(&LOCK_global_table_stats);
+reset:
+  bzero(&rows_stats, sizeof(rows_stats));
 }
 
 
@@ -8013,7 +8032,7 @@ int handler::ha_write_row(const uchar *buf)
   MYSQL_INSERT_ROW_DONE(error);
   if (likely(!error))
   {
-    rows_changed++;
+    rows_stats.inserted++;
     Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
     error= binlog_log_row(0, buf, log_func);
 
@@ -8064,7 +8083,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   MYSQL_UPDATE_ROW_DONE(error);
   if (likely(!error))
   {
-    rows_changed++;
+    rows_stats.updated++;
     Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
     error= binlog_log_row(old_data, new_data, log_func);
 
@@ -8140,7 +8159,7 @@ int handler::ha_delete_row(const uchar *buf)
   MYSQL_DELETE_ROW_DONE(error);
   if (likely(!error))
   {
-    rows_changed++;
+    rows_stats.deleted++;
     Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
     error= binlog_log_row(buf, 0, log_func);
 

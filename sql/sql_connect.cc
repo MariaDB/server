@@ -430,10 +430,7 @@ void init_user_stats(USER_STATS *user_stats,
                      ulonglong bytes_sent,
                      ulonglong binlog_bytes_written,
                      ha_rows rows_sent,
-                     ha_rows rows_read,
-                     ha_rows rows_inserted,
-                     ha_rows rows_deleted,
-                     ha_rows rows_updated,
+                     rows_stats *rows_stats,
                      ulonglong select_commands,
                      ulonglong update_commands,
                      ulonglong other_commands,
@@ -464,10 +461,7 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->bytes_sent= bytes_sent;
   user_stats->binlog_bytes_written= binlog_bytes_written;
   user_stats->rows_sent= rows_sent;
-  user_stats->rows_read= rows_read;
-  user_stats->rows_inserted= rows_inserted;
-  user_stats->rows_deleted= rows_deleted;
-  user_stats->rows_updated= rows_updated;
+  user_stats->rows_stats= *rows_stats;
   user_stats->select_commands= select_commands;
   user_stats->update_commands= update_commands;
   user_stats->other_commands= other_commands;
@@ -576,6 +570,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
   if (!(user_stats= (USER_STATS*) my_hash_search(users_or_clients, (uchar*) name,
                                               name_length)))
   {
+    struct rows_stats rows_stats;
+    bzero(&rows_stats, sizeof(rows_stats));
     /* First connection for this user or client */
     if (!(user_stats= ((USER_STATS*)
                        my_malloc(PSI_INSTRUMENT_ME, sizeof(USER_STATS),
@@ -586,8 +582,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
                     0, 0, 0,   // connections
                     0, 0, 0,   // time
                     0, 0, 0,   // bytes sent, received and written
-                    0, 0,      // rows sent and read
-                    0, 0, 0,   // rows inserted, deleted and updated
+                    0,
+                    &rows_stats,
                     0, 0, 0,   // select, update and other commands
                     0, 0,      // commit and rollback trans
                     thd->status_var.access_denied_errors,
@@ -678,16 +674,22 @@ static void update_global_user_stats_with_user(THD *thd,
     (thd->status_var.binlog_bytes_written -
      thd->org_status_var.binlog_bytes_written);
   /* We are not counting rows in internal temporary tables here ! */
-  user_stats->rows_read+=      (thd->status_var.rows_read -
-                                thd->org_status_var.rows_read);
-  user_stats->rows_sent+=      (thd->status_var.rows_sent -
-                                thd->org_status_var.rows_sent);
-  user_stats->rows_inserted+=  (thd->status_var.ha_write_count -
-                                thd->org_status_var.ha_write_count);
-  user_stats->rows_deleted+=   (thd->status_var.ha_delete_count -
-                                thd->org_status_var.ha_delete_count);
-  user_stats->rows_updated+=   (thd->status_var.ha_update_count -
-                                thd->org_status_var.ha_update_count);
+  user_stats->rows_sent+=            (thd->status_var.rows_sent -
+                                      thd->org_status_var.rows_sent);
+  user_stats->rows_stats.read+=      (thd->status_var.rows_read -
+                                      thd->org_status_var.rows_read);
+  user_stats->rows_stats.inserted+=  (thd->status_var.ha_write_count -
+                                      thd->org_status_var.ha_write_count);
+  user_stats->rows_stats.deleted+=   (thd->status_var.ha_delete_count -
+                                      thd->org_status_var.ha_delete_count);
+  user_stats->rows_stats.updated+=   (thd->status_var.ha_update_count -
+                                      thd->org_status_var.ha_update_count);
+  user_stats->rows_stats.key_read_hit+= (thd->status_var.ha_read_key_count -
+                                         thd->org_status_var.ha_read_key_count -
+                                         (thd->status_var.ha_read_key_miss -
+                                          thd->org_status_var.ha_read_key_miss));
+  user_stats->rows_stats.key_read_miss+=   (thd->status_var.ha_read_key_miss -
+                                            thd->org_status_var.ha_read_key_miss);
   user_stats->select_commands+= thd->select_commands;
   user_stats->update_commands+= thd->update_commands;
   user_stats->other_commands+=  thd->other_commands;
