@@ -14,7 +14,7 @@ select variable_value > 0 from information_schema.global_status
 --enable_warnings
 
 # While at it, check that flush status resets the lost counter
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 --disable_warnings
 select variable_value from information_schema.global_status

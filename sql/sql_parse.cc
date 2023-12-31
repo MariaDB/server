@@ -2183,7 +2183,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     if (trans_commit_implicit(thd))
       break;
     thd->release_transactional_locks();
-    if (check_global_access(thd,RELOAD_ACL))
+    if ((options & ~REFRESH_SESSION_STATUS) &&
+        check_global_access(thd,RELOAD_ACL))
       break;
     general_log_print(thd, command, NullS);
 #ifndef DBUG_OFF
@@ -5237,7 +5238,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_FLUSH:
   {
     int write_to_binlog;
-    if (check_global_access(thd,RELOAD_ACL))
+    if ((lex->type & ~REFRESH_SESSION_STATUS) &&
+        check_global_access(thd,RELOAD_ACL))
       goto error;
 
     if (first_table && lex->type & (REFRESH_READ_LOCK|REFRESH_FOR_EXPORT))
@@ -5275,7 +5277,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef HAVE_QUERY_CACHE
     REFRESH_QUERY_CACHE_FREE                |
 #endif /* HAVE_QUERY_CACHE */
-    REFRESH_STATUS                          |
+    REFRESH_SESSION_STATUS                  |
+    REFRESH_GLOBAL_STATUS                   |
     REFRESH_USER_RESOURCES))
     {
       WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL);

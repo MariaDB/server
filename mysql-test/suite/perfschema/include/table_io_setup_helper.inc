@@ -47,7 +47,7 @@ update performance_schema.setup_instruments set enabled='YES'
 truncate table performance_schema.events_waits_history_long;
 
 # Reset lost counters to a known state
-flush status;
+flush global status;
 
 # Make sure there is room to instrument tables from this test.
 flush tables;

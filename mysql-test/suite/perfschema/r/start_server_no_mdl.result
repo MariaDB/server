@@ -155,7 +155,7 @@ select variable_value > 0 from information_schema.global_status
 where variable_name like 'PERFORMANCE_SCHEMA_METADATA_LOCK_LOST';
 variable_value > 0
 1
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 select variable_value from information_schema.global_status
 where variable_name like 'PERFORMANCE_SCHEMA_METADATA_LOCK_LOST';
 variable_value

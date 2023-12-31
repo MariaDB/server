@@ -53,8 +53,8 @@ select COUNT_STAR from performance_schema.table_io_waits_summary_by_index_usage
 select variable_value > 0 from information_schema.global_status
   where variable_name like 'PERFORMANCE_SCHEMA_INDEX_STAT_LOST';
 
-# While at it, check that FLUSH STATUS Resets the lost counter
-FLUSH STATUS;
+# While at it, check that FLUSH GLOBAL STATUS Resets the lost counter
+FLUSH GLOBAL STATUS;
 
 select variable_value from information_schema.global_status
   where variable_name like 'PERFORMANCE_SCHEMA_INDEX_STAT_LOST';

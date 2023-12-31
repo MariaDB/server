@@ -985,7 +985,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_STATUS:
     {
-      if (flush(mysql, "status"))
+      if (flush(mysql, "/*!110500 global */ status"))
 	return -1;
       break;
     }
@@ -1034,8 +1034,9 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_ALL_STATUS:
     {
-      if (flush(mysql, "status,table_statistics,index_statistics,"
-                       "user_statistics,client_statistics"))
+      if (flush(mysql,
+                "/*!110500 global */ status,table_statistics,"
+                "index_statistics, user_statistics,client_statistics"))
 	return -1;
       break;
     }

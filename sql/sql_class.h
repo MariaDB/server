@@ -1064,6 +1064,7 @@ typedef struct system_status_var
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
+  time_t flush_status_time;
 } STATUS_VAR;
 
 /*

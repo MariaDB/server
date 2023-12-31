@@ -1420,6 +1420,22 @@ void Repl_semi_sync_master::set_export_stats()
   unlock();
 }
 
+void Repl_semi_sync_master::reset_stats()
+{
+  lock();
+  rpl_semi_sync_master_yes_transactions = 0;
+  rpl_semi_sync_master_no_transactions = 0;
+  rpl_semi_sync_master_off_times = 0;
+  rpl_semi_sync_master_timefunc_fails = 0;
+  rpl_semi_sync_master_wait_sessions = 0;
+  rpl_semi_sync_master_wait_pos_backtraverse = 0;
+  rpl_semi_sync_master_trx_wait_num = 0;
+  rpl_semi_sync_master_trx_wait_time = 0;
+  rpl_semi_sync_master_net_wait_num = 0;
+  rpl_semi_sync_master_net_wait_time = 0;
+  unlock();
+}
+
 void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
 {
   struct timespec timeout;

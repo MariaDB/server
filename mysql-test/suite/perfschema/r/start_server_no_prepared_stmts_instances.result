@@ -206,7 +206,7 @@ DROP TABLE t1;
 show global status like "%performance_schema_prepared_statements_lost%";
 Variable_name	Value
 Performance_schema_prepared_statements_lost	4
-flush status;
+flush global status;
 show global status like "%performance_schema_prepared_statements_lost%";
 Variable_name	Value
 Performance_schema_prepared_statements_lost	0

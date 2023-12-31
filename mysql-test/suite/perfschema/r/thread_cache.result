@@ -1,4 +1,4 @@
-flush status;
+flush global status;
 SET @saved_thread_cache_size = @@global.thread_cache_size;
 set global thread_cache_size = 0;
 show global variables like "thread_cache_size";

@@ -1,4 +1,4 @@
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;
@@ -52,7 +52,7 @@ Connection_errors_select	0
 Connection_errors_tcpwrap	0
 # Dumping performance_schema.host_cache
 SET @@GLOBAL.debug_dbug = @saved_dbug;
-flush status;
+flush global status;
 show global status like "connection_errors_%";
 Variable_name	Value
 Connection_errors_accept	0

@@ -267,7 +267,7 @@ DROP USER mysqltest_u1@localhost;
 --echo # -- Bug#35074: max_used_connections is not correct.
 --echo
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 --echo
 SHOW STATUS LIKE 'max_used_connections';
@@ -462,7 +462,7 @@ SET global secure_auth=default;
 --echo # connection is aborted prior to authentication
 --echo #
 
-flush status;
+flush global status;
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 
 SET GLOBAL log_warnings=2;

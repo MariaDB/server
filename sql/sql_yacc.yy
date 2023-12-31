@@ -14673,7 +14673,11 @@ flush_option:
             Lex->relay_log_connection_name= empty_clex_str;
           }
         | STATUS_SYM
-          { Lex->type|= REFRESH_STATUS; }
+          { Lex->type|= REFRESH_SESSION_STATUS; }
+        | SESSION_SYM STATUS_SYM
+          { Lex->type|= REFRESH_SESSION_STATUS; }
+        | GLOBAL_SYM STATUS_SYM
+          { Lex->type|= REFRESH_GLOBAL_STATUS; }
         | SLAVE optional_connection_name 
           { 
             LEX *lex= Lex;

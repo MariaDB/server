@@ -1710,6 +1710,7 @@ void THD::reset_for_reuse()
   m_command= COM_CONNECT;
   proc_info= "login";                           // Same as in THD::THD()
   transaction->on= 1;
+  status_var.flush_status_time= my_time(0);
 #if defined(ENABLED_PROFILING)
   profiling.reset();
 #endif
@@ -4560,6 +4561,7 @@ void THD::set_status_var_init()
     STATUS. And at this point thread is guaranteed to be running.
   */
   status_var.threads_running= 1;
+  status_var.flush_status_time= my_time(0);
 }
 
 

@@ -194,10 +194,11 @@ enum enum_indicator_type
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
 #define REFRESH_TABLES          (1ULL << 2)  /* close all tables */
 #define REFRESH_HOSTS           (1ULL << 3)  /* Flush host cache */
-#define REFRESH_STATUS          (1ULL << 4)  /* Flush status variables */
+#define REFRESH_SESSION_STATUS  (1ULL << 4)  /* Flush status variables */
+#define REFRESH_STATUS REFRESH_SESSION_STATUS
 #define REFRESH_THREADS         (1ULL << 5)  /* Flush thread cache */
-#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart slave
-                                             thread */
+#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart
+                                                slave thread */
 #define REFRESH_MASTER          (1ULL << 7)  /* Remove all bin logs in the index
                                              and truncate the index */
 
@@ -218,6 +219,7 @@ enum enum_indicator_type
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 #define REFRESH_SSL             (1ULL << 21)
+#define REFRESH_GLOBAL_STATUS   (1ULL << 22)  /* Flush global status */
 
 #define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */

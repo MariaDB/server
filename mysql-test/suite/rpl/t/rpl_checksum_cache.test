@@ -44,7 +44,7 @@ connection master;
 # 1. the event size is much less than the cache's buffer
 #
 
-flush status;
+flush global status;
 show status like "binlog_cache_use";
 show status like "binlog_cache_disk_use";
 --disable_warnings
@@ -108,7 +108,7 @@ sync_slave_with_master;
 #
 connection master;
 
-flush status;
+flush global status;
 let $t2_data_size= `select 3 * @@global.binlog_cache_size`;
 let $t2_aver_size= `select 2 * @@global.binlog_cache_size`;
 let $t2_max_rand=  `select 1 * @@global.binlog_cache_size`;
@@ -150,7 +150,7 @@ sync_slave_with_master;
 
 connection master;
 
-flush status;
+flush global status;
 let $t3_data_size= `select 2 * @@global.binlog_cache_size`;
 let $t3_aver_size= `select (9 * @@global.binlog_cache_size) / 10`;
 let $t3_max_rand=  `select (2 * @@global.binlog_cache_size) / 10`;
@@ -192,7 +192,7 @@ sync_slave_with_master;
 #
 
 connection master;
-flush status;
+flush global status;
 
 delimiter |;
 eval create procedure test.p1 (n int) 

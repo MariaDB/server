@@ -596,7 +596,7 @@ const double log_10[] = {
   1e300, 1e301, 1e302, 1e303, 1e304, 1e305, 1e306, 1e307, 1e308
 };
 
-time_t server_start_time, flush_status_time;
+time_t server_start_time;
 
 char mysql_home[FN_REFLEN], pidfile_name[FN_REFLEN], system_time_zone[30];
 char *default_tz_name;
@@ -3860,7 +3860,7 @@ static int init_common_variables()
   }
 
   max_system_variables.pseudo_thread_id= ~(my_thread_id) 0;
-  server_start_time= flush_status_time= my_time(0);
+  server_start_time= global_status_var.flush_status_time= my_time(0);
   my_disable_copystat_in_redel= 1;
 
   global_rpl_filter= new Rpl_filter;
@@ -6899,16 +6899,21 @@ static int show_starttime(THD *thd, SHOW_VAR *var, void *buff,
   return 0;
 }
 
-#ifdef ENABLED_PROFILING
 static int show_flushstatustime(THD *thd, SHOW_VAR *var, void *buff,
-                                system_status_var *, enum_var_type)
+                                system_status_var *status_var,
+                                enum_var_type type)
 {
+  if (type == SHOW_OPT_GLOBAL)
+  {
+    /* For global status, global_status_var.flush_status_time is up to date */
+    status_var= &global_status_var;
+  }
+
   var->type= SHOW_LONG;
   var->value= buff;
-  *((long *)buff)= (long) (thd->query_start() - flush_status_time);
+  *((long *)buff)= (long) (thd->query_start() - status_var->flush_status_time);
   return 0;
 }
-#endif
 
 #ifdef HAVE_REPLICATION
 static int show_rpl_status(THD *, SHOW_VAR *var, void *, system_status_var *,
@@ -7633,9 +7638,7 @@ SHOW_VAR status_vars[]= {
   {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
   {"Update_scan",	       (char*) offsetof(STATUS_VAR, update_scan_count), SHOW_LONG_STATUS},
   {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
-#ifdef ENABLED_PROFILING
   {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
-#endif
 #ifdef WITH_WSREP
   {"wsrep_connected",         (char*) &wsrep_connected,         SHOW_BOOL},
   {"wsrep_ready",             (char*) &wsrep_show_ready,        SHOW_FUNC},
@@ -9158,27 +9161,43 @@ static void delete_pid_file(myf flags)
 }
 
 
-/** Clear most status variables. */
-void refresh_status(THD *thd)
+/** Clear session (connection) status variables */
+
+void refresh_session_status(THD *thd)
 {
+  /* Add thread's status variables to global status */
   mysql_mutex_lock(&LOCK_status);
-
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  /* Reset aggregated status counters. */
-  reset_pfs_status_stats();
-#endif
-
-  /* Add thread's status variabels to global status */
   add_to_status(&global_status_var, &thd->status_var);
+  mysql_mutex_unlock(&LOCK_status);
 
   /* Reset thread's status variables */
   thd->set_status_var_init();
   thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
+}
 
-  /* Reset some global variables */
+
+/*
+  Refresh (reset) global status variables
+*/
+
+void refresh_global_status()
+{
+  mysql_mutex_lock(&LOCK_status);
+
+  /*
+    Reset variables of type SHOW_LONG and SHOW_LONGLONG registered in
+    'all_status_vars' (includes all variables in 'status_vars[])
+  */
   reset_status_vars();
+  /*
+    Reset accoumulated thread's status variables.
+    These are the variables in 'status_vars[]' with the prefix _STATUS.
+ */
+  bzero((char*) &global_status_var, offsetof(STATUS_VAR,
+                                             last_cleared_system_status_var));
+
 #ifdef WITH_WSREP
   if (WSREP_ON)
   {
@@ -9186,10 +9205,19 @@ void refresh_status(THD *thd)
   }
 #endif /* WITH_WSREP */
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  /* Reset aggregated status counters. */
+  reset_pfs_status_stats();
+#endif
+
   /* Reset the counters of all key caches (default and named). */
   process_key_caches(reset_key_cache_counters, 0);
-  flush_status_time= time((time_t*) 0);
+  global_status_var.flush_status_time= my_time(0);
   mysql_mutex_unlock(&LOCK_status);
+
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.reset_stats();
+#endif
 
   /*
     Set max_used_connections to the number of currently open
@@ -9198,6 +9226,7 @@ void refresh_status(THD *thd)
   max_used_connections= connection_count + extra_connection_count;
   max_used_connections_time= time(nullptr);
 }
+
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_file_info all_server_files[]=
