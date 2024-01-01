@@ -2544,7 +2544,8 @@ struct xarecover_st
 {
   int len, found_foreign_xids, found_my_xids;
   XID *list;
-  HASH *commit_list;
+  HASH *commit_list;      // normal xids
+  HASH *xa_prepared_list; // prepared user xa xids
   bool dry_run;
   MEM_ROOT *mem_root;
   bool error;
@@ -2553,13 +2554,14 @@ struct xarecover_st
 /**
   Inserts a new hash member.
 
-  returns a successfully created and inserted @c xid_recovery_member
-           into hash @c hash_arg,
-           or NULL.
+  @return a successfully created and inserted @c xid_recovery_member
+            into hash @c hash_arg,
+          or NULL.
 */
 static xid_recovery_member*
 xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
-                  XID *full_xid_arg, decltype(::server_id) server_id_arg)
+                  XID *full_xid_arg, decltype(::server_id) server_id_arg,
+                  XA_binlog_state xa_binlog_state_arg)
 {
   xid_recovery_member *member= (xid_recovery_member *)
     alloc_root(ptr_mem_root, sizeof(xid_recovery_member));
@@ -2573,32 +2575,93 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
 
   if (full_xid_arg)
     *xid_full= *full_xid_arg;
-  *member= xid_recovery_member(xid_arg, 1, false, xid_full, server_id_arg);
-
+  *member=
+    xid_recovery_member(xid_arg,
+                        xa_binlog_state_arg == xid_recovery_member::XA_NONE ?
+                        1 : 0, false, xid_full, server_id_arg,
+                        xa_binlog_state_arg);
   return
     my_hash_insert(hash_arg, (uchar*) member) ? NULL : member;
 }
 
-/*
+/**
   Inserts a new or updates an existing hash member to increment
-  the member's prepare counter.
+  the member's engine prepare counter or alter binlog transaction state.
+  For normal transactions @c xid_arg must be non-zero, and it's zero
+  for the user XA.
+  In the update case the new member's xa binlog state is validated in
+  which process a pointed by @ptr_binlog_state_arg value may be changed
+  (when xid is detected to duplicate a genuine one).
 
-  returns false  on success,
-           true   otherwise.
+  @param hash_arg             xid member hash
+  @param xid_arg              a numeric xid for normal transactions or zero
+  @param ptr_mem_root         a memroot for new hash elements and the XA xids
+  @param full_xid_arg         XA xid in the full format, or NULL
+  @param server_id_arg        a genuine server id for the server xid recovery
+  @param[in,out]
+         ptr_binlog_state_arg a pointer to xa binlog state that a new or found
+                              member is to be set to, when non-NULL
+  @param curr_coord_arg       binlog coordinates of the start of the current
+                              transaction with @c full_xid_arg xid
+  @return xid_recovery_member pointer to when success, or
+          NULL                           otherwise.
 */
-static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
-                               MEM_ROOT *ptr_mem_root,
-                               XID *full_xid_arg,
-                               decltype(::server_id) server_id_arg)
+xid_recovery_member*
+xid_member_replace(HASH *hash_arg, my_xid xid_arg,
+                   MEM_ROOT *ptr_mem_root,
+                   XID *full_xid_arg,
+                   decltype(::server_id) server_id_arg,
+                   XA_binlog_state *ptr_binlog_state_arg,
+                   Binlog_offset *curr_coord_arg)
 {
   xid_recovery_member* member;
   if ((member= (xid_recovery_member *)
-       my_hash_search(hash_arg, (uchar *)& xid_arg, sizeof(xid_arg))))
-    member->in_engine_prepare++;
-  else
-    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, full_xid_arg,  server_id_arg);
+       my_hash_search(hash_arg,
+                      xid_arg == 0 ? full_xid_arg->key() : (uchar *)& xid_arg,
+                      xid_arg == 0 ?
+                      full_xid_arg->key_length() : sizeof(xid_arg))))
+  {
+    if (ptr_binlog_state_arg == NULL)
+    {
+      DBUG_ASSERT(member->in_engine_prepare > 0);
 
-  return member == NULL;
+      member->in_engine_prepare++;
+    }
+    else
+    {
+      DBUG_ASSERT(member->xid == 0);
+      DBUG_ASSERT(*ptr_binlog_state_arg == xid_recovery_member::XA_COMPLETE ||
+                  *ptr_binlog_state_arg == xid_recovery_member::XA_PREPARE);
+      DBUG_ASSERT(*ptr_binlog_state_arg != xid_recovery_member::XA_NONE);
+      DBUG_ASSERT(curr_coord_arg != NULL);
+      /*
+        The same xid can show up from binlog multiple times.
+        xa_binlog_state is updated to the latest in binlog order.
+      */
+      if (!member->is_binlog_set() || member->binlog_coord < *curr_coord_arg)
+      {
+        /*
+          The new state is validated when PREPARE alternates with COMPLETE in
+          either direction or the current state has not gained yet
+          binlog cooordiate.
+        */
+        member->is_state_valid=
+          member->xa_binlog_state != *ptr_binlog_state_arg;
+        member->xa_binlog_state= *ptr_binlog_state_arg;
+      }
+      else
+      {
+        *ptr_binlog_state_arg= xid_recovery_member::XA_NONE;
+      }
+    }
+  }
+  else
+    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, full_xid_arg,
+                              server_id_arg, ptr_binlog_state_arg == NULL ?
+                              xid_recovery_member::XA_NONE :
+                              *ptr_binlog_state_arg);
+
+  return member;
 }
 
 /*
@@ -2607,8 +2670,14 @@ static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
 struct xarecover_complete_arg
 {
   xid_recovery_member* member;
+  /*
+    Max (exclusive) binlog offset of the binlog upon the semisync slave recovery
+    or NULL in the normal recovery.
+  */
   Binlog_offset *binlog_coord;
   uint count;
+  /* names of binlog files that member::binlog_coord may refer to */
+  std::vector<const char *> *ptr_log_names;
 };
 
 /*
@@ -2634,6 +2703,160 @@ static bool xarecover_decide_to_commit(xid_recovery_member* member,
      true : false);
 }
 
+
+/*
+  Conduct decisions on the XA transaction according to the xa state and
+  recovery configuration.
+  ptr_commit_max is NULL implies the *normal* recovery in which case
+  a decision is computed similarly to the normal transaction recovery when
+  a prepared in engine XA is combined with XA-COMMMIT or XA-ROLLBACK in binlog.
+  The transaction gets committed in such case.
+  A XA specific decision to remain prepared upon recovery is produced when
+  a XA prepared in engine is combined with its xid found in binlog in
+  the prepared state (XA_prepare_log_event) as well, or in Xid_log_list_event.
+  When neiher of the two latter takes place the solely engine prepared XA is
+  rolled back.
+
+  In the *semisync slave* recovery completion operations over a prepared XA
+  recorded in binlog are decided similarly to the normal transaction case,
+  basing on the operation's binlog offset that is compared against a computed
+  truncate position.
+
+  The decided to stay prepared xa:s are put into the system hash.
+
+  Returns  0     as do nothing more with this xid
+           -1,1  as perform xid completion according to xa_binlog_state
+*/
+static int xarecover_decide_xa(xid_recovery_member* member,
+                                Binlog_offset *ptr_commit_max)
+{
+  int rc= -1; // todo: account Xlle
+
+  if (member->xa_binlog_state > xid_recovery_member::XA_NONE)
+  {
+    if (member->in_engine_prepare == 0)
+    {
+      DBUG_ASSERT(member->decided_to_commit);
+      DBUG_ASSERT(!ptr_commit_max || member->binlog_coord <= *ptr_commit_max);
+
+      rc= 0; // stable xid
+    }
+    else if (member->xa_binlog_state == xid_recovery_member::XA_PREPARE)
+    {//if (member->in_engine_prepare == 0) {member->is_state_valid= false; return 0;}
+      if (member->decided_to_commit)
+      {
+        rc= 0;
+        xid_cache_insert(member->full_xid);
+      }
+      else if (!ptr_commit_max)
+      {
+        rc= -1; // ?!
+      }
+      else if (member->binlog_coord >= *ptr_commit_max)
+      {
+        rc= -1;
+      }
+      else
+      {
+        /*
+          In the semisync slave recovery XA-PREPARE was followed in binlog
+          with a committed transaction.
+        */
+        DBUG_ASSERT(member->in_engine_prepare > 0);
+
+        rc= 0;
+        xid_cache_insert(member->full_xid);
+      }
+    }
+    else
+    {
+      DBUG_ASSERT(member->xa_binlog_state > xid_recovery_member::XA_COMPLETE);
+
+      /* completion xa member is decided similarly to the normal transaction */
+      rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
+        (member->xa_binlog_state == xid_recovery_member::XA_COMMIT ? 1 : -1) : 0;
+      if (rc != 0)
+        member->decided_to_commit= true;
+      else
+        xid_cache_insert(member->full_xid);
+    }
+  }
+
+  return rc;
+}
+
+
+void
+xid_recovery_member::print_decision(bool do_complete,
+                                    std::vector<const char*> *log_names)
+{
+  struct event_xid_t x(full_xid);
+
+  if (!do_complete)
+  {
+    DBUG_ASSERT(xa_binlog_state >= XA_PREPARE);
+
+    if (xa_binlog_state == XA_PREPARE)
+    {
+      const char *fmt= "Left a prepared XA transaction with xid %s"
+        " located in binlog at %s:%llu";
+      sql_print_information(fmt, x.serialize(),
+                            binlog_name(log_names), binlog_pos());
+    }
+    else if (in_engine_prepare > 0)
+    {
+      const char *fmt= "Left a prepared XA transaction with xid %s"
+        " intact to discard its XA %s from binlog at %s:%llu";
+
+      sql_print_information(fmt, x.serialize(),
+                            xa_binlog_state == XA_COMMIT ?
+                            "COMMIT" : "ROLLBACK",
+                            binlog_name(log_names), binlog_pos());
+    }
+  }
+  else
+  {
+    if (xid > 0)
+    {
+      const char *fmt=
+        "%s transaction with xid %llu located in binlog at %s:%llu";
+      sql_print_information(fmt, decided_to_commit ?
+                            "Committed" : "Rolled back", (ulonglong) xid,
+                            binlog_name(log_names), binlog_pos());
+    }
+    else if (decided_to_commit)
+    {
+      DBUG_ASSERT(xa_binlog_state > XA_COMPLETE);
+
+      const char *fmt=
+        "Completed XA transaction by 'XA %s '%s'' located in binlog at %s:%llu";
+      sql_print_information(fmt, xa_binlog_state == XA_COMMIT ?
+                            "COMMIT" : "ROLLBACK", x.serialize(),
+                            binlog_name(log_names), binlog_pos());
+    }
+    else
+    {
+      DBUG_ASSERT(xa_binlog_state <= XA_PREPARE);
+
+      if (xa_binlog_state == XA_NONE)
+      {
+        const char* fmt= "Rolled back prepared XA transaction with xid %s "
+          "not found in binlog";
+        sql_print_information(fmt,x.serialize());
+      }
+      else
+      {
+        const char* fmt=
+          "Rolled back a prepared XA transaction with xid %s located in binlog "
+          "at %s:%llu";
+        sql_print_information(fmt,
+                              x.serialize(),
+                              binlog_name(log_names), binlog_pos());
+      }
+    }
+  }
+}
+
 /*
   Helper function for xarecover_do_commit_or_rollback_handlerton.
   For a given hton decides what to do with a xid passed in the 2nd arg
@@ -2646,6 +2869,7 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   my_bool rc;
   xid_recovery_member *member= arg->member;
   Binlog_offset *ptr_commit_max= arg->binlog_coord;
+  std::vector<const char *> *log_names= arg->ptr_log_names;
 
   if (!member->full_xid)
     // Populate xid using the server_id from original transaction
@@ -2653,26 +2877,39 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   else
     x= *member->full_xid;
 
-  rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
-    hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
-
   /*
     It's fine to have non-zero rc which would be from transaction
     non-participant hton:s.
   */
-  DBUG_ASSERT(rc || member->in_engine_prepare > 0);
+  if (member->xid > 0)
+  {
+    rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
+      hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
 
+    DBUG_ASSERT(rc || member->in_engine_prepare > 0);
+  }
+  else
+  {
+    int do_it= xarecover_decide_xa(member, ptr_commit_max);
+
+    rc= do_it == 0 ? TRUE :
+      (do_it == 1 ?
+       hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x));
+
+    if (do_it == 0 && global_system_variables.log_warnings > 2)
+      member->print_decision(false, log_names);
+  }
   if (!rc)
   {
     /*
       This block relies on Engine to report XAER_NOTA at
       "complete"_by_xid for unknown xid.
+      XA PREPARE state member that is decided to remain prepared does not
+      visit this block.
     */
     member->in_engine_prepare--;
     if (global_system_variables.log_warnings > 2)
-      sql_print_information("%s transaction with xid %llu",
-                            member->decided_to_commit ? "Committed" :
-                            "Rolled back", (ulonglong) member->xid);
+      member->print_decision(true, log_names);
   }
 }
 
@@ -2714,8 +2951,20 @@ static my_bool xarecover_complete_and_count(void *member_arg,
   {
     complete_params->count++;
     if (global_system_variables.log_warnings > 2)
-      sql_print_warning("Found prepared transaction with xid %llu",
-                        (ulonglong) member->xid);
+    {
+      if (member->xid > 0)
+      {
+        sql_print_warning("Found prepared transaction with xid %llu",
+                          (ulonglong) member->xid);
+      }
+      else
+      {
+        struct event_xid_t x(member->full_xid);
+
+        sql_print_information("Found xa prepared transaction with xid %s",
+                              x.serialize());
+      }
+    }
   }
 
   return false;
@@ -2726,9 +2975,10 @@ static my_bool xarecover_complete_and_count(void *member_arg,
   each xid.
   Returns the number of transactions remained doubtful.
 */
-uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord)
+uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord,
+                         std::vector<const char *> *ptr_binlog_file_name)
 {
-  xarecover_complete_arg complete= { NULL, coord, 0 };
+  xarecover_complete_arg complete= { NULL, coord, 0, ptr_binlog_file_name };
   (void) my_hash_iterate(commit_list, xarecover_complete_and_count, &complete);
 
   return complete.count;
@@ -2786,8 +3036,17 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
             char buf[XIDDATASIZE*4+6];
             _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
-          xid_cache_insert(info->list + i);
-          info->found_foreign_xids++;
+          if (!info->dry_run && info->mem_root)
+          {
+            /* The user xid:s will be decided with binlog. */
+            xid_member_replace(info->xa_prepared_list, x, info->mem_root,
+                               &info->list[i], server_id);
+          }
+          else
+          {
+            xid_cache_insert(info->list + i);
+            info->found_foreign_xids++;
+          }
           continue;
         }
         if (IF_WSREP(!(wsrep_emulate_bin_log &&
@@ -2808,9 +3067,10 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           // remember "full" xid too when it's not in mysql format.
           // Also record the transaction's original server_id. It will be used for
           // populating the input XID to be searched in hash.
-          if (xid_member_replace(info->commit_list, x, info->mem_root,
-                                 is_server_xid? NULL : &info->list[i],
-                                 is_server_xid? info->list[i].get_trx_server_id() : server_id))
+          if (!xid_member_replace(info->commit_list, x, info->mem_root,
+                                  is_server_xid? NULL : &info->list[i],
+                                  is_server_xid?
+                                  info->list[i].get_trx_server_id() : server_id))
           {
             info->error= true;
             sql_print_error("Error in memory allocation at xarecover_handlerton");
@@ -2850,12 +3110,13 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
   return FALSE;
 }
 
-int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
+int ha_recover(HASH *commit_list, HASH *xa_prepared_list, MEM_ROOT *arg_mem_root)
 {
   struct xarecover_st info;
   DBUG_ENTER("ha_recover");
   info.found_foreign_xids= info.found_my_xids= 0;
   info.commit_list= commit_list;
+  info.xa_prepared_list= xa_prepared_list;
   info.dry_run= (info.commit_list==0 && tc_heuristic_recover==0);
   info.list= NULL;
   info.mem_root= arg_mem_root;
@@ -2907,7 +3168,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   if (info.error)
     DBUG_RETURN(1);
 
-  if (info.commit_list)
+  if (info.commit_list && !info.found_foreign_xids)
     sql_print_information("Crash table recovery finished.");
   DBUG_RETURN(0);
 }

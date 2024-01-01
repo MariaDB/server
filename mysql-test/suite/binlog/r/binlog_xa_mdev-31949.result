@@ -2,61 +2,110 @@ call mtr.add_suppression("Found 1 prepared XA transactions");
 call mtr.add_suppression("unknown option");
 CREATE TABLE t31949 (a INT PRIMARY KEY) ENGINE=Innodb;
 CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
-XA START '1';
+# case 1. only in engine prepared XA is rolled back
+connect master1,localhost,root,,;
+XA START 'A';
 INSERT INTO t31949 SET a=1;
-XA END '1';
-XA PREPARE '1';
+XA END 'A';
+SET DEBUG_SYNC= "commit_before_get_LOCK_log  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+XA PREPARE 'A';
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 # Kill and restart
-# xid '1' most be recovered
+disconnect master1;
+# Proof 1:
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	1	0	1
-# COMMIT from an external connection
-XA COMMIT '1';
+SELECT count(*) = 0 from t31949;
+count(*) = 0
+1
+# case 2. both engine prepared and binlog written XA remains
+connect master1,localhost,root,,;
+XA START 'A';
+INSERT INTO t31949 SET a=1;
+XA END 'A';
+XA PREPARE 'A';
+connection default;
 # Kill and restart
-# xid '1' must be committed
+disconnect master1;
+# Proof 2:
+# xid 'A' must be recovered
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	A
+SELECT count(*) = 0 from t31949;
+count(*) = 0
+1
+# case 3. XA-COMMIT from an external connection after binlogging recovers to COMPLETE
+connect master1,localhost,root,,;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+XA COMMIT 'A';
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+# Kill and restart
+disconnect master1;
+# Proof 3:
+# xid 'A' must be recovered to commit
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 select count(*) = 1 from t31949;
 count(*) = 1
 1
-XA START '2';
+# case 4. XA-ROLLBACK from the native connection after binlogging recovers to COMPLETE
+connect master2,localhost,root,,;
+XA START 'B';
 INSERT INTO t31949 SET a=2;
-XA END '2';
-XA PREPARE '2';
-# ROLLBACK from the native connection
-XA ROLLBACK '2';
+XA END 'B';
+XA PREPARE 'B';
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+XA ROLLBACK 'B';
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 # Kill and restart
-# xid '1' must be rolled back
+disconnect master2;
+# Proof 4:
+# xid 'B' must be recovered to roll back
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 select count(*) = 1 from t31949;
 count(*) = 1
 1
-XA START '3';
+# case 5. ditto to XA-COMMIT
+connect master3,localhost,root,,;
+XA START 'C';
 INSERT INTO t31949 SET a=3;
-XA END '3';
-XA PREPARE '3';
-# COMMIT from the native connection
-XA COMMIT '3';
+XA END 'C';
+XA PREPARE 'C';
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+XA COMMIT 'C';
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 # Kill and restart
-# xid '3' must be committed
+disconnect master3;
+# Proof 5:
+# xid 'C' must be recovered to commit
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 select count(*) = 2 from t31949;
 count(*) = 2
 1
-connect con4,127.0.0.1,root,,test,$MASTER_MYPORT,;
-XA START '4';
+# case 6. XA-ROLLBACK from an external connection  after binlogging recovers to COMPLETE
+connect conn$case,localhost,root,,;
+XA START 'D';
 INSERT INTO t31949 SET a=4;
-XA END '4';
-XA PREPARE '4';
-disconnect con4;
+XA END 'D';
+XA PREPARE 'D';
+disconnect conn6;
 connection default;
-# ROLLBACK from an external connection
-XA ROLLBACK '4';
+connect master4,localhost,root,,;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+XA ROLLBACK 'D';
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 # Kill and restart
-# xid '4' must be rolled back
+disconnect master4;
+# Proof 6:
+# xid 'D' must be recovered to roll back
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 select count(*) = 2 from t31949;

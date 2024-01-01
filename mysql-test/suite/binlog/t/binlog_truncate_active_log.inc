@@ -1,3 +1,13 @@
+#
+# Meanings of parameters:
+#
+# $query1       a query that creates a group of events that goes into binlog
+# $query2       a query that follows $query1 in binlog without having done
+#                 engine commit
+# $query20      an optinal $query2 that durably commits in engine
+# $delete       when 1 deletes from t
+# $no_truncate  when 1 NOT FOUND off search_pattern_in_file.inc is "good".
+#
 connect(master1,localhost,root,,);
 connect(master2,localhost,root,,);
 connect(master3,localhost,root,,);
@@ -10,14 +20,29 @@ INSERT INTO t  VALUES (10);
 INSERT INTO tm VALUES (10);
 
 --connection master1
-# Hold insert after write to binlog and before "run_commit_ordered" in engine
-SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
---send_eval $query1
+if (!$query20)
+{
+  # Hold insert after write to binlog and before "run_commit_ordered" in engine
+  SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+  --send_eval $query1
+}
+if ($query20)
+{
+  # do not hold the $query2 insert to let it binlog past $query1 "us"
+  --eval $query1
+}
 
 --connection master2
-SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
-SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
---send_eval $query2
+if (!$query20)
+{
+  SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+  SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";  --send_eval $query2
+}
+if ($query20)
+{
+  SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+  --eval $query20
+}
 
 --connection master3
 SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
@@ -46,6 +71,10 @@ SELECT @@global.gtid_binlog_pos as 'Before the crash and never logged trx';
 --source include/start_mysqld.inc
 
 # Check error log for a successful truncate message.
+if ($no_truncate)
+{
+  --echo # *** Expect NOT FOUND /Successfully truncated ... which is correct. ***
+}
 --let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 --let SEARCH_FILE=$log_error_
@@ -67,4 +96,7 @@ SELECT * FROM t4;
 --inc $binlog_file_index
 
 # Local cleanup
-DELETE FROM t;
+if ($delete)
+{
+  DELETE FROM t;
+}

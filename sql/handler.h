@@ -47,6 +47,7 @@
 #include "mem_root_array.h"
 #include <utility>     // pair
 #include <my_attribute.h> /* __attribute__ */
+#include <vector>
 
 class Alter_info;
 class Virtual_column_info;
@@ -965,7 +966,7 @@ typedef struct xid_t XID;
 */
 typedef uint Binlog_file_id;
 const Binlog_file_id MAX_binlog_id= UINT_MAX;
-const my_off_t       MAX_off_t    = (~(my_off_t) 0);
+const my_off_t       MAX_binlog_offset    = (~(my_off_t) 0);
 /*
   Compound binlog-id and byte offset of transaction's first event
   in a sequence (e.g the recovery sequence) of binlog files.
@@ -981,22 +982,67 @@ struct xid_recovery_member
   uint in_engine_prepare;  // number of engines that have xid prepared
   bool decided_to_commit;
   /*
-    Semisync recovery binlog offset. It's initialized with the maximum
-    unreachable offset. The max value will remain for any transaction
-    not found in binlog to yield its rollback decision as it's guaranteed
-    to be within a truncated tail part of the binlog.
+    It's initialized with the maximum unreachable offset. The max
+    value will remain for any transaction not found in binlog to yield
+    its rollback decision as it's guaranteed to be within a truncated
+    tail part of the binlog in the semisync recovery mode.
+    Otherwise it's set to the binlog offset of the start of the xid's
+    transaction (Gtid_log_event).
+    In the XA xid case, duplicate xids are ignored so after binlog scanning
+    the value corresponds to a genuine actual xid dicovered last in binlog.
   */
   Binlog_offset binlog_coord;
-  XID *full_xid;           // needed by wsrep or past it recovery
+  XID *full_xid;           // needed by xa, wsrep or past it recovery
   decltype(::server_id) server_id;         // server id of orginal server
+  enum enum_xa_binlog_state
+  {
+    XA_NONE= 0 /* xid is prepared only in Engine */,
+    XA_PREPARE, XA_COMPLETE, XA_COMMIT, XA_ROLLBACK /* binlog xid state */
+  } xa_binlog_state;
+  bool is_state_valid;
+  my_off_t end_of_pos; /* binlog offset of next to the member's event group */
+  /*
+    When being a candidate to rollback/truncation the member remembers its gtid
+    index in Recovery_context::gtid_maybe_to_truncate as the value next to it.
+  */
+  size_t idx_gtid_to_truncate;
 
-  xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
-                      XID *full_xid_arg, decltype(::server_id) server_id_arg)
-    : xid(xid_arg), in_engine_prepare(prepare_arg),
+  xid_recovery_member(my_xid xid_arg, uint prepared_eng_arg, bool decided_arg,
+                      XID *full_xid_arg, decltype(::server_id) server_id_arg,
+                      enum_xa_binlog_state xa_binlog_state_arg)
+    : xid(xid_arg), in_engine_prepare(prepared_eng_arg),
       decided_to_commit(decided_arg),
-      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
-      full_xid(full_xid_arg), server_id(server_id_arg) {};
+      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_binlog_offset)),
+      full_xid(full_xid_arg), server_id(server_id_arg),
+      xa_binlog_state(xa_binlog_state_arg), is_state_valid(true),
+      end_of_pos(0), idx_gtid_to_truncate(SIZE_T_MAX)
+    {};
+
+  /*
+    The binlog coordinate is set when xid or full_xid group ending event
+    is read from binlog.
+  */
+  bool is_binlog_set() { return binlog_coord.second != MAX_binlog_offset; }
+
+  /* binlog id of the binlog coordinate the to binlog file name mapper */
+  const char* binlog_name (std::vector<const char*> *logs)
+  {
+    return logs->at(binlog_coord.first == MAX_binlog_id ? 0 :
+                    binlog_coord.first + 1);
+  }
+  my_off_t binlog_pos() { return binlog_coord.second; }
+  void print_decision(bool do_complete, std::vector<const char*> *logs);
 };
+
+typedef xid_recovery_member::enum_xa_binlog_state XA_binlog_state;
+
+xid_recovery_member*
+xid_member_replace(HASH *hash_arg, my_xid xid_arg,
+                   MEM_ROOT *ptr_mem_root,
+                   XID *full_xid_arg,
+                   decltype(::server_id) server_id_arg,
+                   XA_binlog_state *xa_binlog_state= NULL,
+                   Binlog_offset *coord_arg= NULL);
 
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
@@ -5383,8 +5429,10 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
-int ha_recover(HASH *commit_list, MEM_ROOT *mem_root= NULL);
-uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord= NULL);
+int ha_recover(HASH *commit_list, HASH *xa_recover_list= NULL,
+               MEM_ROOT *mem_root= NULL);
+uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord= NULL,
+                         std::vector<const char *> *ptr_log_names= NULL);
 
 /* transactions: these functions never call handlerton functions directly */
 int ha_enable_transaction(THD *thd, bool on);
