@@ -10,7 +10,7 @@
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 
---let $scenario=rpl_semi_sync_fail_over.inc
+--let $scenario=rpl_semi_sync_fail_over_xa.inc
 --source rpl_semi_sync_fail_over_gen.inc
 
 --source include/rpl_end.inc

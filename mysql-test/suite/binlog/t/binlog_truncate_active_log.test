@@ -5,6 +5,7 @@
 # ==== References ====
 #
 # MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+# MDEV-33168 XA crash-recovery base on engines prepare first rule
 
 --source include/have_innodb.inc
 --source include/have_aria.inc
@@ -15,11 +16,14 @@
 
 call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
+call mtr.add_suppression("Found.*prepared [XA ]*transaction[s]*");
 
 # The following cases are tested:
 # A. 2pc transaction is followed by a blank "zero-engines" one
 # B. 2pc transaction follows the blank one
 # C. Similarly to A, with the XA blank transaction
+#
+# D-G verify MDEV-33168.
 
 RESET MASTER;
 SET @@global.sync_binlog=1;
@@ -31,6 +35,8 @@ CREATE TABLE tm (f INT) ENGINE=Aria;
 # Old (pre-crash) binlog file index initial value.
 # It keeps incremented at the end of each case.
 --let $binlog_file_index=1
+# parameter to binlog_truncate_active_log.inc
+--let $delete=1
 
 --echo # Case A.
 # Using 'debug_sync' hold 'query1' execution after 'query1' is flushed and
@@ -88,15 +94,71 @@ BEGIN
 END|
 delimiter ;|
 
-# The same as in B with $query1 being the prepared XA transaction.
-# Truncation must occurs at $query2.
---let $truncate_gtid_pos = 0-1-21
+# $query1 being the prepared XA transaction.
+# Truncation must occurs at $query1 because $query2 is not going to commit
+# therefore at recovery it will be in-doubt and thus be rolled back by
+#  --rpl-semi-sync-slave-enabled=1. As $query2 could not be proved
+# as acknowlegded by slave, $query1 has to be pessimistically regarded the same.
+--let $truncate_gtid_pos = 0-1-20
 --let $query1 = CALL sp_xa
 --let $query2 = INSERT INTO t2 VALUES (20)
 --source binlog_truncate_active_log.inc
+# Proof:
+--echo # no 'xid' in
+XA RECOVER;
+SELECT count(*) > 0 as "because of rolled back" FROM t WHERE f = 10;
 
+--echo # Case E.
+# The same as D, but XAP of $query1 survives the crash-recovery thanks to
+# $query20 is going to durably commit prior to the crash.
+
+--let $truncate_gtid_pos = 0-1-2[1-4]
+--let $query1 = CALL sp_xa
+let $query2 =;
+--let $query20 = INSERT INTO t2 VALUES (20)
+--let $delete=0
+--let $no_truncate=1
+--source binlog_truncate_active_log.inc
+# Proof:
+--echo # 'xid' exists in
+XA RECOVER;
+
+# restore to the default
+let $query20 =;
+--let $no_truncate=0
+
+--echo # Case F.
+# Recovery of XA-ROLLBACK. The conditions are like in D. The outcome
+# is truncation of both $query1,2.
+# Therefore `xid` must remain in prepared state.
+--let $truncate_gtid_pos = 0-1-27
+
+--let $query1 = XA ROLLBACK 'xid';
+--let $query2 = INSERT INTO t2 VALUES (30)
+--let $delete=0
+--source binlog_truncate_active_log.inc
+
+# Proof:
+--echo # 'xid' exists in
+XA RECOVER;
+
+--echo # Case G.
+# Recovery of XA-COMMIT. The conditions are like in F. The outcome
+# is truncation of both $query1,2.
+# Therefore `xid` must remain in prepared state.
+--let $truncate_gtid_pos = 0-1-29
+
+--let $query1 = XA COMMIT 'xid';
+--let $query2 = INSERT INTO t2 VALUES (30)
+--let $delete=0
+--source binlog_truncate_active_log.inc
+
+# Proof:
+--echo # 'xid' exists in
+XA RECOVER;
+
+XA COMMIT 'xid';
 DROP PROCEDURE sp_xa;
-
 
 --echo # Cleanup
 DROP TABLE t,t2,tm;

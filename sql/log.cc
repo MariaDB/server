@@ -10884,7 +10884,7 @@ public:
     a truncated tail get rolled back, otherwise they are committed.
     Both decisions are contingent on safety to truncate.
   */
-  bool complete(MYSQL_BIN_LOG *log, HASH &xids);
+  bool complete(MYSQL_BIN_LOG *log, HASH &xids, HASH &xa_recovery_xids);
 
   /*
     decides on commit of xid passed through member argument.
@@ -10955,9 +10955,9 @@ public:
     Actions:
     truncate_gtid then is set to "nil" as indicated by rpl_gtid::seq_no := 0.
     truncate_reset_done takes a note of that fact.
-    binlog_truncate_coord gets reset to the current gtid offset merely to
-    "suggest" any potential future truncate gtid must have a greater offset.
-    gtid_maybe_to_truncate gets emptied into gtid binlog state.
+    binlog_truncate_coord gets reset to next of the current gtid offset merely
+    to "suggest" any potential future truncate gtid must have its or a greater
+    offset. gtid_maybe_to_truncate gets emptied into gtid binlog state.
 
     Returns:
             false on success, otherwise
@@ -10979,11 +10979,21 @@ public:
                           enum_binlog_checksum_alg fd_checksum_alg);
 };
 
-bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
+bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids, HASH &xa_xids)
 {
   if (!do_truncate || is_safe_to_truncate())
   {
     uint count_in_prepare=
+      ha_recover_complete(&xa_xids,
+                          !do_truncate ? NULL :
+                          (truncate_gtid.seq_no > 0 ?
+                           &binlog_truncate_coord : &last_gtid_coord));
+    if (count_in_prepare > 0 && global_system_variables.log_warnings > 2)
+    {
+      sql_print_information("Counted %u number of xa transactions "
+                            "in prepared state.", count_in_prepare);
+    }
+    count_in_prepare=
       ha_recover_complete(&xids,
                           !do_truncate ? NULL :
                           (truncate_gtid.seq_no > 0 ?
@@ -11113,10 +11123,30 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
     }
     else if (member->in_engine_prepare < last_gtid_engines)
     {
-      DBUG_ASSERT(member->in_engine_prepare > 0);
+      DBUG_ASSERT(member->in_engine_prepare > 0 ||
+                  /* XA event over xid that was completed in engines */
+                  (member->xid == 0 &&
+                   member->xa_binlog_state >= xid_recovery_member::XA_PREPARE));
+      if (member->in_engine_prepare > 0 &&
+          member->xa_binlog_state == xid_recovery_member::XA_PREPARE)
+      {
+        char buf[21];
+        longlong10_to_str(last_gtid.seq_no, buf, 10);
+
+        sql_print_error("Error to recovery multi-engine XA transaction: "
+                        "the number of engines prepared %u is less than "
+                        "the respective number %u in its GTID %u-%u-%s "
+                        "located at file:%s pos:%llu",
+                        member->in_engine_prepare, last_gtid_engines,
+                        last_gtid.domain_id, last_gtid.server_id, buf,
+                        linfo->log_file_name, last_gtid_coord.second);
+        return true;
+      }
       /*
         This is an "unlikely" branch of two or more engines in transaction
-        that is partially committed, so to complete.
+        that is partially committed, or XA prepare that will be further followed
+        with XA-commit-or-rollback, or XA-"complete" itself.
+        The decision is then to commit/leave-as-is/complete.
       */
       member->decided_to_commit= true;
       if (do_truncate)
@@ -11145,7 +11175,42 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
       }
       else
       {
-        member->binlog_coord= last_gtid_coord;
+        if (member->xa_binlog_state > xid_recovery_member::XA_NONE &&
+            member->is_binlog_set())
+        {
+          /*
+            The xa xid has been found at least once in a miningful binlog state
+            and is about to change.
+            When it's the transtion is from the prepared to a complete
+            state of the same transaction then the former xa's prepared state
+            is guaranteed to be durable.
+            Otherwise this is a duplicate xid case. The duplicate xid is one
+            that has smaller binlog coordinates. Its state then is confirmed
+            to be durable which fact need not any marking in the member because
+            it is to keep pointing to the "original" maximum coordinate xid.
+          */
+          if (!truncate_validated)
+          {
+            DBUG_ASSERT(member->binlog_coord != last_gtid_coord);
+            /*
+              the first of the two options below can occur when round 1 turns to 2
+              so event sequences across binlog files are like the following
+                    g_current(B_0, xid), ... g_last(B^*, xid),
+              where `g`:s are xa event groups associated with the same member via
+              common `xid`. As elsewhere B_0 is the 2nd round's first and,
+              B^* the 1st round binlogs.
+            */
+            if (reset_truncate_coord(member->binlog_coord < last_gtid_coord ?
+                                     member->binlog_coord.second : pos))
+              return true;
+          }
+          if (member->binlog_coord < last_gtid_coord)
+            member->binlog_coord= last_gtid_coord;
+        }
+        else
+        {
+          member->binlog_coord= last_gtid_coord;
+        }
         last_gtid_valid= false;
         /*
           First time truncate position estimate before its validation.
@@ -11245,7 +11310,9 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
     last_gtid_no2pc= false;
     last_gtid_standalone=
       (gev->flags2 & Gtid_log_event::FL_STANDALONE) ? true : false;
-    if (do_truncate && last_gtid_standalone)
+    /* a standalone XA-COMPLETE is truncation-safe */
+    if (do_truncate && last_gtid_standalone
+        && !(gev->flags2 & Gtid_log_event::FL_COMPLETED_XA))
       update_binlog_unsafe_coord_if_needed(linfo);
     /* Update the binlog state with any 'valid' GTID logged after Gtid_list. */
     last_gtid_valid= true;    // may flip at Xid when falls to truncate
@@ -11274,7 +11341,7 @@ int Recovery_context::next_binlog_or_round(int& round,
         *and* other files (binlog-checkpoint one and so on) do not have any
         transaction-in-doubt.
       */
-      if (truncate_gtid.seq_no == 0 && truncate_set_in_1st)
+      if (truncate_gtid.seq_no == 0 && truncate_set_in_1st && round > 1)
       {
         DBUG_ASSERT(truncate_gtid_1st_round.seq_no > 0);
 
@@ -11313,6 +11380,13 @@ int Recovery_context::next_binlog_or_round(int& round,
 }
 #endif
 
+extern "C" uchar *xid_get_var_key(xid_recovery_member *entry, size_t *length,
+                                  my_bool not_used __attribute__((unused)))
+{
+  *length= entry->full_xid->key_length();
+  return (uchar *) entry->full_xid->key();
+}
+
 /*
   Execute recovery of the binary log
 
@@ -11339,6 +11413,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 #ifdef HAVE_REPLICATION
   Recovery_context ctx;
 #endif
+  HASH xa_recover_list;
+
   DBUG_ENTER("TC_LOG_BINLOG::recover");
   /*
     The for-loop variable is updated by the following rule set:
@@ -11353,13 +11429,14 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   */
   int round;
 
-  if (! fdle->is_valid() ||
-      (my_hash_init(key_memory_binlog_recover_exec, &xids,
-                    &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
-                    sizeof(my_xid), 0, 0, MYF(0))) ||
+  if (!fdle->is_valid() ||
+      (my_hash_init(key_memory_binlog_recover_exec, &xids, &my_charset_bin,
+                    TC_LOG_PAGE_SIZE / 3, 0, sizeof(my_xid), 0, 0, MYF(0))) ||
       (my_hash_init(key_memory_binlog_recover_exec, &ddl_log_ids,
-                    &my_charset_bin, 64, 0,
-                    sizeof(my_xid), 0, 0, MYF(0))))
+                    &my_charset_bin, 64, 0, sizeof(my_xid), 0, 0, MYF(0))) ||
+      (my_hash_init(key_memory_binlog_recover_exec, &xa_recover_list,
+                             &my_charset_bin, TC_LOG_PAGE_SIZE / 3, 0, 0,
+                             (my_hash_get_key) xid_get_var_key, 0, MYF(0))))
     goto err1;
 
   init_alloc_root(key_memory_binlog_recover_exec, &mem_root,
@@ -11368,8 +11445,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 
   /* finds xids when root is not NULL */
-  if (do_xa && ha_recover(&xids, &mem_root))
-    goto err1;
+  if (do_xa && ha_recover(&xids, &xa_recover_list, &mem_root))
+    goto err2;
 
   /*
     Scan the binlog for XIDs that need to be committed if still in the
@@ -11382,6 +11459,9 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   binlog_checkpoint_found= false;
   for (round= 1;;)
   {
+#ifdef HAVE_REPLICATION
+    xid_recovery_member* pending_xa_member= NULL;
+#endif
     while ((ev= Log_event::read_log_event(round == 1 ? first_log : &log,
                                           fdle, opt_master_verify_checksum))
            && ev->is_valid())
@@ -11427,6 +11507,17 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           ctx.last_gtid_no2pc= true;
           ctx.update_binlog_unsafe_coord_if_needed(linfo);
         }
+        if (pending_xa_member && pending_xa_member->xa_binlog_state ==
+            xid_recovery_member::XA_COMPLETE)
+        {
+          pending_xa_member->xa_binlog_state=
+            ((Query_log_event *)ev)->is_xa_commit() ?
+            xid_recovery_member::XA_COMMIT : xid_recovery_member::XA_ROLLBACK;
+          if (ctx.decide_or_assess(pending_xa_member, round, fdle, linfo,
+                                   ev->log_pos))
+          goto err2;
+          pending_xa_member= NULL;
+        }
 #endif
         break;
       }
@@ -11440,6 +11531,12 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                               "long file name found.");
           else
           {
+            DBUG_EXECUTE_IF("simulate_stale_binlog_checkpoint",
+              {
+                int idx= atoi(&cev->binlog_file_name[cev->binlog_file_len -2]);
+                DBUG_ASSERT(idx == 16  || idx == 15);
+                cev->binlog_file_name[cev->binlog_file_len - 1]= '4'; // idx=14
+              });
             /*
               Note that we cannot use make_log_name() here, as we have not yet
               initialised MYSQL_BIN_LOG::log_file_name.
@@ -11462,14 +11559,76 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
             goto err2;
         }
         break;
+#endif
 
       case GTID_EVENT:
-        ctx.process_gtid(round, (Gtid_log_event *)ev, linfo);
+      {
+        Gtid_log_event *gev= (Gtid_log_event *) ev;
+#ifdef HAVE_REPLICATION
+        ctx.process_gtid(round, gev, linfo);
+#endif
+        if (do_xa)
+        {
+          xid_recovery_member* member;
+          bool is_xac= gev->flags2 & Gtid_log_event::FL_COMPLETED_XA;
+
+          if (gev->flags2 & (Gtid_log_event::FL_PREPARED_XA |
+                             Gtid_log_event::FL_COMPLETED_XA))
+          {
+#ifndef HAVE_REPLICATION
+            /*
+              the user XA events are decided similary to the normal transaction,
+              difference is just in the timing which is Gtid event read now.
+            */
+            if ((member= (xid_recovery_member *)
+                 my_hash_search(&xa_recover_list, gev->xid->key(),
+                                gev->xid->key_length())))
+              member->decided_to_commit= true;
+#else
+            if (!(member=
+                  xid_member_replace(&xa_recover_list, 0, &mem_root, &gev->xid,
+                                     server_id,
+                                     is_xac ? xid_recovery_member::XA_COMPLETE :
+                                     xid_recovery_member::XA_PREPARE)))
+              goto err2;
+            pending_xa_member= member;
+            if (!member->is_state_valid)
+            {
+              char buf[21];
+              longlong10_to_str(ctx.last_gtid.seq_no, buf, 10);
+              sql_print_warning("GTID %u-%u-%s XA transaction state % "
+                                "in binlog file:%s pos:%llu is inconsistent "
+                                "with the former same state; "
+                                "consider filtered binary loggig.",
+                                ctx.last_gtid.domain_id, ctx.last_gtid.server_id,
+                                buf, is_xac ? "'COMPLETE'" : "'PREPARE'",
+                                linfo->log_file_name, ctx.last_gtid_coord.second);
+            }
+          }
+        }
         break;
+      }
 
       case XA_PREPARE_LOG_EVENT:
-        ctx.last_gtid_no2pc= true; // TODO: complete MDEV-21469 that removes this block
-        ctx.update_binlog_unsafe_coord_if_needed(linfo);
+        if (!pending_xa_member)
+        {
+          char buf_0[21], buf_1[21];
+          longlong10_to_str(ctx.last_gtid.seq_no, buf_0, 10);
+          longlong10_to_str(ev->log_pos, buf_1, 10);
+
+          sql_print_warning("Improper binlog event group: GTID %u-%u-%s "
+                            "transaction is not marked as user XA in binlog "
+                            "file:%s pos:%llu while contains "
+                            "XA_PREPARE_LOG_EVENT at pos:%llu",
+                            ctx.last_gtid.domain_id, ctx.last_gtid.server_id, buf_0,
+                            linfo->log_file_name, ctx.last_gtid_coord.second,
+                            buf_1);
+        }
+        if (ctx.decide_or_assess(pending_xa_member, round, fdle, linfo,
+                                 ev->log_pos))
+          goto err2;
+        pending_xa_member= NULL;
+
         break;
 #endif
 
@@ -11489,7 +11648,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       if (ctx.last_gtid_valid &&
           ((ctx.last_gtid_standalone && !ev->is_part_of_group(typ)) ||
            (!ctx.last_gtid_standalone &&
-            (typ == XID_EVENT || ctx.last_gtid_no2pc))))
+            (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT ||
+             ctx.last_gtid_no2pc))))
       {
         DBUG_ASSERT(round == 1 || (ctx.do_truncate && !ctx.truncate_validated));
         DBUG_ASSERT(!ctx.last_gtid_no2pc ||
@@ -11576,9 +11736,9 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     if (binlog_checkpoint_found)
     {
 #ifndef HAVE_REPLICATION
-      if (ha_recover_complete(&xids))
+      if (ha_recover_complete(&xids, &xa_recover_list))
 #else
-      if (ctx.complete(this, xids))
+        if (ctx.complete(this, xids, xa_recover_list))
 #endif
         goto err2;
     }
@@ -11588,6 +11748,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   free_root(&mem_root, MYF(0));
   my_hash_free(&xids);
   my_hash_free(&ddl_log_ids);
+  my_hash_free(&xa_recover_list);
+
   DBUG_RETURN(0);
 
 err2:
@@ -11600,6 +11762,7 @@ err2:
   free_root(&mem_root, MYF(0));
   my_hash_free(&xids);
   my_hash_free(&ddl_log_ids);
+  my_hash_free(&xa_recover_list);
 
 err1:
   sql_print_error("Crash recovery failed. Either correct the problem "

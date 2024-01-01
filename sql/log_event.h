@@ -2207,6 +2207,10 @@ public:        /* !!! Public in this patch to allow old usage */
   virtual bool is_begin()    { return !strcmp(query, "BEGIN"); }
   virtual bool is_commit()   { return !strcmp(query, "COMMIT"); }
   virtual bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
+  virtual bool is_xa_commit()
+  {
+    return !strncasecmp(query, C_STRING_WITH_LEN("XA COMMIT"));
+  }
 };
 
 class Query_compressed_log_event:public Query_log_event{

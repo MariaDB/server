@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
 --source include/have_binlog_format_row.inc
 
 # MDEV-31949 slow xa on parallel slave
@@ -11,67 +12,129 @@ call mtr.add_suppression("unknown option");
 CREATE TABLE t31949 (a INT PRIMARY KEY) ENGINE=Innodb;
 CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
 
-XA START '1';
+--let $case=1
+--echo # case $case. only in engine prepared XA is rolled back
+
+--connect(master1,localhost,root,,)
+XA START 'A';
 INSERT INTO t31949 SET a=1;
-XA END '1';
-XA PREPARE '1';
---source include/kill_and_restart_mysqld.inc
+XA END 'A';
+SET DEBUG_SYNC= "commit_before_get_LOCK_log  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+--send XA PREPARE 'A'
 
---echo # xid '1' most be recovered
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+--source include/kill_and_restart_mysqld.inc
+--disconnect master1
+
+--echo # Proof $case:
 XA RECOVER;
---echo # COMMIT from an external connection
-XA COMMIT '1';
---source include/kill_and_restart_mysqld.inc
+SELECT count(*) = 0 from t31949;
 
---echo # xid '1' must be committed
+
+--inc $case
+--echo # case $case. both engine prepared and binlog written XA remains
+--connect(master1,localhost,root,,)
+XA START 'A';
+INSERT INTO t31949 SET a=1;
+XA END 'A';
+XA PREPARE 'A';
+
+--connection default
+--source include/kill_and_restart_mysqld.inc
+--disconnect master1
+
+--echo # Proof $case:
+--echo # xid 'A' must be recovered
+XA RECOVER;
+SELECT count(*) = 0 from t31949;
+
+
+--inc $case
+--echo # case $case. XA-COMMIT from an external connection after binlogging recovers to COMPLETE
+--connect(master1,localhost,root,,)
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+--send XA COMMIT 'A'
+
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+--source include/kill_and_restart_mysqld.inc
+--disconnect master1
+
+--echo # Proof $case:
+--echo # xid 'A' must be recovered to commit
 XA RECOVER;
 select count(*) = 1 from t31949;
 
-
-XA START '2';
+--inc $case
+--echo # case $case. XA-ROLLBACK from the native connection after binlogging recovers to COMPLETE
+--connect(master2,localhost,root,,)
+XA START 'B';
 INSERT INTO t31949 SET a=2;
-XA END '2';
-XA PREPARE '2';
---echo # ROLLBACK from the native connection
-XA ROLLBACK '2';
+XA END 'B';
+XA PREPARE 'B';
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+--send XA ROLLBACK 'B'
 
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 --source include/kill_and_restart_mysqld.inc
---echo # xid '1' must be rolled back
+--disconnect master2
+
+--echo # Proof $case:
+--echo # xid 'B' must be recovered to roll back
 XA RECOVER;
 select count(*) = 1 from t31949;
 
-XA START '3';
+--inc $case
+--echo # case $case. ditto to XA-COMMIT
+--connect(master3,localhost,root,,)
+XA START 'C';
 INSERT INTO t31949 SET a=3;
-XA END '3';
-XA PREPARE '3';
---echo # COMMIT from the native connection
-XA COMMIT '3';
---source include/kill_and_restart_mysqld.inc
+XA END 'C';
+XA PREPARE 'C';
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+--send XA COMMIT 'C'
 
---echo # xid '3' must be committed
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+--source include/kill_and_restart_mysqld.inc
+--disconnect master3
+
+--echo # Proof $case:
+--echo # xid 'C' must be recovered to commit
 XA RECOVER;
 select count(*) = 2 from t31949;
 
---connect(con4,127.0.0.1,root,,test,$MASTER_MYPORT,)
---let $conn1_id=`SELECT connection_id()`
-XA START '4';
-INSERT INTO t31949 SET a=4;
-XA END '4';
-XA PREPARE '4';
 
---disconnect con4
+--inc $case
+--echo # case $case. XA-ROLLBACK from an external connection  after binlogging recovers to COMPLETE
+
+--connect(conn$case,localhost,root,,)
+--let $conn_id=`SELECT connection_id()`
+XA START 'D';
+INSERT INTO t31949 SET a=4;
+XA END 'D';
+XA PREPARE 'D';
+--disconnect conn$case
+
 --connection default
---let $wait_condition= SELECT count(*) = 0 FROM v_processlist WHERE PROCESSLIST_ID = $conn1_id
+--let $wait_condition= SELECT count(*) = 0 FROM v_processlist WHERE PROCESSLIST_ID = $conn_id
 --source include/wait_condition.inc
 
---echo # ROLLBACK from an external connection
-XA ROLLBACK '4';
---source include/kill_and_restart_mysqld.inc
+--connect(master4,localhost,root,,)
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered  SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+--send XA ROLLBACK 'D'
 
---echo # xid '4' must be rolled back
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+--source include/kill_and_restart_mysqld.inc
+--disconnect master4
+
+--echo # Proof $case:
+--echo # xid 'D' must be recovered to roll back
 XA RECOVER;
 select count(*) = 2 from t31949;
-
 
 # cleanup
 DROP TABLE t31949;

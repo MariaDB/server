@@ -965,7 +965,7 @@ typedef struct xid_t XID;
 */
 typedef uint Binlog_file_id;
 const Binlog_file_id MAX_binlog_id= UINT_MAX;
-const my_off_t       MAX_off_t    = (~(my_off_t) 0);
+const my_off_t       MAX_binlog_offset    = (~(my_off_t) 0);
 /*
   Compound binlog-id and byte offset of transaction's first event
   in a sequence (e.g the recovery sequence) of binlog files.
@@ -989,14 +989,29 @@ struct xid_recovery_member
   Binlog_offset binlog_coord;
   XID *full_xid;           // needed by wsrep or past it recovery
   decltype(::server_id) server_id;         // server id of orginal server
+  enum enum_xa_binlog_state
+  { XA_NONE= 0, XA_PREPARE, XA_COMPLETE, XA_COMMIT, XA_ROLLBACK }
+    xa_binlog_state;
+  bool is_state_valid;
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
-                      XID *full_xid_arg, decltype(::server_id) server_id_arg)
+                      XID *full_xid_arg, decltype(::server_id) server_id_arg,
+                      enum_xa_binlog_state xa_binlog_state_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
       decided_to_commit(decided_arg),
-      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
-      full_xid(full_xid_arg), server_id(server_id_arg) {};
+      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_binlog_offset)),
+      full_xid(full_xid_arg), server_id(server_id_arg),
+      xa_binlog_state(xa_binlog_state_arg), is_state_valid(true) {};
+  bool is_binlog_set() { return binlog_coord.second != MAX_binlog_offset; }
 };
+
+xid_recovery_member*
+xid_member_replace(HASH *hash_arg, my_xid xid_arg,
+                   MEM_ROOT *ptr_mem_root,
+                   XID *full_xid_arg,
+                   decltype(::server_id) server_id_arg,
+                   xid_recovery_member::enum_xa_binlog_state
+                   xa_binlog_state= xid_recovery_member::XA_NONE);
 
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
@@ -5383,7 +5398,8 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
-int ha_recover(HASH *commit_list, MEM_ROOT *mem_root= NULL);
+int ha_recover(HASH *commit_list, HASH *xa_recover_list= NULL,
+               MEM_ROOT *mem_root= NULL);
 uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord= NULL);
 
 /* transactions: these functions never call handlerton functions directly */

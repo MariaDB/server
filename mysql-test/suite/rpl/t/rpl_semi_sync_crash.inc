@@ -1,10 +1,15 @@
+if ($primary)
+{
+  --eval select @@global.gtid_binlog_pos as "initial $primary state"
+}
 if ($failover_to_slave)
 {
  --let $server_to_crash=1
  --let $server_to_promote=2
  --let $new_master_port=$SERVER_MYPORT_2
  --let $client_port=$SERVER_MYPORT_1
-
+ --connect (conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+ --connect (conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
  --connect (conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 }
 if (!$failover_to_slave)
@@ -14,6 +19,8 @@ if (!$failover_to_slave)
  --let $new_master_port=$SERVER_MYPORT_1
  --let $client_port=$SERVER_MYPORT_2
 
+ --connect (conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+ --connect (conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
  --connect (conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
 }
 
@@ -23,10 +30,15 @@ if (!$failover_to_slave)
 
 if ($case == 1)
 {
+  if ($pre_query_to_crash)
+  {
+    --eval $pre_query_to_crash
+  }
   SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
   --send_eval $query_to_crash
   --connection server_$server_to_crash
   SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+  --eval select @@global.gtid_binlog_pos as "server_$server_to_crash state"
   --source include/kill_mysqld.inc
 }
 
@@ -35,7 +47,7 @@ if ($case == 2)
 {
   SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
   --send_eval $query_to_crash
-  --connect (conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+  --connection conn_client_2
   # use the same signal with $query_to_crash
   SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
   SET GLOBAL debug_dbug="d,Notify_binlog_EOF";
@@ -48,16 +60,41 @@ if ($case == 2)
 # complicate recovery with an extra binlog file
 if ($case == 3)
 {
+  if ($pre_query_to_crash)
+  {
+    --connection conn_client_3
+    --eval $pre_query_to_crash
+  if ($pre_query_to_crash_2)
+  {
+    --eval $pre_query_to_crash_2
+  }
+    --connection conn_client
+  }
   SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
   --send_eval $query_to_crash
-  --connect (conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+  --connection conn_client_3
   SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+  --source include/save_master_gtid.inc
+
+# This guarantees the $expected_rows_on_slave assert
+  --connection server_$server_to_promote
+  --source include/sync_with_master_gtid.inc
+
+  --connection conn_client_3
   # use the same signal with $query_to_crash
   SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
   --send_eval $query2_to_crash
   --connection server_$server_to_crash
   SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
-  --source include/kill_mysqld.inc
+--disable_query_log
+--disable_result_log
+  if ($debug_pre_crash)
+  {
+      --eval $debug_pre_crash
+  }
+--enable_result_log
+--enable_query_log
+   --source include/kill_mysqld.inc
 }
 
 --connection server_$server_to_promote
@@ -67,14 +104,13 @@ source include/wait_for_slave_param.inc;
 
 --error 2003
 --source include/stop_slave.inc
-
 --let $assert_cond= COUNT(*) = $expected_rows_on_slave FROM t1
 --let $assert_text= Table t1 should have $expected_rows_on_slave rows.
 --source include/assert.inc
 
 SELECT @@GLOBAL.gtid_current_pos;
 
---let $restart_parameters=--skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+--let $restart_parameters=--skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 $dbug_restart --max-binlog-size=4096
 --let $allow_rpl_inited=1
 --source include/start_mysqld.inc
 --connection server_$server_to_crash
@@ -92,6 +128,8 @@ let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.$server_to_crash.err;
 --source include/search_pattern_in_file.inc
 
 --disconnect conn_client
+--disconnect conn_client_2
+--disconnect conn_client_3
 
 #
 # FAIL OVER now to new master
@@ -109,4 +147,12 @@ if (`select $server_to_crash = 2`)
 evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
 set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
 --source include/start_slave.inc
+
+if ($primary)
+{
+  --let $tmp=$primary
+  --let $primary=$replica
+  --let $replica=$tmp
+}

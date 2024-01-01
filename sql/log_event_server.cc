@@ -3324,6 +3324,11 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       flags2|= thd->lex->sql_command == SQLCOM_XA_PREPARE ?
         FL_PREPARED_XA : FL_COMPLETED_XA;
       xid.set(xid_state.get_xid());
+
+      // multi-engine external completion is unaware of the prepared engine #.
+      extra_engines= thd->transaction->all.ha_list ?
+        ha_count_rw_2pc(thd_arg,
+                        thd_arg->in_multi_stmt_transaction_mode()) - 1 : 0;
     }
     /* count non-zero extra recoverable engines; total = extra + 1 */
     if (has_xid)
@@ -3337,13 +3342,6 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     else if (ro_1pc)
     {
       extra_engines= UCHAR_MAX;
-    }
-    else if (thd->lex->sql_command == SQLCOM_XA_PREPARE)
-    {
-      DBUG_ASSERT(thd_arg->in_multi_stmt_transaction_mode());
-
-      uint8 count= ha_count_rw_2pc(thd_arg, true);
-      extra_engines= count > 1 ? 0 : UCHAR_MAX;
     }
     if (extra_engines > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE;

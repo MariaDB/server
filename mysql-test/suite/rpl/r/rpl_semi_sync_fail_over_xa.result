@@ -1,0 +1,569 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+RESET MASTER;
+SET @@global.max_binlog_size= 4096;
+connection server_2;
+RESET MASTER;
+SET @@global.max_binlog_size= 4096;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos = "";
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1, 'dummy1');
+connection server_1;
+CREATE PROCEDURE sp_xa(val int)
+BEGIN
+XA START   'xid';
+INSERT INTO t1 VALUES (val, REPEAT("x", 4100));
+XA END     'xid';
+XA PREPARE 'xid';
+END|
+connection server_2;
+#
+# Case:1.A
+#
+# CRASH server_1/master server_1 after XA PREPARE semisynced
+# FAILOVER to server_2/slave
+connection server_1;
+# CALL sp_xa(2)
+# Expected State post crash:
+select @@global.gtid_binlog_pos as "initial server_1 state";
+initial server_1 state
+0-1-4
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
+CALL sp_xa(2);
+connection server_1;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+select @@global.gtid_binlog_pos as "server_1 state";
+server_1 state
+0-1-5
+# Kill the server
+connection server_2;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 1 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-1-5
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1  --max-binlog-size=4096
+connection server_1;
+include/assert.inc [Table t1 should have 1 rows.]
+FOUND 1 /truncated binlog file.*to remove transactions starting from GTID 0-1-5/ in mysqld.1.err
+disconnect conn_client;
+disconnect conn_client_2;
+disconnect conn_client_3;
+connection server_2;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-4
+include/start_slave.inc
+#
+# server_2 promoted to the primary/master will serve new replica/slave server_1 starting from 0-1-5
+#
+connection server_2;
+XA COMMIT 'xid';
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-6
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-5,0-2-6
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-5
+connection server_1;
+SELECT COUNT(*) = 2 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-6
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-6
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-5,0-2-6
+include/diff_tables.inc [server_1:t1, server_2:t1]
+#
+# Case:1.B
+#
+# CRASH the primary/master after a sequence of
+# XA PREPARE, XA COMMIT (XAC becomes durable in Engine), Trx is binlogged
+# but remains only prepared by crash time.
+# FAILOVER to server_1.
+connection server_2;
+CALL sp_xa(3);
+connection server_1;
+connection server_2;
+XA COMMIT 'xid';
+FLUSH LOGS;
+# INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
+# Expected State post crash:
+select @@global.gtid_binlog_pos as "initial server_2 state";
+initial server_2 state
+0-2-8
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+select @@global.gtid_binlog_pos as "server_2 state";
+server_2 state
+0-2-9
+# Kill the server
+connection server_1;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 4 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-2-9
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1  --max-binlog-size=4096
+connection server_2;
+include/assert.inc [Table t1 should have 3 rows.]
+FOUND 1 /truncated binlog file.*to remove transactions starting from GTID 0-2-9/ in mysqld.2.err
+disconnect conn_client;
+disconnect conn_client_2;
+disconnect conn_client_3;
+connection server_1;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_2;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-2-8
+include/start_slave.inc
+#
+# server_1 promoted to the primary/master will serve new replica/slave server_2 starting from 0-2-9
+#
+connection server_1;
+DELETE FROM t1 WHERE a = 4;
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-10
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-9,0-1-10
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-9
+connection server_2;
+SELECT COUNT(*) = 3 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-10
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-10
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-9,0-1-10
+include/diff_tables.inc [server_1:t1, server_2:t1]
+#
+# Case:1.C
+#
+# CRASH the primary/master after a sequence of
+# XA PREPARE, XA ROLLBACK. XAR won't be durable in Engine and will be
+# discarded from truncated binlog.
+# XAP remains prepared after crash-recovery on the former
+# demoted-to-slave master.
+# FAILOVER to server_2.
+connection server_1;
+call mtr.add_suppression("Found 1 prepared XA transactions");
+# XA ROLLBACK 'xid'
+# Expected State post crash:
+select @@global.gtid_binlog_pos as "initial server_1 state";
+initial server_1 state
+0-1-11
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+CALL sp_xa(4);
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
+XA ROLLBACK 'xid';
+connection server_1;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+select @@global.gtid_binlog_pos as "server_1 state";
+server_1 state
+0-1-13
+# Kill the server
+connection server_2;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 3 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-1-13
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1  --max-binlog-size=4096
+connection server_1;
+include/assert.inc [Table t1 should have 3 rows.]
+FOUND 1 /truncated binlog file.*to remove transactions starting from GTID 0-1-13/ in mysqld.1.err
+disconnect conn_client;
+disconnect conn_client_2;
+disconnect conn_client_3;
+connection server_2;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-12
+include/start_slave.inc
+#
+# server_2 promoted to the primary/master will serve new replica/slave server_1 starting from 0-1-13
+#
+connection server_2;
+INSERT INTO t1 VALUES (4, REPEAT("x", 4100));;
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-14
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-13,0-2-14
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-13
+connection server_1;
+SELECT COUNT(*) = 4 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-14
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-14
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-13,0-2-14
+include/diff_tables.inc [server_1:t1, server_2:t1]
+#
+# Case:3.A
+#
+# CRASH the primary/master after a sequence of
+# XA PREPARE, Trx, Rotate.
+# Both XAP and Trx are discarded from truncated binlog.
+# FAILOVER to server_1.
+connection server_2;
+# CALL sp_xa(5)
+# Expected State post crash:
+select @@global.gtid_binlog_pos as "initial server_2 state";
+initial server_2 state
+0-2-14
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+CALL sp_xa(5);
+connection conn_client_3;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+include/save_master_gtid.inc
+connection server_1;
+include/sync_with_master_gtid.inc
+connection conn_client_3;
+SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (5+1, REPEAT("x", 4100));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
+# Kill the server
+connection server_1;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 4 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-2-15
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1  --max-binlog-size=4096
+connection server_2;
+include/assert.inc [Table t1 should have 4 rows.]
+FOUND 1 /truncated binlog file.*to remove transactions starting from GTID 0-2-15/ in mysqld.2.err
+disconnect conn_client;
+disconnect conn_client_2;
+disconnect conn_client_3;
+connection server_1;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_2;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-2-14
+include/start_slave.inc
+connection server_2;
+# no xid in the list
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	0	xid
+connection server_1;
+XA COMMIT 'xid';
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-16
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-15,0-1-16
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-15
+connection server_2;
+SELECT COUNT(*) = 5 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-16
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-16
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-15,0-1-16
+include/diff_tables.inc [server_1:t1, server_2:t1]
+#
+# Case:3.B
+#
+# CRASH the primary/master after a sequence of
+# XA PREPARE, Rotate, Trx, Rotate, XA COMMIT.
+# Trx and XA-COMMIT are discarded from truncated binlog.
+# FAILOVER to server_2.
+connection server_1;
+# CALL sp_xa(6)
+# INSERT INTO t1 VALUES (6+1, REPEAT("x", 4100))
+# XA COMMIT 'xid'
+# Expected State post crash:
+select @@global.gtid_binlog_pos as "initial server_1 state";
+initial server_1 state
+0-1-16
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connection conn_client_3;
+CALL sp_xa(6);
+connection conn_client;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (6+1, REPEAT("x", 4100));
+connection conn_client_3;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection conn_client_3;
+SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
+XA COMMIT 'xid';
+connection server_1;
+SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
+# Kill the server
+connection server_2;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 6 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-1-18
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1  --max-binlog-size=4096
+connection server_1;
+include/assert.inc [Table t1 should have 5 rows.]
+FOUND 1 /truncated binlog file.*to remove transactions starting from GTID 0-1-18/ in mysqld.1.err
+disconnect conn_client;
+disconnect conn_client_2;
+disconnect conn_client_3;
+connection server_2;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-17
+include/start_slave.inc
+#
+# server_2 promoted to the primary/master will serve new replica/slave server_1 starting from 0-1-18
+#
+connection server_2;
+XA COMMIT 'xid';
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-19
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-18,0-2-19
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-18
+connection server_1;
+SELECT COUNT(*) = 5 as 'true' FROM t1;
+true
+0
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-19
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-19
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-18,0-2-19
+include/diff_tables.inc [server_1:t1, server_2:t1]
+#
+# Case:3.C
+#
+# CRASH the primary/master after a sequence of
+#  XAP_1, XAC_2, XAP_3, Rotate(1->2), BCP(1), Trx_4, Rotate(2->3), XAR_5
+# FAILOVER to server_1.
+connection server_2;
+SET GLOBAL debug_dbug="+d,sleep_at_mark_xid_done";
+CALL sp_xa(8);
+XA COMMIT 'xid';
+# XAP_1
+# XAC_2
+# CALL sp_xa(9)
+# INSERT INTO t1 VALUES (9+1, REPEAT("4", 4100))
+# XA ROLLBACK 'xid'
+# Expected State post crash:
+select @@global.gtid_binlog_pos as "initial server_2 state";
+initial server_2 state
+0-2-21
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connection conn_client_3;
+CALL sp_xa(9);
+connection conn_client;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (9+1, REPEAT("4", 4100));
+connection conn_client_3;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+include/save_master_gtid.inc
+connection server_1;
+include/sync_with_master_gtid.inc
+connection conn_client_3;
+SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
+XA ROLLBACK 'xid';
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
+# Kill the server
+connection server_1;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 9 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-2-23
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --debug-dbug=+d,simulate_stale_binlog_checkpoint --max-binlog-size=4096
+connection server_2;
+include/assert.inc [Table t1 should have 8 rows.]
+FOUND 1 /truncated binlog file.*to remove transactions starting from GTID 0-2-22/ in mysqld.2.err
+disconnect conn_client;
+disconnect conn_client_2;
+disconnect conn_client_3;
+connection server_1;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_2;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-2-21
+include/start_slave.inc
+#
+# server_1 promoted to the primary/master will serve new replica/slave server_2 starting from 0-2-22
+#
+connection server_1;
+XA ROLLBACK 'xid';
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-24
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-23,0-1-24
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-23
+connection server_2;
+SELECT COUNT(*) = 5 as 'true' FROM t1;
+true
+0
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-24
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-24
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-23,0-1-24
+include/diff_tables.inc [server_1:t1, server_2:t1]
+# end of the cases
+connection server_1;
+drop procedure sp_xa;
+connection server_2;
+include/stop_slave.inc
+#
+# Cleanup
+#
+connection server_1;
+set global rpl_semi_sync_slave_enabled = 0;
+set global rpl_semi_sync_master_enabled = 0;
+set global rpl_semi_sync_master_wait_point=default;
+RESET MASTER;
+RESET SLAVE;
+connection server_2;
+RESET MASTER;
+RESET SLAVE;
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_use_gtid=SLAVE_POS;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+connection default;
+include/rpl_end.inc

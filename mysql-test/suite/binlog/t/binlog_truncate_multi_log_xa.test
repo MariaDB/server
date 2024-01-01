@@ -1,0 +1,102 @@
+# ==== Purpose ====
+#
+# Test verifies truncation of multiple binary logs.
+#
+# ==== References ====
+# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+# MDEV-33168 XA crash-recovery base on engines prepare first rule
+
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+call mtr.add_suppression("Found.*prepared [XA ]*transaction[s]*");
+
+SET @@global.max_binlog_size= 4096;
+SET @@global.sync_binlog= 1;
+RESET MASTER;
+FLUSH LOGS;
+CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+
+delimiter |;
+CREATE PROCEDURE sp_xa()
+BEGIN
+ XA START   'xid';
+ INSERT INTO ti VALUES (2, REPEAT("x", 4100));
+ XA END     'xid';
+ XA PREPARE 'xid';
+END|
+delimiter ;|
+
+# Notations from MDEV-21117:
+# the small lettercase `g` stands for non-committed in doubt transaction
+# Similarly `p` stands for in-doubt user prepared XA.
+# The uppercased G:s,P that stand for the fact of resolved status (to complete
+# the transaction (both kinds) or keep xa as prepared).
+
+--echo # case A. binlog input p1,g2,g3: p1 gets truncated along with g2,g3
+--let $truncate_index=2
+--let $truncate_gtid=0-1-4
+--let $query1=call sp_xa()
+--let $query2=INSERT INTO ti VALUES (3, "not gonna survive")
+--source binlog_truncate_multi_log_xa.inc
+
+--echo # case B. binlog input g1,p2,g3: p2 gets truncated along with g1,g3
+--let $truncate_index=3
+--let $truncate_gtid=0-1-6
+--let $query1=INSERT INTO ti VALUES (3, "not gonna survive")
+--let $query2=call sp_xa()
+--source binlog_truncate_multi_log_xa.inc
+
+
+--echo # case C. binlog input G1,P2,G3: P2 remains prepared.
+connect(master1,localhost,root,,);
+INSERT INTO ti VALUES(1,"I am gonna survive");
+
+connect(master2,localhost,root,,);
+call sp_xa();
+
+connect(master3,localhost,root,,);
+INSERT INTO ti VALUES(3,"Me too");
+
+--connection default
+--source include/restart_mysqld.inc
+--disconnect master1
+--disconnect master2
+--disconnect master3
+
+#
+# Server restart
+#
+--let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+--source include/start_mysqld.inc
+--echo # xid must be in
+XA RECOVER;
+
+--echo # case D. prove Binlog-checkpoint based recovery for XA-"complete"
+# crash after XA-COMMIT followed by Rotate and Binlog-Checkpoint
+# must be sufficient for the XA transaction be durably committed.
+# It can't be found in prepared state at recovery.
+XA COMMIT 'xid';
+FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+
+--source include/kill_mysqld.inc
+--let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+--source include/start_mysqld.inc
+
+--echo # no xid must be in
+XA RECOVER;
+
+SELECT count(*) = 3 FROM ti;
+SELECT @@global.gtid_binlog_state;
+SELECT @@global.gtid_binlog_pos;
+
+
+--echo # Cleanup
+DROP PROCEDURE sp_xa;
+DROP TABLE ti;
+SET @@global.sync_binlog= default;
+--echo # End of the tests
