@@ -211,8 +211,12 @@ public:
     if (thd != m_unsafe_thd)
       return false;
 
-    /* Hold this lock to keep THD during materialization. */
-    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    /*
+      Hold this lock to keep THD during materialization.
+      But don't lock current_thd (to be able to use set_killed() later
+    */
+    if (thd != current_thd)
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
     return true;
   }
   void set_unsafe_thd(THD *unsafe_thd) { m_unsafe_thd= unsafe_thd; }

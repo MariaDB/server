@@ -254,7 +254,8 @@ int PFS_system_variable_cache::do_materialize_all(THD *unsafe_thd)
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -354,7 +355,8 @@ int PFS_system_variable_cache::do_materialize_session(PFS_thread *pfs_thread)
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -407,7 +409,8 @@ int PFS_system_variable_cache::do_materialize_session(PFS_thread *pfs_thread, ui
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -458,7 +461,8 @@ int PFS_system_variable_cache::do_materialize_session(THD *unsafe_thd)
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -990,7 +994,8 @@ int PFS_status_variable_cache::do_materialize_all(THD* unsafe_thd)
     manifest(m_safe_thd, m_show_var_array.front(), status_vars, "", false, false);
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -1036,7 +1041,8 @@ int PFS_status_variable_cache::do_materialize_session(THD* unsafe_thd)
     manifest(m_safe_thd, m_show_var_array.front(), status_vars, "", false, true);
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -1078,7 +1084,8 @@ int PFS_status_variable_cache::do_materialize_session(PFS_thread *pfs_thread)
     manifest(m_safe_thd, m_show_var_array.front(), status_vars, "", false, true);
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
