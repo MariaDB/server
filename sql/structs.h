@@ -382,6 +382,7 @@ typedef struct st_index_stats
   char index[NAME_LEN * 3 + 3];
   size_t index_name_length;                       /* Length of 'index' */
   ulonglong rows_read;
+  ulonglong queries;
 } INDEX_STATS;
 
 
