@@ -29,6 +29,7 @@
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
 #include "sql_bitmap.h"
 #include "lex_charset.h"
+#include "sql_basic_types.h"           /* query_id_t */
 
 struct TABLE;
 class Type_handler;
@@ -382,6 +383,8 @@ typedef struct st_index_stats
   char index[NAME_LEN * 3 + 3];
   size_t index_name_length;                       /* Length of 'index' */
   ulonglong rows_read;
+  ulonglong queries;
+  query_id_t query_id;
 } INDEX_STATS;
 
 
