@@ -601,6 +601,7 @@ IF(NOT WITHOUT_SERVER)
    mariadb-tzinfo-to-sql
    mariadb-upgrade
    mariadbd
+   my_convert
    my_print_defaults
    my_safe_process
    myisam_ftdump
