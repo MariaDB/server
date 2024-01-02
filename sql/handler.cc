@@ -5985,6 +5985,9 @@ void handler::update_global_index_stats()
 {
   DBUG_ASSERT(table->s);
 
+  if (table->s->table_category != TABLE_CATEGORY_USER)
+    return; // Ignore stat tables, performance_schema, information_schema etc.
+
   if (!table->in_use->userstat_running)
   {
     /* Reset all index read values */
@@ -6025,6 +6028,7 @@ void handler::update_global_index_stats()
       }
       /* Updates the global index stats. */
       index_stats->rows_read+= index_rows_read[index];
+      index_stats->queries++;
       index_rows_read[index]= 0;
 end:
       mysql_mutex_unlock(&LOCK_global_index_stats);
