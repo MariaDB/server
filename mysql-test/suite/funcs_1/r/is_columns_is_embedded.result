@@ -184,6 +184,7 @@ def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL	NO	NO
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(4096)					NEVER	NULL	NO	NO
 def	information_schema	INDEX_STATISTICS	INDEX_NAME	3	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)					NEVER	NULL	NO	NO
+def	information_schema	INDEX_STATISTICS	QUERIES	5	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)					NEVER	NULL	NO	NO
 def	information_schema	INDEX_STATISTICS	ROWS_READ	4	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)					NEVER	NULL	NO	NO
 def	information_schema	INDEX_STATISTICS	TABLE_NAME	2	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)					NEVER	NULL	NO	NO
 def	information_schema	INDEX_STATISTICS	TABLE_SCHEMA	1	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)					NEVER	NULL	NO	NO
@@ -779,6 +780,7 @@ NULL	information_schema	GEOMETRY_COLUMNS	SRID	smallint	NULL	NULL	NULL	NULL	small
 3.0000	information_schema	INDEX_STATISTICS	TABLE_NAME	varchar	192	576	utf8mb3	utf8mb3_general_ci	varchar(192)
 3.0000	information_schema	INDEX_STATISTICS	INDEX_NAME	varchar	192	576	utf8mb3	utf8mb3_general_ci	varchar(192)
 NULL	information_schema	INDEX_STATISTICS	ROWS_READ	bigint	NULL	NULL	NULL	NULL	bigint(21)
+NULL	information_schema	INDEX_STATISTICS	QUERIES	bigint	NULL	NULL	NULL	NULL	bigint(21)
 3.0000	information_schema	KEYWORDS	WORD	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	KEY_CACHES	KEY_CACHE_NAME	varchar	192	576	utf8mb3	utf8mb3_general_ci	varchar(192)
 NULL	information_schema	KEY_CACHES	SEGMENTS	int	NULL	NULL	NULL	NULL	int(3) unsigned

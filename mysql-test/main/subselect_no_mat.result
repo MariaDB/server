@@ -7126,8 +7126,8 @@ Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
 test	t1	2	0	0
 test	t2	3	0	0
 show index_statistics;
-Table_schema	Table_name	Index_name	Rows_read
-test	t2	b	1
+Table_schema	Table_name	Index_name	Rows_read	Queries
+test	t2	b	1	1
 set global userstat=@tmp_mdev410;
 DROP TABLE t1,t2,t3,t4;
 #

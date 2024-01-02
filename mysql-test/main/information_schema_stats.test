@@ -24,9 +24,10 @@ select * from information_schema.table_statistics where table_schema='test' and 
 alter table just_a_test drop column state;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-drop table just_a_test;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+drop table just_a_test;
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 #
 # Test direct drop table
 #

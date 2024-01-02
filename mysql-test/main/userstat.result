@@ -59,6 +59,7 @@ TABLE_SCHEMA	varchar(192)	NO		NULL
 TABLE_NAME	varchar(192)	NO		NULL	
 INDEX_NAME	varchar(192)	NO		NULL	
 ROWS_READ	bigint(21)	NO		NULL	
+QUERIES	bigint(21)	NO		NULL	
 show columns from information_schema.table_statistics;
 Field	Type	Null	Key	Default	Extra
 TABLE_SCHEMA	varchar(192)	NO		NULL	
@@ -138,13 +139,13 @@ handler_read_key
 disconnect ssl_con;
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
 select * from information_schema.table_statistics;
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
 show table_statistics;
 Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
 show index_statistics;
-Table_schema	Table_name	Index_name	Rows_read
+Table_schema	Table_name	Index_name	Rows_read	Queries
 select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;;
 TOTAL_CONNECTIONS	2
 TOTAL_SSL_CONNECTIONS	1
@@ -188,7 +189,7 @@ OTHER_COMMANDS IN (7,8)
 flush table_statistics;
 flush index_statistics;
 select * from information_schema.index_statistics;
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
 select * from information_schema.table_statistics;
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
 show status like "%generic%";
@@ -248,3 +249,24 @@ drop function f;
 #
 # End of 10.2 tests
 #
+#
+# MDEV-33901 INDEX_STATISTICS.QUERIES is incremented additionally for
+# subqueries
+#
+SET @save_userstat= @@userstat;
+set global userstat= 1;
+create or replace table t1 (a int, key(a)) engine=MyISAM;
+insert into t1 values (1),(2),(3),(4);
+flush index_statistics;
+select a from t1 where a in ( select a from t1 );
+a
+1
+2
+3
+4
+show index_statistics;
+Table_schema	Table_name	Index_name	Rows_read	Queries
+test	t1	a	8	1
+drop table t1;
+set global userstat=@save_userstat;
+# End of 11.5 tests
