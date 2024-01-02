@@ -28,7 +28,15 @@ PARTITION pt1 VALUES IN (0) COMMENT='srv "s_2_1", table "ta_r2"',
 PARTITION pt2 VALUES IN (1) COMMENT='srv "s_2_1", table "ta_r3"',
 PARTITION pt3 VALUES IN (2) COMMENT='srv "s_2_1", table "ta_r4"'
   )
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a VALUES(10000, "  abcd   ");
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a VALUES(10001, "  abcd   ");
 INSERT INTO tbl_a VALUES(10002, "  abcd   ");
 INSERT INTO tbl_a VALUES(10003, "[[[abcd][[");

@@ -28,7 +28,11 @@ dt date NOT NULL,
 tm time NOT NULL,
 PRIMARY KEY (skey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-01-01', '12:00:00'),(1, '2012-02-01', '12:00:00'),(2, '2012-03-01', '12:00:00'),(3, '2012-04-01', '12:00:00'),(4, '2012-05-01', '12:00:00'),(5, '2012-06-01', '12:00:00'),(6, '2012-07-01', '12:00:00'),(7, '2012-08-01', '12:00:00'),(8, '2012-09-01', '12:00:00'),(9, '2012-10-01', '12:00:00');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 FLUSH TABLES;
 
 select test 1
@@ -45,8 +49,8 @@ Query OK, 0 rows affected
 INSERT IGNORE INTO tbl_a (skey, dt, tm) VALUES (0, '2013-01-01', '13:00:00'),(2, '2013-02-01', '13:00:00'),(4, '2013-03-01', '13:00:00'),(7, '2013-04-01', '13:00:00'),(8, '2013-05-01', '13:00:00'),(10, '2013-06-01', '13:00:00'),(11, '2013-07-01', '13:00:00'),(12, '2013-08-01', '13:00:00'),(13, '2013-09-01', '13:00:00'),(14, '2013-10-01', '13:00:00')
 --------------
 
-Query OK, 5 rows affected
-Records: 10  Duplicates: 5  Warnings: 0
+Query OK, 5 rows affected, 1 warning
+Records: 10  Duplicates: 5  Warnings: 1
 
 Bye
 connection child2_1;

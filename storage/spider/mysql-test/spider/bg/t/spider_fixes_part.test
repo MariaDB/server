@@ -163,7 +163,9 @@ if ($HAVE_PARTITION)
     PRIMARY KEY(a)
   ) $MASTER_1_ENGINE $MASTER_1_COMMENT2_P_2_1;
   --enable_query_log
+  --disable_ps_protocol
   INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+  --enable_ps_protocol
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 WHERE a > 1
   ORDER BY a;
   if ($USE_CHILD_GROUP2)
@@ -268,7 +270,9 @@ if ($HAVE_PARTITION)
     PRIMARY KEY(a)
   ) $MASTER_1_ENGINE $MASTER_1_COMMENT2_P_2_1;
   --enable_query_log
+  --disable_ps_protocol
   INSERT INTO ta_l2 (a, b, c) VALUES (3, 'B', '2010-09-26 00:00:00');
+  --enable_ps_protocol
   UPDATE ta_l2 SET a = 4 WHERE a = 3;
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2;
   if ($USE_CHILD_GROUP2)
@@ -363,7 +367,9 @@ if ($HAVE_PARTITION)
     KEY idx2(c)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT3_P_2_1;
   --enable_query_log
+  --disable_ps_protocol
   INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
+  --enable_ps_protocol
   INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
   INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
   INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
@@ -531,7 +537,9 @@ if ($HAVE_PARTITION)
     --connection master_1
   }
   --enable_query_log
+  --disable_ps_protocol
   INSERT INTO t1 () VALUES ();
+  --enable_ps_protocol
   SELECT LAST_INSERT_ID();
   SELECT MAX(id) FROM t1;
   INSERT INTO t1 () VALUES ();

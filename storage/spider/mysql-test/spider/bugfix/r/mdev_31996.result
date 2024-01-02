@@ -7,12 +7,20 @@ set session spider_delete_all_rows_type=0;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 delete from t1;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t1, t2;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert ignore into t1 values (42), (378);
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select * from t1;
 c
 42
@@ -24,17 +32,27 @@ drop table t1, t2;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 truncate t1;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t1, t2;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", delete_all_rows_type "0"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert ignore into t1 values (42), (378);
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select * from t1;
 c
 42
 378
 truncate t1;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select * from t1;
 c
 drop table t1, t2;

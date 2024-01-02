@@ -16,6 +16,9 @@ c INT
 PARTITION BY LIST COLUMNS(`c`) (
 PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t SELECT * FROM t;
 ERROR 42000: Unknown database 'auto_test_remote'
 DROP DATABASE auto_test_local;

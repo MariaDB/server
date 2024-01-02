@@ -14,7 +14,9 @@ select @@spider_auto_increment_mode;
 create or replace table auto_test_local.t (id int primary key) engine=InnoDB;
 create or replace table t_sp1 (id int auto_increment, primary key(id desc))
 engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
+--disable_ps_protocol
 insert into t_sp1 () values (),(),();
+--enable_ps_protocol
 insert into t_sp1 () values (),(),();
 select * from t_sp1;
 drop table t_sp1, auto_test_local.t;
@@ -30,7 +32,9 @@ partition by range (a)
 (partition p1 values less than (4) comment "table 't1'",
  partition p2 values less than (maxvalue) comment "table 't2'");
 
+--disable_ps_protocol
 insert into t values (1),(2),(10),(11);
+--enable_ps_protocol
 select * from t where a > 1 order by a;
 drop table t, auto_test_local.t1, auto_test_local.t2;
 
@@ -42,7 +46,9 @@ create table auto_test_local.t (a int, b char(1), primary key(a desc));
 insert into auto_test_local.t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
 create table ts (a int, b char(1), primary key(a desc))
 engine=spider comment='wrapper "mysql", srv "s_1", table "t"';
+--disable_ps_protocol
 select a, b from ts where a > 0 and b = 'g' order by a;
+--enable_ps_protocol
 drop table ts, auto_test_local.t;
 
 drop database auto_test_local;

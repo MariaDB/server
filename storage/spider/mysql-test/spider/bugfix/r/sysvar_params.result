@@ -10,11 +10,17 @@ CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK",
 set session spider_read_only_mode = default;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 1 */ insert into t1 values (42);
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t1, t2;
 set session spider_read_only_mode = 1;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 2 */ insert into t1 values (42);
 ERROR HY000: Table 'test.t1' is read only
 drop table t1, t2;
@@ -23,25 +29,37 @@ Warnings:
 Warning	138	The option value -1 (fallback to default) is deprecated and will be removed in a future release
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 3 */ insert into t1 values (42);
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t1, t2;
 # Cases where table params are set
 SET session spider_read_only_mode = default;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 4 */ insert into t1 values (42);
 ERROR HY000: Table 'test.t1' is read only
 drop table t1, t2;
 set session spider_read_only_mode = 1;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "0", WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 5 */ insert into t1 values (42);
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t1, t2;
 SET session spider_read_only_mode = -1;
 Warnings:
 Warning	138	The option value -1 (fallback to default) is deprecated and will be removed in a future release
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 6 */ insert into t1 values (42);
 ERROR HY000: Table 'test.t1' is read only
 drop table t1, t2;

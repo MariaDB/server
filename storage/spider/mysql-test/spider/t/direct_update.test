@@ -98,12 +98,14 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
   (1, 'a', '2008-08-01 10:21:39'),
   (2, 'b', '2000-01-01 00:00:00'),
   (3, 'e', '2007-06-04 20:03:11'),
   (4, 'd', '2003-11-30 05:01:03'),
   (5, 'c', '2001-12-31 23:59:59');
+--enable_ps_protocol
 
 --echo
 --echo direct_updating test

@@ -409,6 +409,8 @@ PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_1"',
 PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
 );
 Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 ERROR HY000: Remote table 'auto_test_remote2.tbl_a#P#p2' is not found
@@ -511,7 +513,7 @@ SELECT * FROM tbl_a;
 ERROR HY000: Unable to connect to foreign data source: localhost
 DROP TABLE tbl_a;
 # MDEV-27860 SIGSEGV in spider_parse_connect_info on CREATE TABLE
-CREATE TABLE tbl_a ENGINE=SPIDER COMMENT="TABLE 'unknown_table'"
+CREATE TABLE tbl_a (c INT) ENGINE=SPIDER COMMENT="TABLE 'unknown_table'"
 PARTITION BY LIST COLUMNS (c) (
 PARTITION p DEFAULT COMMENT="srv 'unknown_server'" ENGINE=SPIDER
 );
