@@ -1429,6 +1429,7 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 {
 	char *state_uuid = NULL, *state_uuid55 = NULL;
 	char *last_committed = NULL, *last_committed55 = NULL;
+	char *domain_id = NULL, *domain_id55 = NULL;
 	bool result;
 
 	mysql_variable status[] = {
@@ -1436,6 +1437,12 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 		{"wsrep_local_state_uuid", &state_uuid55},
 		{"Wsrep_last_committed", &last_committed},
 		{"wsrep_last_committed", &last_committed55},
+		{NULL, NULL}
+	};
+
+	mysql_variable value[] = {
+		{"Wsrep_gtid_domain_id", &domain_id},
+		{"wsrep_gtid_domain_id", &domain_id55},
 		{NULL, NULL}
 	};
 
@@ -1457,9 +1464,26 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 		goto cleanup;
 	}
 
+	read_mysql_variables(connection, "SHOW VARIABLES LIKE 'wsrep%'", value, true);
+
+	if (domain_id == NULL && domain_id55 == NULL) {
+		msg("Warning: failed to get master wsrep state from SHOW VARIABLES.");
+		result = true;
+		goto cleanup;
+	}
+
 	result = datasink->backup_file_printf(XTRABACKUP_GALERA_INFO,
-		"%s:%s\n", state_uuid ? state_uuid : state_uuid55,
-			last_committed ? last_committed : last_committed55);
+		"%s:%s %s\n", state_uuid ? state_uuid : state_uuid55,
+			      last_committed ? last_committed : last_committed55,
+			      domain_id ? domain_id : domain_id55);
+
+	if (result)
+	{
+	  result= datasink->backup_file_printf(XTRABACKUP_DONOR_GALERA_INFO,
+		"%s:%s %s\n", state_uuid ? state_uuid : state_uuid55,
+			      last_committed ? last_committed : last_committed55,
+			      domain_id ? domain_id : domain_id55);
+	}
 	if (result)
 	{
 		write_current_binlog_file(datasink, connection);
