@@ -12130,6 +12130,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
     if (online)
     {
+      DBUG_ASSERT(from->s->online_alter_binlog == NULL);
       from->s->online_alter_binlog= new Cache_flip_event_log();
       if (!from->s->online_alter_binlog)
         goto err;
@@ -12363,28 +12364,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       thd_progress_next_stage(thd);
       error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
     }
-    if (error)
-      from->s->tdc->flush_unused(1); // to free the binlog
     to->pos_in_table_list= NULL; // Safety
     DBUG_ASSERT(thd->lex->sql_command == saved_sql_command);
     thd->lex->sql_command= saved_sql_command; // Just in case
-  }
-  else if (online) // error was on copy stage
-  {
-    /*
-       We can't free the resources properly now, as we can still be in
-       non-exclusive state. So this s->online_alter_binlog will be used
-       until all transactions will release it.
-       Once the transaction commits, it can release online_alter_binlog
-       by decreasing ref_count.
-
-       online_alter_binlog->ref_count can be reached 0 only once.
-       Proof:
-       If share exists, we'll always have ref_count >= 1.
-       Once it reaches destroy(), nobody can acquire it again,
-       therefore, only release() is possible at this moment.
-    */
-    from->s->tdc->flush_unused(1); // to free the binlog
   }
 #endif
 
@@ -12400,6 +12382,26 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
+  
+  if (unlikely(error) && online)
+  {
+    /*
+       We can't free the resources properly now, as we can still be in
+       non-exclusive state. So this s->online_alter_binlog will be used
+       until all transactions will release it.
+       Once the transaction commits, it can release online_alter_binlog
+       by decreasing ref_count.
+
+       online_alter_binlog->ref_count can be reached 0 only once.
+       Proof:
+       If share exists, we'll always have ref_count >= 1.
+       Once it reaches destroy(), nobody can acquire it again,
+       therefore, only release() is possible at this moment.
+       
+       Also, this will release the binlog.
+    */
+    from->s->tdc->flush_unused(1);
+  }
 
  err:
   if (bulk_insert_started)
