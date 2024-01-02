@@ -1807,6 +1807,28 @@ a	b
 456	NULL
 789	NULL
 drop table t1;
+# MDEV-32614 LeakSanitizer errors in copy_data_between_tables
+create table t (a int, b int) engine=aria;
+insert into t select seq, seq from seq_1_to_5;
+backup stage start;
+connect  con_lock,localhost,root,,;
+set lock_wait_timeout= 1;
+set debug_sync='copy_data_between_tables_before_reset_backup_lock wait_for continue';
+alter table t add index (b), algorithm=copy, lock=none;
+connection default;
+backup stage block_commit;
+set debug_sync='now signal continue';
+connection con_lock;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set debug_sync='copy_data_between_tables_before_reset_backup_lock wait_for continue';
+alter table t add index (a), algorithm=copy, lock=none;
+connection default;
+backup stage end;
+set debug_sync='now signal continue';
+connection con_lock;
+disconnect con_lock;
+connection default;
+drop table t;
 set global default_storage_engine= MyISAM;
 disconnect con1;
 disconnect con2;
