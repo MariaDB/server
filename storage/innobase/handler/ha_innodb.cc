@@ -3994,11 +3994,6 @@ static int innodb_init_params()
 skip_buffering_tweak:
 #endif
 
-	if (srv_read_only_mode) {
-		ib::info() << "Started in read only mode";
-		srv_use_doublewrite_buf = FALSE;
-	}
-
 #ifdef HAVE_URING
 	if (srv_use_native_aio && io_uring_may_be_unsafe) {
 		sql_print_warning("innodb_use_native_aio may cause "

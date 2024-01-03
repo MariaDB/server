@@ -19,8 +19,10 @@ SHOW INDEXES FROM t1;
 
 INSERT INTO t1  VALUES ("col1_00001", "col2_00001"), ("col1_00002", "col2_00002");
 
-SHOW INDEXES FROM t1;
+# Here, the cardinality would sometimes be 2 (already updated), sometimes 1.
+# SHOW INDEXES FROM t1;
 
+SET STATEMENT use_stat_tables=never FOR
 ANALYZE TABLE t1;
 SHOW INDEXES FROM t1;
 

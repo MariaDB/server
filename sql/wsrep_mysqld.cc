@@ -583,7 +583,8 @@ my_bool wsrep_ready_get (void)
   return ret;
 }
 
-int wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff)
+int wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
+                     system_status_var *, enum_var_type)
 {
   var->type= SHOW_MY_BOOL;
   var->value= buff;

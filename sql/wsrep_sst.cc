@@ -733,7 +733,9 @@ static void* sst_joiner_thread (void* a)
     {
       proc.wait();
       // Read state ID (UUID:SEQNO) followed by wsrep_gtid_domain_id (if any).
+      unsigned long int domain_id= wsrep_gtid_domain_id;
       const char *pos= strchr(out, ' ');
+      WSREP_DEBUG("SST state ID tmp=%s out=%s pos=%p", tmp, out, pos);
 
       if (!pos) {
 
@@ -743,6 +745,13 @@ static void* sst_joiner_thread (void* a)
           WSREP_WARN("Did not find domain ID from SST script output '%s'. "
                      "Domain ID must be set manually to keep binlog consistent",
                      out);
+	  if (wsrep_gtid_domain_id)
+	  {
+	    WSREP_INFO("This node is configured to use wsrep_gtid_domain_id=%lu by user.",
+		       domain_id);
+	    wsrep_gtid_server.domain_id= (uint32)domain_id;
+	    wsrep_gtid_domain_id= (uint32)domain_id;
+	  }
         }
         err= sst_scan_uuid_seqno (out, &ret_uuid, &ret_seqno);
 
@@ -1770,6 +1779,8 @@ static int sst_flush_tables(THD* thd)
     char content[100];
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
              (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
+    WSREP_DEBUG("sst_flush_tables : %s:%lld %d", wsrep_cluster_state_uuid,
+                (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
     err= sst_create_file(flush_success, content);
 
     if (err)
