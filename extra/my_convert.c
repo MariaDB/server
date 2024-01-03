@@ -192,6 +192,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   const int max_recursion_level= 10;
   MYSQL_FILE *fp;
   MYSQL_FILE *tmp_fp= NULL;
+  my_bool file_valid= TRUE;
   uint line=0;
   enum { NONE, PARSE, SKIP } found_group= NONE;
   size_t i;
@@ -410,6 +411,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       *ptr = 0;
       if (!mariadbd_option_exists(option)) {
         line_valid= FALSE;
+        file_valid= FALSE;
         if (opt_edit_mode == EDIT_MODE_NONE)
         {
             fprintf(stdout, "In %s at line %d: Invalid option %s\n", name, line, option);
@@ -463,13 +465,20 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   mysql_file_fclose(fp, MYF(0));
   if (tmp_fp)
   {
-    myf redel_flags = opt_backup ? MYF(MY_REDEL_MAKE_BACKUP) : MYF(0);
     mysql_file_fclose(tmp_fp, MYF(0));
-    if (my_redel(name, tmp_name, time(NULL), redel_flags))
+    if (file_valid)
     {
-      fprintf(stderr, "error: Failed to rename %s to %s: %s",
-              tmp_name, name, strerror(errno));
-      return 1;
+      my_delete(tmp_name, MYF(0));
+    }
+    else
+    {
+      myf redel_flags = opt_backup ? MYF(MY_REDEL_MAKE_BACKUP) : MYF(0);
+      if (my_redel(name, tmp_name, time(NULL), redel_flags))
+      {
+        fprintf(stderr, "error: Failed to rename %s to %s: %s",
+                tmp_name, name, strerror(errno));
+        return 1;
+      }
     }
   }
   if (opt_edit_mode != EDIT_MODE_NONE && !opt_update)
