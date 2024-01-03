@@ -52,6 +52,7 @@ static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_v
                                     "", edit_mode_values, NULL};
 
 static my_bool opt_update= FALSE;
+static my_bool opt_backup= FALSE;
 
 
 static PSI_memory_key key_memory_convert;
@@ -462,8 +463,9 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   mysql_file_fclose(fp, MYF(0));
   if (tmp_fp)
   {
+    myf redel_flags = opt_backup ? MYF(MY_REDEL_MAKE_BACKUP) : MYF(0);
     mysql_file_fclose(tmp_fp, MYF(0));
-    if (my_redel(name, tmp_name, time(NULL), MYF(0)))
+    if (my_redel(name, tmp_name, time(NULL), redel_flags))
     {
       fprintf(stderr, "error: Failed to rename %s to %s: %s",
               tmp_name, name, strerror(errno));
@@ -630,6 +632,7 @@ static const char *config_file="my";			/* Default config file */
 enum convert_options
 {
   OPT_UPDATE = 256,
+  OPT_BACKUP,
   OPT_EDIT,
 };
 
@@ -640,6 +643,10 @@ static struct my_option my_long_options[] =
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"update", OPT_UPDATE, "Update the configuration files in place.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"backup", OPT_BACKUP,
+   "Backup the updated configuration files. The backup file names end in a "
+   "timestamp followed by .BAK",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {"edit", OPT_EDIT,
    "Select what to do with invalid options",
@@ -682,6 +689,10 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
       cleanup_and_exit(0);
     case OPT_UPDATE:
       opt_update= TRUE;
+      break;
+    case OPT_BACKUP:
+      opt_backup= TRUE;
+      break;
   }
   return 0;
 }
@@ -697,6 +708,11 @@ static int get_options(int *argc,char ***argv)
   if (opt_update && opt_edit_mode == EDIT_MODE_NONE)
   {
     fputs("error: --update provided without --edit=<mode>\n", stderr);
+    exit(1);
+  }
+  if (opt_backup && !opt_update)
+  {
+    fputs("error: --backup provided without --update\n", stderr);
     exit(1);
   }
 
