@@ -2633,5 +2633,41 @@ SELECT
          )
   );
 
+--echo #
+--echo # MDEV-29362: Constant subquery used as left part of IN subquery
+--echo #
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (15), (1), (2);
+CREATE TABLE t2 (b int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (15), (1);
+CREATE TABLE t3 (c int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (15), (1);
+
+let $q1=
+SELECT a FROM t1 GROUP BY a
+  HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+let $q2=
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  );
+
+SET optimizer_switch='condition_pushdown_from_having=off';
+
+eval $q1;
+eval $q2;
+
+SET optimizer_switch='condition_pushdown_from_having=on';
+
+eval $q1;
+eval $q2;
+
+eval EXPLAIN FORMAT=JSON $q1;
+
+eval PREPARE stmt FROM "$q1";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1,t2,t3;
 
 --echo # End of 10.4 tests

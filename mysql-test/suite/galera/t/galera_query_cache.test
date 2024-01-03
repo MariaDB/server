@@ -2,6 +2,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--disable_ps2_protocol
+
 #
 # Ensure that the query cache behaves properly with respect to Galera
 #
@@ -65,3 +67,4 @@ SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_
 
 DROP TABLE t1;
 
+--enable_ps2_protocol
