@@ -1543,3 +1543,240 @@ static TYPELIB *mariadbd_enum_typelibs[] = {
 &valid_wsrep_provider_values_typelib,
 &valid_wsrep_reject_queries_values_typelib,
 };
+
+static const char *valid_aria_recover_options_values[] = {
+"NORMAL",
+"BACKUP",
+"FORCE",
+"QUICK",
+"OFF",
+0
+};
+static TYPELIB valid_aria_recover_options_values_typelib = {
+array_elements(valid_aria_recover_options_values)-1,
+"", valid_aria_recover_options_values, 0};
+
+static const char *valid_default_regex_flags_values[] = {
+"DOTALL",
+"DUPNAMES",
+"EXTENDED",
+"EXTENDED_MORE",
+"EXTRA",
+"MULTILINE",
+"UNGREEDY",
+0
+};
+static TYPELIB valid_default_regex_flags_values_typelib = {
+array_elements(valid_default_regex_flags_values)-1,
+"", valid_default_regex_flags_values, 0};
+
+static const char *valid_log_disabled_statements_values[] = {
+"slave",
+"sp",
+0
+};
+static TYPELIB valid_log_disabled_statements_values_typelib = {
+array_elements(valid_log_disabled_statements_values)-1,
+"", valid_log_disabled_statements_values, 0};
+
+static const char *valid_log_output_values[] = {
+"NONE",
+"FILE",
+"TABLE",
+0
+};
+static TYPELIB valid_log_output_values_typelib = {
+array_elements(valid_log_output_values)-1,
+"", valid_log_output_values, 0};
+
+static const char *valid_log_slow_disabled_statements_values[] = {
+"admin",
+"call",
+"slave",
+"sp",
+0
+};
+static TYPELIB valid_log_slow_disabled_statements_values_typelib = {
+array_elements(valid_log_slow_disabled_statements_values)-1,
+"", valid_log_slow_disabled_statements_values, 0};
+
+static const char *valid_log_slow_filter_values[] = {
+"admin",
+"filesort",
+"filesort_on_disk",
+"filesort_priority_queue",
+"full_join",
+"full_scan",
+"not_using_index",
+"query_cache",
+"query_cache_miss",
+"tmp_table",
+"tmp_table_on_disk",
+0
+};
+static TYPELIB valid_log_slow_filter_values_typelib = {
+array_elements(valid_log_slow_filter_values)-1,
+"", valid_log_slow_filter_values, 0};
+
+static const char *valid_log_slow_verbosity_values[] = {
+"innodb",
+"query_plan",
+"explain",
+"engine",
+"warnings",
+"full",
+0
+};
+static TYPELIB valid_log_slow_verbosity_values_typelib = {
+array_elements(valid_log_slow_verbosity_values)-1,
+"", valid_log_slow_verbosity_values, 0};
+
+static const char *valid_myisam_recover_options_values[] = {
+"DEFAULT",
+"BACKUP",
+"FORCE",
+"QUICK",
+"BACKUP_ALL",
+"OFF",
+0
+};
+static TYPELIB valid_myisam_recover_options_values_typelib = {
+array_elements(valid_myisam_recover_options_values)-1,
+"", valid_myisam_recover_options_values, 0};
+
+static const char *valid_note_verbosity_values[] = {
+"basic",
+"unusable_keys",
+"explain",
+0
+};
+static TYPELIB valid_note_verbosity_values_typelib = {
+array_elements(valid_note_verbosity_values)-1,
+"", valid_note_verbosity_values, 0};
+
+static const char *valid_old_mode_values[] = {
+"NO_DUP_KEY_WARNINGS_WITH_IGNORE",
+"NO_PROGRESS_INFO",
+"ZERO_DATE_TIME_CAST",
+"UTF8_IS_UTF8MB3",
+"IGNORE_INDEX_ONLY_FOR_JOIN",
+"COMPAT_5_1_CHECKSUM",
+"LOCK_ALTER_TABLE_COPY",
+0
+};
+static TYPELIB valid_old_mode_values_typelib = {
+array_elements(valid_old_mode_values)-1,
+"", valid_old_mode_values, 0};
+
+static const char *valid_slave_type_conversions_values[] = {
+"ALL_LOSSY",
+"ALL_NON_LOSSY",
+0
+};
+static TYPELIB valid_slave_type_conversions_values_typelib = {
+array_elements(valid_slave_type_conversions_values)-1,
+"", valid_slave_type_conversions_values, 0};
+
+static const char *valid_sql_mode_values[] = {
+"REAL_AS_FLOAT",
+"PIPES_AS_CONCAT",
+"ANSI_QUOTES",
+"IGNORE_SPACE",
+"IGNORE_BAD_TABLE_OPTIONS",
+"ONLY_FULL_GROUP_BY",
+"NO_UNSIGNED_SUBTRACTION",
+"NO_DIR_IN_CREATE",
+"POSTGRESQL",
+"ORACLE",
+"MSSQL",
+"DB2",
+"MAXDB",
+"NO_KEY_OPTIONS",
+"NO_TABLE_OPTIONS",
+"NO_FIELD_OPTIONS",
+"MYSQL323",
+"MYSQL40",
+"ANSI",
+"NO_AUTO_VALUE_ON_ZERO",
+"NO_BACKSLASH_ESCAPES",
+"STRICT_TRANS_TABLES",
+"STRICT_ALL_TABLES",
+"NO_ZERO_IN_DATE",
+"NO_ZERO_DATE",
+"ALLOW_INVALID_DATES",
+"ERROR_FOR_DIVISION_BY_ZERO",
+"TRADITIONAL",
+"NO_AUTO_CREATE_USER",
+"HIGH_NOT_PRECEDENCE",
+"NO_ENGINE_SUBSTITUTION",
+"PAD_CHAR_TO_FULL_LENGTH",
+"EMPTY_STRING_IS_NULL",
+"SIMULTANEOUS_ASSIGNMENT",
+"TIME_ROUND_FRACTIONAL",
+0
+};
+static TYPELIB valid_sql_mode_values_typelib = {
+array_elements(valid_sql_mode_values)-1,
+"", valid_sql_mode_values, 0};
+
+static const char *valid_tls_version_values[] = {
+"TLSv1",
+"TLSv1",
+"1",
+"TLSv1",
+"2",
+"TLSv1",
+"3",
+0
+};
+static TYPELIB valid_tls_version_values_typelib = {
+array_elements(valid_tls_version_values)-1,
+"", valid_tls_version_values, 0};
+
+static const char *valid_wsrep_mode_values[] = {
+"STRICT_REPLICATION",
+"BINLOG_ROW_FORMAT_ONLY",
+"REQUIRED_PRIMARY_KEY",
+"REPLICATE_MYISAM",
+"REPLICATE_ARIA",
+"DISALLOW_LOCAL_GTID",
+"BF_ABORT_MARIABACKUP",
+0
+};
+static TYPELIB valid_wsrep_mode_values_typelib = {
+array_elements(valid_wsrep_mode_values)-1,
+"", valid_wsrep_mode_values, 0};
+
+static const char *mariadbd_set_options[] = {
+"aria_recover_options",
+"default_regex_flags",
+"log_disabled_statements",
+"log_output",
+"log_slow_disabled_statements",
+"log_slow_filter",
+"log_slow_verbosity",
+"myisam_recover_options",
+"note_verbosity",
+"old_mode",
+"slave_type_conversions",
+"sql_mode",
+"tls_version",
+"wsrep_mode",
+};
+
+static TYPELIB *mariadbd_set_typelibs[] = {
+&valid_aria_recover_options_values_typelib,
+&valid_default_regex_flags_values_typelib,
+&valid_log_disabled_statements_values_typelib,
+&valid_log_output_values_typelib,
+&valid_log_slow_disabled_statements_values_typelib,
+&valid_log_slow_filter_values_typelib,
+&valid_log_slow_verbosity_values_typelib,
+&valid_myisam_recover_options_values_typelib,
+&valid_note_verbosity_values_typelib,
+&valid_old_mode_values_typelib,
+&valid_slave_type_conversions_values_typelib,
+&valid_sql_mode_values_typelib,
+&valid_tls_version_values_typelib,
+&valid_wsrep_mode_values_typelib,
+};

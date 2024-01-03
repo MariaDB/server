@@ -97,6 +97,43 @@ static my_bool mariadbd_valid_enum_value(const char *option, const char *value)
 }
 
 
+/**
+  Check whether the given value is a valid set value for the given option.
+  Returns 0 on success and the first invalid set index on failure. If the option
+  is not a set option, returns 0.
+*/
+static int mariadbd_check_set_value(const char *option, const char *value)
+{
+  const char **option_ptr= bsearch(&option, mariadbd_set_options,
+                                   sizeof mariadbd_set_options / sizeof mariadbd_set_options[0],
+                                   sizeof mariadbd_set_options[0],
+                                   compare_options);
+  TYPELIB *typelib;
+  int error_pos= 0;
+  if (!option_ptr)
+    return 0;
+  typelib = mariadbd_set_typelibs[option_ptr - mariadbd_set_options];
+  find_typeset(value, typelib, &error_pos);
+  if (error_pos)
+  {
+    ulonglong num;
+    char *endptr;
+
+    if (!my_strcasecmp(&my_charset_latin1, value, "all"))
+      return 0;
+
+    num= strtol(value, &endptr, 10);
+    if (!*endptr)
+    {
+      if ((num >> 1) >= (1ULL << (typelib->count - 1)))
+        return 1;
+      return 0;
+    }
+  }
+  return error_pos;
+}
+
+
 /*
   Skip over keyword and get argument after keyword
 
@@ -279,6 +316,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
     my_bool line_valid= TRUE;
+    int invalid_set_index;
     line++;
     /* Ignore comment and empty lines */
     for (ptr= buff; my_isspace(&my_charset_latin1, *ptr); ptr++)
@@ -482,6 +520,18 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
         {
           fprintf(stdout, "In %s at line %d: Invalid enum value %s for option %s\n",
                   name, line, option_value_start, option);
+          ctx->failed= 1;
+          continue;
+        }
+      }
+      else if ((invalid_set_index= mariadbd_check_set_value(option, option_value_start)))
+      {
+        line_valid= FALSE;
+        file_valid= FALSE;
+        if (opt_edit_mode == EDIT_MODE_NONE)
+        {
+          fprintf(stdout, "In %s at line %d: Invalid value in set %s at index %d for option %s\n",
+                  name, line, option_value_start, invalid_set_index, option);
           ctx->failed= 1;
           continue;
         }
