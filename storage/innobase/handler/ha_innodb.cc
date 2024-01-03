@@ -3893,11 +3893,6 @@ static int innodb_init_params()
 	}
 #endif
 
-	if (srv_read_only_mode) {
-		ib::info() << "Started in read only mode";
-		srv_use_doublewrite_buf = FALSE;
-	}
-
 #ifdef LINUX_NATIVE_AIO
 #elif !defined _WIN32
 	/* Currently native AIO is supported only on windows and linux
