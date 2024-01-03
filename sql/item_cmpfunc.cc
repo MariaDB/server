@@ -1483,6 +1483,23 @@ bool Item_in_optimizer::invisible_mode()
 }
 
 
+bool Item_in_optimizer::walk(Item_processor processor,
+                             bool walk_subquery,
+                             void *arg)
+{
+  bool res= FALSE;
+  if (args[1]->type() == Item::SUBSELECT_ITEM &&
+      ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
+      !(((Item_subselect *)args[1])->substype() == Item_subselect::IN_SUBS &&
+        ((Item_in_subselect *)args[1])->test_strategy(SUBS_IN_TO_EXISTS)))
+    res= args[0]->walk(processor, walk_subquery, arg);
+  if (!res)
+    res= args[1]->walk(processor, walk_subquery, arg);
+
+  return res || (this->*processor)(arg);
+}
+
+
 /**
   Add an expression cache for this subquery if it is needed
 

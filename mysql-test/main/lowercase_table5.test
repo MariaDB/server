@@ -18,3 +18,34 @@ DROP DATABASE mysql_test;
 DROP DATABASE mysql_TEST;
 
 # End of 10.0 tests
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-33019 The database part is not case sensitive in SP names
+--echo #
+
+CREATE DATABASE DB1;
+CREATE DATABASE db1;
+CREATE PROCEDURE DB1.sp() SELECT 'This is DB1.sp' AS ret;
+CREATE PROCEDURE db1.sp() SELECT 'This is db1.sp' AS ret;
+CALL DB1.sp();
+CALL db1.sp();
+DROP DATABASE DB1;
+--error ER_SP_DOES_NOT_EXIST
+CALL DB1.sp();
+CALL db1.sp();
+DROP DATABASE db1;
+
+CREATE PROCEDURE SP() SELECT 'This is SP' AS ret;
+--error ER_SP_ALREADY_EXISTS
+CREATE PROCEDURE sp() SELECT 'This is sp' AS ret;
+CALL SP();
+CALL sp();
+DROP PROCEDURE SP;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
