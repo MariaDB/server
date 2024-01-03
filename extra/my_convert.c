@@ -83,6 +83,20 @@ static my_bool mariadbd_option_exists(const char *option)
 }
 
 
+static my_bool mariadbd_valid_enum_value(const char *option, const char *value)
+{
+  const char **option_ptr= bsearch(&option, mariadbd_enum_options,
+                                   sizeof mariadbd_enum_options / sizeof mariadbd_enum_options[0],
+                                   sizeof mariadbd_enum_options[0],
+                                   compare_options);
+  if (!option_ptr)
+    return TRUE;
+  return find_type(value,
+                   mariadbd_enum_typelibs[option_ptr - mariadbd_enum_options],
+                   FIND_TYPE_BASIC) != 0;
+}
+
+
 /*
   Skip over keyword and get argument after keyword
 
@@ -388,6 +402,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
     if (value)
     {
       /* Remove pre- and end space */
+      char *option_value_start;
       char *value_end;
       for (value++ ; my_isspace(&my_charset_latin1,*value); value++) ;
       value_end=strend(value);
@@ -408,7 +423,8 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 	value_end--;
       }
 
-      *ptr = 0;
+      *ptr++ = 0;
+      option_value_start = ptr;
       if (!mariadbd_option_exists(option)) {
         line_valid= FALSE;
         file_valid= FALSE;
@@ -419,7 +435,6 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
             continue;
         }
       }
-      *ptr++= '=';
       for ( ; value != value_end; value++)
       {
 	if (*value == '\\' && value != value_end-1)
@@ -459,6 +474,18 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 	  *ptr++= *value;
       }
       *ptr=0;
+      if (!mariadbd_valid_enum_value(option, option_value_start))
+      {
+        line_valid= FALSE;
+        file_valid= FALSE;
+        if (opt_edit_mode == EDIT_MODE_NONE)
+        {
+          fprintf(stdout, "In %s at line %d: Invalid enum value %s for option %s\n",
+                  name, line, option_value_start, option);
+          ctx->failed= 1;
+          continue;
+        }
+      }
     }
     write_output_line(tmp_fp, buff, line_valid);
   }

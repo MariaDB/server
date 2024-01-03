@@ -1,3 +1,4 @@
+#include <my_global.h>
 static const char *mariadbd_valid_options[]= {
 "allow_suspicious_udfs",
 "alter_algorithm",
@@ -684,4 +685,861 @@ static const char *mariadbd_valid_options[]= {
 "wsrep_sync_wait",
 "wsrep_trx_fragment_size",
 "wsrep_trx_fragment_unit",
+};
+
+static const char *valid_alter_algorithm_values[] = {
+"DEFAULT",
+"COPY",
+"INPLACE",
+"NOCOPY",
+"INSTANT",
+0
+};
+static TYPELIB valid_alter_algorithm_values_typelib = {
+array_elements(valid_alter_algorithm_values)-1,
+"", valid_alter_algorithm_values, 0};
+
+static const char *valid_aria_log_purge_type_values[] = {
+"immediate",
+"external",
+"at_flush",
+0
+};
+static TYPELIB valid_aria_log_purge_type_values_typelib = {
+array_elements(valid_aria_log_purge_type_values)-1,
+"", valid_aria_log_purge_type_values, 0};
+
+static const char *valid_aria_stats_method_values[] = {
+"nulls_unequal",
+"nulls_equal",
+"nulls_ignored",
+0
+};
+static TYPELIB valid_aria_stats_method_values_typelib = {
+array_elements(valid_aria_stats_method_values)-1,
+"", valid_aria_stats_method_values, 0};
+
+static const char *valid_aria_sync_log_dir_values[] = {
+"NEVER",
+"NEWFILE",
+"ALWAYS",
+0
+};
+static TYPELIB valid_aria_sync_log_dir_values_typelib = {
+array_elements(valid_aria_sync_log_dir_values)-1,
+"", valid_aria_sync_log_dir_values, 0};
+
+static const char *valid_binlog_checksum_values[] = {
+"NONE",
+"CRC32",
+0
+};
+static TYPELIB valid_binlog_checksum_values_typelib = {
+array_elements(valid_binlog_checksum_values)-1,
+"", valid_binlog_checksum_values, 0};
+
+static const char *valid_block_encryption_mode_values[] = {
+"aes-128-ecb",
+"aes-192-ecb",
+"aes-256-ecb",
+"aes-128-cbc",
+"aes-192-cbc",
+"aes-256-cbc",
+"aes-128-ctr",
+"aes-192-ctr",
+"aes-256-ctr",
+0
+};
+static TYPELIB valid_block_encryption_mode_values_typelib = {
+array_elements(valid_block_encryption_mode_values)-1,
+"", valid_block_encryption_mode_values, 0};
+
+static const char *valid_completion_type_values[] = {
+"NO_CHAIN",
+"CHAIN",
+"RELEASE",
+0
+};
+static TYPELIB valid_completion_type_values_typelib = {
+array_elements(valid_completion_type_values)-1,
+"", valid_completion_type_values, 0};
+
+static const char *valid_concurrent_insert_values[] = {
+"NEVER",
+"AUTO",
+"ALWAYS",
+0
+};
+static TYPELIB valid_concurrent_insert_values_typelib = {
+array_elements(valid_concurrent_insert_values)-1,
+"", valid_concurrent_insert_values, 0};
+
+static const char *valid_init_rpl_role_values[] = {
+"MASTER",
+"SLAVE",
+0
+};
+static TYPELIB valid_init_rpl_role_values_typelib = {
+array_elements(valid_init_rpl_role_values)-1,
+"", valid_init_rpl_role_values, 0};
+
+static const char *valid_innodb_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_values_typelib = {
+array_elements(valid_innodb_values)-1,
+"", valid_innodb_values, 0};
+
+static const char *valid_innodb_buffer_page_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_buffer_page_values_typelib = {
+array_elements(valid_innodb_buffer_page_values)-1,
+"", valid_innodb_buffer_page_values, 0};
+
+static const char *valid_innodb_buffer_page_lru_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_buffer_page_lru_values_typelib = {
+array_elements(valid_innodb_buffer_page_lru_values)-1,
+"", valid_innodb_buffer_page_lru_values, 0};
+
+static const char *valid_innodb_buffer_pool_stats_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_buffer_pool_stats_values_typelib = {
+array_elements(valid_innodb_buffer_pool_stats_values)-1,
+"", valid_innodb_buffer_pool_stats_values, 0};
+
+static const char *valid_innodb_cmp_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_cmp_values_typelib = {
+array_elements(valid_innodb_cmp_values)-1,
+"", valid_innodb_cmp_values, 0};
+
+static const char *valid_innodb_cmp_per_index_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_cmp_per_index_values_typelib = {
+array_elements(valid_innodb_cmp_per_index_values)-1,
+"", valid_innodb_cmp_per_index_values, 0};
+
+static const char *valid_innodb_cmp_per_index_reset_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_cmp_per_index_reset_values_typelib = {
+array_elements(valid_innodb_cmp_per_index_reset_values)-1,
+"", valid_innodb_cmp_per_index_reset_values, 0};
+
+static const char *valid_innodb_cmp_reset_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_cmp_reset_values_typelib = {
+array_elements(valid_innodb_cmp_reset_values)-1,
+"", valid_innodb_cmp_reset_values, 0};
+
+static const char *valid_innodb_cmpmem_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_cmpmem_values_typelib = {
+array_elements(valid_innodb_cmpmem_values)-1,
+"", valid_innodb_cmpmem_values, 0};
+
+static const char *valid_innodb_cmpmem_reset_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_cmpmem_reset_values_typelib = {
+array_elements(valid_innodb_cmpmem_reset_values)-1,
+"", valid_innodb_cmpmem_reset_values, 0};
+
+static const char *valid_innodb_compression_algorithm_values[] = {
+"none",
+"zlib",
+"lz4",
+"lzo",
+"lzma",
+"bzip2",
+"or",
+"snappy",
+0
+};
+static TYPELIB valid_innodb_compression_algorithm_values_typelib = {
+array_elements(valid_innodb_compression_algorithm_values)-1,
+"", valid_innodb_compression_algorithm_values, 0};
+
+static const char *valid_innodb_deadlock_report_values[] = {
+"off",
+"basic",
+"full",
+0
+};
+static TYPELIB valid_innodb_deadlock_report_values_typelib = {
+array_elements(valid_innodb_deadlock_report_values)-1,
+"", valid_innodb_deadlock_report_values, 0};
+
+static const char *valid_innodb_default_row_format_values[] = {
+"redundant",
+"compact",
+"dynamic",
+0
+};
+static TYPELIB valid_innodb_default_row_format_values_typelib = {
+array_elements(valid_innodb_default_row_format_values)-1,
+"", valid_innodb_default_row_format_values, 0};
+
+static const char *valid_innodb_encrypt_tables_values[] = {
+"OFF",
+"ON",
+"FORCE",
+0
+};
+static TYPELIB valid_innodb_encrypt_tables_values_typelib = {
+array_elements(valid_innodb_encrypt_tables_values)-1,
+"", valid_innodb_encrypt_tables_values, 0};
+
+static const char *valid_innodb_flush_method_values[] = {
+"fsync",
+"O_DSYNC",
+"littlesync",
+"nosync",
+"O_DIRECT",
+"O_DIRECT_NO_FSYNC",
+0
+};
+static TYPELIB valid_innodb_flush_method_values_typelib = {
+array_elements(valid_innodb_flush_method_values)-1,
+"", valid_innodb_flush_method_values, 0};
+
+static const char *valid_innodb_ft_being_deleted_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_ft_being_deleted_values_typelib = {
+array_elements(valid_innodb_ft_being_deleted_values)-1,
+"", valid_innodb_ft_being_deleted_values, 0};
+
+static const char *valid_innodb_ft_config_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_ft_config_values_typelib = {
+array_elements(valid_innodb_ft_config_values)-1,
+"", valid_innodb_ft_config_values, 0};
+
+static const char *valid_innodb_ft_default_stopword_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_ft_default_stopword_values_typelib = {
+array_elements(valid_innodb_ft_default_stopword_values)-1,
+"", valid_innodb_ft_default_stopword_values, 0};
+
+static const char *valid_innodb_ft_deleted_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_ft_deleted_values_typelib = {
+array_elements(valid_innodb_ft_deleted_values)-1,
+"", valid_innodb_ft_deleted_values, 0};
+
+static const char *valid_innodb_ft_index_cache_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_ft_index_cache_values_typelib = {
+array_elements(valid_innodb_ft_index_cache_values)-1,
+"", valid_innodb_ft_index_cache_values, 0};
+
+static const char *valid_innodb_ft_index_table_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_ft_index_table_values_typelib = {
+array_elements(valid_innodb_ft_index_table_values)-1,
+"", valid_innodb_ft_index_table_values, 0};
+
+static const char *valid_innodb_instant_alter_column_allowed_values[] = {
+"never",
+"add_last",
+"add_drop_reorder",
+0
+};
+static TYPELIB valid_innodb_instant_alter_column_allowed_values_typelib = {
+array_elements(valid_innodb_instant_alter_column_allowed_values)-1,
+"", valid_innodb_instant_alter_column_allowed_values, 0};
+
+static const char *valid_innodb_lock_waits_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_lock_waits_values_typelib = {
+array_elements(valid_innodb_lock_waits_values)-1,
+"", valid_innodb_lock_waits_values, 0};
+
+static const char *valid_innodb_locks_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_locks_values_typelib = {
+array_elements(valid_innodb_locks_values)-1,
+"", valid_innodb_locks_values, 0};
+
+static const char *valid_innodb_metrics_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_metrics_values_typelib = {
+array_elements(valid_innodb_metrics_values)-1,
+"", valid_innodb_metrics_values, 0};
+
+static const char *valid_innodb_stats_method_values[] = {
+"nulls_equal",
+"nulls_unequal",
+"nulls_ignored",
+0
+};
+static TYPELIB valid_innodb_stats_method_values_typelib = {
+array_elements(valid_innodb_stats_method_values)-1,
+"", valid_innodb_stats_method_values, 0};
+
+static const char *valid_innodb_sys_columns_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_columns_values_typelib = {
+array_elements(valid_innodb_sys_columns_values)-1,
+"", valid_innodb_sys_columns_values, 0};
+
+static const char *valid_innodb_sys_fields_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_fields_values_typelib = {
+array_elements(valid_innodb_sys_fields_values)-1,
+"", valid_innodb_sys_fields_values, 0};
+
+static const char *valid_innodb_sys_foreign_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_foreign_values_typelib = {
+array_elements(valid_innodb_sys_foreign_values)-1,
+"", valid_innodb_sys_foreign_values, 0};
+
+static const char *valid_innodb_sys_foreign_cols_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_foreign_cols_values_typelib = {
+array_elements(valid_innodb_sys_foreign_cols_values)-1,
+"", valid_innodb_sys_foreign_cols_values, 0};
+
+static const char *valid_innodb_sys_indexes_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_indexes_values_typelib = {
+array_elements(valid_innodb_sys_indexes_values)-1,
+"", valid_innodb_sys_indexes_values, 0};
+
+static const char *valid_innodb_sys_tables_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_tables_values_typelib = {
+array_elements(valid_innodb_sys_tables_values)-1,
+"", valid_innodb_sys_tables_values, 0};
+
+static const char *valid_innodb_sys_tablespaces_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_tablespaces_values_typelib = {
+array_elements(valid_innodb_sys_tablespaces_values)-1,
+"", valid_innodb_sys_tablespaces_values, 0};
+
+static const char *valid_innodb_sys_tablestats_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_tablestats_values_typelib = {
+array_elements(valid_innodb_sys_tablestats_values)-1,
+"", valid_innodb_sys_tablestats_values, 0};
+
+static const char *valid_innodb_sys_virtual_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_sys_virtual_values_typelib = {
+array_elements(valid_innodb_sys_virtual_values)-1,
+"", valid_innodb_sys_virtual_values, 0};
+
+static const char *valid_innodb_tablespaces_encryption_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_tablespaces_encryption_values_typelib = {
+array_elements(valid_innodb_tablespaces_encryption_values)-1,
+"", valid_innodb_tablespaces_encryption_values, 0};
+
+static const char *valid_innodb_trx_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_innodb_trx_values_typelib = {
+array_elements(valid_innodb_trx_values)-1,
+"", valid_innodb_trx_values, 0};
+
+static const char *valid_partition_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_partition_values_typelib = {
+array_elements(valid_partition_values)-1,
+"", valid_partition_values, 0};
+
+static const char *valid_plugin_maturity_values[] = {
+"unknown",
+"experimental",
+"alpha",
+"beta",
+"gamma",
+"stable",
+0
+};
+static TYPELIB valid_plugin_maturity_values_typelib = {
+array_elements(valid_plugin_maturity_values)-1,
+"", valid_plugin_maturity_values, 0};
+
+static const char *valid_rpl_semi_sync_master_wait_point_values[] = {
+"AFTER_SYNC",
+"AFTER_COMMIT",
+0
+};
+static TYPELIB valid_rpl_semi_sync_master_wait_point_values_typelib = {
+array_elements(valid_rpl_semi_sync_master_wait_point_values)-1,
+"", valid_rpl_semi_sync_master_wait_point_values, 0};
+
+static const char *valid_sequence_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_sequence_values_typelib = {
+array_elements(valid_sequence_values)-1,
+"", valid_sequence_values, 0};
+
+static const char *valid_tc_heuristic_recover_values[] = {
+"OFF",
+"COMMIT",
+"ROLLBACK",
+0
+};
+static TYPELIB valid_tc_heuristic_recover_values_typelib = {
+array_elements(valid_tc_heuristic_recover_values)-1,
+"", valid_tc_heuristic_recover_values, 0};
+
+static const char *valid_thread_handling_values[] = {
+"one-thread-per-connection",
+"no-threads",
+"pool-of-threads",
+0
+};
+static TYPELIB valid_thread_handling_values_typelib = {
+array_elements(valid_thread_handling_values)-1,
+"", valid_thread_handling_values, 0};
+
+static const char *valid_thread_pool_groups_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_thread_pool_groups_values_typelib = {
+array_elements(valid_thread_pool_groups_values)-1,
+"", valid_thread_pool_groups_values, 0};
+
+static const char *valid_thread_pool_queues_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_thread_pool_queues_values_typelib = {
+array_elements(valid_thread_pool_queues_values)-1,
+"", valid_thread_pool_queues_values, 0};
+
+static const char *valid_thread_pool_stats_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_thread_pool_stats_values_typelib = {
+array_elements(valid_thread_pool_stats_values)-1,
+"", valid_thread_pool_stats_values, 0};
+
+static const char *valid_thread_pool_waits_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_thread_pool_waits_values_typelib = {
+array_elements(valid_thread_pool_waits_values)-1,
+"", valid_thread_pool_waits_values, 0};
+
+static const char *valid_transaction_isolation_values[] = {
+"READ-UNCOMMITTED",
+"READ-COMMITTED",
+"REPEATABLE-READ",
+"SERIALIZABLE",
+0
+};
+static TYPELIB valid_transaction_isolation_values_typelib = {
+array_elements(valid_transaction_isolation_values)-1,
+"", valid_transaction_isolation_values, 0};
+
+static const char *valid_unix_socket_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_unix_socket_values_typelib = {
+array_elements(valid_unix_socket_values)-1,
+"", valid_unix_socket_values, 0};
+
+static const char *valid_use_stat_tables_values[] = {
+"NEVER",
+"COMPLEMENTARY",
+"PREFERABLY",
+"COMPLEMENTARY_FOR_QUERIES",
+"PREFERABLY_FOR_QUERIES",
+0
+};
+static TYPELIB valid_use_stat_tables_values_typelib = {
+array_elements(valid_use_stat_tables_values)-1,
+"", valid_use_stat_tables_values, 0};
+
+static const char *valid_user_variables_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_user_variables_values_typelib = {
+array_elements(valid_user_variables_values)-1,
+"", valid_user_variables_values, 0};
+
+static const char *valid_wsrep_OSU_method_values[] = {
+"TOI",
+"RSU",
+0
+};
+static TYPELIB valid_wsrep_OSU_method_values_typelib = {
+array_elements(valid_wsrep_OSU_method_values)-1,
+"", valid_wsrep_OSU_method_values, 0};
+
+static const char *valid_wsrep_SR_store_values[] = {
+"none",
+"table",
+0
+};
+static TYPELIB valid_wsrep_SR_store_values_typelib = {
+array_elements(valid_wsrep_SR_store_values)-1,
+"", valid_wsrep_SR_store_values, 0};
+
+static const char *valid_wsrep_debug_values[] = {
+"NONE",
+"SERVER",
+"TRANSACTION",
+"STREAMING",
+"CLIENT",
+0
+};
+static TYPELIB valid_wsrep_debug_values_typelib = {
+array_elements(valid_wsrep_debug_values)-1,
+"", valid_wsrep_debug_values, 0};
+
+static const char *valid_wsrep_forced_binlog_format_values[] = {
+"MIXED",
+"STATEMENT",
+"ROW",
+"NONE",
+0
+};
+static TYPELIB valid_wsrep_forced_binlog_format_values_typelib = {
+array_elements(valid_wsrep_forced_binlog_format_values)-1,
+"", valid_wsrep_forced_binlog_format_values, 0};
+
+static const char *valid_wsrep_provider_values[] = {
+"ON",
+"OFF",
+"FORCE",
+"FORCE_PLUS_PERMANENT",
+0
+};
+static TYPELIB valid_wsrep_provider_values_typelib = {
+array_elements(valid_wsrep_provider_values)-1,
+"", valid_wsrep_provider_values, 0};
+
+static const char *valid_wsrep_reject_queries_values[] = {
+"NONE",
+"ALL",
+"ALL_KILL",
+0
+};
+static TYPELIB valid_wsrep_reject_queries_values_typelib = {
+array_elements(valid_wsrep_reject_queries_values)-1,
+"", valid_wsrep_reject_queries_values, 0};
+
+static const char *mariadbd_enum_options[] = {
+"alter_algorithm",
+"aria_log_purge_type",
+"aria_stats_method",
+"aria_sync_log_dir",
+"binlog_checksum",
+"block_encryption_mode",
+"completion_type",
+"concurrent_insert",
+"init_rpl_role",
+"innodb",
+"innodb_buffer_page",
+"innodb_buffer_page_lru",
+"innodb_buffer_pool_stats",
+"innodb_cmp",
+"innodb_cmp_per_index",
+"innodb_cmp_per_index_reset",
+"innodb_cmp_reset",
+"innodb_cmpmem",
+"innodb_cmpmem_reset",
+"innodb_compression_algorithm",
+"innodb_deadlock_report",
+"innodb_default_row_format",
+"innodb_encrypt_tables",
+"innodb_flush_method",
+"innodb_ft_being_deleted",
+"innodb_ft_config",
+"innodb_ft_default_stopword",
+"innodb_ft_deleted",
+"innodb_ft_index_cache",
+"innodb_ft_index_table",
+"innodb_instant_alter_column_allowed",
+"innodb_lock_waits",
+"innodb_locks",
+"innodb_metrics",
+"innodb_stats_method",
+"innodb_sys_columns",
+"innodb_sys_fields",
+"innodb_sys_foreign",
+"innodb_sys_foreign_cols",
+"innodb_sys_indexes",
+"innodb_sys_tables",
+"innodb_sys_tablespaces",
+"innodb_sys_tablestats",
+"innodb_sys_virtual",
+"innodb_tablespaces_encryption",
+"innodb_trx",
+"partition",
+"plugin_maturity",
+"rpl_semi_sync_master_wait_point",
+"sequence",
+"tc_heuristic_recover",
+"thread_handling",
+"thread_pool_groups",
+"thread_pool_queues",
+"thread_pool_stats",
+"thread_pool_waits",
+"transaction_isolation",
+"unix_socket",
+"use_stat_tables",
+"user_variables",
+"wsrep_OSU_method",
+"wsrep_SR_store",
+"wsrep_debug",
+"wsrep_forced_binlog_format",
+"wsrep_provider",
+"wsrep_reject_queries",
+};
+
+static TYPELIB *mariadbd_enum_typelibs[] = {
+&valid_alter_algorithm_values_typelib,
+&valid_aria_log_purge_type_values_typelib,
+&valid_aria_stats_method_values_typelib,
+&valid_aria_sync_log_dir_values_typelib,
+&valid_binlog_checksum_values_typelib,
+&valid_block_encryption_mode_values_typelib,
+&valid_completion_type_values_typelib,
+&valid_concurrent_insert_values_typelib,
+&valid_init_rpl_role_values_typelib,
+&valid_innodb_values_typelib,
+&valid_innodb_buffer_page_values_typelib,
+&valid_innodb_buffer_page_lru_values_typelib,
+&valid_innodb_buffer_pool_stats_values_typelib,
+&valid_innodb_cmp_values_typelib,
+&valid_innodb_cmp_per_index_values_typelib,
+&valid_innodb_cmp_per_index_reset_values_typelib,
+&valid_innodb_cmp_reset_values_typelib,
+&valid_innodb_cmpmem_values_typelib,
+&valid_innodb_cmpmem_reset_values_typelib,
+&valid_innodb_compression_algorithm_values_typelib,
+&valid_innodb_deadlock_report_values_typelib,
+&valid_innodb_default_row_format_values_typelib,
+&valid_innodb_encrypt_tables_values_typelib,
+&valid_innodb_flush_method_values_typelib,
+&valid_innodb_ft_being_deleted_values_typelib,
+&valid_innodb_ft_config_values_typelib,
+&valid_innodb_ft_default_stopword_values_typelib,
+&valid_innodb_ft_deleted_values_typelib,
+&valid_innodb_ft_index_cache_values_typelib,
+&valid_innodb_ft_index_table_values_typelib,
+&valid_innodb_instant_alter_column_allowed_values_typelib,
+&valid_innodb_lock_waits_values_typelib,
+&valid_innodb_locks_values_typelib,
+&valid_innodb_metrics_values_typelib,
+&valid_innodb_stats_method_values_typelib,
+&valid_innodb_sys_columns_values_typelib,
+&valid_innodb_sys_fields_values_typelib,
+&valid_innodb_sys_foreign_values_typelib,
+&valid_innodb_sys_foreign_cols_values_typelib,
+&valid_innodb_sys_indexes_values_typelib,
+&valid_innodb_sys_tables_values_typelib,
+&valid_innodb_sys_tablespaces_values_typelib,
+&valid_innodb_sys_tablestats_values_typelib,
+&valid_innodb_sys_virtual_values_typelib,
+&valid_innodb_tablespaces_encryption_values_typelib,
+&valid_innodb_trx_values_typelib,
+&valid_partition_values_typelib,
+&valid_plugin_maturity_values_typelib,
+&valid_rpl_semi_sync_master_wait_point_values_typelib,
+&valid_sequence_values_typelib,
+&valid_tc_heuristic_recover_values_typelib,
+&valid_thread_handling_values_typelib,
+&valid_thread_pool_groups_values_typelib,
+&valid_thread_pool_queues_values_typelib,
+&valid_thread_pool_stats_values_typelib,
+&valid_thread_pool_waits_values_typelib,
+&valid_transaction_isolation_values_typelib,
+&valid_unix_socket_values_typelib,
+&valid_use_stat_tables_values_typelib,
+&valid_user_variables_values_typelib,
+&valid_wsrep_OSU_method_values_typelib,
+&valid_wsrep_SR_store_values_typelib,
+&valid_wsrep_debug_values_typelib,
+&valid_wsrep_forced_binlog_format_values_typelib,
+&valid_wsrep_provider_values_typelib,
+&valid_wsrep_reject_queries_values_typelib,
 };
