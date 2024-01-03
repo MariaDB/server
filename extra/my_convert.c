@@ -51,6 +51,8 @@ static const char *edit_mode_values[] = {"remove", "comment", NullS};
 static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_values[0] - 1,
                                     "", edit_mode_values, NULL};
 
+static my_bool opt_update= FALSE;
+
 
 static PSI_memory_key key_memory_convert;
 static PSI_file_key key_file_cnf;
@@ -157,18 +159,19 @@ static char *remove_end_comment(char *ptr)
 
 
 /**
-  Write the given line to stdout as specified by opt_edit_mode. Returns a
-  nonnegative value on success and EOF on failure.
+  Write the given line to f as specified by opt_edit_mode, or to stdout if f is
+  NULL. Returns a nonnegative value on success and EOF on failure.
 */
-static int write_output_line(const char *line, my_bool is_valid)
+static int write_output_line(MYSQL_FILE *f, const char *line, my_bool is_valid)
 {
+  FILE *target_file= f ? f->m_file : stdout;
   switch (opt_edit_mode) {
   case EDIT_MODE_REMOVE:
-    return is_valid ? fputs(line, stdout) : 0;
+    return is_valid ? fputs(line, target_file) : 0;
   case EDIT_MODE_COMMENT:
-    if (!is_valid && fputc('#', stdout) == EOF)
+    if (!is_valid && fputc('#', target_file) == EOF)
       return EOF;
-    return fputs(line, stdout);
+    return fputs(line, target_file);
   case EDIT_MODE_NONE: break;
   }
   return 0;
@@ -181,11 +184,13 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
                                         int recursion_level)
 {
   char name[FN_REFLEN + 10], buff[4096], curr_gr[4096], *ptr, *end, **tmp_ext;
+  char tmp_name[FN_REFLEN + 10];
   char *value, option[4096+2], tmp[FN_REFLEN];
   static const char includedir_keyword[]= "includedir";
   static const char include_keyword[]= "include";
   const int max_recursion_level= 10;
   MYSQL_FILE *fp;
+  MYSQL_FILE *tmp_fp= NULL;
   uint line=0;
   enum { NONE, PARSE, SKIP } found_group= NONE;
   size_t i;
@@ -243,7 +248,17 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   if (!(fp= mysql_file_fopen(key_file_cnf, name, O_RDONLY, MYF(0))))
     return 1;					/* Ignore wrong files */
 
-  if (opt_edit_mode != EDIT_MODE_NONE)
+  if (opt_update)
+  {
+    strmov(strmov(tmp_name, name), "-convert");
+    if (!(tmp_fp= mysql_file_fopen(key_file_cnf, tmp_name, O_RDWR | O_CREAT | O_TRUNC, MYF(0))))
+    {
+      fprintf(stderr, "error: Failed to open %s for writing: %s\n", tmp_name, strerror(errno));
+      return 1;
+    }
+  }
+
+  if (opt_edit_mode != EDIT_MODE_NONE && !opt_update)
     fprintf(stdout, "### File %s:\n", name);
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
@@ -255,14 +270,14 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 
     if (*ptr == '#' || *ptr == ';' || !*ptr)
     {
-      write_output_line(buff, line_valid);
+      write_output_line(tmp_fp, buff, line_valid);
       continue;
     }
 
     /* Configuration File Directives */
     if (*ptr == '!')
     {
-      write_output_line(buff, line_valid);
+      write_output_line(tmp_fp, buff, line_valid);
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1;
@@ -332,7 +347,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 
     if (*ptr == '[')				/* Group name */
     {
-      write_output_line(buff, line_valid);
+      write_output_line(tmp_fp, buff, line_valid);
       if (!(end=(char *) strchr(++ptr,']')))
       {
 	fprintf(stderr,
@@ -359,7 +374,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
     case PARSE:
       break;
     case SKIP:
-      write_output_line(buff, line_valid);
+      write_output_line(tmp_fp, buff, line_valid);
       continue;
     }
 
@@ -442,15 +457,27 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       }
       *ptr=0;
     }
-    write_output_line(buff, line_valid);
+    write_output_line(tmp_fp, buff, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
-  if (opt_edit_mode != EDIT_MODE_NONE)
+  if (tmp_fp)
+  {
+    mysql_file_fclose(tmp_fp, MYF(0));
+    if (my_redel(name, tmp_name, time(NULL), MYF(0)))
+    {
+      fprintf(stderr, "error: Failed to rename %s to %s: %s",
+              tmp_name, name, strerror(errno));
+      return 1;
+    }
+  }
+  if (opt_edit_mode != EDIT_MODE_NONE && !opt_update)
     fputc('\n', stdout);
   return(0);
 
  err:
   mysql_file_fclose(fp, MYF(0));
+  if (tmp_fp)
+    mysql_file_fclose(tmp_fp, MYF(0));
   return -1;					/* Fatal error */
 }
 
@@ -600,13 +627,21 @@ static int process_defaults(const char *conf_file,
 
 static const char *config_file="my";			/* Default config file */
 
+enum convert_options
+{
+  OPT_UPDATE = 256,
+  OPT_EDIT,
+};
+
 static struct my_option my_long_options[] =
 {
   {"help", '?', "Display this help message and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"edit", 256,
+  {"update", OPT_UPDATE, "Update the configuration files in place.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"edit", OPT_EDIT,
    "Select what to do with invalid options",
    &opt_edit_mode, &opt_edit_mode, &edit_mode_typelib, GET_ENUM,
    REQUIRED_ARG, EDIT_MODE_NONE, 0, 0, 0, 0, 0},
@@ -645,6 +680,8 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
     case 'V':
       print_version();
       cleanup_and_exit(0);
+    case OPT_UPDATE:
+      opt_update= TRUE;
   }
   return 0;
 }
@@ -656,6 +693,12 @@ static int get_options(int *argc,char ***argv)
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
+
+  if (opt_update && opt_edit_mode == EDIT_MODE_NONE)
+  {
+    fputs("error: --update provided without --edit=<mode>\n", stderr);
+    exit(1);
+  }
 
   return 0;
 }
