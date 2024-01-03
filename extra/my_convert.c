@@ -40,6 +40,18 @@ struct convert_ctx
 };
 
 
+enum edit_mode
+{
+  EDIT_MODE_REMOVE,
+  EDIT_MODE_COMMENT,
+  EDIT_MODE_NONE,
+};
+static enum edit_mode opt_edit_mode;
+static const char *edit_mode_values[] = {"remove", "comment", NullS};
+static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_values[0] - 1,
+                                    "", edit_mode_values, NULL};
+
+
 static PSI_memory_key key_memory_convert;
 static PSI_file_key key_file_cnf;
 
@@ -144,6 +156,25 @@ static char *remove_end_comment(char *ptr)
 }
 
 
+/**
+  Write the given line to stdout as specified by opt_edit_mode. Returns a
+  nonnegative value on success and EOF on failure.
+*/
+static int write_output_line(const char *line, my_bool is_valid)
+{
+  switch (opt_edit_mode) {
+  case EDIT_MODE_REMOVE:
+    return is_valid ? fputs(line, stdout) : 0;
+  case EDIT_MODE_COMMENT:
+    if (!is_valid && fputc('#', stdout) == EOF)
+      return EOF;
+    return fputs(line, stdout);
+  case EDIT_MODE_NONE: break;
+  }
+  return 0;
+}
+
+
 static int process_default_file_with_ext(struct convert_ctx *ctx,
                                         const char *dir, const char *ext,
                                         const char *config_file,
@@ -212,19 +243,26 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   if (!(fp= mysql_file_fopen(key_file_cnf, name, O_RDONLY, MYF(0))))
     return 1;					/* Ignore wrong files */
 
+  if (opt_edit_mode != EDIT_MODE_NONE)
+    fprintf(stdout, "### File %s:\n", name);
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
+    my_bool line_valid= TRUE;
     line++;
     /* Ignore comment and empty lines */
     for (ptr= buff; my_isspace(&my_charset_latin1, *ptr); ptr++)
     {}
 
     if (*ptr == '#' || *ptr == ';' || !*ptr)
+    {
+      write_output_line(buff, line_valid);
       continue;
+    }
 
     /* Configuration File Directives */
     if (*ptr == '!')
     {
+      write_output_line(buff, line_valid);
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1;
@@ -294,6 +332,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 
     if (*ptr == '[')				/* Group name */
     {
+      write_output_line(buff, line_valid);
       if (!(end=(char *) strchr(++ptr,']')))
       {
 	fprintf(stderr,
@@ -320,6 +359,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
     case PARSE:
       break;
     case SKIP:
+      write_output_line(buff, line_valid);
       continue;
     }
 
@@ -350,11 +390,16 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 	value++;
 	value_end--;
       }
-      *ptr= 0;
-      if (!mariadbd_option_exists(option))
-      {
-        fprintf(stdout, "In %s at line %d: Invalid option %s\n", name, line, option);
-        ctx->failed= 1;
+
+      *ptr = 0;
+      if (!mariadbd_option_exists(option)) {
+        line_valid= FALSE;
+        if (opt_edit_mode == EDIT_MODE_NONE)
+        {
+            fprintf(stdout, "In %s at line %d: Invalid option %s\n", name, line, option);
+            ctx->failed= 1;
+            continue;
+        }
       }
       *ptr++= '=';
       for ( ; value != value_end; value++)
@@ -397,8 +442,11 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       }
       *ptr=0;
     }
+    write_output_line(buff, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
+  if (opt_edit_mode != EDIT_MODE_NONE)
+    fputc('\n', stdout);
   return(0);
 
  err:
@@ -558,6 +606,10 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"edit", 256,
+   "Select what to do with invalid options",
+   &opt_edit_mode, &opt_edit_mode, &edit_mode_typelib, GET_ENUM,
+   REQUIRED_ARG, EDIT_MODE_NONE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
