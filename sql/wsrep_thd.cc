@@ -36,7 +36,7 @@ static Wsrep_thd_queue* wsrep_rollback_queue= 0;
 static Atomic_counter<uint64_t> wsrep_bf_aborts_counter;
 
 
-int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, void *, system_status_var *,
                           enum enum_var_type scope)
 {
   wsrep_local_bf_aborts= wsrep_bf_aborts_counter;

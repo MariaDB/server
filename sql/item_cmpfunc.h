@@ -402,6 +402,7 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
   bool invisible_mode();
+  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   void reset_cache() { cache= NULL; }
   void print(String *str, enum_query_type query_type) override;
   void restore_first_argument();
