@@ -62,8 +62,8 @@ sub generate_typelib_map {
 }
 
 my %enums;
-my $help_output = `mariadbd --verbose --help`;
 my %sets;
+my $help_output = `mariadbd --no-defaults --verbose --help`;
 
 print "#include <my_global.h>\n";
 print "static const char *mariadbd_valid_options[]= {\n";
