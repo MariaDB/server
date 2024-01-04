@@ -2267,6 +2267,14 @@ sub environment_setup {
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
 
   # ----------------------------------------------------
+  # my_convert
+  # ----------------------------------------------------
+  my $exe_my_convert=
+    mtr_exe_exists("$bindir/extra$multiconfig/my_convert",
+		   "$path_client_bindir/my_convert");
+  $ENV{'MYSQL_MY_CONVERT'}= native_path($exe_my_convert);
+
+  # ----------------------------------------------------
   # myisam tools
   # ----------------------------------------------------
   $ENV{'MYISAMLOG'}= tool_arguments("storage/myisam", "myisamlog", );

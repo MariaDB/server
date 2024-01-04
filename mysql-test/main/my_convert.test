@@ -1,0 +1,53 @@
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+invalid=true
+alter_algorithm=invalid
+key_buffer_size=20M
+EOF
+--exec echo "!include $MYSQLTEST_VARDIR/tmp/tmp2.cnf" >> $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+[mysqld]
+default_regex_flags=invalid
+EOF
+
+--echo Testing --edit=remove
+--exec $MYSQL_MY_CONVERT --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --edit=remove
+--exec head -2 $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+invalid=true
+alter_algorithm=invalid
+plugin_load_add=audit_log
+EOF
+--echo Testing --edit=comment
+--exec $MYSQL_MY_CONVERT --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --edit=comment
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+invalid=true
+key_buffer_size=20M
+alter_algorithm=invalid
+EOF
+--echo Testing --edit=old-version
+--exec $MYSQL_MY_CONVERT --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=inline-old-version
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+invalid=true
+key_buffer_size=20M
+alter_algorithm=invalid
+EOF
+--echo Testing --edit=last-old-version
+--exec $MYSQL_MY_CONVERT --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
