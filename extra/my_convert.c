@@ -45,12 +45,14 @@ enum edit_mode
   EDIT_MODE_REMOVE,
   EDIT_MODE_COMMENT,
   EDIT_MODE_INLINE_OLD_VERSION,
+  EDIT_MODE_LAST_OLD_VERSION,
   EDIT_MODE_NONE,
 };
 static enum edit_mode opt_edit_mode;
 static const char *edit_mode_values[] = {"remove",
                                          "comment",
                                          "inline-old-version",
+                                         "last-old-version",
                                          NullS};
 static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_values[0] - 1,
                                     "", edit_mode_values, NULL};
@@ -224,6 +226,7 @@ static int write_output_line(MYSQL_FILE *f, const char *line, my_bool is_valid)
   FILE *target_file= f ? f->m_file : stdout;
   switch (opt_edit_mode) {
   case EDIT_MODE_REMOVE:
+  case EDIT_MODE_LAST_OLD_VERSION:
     return is_valid ? fputs(line, target_file) : 0;
   case EDIT_MODE_COMMENT:
     if (!is_valid && fputc('#', target_file) == EOF)
@@ -260,6 +263,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   size_t i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
+  DYNAMIC_ARRAY invalid_lines;
 
   if (safe_strlen(dir) + strlen(config_file) >= FN_REFLEN-3)
     return 0;					/* Ignore wrong paths */
@@ -324,6 +328,16 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 
   if (opt_edit_mode != EDIT_MODE_NONE && !opt_update)
     fprintf(stdout, "### File %s:\n", name);
+  if (opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
+  {
+    init_dynamic_array2(key_memory_convert,
+                        &invalid_lines,
+                        sizeof(char *),
+                        NULL,
+                        0,
+                        0,
+                        MYF(0));
+  }
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
     my_bool line_valid= TRUE;
@@ -548,9 +562,32 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
         }
       }
     }
+    if (!line_valid && opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
+    {
+      char *line= my_strdup(key_memory_convert, buff, MYF(0));
+      if (!line || insert_dynamic(&invalid_lines, &line))
+        goto err;
+      continue;
+    }
     write_output_line(tmp_fp, buff, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
+  if (opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
+  {
+    if (invalid_lines.elements > 0)
+    {
+      FILE *target_file= tmp_fp ? tmp_fp->m_file : stdout;
+      size_t i;
+      fprintf(target_file, "\n[%s]\n", opt_current_version);
+      for (i= 0; i < invalid_lines.elements; i++)
+      {
+        char *element = *(char **)dynamic_array_ptr(&invalid_lines, i);
+        fputs(element, target_file);
+        my_free(element);
+      }
+    }
+    delete_dynamic(&invalid_lines);
+  }
   if (tmp_fp)
   {
     mysql_file_fclose(tmp_fp, MYF(0));
@@ -817,12 +854,14 @@ static int get_options(int *argc,char ***argv)
     fputs("error: --backup provided without --update\n", stderr);
     exit(1);
   }
-  if (!opt_current_version && opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION)
+  if (!opt_current_version && (opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION ||
+                               opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION))
   {
     fputs("error: Selected --edit mode requires --current-version\n", stderr);
     exit(1);
   }
-  if (opt_current_version && opt_edit_mode != EDIT_MODE_INLINE_OLD_VERSION)
+  if (opt_current_version && (opt_edit_mode != EDIT_MODE_INLINE_OLD_VERSION &&
+                              opt_edit_mode != EDIT_MODE_LAST_OLD_VERSION))
   {
     fputs("error: --current-version provided without a corresponding --edit mode\n", stderr);
     exit(1);
