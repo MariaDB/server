@@ -1345,8 +1345,8 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
 }
 
 
-int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
-                             enum enum_var_type scope)
+int show_tc_active_instances(THD *thd, SHOW_VAR *var, void *buff,
+                             system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_UINT;
   var->value= buff;

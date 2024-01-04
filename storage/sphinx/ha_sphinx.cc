@@ -3548,7 +3548,8 @@ CSphSEStats * sphinx_get_stats ( THD * thd, SHOW_VAR * out )
 	return 0;
 }
 
-int sphinx_showfunc_total ( THD * thd, SHOW_VAR * out, char * )
+static int sphinx_showfunc_total ( THD * thd, SHOW_VAR * out, void *,
+                                   system_status_var *, enum_var_type )
 {
 	CSphSEStats * pStats = sphinx_get_stats ( thd, out );
 	if ( pStats )
@@ -3559,7 +3560,8 @@ int sphinx_showfunc_total ( THD * thd, SHOW_VAR * out, char * )
 	return 0;
 }
 
-int sphinx_showfunc_total_found ( THD * thd, SHOW_VAR * out, char * )
+static int sphinx_showfunc_total_found ( THD * thd, SHOW_VAR * out, void *,
+                                         system_status_var *, enum_var_type )
 {
 	CSphSEStats * pStats = sphinx_get_stats ( thd, out );
 	if ( pStats )
@@ -3570,7 +3572,8 @@ int sphinx_showfunc_total_found ( THD * thd, SHOW_VAR * out, char * )
 	return 0;
 }
 
-int sphinx_showfunc_time ( THD * thd, SHOW_VAR * out, char * )
+static int sphinx_showfunc_time ( THD * thd, SHOW_VAR * out, void *,
+                                  system_status_var *, enum_var_type )
 {
 	CSphSEStats * pStats = sphinx_get_stats ( thd, out );
 	if ( pStats )
@@ -3581,7 +3584,8 @@ int sphinx_showfunc_time ( THD * thd, SHOW_VAR * out, char * )
 	return 0;
 }
 
-int sphinx_showfunc_word_count ( THD * thd, SHOW_VAR * out, char * )
+static int sphinx_showfunc_word_count ( THD * thd, SHOW_VAR * out, void *,
+                                        system_status_var *, enum_var_type )
 {
 	CSphSEStats * pStats = sphinx_get_stats ( thd, out );
 	if ( pStats )
@@ -3592,9 +3596,11 @@ int sphinx_showfunc_word_count ( THD * thd, SHOW_VAR * out, char * )
 	return 0;
 }
 
-int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, char * sBuffer )
+static int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, void * buf,
+                                   system_status_var *, enum_var_type )
 {
 #if MYSQL_VERSION_ID>50100
+	char *sBuffer = static_cast<char*>(buf);
 	if ( sphinx_hton_ptr )
 	{
 		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
@@ -3649,7 +3655,8 @@ int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, char * sBuffer )
 	return 0;
 }
 
-int sphinx_showfunc_error ( THD * thd, SHOW_VAR * out, char * )
+static int sphinx_showfunc_error ( THD * thd, SHOW_VAR * out, void *,
+                                   system_status_var *, enum_var_type )
 {
 	CSphSEStats * pStats = sphinx_get_stats ( thd, out );
 	out->type = SHOW_CHAR;
