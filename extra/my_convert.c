@@ -44,13 +44,18 @@ enum edit_mode
 {
   EDIT_MODE_REMOVE,
   EDIT_MODE_COMMENT,
+  EDIT_MODE_INLINE_OLD_VERSION,
   EDIT_MODE_NONE,
 };
 static enum edit_mode opt_edit_mode;
-static const char *edit_mode_values[] = {"remove", "comment", NullS};
+static const char *edit_mode_values[] = {"remove",
+                                         "comment",
+                                         "inline-old-version",
+                                         NullS};
 static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_values[0] - 1,
                                     "", edit_mode_values, NULL};
 
+static const char *opt_current_version= NULL;
 static my_bool opt_update= FALSE;
 static my_bool opt_backup= FALSE;
 
@@ -224,6 +229,12 @@ static int write_output_line(MYSQL_FILE *f, const char *line, my_bool is_valid)
     if (!is_valid && fputc('#', target_file) == EOF)
       return EOF;
     return fputs(line, target_file);
+  case EDIT_MODE_INLINE_OLD_VERSION:
+    if (!is_valid && fprintf(target_file, "\n[%s]\n", opt_current_version) < 0)
+      return EOF;
+    if (fputs(line, target_file) == EOF)
+      return EOF;
+    return is_valid ? 0 : fputs("\n[mysqld]\n", target_file);
   case EDIT_MODE_NONE: break;
   }
   return 0;
@@ -719,6 +730,7 @@ enum convert_options
 {
   OPT_UPDATE = 256,
   OPT_BACKUP,
+  OPT_CURRENT_VERSION,
   OPT_EDIT,
 };
 
@@ -734,6 +746,10 @@ static struct my_option my_long_options[] =
    "Backup the updated configuration files. The backup file names end in a "
    "timestamp followed by .BAK",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"current-version", OPT_CURRENT_VERSION,
+   "Section to use for invalid options. See --edit.",
+   &opt_current_version, &opt_current_version,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"edit", OPT_EDIT,
    "Select what to do with invalid options",
    &opt_edit_mode, &opt_edit_mode, &edit_mode_typelib, GET_ENUM,
@@ -799,6 +815,16 @@ static int get_options(int *argc,char ***argv)
   if (opt_backup && !opt_update)
   {
     fputs("error: --backup provided without --update\n", stderr);
+    exit(1);
+  }
+  if (!opt_current_version && opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION)
+  {
+    fputs("error: Selected --edit mode requires --current-version\n", stderr);
+    exit(1);
+  }
+  if (opt_current_version && opt_edit_mode != EDIT_MODE_INLINE_OLD_VERSION)
+  {
+    fputs("error: --current-version provided without a corresponding --edit mode\n", stderr);
     exit(1);
   }
 
