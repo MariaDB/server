@@ -60,6 +60,7 @@ static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_v
 static const char *opt_current_version= NULL;
 static my_bool opt_update= FALSE;
 static my_bool opt_backup= FALSE;
+static my_bool opt_print= FALSE;
 
 
 static PSI_memory_key key_memory_convert;
@@ -238,7 +239,8 @@ static int write_output_line(MYSQL_FILE *f, const char *line, my_bool is_valid)
     if (fputs(line, target_file) == EOF)
       return EOF;
     return is_valid ? 0 : fputs("\n[mysqld]\n", target_file);
-  case EDIT_MODE_NONE: break;
+  case EDIT_MODE_NONE:
+    return opt_print ? fputs(line, target_file) : 0;
   }
   return 0;
 }
@@ -326,7 +328,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
     }
   }
 
-  if (opt_edit_mode != EDIT_MODE_NONE && !opt_update)
+  if (opt_print || (opt_edit_mode != EDIT_MODE_NONE && !opt_update))
     fprintf(stdout, "### File %s:\n", name);
   if (opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
   {
@@ -491,7 +493,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       if (!mariadbd_option_exists(option)) {
         line_valid= FALSE;
         file_valid= FALSE;
-        if (opt_edit_mode == EDIT_MODE_NONE)
+        if (!opt_print && opt_edit_mode == EDIT_MODE_NONE)
         {
             fprintf(stdout, "In %s at line %d: Invalid option %s\n", name, line, option);
             ctx->failed= 1;
@@ -541,7 +543,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       {
         line_valid= FALSE;
         file_valid= FALSE;
-        if (opt_edit_mode == EDIT_MODE_NONE)
+        if (!opt_print && opt_edit_mode == EDIT_MODE_NONE)
         {
           fprintf(stdout, "In %s at line %d: Invalid enum value %s for option %s\n",
                   name, line, option_value_start, option);
@@ -553,7 +555,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       {
         line_valid= FALSE;
         file_valid= FALSE;
-        if (opt_edit_mode == EDIT_MODE_NONE)
+        if (!opt_print && opt_edit_mode == EDIT_MODE_NONE)
         {
           fprintf(stdout, "In %s at line %d: Invalid value in set %s at index %d for option %s\n",
                   name, line, option_value_start, invalid_set_index, option);
@@ -606,7 +608,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
       }
     }
   }
-  if (opt_edit_mode != EDIT_MODE_NONE && !opt_update)
+  if (opt_print || (opt_edit_mode != EDIT_MODE_NONE && !opt_update))
     fputc('\n', stdout);
   return(0);
 
@@ -769,6 +771,7 @@ enum convert_options
   OPT_BACKUP,
   OPT_CURRENT_VERSION,
   OPT_EDIT,
+  OPT_PRINT,
 };
 
 static struct my_option my_long_options[] =
@@ -791,6 +794,8 @@ static struct my_option my_long_options[] =
    "Select what to do with invalid options",
    &opt_edit_mode, &opt_edit_mode, &edit_mode_typelib, GET_ENUM,
    REQUIRED_ARG, EDIT_MODE_NONE, 0, 0, 0, 0, 0},
+  {"print", OPT_PRINT, "Print converted files to stdout.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -832,6 +837,9 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
     case OPT_BACKUP:
       opt_backup= TRUE;
       break;
+    case OPT_PRINT:
+      opt_print= TRUE;
+      break;
   }
   return 0;
 }
@@ -864,6 +872,11 @@ static int get_options(int *argc,char ***argv)
                               opt_edit_mode != EDIT_MODE_LAST_OLD_VERSION))
   {
     fputs("error: --current-version provided without a corresponding --edit mode\n", stderr);
+    exit(1);
+  }
+  if (opt_print && opt_update)
+  {
+    fputs("error: --print and --update can't be specified simultaneously\n", stderr);
     exit(1);
   }
 
