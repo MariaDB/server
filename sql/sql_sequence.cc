@@ -921,6 +921,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   TABLE_LIST *first_table= lex->query_tables;
   TABLE *table;
   sequence_definition *new_seq= lex->create_info.seq_create_info;
+	uint saved_used_fields= new_seq->used_fields;
   SEQUENCE *seq;
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
@@ -1042,5 +1043,6 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     my_ok(thd);
 
 end:
+	new_seq->used_fields= saved_used_fields;
   DBUG_RETURN(error);
 }
