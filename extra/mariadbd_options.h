@@ -1,3 +1,5 @@
+#ifndef _mariadbd_options_h
+#define _mariadbd_options_h
 #include <my_global.h>
 static const char *mariadbd_valid_options[]= {
 "allow_suspicious_udfs",
@@ -3227,3 +3229,4 @@ static TYPELIB *mariadbd_set_typelibs[] = {
 &valid_tls_version_values_typelib,
 &valid_wsrep_mode_values_typelib,
 };
+#endif /* _mariadbd_options_h */

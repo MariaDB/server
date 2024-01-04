@@ -119,6 +119,8 @@ my $help_output = readpipe('mariadbd'
                            . ' --help'
 );
 
+print "#ifndef _mariadbd_options_h\n";
+print "#define _mariadbd_options_h\n";
 print "#include <my_global.h>\n";
 print "static const char *mariadbd_valid_options[]= {\n";
 while ($help_output =~ /
@@ -153,3 +155,4 @@ generate_typelib_map("enum", \%enums);
 
 generate_typelibs(\%sets);
 generate_typelib_map("set", \%sets);
+print "#endif /* _mariadbd_options_h */\n";
