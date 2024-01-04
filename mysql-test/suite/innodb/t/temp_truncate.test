@@ -32,3 +32,20 @@ connection default;
 COMMIT;
 SELECT COUNT(*) FROM t1;
 DROP TABLE t1;
+
+--echo # MDEV-33101 Server crashes when starting the server with
+--echo # innodb-force-recovery=6 and enabling the
+--echo # innodb_truncate_temporary_tablespace_now variable
+
+--let $restart_parameters=--innodb-force-recovery=6
+--source include/restart_mysqld.inc
+SHOW VARIABLES LIKE "innodb_read_only";
+SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
+
+--let $restart_parameters=--innodb-read-only
+--source include/restart_mysqld.inc
+SHOW VARIABLES LIKE "innodb_read_only";
+SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
