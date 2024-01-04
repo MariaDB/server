@@ -153,7 +153,8 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
 
     if (t->reginfo.lock_type >= TL_FIRST_WRITE)
     {
-      if (t->s->table_category == TABLE_CATEGORY_SYSTEM)
+      if (t->s->table_category == TABLE_CATEGORY_SYSTEM ||
+          t->s->table_category == TABLE_CATEGORY_STATISTICS)
         system_count++;
 
       if (t->db_stat & HA_READ_ONLY)
