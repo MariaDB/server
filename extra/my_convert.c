@@ -142,6 +142,20 @@ static int mariadbd_check_set_value(const char *option, const char *value)
 }
 
 
+enum plugin_check_result
+{
+  PLUGINS_OK,
+  AUDIT_PLUGIN,
+};
+static enum plugin_check_result check_plugins(const char *option, const char *value)
+{
+  if (strcmp(option, "plugin_load") && strcmp(option, "plugin_load_add"))
+    return PLUGINS_OK;
+  /* TODO: Need more advanced checking? */
+  return strstr(value, "audit_log") ? AUDIT_PLUGIN : PLUGINS_OK;
+}
+
+
 /*
   Skip over keyword and get argument after keyword
 
@@ -344,6 +358,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
   {
     my_bool line_valid= TRUE;
     int invalid_set_index;
+    enum plugin_check_result plugin_check_result;
     line++;
     /* Ignore comment and empty lines */
     for (ptr= buff; my_isspace(&my_charset_latin1, *ptr); ptr++)
@@ -561,6 +576,22 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
                   name, line, option_value_start, invalid_set_index, option);
           ctx->failed= 1;
           continue;
+        }
+      }
+      else if ((plugin_check_result= check_plugins(option, option_value_start)))
+      {
+        line_valid= FALSE;
+        file_valid= FALSE;
+        if (!opt_print && opt_edit_mode == EDIT_MODE_NONE)
+        {
+          switch (plugin_check_result) {
+          case PLUGINS_OK: break;
+          case AUDIT_PLUGIN:
+            fprintf(stdout, "In %s at line %d: Please replace audit_log with the server_audit plugin\n",
+                    name, line);
+            ctx->failed= 1;
+            continue;
+          }
         }
       }
     }
