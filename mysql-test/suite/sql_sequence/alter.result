@@ -252,3 +252,52 @@ SELECT NEXTVAL(s);
 NEXTVAL(s)
 1
 DROP SEQUENCE s;
+#
+# MDEV-33169 Alter sequence 2nd ps fails while alter sequence 2nd time (no ps) succeeds
+#
+create sequence s;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 123;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 123;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+drop sequence s;
+create sequence s;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+prepare stmt from 'alter sequence s maxvalue 123';
+execute stmt;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+execute stmt;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+deallocate prepare stmt;
+drop sequence s;
+create sequence s;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create procedure p() alter sequence s maxvalue 123;
+call p;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+call p;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+drop procedure p;
+drop sequence s;
+#
+# End of 10.4 tests
+#

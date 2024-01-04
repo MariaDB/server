@@ -167,3 +167,38 @@ ALTER TABLE s ORDER BY cache_size;
 SELECT NEXTVAL(s);
 DROP SEQUENCE s;
 --enable_ps2_protocol
+
+--echo #
+--echo # MDEV-33169 Alter sequence 2nd ps fails while alter sequence 2nd time (no ps) succeeds
+--echo #
+create sequence s;
+show create sequence s;
+alter sequence s maxvalue 123;
+show create sequence s;
+alter sequence s maxvalue 123;
+show create sequence s;
+drop sequence s;
+
+create sequence s;
+show create sequence s;
+prepare stmt from 'alter sequence s maxvalue 123';
+execute stmt;
+show create sequence s;
+execute stmt;
+show create sequence s;
+deallocate prepare stmt;
+drop sequence s;
+
+create sequence s;
+show create sequence s;
+create procedure p() alter sequence s maxvalue 123;
+call p;
+show create sequence s;
+call p;
+show create sequence s;
+drop procedure p;
+drop sequence s;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
