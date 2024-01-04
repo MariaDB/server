@@ -29,6 +29,14 @@ select * from information_schema.periods where table_schema = 'test';
 grant select(id) on test.t1 to periods_hidden@localhost;
 --connection chopped
 --sorted_result
+--connection default
+revoke select(id) on test.t1 from periods_hidden@localhost;
+--connection chopped
+--sorted_result
+--connection default
+grant update(id) on test.t1 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
 select * from information_schema.periods where table_schema = 'test';
 --connection default
 grant select(s) on test.t1 to periods_hidden@localhost;
@@ -46,7 +54,6 @@ grant update on test.t2 to periods_hidden@localhost;
 --sorted_result
 select * from information_schema.periods where table_schema = 'test';
 --connection default
-drop user periods_hidden@localhost;
 drop tables t1, t2;
 
 --echo # MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
@@ -72,3 +79,41 @@ select constraint_name from information_schema.key_period_usage where constraint
 enable_warnings;
 
 drop table t;
+
+--echo # MDEV-32501 KEY_PERIOD_USAGE reveals information to unprivileged user
+create table t (a int, b date, c date, f int, period for app(b, c),
+                primary key(a, app without overlaps));
+
+grant select (f) on t to periods_hidden@localhost;
+
+--connection chopped
+select period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+grant update (f) on t to periods_hidden@localhost;
+--connection chopped
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+revoke update (f) on t from periods_hidden@localhost;
+--connection chopped
+--error ER_TABLEACCESS_DENIED_ERROR
+update t set f = 1;
+select period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+grant alter on t to periods_hidden@localhost;
+--connection chopped
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+drop table t;
+
+#
+# End of 11.4 tests
+#
+
+# Global cleanup
+--disconnect chopped
+--connection default
+drop user periods_hidden@localhost;

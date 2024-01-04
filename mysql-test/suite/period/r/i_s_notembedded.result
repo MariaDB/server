@@ -30,6 +30,12 @@ TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
 connection default;
 grant select(id) on test.t1 to periods_hidden@localhost;
 connection chopped;
+connection default;
+revoke select(id) on test.t1 from periods_hidden@localhost;
+connection chopped;
+connection default;
+grant update(id) on test.t1 to periods_hidden@localhost;
+connection chopped;
 select * from information_schema.periods where table_schema = 'test';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
 def	test	t1	mytime	NULL	NULL
@@ -56,7 +62,6 @@ def	test	t1	mytime	s	NULL
 def	test	t2	SYSTEM_TIME	vs	ve
 def	test	t2	mytime	s	e
 connection default;
-drop user periods_hidden@localhost;
 drop tables t1, t2;
 # MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
 create table t (a int, b date, c date, period for app(b,c),
@@ -80,3 +85,34 @@ select constraint_name from information_schema.key_period_usage where constraint
 constraint_name
 idx
 drop table t;
+# MDEV-32501 KEY_PERIOD_USAGE reveals information to unprivileged user
+create table t (a int, b date, c date, f int, period for app(b, c),
+primary key(a, app without overlaps));
+grant select (f) on t to periods_hidden@localhost;
+connection chopped;
+select period_name from information_schema.key_period_usage where table_name = 't';
+period_name
+connection default;
+grant update (f) on t to periods_hidden@localhost;
+connection chopped;
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+can be seen	constraint_name	period_name
+can be seen	PRIMARY	app
+connection default;
+revoke update (f) on t from periods_hidden@localhost;
+connection chopped;
+update t set f = 1;
+ERROR 42000: UPDATE command denied to user 'periods_hidden'@'localhost' for table `test`.`t`
+select period_name from information_schema.key_period_usage where table_name = 't';
+period_name
+connection default;
+grant alter on t to periods_hidden@localhost;
+connection chopped;
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+can be seen	constraint_name	period_name
+can be seen	PRIMARY	app
+connection default;
+drop table t;
+disconnect chopped;
+connection default;
+drop user periods_hidden@localhost;
