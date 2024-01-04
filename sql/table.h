@@ -464,6 +464,11 @@ enum enum_table_category
   TABLE_CATEGORY_SYSTEM=3,
 
   /**
+     Persistent statistics table
+  */
+  TABLE_CATEGORY_STATISTICS= 4,
+
+  /**
     Log tables.
     These tables are an interface provided by the system
     to inspect the system logs.
@@ -483,7 +488,7 @@ enum enum_table_category
     The server implementation perform writes.
     Log tables are cached in the table cache.
   */
-  TABLE_CATEGORY_LOG=4,
+  TABLE_CATEGORY_LOG=5,
 
   /**
      Other tables in the mysql schema, like global_priv and db
