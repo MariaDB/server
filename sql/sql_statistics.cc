@@ -3300,7 +3300,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
         statistics_for_tables_is_needed= true;
       }
     }
-    else if (is_stat_table(tl->db, tl->alias))
+    else if (table_share->table_category == TABLE_CATEGORY_STATISTICS)
       found_stat_table= true;
   }
 

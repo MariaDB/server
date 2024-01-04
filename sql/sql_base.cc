@@ -9616,9 +9616,11 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list)
 
   for (TABLE_LIST *tables= table_list; tables; tables= tables->next_global)
   {
-    DBUG_ASSERT(tables->table->s->table_category == TABLE_CATEGORY_SYSTEM);
-    tables->table->file->row_logging= 0;
-    tables->table->use_all_columns();
+    TABLE *table= tables->table;
+    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_SYSTEM ||
+                table->s->table_category == TABLE_CATEGORY_STATISTICS);
+    table->file->row_logging= 0;
+    table->use_all_columns();
   }
   lex->restore_backup_query_tables_list(&query_tables_list_backup);
 

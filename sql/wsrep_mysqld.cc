@@ -1444,15 +1444,21 @@ bool wsrep_check_mode_after_open_table (THD *thd,
                    (db_type == DB_TYPE_ARIA && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)));
   TABLE *tbl= tables->table;
 
+  DBUG_ASSERT(tbl);
   if (replicate)
   {
-    /* It is not recommended to replicate MyISAM as it lacks rollback feature
-    but if user demands then actions are replicated using TOI.
-    Following code will kick-start the TOI but this has to be done only once
-    per statement.
-    Note: kick-start will take-care of creating isolation key for all tables
-    involved in the list (provided all of them are MYISAM or Aria tables). */
-    if (!is_stat_table(tables->db, tables->alias))
+    /*
+      It is not recommended to replicate MyISAM as it lacks rollback
+      feature but if user demands then actions are replicated using TOI.
+      Following code will kick-start the TOI but this has to be done
+      only once per statement.
+
+      Note: kick-start will take-care of creating isolation key for
+      all tables involved in the list (provided all of them are MYISAM
+      or Aria tables).
+    */
+    if ((tbl && tbl->s->table_category != TABLE_CATEGORY_STATISTICS) ||
+        (!tbl && !is_stat_table(tables->db, tables->alias)))
     {
       if (tbl->s->primary_key == MAX_KEY &&
           wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
@@ -1470,13 +1476,14 @@ bool wsrep_check_mode_after_open_table (THD *thd,
              db_type != DB_TYPE_PERFORMANCE_SCHEMA)
   {
     bool is_system_db= (tbl &&
-                       ((strcmp(tbl->s->db.str, "mysql") == 0) ||
-                        (strcmp(tbl->s->db.str, "information_schema") == 0)));
+                        (!strcmp(tbl->s->db.str, "mysql") ||
+                         (tbl->s->table_category ==
+                          TABLE_CATEGORY_INFORMATION &&
+                          !strcmp(tbl->s->db.str, "information_schema"))));
 
     if (!is_system_db &&
 	!is_temporary_table(tables))
     {
-
       if (db_type != DB_TYPE_INNODB &&
 	  wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
       {

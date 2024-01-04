@@ -464,6 +464,11 @@ enum enum_table_category
   TABLE_CATEGORY_SYSTEM=3,
 
   /**
+     Persistent statistics table
+  */
+  TABLE_CATEGORY_STATISTICS= 4,
+
+  /**
     Log tables.
     These tables are an interface provided by the system
     to inspect the system logs.
@@ -483,7 +488,7 @@ enum enum_table_category
     The server implementation perform writes.
     Log tables are cached in the table cache.
   */
-  TABLE_CATEGORY_LOG=4,
+  TABLE_CATEGORY_LOG=5,
 
   /*
     Types below are read only tables, not affected by FLUSH TABLES or
@@ -509,7 +514,7 @@ enum enum_table_category
     to I_S tables in the table cache, which should use
     this table type.
   */
-  TABLE_CATEGORY_INFORMATION=5,
+  TABLE_CATEGORY_INFORMATION=6,
 
   /**
     Performance schema tables.
@@ -531,7 +536,7 @@ enum enum_table_category
     The server implementation perform writes.
     Performance tables are cached in the table cache.
   */
-  TABLE_CATEGORY_PERFORMANCE=6
+  TABLE_CATEGORY_PERFORMANCE=7
 };
 
 typedef enum enum_table_category TABLE_CATEGORY;

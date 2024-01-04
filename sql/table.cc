@@ -134,7 +134,9 @@ static bool fix_type_pointers(const char ***typelib_value_names,
 static field_index_t find_field(Field **fields, uchar *record, uint start,
                                 uint length);
 
-inline bool is_system_table_name(const char *name, size_t length);
+static inline bool is_system_table_name(const char *name, size_t length);
+static inline bool is_statistics_table_name(const char *name, size_t length);
+
 
 /**************************************************************************
   Object_creation_ctx implementation.
@@ -315,13 +317,12 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
     if (is_system_table_name(name.str, name.length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (name.streq(GENERAL_LOG_NAME))
-      return TABLE_CATEGORY_LOG;
+    if (is_statistics_table_name(name.str, name.length))
+      return TABLE_CATEGORY_STATISTICS;
 
-    if (name.streq(SLOW_LOG_NAME))
-      return TABLE_CATEGORY_LOG;
-
-    if (name.streq(TRANSACTION_REG_NAME))
+    if (name.streq(GENERAL_LOG_NAME) ||
+        name.streq(SLOW_LOG_NAME) ||
+        name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
   }
 
@@ -578,7 +579,7 @@ void free_table_share(TABLE_SHARE *share)
   and should not contain user tables.
 */
 
-inline bool is_system_table_name(const char *name, size_t length)
+static inline bool is_system_table_name(const char *name, size_t length)
 {
   CHARSET_INFO *ci= system_charset_info;
 
@@ -604,17 +605,6 @@ inline bool is_system_table_name(const char *name, size_t length)
              my_tolower(ci, name[2]) == 'm' &&
              my_tolower(ci, name[3]) == 'e') ||
 
-            /* one of mysql.*_stat tables, but not mysql.innodb* tables*/
-            ((my_tolower(ci, name[length-5]) == 's' &&
-              my_tolower(ci, name[length-4]) == 't' &&
-              my_tolower(ci, name[length-3]) == 'a' &&
-              my_tolower(ci, name[length-2]) == 't' &&
-              my_tolower(ci, name[length-1]) == 's') &&
-             !(my_tolower(ci, name[0]) == 'i' &&
-               my_tolower(ci, name[1]) == 'n' &&
-               my_tolower(ci, name[2]) == 'n' &&
-               my_tolower(ci, name[3]) == 'o')) ||
-
             /* mysql.event table */
             (my_tolower(ci, name[0]) == 'e' &&
              my_tolower(ci, name[1]) == 'v' &&
@@ -624,6 +614,29 @@ inline bool is_system_table_name(const char *name, size_t length)
             )
            )
          );
+}
+
+
+static inline bool
+is_statistics_table_name(const char *name, size_t length)
+{
+  CHARSET_INFO *ci= system_charset_info;
+
+  if (length > 6)
+  {
+    /* one of mysql.*_stat tables, but not mysql.innodb* tables*/
+    if ((my_tolower(ci, name[length-5]) == 's' &&
+         my_tolower(ci, name[length-4]) == 't' &&
+         my_tolower(ci, name[length-3]) == 'a' &&
+         my_tolower(ci, name[length-2]) == 't' &&
+         my_tolower(ci, name[length-1]) == 's') &&
+        !(my_tolower(ci, name[0]) == 'i' &&
+          my_tolower(ci, name[1]) == 'n' &&
+          my_tolower(ci, name[2]) == 'n' &&
+          my_tolower(ci, name[3]) == 'o'))
+      return 1;
+  }
+  return 0;
 }
 
 
