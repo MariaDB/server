@@ -336,18 +336,6 @@ void wsrep_provider_plugin_set_sysvars(st_mysql_sys_var** vars)
   Wsrep plugin
 */
 
-static int wsrep_plugin_init(void *p)
-{
-  WSREP_DEBUG("wsrep_plugin_init()");
-  return 0;
-}
-
-static int wsrep_plugin_deinit(void *p)
-{
-  WSREP_DEBUG("wsrep_plugin_deinit()");
-  return 0;
-}
-
 struct Mysql_replication wsrep_plugin= {
   MYSQL_REPLICATION_INTERFACE_VERSION
 };
@@ -360,8 +348,8 @@ maria_declare_plugin(wsrep)
   "Codership Oy",
   "Wsrep replication plugin",
   PLUGIN_LICENSE_GPL,
-  wsrep_plugin_init,
-  wsrep_plugin_deinit,
+  NULL,
+  NULL,
   0x0100,
   NULL, /* Status variables */
   NULL, /* System variables */
