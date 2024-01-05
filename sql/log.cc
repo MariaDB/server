@@ -12023,6 +12023,15 @@ IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
   return NULL;
 }
 
+bool wsrep_is_binlog_cache_empty(THD *thd)
+{
+  binlog_cache_mngr *cache_mngr=
+      (binlog_cache_mngr *) thd_get_ha_data(thd, binlog_hton);
+  if (cache_mngr)
+    return cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty();
+  return true;
+}
+
 void wsrep_thd_binlog_trx_reset(THD * thd)
 {
   DBUG_ENTER("wsrep_thd_binlog_trx_reset");
@@ -12081,12 +12090,9 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
     /*
       Set an implicit savepoint in order to be able to truncate a trx-cache.
     */
-    if (cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
-    {
-      my_off_t pos= 0;
-      binlog_trans_log_savepos(thd, &pos);
-      cache_mngr->trx_cache.set_prev_position(pos);
-    }
+    my_off_t pos= 0;
+    binlog_trans_log_savepos(thd, &pos);
+    cache_mngr->trx_cache.set_prev_position(pos);
 
     /*
       Set callbacks in order to be able to call commmit or rollback.

@@ -697,6 +697,46 @@ static LEX_STRING spider_init_queries[] = {
     "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
     "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
   )},
   /* Install UDFs. If udf is not initialised, then install by
