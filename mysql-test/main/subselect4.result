@@ -3227,4 +3227,104 @@ FROM x
 )
 );
 ERROR 21000: Operand should contain 2 column(s)
+#
+# MDEV-29362: Constant subquery used as left part of IN subquery
+#
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (15), (1), (2);
+CREATE TABLE t2 (b int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (15), (1);
+CREATE TABLE t3 (c int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (15), (1);
+SET optimizer_switch='condition_pushdown_from_having=off';
+SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+a
+2
+SELECT a FROM t1 GROUP BY a
+HAVING a IN ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  );
+a
+1
+SET optimizer_switch='condition_pushdown_from_having=on';
+SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+a
+2
+SELECT a FROM t1 GROUP BY a
+HAVING a IN ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  );
+a
+1
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.012403489,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 3,
+          "cost": 0.010504815,
+          "filtered": 100,
+          "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "cost": 0.01034841,
+          "having_condition": "trigcond(t3.c is null)",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.01034841,
+                "filtered": 100,
+                "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.01034841,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.01034841,
+                "filtered": 100,
+                "attached_condition": "t2.b = 1"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+PREPARE stmt FROM "SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1";
+EXECUTE stmt;
+a
+2
+EXECUTE stmt;
+a
+2
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1,t2,t3;
 # End of 10.4 tests

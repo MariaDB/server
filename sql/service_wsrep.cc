@@ -395,9 +395,13 @@ extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
   }
 }
 
+extern "C" uint32 wsrep_get_domain_id()
+{
+  return wsrep_gtid_domain_id;
+}
+
 extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
 {
   return (wsrep_thd_is_local(thd) &&
 	  thd->wsrep_cs().transaction().active());
 }
-

@@ -672,10 +672,10 @@ extern void my_mutex_end(void);
   by GCC 12.3.0, GCC 13.2.0, or clang 16.0.6
   would fail ./mtr main.1st when the stack size is 5 MiB.
   The minimum is more than 6 MiB for CMAKE_BUILD_TYPE=RelWithDebInfo and
-  more than 8 MiB for CMAKE_BUILD_TYPE=Debug.
+  more than 10 MiB for CMAKE_BUILD_TYPE=Debug.
   Let us add some safety margin.
 */
-#  define DEFAULT_THREAD_STACK	(10L<<20)
+#  define DEFAULT_THREAD_STACK	(11L<<20)
 # else
 #  define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
 # endif

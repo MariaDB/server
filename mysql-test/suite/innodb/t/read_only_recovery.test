@@ -35,12 +35,15 @@ UPDATE t SET a=3 WHERE a=1;
 --echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 --echo # In earlier versions, this would return the last committed version
 --echo # (empty table)!
+SHOW VARIABLES LIKE "innodb_read_only";
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 INSERT INTO mysql.innodb_index_stats
 SELECT * FROM mysql.innodb_index_stats LIMIT 0;
+--echo Test Temp tablespace truncate in read only mode
+SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;
