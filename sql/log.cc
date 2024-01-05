@@ -3694,7 +3694,6 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                          bool null_created_arg,
                          bool need_mutex)
 {
-  File file= -1;
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
 
@@ -4090,8 +4089,6 @@ err:
   sql_print_error(fatal_log_error, (name) ? name : log_name, tmp_errno);
   if (new_xid_list_entry)
     delete new_xid_list_entry;
-  if (file >= 0)
-    mysql_file_close(file, MYF(0));
   close(LOG_CLOSE_INDEX);
   DBUG_RETURN(1);
 }
@@ -5362,8 +5359,6 @@ int MYSQL_BIN_LOG::new_file_without_locking()
 
 /**
   Start writing to a new log file or reopen the old file.
-
-  @param need_lock		Set to 1 if caller has not locked LOCK_log
 
   @retval
     nonzero - error
