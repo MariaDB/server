@@ -18482,7 +18482,8 @@ static
 void
 innodb_trunc_temp_space_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-  if (!*static_cast<const my_bool*>(save))
+  /* Temp tablespace is not initialized in read only mode. */
+  if (!*static_cast<const my_bool*>(save) || srv_read_only_mode)
     return;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   fsp_shrink_temp_space();

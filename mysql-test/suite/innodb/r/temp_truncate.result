@@ -1,3 +1,11 @@
+# MDEV-33101 Server crashes when starting the server with
+# innodb-force-recovery=6 and enabling the
+# innodb_truncate_temporary_tablespace_now variable
+# restart: --innodb-force-recovery=6
+SHOW VARIABLES LIKE "innodb_read_only";
+Variable_name	Value
+innodb_read_only	ON
+SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
 # restart
 CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
 f2 INT NOT NULL)ENGINE=InnoDB;
