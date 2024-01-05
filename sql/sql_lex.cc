@@ -7497,7 +7497,8 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
                                       name->m_name);
       else
         sp->init_sp_name(name);
-      sp->make_qname(sp->get_main_mem_root(), &sp->m_qname);
+      if (!(sp->m_qname= sp->make_qname(sp->get_main_mem_root(), true)).str)
+        return NULL;
     }
     sphead= sp;
   }
@@ -9406,7 +9407,7 @@ bool LEX::call_statement_start(THD *thd,
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_proc;
-  if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
+  if (!(pkg_dot_proc= q_pkg_proc.make_qname(thd->mem_root, false)).str ||
       check_ident_length(&pkg_dot_proc) ||
       !(spname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_proc, true)))
     return true;
@@ -9473,7 +9474,8 @@ sp_package *LEX::create_package_start(THD *thd,
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);
-  pkg->make_qname(pkg->get_main_mem_root(), &pkg->m_qname);
+  if (!(pkg->m_qname= pkg->make_qname(pkg->get_main_mem_root(), true)).str)
+    return NULL;
   sphead= pkg;
   return pkg;
 }
@@ -9817,7 +9819,7 @@ Item *LEX::make_item_func_call_generic(THD *thd,
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_func;
-  if (q_pkg_func.make_qname(thd->mem_root, &pkg_dot_func) ||
+  if (!(pkg_dot_func= q_pkg_func.make_qname(thd->mem_root, false)).str ||
       check_ident_length(&pkg_dot_func) ||
       !(qname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_func, true)))
     return NULL;

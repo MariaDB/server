@@ -28,7 +28,7 @@ SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_alter WAIT_FOR bf
 --connection node_1
 SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
 --disable_result_log
---error ER_ERROR_ON_RENAME
+--error ER_CANT_DROP_FIELD_OR_KEY
 ALTER TABLE t1 DROP FOREIGN KEY b, ALGORITHM=COPY;
 --enable_result_log
 
