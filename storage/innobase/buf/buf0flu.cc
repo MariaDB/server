@@ -1968,6 +1968,12 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   }
 
   log_sys.next_checkpoint_lsn= oldest_lsn;
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard_1",
+       ib::info() << "Checkpoint added: old "
+                  << log_sys.last_checkpoint_lsn
+                 << " New one " << log_sys.next_checkpoint_lsn;
+       ut_ad(0);
+   );
   log_sys.write_checkpoint(end_lsn);
 
   return true;
@@ -2090,6 +2096,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
     write out before we can advance the checkpoint. */
     log_write_up_to(sync_lsn, true);
     DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
+    DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard_1", return;);
     log_checkpoint();
   }
 }
@@ -2105,6 +2112,7 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious)
     recv_sys.apply(true);
 
   DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard_1", return;);
 
   Atomic_relaxed<lsn_t> &limit= furious
     ? buf_flush_sync_lsn : buf_flush_async_lsn;
@@ -2436,7 +2444,7 @@ static void buf_flush_page_cleaner()
       {
         DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", continue;);
         DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", continue;);
-
+        DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard_1", continue;);
         if (!recv_recovery_is_on() &&
             !srv_startup_is_before_trx_rollback_phase &&
             srv_operation <= SRV_OPERATION_EXPORT_RESTORED)

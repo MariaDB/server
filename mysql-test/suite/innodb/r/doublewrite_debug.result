@@ -23,7 +23,7 @@ commit work;
 # Test Begin: Test if recovery works if 1st page and 2nd page
 # of system tablespace is full of zeroes.
 SET GLOBAL innodb_fast_shutdown = 0;
-# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard_1 --innodb_flush_sync=0
 begin;
 insert into t1 values (6, repeat('%', 400));
 # Make the first page dirty for system tablespace
@@ -53,7 +53,7 @@ f1	f2
 # ---------------------------------------------------------------
 # Test Begin: Test if recovery works if 1st page of
 # system tablespace is corrupted and 2nd page as corrupted.
-# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard_1 --innodb_flush_sync=0
 begin;
 insert into t1 values (6, repeat('%', 400));
 # Make the first page dirty for system tablespace

@@ -44,7 +44,7 @@ commit work;
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
-let $restart_parameters="--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0";
+let $restart_parameters="--debug_dbug=+d,ib_log_checkpoint_avoid_hard_1 --innodb_flush_sync=0";
 --source include/restart_mysqld.inc
 --source ../include/no_checkpoint_start.inc
 begin;
@@ -61,16 +61,6 @@ set global innodb_fil_make_page_dirty_debug = 0;
 set global innodb_buf_flush_list_now = 1;
 
 --let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
-# Occasionally, a checkpoint would occur on the MSAN builder.
-# We do not know the reason, because the failure can only be reproduced if there is
-# enough load in that environment.
-# Therefore, we allow the test to be skipped when run on MSAN.
-# In other environments, we want the test to fail if a checkpoint occurs,
-# so that we would catch it if it starts to happen regularly.
-if (`select count(*) from information_schema.system_variables where variable_name='have_sanitizer' and global_value like "MSAN%"`)
-{
---let CLEANUP_IF_CHECKPOINT=drop table t1;
-}
 
 --source ../include/no_checkpoint_end.inc
 
@@ -105,7 +95,7 @@ select f1, f2 from t1;
 --echo # Test Begin: Test if recovery works if 1st page of
 --echo # system tablespace is corrupted and 2nd page as corrupted.
 
-let $restart_parameters="--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0";
+let $restart_parameters="--debug_dbug=+d,ib_log_checkpoint_avoid_hard_1 --innodb_flush_sync=0";
 --source include/restart_mysqld.inc
 --source ../include/no_checkpoint_start.inc
 begin;

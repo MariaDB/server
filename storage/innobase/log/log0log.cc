@@ -1069,6 +1069,7 @@ func_exit:
     }
 
     DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", goto skip_checkpoint;);
+    DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard_1", goto skip_checkpoint;);
     log_sys.latch.rd_unlock();
 
     /* We must wait to prevent the tail of the log overwriting the head. */
