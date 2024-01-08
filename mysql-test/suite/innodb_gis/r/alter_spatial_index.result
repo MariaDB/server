@@ -46,16 +46,16 @@ INSERT INTO tab(c1,c2,c3,c4,c5)
 VALUES(10,ST_GeomFromText('POINT(160 160)'),ST_GeomFromText('LINESTRING(140 140,150 150,160 160)'),
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'),
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'));
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
@@ -110,9 +110,9 @@ ALTER TABLE tab CHANGE COLUMN c4 c44 POLYGON;
 ERROR 42000: All parts of a SPATIAL index must be NOT NULL
 ALTER TABLE tab add SPATIAL INDEX idx1(c1);
 ERROR HY000: Incorrect arguments to SPATIAL INDEX
-ALTER TABLE tab ADD SPATIAL INDEX idx6(c2 ASC) USING BTREE;
+ALTER TABLE tab ADD SPATIAL INDEX idx6(c2) USING BTREE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING BTREE' at line 1
-ALTER TABLE tab ADD SPATIAL INDEX idx6(c2 ASC) USING HASH;
+ALTER TABLE tab ADD SPATIAL INDEX idx6(c2) USING HASH;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING HASH' at line 1
 SHOW CREATE TABLE tab;
 Table	Create Table
@@ -340,7 +340,7 @@ DELETE FROM tab;
 ALTER TABLE tab ADD PRIMARY KEY(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-CREATE SPATIAL INDEX idx2 ON tab(c2 ASC);
+CREATE SPATIAL INDEX idx2 ON tab(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD CONSTRAINT const_1 UNIQUE(c2);
@@ -449,16 +449,16 @@ ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
@@ -678,10 +678,10 @@ c1	ST_AsText(c2)	ST_AsText(c3)	ST_Astext(c4)
 DROP TABLE tab;
 CREATE TABLE parent (id POINT, PRIMARY KEY(id)) ENGINE=InnoDB;
 CREATE TABLE child (id GEOMETRY NOT NULL, parent_id POINT NOT NULL) ENGINE=InnoDB;
-ALTER TABLE parent ADD SPATIAL INDEX idx1(id ASC);
+ALTER TABLE parent ADD SPATIAL INDEX idx1(id);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id ASC);
+ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE parent;
@@ -710,10 +710,10 @@ ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ON DELETE CAS
 DROP table child,parent;
 CREATE TABLE parent (id GEOMETRY, PRIMARY KEY(id(10))) ENGINE=InnoDB;
 CREATE TABLE child (id GEOMETRY NOT NULL, parent_id GEOMETRY NOT NULL) ENGINE=InnoDB;
-ALTER TABLE parent ADD SPATIAL INDEX idx1(id ASC) ;
+ALTER TABLE parent ADD SPATIAL INDEX idx1(id) ;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id ASC);
+ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE parent;

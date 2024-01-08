@@ -833,8 +833,6 @@ ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used le
 ALTER TABLE t1 ADD d INT;
 ALTER TABLE t1 ADD KEY (d(20));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
-ALTER TABLE t1 ADD e GEOMETRY NOT NULL, ADD SPATIAL KEY (e(30));
-ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
 DROP TABLE t1;
 CREATE TABLE t1 (s CHAR(8) BINARY);
 INSERT INTO t1 VALUES ('test');
