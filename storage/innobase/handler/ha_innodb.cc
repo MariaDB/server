@@ -18313,7 +18313,10 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
   if (s)
     buf_flush_sync();
   else
+  {
     while (buf_flush_list_space(fil_system.sys_space, nullptr));
+    os_aio_wait_until_no_pending_writes();
+  }
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

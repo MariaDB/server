@@ -2333,9 +2333,9 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
       do
       {
-        DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", continue;);
-        DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", continue;);
-
+        IF_DBUG(if (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
+                    _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1))
+                  continue,);
         if (!recv_recovery_is_on() &&
             !srv_startup_is_before_trx_rollback_phase &&
             srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
