@@ -338,7 +338,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     if (!(tmp_fp= mysql_file_fopen(key_file_cnf, tmp_name, O_RDWR | O_CREAT | O_TRUNC, MYF(0))))
     {
       fprintf(stderr, "error: Failed to open %s for writing: %s\n", tmp_name, strerror(errno));
-      return 1;
+      return -1;
     }
   }
 
@@ -635,7 +635,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       {
         fprintf(stderr, "error: Failed to rename %s to %s: %s",
                 tmp_name, name, strerror(errno));
-        return 1;
+        return -1;
       }
     }
   }
