@@ -1628,6 +1628,15 @@ rpl_binlog_state::load(rpl_slave_state *slave_pos)
 }
 
 
+void rpl_binlog_state::set_state(rpl_gtid *init_state, uint32 init_state_len)
+{
+  if (init_state)
+    load(init_state, init_state_len);
+  else
+    reset();
+}
+
+
 rpl_binlog_state::~rpl_binlog_state()
 {
   free();

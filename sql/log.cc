@@ -4433,6 +4433,8 @@ bool MYSQL_BINARY_LOG::reset_master_in_progress(rpl_gtid *init_state)
   mysql_mutex_unlock(&LOCK_xid_list);
   return false;
 }
+
+
 /**
   Delete all logs referred to in the index file.
 
@@ -4462,22 +4464,12 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
   const char* save_name;
   DBUG_ENTER("reset_logs");
 
-  if (!is_relay_log)
-  {
-    if (reset_master_in_progress(init_state))
-      DBUG_RETURN(1);
-  }
-
-  DEBUG_SYNC_C_IF_THD(thd, "reset_logs_after_set_reset_master_pending");
   /*
     We need to get both locks to be sure that no one is trying to
     write to the index log file.
   */
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_index);
-
-  if (!is_relay_log)
-    binlog_mark_and_commit_reset_logs();
 
   /* Save variables so that we can reopen the log */
   save_name=name;
@@ -4540,14 +4532,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       break;
   }
 
-  if (!is_relay_log)
-  {
-    if (init_state)
-      rpl_global_gtid_binlog_state.load(init_state, init_state_len);
-    else
-      rpl_global_gtid_binlog_state.reset();
-  }
-
   /* Start logging with a new file */
   close(LOG_CLOSE_INDEX | LOG_CLOSE_TO_BE_OPENED);
   // Reset (open will update)
@@ -4589,12 +4573,25 @@ err:
   if (error == 1)
     name= const_cast<char*>(save_name);
 
-  if (!is_relay_log)
-    remove_xid_except_last();
-
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+}
+
+
+bool MYSQL_BINARY_LOG::reset_logs(THD *thd, bool create_new_log,
+                                  rpl_gtid *init_state, uint32 init_state_len,
+                                  ulong next_log_number)
+{
+  DBUG_ENTER("MYSQL_BINARY_LOG::reset_logs");
+  if (reset_master_in_progress(init_state))
+      DBUG_RETURN(1);
+  DEBUG_SYNC_C_IF_THD(thd, "reset_logs_after_set_reset_master_pending");
+  binlog_mark_and_commit_reset_logs();
+  rpl_global_gtid_binlog_state.set_state(init_state, init_state_len);
+  remove_xid_except_last();
+  DBUG_RETURN(MYSQL_BIN_LOG::reset_logs(thd, create_new_log, init_state,
+                                        init_state_len, next_log_number));
 }
 
 

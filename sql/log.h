@@ -868,9 +868,9 @@ public:
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
   virtual void binlog_mark_and_commit_reset_logs() { DBUG_ASSERT(0); }
-  bool reset_logs(THD* thd, bool create_new_log,
-                  rpl_gtid *init_state, uint32 init_state_len,
-                  ulong next_log_number);
+  virtual bool reset_logs(THD* thd, bool create_new_log,
+                          rpl_gtid *init_state, uint32 init_state_len,
+                          ulong next_log_number);
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 
@@ -907,7 +907,6 @@ public:
   virtual void link_to_count_list(xid_count_per_binlog **new_xid_list)
   { };
   virtual void remove_xid_except_last() { DBUG_ASSERT(0); };
-  virtual bool reset_master_in_progress(rpl_gtid *init_state) { return 0; };
   virtual void increment_binlog_space_total() { DBUG_ASSERT(0); }
   virtual void update_binlog_end_pos() = 0;
   virtual void reset_binlog_end_pos(const char file_name[FN_REFLEN], my_off_t pos){};
@@ -1174,7 +1173,7 @@ public:
   bool output_gtid_event(xid_count_per_binlog **new_xid_list) override;
   void link_to_count_list(xid_count_per_binlog **new_xid_list) override;
   void remove_xid_except_last() override;
-  bool reset_master_in_progress(rpl_gtid *init_state) override;
+  bool reset_master_in_progress(rpl_gtid *init_state);
   void increment_binlog_space_total() override
   {
     binlog_space_total+= binlog_end_pos;
@@ -1188,6 +1187,9 @@ public:
     last_commit_pos_offset= offset;
   }
   int binlog_write_state_to_file() override;
+  bool reset_logs(THD* thd, bool create_new_log,
+                  rpl_gtid *init_state, uint32 init_state_len,
+                  ulong next_log_number) override;
 };
 
 
