@@ -3447,7 +3447,7 @@ void MYSQL_BINARY_LOG::stop_background_thread()
 }
 
 
-void MYSQL_BIN_LOG::close_log_and_destroy_mutex()
+void MYSQL_BIN_LOG::cleanup()
 {
   mysql_mutex_lock(&LOCK_log);
   close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
@@ -3465,7 +3465,7 @@ void MYSQL_RELAY_LOG::cleanup()
   if (inited)
   {
     inited= 0;
-    close_log_and_destroy_mutex();
+    MYSQL_BIN_LOG::cleanup();
     mysql_cond_destroy(&COND_relay_log_updated);
     delete description_event_for_queue;
     delete description_event_for_exec;
@@ -3484,7 +3484,7 @@ void MYSQL_BINARY_LOG::cleanup()
     stop_background_thread();
 
     inited= 0;
-    close_log_and_destroy_mutex();
+    MYSQL_BIN_LOG::cleanup();
 
     while ((b= binlog_xid_count_list.get()))
     {
@@ -3699,7 +3699,7 @@ bool MYSQL_BINARY_LOG::recovery_and_start_bgt()
 }
 
 
-bool MYSQL_BINARY_LOG::output_gtid_event(xid_count_per_binlog *& new_xid_list_entry)
+bool MYSQL_BINARY_LOG::output_gtid_event(xid_count_per_binlog **new_xid_list)
 {
   char buf[FN_REFLEN];
   xid_count_per_binlog *b= NULL;
@@ -3757,8 +3757,8 @@ bool MYSQL_BINARY_LOG::output_gtid_event(xid_count_per_binlog *& new_xid_list_en
   */
   size_t off= dirname_length(log_file_name);
   uint len= static_cast<uint>(strlen(log_file_name) - off);
-  new_xid_list_entry= new xid_count_per_binlog(log_file_name+off, len);
-  if (!new_xid_list_entry)
+  *new_xid_list= new xid_count_per_binlog(log_file_name+off, len);
+  if (!*new_xid_list)
     return true;
 
   /*
@@ -3775,7 +3775,7 @@ bool MYSQL_BINARY_LOG::output_gtid_event(xid_count_per_binlog *& new_xid_list_en
     ;
   mysql_mutex_unlock(&LOCK_xid_list);
   if (!b)
-    b= new_xid_list_entry;
+    b= *new_xid_list;
   if (b->binlog_name)
     strmake(buf, b->binlog_name, b->binlog_name_len);
   else
@@ -3792,7 +3792,7 @@ bool MYSQL_BINARY_LOG::output_gtid_event(xid_count_per_binlog *& new_xid_list_en
 }
 
 
-void MYSQL_BINARY_LOG::link_to_count_list(xid_count_per_binlog *& new_xid_list_entry)
+void MYSQL_BINARY_LOG::link_to_count_list(xid_count_per_binlog **new_xid_list)
 {
   xid_count_per_binlog *b= NULL;
   /*
@@ -3801,7 +3801,7 @@ void MYSQL_BINARY_LOG::link_to_count_list(xid_count_per_binlog *& new_xid_list_e
   */
   mysql_mutex_lock(&LOCK_xid_list);
   ++current_binlog_id;
-  new_xid_list_entry->binlog_id= current_binlog_id;
+  (*new_xid_list)->binlog_id= current_binlog_id;
   /* Remove any initial entries with no pending XIDs.  */
   while ((b= binlog_xid_count_list.head()) && b->xid_count == 0)
   {
@@ -3811,8 +3811,8 @@ void MYSQL_BINARY_LOG::link_to_count_list(xid_count_per_binlog *& new_xid_list_e
   }
   mysql_cond_broadcast(&COND_xid_list);
   WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::open(): Adding new xid_list_entry for "
-                        "%s (%lu)", new_xid_list_entry);
-  binlog_xid_count_list.push_back(new_xid_list_entry);
+                        "%s (%lu)", (*new_xid_list));
+  binlog_xid_count_list.push_back(*new_xid_list);
   mysql_mutex_unlock(&LOCK_xid_list);
 
   /*
@@ -4007,7 +4007,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
       if (!is_relay_log)
       {
-        if (output_gtid_event(new_xid_list_entry))
+        if (output_gtid_event(&new_xid_list_entry))
           goto err;
       }
     }
@@ -4061,7 +4061,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   }
 
   if (!is_relay_log)
-    link_to_count_list(new_xid_list_entry);
+    link_to_count_list(&new_xid_list_entry);
 
   log_state= LOG_OPENED;
 
@@ -4329,7 +4329,7 @@ err:
 }
 
 
-void MYSQL_BINARY_LOG::mark_and_commit_reset_logs()
+void MYSQL_BINARY_LOG::binlog_mark_and_commit_reset_logs()
 {
   /*
     We are going to nuke all binary log files.
@@ -4477,7 +4477,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
   mysql_mutex_lock(&LOCK_index);
 
   if (!is_relay_log)
-    mark_and_commit_reset_logs();
+    binlog_mark_and_commit_reset_logs();
 
   /* Save variables so that we can reopen the log */
   save_name=name;
@@ -6761,7 +6761,7 @@ MYSQL_BINARY_LOG::write_gtid_event(THD *thd, bool standalone,
 
 
 int
-MYSQL_BINARY_LOG::write_state_to_file()
+MYSQL_BINARY_LOG::binlog_write_state_to_file()
 {
   File file_no;
   IO_CACHE cache;
@@ -9305,7 +9305,7 @@ void MYSQL_BIN_LOG::close(uint exiting)
         Note that this must be written and synced to disk before marking the
         last binlog file as "not crashed".
       */
-      if (write_state_to_file())
+      if (binlog_write_state_to_file())
       {
         sql_print_error("Failed to save binlog GTID state during shutdown. "
                         "Binlog will be marked as crashed, so that crash "

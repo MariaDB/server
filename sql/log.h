@@ -598,8 +598,9 @@ class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
 
-class MYSQL_BIN_LOG: public TC_LOG, private Event_log
+class MYSQL_BIN_LOG: public TC_LOG, protected Event_log
 {
+protected:
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
   /** The instrumentation key to use for @ COND_relay_log_updated */
@@ -659,7 +660,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
     LOCK_log.
   */
   int new_file_impl();
-  void close_log_and_destroy_mutex();
+  virtual void cleanup();
 public:
   int new_file_without_locking();
   /*
@@ -808,7 +809,6 @@ public:
   }
   void set_max_size(ulong max_size_arg);
   virtual void init_pthread_objects();
-  virtual void cleanup() = 0;
   bool open(const char *log_name,
             const char *new_name,
             ulong next_log_number,
@@ -867,7 +867,7 @@ public:
   int register_create_index_entry(const char* entry);
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
-  virtual void mark_and_commit_reset_logs() { DBUG_ASSERT(0); }
+  virtual void binlog_mark_and_commit_reset_logs() { DBUG_ASSERT(0); }
   bool reset_logs(THD* thd, bool create_new_log,
                   rpl_gtid *init_state, uint32 init_state_len,
                   ulong next_log_number);
@@ -901,12 +901,10 @@ public:
     mysql_mutex_unlock(get_log_lock());
   }
 
-  friend class MYSQL_BINARY_LOG;
-  friend class MYSQL_RELAY_LOG;
   virtual bool recovery_and_start_bgt() { return 0; };
-  virtual bool output_gtid_event(xid_count_per_binlog *& new_xid_list_entry)
+  virtual bool output_gtid_event(xid_count_per_binlog **new_xid_list)
   { return 0; };
-  virtual void link_to_count_list(xid_count_per_binlog *& new_xid_list_entry)
+  virtual void link_to_count_list(xid_count_per_binlog **new_xid_list)
   { };
   virtual void remove_xid_except_last() { DBUG_ASSERT(0); };
   virtual bool reset_master_in_progress(rpl_gtid *init_state) { return 0; };
@@ -917,7 +915,7 @@ public:
   virtual void set_last_commit_pos_file_and_offset(char *log_file_name,
                                                    my_off_t offset) {};
   virtual void increment_open_count_slave() {};
-  virtual int write_state_to_file() { return 0; }
+  virtual int binlog_write_state_to_file() { return 0; }
   virtual int read_state_from_file() { return 0; }
 };
 
@@ -1169,12 +1167,12 @@ public:
   bool can_purge_log(const char *log_file_name) override;
 #endif
   void commit_checkpoint_notify(void *cookie) override;
-  void mark_and_commit_reset_logs() override;
+  void binlog_mark_and_commit_reset_logs() override;
   int unlog(ulong cookie, my_xid xid) override;
   int unlog_xa_prepare(THD *thd, bool all) override;
   bool recovery_and_start_bgt() override;
-  bool output_gtid_event(xid_count_per_binlog *& new_xid_list_entry) override;
-  void link_to_count_list(xid_count_per_binlog *& new_xid_list_entry) override;
+  bool output_gtid_event(xid_count_per_binlog **new_xid_list) override;
+  void link_to_count_list(xid_count_per_binlog **new_xid_list) override;
   void remove_xid_except_last() override;
   bool reset_master_in_progress(rpl_gtid *init_state) override;
   void increment_binlog_space_total() override
@@ -1189,7 +1187,7 @@ public:
     strmake_buf(last_commit_pos_file, log_file_name);
     last_commit_pos_offset= offset;
   }
-  int write_state_to_file() override;
+  int binlog_write_state_to_file() override;
 };
 
 
@@ -1198,7 +1196,7 @@ class MYSQL_RELAY_LOG: public MYSQL_BIN_LOG
   mysql_cond_t  COND_relay_log_updated;
 public:
   /*
-    These describe the log's format. This is used only for relay logs.
+    These describe the relay log's format. This is used only for relay logs.
     _for_exec is used by the SQL thread, _for_queue by the I/O thread. It's
     necessary to have 2 distinct objects, because the I/O thread may be reading
     events in a different format from what the SQL thread is reading (consider
@@ -1222,7 +1220,7 @@ public:
   void signal_relay_log_update()
   {
     mysql_mutex_assert_owner(&LOCK_log);
-    DBUG_ENTER("MYSQL_BIN_LOG::signal_relay_log_update");
+    DBUG_ENTER("MYSQL_RELAY_LOG::signal_relay_log_update");
     relay_signal_cnt++;
     mysql_cond_broadcast(&COND_relay_log_updated);
     DBUG_VOID_RETURN;
