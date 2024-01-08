@@ -2764,7 +2764,7 @@ inline Item* get_item_copy (THD *thd, T* item)
   if (likely(copy))
     copy->register_in(thd);
   return copy;
-}	
+}
 
 
 #ifndef DBUG_OFF

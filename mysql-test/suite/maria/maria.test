@@ -20,10 +20,6 @@ let $default_log_file_size=`select @@global.aria_log_file_size`;
 set global aria_log_file_size=4294959104;
 
 # Initialise
---disable_warnings
-drop table if exists t1,t2;
-drop view if exists v1;
---enable_warnings
 SET SQL_WARNINGS=1;
 
 #
@@ -1061,7 +1057,7 @@ drop table t1;
 create table t1 (c1 int) pack_keys=0;
 create table t2 (c1 int) pack_keys=1;
 create table t3 (c1 int) pack_keys=default;
---error 1064
+--error ER_PARSE_ERROR
 create table t4 (c1 int) pack_keys=2;
 drop table t1, t2, t3;
 
@@ -1208,9 +1204,9 @@ create table t1 (a int not null, key `a` (a) key_block_size=1025);
 show create table t1;
 drop table t1;
 
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int not null, key key_block_size=1024 (a));
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int not null, key `a` key_block_size=1024 (a));
 
 #
