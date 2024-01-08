@@ -6,8 +6,6 @@ set global default_storage_engine=aria;
 set session default_storage_engine=aria;
 set global aria_page_checksum=0;
 set global aria_log_file_size=4294959104;
-drop table if exists t1,t2;
-drop view if exists v1;
 SET SQL_WARNINGS=1;
 CREATE TABLE t1 (
 STRING_DATA char(255) default NULL,

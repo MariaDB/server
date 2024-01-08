@@ -729,9 +729,8 @@ static int chk_index_down(HA_CHECK *param, MARIA_HA *info,
     if (page + keyinfo->block_length > max_length)
       goto err;
     /* Fix the remembered key file length. */
-    share->state.state.key_file_length= (max_length &
-                                          ~ (my_off_t) (keyinfo->block_length -
-                                                        1));
+    share->state.state.key_file_length=
+                        max_length & ~ (my_off_t) (keyinfo->block_length - 1);
     /* purecov: end */
   }
 
