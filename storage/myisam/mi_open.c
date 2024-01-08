@@ -1367,13 +1367,9 @@ int mi_indexes_are_disabled(MI_INFO *info)
 {
   MYISAM_SHARE *share= info->s;
 
-  /*
-    No keys or all are enabled. keys is the number of keys. Left shifted
-    gives us only one bit set. When decreased by one, gives us all all bits
-    up to this one set and it gets unset.
-  */
+  /* No keys or all are enabled */
   if (!share->base.keys ||
-      (mi_is_all_keys_active(share->state.key_map, share->base.keys)))
+      mi_is_all_keys_active(share->state.key_map, share->base.keys))
     return 0;
 
   /* All are disabled */

@@ -871,8 +871,8 @@ int ha_end()
   DBUG_RETURN(error);
 }
 
-static my_bool dropdb_handlerton(THD *unused1, plugin_ref plugin,
-                                 void *path)
+
+static my_bool dropdb_handlerton(THD *, plugin_ref plugin, void *path)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->drop_database)
@@ -888,8 +888,7 @@ void ha_drop_database(const char* path)
 }
 
 
-static my_bool checkpoint_state_handlerton(THD *unused1, plugin_ref plugin,
-                                           void *disable)
+static my_bool checkpoint_state_handlerton(THD *, plugin_ref plugin, void *disable)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->checkpoint_state)
@@ -909,8 +908,8 @@ struct st_commit_checkpoint_request {
   void (*pre_hook)(void *);
 };
 
-static my_bool commit_checkpoint_request_handlerton(THD *unused1, plugin_ref plugin,
-                                           void *data)
+static my_bool commit_checkpoint_request_handlerton(THD *, plugin_ref plugin,
+                                                    void *data)
 {
   st_commit_checkpoint_request *st= (st_commit_checkpoint_request *)data;
   handlerton *hton= plugin_hton(plugin);
@@ -1024,8 +1023,7 @@ void ha_signal_ddl_recovery_done()
   Backup functions
 ******************************************************************************/
 
-static my_bool plugin_prepare_for_backup(THD *unused1, plugin_ref plugin,
-                                         void *not_used)
+static my_bool plugin_prepare_for_backup(THD *, plugin_ref plugin, void *)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->prepare_for_backup)
@@ -1040,8 +1038,7 @@ void ha_prepare_for_backup()
                            PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
 }
 
-static my_bool plugin_end_backup(THD *unused1, plugin_ref plugin,
-                                 void *not_used)
+static my_bool plugin_end_backup(THD *, plugin_ref plugin, void *)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->end_backup)
@@ -2419,8 +2416,7 @@ struct xahton_st {
   int result;
 };
 
-static my_bool xacommit_handlerton(THD *unused1, plugin_ref plugin,
-                                   void *arg)
+static my_bool xacommit_handlerton(THD *, plugin_ref plugin, void *arg)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->recover)
@@ -2431,8 +2427,7 @@ static my_bool xacommit_handlerton(THD *unused1, plugin_ref plugin,
   return FALSE;
 }
 
-static my_bool xarollback_handlerton(THD *unused1, plugin_ref plugin,
-                                     void *arg)
+static my_bool xarollback_handlerton(THD *, plugin_ref plugin, void *arg)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->recover)
@@ -2712,7 +2707,7 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
 /*
   Per hton recovery decider function.
 */
-static my_bool xarecover_do_commit_or_rollback_handlerton(THD *unused,
+static my_bool xarecover_do_commit_or_rollback_handlerton(THD *,
                                                           plugin_ref plugin,
                                                           void *arg)
 {
@@ -2782,8 +2777,7 @@ uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord)
   return complete.count;
 }
 
-static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
-                                    void *arg)
+static my_bool xarecover_handlerton(THD *, plugin_ref plugin, void *arg)
 {
   handlerton *hton= plugin_hton(plugin);
   struct xarecover_st *info= (struct xarecover_st *) arg;
@@ -3158,9 +3152,7 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
   DBUG_RETURN(error);
 }
 
-
-static my_bool snapshot_handlerton(THD *thd, plugin_ref plugin,
-                                   void *arg)
+static my_bool snapshot_handlerton(THD *thd, plugin_ref plugin, void *arg)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->start_consistent_snapshot)
@@ -3279,6 +3271,13 @@ Lex_cstring handler::get_canonical_filename(const Lex_cstring &path,
 
 /**
    Delete a table in the engine
+
+   @param thd
+   @param hton
+   @param path                  no extension, e.g. "./test/t1"
+   @param db                    for the error message only
+   @param alias                 table name, for the error message only
+   @param generate_warning      generate "table not found" warnings as needed
 
    @return 0   Table was deleted
    @return -1  Table didn't exists, no error given
@@ -6309,6 +6308,14 @@ int handler::calculate_checksum()
 /**
   Initiates table-file and calls appropriate database-creator.
 
+  @param thd
+  @param path           no extension, e.g. "./test/t1"
+  @param db
+  @param table_name
+  @param create_info
+  @param frm            an frm image or NULL (meaning, read it from the file)
+  @param skip_frm_file  do not write the frm image to the .frm file
+
   @retval
    0  ok
   @retval
@@ -6399,8 +6406,7 @@ void st_ha_check_opt::init()
 /**
   Init a key cache if it has not been initied before.
 */
-int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *unused
-                      __attribute__((unused)))
+int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *)
 {
   DBUG_ENTER("ha_init_key_cache");
 
@@ -7284,8 +7290,7 @@ int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   @retval
     pointer		pointer to TYPELIB structure
 */
-static my_bool exts_handlerton(THD *unused, plugin_ref plugin,
-                               void *arg)
+static my_bool exts_handlerton(THD *, plugin_ref plugin, void *arg)
 {
   List<char> *found_exts= (List<char> *) arg;
   handlerton *hton= plugin_hton(plugin);
