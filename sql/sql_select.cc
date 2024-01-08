@@ -245,7 +245,6 @@ static int join_init_quick_read_record(JOIN_TAB *tab);
 static quick_select_return test_if_quick_select(JOIN_TAB *tab);
 static int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab);
 static int join_read_first(JOIN_TAB *tab);
-static int join_read_next(READ_RECORD *info);
 static int join_read_next_same(READ_RECORD *info);
 static int join_read_last(JOIN_TAB *tab);
 static int join_read_prev_same(READ_RECORD *info);
@@ -374,13 +373,7 @@ static
 bool join_limit_shortcut_is_applicable(const JOIN *join);
 POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
 
-static
-bool find_indexes_matching_order(JOIN *join, TABLE *table, ORDER *order,
-                                 key_map *usable_keys);
-static
-void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
-                                         Item_field *item_field,
-                                         key_map *col_keys);
+static bool find_indexes_matching_order(JOIN *, TABLE *, ORDER *, key_map *);
 
 #ifndef DBUG_OFF
 
@@ -7246,8 +7239,7 @@ add_keyuse(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field,
 
 static LEX_CSTRING equal_str= { STRING_WITH_LEN("=") };
 
-static bool
-add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
+static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 {
   Field *field=key_field->field;
   TABLE *form= field->table;
@@ -7260,7 +7252,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       if (!(form->keys_in_use_for_query.is_set(key)))
 	continue;
       if (form->key_info[key].flags & (HA_FULLTEXT | HA_SPATIAL))
-	continue;    // ToDo: ft-keys in non-ft queries.   SerG
+	continue;
 
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
@@ -11555,9 +11547,7 @@ bool test_if_skip_sort_order_early(JOIN *join,
 
   // Step #1: Find indexes that produce the required ordering.
   if (find_indexes_matching_order(join, table, join->order, &usable_keys))
-  {
     return false; // Cannot skip sorting
-  }
 
   // Step #2: Check if the index we're using produces the needed ordering
   uint ref_key;
@@ -26441,7 +26431,6 @@ part_of_refkey(TABLE *table,Field *field)
   @param used_key_parts [out]  NULL by default, otherwise return value for
                                used key parts.
 
-
   @note
     used_key_parts is set to correct key parts used if return value != 0
     (On other cases, used_key_part may be changed)
@@ -26457,9 +26446,8 @@ part_of_refkey(TABLE *table,Field *field)
     -1   Reverse key can be used
 */
 
-static int test_if_order_by_key(JOIN *join,
-                                ORDER *order, TABLE *table, uint idx,
-				uint *used_key_parts)
+static int test_if_order_by_key(JOIN *join, ORDER *order, TABLE *table,
+                                uint idx, uint *used_key_parts)
 {
   KEY_PART_INFO *key_part,*key_part_end;
   key_part=table->key_info[idx].key_part;
@@ -26474,8 +26462,7 @@ static int test_if_order_by_key(JOIN *join,
   DBUG_ENTER("test_if_order_by_key");
  
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) && 
-      table->key_info[idx].ext_key_part_map &&
-      pk != MAX_KEY && pk != idx)
+      table->key_info[idx].ext_key_part_map && pk != MAX_KEY && pk != idx)
   {
     have_pk_suffix= true;
   }
@@ -27078,9 +27065,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
 
   // Step #1: Find indexes that produce the required ordering.
   if (find_indexes_matching_order(tab->join, table, order, &usable_keys))
-  {
     DBUG_RETURN(false); // Cannot skip sorting
-  }
 
   /*
     Step #2: Analyze the current access method. Note the used index as ref_key
@@ -32729,8 +32714,7 @@ test_if_cheaper_ordering(bool in_join_optimizer,
         temporary table + filesort could be cheaper for grouping
         queries too.
       */ 
-      if (is_covering ||
-          has_limit ||
+      if (is_covering || has_limit ||
           (ref_key < 0 && (group || table->force_index)))
       { 
         double rec_per_key;
@@ -32995,8 +32979,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     int key, direction;
     double new_cost;
     if (test_if_cheaper_ordering(FALSE, NULL, order, table,
-                                 table->keys_in_use_for_order_by, -1,
-                                 limit,
+                                 table->keys_in_use_for_order_by, -1, limit,
                                  &key, &direction, &limit, &new_cost) &&
         !is_key_used(table, key, table->write_set))
     {

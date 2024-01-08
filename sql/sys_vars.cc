@@ -7452,12 +7452,6 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   "binlogging",
   GLOBAL_VAR(opt_binlog_commit_by_rotate_threshold),
   CMD_LINE(REQUIRED_ARG),
-
-#ifndef DBUG_OFF
   // Allow a smaller minimum value for debug builds to help with testing
-  VALID_RANGE(100 * 1024, ULLONG_MAX),
-#else
-  VALID_RANGE(10 * 1024 * 1024, ULLONG_MAX),
-#endif
-
+  VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
