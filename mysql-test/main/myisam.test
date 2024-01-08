@@ -438,7 +438,6 @@ drop table t1;
 #
 # space-stripping in _mi_prefix_search: BUG#5284
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a varchar(150) NOT NULL, KEY (a)); 
 INSERT t1 VALUES ("can \tcan"); 
 INSERT t1 VALUES ("can   can"); 
@@ -1129,7 +1128,7 @@ drop table t1;
 create table t1 (c1 int) engine=myisam pack_keys=0;
 create table t2 (c1 int) engine=myisam pack_keys=1;
 create table t3 (c1 int) engine=myisam pack_keys=default;
---error 1064
+--error ER_PARSE_ERROR
 create table t4 (c1 int) engine=myisam pack_keys=2;
 drop table t1, t2, t3;
 
@@ -1316,9 +1315,9 @@ create table t1 (a int not null, key `a` (a) key_block_size=1025);
 show create table t1;
 drop table t1;
 
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int not null, key key_block_size=1024 (a));
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int not null, key `a` key_block_size=1024 (a));
 
 #

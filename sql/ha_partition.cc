@@ -116,9 +116,8 @@ int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
   {
     LEX_CSTRING table_name;
     const char *table_name_ptr;
-    if (create_partition_name(from_buff, sizeof(from_buff),
-                              from_path, name_buffer_ptr,
-                              NORMAL_PART_NAME, FALSE))
+    if (create_partition_name(from_buff, sizeof(from_buff), from_path,
+                              name_buffer_ptr, NORMAL_PART_NAME, FALSE))
       res=1;
     table_name_ptr= from_buff + dirname_length(from_buff);
 
@@ -134,12 +133,9 @@ int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
 
 
 static int
-partition_notify_tabledef_changed(handlerton *,
-                                  LEX_CSTRING *db,
-                                  LEX_CSTRING *table,
-                                  LEX_CUSTRING *frm,
-                                  LEX_CUSTRING *version,
-                                  handler *file)
+partition_notify_tabledef_changed(handlerton *, LEX_CSTRING *db,
+                                  LEX_CSTRING *table, LEX_CUSTRING *frm,
+                                  LEX_CUSTRING *version, handler *file)
 {
   DBUG_ENTER("partition_notify_tabledef_changed");
   DBUG_RETURN(static_cast<ha_partition*>

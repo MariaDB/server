@@ -133,7 +133,7 @@ enum chf_create_flags {
 */
 #define HA_REQUIRES_KEY_COLUMNS_FOR_DELETE (1ULL << 6)
 #define HA_NULL_IN_KEY         (1ULL << 7) /* One can have keys with NULL */
-#define HA_DUPLICATE_POS       (1ULL << 8)    /* ha_position() gives dup row */
+#define HA_DUPLICATE_POS       (1ULL << 8) /* position() gives dup row */
 #define HA_NO_BLOBS            (1ULL << 9) /* Doesn't support blobs */
 #define HA_CAN_INDEX_BLOBS     (1ULL << 10)
 #define HA_AUTO_PART_KEY       (1ULL << 11) /* auto-increment in multi-part key */
