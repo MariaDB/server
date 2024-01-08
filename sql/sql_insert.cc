@@ -4373,12 +4373,8 @@ bool select_insert::prepare_eof()
   DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
                        trans_table, table->file->table_type()));
 
-#ifdef WITH_WSREP
-  error= (thd->wsrep_cs().current_error()) ? -1 :
+  error= IF_WSREP(thd->wsrep_cs().current_error(), 0) ? -1 :
     (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
-#else
-    error= (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
-#endif /* WITH_WSREP */
     table->file->ha_end_bulk_insert() : 0;
 
   if (likely(!error) && unlikely(thd->is_error()))
