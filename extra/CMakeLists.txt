@@ -46,8 +46,8 @@ ADD_CUSTOM_TARGET(GenError
                   DEPENDS
                   ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
 
-MYSQL_ADD_EXECUTABLE(my_convert my_convert.c COMPONENT Client)
-TARGET_LINK_LIBRARIES(my_convert  mysys)
+MYSQL_ADD_EXECUTABLE(mariadb-upgrade-config-file mariadb_upgrade_config_file.c COMPONENT Client)
+TARGET_LINK_LIBRARIES(mariadb-upgrade-config-file  mysys)
 
 MYSQL_ADD_EXECUTABLE(my_print_defaults my_print_defaults.c COMPONENT Client)
 TARGET_LINK_LIBRARIES(my_print_defaults  mysys)

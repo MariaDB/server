@@ -32,7 +32,7 @@
 #undef load_default_groups
 
 
-struct convert_ctx
+struct upgrade_ctx
 {
   MEM_ROOT *alloc;
   TYPELIB *group;
@@ -63,7 +63,7 @@ static my_bool opt_backup= FALSE;
 static my_bool opt_print= FALSE;
 
 
-static PSI_memory_key key_memory_convert;
+static PSI_memory_key key_memory_upgrade_config;
 static PSI_file_key key_file_cnf;
 
 
@@ -260,13 +260,13 @@ static int write_output_line(MYSQL_FILE *f, const char *line, my_bool is_valid)
 }
 
 
-static int process_default_file_with_ext(struct convert_ctx *ctx,
+static int process_default_file_with_ext(struct upgrade_ctx *ctx,
                                         const char *dir, const char *ext,
                                         const char *config_file,
                                         int recursion_level)
 {
   char name[FN_REFLEN + 10], buff[4096], curr_gr[4096], *ptr, *end, **tmp_ext;
-  char tmp_name[FN_REFLEN + 10];
+  char tmp_name[FN_REFLEN + 30];
   char *value, option[4096+2], tmp[FN_REFLEN];
   static const char includedir_keyword[]= "includedir";
   static const char include_keyword[]= "include";
@@ -334,7 +334,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 
   if (opt_update)
   {
-    strmov(strmov(tmp_name, name), "-convert");
+    strmov(strmov(tmp_name, name), "-upgrade-config");
     if (!(tmp_fp= mysql_file_fopen(key_file_cnf, tmp_name, O_RDWR | O_CREAT | O_TRUNC, MYF(0))))
     {
       fprintf(stderr, "error: Failed to open %s for writing: %s\n", tmp_name, strerror(errno));
@@ -346,7 +346,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
     fprintf(stdout, "### File %s:\n", name);
   if (opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
   {
-    init_dynamic_array2(key_memory_convert,
+    init_dynamic_array2(key_memory_upgrade_config,
                         &invalid_lines,
                         sizeof(char *),
                         NULL,
@@ -597,7 +597,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
     }
     if (!line_valid && opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
     {
-      char *line= my_strdup(key_memory_convert, buff, MYF(0));
+      char *line= my_strdup(key_memory_upgrade_config, buff, MYF(0));
       if (!line || insert_dynamic(&invalid_lines, &line))
         goto err;
       continue;
@@ -652,7 +652,7 @@ static int process_default_file_with_ext(struct convert_ctx *ctx,
 
 
 
-static int process_default_file(struct convert_ctx *ctx,
+static int process_default_file(struct upgrade_ctx *ctx,
                                const char *dir,
                                const char *config_file)
 {
@@ -672,7 +672,7 @@ static int process_default_file(struct convert_ctx *ctx,
 
 
 static int process_option_files(const char *conf_file,
-                                struct convert_ctx *ctx,
+                                struct upgrade_ctx *ctx,
                                 const char **default_directories)
 {
   const char **dirs;
@@ -768,9 +768,9 @@ static int process_defaults(const char *conf_file,
   int error= 0;
   MEM_ROOT alloc;
   TYPELIB group; // XXX
-  struct convert_ctx ctx;
+  struct upgrade_ctx ctx;
 
-  init_alloc_root(key_memory_convert, &alloc, 512, 0, MYF(0));
+  init_alloc_root(key_memory_upgrade_config, &alloc, 512, 0, MYF(0));
 
   group.count= 0;
   group.name= "defaults";
@@ -796,7 +796,7 @@ static int process_defaults(const char *conf_file,
 
 static const char *config_file="my";			/* Default config file */
 
-enum convert_options
+enum upgrade_config_options
 {
   OPT_UPDATE = 256,
   OPT_BACKUP,
@@ -825,7 +825,7 @@ static struct my_option my_long_options[] =
    "Select what to do with invalid options",
    &opt_edit_mode, &opt_edit_mode, &edit_mode_typelib, GET_ENUM,
    REQUIRED_ARG, EDIT_MODE_NONE, 0, 0, 0, 0, 0},
-  {"print", OPT_PRINT, "Print converted files to stdout.",
+  {"print", OPT_PRINT, "Print upgraded files to stdout.",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
