@@ -36,6 +36,7 @@ struct upgrade_ctx
 {
   MEM_ROOT *alloc;
   TYPELIB *group;
+  DYNAMIC_ARRAY updated_files;
   my_bool failed;
 };
 
@@ -72,6 +73,151 @@ static const char *f_extensions[]= { ".ini", ".cnf", 0 };
 #else
 static const char *f_extensions[]= { ".cnf", 0 };
 #endif
+
+
+/**
+  Remove the -upgrade-config-orig backups of the updated files if successful and
+  replace the updated files with the backups if not.
+*/
+static int finish_updated_files(struct upgrade_ctx *ctx, my_bool success)
+{
+  size_t i;
+  for (i= 0; i < ctx->updated_files.elements; i++)
+  {
+    char *name = *(char **)dynamic_array_ptr(&ctx->updated_files, i);
+    const char *suffix = "-upgrade-config-orig";
+    size_t orig_len = strlen(name) + strlen(suffix) + 1;
+    char *orig = my_malloc(key_memory_upgrade_config, orig_len, MYF(0));
+    if (!orig)
+      return 1;
+    strmov(strmov(orig, name), suffix);
+    if (success)
+    {
+      my_delete(orig, MYF(0));
+    }
+    else
+    {
+      if (my_redel(name, orig, 0, MYF(0)))
+      {
+        fprintf(stderr, "error: Failed to rename %s to %s: %s",
+                orig, name, strerror(errno));
+        my_free(orig);
+        return 1;
+      }
+    }
+    my_free(orig);
+    my_free(name);
+  }
+  delete_dynamic(&ctx->updated_files);
+  return 0;
+}
+
+
+/**
+  Run a command using the shell, storing its output in the supplied dynamic
+  string.
+*/
+static int run_command(char* cmd,
+                       DYNAMIC_STRING *ds_res)
+{
+  char buf[512]= {0};
+  FILE *res_file;
+  int error;
+
+  if (!(res_file= my_popen(cmd, "r")))
+  {
+    fprintf(stderr, "popen(\"%s\", \"r\") failed\n", cmd);
+    return -1;
+  }
+
+  while (fgets(buf, sizeof(buf), res_file))
+  {
+#ifdef _WIN32
+    /* Strip '\r' off newlines. */
+    size_t len = strlen(buf);
+    if (len > 1 && buf[len - 2] == '\r' && buf[len - 1] == '\n')
+    {
+      buf[len - 2] = '\n';
+      buf[len - 1] = 0;
+    }
+#endif
+    dynstr_append(ds_res, buf);
+  }
+
+  error= my_pclose(res_file);
+  return WEXITSTATUS(error);
+}
+
+
+/**
+  Run `mariadbd --help --verbose` with the supplied arguments and write its
+  stderr output to ds_res.
+*/
+static int run_mariadbd(const char *mariadbd_path,
+                        DYNAMIC_STRING *ds_res,
+                        const char **defaults_args,
+                        int defaults_args_count)
+{
+  int ret;
+  int i;
+  DYNAMIC_STRING ds_cmdline;
+
+  if (init_dynamic_string(&ds_cmdline, IF_WIN("\"", ""), FN_REFLEN, FN_REFLEN))
+  {
+    fputs("Out of memory\n", stderr);
+    return -1;
+  }
+
+  dynstr_append_os_quoted(&ds_cmdline, mariadbd_path, NullS);
+  dynstr_append(&ds_cmdline, " ");
+
+  for (i= 0; i < defaults_args_count; i++)
+  {
+    dynstr_append_os_quoted(&ds_cmdline, defaults_args[i], NullS);
+    dynstr_append(&ds_cmdline, " ");
+  }
+
+  dynstr_append(&ds_cmdline, "--help ");
+  dynstr_append(&ds_cmdline, "--verbose ");
+  dynstr_append(&ds_cmdline, "2>&1 ");
+  dynstr_append(&ds_cmdline, IF_WIN("1>NUL", "1>/dev/null"));
+
+#ifdef _WIN32
+  dynstr_append(&ds_cmdline, "\"");
+#endif
+
+  ret= run_command(ds_cmdline.str, ds_res);
+  dynstr_free(&ds_cmdline);
+  return ret;
+}
+
+
+/**
+  Test whether mariadbd can be launched with --no-defaults.
+*/
+static int test_mariadbd(const char *mariadbd_name)
+{
+  DYNAMIC_STRING ds_tmp;
+  const char *defaults_argument = "--no-defaults";
+
+  if (init_dynamic_string(&ds_tmp, "", 32, 32))
+  {
+    fputs("Out of memory\n", stderr);
+    return -1;
+  }
+
+  if (run_mariadbd(mariadbd_name,
+               &ds_tmp,
+               &defaults_argument,
+               1))
+  {
+    fprintf(stderr, "Can't execute %s\n", mariadbd_name);
+    return -1;
+  }
+
+  dynstr_free(&ds_tmp);
+  return 0;
+}
 
 
 static int compare_options(const void *a, const void *b)
@@ -266,7 +412,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
                                         int recursion_level)
 {
   char name[FN_REFLEN + 10], buff[4096], curr_gr[4096], *ptr, *end, **tmp_ext;
-  char tmp_name[FN_REFLEN + 30];
+  char tmp_name[FN_REFLEN + 30], restored_name[FN_REFLEN + 30];
   char *value, option[4096+2], tmp[FN_REFLEN];
   static const char includedir_keyword[]= "includedir";
   static const char include_keyword[]= "include";
@@ -335,6 +481,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   if (opt_update)
   {
     strmov(strmov(tmp_name, name), "-upgrade-config");
+    strmov(strmov(restored_name, name), "-upgrade-config-orig");
     if (!(tmp_fp= mysql_file_fopen(key_file_cnf, tmp_name, O_RDWR | O_CREAT | O_TRUNC, MYF(0))))
     {
       fprintf(stderr, "error: Failed to open %s for writing: %s\n", tmp_name, strerror(errno));
@@ -631,6 +778,19 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     else
     {
       myf redel_flags = opt_backup ? MYF(MY_REDEL_MAKE_BACKUP) : MYF(0);
+      char *duped_name= my_strdup(key_memory_upgrade_config, name, MYF(0));
+      if (!duped_name || insert_dynamic(&ctx->updated_files, &duped_name))
+        return -1;
+      /*
+        Copy the file in case running mariadbd fails and the update must be
+        reverted.
+      */
+      if (my_copy(name, restored_name, MYF(0)))
+      {
+        fprintf(stderr, "error: Failed to copy %s to %s: %s",
+                name, restored_name, strerror(errno));
+        return -1;
+      }
       if (my_redel(name, tmp_name, time(NULL), redel_flags))
       {
         fprintf(stderr, "error: Failed to rename %s to %s: %s",
@@ -763,7 +923,9 @@ err:
 
 static int process_defaults(const char *conf_file,
                             const char **groups,
-                            const char **dirs)
+                            const char **dirs,
+                            const char **defaults_args,
+                            int defaults_args_count)
 {
   int error= 0;
   MEM_ROOT alloc;
@@ -781,16 +943,48 @@ static int process_defaults(const char *conf_file,
 
   ctx.alloc= &alloc;
   ctx.group= &group;
+  init_dynamic_array2(key_memory_upgrade_config,
+                      &ctx.updated_files,
+                      sizeof(char *),
+                      NULL,
+                      0,
+                      0,
+                      MYF(0));
   ctx.failed= 0;
 
   if ((error= process_option_files(conf_file, &ctx, dirs)))
   {
+    finish_updated_files(&ctx, FALSE);
     free_root(&alloc,MYF(0));
     return error;
   }
 
+  if (ctx.updated_files.elements > 0)
+  {
+    DYNAMIC_STRING mariadbd_output;
+    const char *mariadbd_name= IF_WIN("mariadbd.exe", "mariadbd");
+
+    if (init_dynamic_string(&mariadbd_output, "", 32, 32))
+      goto err;
+    if (test_mariadbd(mariadbd_name))
+      goto err;
+    if ((error= run_mariadbd(mariadbd_name, &mariadbd_output, defaults_args, defaults_args_count)))
+    {
+      fputs("error: Failed to run mariadbd with the updated files, reverting\n", stderr);
+      if (error > 0)
+        fprintf(stderr, "mariadbd output:\n%s", mariadbd_output.str);
+    }
+    dynstr_free(&mariadbd_output);
+  }
+
+  error= finish_updated_files(&ctx, error == 0);
   free_root(&alloc, MYF(0));
-  return ctx.failed;
+  return error || ctx.failed;
+
+err:
+  finish_updated_files(&ctx, FALSE);
+  free_root(&alloc, MYF(0));
+  return 1;
 }
 
 
@@ -960,7 +1154,15 @@ int main(int argc, char **argv)
       return 0;
     return 2;
   }
-  error= process_defaults(config_file, (const char **) load_default_groups, default_directories);
+  /*
+    The defaults-xxx arguments are still intact at the beginning of argv and
+    can be passed to mariadbd for testing the updated configuration files.
+  */
+  error= process_defaults(config_file,
+                          (const char **) load_default_groups,
+                          default_directories,
+                          (const char **)(argv + 1),
+                          args_used - 1);
 
   my_free(load_default_groups);
   free_defaults(arguments);
