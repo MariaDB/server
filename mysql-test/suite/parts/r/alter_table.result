@@ -366,8 +366,7 @@ drop table validation;
 create table t (a int primary key);
 create table tp (a int primary key) partition by range (a) (
 partition p0 values less than (100),
-# Cunning syntax (same as above)
-p1 values less (300));
+p1 values less than (300));
 insert into t values (1), (99);
 insert into tp values (2), (200);
 select * from t order by a;
@@ -486,11 +485,11 @@ a
 200
 drop prepare validation;
 drop prepare without_validation;
-alter table tp convert table t to partition p2 values less (maxvalue);
+alter table tp convert table t to partition p2 values less than (maxvalue);
 ERROR HY000: Found a row that does not match the partition
-alter table tp convert table t to partition p2 values less (maxvalue) with validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) with validation;
 ERROR HY000: Found a row that does not match the partition
-alter table tp convert table t to partition p2 values less (maxvalue) without validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) without validation;
 select * from tp partition (p0) order by a;
 a
 2

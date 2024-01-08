@@ -331,8 +331,7 @@ create table t (a int primary key);
 
 create table tp (a int primary key) partition by range (a) (
   partition p0 values less than (100),
-  # Cunning syntax (same as above)
-  p1 values less (300));
+  p1 values less than (300));
 
 insert into t values (1), (99);
 insert into tp values (2), (200);
@@ -407,10 +406,10 @@ drop prepare without_validation;
 
 # CONVERT IN
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
-alter table tp convert table t to partition p2 values less (maxvalue);
+alter table tp convert table t to partition p2 values less than (maxvalue);
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
-alter table tp convert table t to partition p2 values less (maxvalue) with validation;
-alter table tp convert table t to partition p2 values less (maxvalue) without validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) with validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) without validation;
 select * from tp partition (p0) order by a;
 select * from tp partition (p1) order by a;
 select * from tp partition (p2) order by a;

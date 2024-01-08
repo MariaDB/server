@@ -4960,10 +4960,6 @@ part_name:
           }
         ;
 
-opt_than:
-          /* empty */
-          | THAN_SYM;
-
 opt_part_values:
           /* empty */
           {
@@ -4981,7 +4977,7 @@ opt_part_values:
             else
               part_info->part_type= HASH_PARTITION;
           }
-        | VALUES_LESS_SYM opt_than
+        | VALUES_LESS_SYM THAN_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
