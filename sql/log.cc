@@ -4070,7 +4070,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 #endif
 
   /* Notify the io thread that binlog is rotated to a new file */
-  update_binlog_end_pos();
+  log_signal_update();
   DBUG_RETURN(0);
 
 err:
@@ -5646,7 +5646,7 @@ int MYSQL_BIN_LOG::new_file_impl()
     close_on_error= TRUE;
     goto end;
   }
-  update_binlog_end_pos();
+  log_signal_update();
   old_name=name;
   name=0;				// Don't free name
   close_flag= LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX;
@@ -5798,7 +5798,7 @@ bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev,
   if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
-  update_binlog_end_pos();
+  log_signal_update();
   DBUG_RETURN(error);
 }
 
@@ -5859,7 +5859,7 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
 err:
   my_safe_afree(ebuf, len);
   if (likely(!error))
-    update_binlog_end_pos();
+    log_signal_update();
   DBUG_RETURN(error);
 }
 
@@ -9292,7 +9292,7 @@ void MYSQL_BIN_LOG::close(uint exiting)
       write_event(&s, checksum_alg);
       bytes_written+= s.data_written;
       flush_io_cache(&log_file);
-      update_binlog_end_pos();
+      log_signal_update();
 
       /*
         When we shut down server, write out the binlog state to a separate
