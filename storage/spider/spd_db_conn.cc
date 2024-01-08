@@ -8215,7 +8215,7 @@ int spider_db_delete_all_rows(
       spider->conn_link_idx, roop_count, share->link_count,
       SPIDER_LINK_STATUS_RECOVERY)
   ) {
-    uint dbton_id = share->use_sql_dbton_ids[roop_count];
+    uint dbton_id = share->sql_dbton_ids[roop_count];
     spider_db_handler *dbton_hdl = spider->dbton_handler[dbton_id];
     conn = spider->conns[roop_count];
     pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
