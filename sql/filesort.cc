@@ -48,7 +48,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              ha_rows *found_rows);
 static bool write_keys(Sort_param *param, SORT_INFO *fs_info,
                       uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
-static uint make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos,
+static uint make_sortkey(Sort_param *, uchar *, uchar *,
                          bool using_packed_sortkeys= false);
 static uint make_sortkey(Sort_param *param, uchar *to);
 static uint make_packed_sortkey(Sort_param *param, uchar *to);
@@ -1510,8 +1510,7 @@ static void register_used_fields(Sort_param *param)
 }
 
 
-static bool save_index(Sort_param *param, uint count,
-                       SORT_INFO *table_sort)
+static bool save_index(Sort_param *param, uint count, SORT_INFO *table_sort)
 {
   uint offset,res_length, length;
   uchar *to;
@@ -2945,16 +2944,14 @@ static uint make_sortkey(Sort_param *param, uchar *to)
   {
     bool maybe_null=0;
     if ((field=sort_field->field))
-    {
-      // Field
+    { // Field
       field->make_sort_key_part(to, sort_field->length);
       if ((maybe_null= field->maybe_null()))
         to++;
     }
     else
-    {           // Item
-      sort_field->item->type_handler()->make_sort_key_part(to,
-                                                           sort_field->item,
+    { // Item
+      sort_field->item->type_handler()->make_sort_key_part(to, sort_field->item,
                                                            sort_field,
                                                            &param->tmp_buffer);
       if ((maybe_null= sort_field->item->maybe_null()))

@@ -766,11 +766,9 @@ err_not_open:
 }
 
 static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
-                             uint keys, KEY *keyinfo,
-                             uint new_frm_ver, uint *ext_key_parts,
-                             TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo,
-                             LEX_STRING *keynames)
+                             uint keys, KEY *keyinfo, uint new_frm_ver,
+                             uint *ext_key_parts, TABLE_SHARE *share, uint len,
+                             KEY *first_keyinfo, LEX_STRING *keynames)
 {
   uint i, j, n_length;
   uint primary_key_parts= 0;
@@ -782,10 +780,10 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
   {  
     if (!(keyinfo = (KEY*) alloc_root(&share->mem_root, len)))
       return 1;
-    bzero((char*) keyinfo, len);
+    bzero(keyinfo, len);
     key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
   }
-  bzero((char*)first_keyinfo, sizeof(*first_keyinfo));
+  bzero(first_keyinfo, sizeof(*first_keyinfo));
 
   /*
     If share->use_ext_keys is set to TRUE we assume that any not
@@ -842,15 +840,15 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       share->key_info= keyinfo;
 
       /* Copy first keyinfo, read above */
-      memcpy((char*) keyinfo, (char*) first_keyinfo, sizeof(*keyinfo));
-      bzero(((char*) keyinfo) + sizeof(*keyinfo), n_length - sizeof(*keyinfo));
+      memcpy(keyinfo, first_keyinfo, sizeof(*keyinfo));
+      bzero(keyinfo + 1, n_length - sizeof(*keyinfo));
 
       key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo + keys);
 
       if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
                                              sizeof(ulong) * *ext_key_parts)))
         return 1;
-      bzero((char*) rec_per_key, sizeof(*rec_per_key) * *ext_key_parts);
+      bzero(rec_per_key, sizeof(*rec_per_key) * *ext_key_parts);
     }
 
     keyinfo->key_part=	 key_part;
@@ -859,26 +857,25 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
-      if (!(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH))
+      if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         rec_per_key++;
-      key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
-      key_part->offset= (uint) uint2korr(strpos+2)-1;
-      key_part->key_type=	(uint) uint2korr(strpos+5);
-      // key_part->field=	(Field*) 0;	// Will be fixed later
+      key_part->fieldnr=  (uint16) (uint2korr(strpos) & FIELD_NR_MASK);
+      key_part->offset=   (uint) uint2korr(strpos+2)-1;
+      key_part->key_type= (uint) uint2korr(strpos+5);
       if (new_frm_ver >= 1)
       {
 	key_part->key_part_flag= *(strpos+4);
-	key_part->length=	(uint) uint2korr(strpos+7);
+	key_part->length= (uint) uint2korr(strpos+7);
 	strpos+=9;
       }
       else
       {
-	key_part->length=	*(strpos+4);
+	key_part->length= *(strpos+4);
 	key_part->key_part_flag=0;
 	if (key_part->length > 128)
 	{
-	  key_part->length&=127;		/* purecov: inspected */
-	  key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
+	  key_part->length&= 127;
+	  key_part->key_part_flag=HA_REVERSE_SORT;
 	}
 	strpos+=7;
       }
@@ -4133,8 +4130,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
     KEY_PART_INFO *key_part;
 
     if (!multi_alloc_root(root, &key_info, share->keys*sizeof(KEY),
-                          &key_part,
-                          share->ext_key_parts*sizeof(KEY_PART_INFO),
+                          &key_part, share->ext_key_parts*sizeof(KEY_PART_INFO),
                           NullS))
       return 1;
 

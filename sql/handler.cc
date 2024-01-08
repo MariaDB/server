@@ -3191,6 +3191,13 @@ Lex_cstring handler::get_canonical_filename(const Lex_cstring &path,
 /**
    Delete a table in the engine
 
+   @param thd
+   @param hton
+   @param path                  no extension, e.g. "./test/t1"
+   @param db                    for the error message only
+   @param alias                 table name, for the error message only
+   @param generate_warning      generate "table not found" warnings as needed
+
    @return 0   Table was deleted
    @return -1  Table didn't exists, no error given
    @return #   Error from table handler
@@ -6105,6 +6112,14 @@ int handler::calculate_checksum()
 
 /**
   Initiates table-file and calls appropriate database-creator.
+
+  @param thd
+  @param path           no extension, e.g. "./test/t1"
+  @param db
+  @param table_name
+  @param create_info
+  @param frm            an frm image or NULL (meaning, read it from the file)
+  @param skip_frm_file  do not write the frm image to the .frm file
 
   @retval
    0  ok
