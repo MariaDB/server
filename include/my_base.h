@@ -99,16 +99,16 @@ enum ha_rkey_function {
   HA_READ_MBR_EQUAL
 };
 
-	/* Key algorithm types */
+/* Key algorithm types (stored in .frm) */
 
 enum ha_key_alg {
-  HA_KEY_ALG_UNDEF=	0,		/* Not specified (old file) */
-  HA_KEY_ALG_BTREE=	1,		/* B-tree, default one          */
-  HA_KEY_ALG_RTREE=	2,		/* R-tree, for spatial searches */
-  HA_KEY_ALG_HASH=	3,		/* HASH keys (HEAP tables) */
-  HA_KEY_ALG_FULLTEXT=	4,		/* FULLTEXT (MyISAM tables) */
-  HA_KEY_ALG_LONG_HASH= 5,		/* long BLOB keys */
-  HA_KEY_ALG_UNIQUE_HASH= 6		/* Internal UNIQUE hash (Aria) */
+  HA_KEY_ALG_UNDEF=       0,            /* Not specified (old file)     */
+  HA_KEY_ALG_BTREE=       1,            /* B-tree, default one          */
+  HA_KEY_ALG_RTREE=       2,            /* R-tree, for spatial searches */
+  HA_KEY_ALG_HASH=        3,            /* HASH keys (HEAP tables)      */
+  HA_KEY_ALG_FULLTEXT=    4,            /* FULLTEXT                     */
+  HA_KEY_ALG_LONG_HASH=   5,            /* long BLOB keys               */
+  HA_KEY_ALG_UNIQUE_HASH= 6             /* Internal UNIQUE hash (Aria)  */
 };
 
         /* Storage media types */ 
