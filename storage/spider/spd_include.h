@@ -1506,6 +1506,7 @@ typedef struct st_spider_share
   uint               *hs_read_conn_keys_lengths;
   uint               *hs_write_conn_keys_lengths;
 #endif
+  /* The index in `spider_dbton' of each data node link. */
   uint               *sql_dbton_ids;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint               *hs_dbton_ids;
@@ -1602,14 +1603,23 @@ typedef struct st_spider_share
   uchar              dbton_bitmap[spider_bitmap_size(SPIDER_DBTON_SIZE)];
   spider_db_share    *dbton_share[SPIDER_DBTON_SIZE];
   uint               use_dbton_count;
+  /* Actual size is `use_dbton_count'. Values are the indices of item
+  in `spider_dbton'. */
   uint               use_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_dbton_ids'. */
   uint               dbton_id_to_seq[SPIDER_DBTON_SIZE];
   uint               use_sql_dbton_count;
+  /* Actual size is `use_sql_dbton_count'. Values are the indices of
+  item in `spider_dbton'. */
   uint               use_sql_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_sql_dbton_ids'. */
   uint               sql_dbton_id_to_seq[SPIDER_DBTON_SIZE];
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint               use_hs_dbton_count;
+  /* Actual size is `use_hs_dbton_count'. Values are the indices of
+  item in `spider_dbton'. */
   uint               use_hs_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_hs_dbton_ids'. */
   uint               hs_dbton_id_to_seq[SPIDER_DBTON_SIZE];
 #endif
 
