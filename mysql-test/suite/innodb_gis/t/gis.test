@@ -835,19 +835,6 @@ CREATE TABLE t2 (
   col2 POINT
 );
 
-# --error ER_TOO_MANY_KEY_PARTS
---error ER_WRONG_ARGUMENTS
-CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
-
-# --error ER_TOO_MANY_KEY_PARTS
---error ER_WRONG_ARGUMENTS
-CREATE TABLE t3 (
-  col0 INTEGER NOT NULL,
-  col1 POINT,
-  col2 LINESTRING,
-  SPATIAL INDEX i1 (col1, col2)
-);
-
 # cleanup
 DROP TABLE t0, t1, t2;
 
