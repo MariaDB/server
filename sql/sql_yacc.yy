@@ -1664,7 +1664,7 @@ rule:
         using_list opt_use_partition use_partition
 
 %type <key_part>
-        key_part
+        key_part key_part_simple
 
 %type <table_list>
         join_table_list  join_table
@@ -2643,9 +2643,10 @@ create:
             if (Lex->add_create_index($2, &$6, HA_KEY_ALG_UNDEF, $1 | $5))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' opt_lock_wait_timeout spatial_key_options
+          '(' key_part_simple ')' opt_lock_wait_timeout spatial_key_options
           opt_index_lock_algorithm
           {
+            Lex->last_key->columns.push_back($11, thd->mem_root);
             Lex->pop_select(); //main select
           }
         | create_or_replace DATABASE opt_if_not_exists ident
@@ -5917,7 +5918,10 @@ key_def:
             if (unlikely(Lex->add_key($1, &$4, HA_KEY_ALG_UNDEF, $3)))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' spatial_key_options { }
+          '(' key_part_simple ')' spatial_key_options
+          {
+            Lex->last_key->columns.push_back($7, thd->mem_root);
+          }
         | opt_constraint constraint_key_type
           opt_if_not_exists opt_ident
           opt_USING_key_algorithm
@@ -7128,12 +7132,7 @@ opt_without_overlaps:
          ;
 
 key_part:
-          ident
-          {
-            $$= new (thd->mem_root) Key_part_spec(&$1, 0);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
+          key_part_simple
         | ident '(' NUM ')'
           {
             int key_part_len= atoi($3.str);
@@ -7144,6 +7143,15 @@ key_part:
               MYSQL_YYABORT;
           }
         ;
+
+key_part_simple:
+          ident
+          {
+            $$= new (thd->mem_root) Key_part_spec(&$1, 0);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+          ;
 
 opt_ident:
           /* empty */ { $$= null_clex_str; }
