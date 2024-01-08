@@ -560,8 +560,8 @@ public:
   my_off_t last_commit_pos_offset;
 
   /*
-    Flag set true if this transaction is committed with log_xid() as part of
-    XA, false if not.
+    Flag set true if this transaction is committed with log_and_order() as
+    part of XA, false if not.
   */
   bool using_xa;
   my_xid xa_xid;
@@ -1849,22 +1849,7 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr)
 {
   DBUG_ENTER("binlog_commit_flush_trx_cache");
 
-  const char query[]= "XA COMMIT ";
-  const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-  char buf[q_len + ser_buf_size]= "COMMIT";
-  size_t buflen= sizeof("COMMIT") - 1;
-
-  if (thd->lex->sql_command == SQLCOM_XA_COMMIT &&
-      thd->lex->xa_opt != XA_ONE_PHASE)
-  {
-    DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
-    DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
-                XA_PREPARED);
-
-    buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                               buf, query, q_len);
-  }
-  Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
+  Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"), TRUE, TRUE, TRUE, 0);
 
   DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
 }
@@ -2000,7 +1985,6 @@ static int binlog_xa_recover_dummy(handlerton *hton __attribute__((unused)),
 
 static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
-  int rc= 0;
   THD *thd= current_thd;
 
   if (thd->is_current_stmt_binlog_disabled())
@@ -2008,14 +1992,13 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
     return thd->wait_for_prior_commit();
   }
 
-  /* the asserted state can't be reachable with xa commit */
-  DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
-              thd->get_stmt_da()->sql_errno() != ER_XA_RBROLLBACK);
-  /*
-    This is a recovered user xa transaction commit.
-    Create a "temporary" binlog transaction to write the commit record
-    into binlog.
-  */
+  if (!opt_xa_binlog_prepare)
+  {
+    /* ToDo: Error: Committing an XA transaction from a different connection with --log-bin enabled requires --xa-binlog-prepare also enabled. */
+    my_error(ER_XAER_NOTA, myf(0));
+    return 1;
+  }
+
   THD_TRANS trans;
   trans.ha_list= NULL;
 
@@ -2025,10 +2008,113 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
 
-  rc= binlog_commit(hton, thd, TRUE);
+  int rc= mysql_bin_log.binlog_commit_prepared_xa(thd, hton, xid);
   thd->ha_data[binlog_hton->slot].ha_info[1].reset();
 
+  DBUG_ASSERT(!rc /* commit_by_xid() return is ignored by server layer. */);
   return rc;
+}
+
+
+int
+MYSQL_BIN_LOG::binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid)
+{
+  mysql_mutex_lock(&LOCK_xid_list);
+  /* ToDo: Should we remove from the list immediately? If the commit fails (which normally it should not be able to), should the XID remain active, commit can be re-attempted or can be rolled back? Or should the XID be gone after failed commit (as well as successful)? For now, we leave it in the list. */
+  xa_prepared *p= xa_list_start;
+  while (p)
+  {
+    if (xid->eq(&p->xid))
+      break;
+    p= p->next;
+  }
+  mysql_mutex_unlock(&LOCK_xid_list);
+  if (!p)
+  {
+    my_error(ER_XAER_NOTA, MYF(0));
+    return 1;
+  }
+
+  /* ToDo: Once we unlock LOCK_xid_list, in principle the XID could be removed. But presumably the server layer must somehow ensure that two commit_by_xid() cannot run simultaneously with the same XID, otherwise things would in any case seem to be wrong. Alternatively, we could remove from the list when found, and put it back again in case on an error. */
+
+  /* Populate the trx cache with the old saved transaction. */
+  /* ToDo: could do this more efficiently perhaps, copying directly from the old entry into the binlog rather than double-copy through trx cache and later write_cache(). */
+  binlog_cache_mngr *cache_mngr=
+    (binlog_cache_mngr*)thd_get_ha_data(thd, binlog_hton);
+  cache_mngr->reset(true, true);
+  if (read_xa_to_trx_cache(thd, p, cache_mngr))
+    return 1;
+
+  /* Now binlog the transaction using the recovered events. */
+  PSI_stage_info org_stage;
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_binlog_write);
+  int err= binlog_commit_flush_trx_cache(thd, true, cache_mngr);
+  THD_STAGE_INFO(thd, org_stage);
+
+  mark_xid_done(p->binlog_id, true);
+  /* ToDo: Could save a mutex unlock/lock by integrating removing the xid with the mark_xid_done(). Or just removing it when found and putting it back in case of error. */
+  mysql_mutex_lock(&LOCK_xid_list);
+  xa_prepared **q= &xa_list_start;
+  while (*q)
+  {
+    if (*q == p)
+    {
+      if (xa_list_end_ptr == &p->next)
+        xa_list_end_ptr= q;
+      *q= p->next;
+      my_free(p);
+      break;
+    }
+    q= &((*q)->next);
+  }
+  DBUG_ASSERT(p /* p should always be found in the list */);
+  mysql_mutex_unlock(&LOCK_xid_list);
+
+  return err;
+}
+
+
+int
+MYSQL_BIN_LOG::read_xa_to_trx_cache(THD *thd, xa_prepared *prepared_trx,
+                                    binlog_cache_mngr *cache_mngr)
+{
+  File file;
+  IO_CACHE log_cache;
+  const char *errmsg;
+  /* ToDo: Need to handle encrypted binlog here. */
+  if ((file= open_binlog(&log_cache, prepared_trx->binlog_file, &errmsg)) < 0)
+  {
+    sql_print_error("%s", errmsg);
+    return 1;
+  }
+  Format_description_log_event fdle(BINLOG_VERSION);
+  Log_event *ev1= nullptr, *ev2= nullptr;
+  Format_description_log_event *fdle2;
+  Xa_prepared_trx_log_event *xptle;
+  int err= 1;
+  if (!(ev1= Log_event::read_log_event(&log_cache, &fdle,
+                                       opt_master_verify_checksum)) ||
+      ev1->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+    goto err;
+  fdle2= (Format_description_log_event *)ev1;
+
+  my_b_seek(&log_cache, prepared_trx->binlog_offset);
+  if (!(ev2= Log_event::read_log_event(&log_cache, fdle2,
+                                       opt_master_verify_checksum)) ||
+      ev2->get_type_code() != XA_PREPARED_TRX_EVENT)
+    goto err;
+  xptle= (Xa_prepared_trx_log_event *)ev2;
+  err= my_b_write(cache_mngr->get_binlog_cache_log(true),
+                  xptle->trx_cache_data, xptle->trx_cache_len);
+  cache_mngr->get_binlog_cache_data(true)->add_status(LOGGED_CRITICAL);
+
+err:
+  delete ev1;
+  delete ev2;
+  end_io_cache(&log_cache);
+  mysql_file_close(file, MYF(MY_WME));
+  return err;
 }
 
 
@@ -2060,6 +2146,17 @@ static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
   thd->ha_data[hton->slot].ha_info[1].reset();
 
   return rc;
+}
+
+
+int
+binlog_xa_detach(THD *thd)
+{
+  binlog_cache_mngr *cache_mngr=
+    (binlog_cache_mngr*)thd_get_ha_data(thd, binlog_hton);
+  if (cache_mngr)
+    cache_mngr->reset(true, true);
+  return 0;
 }
 
 
@@ -2103,43 +2200,33 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
                                           binlog_cache_mngr *cache_mngr)
 {
-  XID *xid= thd->transaction->xid_state.get_xid();
-  {
-    // todo assert wsrep_simulate || is_open()
+  cache_mngr->using_xa= FALSE;  // ToDo: Why? Probably remove.
 
-    /*
-      Log the XA END event first.
-      We don't do that in trans_xa_end() as XA COMMIT ONE PHASE
-      is logged as simple BEGIN/COMMIT so the XA END should
-      not get to the log.
-    */
-    const char query[]= "XA END ";
-    const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-    char buf[q_len + ser_buf_size];
-    size_t buflen;
-    binlog_cache_data *cache_data;
-    IO_CACHE *file;
-
-    memcpy(buf, query, q_len);
-    buflen= q_len +
-      strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
-    cache_data= cache_mngr->get_binlog_cache_data(true);
-    file= &cache_data->cache_log;
-
-    /* ToDo: Actually do something with this... */
-    Xa_prepared_trx_log_event xa_prepared_ev(thd, file, xid);
-
-    thd->lex->sql_command= SQLCOM_XA_END;
-    Query_log_event xa_end(thd, buf, buflen, true, false, true, 0);
-    if (mysql_bin_log.write_event(&xa_end, cache_data, file))
+  DBUG_ASSERT(all /* ToDo: remove the `all` argument. */);
+  DBUG_ASSERT(cache_mngr->stmt_cache.empty() /* ToDo: Or else find out how to handle? */);
+  if (cache_mngr->trx_cache.empty())
+    return 0;    // Nothing to do
+  /* Do if needed, in case above assert needs to go...
+    if (using_stmt && thd->binlog_flush_pending_rows_event(TRUE, FALSE))
       return 1;
-    thd->lex->sql_command= SQLCOM_XA_PREPARE;
-  }
+  */
+  if (thd->binlog_flush_pending_rows_event(TRUE, TRUE))
+    return 1;
 
-  cache_mngr->using_xa= FALSE;
-  XA_prepare_log_event end_evt(thd, xid, FALSE);
+  /* ToDo: Don't need any COMMIT end event here, or even GTID, just output an out-of-band XA_PREPARED_TRX_EVENT. */
 
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
+  Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
+                          TRUE, TRUE, TRUE, 0);
+  return mysql_bin_log.
+    write_transaction_to_binlog(thd, cache_mngr, &end_evt, all, TRUE, TRUE);
+  /*
+    We deliberately leave the trx cache around. It will be used to binlog the
+    following XA COMMIT, in the common case that this happens in the same THD.
+
+    ToDo: Can reset the trx cache here if/when we implement that the XA COMMIT
+    is binlogged without full trx cache events, using a reference to the
+    binlogged XA PREPARE instead.
+  */
 }
 
 
@@ -3452,6 +3539,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    group_commit_trigger_lock_wait(0),
    sync_period_ptr(sync_period), sync_counter(0),
    state_file_deleted(false), binlog_state_recover_done(false),
+   xa_list_start(0), xa_list_end_ptr(&xa_list_start),
    is_relay_log(0), relay_signal_cnt(0),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
@@ -3538,6 +3626,21 @@ void MYSQL_BIN_LOG::cleanup()
   */
   if (!is_relay_log)
     rpl_global_gtid_binlog_state.free();
+
+  /*
+    Free the list of active XA PREPAREd transactions (it will be recovered
+    from the binlog file at next server start).
+
+    ToDo: Write the list to some file and recover from there in non-crash case,
+    similar to gtid_binlog_state.
+  */
+  xa_prepared *p, *next;
+  for (p= xa_list_start; p; p= next)
+  {
+    next= p->next;
+    my_free(p);
+  }
+
   DBUG_VOID_RETURN;
 }
 
@@ -3710,7 +3813,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         what actually happens when open_purge_index_file succeeds but
         register or sync fails.
 
-        Perhaps we might need the code below in MYSQL_LOG_BIN::cleanup
+        Perhaps we might need the code below in MYSQL_BIN_LOG::cleanup
         for "real life" purposes as well? 
      */
     DBUG_EXECUTE_IF("fault_injection_registering_index", {
@@ -7542,6 +7645,51 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   DBUG_RETURN(0);                               // All OK
 }
 
+
+/*
+  Write the trx_cache into the binlog for user XA PREPARE, to preserve the
+  binlog state for a later XA COMMIT.
+*/
+int MYSQL_BIN_LOG::write_xa_prepare(THD *thd, IO_CACHE *cache)
+{
+  DBUG_ENTER("MYSQL_BIN_LOG::write_xa_prepare");
+
+  mysql_mutex_assert_owner(&LOCK_log);
+  XID *xid= thd->transaction->xid_state.get_xid();
+  Xa_prepared_trx_log_event xa_prepared_ev(thd, cache, xid);
+  xa_prepared_ev.set_direct_logging();
+  my_off_t binlog_offset= my_b_tell(&log_file);
+  if (write_event(&xa_prepared_ev) ||
+      insert_prepared_xid(xid, binlog_offset))
+    DBUG_RETURN(1);
+  DBUG_RETURN(0);
+}
+
+
+int
+MYSQL_BIN_LOG::insert_prepared_xid(XID *xid, size_t binlog_offset)
+{
+  mysql_mutex_assert_owner(&LOCK_log);
+
+  xa_prepared *p= (xa_prepared *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
+  if (!p)
+    return 1;
+  p->xid.set(xid);
+  p->binlog_offset= binlog_offset;
+  strmake_buf(p->binlog_file, log_file_name);
+  p->binlog_id= current_binlog_id;
+
+  /* Insert entry at the end of the list. */
+  p->next= nullptr;
+  mysql_mutex_lock(&LOCK_xid_list);
+  *xa_list_end_ptr= p;
+  xa_list_end_ptr= &p->next;
+  mysql_mutex_unlock(&LOCK_xid_list);
+
+  return 0;
+}
+
+
 /*
   Helper function to get the error code of the query to be binlogged.
  */
@@ -8272,7 +8420,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
   /*
     Since we return error, this transaction XID will not be committed, so
     we need to mark it as not needed for recovery (unlog() is not called
-    for a transaction if log_xid() fails).
+    for a transaction if log_and_order() fails).
   */
   if (entry->cache_mngr->using_xa && entry->cache_mngr->xa_xid &&
       entry->cache_mngr->need_unlog)
@@ -8633,6 +8781,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                                          uint64 commit_id)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
+  THD *thd= entry->thd;
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
 
   /*
@@ -8649,12 +8798,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
-  if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
-                       entry->using_trx_cache, commit_id))
+  /* ToDo: Use a flag in the group_commit_entry instead of querying random stuff in the THD. */
+  if (!is_preparing_xa(thd) &&
+      write_gtid_event(thd, false, entry->using_trx_cache, commit_id))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
-      write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
+      write_cache(thd, mngr->get_binlog_cache_log(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -8662,10 +8812,12 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
 
   if (entry->using_trx_cache && !mngr->trx_cache.empty())
   {
+    int err= is_preparing_xa(thd) ?
+      write_xa_prepare(thd, mngr->get_binlog_cache_log(TRUE)) :
+      write_cache(thd, mngr->get_binlog_cache_log(TRUE));
     DBUG_EXECUTE_IF("crash_before_writing_xid",
                     {
-                      if ((write_cache(entry->thd,
-                                       mngr->get_binlog_cache_log(TRUE))))
+                      if (err)
                         DBUG_PRINT("info", ("error writing binlog cache"));
                       else
                         flush_and_sync(0);
@@ -8673,8 +8825,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                       DBUG_PRINT("info", ("crashing before writing xid"));
                       DBUG_SUICIDE();
                     });
-
-    if (write_cache(entry->thd, mngr->get_binlog_cache_log(TRUE)))
+    if (err)
     {
       entry->error_cache= &mngr->trx_cache.cache_log;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -8688,13 +8839,16 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                     DBUG_RETURN(ER_ERROR_ON_WRITE);
                   });
 
-  if (write_event(entry->end_event))
+  if (!is_preparing_xa(thd))
   {
-    entry->error_cache= NULL;
-    DBUG_RETURN(ER_ERROR_ON_WRITE);
+    if (write_event(entry->end_event))
+    {
+      entry->error_cache= NULL;
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
+    status_var_add(thd->status_var.binlog_bytes_written,
+                   entry->end_event->data_written);
   }
-  status_var_add(entry->thd->status_var.binlog_bytes_written,
-                 entry->end_event->data_written);
 
   if (entry->incident_event)
   {
@@ -9426,9 +9580,9 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     if (need_prepare_ordered)
     {
       /*
-        We did the run_prepare_ordered() serialised, then ran the log_xid() in
-        parallel. Now we have to do run_commit_ordered() serialised in the
-        same sequence as run_prepare_ordered().
+        We did the run_prepare_ordered() serialised, then ran the
+        log_and_order() in parallel. Now we have to do run_commit_ordered()
+        serialised in the same sequence as run_prepare_ordered().
 
         We do this starting from the head of the queue, each thread doing
         run_commit_ordered() and signalling the next in queue.
@@ -9467,7 +9621,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
       }
     }
 
-    /* Only run commit_ordered() if log_xid was successful. */
+    /* Only run commit_ordered() if log_and_order was successful. */
     if (cookie)
     {
       mysql_mutex_lock(&LOCK_commit_ordered);
@@ -10149,7 +10303,7 @@ void TC_LOG_BINLOG::close()
 }
 
 /*
-  Do a binlog log_xid() for a group of transactions, linked through
+  Do a binlog log_and_order() for a group of transactions, linked through
   thd->next_commit_ordered.
 */
 int
@@ -10163,7 +10317,7 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   if (!cache_mngr)
   {
-    WSREP_DEBUG("Skipping empty log_xid: %s", thd->query());
+    WSREP_DEBUG("Skipping empty log_and_order: %s", thd->query());
     DBUG_RETURN(0);
   }
 
@@ -10356,48 +10510,6 @@ int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
     we delay the return of error code to here.
   */
   DBUG_RETURN(BINLOG_COOKIE_GET_ERROR_FLAG(cookie));
-}
-
-static bool write_empty_xa_prepare(THD *thd, binlog_cache_mngr *cache_mngr)
-{
-  return binlog_commit_flush_xa_prepare(thd, true, cache_mngr);
-}
-
-int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
-{
-  DBUG_ASSERT(is_preparing_xa(thd));
-
-  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
-  int cookie= 0;
-
-  if (!cache_mngr->need_unlog)
-  {
-    Ha_trx_info *ha_info;
-    uint rw_count= ha_count_rw_all(thd, &ha_info);
-    bool rc= false;
-
-    /*
-      This transaction has not been binlogged as indicated by need_unlog.
-      Such exceptional cases include transactions with no effect to engines,
-      e.g REPLACE that does not change the dat but still the Engine
-      transaction branch claims to be rw, and few more.
-      In all such cases an empty XA-prepare group of events is bin-logged.
-    */
-    if (rw_count > 0)
-    {
-      /* an empty XA-prepare event group is logged */
-      rc= write_empty_xa_prepare(thd, cache_mngr); // normally gains need_unlog
-      trans_register_ha(thd, true, binlog_hton, 0); // do it for future commmit
-      thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
-    }
-    if (rw_count == 0 || !cache_mngr->need_unlog)
-      return rc;
-  }
-
-  cookie= BINLOG_COOKIE_MAKE(cache_mngr->binlog_id, cache_mngr->delayed_error);
-  cache_mngr->need_unlog= false;
-
-  return unlog(cookie, 1);
 }
 
 
@@ -10657,6 +10769,9 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         }
         break;
       }
+      case XA_PREPARED_TRX_EVENT:
+        DBUG_ASSERT(0 /* ToDo */);
+        break;
       case BINLOG_CHECKPOINT_EVENT:
         if (first_round && do_xa)
         {

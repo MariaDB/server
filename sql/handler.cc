@@ -1435,14 +1435,6 @@ int ha_prepare(THD *thd)
 
       }
     }
-
-    DEBUG_SYNC(thd, "at_unlog_xa_prepare");
-
-    if (tc_log->unlog_xa_prepare(thd, all))
-    {
-      ha_rollback_trans(thd, all);
-      error=1;
-    }
   }
 
   DBUG_RETURN(error);

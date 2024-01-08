@@ -5592,9 +5592,8 @@ public:
 #endif
 
   Xa_prepared_trx_log_event(const char* buf, uint event_len,
-                            const Format_description_log_event
-                            *description_event);
-  ~Xa_prepared_trx_log_event() = default;
+                            const Format_description_log_event *descr_event);
+  ~Xa_prepared_trx_log_event() { my_free(trx_cache_data); };
   Log_event_type get_type_code() { return XA_PREPARED_TRX_EVENT;}
   int get_data_size() { return XA_PREPARED_TRX_HEADER_LEN + xid.gtrid_length +
                                xid.bqual_length + trx_cache_len; }

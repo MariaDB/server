@@ -3429,7 +3429,7 @@ Gtid_log_event::pack_info(Protocol *protocol)
   char *p;
   p = strmov(buf, (flags2 & FL_STANDALONE  ? "GTID " :
                    flags2 & FL_PREPARED_XA ? "XA START " : "BEGIN GTID "));
-  if (flags2 & FL_PREPARED_XA)
+  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
   {
     p+= sprintf(p, "%s GTID ", xid.serialize());
   }
@@ -8485,6 +8485,7 @@ uint8 Update_rows_log_event::get_trg_event_map()
 
 Xa_prepared_trx_log_event::Xa_prepared_trx_log_event(
   THD* thd, IO_CACHE *trx_cache, const XID *xid_arg)
+  : Log_event(thd, 0, true)
 {
   xid.formatID= xid_arg->formatID;
   xid.gtrid_length= xid_arg->gtrid_length;
@@ -8524,7 +8525,12 @@ Xa_prepared_trx_log_event::write()
 void
 Xa_prepared_trx_log_event::pack_info(Protocol* protocol)
 {
-  DBUG_ASSERT(0 /* ToDo */);
+  char buf[16 + ser_buf_size];
+  char *p;
+  p= strmov(buf, "XA PREPARED TRX ");
+  serialize_xid(p, xid.formatID, xid.gtrid_length, xid.bqual_length,
+                (const char *)xid.data);
+  protocol->store(buf, (p-buf) + strlen(p), &my_charset_bin);
 }
 
 int

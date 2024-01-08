@@ -698,6 +698,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case GTID_EVENT: return "Gtid";
   case GTID_LIST_EVENT: return "Gtid_list";
   case START_ENCRYPTION_EVENT: return "Start_encryption";
+  case XA_PREPARED_TRX_EVENT: return "Xa_prepared_trx";
 
   /* The following is only for mysqlbinlog */
   case IGNORABLE_LOG_EVENT: return "Ignorable log event";
@@ -1276,6 +1277,9 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       break;
     case START_ENCRYPTION_EVENT:
       ev = new Start_encryption_log_event(buf, event_len, fdle);
+      break;
+    case XA_PREPARED_TRX_EVENT:
+      ev= new Xa_prepared_trx_log_event(buf, event_len, fdle);
       break;
     default:
       DBUG_PRINT("error",("Unknown event code: %d",
@@ -4030,6 +4034,32 @@ Update_rows_compressed_log_event::Update_rows_compressed_log_event(
   uncompress_buf();
 }
 #endif
+
+
+Xa_prepared_trx_log_event::Xa_prepared_trx_log_event(
+    const char* buf, uint event_len,
+    const Format_description_log_event *descr_event)
+  : Log_event(buf, descr_event), trx_cache_data(nullptr)
+{
+  uint32 const common_header_len= descr_event->common_header_len;
+  uint32 const post_header_len=
+    descr_event->post_header_len[XA_PREPARED_TRX_EVENT-1];
+  uint32 header_len= common_header_len + post_header_len;
+  xid.formatID= uint4korr(buf + common_header_len);
+  xid.gtrid_length= buf[common_header_len + 4];
+  xid.bqual_length= buf[common_header_len + 5];
+  uint32 xid_len= xid.gtrid_length + xid.bqual_length;
+  uint32 data_offset= header_len + xid_len;
+
+  if (xid.gtrid_length > 64 || xid.bqual_length > 64 || data_offset > event_len)
+    return;
+  memcpy(xid.data, buf + header_len, xid_len);
+  trx_cache_len= event_len - data_offset;
+  if ((trx_cache_data= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
+                                          event_len, MYF(MY_WME))) != nullptr)
+    memcpy(trx_cache_data, buf + data_offset, trx_cache_len);
+}
+
 
 Incident_log_event::Incident_log_event(const char *buf, uint event_len,
                                        const Format_description_log_event *descr_event)

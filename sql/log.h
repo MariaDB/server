@@ -33,6 +33,7 @@ bool ending_trans(THD* thd, const bool all);
 bool ending_single_stmt_trans(THD* thd, const bool all);
 bool trans_has_updated_non_trans_table(const THD* thd);
 bool stmt_has_updated_non_trans_table(const THD* thd);
+int binlog_xa_detach(THD *thd);
 
 /*
   Transaction Coordinator log - a base abstract class
@@ -60,7 +61,6 @@ class TC_LOG
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
   virtual int unlog(ulong cookie, my_xid xid)=0;
-  virtual int unlog_xa_prepare(THD *thd, bool all)= 0;
   virtual void commit_checkpoint_notify(void *cookie)= 0;
 
 protected:
@@ -115,10 +115,6 @@ public:
     return 1;
   }
   int unlog(ulong cookie, my_xid xid)  { return 0; }
-  int unlog_xa_prepare(THD *thd, bool all)
-  {
-    return 0;
-  }
   void commit_checkpoint_notify(void *cookie) { DBUG_ASSERT(0); };
 };
 
@@ -202,10 +198,6 @@ class TC_LOG_MMAP: public TC_LOG
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
-  int unlog_xa_prepare(THD *thd, bool all)
-  {
-    return 0;
-  }
   void commit_checkpoint_notify(void *cookie);
   int recover();
 
@@ -479,6 +471,20 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   };
 
   /*
+    Record for storing in-memory references to binlog-persisted transactions in
+    the XA PREPARED state.
+  */
+  struct xa_prepared
+  {
+    struct xa_prepared *next;
+    XID xid;
+    ulong binlog_id;
+    /* ToDo: Is binlog_id enough, to find the filename ? */
+    char binlog_file[FN_REFLEN];
+    size_t binlog_offset;
+  };
+
+  /*
     When this is set, a RESET MASTER is in progress.
 
     Then we should not write any binlog checkpoints into the binlog (that
@@ -613,6 +619,10 @@ public:
   mysql_cond_t COND_binlog_background_thread;
   mysql_cond_t COND_binlog_background_thread_end;
 
+  /* ToDo: Could be made into a hash for faster lookup with many active XA PREPAREs. */
+  xa_prepared *xa_list_start;
+  xa_prepared **xa_list_end_ptr;
+
   void stop_background_thread();
 
   using MYSQL_LOG::generate_name;
@@ -716,7 +726,6 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
-  int unlog_xa_prepare(THD *thd, bool all);
   void commit_checkpoint_notify(void *cookie);
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
               Format_description_log_event *fdle, bool do_xa);
@@ -820,6 +829,7 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   int  write_cache(THD *thd, IO_CACHE *cache);
+  int write_xa_prepare(THD *thd, IO_CACHE *cache);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
   bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
@@ -837,6 +847,10 @@ public:
 
   void mark_xids_active(ulong cookie, uint xid_count);
   void mark_xid_done(ulong cookie, bool write_checkpoint);
+  int insert_prepared_xid(XID *xid, size_t binlog_offset);
+  int binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid);
+  int read_xa_to_trx_cache(THD *thd, xa_prepared *prepared_trx,
+                           binlog_cache_mngr *cache_mngr);
   void make_log_name(char* buf, const char* log_ident);
   bool is_active(const char* log_file_name);
   bool can_purge_log(const char *log_file_name);

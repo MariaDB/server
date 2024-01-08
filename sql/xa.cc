@@ -889,6 +889,8 @@ bool trans_xa_detach(THD *thd)
     thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
     ha_rollback_trans(thd, true);
   }
+  else
+    binlog_xa_detach(thd);
 
   thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
   thd->transaction->xid_state.xid_cache_element= 0;

@@ -3946,6 +3946,26 @@ bool
 Xa_prepared_trx_log_event::print(FILE* file,
                                  PRINT_EVENT_INFO* print_event_info)
 {
-  DBUG_ASSERT(0 /* ToDo */);
+  Write_on_release_cache cache(&print_event_info->head_cache, file,
+                               Write_on_release_cache::FLUSH_F, this);
+
+  /*
+    ToDo: Later we could have an option to output a BINLOG statement here (and
+    for the XA COMMIT event), to support mixing mysqlbinlog output with slave
+    apply.
+  */
+
+  if (!print_event_info->short_form)
+  {
+    char buf[ser_buf_size];
+    print_header(&cache, print_event_info, FALSE);
+    serialize_xid(buf, xid.formatID, xid.gtrid_length, xid.bqual_length,
+                  xid.data);
+    if (my_b_printf(&cache, "\tXa prepared trx %s\n", buf))
+      goto error;
+  }
+  return cache.flush_data();
+
+error:
   return true;
 }
