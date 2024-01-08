@@ -361,6 +361,7 @@ drop database db;
 #
 # MDEV-22164 without validation for exchange partition/convert in
 #
+call mtr.add_suppression('was altered WITHOUT');
 create table validation(x int);
 drop table validation;
 create table t (a int primary key);
@@ -406,6 +407,7 @@ ERROR HY000: Found a row that does not match the partition
 alter table tp exchange partition p1 with table t with validation;
 ERROR HY000: Found a row that does not match the partition
 alter table tp exchange partition p1 with table t without validation;
+FOUND 1 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from t order by a;
 a
 200
@@ -438,10 +440,12 @@ alter table tp exchange partition p1 with table t without validation;
 call validation;
 ERROR HY000: Found a row that does not match the partition
 call without_validation;
+FOUND 2 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 call validation;
 call validation;
 ERROR HY000: Found a row that does not match the partition
 call without_validation;
+FOUND 3 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from t order by a;
 a
 200
@@ -464,10 +468,12 @@ prepare without_validation from "alter table tp exchange partition p1 with table
 execute validation;
 ERROR HY000: Found a row that does not match the partition
 execute without_validation;
+FOUND 4 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 execute validation;
 execute validation;
 ERROR HY000: Found a row that does not match the partition
 execute without_validation;
+FOUND 5 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from t order by a;
 a
 200
@@ -490,6 +496,7 @@ ERROR HY000: Found a row that does not match the partition
 alter table tp convert table t to partition p2 values less than (maxvalue) with validation;
 ERROR HY000: Found a row that does not match the partition
 alter table tp convert table t to partition p2 values less than (maxvalue) without validation;
+FOUND 6 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from tp partition (p0) order by a;
 a
 2
@@ -508,6 +515,7 @@ insert tp values (1), (2), (3), (4);
 alter table tp exchange partition p0 with table t;
 ERROR HY000: Found a row that does not match the partition
 alter table tp exchange partition p0 with table t without validation;
+FOUND 7 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from t;
 a
 2
@@ -523,6 +531,7 @@ insert tp values (12), (2), (3), (4);
 alter table tp exchange partition p0 with table t;
 ERROR HY000: Table has no partition for value 0
 alter table tp exchange partition p0 with table t without validation;
+FOUND 8 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from t;
 a
 2

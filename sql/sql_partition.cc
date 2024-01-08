@@ -4104,11 +4104,19 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
   uchar *old_rec;
   partition_info *part_info;
   DBUG_ENTER("verify_data_with_partition");
-  DBUG_ASSERT(table && table->file && part_table && part_table->part_info &&
-              part_table->file);
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->file);
+  DBUG_ASSERT(part_table);
+  DBUG_ASSERT(part_table->file);
+  DBUG_ASSERT(part_table->part_info);
 
   if (table->in_use->lex->without_validation)
+  {
+    sql_print_warning("Table %`s.%`s was altered WITHOUT VALIDATION: "
+                      "the table might be corrupted",
+                      part_table->s->db.str, part_table->s->table_name.str);
     DBUG_RETURN(false);
+  }
 
   /*
     Verify all table rows.
