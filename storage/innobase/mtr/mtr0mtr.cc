@@ -776,10 +776,9 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 #ifndef DBUG_OFF
   do
   {
-    if (m_log_mode != MTR_LOG_ALL)
+    if (m_log_mode != MTR_LOG_ALL ||
+        _db_keyword_(nullptr, "skip_page_checksum", 1))
       continue;
-    DBUG_EXECUTE_IF("skip_page_checksum", continue;);
-
     for (const mtr_memo_slot_t& slot : m_memo)
       if (slot.type & MTR_MEMO_MODIFY)
       {
