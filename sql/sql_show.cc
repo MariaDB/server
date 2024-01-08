@@ -2523,7 +2523,6 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
                                                      MODE_DB2 |
                                                      MODE_MAXDB |
                                                      MODE_ANSI)) != 0;
-  char *end, buff[32];
 
   if (!(thd->variables.sql_mode & MODE_NO_KEY_OPTIONS) &&
       !limited_mysql_mode && !foreign_db_mode)
@@ -2545,8 +2544,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
         table->s->key_block_size != key_info->block_size)
     {
       packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
-      end= longlong10_to_str(key_info->block_size, buff, 10);
-      packet->append(buff, (uint) (end - buff));
+      packet->append_ulonglong(key_info->block_size);
     }
     DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                (key_info->comment.length > 0));
@@ -7144,9 +7142,8 @@ err:
 }
 
 
-static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
-				  TABLE *table, bool res,
-				  const LEX_CSTRING *db_name,
+static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
+                                  bool res, const LEX_CSTRING *db_name,
 				  const LEX_CSTRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
@@ -7154,7 +7151,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
   if (!tables->view)
   {
     TABLE *show_table= tables->table;
-    KEY *key_info=show_table->s->key_info;
+    KEY *key_info= show_table->s->key_info;
     if (show_table->file)
     {
       (void) read_statistics_for_tables(thd, tables, false);
@@ -7208,21 +7205,18 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
         table->field[2]->store(table_name->str, table_name->length, cs);
-        table->field[3]->store((longlong) ((key_info->flags &
-                                            HA_NOSAME) ? 0 : 1), TRUE);
+        table->field[3]->store(key_info->flags & HA_NOSAME ? 0 : 1, TRUE);
         table->field[4]->store(db_name->str, db_name->length, cs);
         table->field[5]->store(key_info->name.str, key_info->name.length, cs);
         table->field[6]->store((longlong) (j+1), TRUE);
-        str= (key_part->field ? &key_part->field->field_name :
-              &unknown);
+        str= key_part->field ? &key_part->field->field_name : &unknown;
         table->field[7]->store(str->str, str->length, cs);
         if (show_table->file)
         {
           if (show_table->file->index_flags(i, j, 0) & HA_READ_ORDER)
           {
-            table->field[8]->store(((key_part->key_part_flag &
-                                     HA_REVERSE_SORT) ?
-                                    "D" : "A"), 1, cs);
+            table->field[8]->store(key_part->key_part_flag & HA_REVERSE_SORT
+                                   ? "D" : "A", 1, cs);
             table->field[8]->set_notnull();
           }
           if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
@@ -7234,11 +7228,11 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
               from table as key_info points to TABLE_SHARE which has no
               statistics.
             */
-            KEY *key_info= show_table->key_info + i;
-            if (key_info->rec_per_key[j])
+            KEY *keyinfo= show_table->key_info + i;
+            if (keyinfo->rec_per_key[j])
             {
               ha_rows records= (ha_rows) ((double) show_table->stat_records() /
-                                          key_info->actual_rec_per_key(j));
+                                          keyinfo->actual_rec_per_key(j));
               table->field[9]->store((longlong) records, TRUE);
               table->field[9]->set_notnull();
             }
@@ -7256,7 +7250,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           table->field[10]->set_notnull();
         }
         uint flags= key_part->field ? key_part->field->flags : 0;
-        const char *pos=(char*) ((flags & NOT_NULL_FLAG) ? "" : "YES");
+        const char *pos= flags & NOT_NULL_FLAG ? "" : "YES";
         table->field[12]->store(pos, strlen(pos), cs);
         if (!show_table->s->keys_in_use.is_set(i))
           table->field[14]->store(STRING_WITH_LEN("disabled"), cs);

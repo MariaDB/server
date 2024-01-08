@@ -245,7 +245,6 @@ static int join_init_quick_read_record(JOIN_TAB *tab);
 static quick_select_return test_if_quick_select(JOIN_TAB *tab);
 static int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab);
 static int join_read_first(JOIN_TAB *tab);
-static int join_read_next(READ_RECORD *info);
 static int join_read_next_same(READ_RECORD *info);
 static int join_read_last(JOIN_TAB *tab);
 static int join_read_prev_same(READ_RECORD *info);
@@ -7188,8 +7187,7 @@ add_keyuse(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field,
 
 static LEX_CSTRING equal_str= { STRING_WITH_LEN("=") };
 
-static bool
-add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
+static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 {
   Field *field=key_field->field;
   TABLE *form= field->table;
@@ -7202,7 +7200,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       if (!(form->keys_in_use_for_query.is_set(key)))
 	continue;
       if (form->key_info[key].flags & (HA_FULLTEXT | HA_SPATIAL))
-	continue;    // ToDo: ft-keys in non-ft queries.   SerG
+	continue;
 
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
@@ -25983,7 +25981,6 @@ part_of_refkey(TABLE *table,Field *field)
   @param used_key_parts [out]  NULL by default, otherwise return value for
                                used key parts.
 
-
   @note
     used_key_parts is set to correct key parts used if return value != 0
     (On other cases, used_key_part may be changed)
@@ -25999,9 +25996,8 @@ part_of_refkey(TABLE *table,Field *field)
     -1   Reverse key can be used
 */
 
-static int test_if_order_by_key(JOIN *join,
-                                ORDER *order, TABLE *table, uint idx,
-				uint *used_key_parts)
+static int test_if_order_by_key(JOIN *join, ORDER *order, TABLE *table,
+                                uint idx, uint *used_key_parts)
 {
   KEY_PART_INFO *key_part,*key_part_end;
   key_part=table->key_info[idx].key_part;
@@ -26016,8 +26012,7 @@ static int test_if_order_by_key(JOIN *join,
   DBUG_ENTER("test_if_order_by_key");
  
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) && 
-      table->key_info[idx].ext_key_part_map &&
-      pk != MAX_KEY && pk != idx)
+      table->key_info[idx].ext_key_part_map && pk != MAX_KEY && pk != idx)
   {
     have_pk_suffix= true;
   }
@@ -26485,10 +26480,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   {
     Item *item= (*tmp_order->item)->real_item();
     if (item->type() != Item::FIELD_ITEM)
-    {
-      usable_keys.clear_all();
       DBUG_RETURN(0);
-    }
 
     /*
       Take multiple-equalities into account. Suppose we have
@@ -32071,8 +32063,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         temporary table + filesort could be cheaper for grouping
         queries too.
       */ 
-      if (is_covering ||
-          has_limit ||
+      if (is_covering || has_limit ||
           (ref_key < 0 && (group || table->force_index)))
       { 
         double rec_per_key;
@@ -32335,8 +32326,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     
     int key, direction;
     if (test_if_cheaper_ordering(NULL, order, table,
-                                 table->keys_in_use_for_order_by, -1,
-                                 limit,
+                                 table->keys_in_use_for_order_by, -1, limit,
                                  &key, &direction, &limit) &&
         !is_key_used(table, key, table->write_set))
     {

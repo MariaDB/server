@@ -1204,8 +1204,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   /* mark for close and remove all cached entries */
   thd->push_internal_handler(&err_handler);
   error= mysql_rm_table_no_locks(thd, tables, &thd->db, (DDL_LOG_STATE*) 0,
-                                 if_exists,
-                                 drop_temporary,
+                                 if_exists, drop_temporary,
                                  false, drop_sequence, dont_log_query,
                                  false);
   thd->pop_internal_handler();
@@ -1302,32 +1301,28 @@ static uint32 get_comment(THD *thd, uint32 comment_pos,
 
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             const LEX_CSTRING *current_db,
-                            DDL_LOG_STATE *ddl_log_state,
-                            bool if_exists,
+                            DDL_LOG_STATE *ddl_log_state, bool if_exists,
                             bool drop_temporary, bool drop_view,
-                            bool drop_sequence,
-                            bool dont_log_query,
+                            bool drop_sequence, bool dont_log_query,
                             bool dont_free_locks)
 {
   TABLE_LIST *table;
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   LEX_CUSTRING version;
-  LEX_CSTRING partition_engine_name= {NULL, 0};
+  LEX_CSTRING partition_engine_name= null_clex_str;
   StringBuffer<160> unknown_tables(system_charset_info);
   DDL_LOG_STATE local_ddl_log_state;
   const char *comment_start;
   uint table_count= 0, non_temp_tables_count= 0;
   int error= 0;
-  uint32 comment_len;
+  size_t comment_len;
   bool trans_tmp_table_deleted= 0, non_trans_tmp_table_deleted= 0;
   bool is_drop_tmp_if_exists_added= 0, non_tmp_table_deleted= 0;
   bool log_if_exists= if_exists;
-  const LEX_CSTRING *object_to_drop= ((drop_sequence) ?
-                                      &SEQUENCE_clex_str :
-                                      &TABLE_clex_str);
-  String normal_tables;
-  String built_trans_tmp_query, built_non_trans_tmp_query;
+  const LEX_CSTRING *object_to_drop= drop_sequence ? &SEQUENCE_clex_str
+                                                   : &TABLE_clex_str;
+  String normal_tables, built_trans_tmp_query, built_non_trans_tmp_query;
   DBUG_ENTER("mysql_rm_table_no_locks");
 
   if (!ddl_log_state)
@@ -1452,7 +1447,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     }
 
     /* First try to delete temporary tables and temporary sequences */
-    if ((table->open_type != OT_BASE_ONLY && is_temporary_table(table)))
+    if (table->open_type != OT_BASE_ONLY && is_temporary_table(table))
     {
       table_creation_was_logged= table->table->s->table_creation_was_logged;
       if (thd->drop_temporary_table(table->table, &is_trans, true))
@@ -1533,7 +1528,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       continue;
     }
 
-    lex_string_set3(&cpath, path, (size_t) (path_end - path));
+    cpath = { path, (size_t)(path_end - path) };
 
     {
       char engine_buf[NAME_CHAR_LEN + 1];
@@ -1555,7 +1550,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
     if (!table_count++)
     {
-      LEX_CSTRING comment= {comment_start, (size_t) comment_len};
+      LEX_CSTRING comment= {comment_start, comment_len};
       if (ddl_log_drop_table_init(ddl_log_state, current_db, &comment))
       {
         error= 1;
@@ -1616,11 +1611,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       bool enoent_warning= !dont_log_query && !(hton && hton->discover_table);
 
       if (was_view)
-        res= ddl_log_drop_view(ddl_log_state, &cpath, &db,
-                               &table_name);
+        res= ddl_log_drop_view(ddl_log_state, &cpath, &db, &table_name);
       else
-        res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db,
-                                &table_name);
+        res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db, &table_name);
       if (res)
       {
         error= -1;
@@ -1628,8 +1621,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       }
 
       debug_crash_here("ddl_log_drop_before_delete_table");
-      error= ha_delete_table(thd, hton, path, &db, &table_name,
-                             enoent_warning);
+      error= ha_delete_table(thd, hton, path, &db, &table_name, enoent_warning);
       debug_crash_here("ddl_log_drop_after_delete_table");
 
       if (!error)
@@ -1697,8 +1689,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       int ferror= 0;
       DBUG_ASSERT(!was_view);
 
-      if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db,
-                             &table_name))
+      if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db, &table_name))
       {
         error= -1;
         goto err;
@@ -1757,7 +1748,6 @@ report_error:
       uint is_note= (if_exists && (was_view || wrong_drop_sequence) ?
                      ME_NOTE : 0);
 
-      tbl_name.length(0);
       tbl_name.append(&db);
       tbl_name.append('.');
       tbl_name.append(&table_name);
@@ -1882,9 +1872,8 @@ err:
         built_non_trans_tmp_query.append(generated_by_server);
         error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
                                     built_non_trans_tmp_query.ptr(),
-                                    built_non_trans_tmp_query.length(),
-                                    FALSE, FALSE,
-                                    is_drop_tmp_if_exists_added,
+                                    built_non_trans_tmp_query.length(), FALSE,
+                                    FALSE, is_drop_tmp_if_exists_added,
                                     0) > 0);
       }
       if (trans_tmp_table_deleted)
@@ -1894,9 +1883,8 @@ err:
         built_trans_tmp_query.append(generated_by_server);
         error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
                                     built_trans_tmp_query.ptr(),
-                                    built_trans_tmp_query.length(),
-                                    TRUE, FALSE,
-                                    is_drop_tmp_if_exists_added,
+                                    built_trans_tmp_query.length(), TRUE,
+                                    FALSE, is_drop_tmp_if_exists_added,
                                     0) > 0);
       }
       if (non_tmp_table_deleted)
@@ -1924,8 +1912,7 @@ err:
         thd->binlog_xid= thd->query_id;
         ddl_log_update_xid(ddl_log_state, thd->binlog_xid);
         error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                    built_query.ptr(),
-                                    built_query.length(),
+                                    built_query.ptr(), built_query.length(),
                                     TRUE, FALSE, FALSE, 0) > 0);
         thd->binlog_xid= 0;
       }
@@ -2093,6 +2080,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   DBUG_RETURN(error);
 }
 
+#define return_if_nonzero(X) do { if (int r=(X)) return r; } while(0)
 
 /*
   Sort keys in the following order:
@@ -2111,48 +2099,37 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
 static int sort_keys(KEY *a, KEY *b)
 {
   ulong a_flags= a->flags, b_flags= b->flags;
-  
+
   /*
-    Do not reorder LONG_HASH indexes, because they must match the order
-    of their LONG_UNIQUE_HASH_FIELD's.
+    Do not reorder HA_KEY_ALG_LONG_HASH indexes, because they must match the
+    order of their LONG_UNIQUE_HASH_FIELD's.
   */
   if (a->algorithm == HA_KEY_ALG_LONG_HASH &&
       b->algorithm == HA_KEY_ALG_LONG_HASH)
     return a->usable_key_parts - b->usable_key_parts;
 
+  return_if_nonzero((b_flags & HA_NOSAME) - (a_flags & HA_NOSAME));
+
+  /* historically, rules below apply only to UNIQUE keys */
   if (a_flags & HA_NOSAME)
   {
-    if (!(b_flags & HA_NOSAME))
-      return -1;
-    /*
-      Long Unique keys should always be last unique key.
-      Before this patch they used to change order wrt to partial keys
-      (MDEV-19049)
-    */
-    if (a->algorithm == HA_KEY_ALG_LONG_HASH)
-      return 1;
-    if (b->algorithm == HA_KEY_ALG_LONG_HASH)
-      return -1;
-    if ((a_flags ^ b_flags) & HA_NULL_PART_KEY)
-    {
-      /* Sort NOT NULL keys before other keys */
-      return (a_flags & HA_NULL_PART_KEY) ? 1 : -1;
-    }
-    if (a->name.str == primary_key_name.str)
-      return -1;
-    if (b->name.str == primary_key_name.str)
-      return 1;
-    /* Sort keys don't containing partial segments before others */
-    if ((a_flags ^ b_flags) & HA_KEY_HAS_PART_KEY_SEG)
-      return (a_flags & HA_KEY_HAS_PART_KEY_SEG) ? 1 : -1;
-  }
-  else if (b_flags & HA_NOSAME)
-    return 1;					// Prefer b
+    /* Long Unique keys should always be last unique key. */
+    return_if_nonzero((a->algorithm == HA_KEY_ALG_LONG_HASH) -
+                      (b->algorithm == HA_KEY_ALG_LONG_HASH));
 
-  if ((a_flags ^ b_flags) & HA_FULLTEXT)
-  {
-    return (a_flags & HA_FULLTEXT) ? 1 : -1;
+    /* Sort NOT NULL keys before other keys */
+    return_if_nonzero((a_flags & HA_NULL_PART_KEY) -
+                      (b_flags & HA_NULL_PART_KEY));
+    return_if_nonzero((b->name.str == primary_key_name.str) -
+                      (a->name.str == primary_key_name.str));
+    /* Sort keys don't containing partial segments before others */
+    return_if_nonzero((a_flags & HA_KEY_HAS_PART_KEY_SEG) -
+                      (b_flags & HA_KEY_HAS_PART_KEY_SEG));
   }
+
+  return_if_nonzero((a_flags & HA_FULLTEXT) -
+                    (b_flags & HA_FULLTEXT));
+
   /*
     Prefer original key order.	usable_key_parts contains here
     the original key position.
@@ -2615,8 +2592,8 @@ static inline void make_long_hash_field_name(LEX_CSTRING *buf, uint num)
   @param  create_list   List of table fields.
   @param  key_info      current long unique key info
 */
-static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
-                                      KEY *key_info)
+static Create_field *add_hash_field(THD *thd, List<Create_field> *create_list,
+                                    KEY *key_info)
 {
   List_iterator<Create_field> it(*create_list);
   Create_field *dup_field, *cf= new (thd->mem_root) Create_field();
@@ -2628,7 +2605,7 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
   cf->vcol_info= new (thd->mem_root) Virtual_column_info();
   cf->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
   uint num= 1;
-  LEX_CSTRING field_name;
+  Lex_ident field_name;
   field_name.str= (char *)thd->alloc(LONG_HASH_FIELD_NAME_LENGTH);
   make_long_hash_field_name(&field_name, num);
   /*
@@ -2636,7 +2613,7 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
    */
   while ((dup_field= it++))
   {
-    if (!my_strcasecmp(system_charset_info, field_name.str, dup_field->field_name.str))
+    if (field_name.streq(dup_field->field_name))
     {
       num++;
       make_long_hash_field_name(&field_name, num);
@@ -3336,11 +3313,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       }
 
       cols2.rewind();
+      const Type_handler *field_type= sql_field->type_handler();
       switch(key->type) {
 
       case Key::FULLTEXT:
-        if (sql_field->type_handler()->Key_part_spec_init_ft(column,
-	                                                     *sql_field) ||
+        if (field_type->Key_part_spec_init_ft(column, *sql_field) ||
             (ft_key_charset && sql_field->charset != ft_key_charset))
         {
           my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
@@ -3350,8 +3327,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         break;
 
       case Key::SPATIAL:
-        if (sql_field->type_handler()->Key_part_spec_init_spatial(column,
-                                                                  *sql_field) ||
+        if (field_type->Key_part_spec_init_spatial(column, *sql_field) ||
             sql_field->check_vcol_for_key(thd))
           DBUG_RETURN(TRUE);
         if (!(sql_field->flags & NOT_NULL_FLAG))
@@ -3368,9 +3344,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
           DBUG_RETURN(TRUE);
         }
-        if (sql_field->type_handler()->Key_part_spec_init_primary(column,
-	                                                          *sql_field,
-	                                                          file))
+        if (field_type->Key_part_spec_init_primary(column, *sql_field, file))
           DBUG_RETURN(TRUE);
         if (!(sql_field->flags & NOT_NULL_FLAG))
         {
@@ -3382,27 +3356,22 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         break;
 
       case Key::MULTIPLE:
-        if (sql_field->type_handler()->Key_part_spec_init_multiple(column,
-                                                                   *sql_field,
-                                                                   file) ||
+        if (field_type->Key_part_spec_init_multiple(column, *sql_field, file) ||
             sql_field->check_vcol_for_key(thd) ||
             key_add_part_check_null(file, key_info, sql_field, column))
           DBUG_RETURN(TRUE);
         break;
 
       case Key::FOREIGN_KEY:
-        if (sql_field->type_handler()->Key_part_spec_init_foreign(column,
-                                                                  *sql_field,
-                                                                  file) ||
+        if (field_type->Key_part_spec_init_foreign(column, *sql_field, file) ||
             sql_field->check_vcol_for_key(thd) ||
             key_add_part_check_null(file, key_info, sql_field, column))
           DBUG_RETURN(TRUE);
         break;
 
       case Key::UNIQUE:
-        if (sql_field->type_handler()->Key_part_spec_init_unique(column,
-                                                      *sql_field, file,
-                                                      &is_hash_field_needed) ||
+        if (field_type->Key_part_spec_init_unique(column, *sql_field, file,
+                                          &is_hash_field_needed) ||
             sql_field->check_vcol_for_key(thd) ||
             key_add_part_check_null(file, key_info, sql_field, column))
           DBUG_RETURN(TRUE);
@@ -3424,8 +3393,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
       key_part_info->key_part_flag= column->asc ? 0 : HA_REVERSE_SORT;
-      uint key_part_length= sql_field->type_handler()->
-                              calc_key_length(*sql_field);
+      uint key_part_length= field_type->calc_key_length(*sql_field);
 
       if (column->length)
       {
@@ -3456,7 +3424,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
                  // is prefix length bigger than field length? 
                  (column->length > key_part_length ||
                   // can the field have a partial key? 
-                  !sql_field->type_handler()->type_can_have_key_part() ||
+                  !field_type->type_can_have_key_part() ||
                   // a packed field can't be used in a partial key
                   f_is_packed(sql_field->pack_flag) ||
                   // does the storage engine allow prefixed search?
@@ -3520,12 +3488,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           (key_part_length >= KEY_DEFAULT_PACK_LENGTH) &&
           !is_hash_field_needed)
       {
-        key_info->flags|= sql_field->type_handler()->KEY_pack_flags(column_nr);
+        key_info->flags|= field_type->KEY_pack_flags(column_nr);
       }
       /* Check if the key segment is partial, set the key flag accordingly */
-      if (key_part_length != sql_field->type_handler()->
-                                          calc_key_length(*sql_field) &&
-          key_part_length != sql_field->type_handler()->max_octet_length())
+      if (key_part_length != field_type->calc_key_length(*sql_field) &&
+          key_part_length != field_type->max_octet_length())
         key_info->flags|= HA_KEY_HAS_PART_KEY_SEG;
 
       key_length+= key_part_length;
@@ -3554,12 +3521,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       if (auto_increment_key)
       {
         my_error(ER_NO_AUTOINCREMENT_WITH_UNIQUE, MYF(0),
-                 sql_field->field_name.str,
-                 key_info->name.str);
+                 sql_field->field_name.str, key_info->name.str);
         DBUG_RETURN(TRUE);
       }
       if (key_info->algorithm != HA_KEY_ALG_UNDEF &&
-          key_info->algorithm != HA_KEY_ALG_HASH )
+          key_info->algorithm != HA_KEY_ALG_HASH)
       {
         my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
         DBUG_RETURN(TRUE);
@@ -3567,8 +3533,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (is_hash_field_needed ||
         (key_info->algorithm == HA_KEY_ALG_HASH &&
-         key->type != Key::PRIMARY &&
-         key_info->flags & HA_NOSAME &&
+         key->type != Key::PRIMARY && key_info->flags & HA_NOSAME &&
          !(file->ha_table_flags() & HA_CAN_HASH_KEYS ) &&
          file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS))
     {
@@ -4750,10 +4715,9 @@ int mysql_create_table_no_lock(THD *thd,
   }
   lex_string_set3(&cpath, path, path_length);
 
-  res= create_table_impl(thd, ddl_log_state_create, ddl_log_state_rm,
-                         *db, *table_name, *db, *table_name, cpath,
-                         *create_info, create_info,
-                         alter_info, create_table_mode,
+  res= create_table_impl(thd, ddl_log_state_create, ddl_log_state_rm, *db,
+                         *table_name, *db, *table_name, cpath, *create_info,
+                         create_info, alter_info, create_table_mode,
                          is_trans, &not_used_1, &not_used_2, &frm);
   my_free(const_cast<uchar*>(frm.str));
 
@@ -6027,8 +5991,7 @@ drop_create_field:
         {
           for (n_key=0; n_key < table->s->keys; n_key++)
           {
-            if (my_strcasecmp(system_charset_info,
-                              drop->name,
+            if (my_strcasecmp(system_charset_info, drop->name,
                               table->key_info[n_key].name.str) == 0)
             {
               remove_drop= FALSE;
