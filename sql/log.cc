@@ -5573,7 +5573,6 @@ int MYSQL_BIN_LOG::new_file_impl()
   int error= 0, close_on_error= FALSE;
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
   uint close_flag;
-  bool delay_close= false;
   File UNINIT_VAR(old_file);
   DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl");
 
@@ -5598,10 +5597,8 @@ int MYSQL_BIN_LOG::new_file_impl()
   */
   if (unlikely((error= generate_new_name(new_name, name, 0))))
   {
-#ifdef ENABLE_AND_FIX_HANG
-    close_on_error= TRUE;
-#endif
-    goto end2;
+    mysql_mutex_unlock(&LOCK_index);
+    DBUG_RETURN(error);
   }
   new_name_ptr=new_name;
 
@@ -5627,7 +5624,6 @@ int MYSQL_BIN_LOG::new_file_impl()
         (error= write_event(&r, checksum_alg)))
     {
       DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno= 2;);
-      close_on_error= TRUE;
       my_printf_error(ER_ERROR_ON_WRITE,
                       ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
                       MYF(ME_FATAL), name, errno);
@@ -5660,7 +5656,6 @@ int MYSQL_BIN_LOG::new_file_impl()
     */
     old_file= log_file.file;
     close_flag|= LOG_CLOSE_DELAYED_CLOSE;
-    delay_close= true;
     if (binlog_space_limit)
       increment_binlog_space_total();
   }
@@ -5712,8 +5707,7 @@ end:
     last_used_log_number--;
   }
 
-end2:
-  if (delay_close)
+  if (!is_relay_log)
   {
     clear_inuse_flag_when_closing(old_file);
     mysql_file_close(old_file, MYF(MY_WME));
