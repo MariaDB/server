@@ -7299,20 +7299,28 @@ int handler::binlog_log_row(const uchar *before_record,
                             const uchar *after_record,
                             Log_func *log_func)
 {
-//  DBUG_ENTER("handler::binlog_log_row");
+  DBUG_ENTER("handler::binlog_log_row");
 
-  int error = 0;
-  if (row_logging)
-    error= binlog_log_row_to_binlog(table, before_record, after_record,
-                                    log_func, row_logging_has_trans);
+  int error= 0;
+  if (row_logging &&
+      ((error= binlog_log_row_to_binlog(table, before_record, after_record,
+                                        log_func, row_logging_has_trans))))
+    DBUG_RETURN(error);
 
 #ifdef HAVE_REPLICATION
-  if (likely(!error) && unlikely(table->s->online_alter_binlog && is_root_handler()))
+  if (unlikely(table->s->online_alter_binlog))
+  {
+    /*
+      This is ensured by prepare_for_alter_table_logging() and
+      as row_logging is never enable for alter table
+    */
+    DBUG_ASSERT(is_root_handler());
     error= online_alter_log_row(table, before_record, after_record,
                                 log_func);
+  }
 #endif // HAVE_REPLICATION
 
-  return error;
+  DBUG_RETURN(error);
 }
 
 
@@ -7415,7 +7423,7 @@ int handler::ha_reset()
   /*
     Disable row logging.
   */
-  row_logging= row_logging_init= 0;
+  binlog_log_row_needed= row_logging= row_logging_init= 0;
   clear_cached_table_binlog_row_based_flag();
   /* Reset information about pushed engine conditions */
   cancel_pushed_idx_cond();
@@ -7787,11 +7795,8 @@ bool handler::prepare_for_row_logging()
   if (wsrep_check_if_binlog_row(table) &&
       check_table_binlog_row_based())
   {
-    /*
-      Row logging enabled. Intialize all variables and write
-      annotated and table maps
-    */
-    row_logging= row_logging_init= 1;
+    /* Row logging enabled. Intialize all needed variables */
+    binlog_log_row_needed= row_logging= row_logging_init= 1;
 
     /*
       We need to have a transactional behavior for SQLCOM_CREATE_TABLE
@@ -7809,11 +7814,19 @@ bool handler::prepare_for_row_logging()
   else
   {
     /* Check row_logging has not been properly cleared from previous command */
-    DBUG_ASSERT(row_logging == 0);
+    DBUG_ASSERT(binlog_log_row_needed == 0 && row_logging == 0);
   }
+  prepare_for_alter_table_logging();
   DBUG_RETURN(row_logging);
 }
 
+void handler::prepare_for_alter_table_logging()
+{
+#ifdef HAVE_REPLICATION
+  if (table->s->online_alter_binlog)
+    binlog_log_row_needed= is_root_handler();
+#endif
+}
 
 /*
   Do all initialization needed for insert
@@ -7865,19 +7878,21 @@ int handler::ha_write_row(const uchar *buf)
   if (likely(!error))
   {
     rows_changed++;
-    Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
-    error= binlog_log_row(0, buf, log_func);
+    if (binlog_log_row_needed)
+    {
+      Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
+      if ((error= binlog_log_row(0, buf, log_func)))
+        goto err;
+    }
 
 #ifdef WITH_WSREP
     if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-    {
-      DBUG_RETURN(error);
-    }
+        ht->flags & HTON_WSREP_REPLICATION)
+      error= wsrep_after_row(ha_thd());
 #endif /* WITH_WSREP */
   }
 
+err:
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -7926,8 +7941,13 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     DBUG_EXECUTE_IF("binlog_log_row_time", count_time=true;);
     ulonglong now= rdtsc();
     rows_changed++;
-    Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
-    error= binlog_log_row(old_data, new_data, log_func);
+
+    if (binlog_log_row_needed)
+    {
+      Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
+      if ((error= binlog_log_row(old_data, new_data, log_func)))
+        return error;
+    }
 
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
@@ -7944,7 +7964,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
                       " can not mark as PA unsafe");
       }
 
-      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+      if (table_share->tmp_table == NO_TMP_TABLE &&
           ht->flags & HTON_WSREP_REPLICATION)
         error= wsrep_after_row(thd);
     }
@@ -8004,8 +8024,12 @@ int handler::ha_delete_row(const uchar *buf)
   if (likely(!error))
   {
     rows_changed++;
-    Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
-    error= binlog_log_row(buf, 0, log_func);
+    if (binlog_log_row_needed)
+    {
+      Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
+      if ((error= binlog_log_row(buf, 0, log_func)))
+        return error;
+    }
 
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
@@ -8022,7 +8046,7 @@ int handler::ha_delete_row(const uchar *buf)
                       " can not mark as PA unsafe");
       }
 
-      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+      if (table_share->tmp_table == NO_TMP_TABLE &&
           ht->flags & HTON_WSREP_REPLICATION)
         error= wsrep_after_row(thd);
     }

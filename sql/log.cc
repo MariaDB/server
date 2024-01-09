@@ -5993,6 +5993,15 @@ void THD::binlog_prepare_for_row_logging()
   DBUG_VOID_RETURN;
 }
 
+void THD::binlog_prepare_for_alter_table_logging()
+{
+  for (TABLE *table= open_tables ; table; table= table->next)
+  {
+    if (table->query_id == query_id && table->current_lock == F_WRLCK)
+      table->file->prepare_for_alter_table_logging();
+  }
+}
+
 /**
    Write annnotated row event (the query) if needed
 */

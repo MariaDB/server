@@ -3007,6 +3007,7 @@ public:
   bool prepare_handlers_for_update(uint flag);
   bool binlog_write_annotated_row(Log_event_writer *writer);
   void binlog_prepare_for_row_logging();
+  void binlog_prepare_for_alter_table_logging();
   bool binlog_write_table_maps();
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }

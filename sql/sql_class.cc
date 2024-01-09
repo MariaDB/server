@@ -6857,8 +6857,13 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       }
     }
 
-    if (is_write && is_current_stmt_binlog_format_row())
-      binlog_prepare_for_row_logging();
+    if (is_write)
+    {
+      if (is_current_stmt_binlog_format_row())
+        binlog_prepare_for_row_logging();
+      else
+        binlog_prepare_for_alter_table_logging();
+    }
   }
   else
   {
@@ -6873,6 +6878,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         binlog_filter->db_ok(db.str)));
     if (WSREP_NNULL(this) && is_current_stmt_binlog_format_row())
       binlog_prepare_for_row_logging();
+    else
+      binlog_prepare_for_alter_table_logging();
   }
   DBUG_RETURN(0);
 }

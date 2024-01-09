@@ -3363,7 +3363,7 @@ public:
   void end_psi_batch_mode();
 
   /* If we have row logging enabled for this table */
-  bool row_logging, row_logging_init;
+  bool row_logging, row_logging_init, binlog_log_row_needed;
   /* If the row logging should be done in transaction cache */
   bool row_logging_has_trans;
 
@@ -3412,7 +3412,7 @@ public:
     m_psi_batch_mode(PSI_BATCH_MODE_NONE),
     m_psi_numrows(0),
     m_psi_locker(NULL),
-    row_logging(0), row_logging_init(0),
+    row_logging(0), row_logging_init(0), binlog_log_row_needed(0),
     m_lock_type(F_UNLCK), ha_share(NULL), optimizer_where_cost(0),
     optimizer_scan_setup_cost(0)
   {
@@ -5073,6 +5073,7 @@ public:
   virtual int delete_table(const char *name);
   bool check_table_binlog_row_based();
   bool prepare_for_row_logging();
+  void prepare_for_alter_table_logging();
   int prepare_for_insert(bool do_create);
   int binlog_log_row(const uchar *before_record,
                      const uchar *after_record,
@@ -5458,6 +5459,7 @@ public:
   }
 
   bool log_not_redoable_operation(const char *operation);
+
 
 protected:
   Handler_share *get_ha_share_ptr();
