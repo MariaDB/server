@@ -7299,7 +7299,7 @@ int handler::binlog_log_row(const uchar *before_record,
                             const uchar *after_record,
                             Log_func *log_func)
 {
-  DBUG_ENTER("handler::binlog_log_row");
+//  DBUG_ENTER("handler::binlog_log_row");
 
   int error = 0;
   if (row_logging)
@@ -7312,7 +7312,7 @@ int handler::binlog_log_row(const uchar *before_record,
                                 log_func);
 #endif // HAVE_REPLICATION
 
-  DBUG_RETURN(error);
+  return error;
 }
 
 
@@ -7831,7 +7831,6 @@ int handler::prepare_for_insert(bool do_create)
   return 0;
 }
 
-
 int handler::ha_write_row(const uchar *buf)
 {
   int error;
@@ -7883,7 +7882,7 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_RETURN(error);
 }
 
-
+#include <chrono>
 int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
@@ -7916,6 +7915,9 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   MYSQL_UPDATE_ROW_DONE(error);
   if (likely(!error))
   {
+    bool count_time= false;
+    DBUG_EXECUTE_IF("binlog_log_row_time", count_time=true;);
+    auto now= std::chrono::high_resolution_clock::now();
     rows_changed++;
     Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
     error= binlog_log_row(old_data, new_data, log_func);
@@ -7940,6 +7942,11 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
         error= wsrep_after_row(thd);
     }
 #endif /* WITH_WSREP */
+    if (likely(count_time))
+      table->in_use->status_var.dbug_time_spent+=
+              std::chrono::duration_cast<std::chrono::nanoseconds>(
+                      std::chrono::high_resolution_clock::now() - now).count();
+
   }
   return error;
 }

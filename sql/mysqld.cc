@@ -7473,6 +7473,7 @@ SHOW_VAR status_vars[]= {
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
 #ifndef DBUG_OFF
   SHOW_FUNC_ENTRY("Debug",     &debug_status_func),
+  {"Dbug_time_spent",           (char*) offsetof(STATUS_VAR, dbug_time_spent),  SHOW_LONG_STATUS},
 #endif
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},

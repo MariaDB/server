@@ -1017,6 +1017,7 @@ typedef struct system_status_var
   */
   ulong skip_metadata_count;
 
+  ulonglong dbug_time_spent;
   /*
     Number of statements sent from the client
   */
