@@ -7240,3 +7240,9 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+static Sys_var_mybool Sys_print_mdl_deadlock_loop_info(
+    "print_mdl_deadlock_loop_info",
+    "Print all information on mdl deadlock loops (off by default)",
+    GLOBAL_VAR(opt_print_mdl_deadlock_loop_info), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));

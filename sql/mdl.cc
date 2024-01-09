@@ -33,6 +33,22 @@
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif
+#include <sstream>
+
+my_bool opt_print_mdl_deadlock_loop_info = FALSE;
+
+static const char *mdl_type_str[] = {"INTENTION_EXCLUSIVE",
+                                     "SHARED",
+                                     "SHARED_HIGH_PRIO",
+                                     "SHARED_READ",
+                                     "SHARED_WRITE",
+                                     "SHARED_WRITE_LOW_PRIO",
+                                     "SHARED_UPGRADABLE",
+                                     "SHARED_READ_ONLY",
+                                     "SHARED_NO_WRITE",
+                                     "SHARED_NO_READ_WRITE",
+                                     "EXCLUSIVE",
+                                     "MDL_TYPE_END"};
 
 static PSI_memory_key key_memory_MDL_context_acquire_locks;
 
@@ -94,6 +110,10 @@ static void init_mdl_psi_keys(void)
   Thread state names to be used in case when we have to wait on resource
   belonging to certain namespace.
 */
+const char *MDL_key::enum_mdl_namespace_str[10] = {
+  "BACKUP",      "SCHEMA",          "TABLE",       "FUNCTION",
+  "PROCEDURE",   "PACKAGE_BODY",    "TRIGGER",     "EVENT",
+  "USER_LOCK",   "NAMESPACE_END" };
 
 PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END]=
 {
@@ -197,12 +217,27 @@ public:
     : m_start_node(start_node_arg),
       m_victim(NULL),
       m_current_search_depth(0),
-      m_found_deadlock(FALSE)
+      m_found_deadlock(FALSE),
+      m_is_reach_max_search_depth(false),
+      m_n_element(0)
   {}
-  virtual bool enter_node(MDL_context *node);
-  virtual void leave_node(MDL_context *node);
+  bool enter_node(MDL_context *node) override;
+  void leave_node(MDL_context *node) override;
 
-  virtual bool inspect_edge(MDL_context *dest);
+  bool inspect_edge(MDL_context *dest) override;
+
+  void store_node(MDL_context *node) override;
+  void notify();
+  ~Deadlock_detection_visitor() {
+    // free deadlock_loop_infos
+    for (uint i = 0; i < m_n_element; i++) {
+      if (m_deadlock_loop_infos[i]) {
+        delete[] m_deadlock_loop_infos[i]->thread_info;
+        delete[] m_deadlock_loop_infos[i]->lock_info;
+        delete m_deadlock_loop_infos[i];
+      }
+    }
+  }
 
   MDL_context *get_victim() const { return m_victim; }
 private:
@@ -242,6 +277,21 @@ private:
           deadlocks are even shorter typically.
   */
   static const uint MAX_SEARCH_DEPTH= 32;
+
+  /* struct of store mdl deadlock information*/
+  struct MDL_deadlock_info {
+    char *thread_info;
+    size_t thread_info_len;
+    char *lock_info;
+    size_t lock_info_len;
+  };
+
+  bool m_is_reach_max_search_depth;
+
+  MDL_deadlock_info *m_deadlock_loop_infos[MAX_SEARCH_DEPTH]{nullptr};
+
+  /* total of m_deadlock_loop_infos*/
+  uint m_n_element;
 };
 
 #ifndef DBUG_OFF
@@ -296,6 +346,9 @@ const char *mdl_dbug_print_locks()
 bool Deadlock_detection_visitor::enter_node(MDL_context *node)
 {
   m_found_deadlock= ++m_current_search_depth >= MAX_SEARCH_DEPTH;
+  if (m_current_search_depth >= MAX_SEARCH_DEPTH) {
+    m_is_reach_max_search_depth = true;
+  }
   if (m_found_deadlock)
   {
     DBUG_ASSERT(! m_victim);
@@ -304,6 +357,87 @@ bool Deadlock_detection_visitor::enter_node(MDL_context *node)
   return m_found_deadlock;
 }
 
+#if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
+extern "C"
+char *thd_security_context(THD *thd,
+                           char *buffer, unsigned int length,
+                           unsigned int max_query_len);
+#endif
+
+void Deadlock_detection_visitor::store_node(MDL_context *node) {
+  if (opt_print_mdl_deadlock_loop_info && !m_is_reach_max_search_depth) {
+    if (m_found_deadlock && m_n_element < MAX_SEARCH_DEPTH) {
+      const size_t MAX_THREAD_INFO_LEN = 1024;
+      const size_t MAX_LOCK_INFO_LEN = 512;
+
+      char *thread_info = new char[MAX_THREAD_INFO_LEN];
+      char *lock_info = new char[MAX_LOCK_INFO_LEN];
+
+      m_deadlock_loop_infos[m_n_element] = new MDL_deadlock_info();
+
+      size_t lock_info_buffer_size;
+      thd_security_context(node->get_owner()->get_thd(), thread_info,
+                           MAX_THREAD_INFO_LEN, 512);
+      m_deadlock_loop_infos[m_n_element]->thread_info = thread_info;
+      m_deadlock_loop_infos[m_n_element]->thread_info_len = strlen(thread_info);
+
+      node->get_wait_info(lock_info, &lock_info_buffer_size);
+      m_deadlock_loop_infos[m_n_element]->lock_info = lock_info;
+      m_deadlock_loop_infos[m_n_element]->lock_info_len = lock_info_buffer_size;
+
+      m_n_element++;
+    }
+  }
+}
+
+void Deadlock_detection_visitor::notify() {
+  char svr_error[256];
+  if (m_found_deadlock) {
+    if (m_is_reach_max_search_depth) {
+      sprintf(svr_error, "MDL deadlock occurs. %s",
+               "TOO DEEP OR LONG SEARCH IN THE LOCK TABLE WAITS-FOR GRAPH");
+      sql_print_error(svr_error);
+      return;
+    }
+    std::stringstream ss;
+    ss << "MDL deadlock occurs.Start print MDL deadlock information."; 
+    
+    char print_strs[1024];
+    size_t print_strs_size = sizeof(print_strs);
+    snprintf(print_strs, print_strs_size,
+             "\n**************MDL DeadLock Loop Info Start*************");
+    ss << (std::string)(const char*)print_strs;
+
+    for (uint i = 0; i < m_n_element; i++) {
+      if (!m_deadlock_loop_infos[m_n_element - i - 1]) {
+        continue;
+      }
+      snprintf(print_strs, print_strs_size, "\n=== LOOP INFO [%u]  ===", i);
+      ss << (std::string)(const char*)print_strs;
+
+      std::string s1(m_deadlock_loop_infos[m_n_element - i - 1]->thread_info,
+                     m_deadlock_loop_infos[m_n_element - i - 1]->thread_info_len);
+      ss << s1;
+
+      snprintf(print_strs, print_strs_size,
+                         "\n=== LOOP INFO WAITS THE LOCK ===");
+      ss << (std::string)(const char*)print_strs;
+
+      std::string s2(m_deadlock_loop_infos[m_n_element - i - 1]->lock_info,
+                     m_deadlock_loop_infos[m_n_element - i - 1]->lock_info_len);
+      ss << s2;
+
+      snprintf(print_strs, print_strs_size, "[%u] WATIING FOR [%u]", i,
+               i + 1 >= m_n_element ? 0 : i + 1);
+      ss << (std::string)(const char*)print_strs;
+    }
+    snprintf(print_strs, print_strs_size,
+             "\n**************MDL DeadLock Loop Info End*************");
+    ss << (std::string)(const char*)print_strs;
+    sql_print_warning(ss.str().c_str());
+  }
+  return;
+}
 
 /**
   Done inspecting this node. Decrease the search
@@ -1091,6 +1225,16 @@ uint MDL_ticket::get_deadlock_weight() const
          DEADLOCK_WEIGHT_DDL : DEADLOCK_WEIGHT_DML;
 }
 
+void MDL_ticket::get_wait_info(char *output, size_t *output_length) {
+  char buffer[256];
+  size_t len = snprintf(
+      buffer, sizeof(buffer),
+      "This thread is waiting for : %s, %s MDL lock key info is `%s.%s` \n",
+      m_lock->key.get_mdl_namespace_str(), mdl_type_str[m_type],
+      m_lock->key.db_name(), m_lock->key.name());
+  memcpy(output, buffer, len);
+  *output_length = len;
+}
 
 /** Construct an empty wait slot. */
 
@@ -2767,6 +2911,7 @@ bool MDL_lock::visit_subgraph(MDL_ticket *waiting_ticket,
 
 end_leave_node:
   gvisitor->leave_node(src_ctx);
+  gvisitor->store_node(src_ctx);
 
 end:
   mysql_prlock_unlock(&m_rwlock);
@@ -2863,6 +3008,9 @@ void MDL_context::find_deadlock()
     */
     (void) victim->m_wait.set_status(MDL_wait::VICTIM);
     victim->inc_deadlock_overweight();
+    if (opt_print_mdl_deadlock_loop_info) {
+      dvisitor.notify();
+    }
     victim->unlock_deadlock_victim();
 
     if (victim == this)
@@ -3297,6 +3445,12 @@ bool MDL_context::has_explicit_locks()
   }
 
   return false;
+}
+
+void MDL_context::get_wait_info(char *output, size_t *output_length) {
+  if(m_waiting_for){
+    m_waiting_for->get_wait_info(output,output_length);
+  }
 }
 
 #ifdef WITH_WSREP

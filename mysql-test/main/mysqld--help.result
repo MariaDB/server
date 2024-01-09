@@ -1040,6 +1040,9 @@ The following specify which files/extra groups are read (specified before remain
  --preload-buffer-size=# 
  The size of the buffer that is allocated when preloading
  indexes
+ --print-mdl-deadlock-loop-info 
+ Print all information on mdl deadlock loops (off by
+ default)
  --profiling-history-size=# 
  Number of statements about which profiling information is
  maintained. If set to 0, no profiles are stored. See SHOW
@@ -1858,6 +1861,7 @@ performance-schema-users-size -1
 port 3306
 port-open-timeout 0
 preload-buffer-size 32768
+print-mdl-deadlock-loop-info FALSE
 profiling-history-size 15
 progress-report-time 5
 protocol-version 10

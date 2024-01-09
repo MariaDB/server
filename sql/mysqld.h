@@ -989,6 +989,7 @@ extern ulong opt_binlog_dbug_fsync_sleep;
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
+extern my_bool opt_print_mdl_deadlock_loop_info;
 
 extern int mysqld_main(int argc, char **argv);
 

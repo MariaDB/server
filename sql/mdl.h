@@ -254,7 +254,6 @@ enum enum_mdl_type {
   MDL_TYPE_END
 };
 
-
 /** Backup locks */
 
 /**
@@ -393,6 +392,7 @@ public:
                             USER_LOCK,           /* user level locks. */
                             /* This should be the last ! */
                             NAMESPACE_END };
+  static const char *enum_mdl_namespace_str[10];
 
   const uchar *ptr() const { return (uchar*) m_ptr; }
   uint length() const { return m_length; }
@@ -405,6 +405,10 @@ public:
 
   enum_mdl_namespace mdl_namespace() const
   { return (enum_mdl_namespace)(m_ptr[0]); }
+
+  const char * get_mdl_namespace_str() {
+    return enum_mdl_namespace_str[(enum_mdl_namespace)(m_ptr[0])];
+  }
 
   /**
     Construct a metadata lock key from a triplet (mdl_namespace,
@@ -641,6 +645,7 @@ public:
   virtual void leave_node(MDL_context *node) = 0;
 
   virtual bool inspect_edge(MDL_context *dest) = 0;
+  virtual void store_node(MDL_context *node) = 0;
   virtual ~MDL_wait_for_graph_visitor();
   MDL_wait_for_graph_visitor() = default;
 };
@@ -669,6 +674,11 @@ public:
   };
   /* A helper used to determine which lock request should be aborted. */
   virtual uint get_deadlock_weight() const = 0;
+
+  // A helper used to store deadlock information;
+  virtual void get_wait_info(char *output, size_t *output_length){
+    (void)output;(void)output_length;
+  }
 };
 
 
@@ -728,8 +738,10 @@ public:
   bool is_incompatible_when_waiting(enum_mdl_type type) const;
 
   /** Implement MDL_wait_for_subgraph interface. */
-  virtual bool accept_visitor(MDL_wait_for_graph_visitor *dvisitor);
-  virtual uint get_deadlock_weight() const;
+  bool accept_visitor(MDL_wait_for_graph_visitor *dvisitor) override;
+  uint get_deadlock_weight() const override;
+
+  void get_wait_info(char *output, size_t *output_length) override;
   /**
     Status of lock request represented by the ticket as reflected in P_S.
   */
@@ -882,6 +894,7 @@ public:
   MDL_context();
   void destroy();
 
+  void get_wait_info(char *output, size_t *output_length);
   bool try_acquire_lock(MDL_request *mdl_request);
   bool acquire_lock(MDL_request *mdl_request, double lock_wait_timeout);
   bool acquire_locks(MDL_request_list *requests, double lock_wait_timeout);
