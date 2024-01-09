@@ -152,6 +152,16 @@ public:
 static io_slots *read_slots;
 static io_slots *write_slots;
 
+void innodb_get_async_io_stats(innodb_async_io_stats_t *stats)
+{
+   stats->reads_pending = read_slots->pending_io_count();
+   read_slots->task_group().get_stats(&stats->reads_tasks_running,
+                                     &stats->reads_queue_size);
+   stats->writes_pending= write_slots->pending_io_count();
+   write_slots->task_group().get_stats(&stats->writes_tasks_running,
+                                      &stats->writes_queue_size);
+}
+
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
 

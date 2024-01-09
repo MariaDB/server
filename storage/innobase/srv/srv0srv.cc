@@ -816,6 +816,8 @@ srv_printf_innodb_monitor(
 	return(ret);
 }
 
+extern void innodb_get_async_io_stats(innodb_async_io_stats_t *stats);
+
 /******************************************************************//**
 Function to pass InnoDB status variables to MySQL */
 void
@@ -827,7 +829,7 @@ srv_export_innodb_status(void)
 	if (!srv_read_only_mode) {
 		fil_crypt_total_stat(&crypt_stat);
 	}
-
+	innodb_get_async_io_stats(&export_vars.innodb_async_io_stats);
 #ifdef BTR_CUR_HASH_ADAPT
 	export_vars.innodb_ahi_hit = btr_cur_n_sea;
 	export_vars.innodb_ahi_miss = btr_cur_n_non_sea;

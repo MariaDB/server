@@ -570,12 +570,24 @@ void srv_purge_shutdown();
 /** Init purge tasks*/
 void srv_init_purge_tasks();
 
+struct innodb_async_io_stats_t
+{
+  size_t writes_pending;
+  size_t writes_tasks_running;
+  size_t writes_queue_size;
+
+  size_t reads_pending;
+  size_t reads_tasks_running;
+  size_t reads_queue_size;
+};
+
 /** Status variables to be passed to MySQL */
 struct export_var_t{
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint innodb_ahi_hit;
 	ulint innodb_ahi_miss;
 #endif /* BTR_CUR_HASH_ADAPT */
+	innodb_async_io_stats_t innodb_async_io_stats;
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */

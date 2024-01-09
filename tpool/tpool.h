@@ -75,6 +75,7 @@ public:
   void set_max_tasks(unsigned int max_concurrent_tasks);
   void execute(task* t);
   void cancel_pending(task *t);
+  void get_stats(size_t *tasks_running, size_t *queue_size);
   ~task_group();
 };
 

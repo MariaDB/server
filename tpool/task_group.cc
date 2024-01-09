@@ -96,6 +96,13 @@ namespace tpool
     }
   }
 
+  void task_group::get_stats(size_t* tasks_running, size_t* queue_size)
+  {
+    std::lock_guard<std::mutex> lk(m_mtx);
+    *tasks_running= m_tasks_running;
+    *queue_size= m_queue.size();
+  }
+
   task_group::~task_group()
   {
     std::unique_lock<std::mutex> lk(m_mtx);
