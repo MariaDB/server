@@ -648,6 +648,7 @@ protected:
   uint sync_counter;
   bool binlog_state_recover_done;
   enum_binlog_checksum_alg checksum_alg;
+  File UNINIT_VAR(old_file);
   inline uint get_sync_period()
   {
     return *sync_period_ptr;
@@ -739,6 +740,7 @@ public:
     FD.(A) - the value of (A) in FD
   */
   enum enum_binlog_checksum_alg relay_log_checksum_alg;
+  uint close_flag;
 
   MYSQL_BIN_LOG(uint *sync_period);
   /*
@@ -916,6 +918,11 @@ public:
   virtual int binlog_write_state_to_file() { return 0; }
   virtual int read_state_from_file() { return 0; }
   virtual void log_signal_update() = 0;
+  virtual void new_file_impl_close_log()
+  {
+    DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl_close_log");
+    DBUG_VOID_RETURN;
+  };
 };
 
 
@@ -1042,6 +1049,7 @@ public:
     state_file_deleted= FALSE;
     binlog_space_total= 0;
     current_binlog_id= 0;
+    close_flag|= LOG_CLOSE_DELAYED_CLOSE;
   }
   void wait_for_sufficient_commits();
   void binlog_trigger_immediate_group_commit();
@@ -1192,6 +1200,7 @@ public:
                   ulong next_log_number) override;
   void log_signal_update() override { update_binlog_end_pos(); };
   int new_file_impl() override;
+  void new_file_impl_close_log() override;
 };
 
 

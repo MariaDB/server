@@ -3418,7 +3418,8 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    binlog_state_recover_done(false),
    checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
-   relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
+   relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
+   close_flag(LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX)
 {
   /*
     We don't want to initialize locks here as such initialization depends on
@@ -5573,8 +5574,6 @@ int MYSQL_BIN_LOG::new_file_impl()
 {
   int error= 0, close_on_error= FALSE;
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
-  uint close_flag;
-  File UNINIT_VAR(old_file);
   DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl");
 
   DBUG_ASSERT(log_type == LOG_BIN);
@@ -5637,27 +5636,8 @@ int MYSQL_BIN_LOG::new_file_impl()
   log_signal_update();
   old_name=name;
   name=0;				// Don't free name
-  close_flag= LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX;
-  if (!is_relay_log)
-  {
-    /*
-      We need to keep the old binlog file open (and marked as in-use) until
-      the new one is fully created and synced to disk and index. Otherwise we
-      leave a window where if we crash, there is no binlog file marked as
-      crashed for server restart to detect the need for recovery.
-    */
-    old_file= log_file.file;
-    close_flag|= LOG_CLOSE_DELAYED_CLOSE;
-    if (binlog_space_limit)
-      increment_binlog_space_total();
-  }
+  new_file_impl_close_log();
   close(close_flag);
-  if (checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
-  {
-    DBUG_ASSERT(!is_relay_log);
-    DBUG_ASSERT(binlog_checksum_options != checksum_alg_reset);
-    binlog_checksum_options= checksum_alg_reset;
-  }
   /*
      Note that at this point, log_state != LOG_CLOSED
      (important for is_open()).
@@ -5699,10 +5679,10 @@ end:
     last_used_log_number--;
   }
 
-  if (!is_relay_log)
+  if (old_file)
   {
     clear_inuse_flag_when_closing(old_file);
-    mysql_file_close(old_file, MYF(MY_WME));
+    mysql_file_close(old_file, MYF(0));
   }
 
   if (unlikely(error && close_on_error)) /* rotate or reopen failed */
@@ -5732,6 +5712,7 @@ end:
 int MYSQL_BINARY_LOG::new_file_impl()
 {
   DBUG_ENTER("MYSQL_BINARY_LOG::new_file_impl");
+
   checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
   DBUG_RETURN(MYSQL_BIN_LOG::new_file_impl());
 }
@@ -5747,6 +5728,28 @@ int MYSQL_RELAY_LOG::new_file_impl()
   checksum_alg= relay_log_checksum_alg;
   DBUG_RETURN(MYSQL_BIN_LOG::new_file_impl());
 }
+
+
+void MYSQL_BINARY_LOG::new_file_impl_close_log()
+{
+   DBUG_ENTER("MYSQL_BINARY_LOG::new_file_impl");
+  /*
+    We need to keep the old binlog file open (and marked as in-use) until
+    the new one is fully created and synced to disk and index. Otherwise we
+    leave a window where if we crash, there is no binlog file marked as
+    crashed for server restart to detect the need for recovery.
+  */
+  old_file= log_file.file;
+  if (binlog_space_limit)
+    increment_binlog_space_total();
+  if (checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
+  {
+    DBUG_ASSERT(binlog_checksum_options != checksum_alg_reset);
+    binlog_checksum_options= checksum_alg_reset;
+  }
+  DBUG_VOID_RETURN;
+}
+
 
 bool Event_log::write_event(Log_event *ev, binlog_cache_data *data,
                             IO_CACHE *file)
