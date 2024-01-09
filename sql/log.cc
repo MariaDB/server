@@ -3416,6 +3416,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    last_used_log_number(0),
    sync_period_ptr(sync_period), sync_counter(0),
    binlog_state_recover_done(false),
+   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
@@ -5609,15 +5610,6 @@ int MYSQL_BIN_LOG::new_file_impl()
     */
     Rotate_log_event r(new_name + dirname_length(new_name), 0, LOG_EVENT_OFFSET,
                        is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
-    enum_binlog_checksum_alg checksum_alg = BINLOG_CHECKSUM_ALG_UNDEF;
-    /*
-      The current relay-log's closing Rotate event must have checksum
-      value computed with an algorithm of the last relay-logged FD event.
-    */
-    if (is_relay_log)
-      checksum_alg= relay_log_checksum_alg;
-    else
-      checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
     DBUG_ASSERT(checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
     if ((DBUG_IF("fault_injection_new_file_rotate_event") &&
                          (error= close_on_error= TRUE)) ||
@@ -5734,6 +5726,26 @@ end:
   mysql_mutex_unlock(&LOCK_index);
 
   DBUG_RETURN(error);
+}
+
+
+int MYSQL_BINARY_LOG::new_file_impl()
+{
+  DBUG_ENTER("MYSQL_BINARY_LOG::new_file_impl");
+  checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
+  DBUG_RETURN(MYSQL_BIN_LOG::new_file_impl());
+}
+
+
+int MYSQL_RELAY_LOG::new_file_impl()
+{
+  DBUG_ENTER("MYSQL_RELAY_LOG::new_file_impl");
+  /*
+    The current relay-log's closing Rotate event must have checksum
+    value computed with an algorithm of the last relay-logged FD event.
+  */
+  checksum_alg= relay_log_checksum_alg;
+  DBUG_RETURN(MYSQL_BIN_LOG::new_file_impl());
 }
 
 bool Event_log::write_event(Log_event *ev, binlog_cache_data *data,

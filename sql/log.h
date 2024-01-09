@@ -647,7 +647,7 @@ protected:
   uint *sync_period_ptr;
   uint sync_counter;
   bool binlog_state_recover_done;
-
+  enum_binlog_checksum_alg checksum_alg;
   inline uint get_sync_period()
   {
     return *sync_period_ptr;
@@ -659,7 +659,7 @@ protected:
     new_file() is locking. new_file_without_locking() does not acquire
     LOCK_log.
   */
-  int new_file_impl();
+  virtual int new_file_impl();
   virtual void cleanup();
 public:
   int new_file_without_locking();
@@ -1191,6 +1191,7 @@ public:
                   rpl_gtid *init_state, uint32 init_state_len,
                   ulong next_log_number) override;
   void log_signal_update() override { update_binlog_end_pos(); };
+  int new_file_impl() override;
 };
 
 
@@ -1240,6 +1241,7 @@ public:
   void init_pthread_objects() override;
   void increment_open_count_slave() override { open_count++; }
   void log_signal_update() override { signal_relay_log_update(); };
+  int new_file_impl() override;
 };
 
 
