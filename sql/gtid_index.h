@@ -39,11 +39,13 @@
   sequential scan to start from the corresponding position. By having
   sufficiently many index records, the scan will be fast.
 
-  The code has a performance-critical "sync" path which is called while holding
-  LOCK_log whenever a new GTID is added to a binlog file. And a less critical
-  "async" path which runs in the binlog background thread and does most of the
-  processing. The "sync" and "async" paths each run single threaded, but can
-  execute in parallel with each other.
+  The code that adds one record to the index is in two parts, a "sync" path
+  and an "async" path. The "sync" path in process_gtid_check_batch() does the
+  minimum amount of work which needs to run as part of transaction commit. The
+  actual writing of the index, in async_update(), can then be done as a
+  background task, minimizing the performance impact on transaction processing.
+  The "sync" and "async" paths each run single threaded, but can execute in
+  parallel with each other.
 
   The index file is written incrementally together with the binlog file.
   However there is no fsync()'s of the index file needed while writing. A
@@ -75,13 +77,13 @@
   The first page contains an extra file header:
 
     Offset  Size  Description
-       0      8   MAGIC header identifying the file as a binlog index
-       8      1   Major version number. A new major version of the file format
+       0      4   MAGIC header identifying the file as a binlog index
+       4      1   Major version number. A new major version of the file format
                   is not readable by older server versions.
-       9      1   Minor version number. Formats differing only in minor version
+       5      1   Minor version number. Formats differing only in minor version
                   are backwards compatible and can be read by older servers.
-      10      2   Padding/unused.
-      12      4   Page size.
+       6      2   Padding/unused.
+       8      4   Page size.
 
   Each page additionally contains this header:
 
@@ -113,47 +115,140 @@
   it can be split after a child pointer or before or after a GTID, but not
   elsewhere.
 
-  Here is an example index file in schematic form:
+Here is an example GTID index with page_size=64 containing 3 records:
+  Offset  GTID state
+  0x11d   [empty]
+  0x20e   [0-1-1]
+  0x2ad   [0-1-2]
+The example contains 3 nodes, each stored in a single page. Two leaf nodes and
+one interior root node.
 
-       S0 D1 D2    D3 D4 D5    D6 D7 D8    D9 D10 D11
-    A(S0 D1 D2) B(D3 D4 D5) C(D6 D7 D8) E(D9 D10) F(D11)
-        D(A <S3> B <D4+D5+D6> C)   G(E <D10+D11> F)
-                        H(D <S9> G)
+Page 1 (leaf node page with file header):
+  fe fe 0c 01              "magic" identifying the file as a binlog GTID index
+  01 00                    Major version 1, minor version 0
+  00 00                    Padding / currently unused
+  40 00 00 00              Page size (64 bytes in this example)
+  05                       Flag PAGE_FLAG_IS_LEAF | PAGE_FLAG_LAST (single-page leaf node)
+  00 00 00                 Padding / current unused
+Key 1:
+  01 00 00 00              <GTID_count + 1> = 1 (entry has zero GTIDs in it)
+  1d 01 00 00              Binlog file offset = 0x11d
+                           [Empty GTID state at the very start of the binlog]
+Key 2:
+  02 00 00 00              GTID_count = 1
+  0e 02 00 00              Binlog file offset = 0x20e
+  00 00 00 00 01 00 00 00
+  01 00 00 00 00 00 00 00  GTID 0-1-1
 
-  S0 is the full initial GTID state at the start of the file.
-  D1-D11 are the differential GTID states in the binlog file; eg. they could
-      be the individual GTIDs in the binlog file if a record is writte for
-      each GTID.
-  S3 is the full GTID state corresponding to D3, ie. S3=S0+D1+D2+D3.
-  A(), B(), ..., H() are the nodes in the binlog index. H is the root.
-  A(S0 D1 D2) is a leaf node containing records S0, D1, and D2.
-  G(E <D10+D11> F) is an interior node with key <D10+D11> and child pointers to
-      E and F.
+  00 00 00 00 00           Zero denotes end-of-node
+  00 00 00 00 00 00 00     (Unused space in the page)
+  0e 4f ac 43              Checksum / CRC
 
-  To find eg. S4, we start from the root H. S4<S9, so we follow the left child
-  pointer to D. S4>S3, so we follow the child pointer to leaf node C.
+Page 2 (leaf node):
+  05                       Flag PAGE_FLAG_IS_LEAF | PAGE_FLAG_LAST (single-page leaf node)
+  00 00 00                 Unused
+Key 1:
+  02 00 00 00              GTID_count = 1
+  ad 02 00 00              Binlog file offset = 0x2ad
+  00 00 00 00 01 00 00 00
+  02 00 00 00 00 00 00 00  GTID 0-1-2
 
-  Here are the operations that occur while writing the example index file:
+  00 00 00 00              End-of-node
+  00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00
+  00 00 00 00              (Unused space in the page)
+  0c 4e c2 b9              CRC
 
-    S0  A(A) R(A,S0)
-    D1       R(A,D1)
-    D2       R(A,D2)
-    D3  W(A) I(D) P(D,A) A(B) R(B,D3) R(D,S3)
-    D4       R(A,D4)
-    D5       R(A,D5)
-    D6  W(B) P(D,B) A(C) R(C,D6) R(D,D4+D5+D6)
-    D7       R(C,D7)
-    D8       R(C,D8)
-    D9  W(C) P(D,C) A(E) R(E,D9) W(D) I(H) P(H,D) R(H,S9)
-    D10      R(E,D10)
-    D11 W(E) I(G) P(G,E) A(F) R(F,S10) R(G,D10+D11)
-    <EOF> W(F) P(G,F) W(G) P(H,G) W(H)
+Page 3 (root node):
+  0c                       PAGE_FLAG_ROOT | PAGE_FLAG_LAST (interior root node)
+  00 00 00                 Unused
+Child pointer:
+  01 00 00 00              Pointer to page 1
+Key for next child page:
+  02 00 00 00              GTID_count = 1
+  ad 02 00 00              Binlog offset = 0x2ad
+  00 00 00 00 01 00 00 00
+  02 00 00 00 00 00 00 00  GTID 0-1-2
+Child pointer:
+  02 00 00 00              Pointer to page 2
 
-    A(x)   -> allocate leaf node x.
-    R(x,k) -> insert an index record containing key k in node x.
-    W(x)   -> write node x to the index file.
-    I(y)   -> allocate interior node y.
-    P(y,x) -> insert a child pointer to y in x.
+  00 00 0 000              Zero denotes end-of-node
+  00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00
+  00 00 00 00              (Unused)
+  8155 a3c7                CRC
+
+  Below is an example of the logical B-Tree structure of a larger GTID index
+  with a total of 12 keys.
+
+  We use S0, S1, ..., S11 to denote a key, which consists of a GTID state (as
+  seen in @@binlog_gtid_state and GTID_LIST_EVENT) and the associated binlog
+  file offset. D1, D2, ..., D11 denote the same keys, but delta-compressed, so
+  that D1 stores only those GTIDs that are not the same as in S0.
+
+  Pages are denoted by P1, P2, ..., P8. In the example, P1, P2, P3, P5, and P6
+  are leaf pages, the rest are interior node pages. P8 is the root node (the
+  root is always the last page in the index).
+
+  The contents of each page is listed in square brackets [...]. So P1[S0 D1 D2]
+  is a leaf page with 3 keys, and P7[P5 <D10+D11> P6] is an interior node page
+  with one key <D10+D11> and two child-page pointers to P5 and P6. The
+  notation <D10+D11> denotes the delta-compression of key S11 relative to S9;
+  all GTIDs in S11 that are not present in S9. In the code, this is computed
+  by combining D10 and D11, hence the use of the notation "D10+D11" instead of
+  the equivalent "S11-S9".
+
+  Here is the example B-Tree. It has 3 levels, with the leaf nodes at the top:
+
+    P1[S0 D1 D2]   P2[D3 D4 D5]   P3[D6 D7 D8]   P5[D9 D10]   P6[D11]
+          P4[P1 <S3> P2 <D4+D5+D6> P3]            P7[P5 <D10+D11> P6]
+                                     P8[P4 <S9> P7]
+
+  To find eg. S4, we start from the root P8. S4<S9, so we follow the left child
+  pointer to P4. S4>S3 and S4<S6 (S6=(S3+D4+D5+D6)), so we follow the child
+  pointer to leaf page P2.
+
+  The index is written completely append-only; this is possible since keys are
+  always inserted in-order, at the end of the index. One page is kept in-memory
+  at each level of the B-Tree; when a new key no longer fits the page, it is
+  written out to disk and a new in-memory page is allocated for it.
+
+  Here are the operations that occur while writing the index file from the
+  above example. The left column is each key added to the index as the
+  corresponding GTID is written into the binlog file (<EOF> is when the index
+  is closed at binlog rotation). The right column are the operations performed,
+  as follows:
+    alloc(p)      Allocate page p
+    add_key(p,k)  Insert the key k into the page p
+    add_ptr(p,q)  Insert a pointer to child page q in parent page p
+    write(p)      Write out page p to disk at the end of the index file.
+
+  GTID STATE   OPERATIONS
+    S0       alloc(P1) add_key(P1,S0)
+    D1         add_key(P1,D1)
+    D2         add_key(P1,D2)
+    D3       write(P1) alloc(P4) add_ptr(P4,P1)
+             alloc(P2) add_key(P2,D3) add_key(P4,S3)
+    D4         add_key(P2,D4)
+    D5         add_key(P2,D5)
+    D6       write(P2) add_ptr(P4,P2)
+             alloc(P3) add_key(P3,D6) add_key(P4,D4+D5+D6)
+    D7         add_key(P3,D7)
+    D8         add_key(P3,D8)
+    D9       write(P3) add_ptr(P4,P3)
+             alloc(P5) add_key(P5,D9)
+             write(P4) alloc(P8) add_ptr(P8,P4) alloc(P7) add_key(P8,S9)
+    D10        add_key(P5,D10)
+    D11      write(P5) add_ptr(P7,P5)
+             alloc(P6) add_key(P6,D11) add_key(P7,D10+D11)
+    <EOF>    write(P6) add_ptr(P7,P6)
+             write(P7) add_ptr(P8,P7)
+             write(P8)
+
+  After adding each record to the index, there is exactly one partial page
+  allocated in-memory for each level present in the B-Tree; new pages being
+  allocated as old pages fill up and are written to disk.
 */
 
 
@@ -187,7 +282,7 @@ protected:
   */
   static constexpr uchar GTID_INDEX_VERSION_MAJOR= 1;
   static constexpr uchar GTID_INDEX_VERSION_MINOR= 0;
-  static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 16;
+  static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 12;
   static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 4;
   static constexpr size_t CHECKSUM_LEN= 4;
 
@@ -253,9 +348,7 @@ protected:
 class Gtid_index_writer : public Gtid_index_base
 {
 private:
-  const uint32 gtid_threshold;
   const my_off_t offset_min_threshold;
-  const my_off_t offset_max_threshold;
 
   struct Index_node : public Index_node_base
   {
@@ -281,8 +374,7 @@ protected:
 public:
   Gtid_index_writer(const char *filename, uint32 offset,
                     rpl_binlog_state_base *binlog_state,
-                    uint32 opt_page_size, uint32 opt_sparse,
-                    my_off_t opt_span_min, my_off_t opt_span_max);
+                    uint32 opt_page_size, my_off_t opt_span_min);
   virtual ~Gtid_index_writer();
   void process_gtid(uint32 offset, const rpl_gtid *gtid);
   int process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
@@ -316,7 +408,6 @@ private:
   Index_node **nodes;
   my_off_t previous_offset;
   uint32 max_level;
-  uint32 pending_gtid_count;
 
   File index_file;
 

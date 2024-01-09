@@ -3905,9 +3905,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
             new Gtid_index_writer(log_file_name, (uint32)offset,
                                   &rpl_global_gtid_binlog_state,
                                   (uint32)opt_binlog_gtid_index_page_size,
-                                  (uint32)opt_binlog_gtid_index_sparse,
-                                  (my_off_t)opt_binlog_gtid_index_span_min,
-                                  (my_off_t)opt_binlog_gtid_index_span_max);
+                                  (my_off_t)opt_binlog_gtid_index_span_min);
           if (!gtid_index)
             sql_print_information("Could not create GTID index for binlog "
                                   "file '%s'. Accesses to this binlog file will "
@@ -12047,9 +12045,7 @@ MYSQL_BIN_LOG::recover_gtid_index_start(const char *base_name, my_off_t offset)
     new Gtid_index_writer(base_name, (uint32)offset,
                           &rpl_global_gtid_binlog_state,
                           (uint32)opt_binlog_gtid_index_page_size,
-                          (uint32)opt_binlog_gtid_index_sparse,
-                          (my_off_t)opt_binlog_gtid_index_span_min,
-                          (my_off_t)opt_binlog_gtid_index_span_max);
+                          (my_off_t)opt_binlog_gtid_index_span_min);
   return gi;
 }
 

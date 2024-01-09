@@ -19,22 +19,13 @@ FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
 # Prepare some random values, but deterministic between test runs.
 CREATE TABLE rand_data(idx INT PRIMARY KEY, domain_id INT, server_id INT)
   ENGINE=InnoDB;
---disable_query_log
 INSERT INTO rand_data(idx, domain_id, server_id) VALUES (0, 0, 1);
---let $incr= 1
---let $done= 0
-while (!$done) {
-  eval INSERT INTO rand_data(idx)
-         SELECT idx+$incr FROM rand_data WHERE idx+$incr <= $NUM_POS;
-  --let $done= `SELECT MAX(idx) = $NUM_POS FROM rand_data`
-  --let $incr= `SELECT 2*$incr`
-}
-eval UPDATE rand_data
-        SET domain_id=floor($NUM_DOMAIN*POW(rand($RND_SEED),2)),
-	    server_id=100 + $NUM_SERVER*domain_id + floor($NUM_SERVER*rand($RND_SEED))
-      WHERE idx > 0
-      ORDER BY idx;
---enable_query_log
+eval
+INSERT INTO rand_data(idx, domain_id, server_id)
+SELECT seq,
+       @tmp:=floor($NUM_DOMAIN*POW(rand($RND_SEED),2)),
+       100 + $NUM_SERVER*@tmp + floor($NUM_SERVER*rand($RND_SEED))
+  FROM seq_1_to_$NUM_POS;
 # Let's check that the test data is deterministic.
 # If this changes due to some server changes, it's fine, the .result can just
 # be updated. But we want it to be identical between test runs on same code,

@@ -20,8 +20,8 @@
 #include "log.h"
 
 
-static const uchar GTID_INDEX_MAGIC[8]= {
-  'M', 'D', 'B', 'B', 'L', 'I', 'D', 'X'
+static const uchar GTID_INDEX_MAGIC[4]= {
+  254, 254, 12, 1,
 };
 
 Gtid_index_writer *Gtid_index_writer::hot_index_list= nullptr;
@@ -31,13 +31,11 @@ mysql_mutex_t Gtid_index_writer::gtid_index_mutex;
 
 Gtid_index_writer::Gtid_index_writer(const char *filename, uint32 offset,
                                      rpl_binlog_state_base *binlog_state,
-                                     uint32 opt_page_size, uint32 opt_sparse,
-                                     my_off_t opt_span_min,
-                                     my_off_t opt_span_max)
-  : gtid_threshold(opt_sparse),
-    offset_min_threshold(opt_span_min), offset_max_threshold(opt_span_max),
+                                     uint32 opt_page_size,
+                                     my_off_t opt_span_min)
+  : offset_min_threshold(opt_span_min),
     nodes(nullptr), previous_offset(0),
-    max_level(0), pending_gtid_count(0), index_file(-1),
+    max_level(0), index_file(-1),
     error_state(false), file_header_written(false), in_hot_index_list(false)
 {
   uint32 count;
@@ -220,7 +218,6 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
 
   mysql_mutex_assert_not_owner(&gtid_index_mutex);
 
-  ++pending_gtid_count;
   if (unlikely(pending_state.update_nolock(gtid)))
   {
     give_error("Out of memory processing GTID for binlog GTID index");
@@ -230,9 +227,7 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
     Sparse index; we record only selected GTIDs, and scan the binlog forward
     from there to find the exact spot.
   */
-  if (offset - previous_offset < offset_max_threshold &&
-      (offset - previous_offset < offset_min_threshold ||
-       pending_gtid_count < gtid_threshold))
+  if (offset - previous_offset < offset_min_threshold)
   {
     *out_gtid_list= nullptr;
     *out_gtid_count= 0;
@@ -258,7 +253,6 @@ Gtid_index_writer::process_gtid_check_batch(uint32 offset, const rpl_gtid *gtid,
   }
   pending_state.reset_nolock();
   previous_offset= offset;
-  pending_gtid_count= 0;
   *out_gtid_list= gtid_list;
   *out_gtid_count= count;
   return 0;
@@ -1085,12 +1079,12 @@ Gtid_index_reader::read_file_header()
     return give_error("Error reading page from index file");
   if (memcmp(&buf[0], GTID_INDEX_MAGIC, sizeof(GTID_INDEX_MAGIC)))
     return give_error("Corrupt index file, magic not found in header");
-  version_major= buf[8];
-  version_minor= buf[9];
+  version_major= buf[4];
+  version_minor= buf[5];
   /* We cannot safely read a major version we don't know about. */
   if (version_major > GTID_INDEX_VERSION_MAJOR)
     return give_error("Incompatible index file, version too high");
-  page_size= uint4korr(&buf[12]);
+  page_size= uint4korr(&buf[8]);
 
   /* Verify checksum integrity of page_size and major/minor version. */
   uint32 crc= my_checksum(0, buf, sizeof(buf));
@@ -1203,7 +1197,7 @@ Gtid_index_reader::read_root_node()
       page->flag_ptr= &page->page[0];
     page->next= n->first_page;
     n->first_page= page;
-    uchar flags= page->page[0];
+    uchar flags= *page->flag_ptr;
     if (unlikely(!(flags & PAGE_FLAG_ROOT)))
       return give_error("Corrupt or truncated index, no root node found");
     if (!(flags & PAGE_FLAG_IS_CONT))
@@ -1350,7 +1344,7 @@ Gtid_index_reader_hot::read_file_header()
       We have to read the file header from the in-memory page.
     */
     uchar *p= hot_writer->nodes[0]->first_page->page;
-    page_size= uint4korr(p + 12);
+    page_size= uint4korr(p + 8);
     has_root_node= false;
     index_valid= true;
     res= 0;
