@@ -526,7 +526,6 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
-mysql_pfs_key_t	tpool_cache_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -558,7 +557,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_match_mutex),
 	PSI_KEY(rtr_path_mutex),
 	PSI_KEY(trx_sys_mutex),
-	PSI_KEY(tpool_cache_mutex),
 };
 # endif /* UNIV_PFS_MUTEX */
 
@@ -886,6 +884,32 @@ static SHOW_VAR innodb_status_variables[]= {
   {"adaptive_hash_non_hash_searches",
   &export_vars.innodb_ahi_miss, SHOW_SIZE_T},
 #endif
+  {"async_reads_pending",
+  &export_vars.async_read_stats.pending_ops, SHOW_SIZE_T},
+  {"async_reads_tasks_running",
+  &export_vars.async_read_stats.completion_stats.tasks_running, SHOW_SIZE_T},
+  {"async_reads_total_count",
+  &export_vars.async_read_stats.completion_stats.total_tasks_executed,SHOW_ULONGLONG},
+  {"async_reads_total_enqueues",
+  &export_vars.async_read_stats.completion_stats.total_tasks_enqueued,SHOW_ULONGLONG},
+  {"async_reads_queue_size",
+  &export_vars.async_read_stats.completion_stats.queue_size, SHOW_SIZE_T},
+  {"async_reads_wait_slot_sec",
+  &export_vars.async_read_stats.slot_wait_time_sec, SHOW_DOUBLE},
+
+  {"async_writes_pending",
+  &export_vars.async_write_stats.pending_ops,SHOW_SIZE_T},
+  {"async_writes_tasks_running",
+  &export_vars.async_write_stats.completion_stats.tasks_running, SHOW_SIZE_T},
+  {"async_writes_total_count",
+  &export_vars.async_write_stats.completion_stats.total_tasks_executed, SHOW_ULONGLONG},
+  {"async_writes_total_enqueues",
+  &export_vars.async_write_stats.completion_stats.total_tasks_enqueued, SHOW_ULONGLONG},
+  {"async_writes_queue_size",
+  &export_vars.async_write_stats.completion_stats.queue_size, SHOW_SIZE_T},
+  {"async_writes_wait_slot_sec",
+   &export_vars.async_write_stats.slot_wait_time_sec, SHOW_DOUBLE},
+
   {"background_log_sync", &srv_log_writes_and_flush, SHOW_SIZE_T},
   {"buffer_pool_dump_status",
   (char*) &export_vars.innodb_buffer_pool_dump_status,	  SHOW_CHAR},

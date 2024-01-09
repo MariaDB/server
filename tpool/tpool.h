@@ -57,6 +57,18 @@ typedef void (*callback_func)(void *);
 typedef void (*callback_func_np)(void);
 class task;
 
+struct group_stats
+{
+  /** Current number of running tasks*/
+  size_t tasks_running;
+  /** Current number of tasks in the queue*/
+  size_t queue_size;
+  /** Total number of tasks executed */
+  unsigned long long total_tasks_executed;
+  /** Total number of tasks enqueued */
+  unsigned long long total_tasks_enqueued;
+};
+
 /** A class that can be used e.g. for
 restricting concurrency for specific class of tasks. */
 
@@ -66,6 +78,8 @@ private:
   circular_queue<task*> m_queue;
   std::mutex m_mtx;
   std::condition_variable m_cv;
+  unsigned long long m_total_tasks;
+  unsigned long long m_total_enqueues;
   unsigned int m_tasks_running;
   unsigned int m_max_concurrent_tasks;
   const bool m_enable_task_release;
@@ -75,6 +89,7 @@ public:
   void set_max_tasks(unsigned int max_concurrent_tasks);
   void execute(task* t);
   void cancel_pending(task *t);
+  void get_stats(group_stats* stats);
   ~task_group();
 };
 

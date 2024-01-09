@@ -80,7 +80,7 @@ Created 10/21/1995 Heikki Tuuri
 class io_slots
 {
 private:
-	tpool::cache<tpool::aiocb> m_cache;
+	tpool::cache<tpool::aiocb, true> m_cache;
 	tpool::task_group m_group;
 	int m_max_aio;
 public:
@@ -106,9 +106,9 @@ public:
 	}
 
 	/* Wait for completions of all AIO operations */
-	void wait(mysql_mutex_t &m)
+	void wait(std::unique_lock<std::mutex> &lk)
 	{
-		m_cache.wait(m);
+		m_cache.wait(lk);
 	}
 
 	void wait()
@@ -121,6 +121,11 @@ public:
 		return m_cache.pos();
 	}
 
+	std::chrono::duration<float> wait_time()
+	{
+		return m_cache.wait_time();
+	}
+
 	tpool::task_group* get_task_group()
 	{
 		return &m_group;
@@ -131,7 +136,7 @@ public:
 		wait();
 	}
 
-	mysql_mutex_t& mutex()
+	std::mutex &mutex()
 	{
 		return m_cache.mutex();
 	}
@@ -151,6 +156,22 @@ public:
 
 static io_slots *read_slots;
 static io_slots *write_slots;
+
+/**
+  Statistics for asynchronous I/O
+  @param[in] op operation type (aio_opcode::AIO_PREAD or aio_opcode::AIO_PWRITE)
+  @param[in] stats pointer to the structure to fill
+*/
+void innodb_io_slots_stats(tpool::aio_opcode op, innodb_async_io_stats_t *stats)
+{
+   io_slots *slots= op == tpool::aio_opcode::AIO_PREAD? read_slots : write_slots;
+
+   stats->pending_ops = slots->pending_io_count();
+   stats->slot_wait_time_sec=
+       std::chrono::duration_cast<std::chrono::duration<float>>(
+           slots->wait_time()).count();
+   slots->task_group().get_stats(&stats->completion_stats);
+}
 
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
@@ -3623,9 +3644,8 @@ more concurrent threads via thread_group setting.
 int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
 {
   /* Lock the slots, and wait until all current IOs finish.*/
-  auto &lk_read= read_slots->mutex(), &lk_write= write_slots->mutex();
-  mysql_mutex_lock(&lk_read);
-  mysql_mutex_lock(&lk_write);
+  std::unique_lock<std::mutex> lk_read(read_slots->mutex()),
+    lk_write(write_slots->mutex());
 
   read_slots->wait(lk_read);
   write_slots->wait(lk_write);
@@ -3653,9 +3673,6 @@ int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
     read_slots->resize(max_read_events, static_cast<int>(n_reader_threads));
     write_slots->resize(max_write_events, static_cast<int>(n_writer_threads));
   }
-
-  mysql_mutex_unlock(&lk_read);
-  mysql_mutex_unlock(&lk_write);
   return ret;
 }
 
@@ -3693,10 +3710,8 @@ void os_aio_wait_until_no_pending_writes(bool declare)
 /** @return number of pending reads */
 size_t os_aio_pending_reads()
 {
-  mysql_mutex_lock(&read_slots->mutex());
-  size_t pending= read_slots->pending_io_count();
-  mysql_mutex_unlock(&read_slots->mutex());
-  return pending;
+  std::lock_guard<std::mutex> lock(read_slots->mutex());
+  return read_slots->pending_io_count();
 }
 
 /** @return approximate number of pending reads */
@@ -3708,10 +3723,8 @@ size_t os_aio_pending_reads_approx()
 /** @return number of pending writes */
 size_t os_aio_pending_writes()
 {
-  mysql_mutex_lock(&write_slots->mutex());
-  size_t pending= write_slots->pending_io_count();
-  mysql_mutex_unlock(&write_slots->mutex());
-  return pending;
+  std::lock_guard<std::mutex> lock(write_slots->mutex());
+  return write_slots->pending_io_count();
 }
 
 /** Wait until all pending asynchronous reads have completed.

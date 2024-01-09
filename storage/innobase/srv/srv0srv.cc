@@ -813,6 +813,9 @@ srv_printf_innodb_monitor(
 	return(ret);
 }
 
+void innodb_io_slots_stats(tpool::aio_opcode op,
+                           innodb_async_io_stats_t *stats);
+
 /******************************************************************//**
 Function to pass InnoDB status variables to MySQL */
 void
@@ -824,6 +827,10 @@ srv_export_innodb_status(void)
 	if (!srv_read_only_mode) {
 		fil_crypt_total_stat(&crypt_stat);
 	}
+	innodb_io_slots_stats(tpool::aio_opcode::AIO_PREAD,
+		&export_vars.async_read_stats);
+	innodb_io_slots_stats(tpool::aio_opcode::AIO_PWRITE,
+		&export_vars.async_write_stats);
 
 #ifdef BTR_CUR_HASH_ADAPT
 	export_vars.innodb_ahi_hit = btr_cur_n_sea;
