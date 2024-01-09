@@ -2237,7 +2237,7 @@ static int wsrep_alter_table_query(THD *thd, uchar** buf, size_t* buf_len,
                                    Alter_info *alter_info)
 {
   String log_query;
-  log_query.append(thd->query());
+  log_query.append(thd->query(), thd->query_length());
 
   /*
      if user has specified the alter algorithm by session variable alter_algorithm
