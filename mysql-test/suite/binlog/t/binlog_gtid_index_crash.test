@@ -41,16 +41,19 @@ while ($i < 40) {
 INSERT INTO t1 VALUES (50, 0);
 INSERT INTO t1 VALUES (51, 0);
 
+--disable_ps2_protocol
 FLUSH NO_WRITE_TO_BINLOG STATUS;
 eval SELECT BINLOG_GTID_POS('$file', $pos1) = "$gtid1" AS Ok;
 eval SELECT BINLOG_GTID_POS('$file', $pos2) = "$gtid2" AS Ok;
 eval SELECT BINLOG_GTID_POS('$file', $pos3) = "$gtid3" AS Ok;
 --enable_query_log
 SHOW STATUS LIKE 'binlog_gtid_index_%';
+--enable_ps2_protocol
 
 --echo *** Crash the server, check that GTID index can be used after restart.
 --source include/crash_mysqld.inc
 
+--disable_ps2_protocol
 FLUSH NO_WRITE_TO_BINLOG STATUS;
 --disable_query_log
 eval SELECT BINLOG_GTID_POS('$file', $pos1) = "$gtid1" AS Ok;
@@ -58,5 +61,6 @@ eval SELECT BINLOG_GTID_POS('$file', $pos2) = "$gtid2" AS Ok;
 eval SELECT BINLOG_GTID_POS('$file', $pos3) = "$gtid3" AS Ok;
 --enable_query_log
 SHOW STATUS LIKE 'binlog_gtid_index_%';
+--enable_ps2_protocol
 
 DROP TABLE t1;
