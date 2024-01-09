@@ -11,6 +11,5 @@
 ##############################################################################
 
 GCF-1060 : MDEV-32160 GCF-1060 test failure due to wsrep MDL conflict
-galera_sr_cc_master : MDEV-29882 Galera test failure on galera_sr_cc_master
 # Links to below failures in MDEV-30172
 MDEV-25718 : timeout related to wsrep_sync_wait and DEBUG_SYNC
