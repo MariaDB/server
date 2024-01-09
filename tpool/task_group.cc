@@ -42,6 +42,8 @@ namespace tpool
     :
     m_queue(8),
     m_mtx(),
+    m_total_tasks(0),
+    m_total_enqueues(0),
     m_tasks_running(),
     m_max_concurrent_tasks(max_concurrency),
     m_enable_task_release(enable_task_release)
@@ -59,6 +61,7 @@ namespace tpool
     {
       /* Queue for later execution by another thread.*/
       m_queue.push(t);
+      m_total_enqueues++;
       return;
     }
     m_tasks_running++;
@@ -72,7 +75,7 @@ namespace tpool
           t->release();
       }
       lk.lock();
-
+      m_total_tasks++;
       if (m_queue.empty())
         break;
       t = m_queue.front();
@@ -94,6 +97,15 @@ namespace tpool
         (*it) = nullptr;
       }
     }
+  }
+
+  void task_group::get_stats(group_stats *stats)
+  {
+    std::lock_guard<std::mutex> lk(m_mtx);
+    stats->tasks_running= m_tasks_running;
+    stats->queue_size= m_queue.size();
+    stats->total_tasks_executed= m_total_tasks;
+    stats->total_tasks_enqueued= m_total_enqueues;
   }
 
   task_group::~task_group()

@@ -1187,4 +1187,44 @@ inline bool is_absolute_path(const char *path)
 
 #include "os0file.inl"
 
+/**
+  Structure used for async io statistics
+  There is one instance of this structure for each operation type
+  (read or write)
+*/
+struct innodb_async_io_stats_t
+{
+  /**
+   Current of submitted and not yet finished IOs.
+   IO is considered finished when it finished in the OS
+   *and* the completion callback has been called
+  */
+  size_t pending_ops;
+  /**
+   Time, in seconds, spent waiting for a slot to become
+   available. There is a limited number of slots for async IO
+   operations. If all slots are in use, the IO submission has
+   to wait.
+  */
+  double slot_wait_time_sec;
+
+  /**
+  Information related to IO completion callbacks.
+
+  - number of tasks currently running (<= innodb_read/write_io_threads)
+  - total number of tasks that have been completed
+  - current task queue size . Queueing happens if running tasks is
+    maxed out (equal to innodb_read/write_io_threads)
+  - total number of tasks that have been queued
+  */
+  tpool::group_stats completion_stats;
+};
+
+/**
+  Statistics for asynchronous I/O
+  @param[in] op operation - aio_opcode::AIO_PREAD or aio_opcode::AIO_PWRITE
+  @param[in] stats - structure to fill
+*/
+extern void innodb_io_slots_stats(tpool::aio_opcode op,
+                           innodb_async_io_stats_t *stats);
 #endif /* os0file_h */
