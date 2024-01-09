@@ -1,1 +1,0 @@
---plugin-load-add=$SQL_ERRLOG_SO --sql-error-log-with-db-and-thread-info=1

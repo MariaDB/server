@@ -15,6 +15,7 @@
 
 #include <mysql/plugin_audit.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <mysql/service_logger.h>
 
@@ -91,6 +92,7 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
 {
   const struct mysql_event_general *event =
          (const struct mysql_event_general*)ev;
+
   if (rate &&
       event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR)
   {
@@ -103,12 +105,24 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
       (void) localtime_r(&event_time, &t);
       if (with_db_and_thread_info)
       {
-        logger_printf(logfile, "%llu %s %04d-%02d-%02d %2d:%02d:%02d "
+        if (event->database.str)
+        {
+          logger_printf(logfile, "%llu %`s %04d-%02d-%02d %2d:%02d:%02d "
                       "%s ERROR %d: %s : %s \n",
               event->general_thread_id, event->database.str, t.tm_year + 1900,
-              t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
-              event->general_user, event->general_error_code,
+              t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
+              t.tm_sec, event->general_user, event->general_error_code,
               event->general_command, event->general_query);
+        }
+        else
+        {
+          logger_printf(logfile, "%llu %s %04d-%02d-%02d %2d:%02d:%02d "
+                      "%s ERROR %d: %s : %s \n",
+              event->general_thread_id, "NULL", t.tm_year + 1900,
+              t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
+              t.tm_sec, event->general_user, event->general_error_code,
+              event->general_command, event->general_query);
+        }
       }
       else
       {
