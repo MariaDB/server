@@ -5490,8 +5490,6 @@ int mysqld_main(int argc, char **argv)
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
   }
 
-  (void) thr_setconcurrency(concurrency);	// 10 by default
-
   select_thread=pthread_self();
   select_thread_in_use=1;
 

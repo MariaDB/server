@@ -635,8 +635,6 @@ int init_embedded_server(int argc, char **argv, char **groups)
     udf_init();
 #endif
 
-  (void) thr_setconcurrency(concurrency);	// 10 by default
-
   if (flush_time && flush_time != ~(ulong) 0L)
     start_handle_manager();
 
