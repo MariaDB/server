@@ -11897,8 +11897,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                      (((Query_log_event *)ev)->is_commit() ||
                       ((Query_log_event *)ev)->is_rollback()))));
 
-        recover_gtid_index_process(gtid_index_recover, end_pos,
-                                   (Gtid_log_event *)ev);
+        recover_gtid_index_process(gtid_index_recover, end_pos, &ctx.last_gtid);
         if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid))
           goto err2;
         ctx.last_gtid_valid= false;
@@ -12061,15 +12060,12 @@ MYSQL_BIN_LOG::recover_gtid_index_start(const char *base_name, my_off_t offset)
 */
 void
 MYSQL_BIN_LOG::recover_gtid_index_process(Gtid_index_writer *gi,
-                                          my_off_t offset, Gtid_log_event *gev)
+                                          my_off_t offset,
+                                          const rpl_gtid *gtid)
 {
   if (gi)
   {
-    rpl_gtid gtid;
-    gtid.domain_id= gev->domain_id;
-    gtid.server_id= gev->server_id;
-    gtid.seq_no= gev->seq_no;
-    gi->process_gtid((uint32)offset, &gtid);
+    gi->process_gtid((uint32)offset, gtid);
   }
 }
 

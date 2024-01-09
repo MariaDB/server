@@ -729,7 +729,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   Gtid_index_writer *recover_gtid_index_start(const char *base_name,
                                               my_off_t offset);
   void recover_gtid_index_process(Gtid_index_writer *gi, my_off_t offset,
-                                  Gtid_log_event *gev);
+                                  const rpl_gtid *gtid);
   void recover_gtid_index_end(Gtid_index_writer *gi);
   void recover_gtid_index_abort(Gtid_index_writer *gi);
 
