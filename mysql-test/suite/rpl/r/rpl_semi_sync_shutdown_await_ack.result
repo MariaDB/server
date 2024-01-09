@@ -9,17 +9,24 @@ connection server_1;
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
+set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
+set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
+set @sav_master_dbug= @@GLOBAL.debug_dbug;
 # Suppress slave errors related to the simulated error
 connection server_2;
 call mtr.add_suppression("reply failed");
 call mtr.add_suppression("Replication event checksum verification");
 call mtr.add_suppression("Relay log write failure");
 call mtr.add_suppression("Failed to kill the active semi-sync connection");
+set @sav_enabled_server_2= @@GLOBAL.rpl_semi_sync_slave_enabled;
+set @sav_server_2_dbug= @@GLOBAL.debug_dbug;
 connection server_3;
 call mtr.add_suppression("reply failed");
 call mtr.add_suppression("Replication event checksum verification");
 call mtr.add_suppression("Relay log write failure");
 call mtr.add_suppression("Failed to kill the active semi-sync connection");
+set @sav_enabled_server_3= @@GLOBAL.rpl_semi_sync_slave_enabled;
+set @sav_server_3_dbug= @@GLOBAL.debug_dbug;
 connection server_1;
 CREATE TABLE t1 (a int);
 connection server_2;
@@ -44,15 +51,15 @@ set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
@@ -68,23 +75,20 @@ Variable_name	Value
 Rpl_semi_sync_master_clients	2
 #-- Prepare servers to simulate delay or error
 connection server_1;
-SET @@GLOBAL.debug_dbug= "";
 connection server_2;
 SET @@GLOBAL.debug_dbug= "+d,simulate_delay_semisync_slave_reply";
 connection server_3;
 SET @@GLOBAL.debug_dbug= "+d,simulate_delay_semisync_slave_reply";
 #--
 #-- Test begins
+connection server_1_con2;
+#-- Give enough time after timeout/ack received to query yes_tx/no_tx
+SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 connection server_1;
 #-- Begin semi-sync transaction
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
-show status like 'Rpl_semi_sync_master_wait_sessions';
-Variable_name	Value
-Rpl_semi_sync_master_wait_sessions	1
-#-- Give enough time after timeout/ack received to query yes_tx/no_tx
-SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
@@ -94,7 +98,7 @@ Variable_name	Value
 Rpl_semi_sync_master_yes_tx	1
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
-Rpl_semi_sync_master_no_tx	4
+Rpl_semi_sync_master_no_tx	0
 connection server_1_con2;
 # Check logs to ensure shutdown was delayed
 FOUND 1 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
@@ -111,22 +115,24 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+#-- Waiting for IO thread to realize master shutdown and stop
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+#-- Waiting for IO thread to realize master shutdown and stop
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 #-- Bring the master back up
 connection server_1_con2;
 connection default;
 connection server_1;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	OFF
+set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
+set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
+set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -161,15 +167,15 @@ set @@global.rpl_semi_sync_master_timeout= 500;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
@@ -185,23 +191,20 @@ Variable_name	Value
 Rpl_semi_sync_master_clients	2
 #-- Prepare servers to simulate delay or error
 connection server_1;
-SET @@GLOBAL.debug_dbug= "+d,mysqld_delay_kill_threads_phase_1";
 connection server_2;
 SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event";
 connection server_3;
 SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event";
 #--
 #-- Test begins
+connection server_1_con2;
+#-- Give enough time after timeout/ack received to query yes_tx/no_tx
+SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 connection server_1;
 #-- Begin semi-sync transaction
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
-show status like 'Rpl_semi_sync_master_wait_sessions';
-Variable_name	Value
-Rpl_semi_sync_master_wait_sessions	1
-#-- Give enough time after timeout/ack received to query yes_tx/no_tx
-SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
@@ -228,22 +231,23 @@ count(*)=0
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+#-- Waiting for IO thread to stop from corrupt_queue_event injection
+include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 #-- Bring the master back up
 connection server_1_con2;
 connection default;
 connection server_1;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	OFF
+set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
+set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
+set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -279,15 +283,15 @@ set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
@@ -303,23 +307,20 @@ Variable_name	Value
 Rpl_semi_sync_master_clients	2
 #-- Prepare servers to simulate delay or error
 connection server_1;
-SET @@GLOBAL.debug_dbug= "+d,mysqld_delay_kill_threads_phase_1";
 connection server_2;
 SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event";
 connection server_3;
 SET @@GLOBAL.debug_dbug= "+d,simulate_delay_semisync_slave_reply";
 #--
 #-- Test begins
+connection server_1_con2;
+#-- Give enough time after timeout/ack received to query yes_tx/no_tx
+SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 connection server_1;
 #-- Begin semi-sync transaction
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
-show status like 'Rpl_semi_sync_master_wait_sessions';
-Variable_name	Value
-Rpl_semi_sync_master_wait_sessions	1
-#-- Give enough time after timeout/ack received to query yes_tx/no_tx
-SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
@@ -346,22 +347,23 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+#-- Waiting for IO thread to realize master shutdown and stop
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 #-- Bring the master back up
 connection server_1_con2;
 connection default;
 connection server_1;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	OFF
+set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
+set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
+set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -403,15 +405,15 @@ set @@global.rpl_semi_sync_master_timeout= 1600;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
-set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
@@ -427,23 +429,20 @@ Variable_name	Value
 Rpl_semi_sync_master_clients	2
 #-- Prepare servers to simulate delay or error
 connection server_1;
-SET @@GLOBAL.debug_dbug= "+d,mysqld_delay_kill_threads_phase_1";
 connection server_2;
 SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event,slave_delay_killing_semisync_connection";
 connection server_3;
 SET @@GLOBAL.debug_dbug= "+d,simulate_delay_semisync_slave_reply";
 #--
 #-- Test begins
+connection server_1_con2;
+#-- Give enough time after timeout/ack received to query yes_tx/no_tx
+SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 connection server_1;
 #-- Begin semi-sync transaction
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
-show status like 'Rpl_semi_sync_master_wait_sessions';
-Variable_name	Value
-Rpl_semi_sync_master_wait_sessions	1
-#-- Give enough time after timeout/ack received to query yes_tx/no_tx
-SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
@@ -470,22 +469,23 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
-include/stop_slave.inc
+#-- Waiting for IO thread to realize master shutdown and stop
+include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 #-- Bring the master back up
 connection server_1_con2;
 connection default;
 connection server_1;
-SET @@GLOBAL.debug_dbug= "";
-SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	OFF
+set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
+set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
+set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -509,10 +509,17 @@ COUNT(*)=0
 #############################
 connection server_2;
 include/stop_slave.inc
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = @sav_enabled_server_2;
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 include/start_slave.inc
 connection server_3;
 include/stop_slave.inc
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = @sav_enabled_server_3;
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 include/start_slave.inc
 connection server_1;
+SET @@GLOBAL.rpl_semi_sync_master_timeout= @sav_master_timeout;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= @sav_enabled_master;
+SET @@GLOBAL.debug_dbug= @sav_master_dbug;
 drop table t1;
 include/rpl_end.inc

@@ -69,9 +69,9 @@ call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
 
---let $sav_master_timeout= `SELECT @@global.rpl_semi_sync_master_timeout`
---let $sav_enabled_master= `SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
---let $sav_master_dbug= `SELECT @@GLOBAL.debug_dbug`
+set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
+set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
+set @sav_master_dbug= @@GLOBAL.debug_dbug;
 
 --echo # Suppress slave errors related to the simulated error
 --connection server_2
@@ -79,16 +79,16 @@ call mtr.add_suppression("reply failed");
 call mtr.add_suppression("Replication event checksum verification");
 call mtr.add_suppression("Relay log write failure");
 call mtr.add_suppression("Failed to kill the active semi-sync connection");
---let $sav_enabled_server_2=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
---let $sav_server_2_dbug= `SELECT @@GLOBAL.debug_dbug`
+set @sav_enabled_server_2= @@GLOBAL.rpl_semi_sync_slave_enabled;
+set @sav_server_2_dbug= @@GLOBAL.debug_dbug;
 
 --connection server_3
 call mtr.add_suppression("reply failed");
 call mtr.add_suppression("Replication event checksum verification");
 call mtr.add_suppression("Relay log write failure");
 call mtr.add_suppression("Failed to kill the active semi-sync connection");
---let $sav_enabled_server_3=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
---let $sav_server_3_dbug= `SELECT @@GLOBAL.debug_dbug`
+set @sav_enabled_server_3= @@GLOBAL.rpl_semi_sync_slave_enabled;
+set @sav_server_3_dbug= @@GLOBAL.debug_dbug;
 
 --connection server_1
 CREATE TABLE t1 (a int);
@@ -116,7 +116,6 @@ while (`SELECT $i <= $slave_last`)
 --echo # allowed timeout, the primary should delay killing the suspended thread
 --echo # until an ACK is received (Rpl_semi_sync_master_yes_tx should be 1).
 --echo #
---let server_1_dbug= ""
 --let server_2_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
@@ -129,7 +128,6 @@ while (`SELECT $i <= $slave_last`)
 --echo # the primary should delay killing the suspended thread until the
 --echo # timeout is reached (Rpl_semi_sync_master_no_tx should be 1).
 --echo #
---let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
 --let server_2_dbug= "+d,corrupt_queue_event"
 --let server_3_dbug= "+d,corrupt_queue_event"
 --let semisync_timeout= 500
@@ -143,7 +141,6 @@ while (`SELECT $i <= $slave_last`)
 --echo # primary should delay killing the suspended thread until it receives an
 --echo # ACK from the delayed slave (Rpl_semi_sync_master_yes_tx should be 1).
 --echo #
---let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
 --let server_2_dbug= "+d,corrupt_queue_event"
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
@@ -167,7 +164,6 @@ while (`SELECT $i <= $slave_last`)
 # mysqld_delay_kill_threads_phase1 ensures that server_2 will have enough time
 # to start a new connection that has the intent to kill the active semi-sync
 # connection
---let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
 
 # slave_delay_killing_semisync_connection ensures that the primary has force
 # killed its current connection before it is able to issue `KILL`
@@ -184,33 +180,24 @@ while (`SELECT $i <= $slave_last`)
 
 --connection server_2
 source include/stop_slave.inc;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = @sav_enabled_server_2;
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 source include/start_slave.inc;
-
---disable_query_log
---eval SET @@GLOBAL.rpl_semi_sync_slave_enabled = $sav_enabled_server_2
---eval SET @@GLOBAL.debug_dbug= "$sav_server_2_dbug"
---enable_query_log
 
 --connection server_3
 source include/stop_slave.inc;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = @sav_enabled_server_3;
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 source include/start_slave.inc;
-
---disable_query_log
---eval SET @@GLOBAL.rpl_semi_sync_slave_enabled = $sav_enabled_server_3
---eval SET @@GLOBAL.debug_dbug= "$sav_server_3_dbug"
---enable_query_log
-
 
 --connection server_1
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 0;
 source include/wait_for_status_var.inc;
 
---disable_query_log
---eval SET @@GLOBAL.rpl_semi_sync_master_timeout= $sav_master_timeout
---eval SET @@GLOBAL.rpl_semi_sync_master_enabled= $sav_enabled_master
---eval SET @@GLOBAL.debug_dbug= "$sav_master_dbug"
---enable_query_log
+SET @@GLOBAL.rpl_semi_sync_master_timeout= @sav_master_timeout;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= @sav_enabled_master;
+SET @@GLOBAL.debug_dbug= @sav_master_dbug;
 
 drop table t1;
 
