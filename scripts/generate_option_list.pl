@@ -22,16 +22,19 @@
 #
 # Usage:
 #
-# generate_option_list.pl <mariadbd_path> > mariadbd_options.h
+# generate_option_list.pl <mariadbd_path> <output_path>
 
 use strict;
 use warnings;
 
-if ($#ARGV != 0) {
-    print "usage: $0 <mariadbd_path>\n";
+if ($#ARGV != 1) {
+    print "usage: $0 <mariadbd_path> <output_path>\n";
     exit;
 }
 my $mariadbd_path = $ARGV[0];
+my $output_path = $ARGV[1];
+
+open(OUT_FH, '>', $output_path) or die $!;
 
 sub split_comma {
     return split(/[\s,\.]+/, $_[0] =~ s/\([^\)]*\)//gr);
@@ -40,12 +43,12 @@ sub split_comma {
 sub generate_typelibs {
     my %map = %{$_[0]};
     for my $option (sort (keys %map)) {
-        print "\nstatic const char *valid_" . $option . "_values[] = {\n";
+        print OUT_FH "\nstatic const char *valid_" . $option . "_values[] = {\n";
         for my $value (@{$map{$option}}) {
-            print '"' . $value . "\",\n" if $value;
+            print OUT_FH '"' . $value . "\",\n" if $value;
         }
-        print "0\n};\n";
-        print "static TYPELIB valid_" . $option . "_values_typelib = {\n"
+        print OUT_FH "0\n};\n";
+        print OUT_FH "static TYPELIB valid_" . $option . "_values_typelib = {\n"
             . "array_elements(valid_" . $option . "_values)-1,\n"
             . "\"\", valid_" . $option . "_values, 0};\n";
     }
@@ -55,16 +58,16 @@ sub generate_typelib_map {
     my $name = $_[0];
     my %map = %{$_[1]};
     my @options = sort (keys %map);
-    print "\nstatic const char *mariadbd_${name}_options[] = {\n";
+    print OUT_FH "\nstatic const char *mariadbd_${name}_options[] = {\n";
     for my $option (@options) {
-        print '"' . $option . "\",\n";
+        print OUT_FH '"' . $option . "\",\n";
     }
-    print "};\n";
-    print "\nstatic TYPELIB *mariadbd_${name}_typelibs[] = {\n";
+    print OUT_FH "};\n";
+    print OUT_FH "\nstatic TYPELIB *mariadbd_${name}_typelibs[] = {\n";
     for my $option (@options) {
-        print "&valid_" . $option . "_values_typelib,\n";
+        print OUT_FH "&valid_" . $option . "_values_typelib,\n";
     }
-    print "};\n";
+    print OUT_FH "};\n";
 }
 
 my %enums;
@@ -125,10 +128,10 @@ my $help_output = readpipe('"' . $mariadbd_path =~ s/"/\\"/gr . '"'
                            . ' --help'
 );
 
-print "#ifndef _mariadbd_options_h\n";
-print "#define _mariadbd_options_h\n";
-print "#include <my_global.h>\n";
-print "static const char *mariadbd_valid_options[]= {\n";
+print OUT_FH "#ifndef _mariadbd_options_h\n";
+print OUT_FH "#define _mariadbd_options_h\n";
+print OUT_FH "#include <my_global.h>\n";
+print OUT_FH "static const char *mariadbd_valid_options[]= {\n";
 while ($help_output =~ /
                        # Consider all lines that start with "  --" as options.
                        ^\ \ --([^\ =\[]+)
@@ -144,7 +147,7 @@ while ($help_output =~ /
     my $enum_part = $2;
     my $set_part = $3;
     my $option = $1 =~ s/-/_/gr;
-    print '"' . $option . "\",\n";
+    print OUT_FH '"' . $option . "\",\n";
     if ($enum_part) {
         my @cleaned = split_comma($enum_part);
         $enums{$option} = \@cleaned;
@@ -154,11 +157,13 @@ while ($help_output =~ /
         $sets{$option} = \@cleaned;
     }
 }
-print "};\n";
+print OUT_FH "};\n";
 
 generate_typelibs(\%enums);
 generate_typelib_map("enum", \%enums);
 
 generate_typelibs(\%sets);
 generate_typelib_map("set", \%sets);
-print "#endif /* _mariadbd_options_h */\n";
+print OUT_FH "#endif /* _mariadbd_options_h */\n";
+
+close(OUT_FH);
