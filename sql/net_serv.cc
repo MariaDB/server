@@ -104,11 +104,9 @@ static void inline MYSQL_SERVER_my_error(...) {}
 */
 extern ulonglong test_flags;
 extern ulong bytes_sent, bytes_received, net_big_packet_count;
-#ifdef HAVE_QUERY_CACHE
 #define USE_QUERY_CACHE
 extern void query_cache_insert(void *thd, const char *packet, size_t length,
                                unsigned pkt_nr);
-#endif // HAVE_QUERY_CACHE
 #define update_statistics(A) A
 extern my_bool thd_net_is_killed(THD *thd);
 /* Additional instrumentation hooks for the server */

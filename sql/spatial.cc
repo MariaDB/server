@@ -25,8 +25,6 @@
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
 
-#ifdef HAVE_SPATIAL
-
 /* 
   exponential notation :
   1   sign
@@ -3800,5 +3798,3 @@ const Geometry::Class_info *Gis_geometry_collection::get_class_info() const
 {
   return &geometrycollection_class;
 }
-
-#endif /*HAVE_SPATIAL*/

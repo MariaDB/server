@@ -15,10 +15,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface /* gcc class implementation */
-#endif
-
 /* C++ standard header files */
 #include <set>
 #include <string>

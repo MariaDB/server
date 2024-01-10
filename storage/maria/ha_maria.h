@@ -16,10 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface                               /* gcc class implementation */
-#endif
-
 /* class for the maria handler */
 
 #include "maria_def.h"
@@ -153,13 +149,11 @@ public:
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt) override final;
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt) override;
   bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes) override final;
-#ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
                                      ulonglong *engine_data) override final;
-#endif
   MARIA_HA *file_ptr(void)
   {
     return file;
