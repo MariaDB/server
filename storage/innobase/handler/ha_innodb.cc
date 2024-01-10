@@ -18137,7 +18137,10 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
   if (s)
     buf_flush_sync();
   else
+  {
     while (buf_flush_list_space(fil_system.sys_space, nullptr));
+    os_aio_wait_until_no_pending_writes(true);
+  }
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
@@ -19216,8 +19219,10 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   10 << 20, 10 << 20,
   1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
+static ulong innodb_purge_rseg_truncate_frequency;
+
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
-  srv_purge_rseg_truncate_frequency,
+  innodb_purge_rseg_truncate_frequency,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
   "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
