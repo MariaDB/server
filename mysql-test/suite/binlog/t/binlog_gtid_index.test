@@ -168,6 +168,27 @@ use warnings;
 use Fcntl qw(:DEFAULT :seek);
 sysopen F, $ENV{FILE_TO_CORRUPT}, O_RDWR
   or die "Cannot open file $ENV{FILE_TO_CORRUPT}: $!\n";
+# Tricky: The index is written asynchroneously, it may still be incomplete.
+# So wait for the file to be written completely with a root node at the end.
+my $count= 0;
+for (;;) {
+  my $end= sysseek(F, 0, SEEK_END);
+  if ($end > 0 && ($end % 64) == 0) {
+    # The index file is non-empty with a full page at the end, test if the
+    # root page has been fully written. This is seen as bit 2 (PAGE_FLAG_LAST)
+    # and bit 3 (PAGE_FLAG_ROOT) being set (0xc).
+    my $flag;
+    if (sysseek(F, -64, SEEK_CUR) &&
+        sysread(F, $flag, 1) &&
+	(ord($flag) & 0xc) == 0xc) {
+      last;
+    }
+  }
+  die "Timeout waiting for GTID index to be non-empty\n"
+    if ++$count >= 500;
+  # Simple way to do sub-second sleep.
+  select(undef, undef, undef, 0.050);
+}
 # Corrupt the flag byte with an unused flag.
 sysseek(F, -2, SEEK_END)
   or die "Cannot seek file: $!\n";
