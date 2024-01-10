@@ -210,14 +210,11 @@ extern unsigned long long	srv_max_undo_log_size;
 extern uint	srv_n_fil_crypt_threads;
 extern uint	srv_n_fil_crypt_threads_started;
 
-/** Rate at which UNDO records should be purged. */
-extern ulong	srv_purge_rseg_truncate_frequency;
-
 /** Enable or Disable Truncate of UNDO tablespace. */
 extern my_bool	srv_undo_log_truncate;
 
 /** Default size of UNDO tablespace (10MiB for innodb_page_size=16k) */
-constexpr ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
+constexpr uint32_t SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
   UNIV_PAGE_SIZE_DEF;
 
 extern char*	srv_log_group_home_dir;

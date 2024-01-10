@@ -1,0 +1,15 @@
+disable_query_log;
+source ../../include/init_spider.inc;
+enable_query_log;
+
+--echo #
+--echo # MDEV-33031 Assertion failure upon reading from performance schema with binlog enabled
+--echo #
+connect foo,localhost,root;
+select variable_name, variable_value from performance_schema.status_by_thread
+where variable_name like '%spider_direct_aggregate%';
+disconnect foo;
+connection default;
+
+disable_query_log;
+source ../../include/deinit_spider.inc;
