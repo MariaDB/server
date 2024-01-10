@@ -19,10 +19,6 @@
 
 /* compare and test functions */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
 #include "item.h"
 #include "opt_rewrite_date_cmp.h"

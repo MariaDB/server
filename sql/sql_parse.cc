@@ -5285,9 +5285,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     REFRESH_GENERAL_LOG                     |
     REFRESH_ENGINE_LOG                      |
     REFRESH_ERROR_LOG                       |
-#ifdef HAVE_QUERY_CACHE
     REFRESH_QUERY_CACHE_FREE                |
-#endif /* HAVE_QUERY_CACHE */
     REFRESH_STATUS                          |
     REFRESH_SESSION_STATUS                  |
     REFRESH_GLOBAL_STATUS                   |

@@ -35,10 +35,6 @@
 
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #define MYSQL_SERVER 1                          // to have THD
 

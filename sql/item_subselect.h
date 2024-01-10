@@ -19,10 +19,6 @@
 /* subselect Item */
 
 #include "item.h"
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include <queues.h>
 
 class st_select_lex;

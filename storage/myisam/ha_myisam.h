@@ -14,11 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 /* class for the the myisam handler */
 
 #include <myisam.h>
@@ -146,13 +141,11 @@ class ha_myisam final : public handler
     override;
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes)
     override;
-#ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
                                      ulonglong *engine_data) override;
-#endif
   /**
    * Multi Range Read interface
    */

@@ -2217,10 +2217,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     trans->no_2pc=0;
     if (all)
     {
-#ifdef HAVE_QUERY_CACHE
       if (thd->transaction->changed_tables)
         query_cache.invalidate(thd, thd->transaction->changed_tables);
-#endif
     }
   }
 
