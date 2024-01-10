@@ -16,10 +16,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include <m_ctype.h>
@@ -3997,7 +3993,6 @@ static int ha_maria_init(void *p)
 }
 
 
-#ifdef HAVE_QUERY_CACHE
 /**
   @brief Register a named table with a call back function to the query cache.
 
@@ -4070,7 +4065,6 @@ my_bool ha_maria::register_query_cache_table(THD *thd, const char *table_name,
   DBUG_RETURN(!(file->s->non_transactional_concurrent_insert &&
                 current_data_file_length != actual_data_file_length));
 }
-#endif
 
 static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(block_size),

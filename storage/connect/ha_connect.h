@@ -23,10 +23,6 @@
   /sql/handler.h and /storage/connect/ha_connect.cc
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface     /* gcc class implementation */
-#endif
-
 /****************************************************************************/
 /*  mycat.h contains the TOS, PTOS, ha_table_option_struct declarations.    */
 /****************************************************************************/

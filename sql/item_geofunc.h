@@ -20,12 +20,6 @@
 
 /* This file defines all spatial functions */
 
-#ifdef HAVE_SPATIAL
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_type_geom.h"
 #include "item.h"
 #include "gstream.h"
@@ -1279,10 +1273,4 @@ class Item_func_gis_debug: public Item_long_func
 #define GEOM_NEW(thd, obj_constructor) new (thd->mem_root) obj_constructor
 #define GEOM_TYPE(x) (x)
 
-#else /*HAVE_SPATIAL*/
-
-#define GEOM_NEW(thd, obj_constructor) NULL
-#define GEOM_TYPE(x) NULL
-
-#endif /*HAVE_SPATIAL*/
 #endif /* ITEM_GEOFUNC_INCLUDED */

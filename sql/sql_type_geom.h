@@ -17,13 +17,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_type.h"
-
 
 class Type_geom_attributes
 {
@@ -58,7 +53,6 @@ public:
 };
 
 
-#ifdef HAVE_SPATIAL
 class Type_handler_geometry: public Type_handler_string_result
 {
 public:
@@ -475,7 +469,5 @@ public:
   }
   Binlog_type_info binlog_type_info() const override;
 };
-
-#endif // HAVE_SPATIAL
 
 #endif // SQL_TYPE_GEOM_H_INCLUDED

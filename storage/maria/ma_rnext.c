@@ -50,14 +50,12 @@ int maria_rnext(MARIA_HA *info, uchar *buf, int inx)
   if (!flag)
   {
     switch (keyinfo->key_alg){
-#ifdef HAVE_RTREE_KEYS
     case HA_KEY_ALG_RTREE:
       error=maria_rtree_get_first(info, inx,
                                   info->last_key.data_length +
                                   info->last_key.ref_length);
                                   
       break;
-#endif
     case HA_KEY_ALG_BTREE:
     default:
       error= _ma_search_first(info, keyinfo, share->state.key_root[inx]);
@@ -81,7 +79,6 @@ int maria_rnext(MARIA_HA *info, uchar *buf, int inx)
   else
   {
     switch (keyinfo->key_alg) {
-#ifdef HAVE_RTREE_KEYS
     case HA_KEY_ALG_RTREE:
       /*
 	Note that rtree doesn't support that the table
@@ -91,7 +88,6 @@ int maria_rnext(MARIA_HA *info, uchar *buf, int inx)
       error= maria_rtree_get_next(info, inx, info->last_key.data_length +
                                   info->last_key.ref_length);
       break;
-#endif
     case HA_KEY_ALG_BTREE:
     default:
       if (!changed)
