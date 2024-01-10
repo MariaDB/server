@@ -531,6 +531,10 @@ struct st_mysql_plugin
   const char *author;   /* plugin author (for I_S.PLUGINS)              */
   const char *descr;    /* general descriptive text (for I_S.PLUGINS)   */
   int license;          /* the plugin license (PLUGIN_LICENSE_XXX)      */
+  /* Plugin initialisation done here should defer any ALTER TABLE
+  queries to after the ddl recovery is done, in the
+  signal_ddl_recovery_done() callback called by
+  ha_signal_ddl_recovery_done(). */
   int (*init)(void *);  /* the function to invoke when plugin is loaded */
   int (*deinit)(void *);/* the function to invoke when plugin is unloaded */
   unsigned int version; /* plugin version (for I_S.PLUGINS)             */
@@ -555,6 +559,10 @@ struct st_maria_plugin
   const char *author;   /* plugin author (for SHOW PLUGINS)             */
   const char *descr;    /* general descriptive text (for SHOW PLUGINS ) */
   int license;          /* the plugin license (PLUGIN_LICENSE_XXX)      */
+  /* Plugin initialisation done here should defer any ALTER TABLE
+  queries to after the ddl recovery is done, in the
+  signal_ddl_recovery_done() callback called by
+  ha_signal_ddl_recovery_done(). */
   int (*init)(void *);  /* the function to invoke when plugin is loaded */
   int (*deinit)(void *);/* the function to invoke when plugin is unloaded */
   unsigned int version; /* plugin version (for SHOW PLUGINS)            */
