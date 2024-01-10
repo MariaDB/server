@@ -754,16 +754,20 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
   ut_ad(space->referenced());
 
   const auto s= state();
-  ut_a(s >= FREED);
+
+  const lsn_t lsn=
+    mach_read_from_8(my_assume_aligned<8>
+                     (FIL_PAGE_LSN + (zip.data ? zip.data : frame)));
+  ut_ad(lsn
+        ? lsn >= oldest_modification() || oldest_modification() == 2
+        : space->purpose != FIL_TYPE_TABLESPACE);
 
   if (s < UNFIXED)
   {
+    ut_a(s >= FREED);
     if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
     {
-      const lsn_t lsn=
-        mach_read_from_8(my_assume_aligned<8>
-                         (FIL_PAGE_LSN + (zip.data ? zip.data : frame)));
-      ut_ad(lsn >= oldest_modification());
+    freed:
       if (lsn > log_sys.get_flushed_lsn())
       {
         mysql_mutex_unlock(&buf_pool.mutex);
@@ -773,6 +777,12 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
     }
     buf_pool.release_freed_page(this);
     return false;
+  }
+
+  if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
+  {
+    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    goto freed;
   }
 
   ut_d(const auto f=) zip.fix.fetch_add(WRITE_FIX - UNFIXED);
@@ -869,15 +879,9 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
 
   if ((s & LRU_MASK) == REINIT || !space->use_doublewrite())
   {
-    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
-    {
-      const lsn_t lsn=
-        mach_read_from_8(my_assume_aligned<8>(FIL_PAGE_LSN +
-                                              (write_frame ? write_frame
-                                               : frame)));
-      ut_ad(lsn >= oldest_modification());
+    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE) &&
+        lsn > log_sys.get_flushed_lsn())
       log_write_up_to(lsn, true);
-    }
     space->io(IORequest{type, this, slot}, physical_offset(), size,
               write_frame, this);
   }
@@ -1057,10 +1061,24 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
                                      bool contiguous, bool evict,
                                      ulint n_flushed, ulint n_to_flush)
 {
-  mysql_mutex_unlock(&buf_pool.mutex);
-
   ut_ad(space->id == page_id.space());
   ut_ad(bpage->id() == page_id);
+
+  {
+    const lsn_t lsn=
+      mach_read_from_8(my_assume_aligned<8>
+                       (FIL_PAGE_LSN +
+                        (bpage->zip.data ? bpage->zip.data : bpage->frame)));
+    ut_ad(lsn >= bpage->oldest_modification());
+    if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
+    {
+      ut_a(!bpage->flush(evict, space));
+      mysql_mutex_unlock(&buf_pool.mutex);
+      return 0;
+    }
+  }
+
+  mysql_mutex_unlock(&buf_pool.mutex);
 
   ulint count= 0;
   page_id_t id= page_id;
@@ -2447,9 +2465,9 @@ static void buf_flush_page_cleaner()
 
       do
       {
-        DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", continue;);
-        DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", continue;);
-
+        IF_DBUG(if (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
+                    _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1))
+                  continue,);
         if (!recv_recovery_is_on() &&
             !srv_startup_is_before_trx_rollback_phase &&
             srv_operation <= SRV_OPERATION_EXPORT_RESTORED)

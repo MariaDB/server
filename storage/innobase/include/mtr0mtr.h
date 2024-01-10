@@ -89,8 +89,9 @@ struct mtr_t {
   { auto s= m_memo.size(); rollback_to_savepoint(s - 1, s); }
 
   /** Commit a mini-transaction that is shrinking a tablespace.
-  @param space   tablespace that is being shrunk */
-  ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
+  @param space   tablespace that is being shrunk
+  @param size    new size in pages */
+  ATTRIBUTE_COLD void commit_shrink(fil_space_t &space, uint32_t size);
 
   /** Commit a mini-transaction that is deleting or renaming a file.
   @param space           tablespace that is being renamed or deleted

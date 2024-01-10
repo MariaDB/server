@@ -41,6 +41,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "dict0load.h"
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
+#include "log.h"
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -379,8 +380,8 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
     ut_ad(rseg_hdr->page.id() == rseg_hdr_id);
     block->page.lock.x_lock();
     ut_ad(block->page.id() == id);
-    mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
-    mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
+    mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
+    mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
@@ -503,7 +504,7 @@ loop:
   mtr.start();
   rseg_hdr->page.lock.x_lock();
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
-  mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
+  mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
 
   goto loop;
 }
@@ -670,15 +671,8 @@ not_free:
       rseg.latch.rd_unlock();
     }
 
-    ib::info() << "Truncating " << file->name;
+    sql_print_information("InnoDB: Truncating %s", file->name);
     trx_purge_cleanse_purge_queue(space);
-
-    log_free_check();
-
-    mtr_t mtr;
-    mtr.start();
-    mtr.x_lock_space(&space);
-    const auto space_id= space.id;
 
     /* Lock all modified pages of the tablespace.
 
@@ -689,86 +683,12 @@ not_free:
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
 
-  rescan:
     if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
         srv_fast_shutdown)
-    {
-    fast_shutdown:
-      mtr.commit();
       return;
-    }
-
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
-    {
-      ut_ad(bpage->oldest_modification());
-      ut_ad(bpage->in_file());
-
-      buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
-
-      if (bpage->oldest_modification() > 2 && bpage->id().space() == space_id)
-      {
-        ut_ad(bpage->frame);
-        bpage->fix();
-        {
-          /* Try to acquire an exclusive latch while the cache line is
-          fresh after fix(). */
-          const bool got_lock{bpage->lock.x_lock_try()};
-          buf_pool.flush_hp.set(prev);
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          if (!got_lock)
-            bpage->lock.x_lock();
-        }
-
-#ifdef BTR_CUR_HASH_ADAPT
-        /* There is no AHI on undo tablespaces. */
-        ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
-#endif
-        ut_ad(!bpage->is_io_fixed());
-        ut_ad(bpage->id().space() == space_id);
-
-        if (bpage->oldest_modification() > 2 &&
-            !mtr.have_x_latch(*reinterpret_cast<buf_block_t*>(bpage)))
-          mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
-                        MTR_MEMO_PAGE_X_FIX);
-        else
-        {
-          bpage->unfix();
-          bpage->lock.x_unlock();
-        }
-
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
-        if (prev != buf_pool.flush_hp.get())
-        {
-          /* The functions buf_pool_t::release_freed_page() or
-          buf_do_flush_list_batch() may be right now holding
-          buf_pool.mutex and waiting to acquire
-          buf_pool.flush_list_mutex. Ensure that they can proceed,
-          to avoid extreme waits. */
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          mysql_mutex_lock(&buf_pool.mutex);
-          mysql_mutex_unlock(&buf_pool.mutex);
-          goto rescan;
-        }
-      }
-
-      bpage= prev;
-    }
-
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-
-    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
-        srv_fast_shutdown)
-      goto fast_shutdown;
-
-    /* Re-initialize tablespace, in a single mini-transaction. */
-    const ulint size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
     /* Adjust the tablespace metadata. */
     mysql_mutex_lock(&fil_system.mutex);
-    space.set_stopping();
-    space.is_being_truncated= true;
     if (space.crypt_data)
     {
       space.reacquire();
@@ -779,26 +699,20 @@ not_free:
     else
       mysql_mutex_unlock(&fil_system.mutex);
 
-    for (auto i= 6000; space.referenced();
-         std::this_thread::sleep_for(std::chrono::milliseconds(10)))
-    {
-      if (!--i)
-      {
-        mtr.commit();
-        ib::error() << "Failed to freeze UNDO tablespace " << file->name;
-        return;
-      }
-    }
+    /* Re-initialize tablespace, in a single mini-transaction. */
+    const uint32_t size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
+    log_free_check();
+
+    mtr_t mtr;
+    mtr.start();
+    mtr.x_lock_space(&space);
     /* Associate the undo tablespace with mtr.
     During mtr::commit_shrink(), InnoDB can use the undo
     tablespace object to clear all freed ranges */
     mtr.set_named_space(&space);
     mtr.trim_pages(page_id_t(space.id, size));
     ut_a(fsp_header_init(&space, size, &mtr) == DB_SUCCESS);
-    mysql_mutex_lock(&fil_system.mutex);
-    space.size= file->size= size;
-    mysql_mutex_unlock(&fil_system.mutex);
 
     for (auto &rseg : trx_sys.rseg_array)
     {
@@ -824,7 +738,7 @@ not_free:
       rseg.reinit(rblock->page.id().page_no());
     }
 
-    mtr.commit_shrink(space);
+    mtr.commit_shrink(space, size);
 
     /* No mutex; this is only updated by the purge coordinator. */
     export_vars.innodb_undo_truncations++;
@@ -841,11 +755,12 @@ not_free:
       purge_sys.next_stored= false;
     }
 
-    DBUG_EXECUTE_IF("ib_undo_trunc", ib::info() << "ib_undo_trunc";
+    DBUG_EXECUTE_IF("ib_undo_trunc",
+                    sql_print_information("InnoDB: ib_undo_trunc");
                     log_buffer_flush_to_disk();
                     DBUG_SUICIDE(););
 
-    ib::info() << "Truncated " << file->name;
+    sql_print_information("InnoDB: Truncated %s", file->name);
     purge_sys.truncate.last= purge_sys.truncate.current;
     ut_ad(&space == purge_sys.truncate.current);
     purge_sys.truncate.current= nullptr;

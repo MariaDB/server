@@ -418,7 +418,8 @@ err_exit:
 			      + header_page->page.frame, &ibuf.seg_size, &mtr);
 
 	do {
-		DBUG_EXECUTE_IF("intermittent_read_failure", continue;);
+		IF_DBUG(if (_db_keyword_(nullptr, "intermittent_read_failure",
+					 1)) continue,);
 		ut_ad(ibuf.seg_size >= 2);
 	} while (0);
 
