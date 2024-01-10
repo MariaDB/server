@@ -16,10 +16,6 @@
 
 /* Some general useful functions */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
-
 #include "mariadb.h"
 #include <my_global.h>
 #include <tztime.h>

@@ -23,10 +23,6 @@
 #include "mrn_mysql.h"
 #include "mrn_mysql_compat.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
-
 #include <sql_plugin.h>
 #include <sql_show.h>
 #include <key.h>

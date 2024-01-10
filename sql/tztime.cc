@@ -25,10 +25,6 @@
   it creates unsolved link dependencies on some platforms.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define VER "1.1"
 #include "mariadb.h"
 #if !defined(TZINFO2SQL) && !defined(TESTTIME)
