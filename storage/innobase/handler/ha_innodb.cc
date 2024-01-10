@@ -19349,8 +19349,10 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   10 << 20, 10 << 20,
   1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
+static ulong innodb_purge_rseg_truncate_frequency;
+
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
-  srv_purge_rseg_truncate_frequency,
+  innodb_purge_rseg_truncate_frequency,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
   "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
