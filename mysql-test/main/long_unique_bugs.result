@@ -660,5 +660,20 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
 #
+# MDEV-32837 long unique does not work like unique key when using replace
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, UNIQUE KEY `test` (b,c) USING HASH) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1),(2,2,2);
+REPLACE INTO t1 VALUES (3,1,1);
+SELECT * FROM t1 ORDER BY a;
+a	b	c
+2	2	2
+3	1	1
+REPLACE INTO t1 VALUES (3,2,2);
+SELECT * FROM t1;
+a	b	c
+3	2	2
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #
