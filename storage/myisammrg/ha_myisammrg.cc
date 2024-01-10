@@ -86,10 +86,6 @@
   They stay with the open table until its final close.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "sql_priv.h"
@@ -929,7 +925,7 @@ int ha_myisammrg::attach_children(void)
         break;
     }
   }
-#if !defined(BIG_TABLES) || SIZEOF_OFF_T == 4
+#if SIZEOF_OFF_T == 4
   /* Merge table has more than 2G rows */
   if (table->s->crashed)
   {
@@ -1256,7 +1252,7 @@ int ha_myisammrg::info(uint flag)
   */
   stats.records = (ha_rows) mrg_info.records;
   stats.deleted = (ha_rows) mrg_info.deleted;
-#if !defined(BIG_TABLES) || SIZEOF_OFF_T == 4
+#if SIZEOF_OFF_T == 4
   if ((mrg_info.records >= (ulonglong) 1 << 32) ||
       (mrg_info.deleted >= (ulonglong) 1 << 32))
     table->s->crashed= 1;

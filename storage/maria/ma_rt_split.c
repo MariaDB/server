@@ -17,9 +17,6 @@
 #include "maria_def.h"
 #include "trnman.h"
 #include "ma_key_recover.h"
-
-#ifdef HAVE_RTREE_KEYS
-
 #include "ma_rt_index.h"
 #include "ma_rt_key.h"
 #include "ma_rt_mbr.h"
@@ -546,5 +543,3 @@ split_err:
   stack_alloc_free(coord_buf, coord_buf_alloced);
   DBUG_RETURN(err_code);
 }
-
-#endif /*HAVE_RTREE_KEYS*/
