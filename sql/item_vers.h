@@ -18,10 +18,6 @@
 
 /* System Versioning items */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 class Item_func_history: public Item_bool_func
 {
 public:

@@ -17,8 +17,6 @@
 
 #include "mariadb.h"
 
-#ifdef HAVE_SPATIAL
-
 #include "gcalc_tools.h"
 #include "spatial.h"
 
@@ -1466,6 +1464,3 @@ void Gcalc_operation_reducer::reset()
   m_res_hook= (Gcalc_dyn_list::Item **)&m_result;
   free_list(m_first_active_thread);
 }
-
-#endif /*HAVE_SPATIAL*/
-

@@ -20,10 +20,6 @@
 #ifndef _opt_range_h
 #define _opt_range_h
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "records.h"                            /* READ_RECORD */
 #include "queues.h"                             /* QUEUE */
 #include "filesort.h"                           /* SORT_INFO */
