@@ -362,8 +362,6 @@ struct fil_space_t final
 				Protected by log_sys.mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
-	/** whether undo tablespace truncation is in progress */
-	bool		is_being_truncated;
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
 				/*!< base node for the file chain */
@@ -442,12 +440,20 @@ private:
   /** LSN of freeing last page; protected by freed_range_mutex */
   lsn_t last_freed_lsn;
 
+  /** LSN of undo tablespace creation or 0; protected by latch */
+  lsn_t create_lsn;
 public:
   /** @return whether doublewrite buffering is needed */
   inline bool use_doublewrite() const;
 
   /** @return whether a page has been freed */
   inline bool is_freed(uint32_t page);
+
+  /** Set create_lsn. */
+  inline void set_create_lsn(lsn_t lsn);
+
+  /** @return the latest tablespace rebuild LSN, or 0 */
+  lsn_t get_create_lsn() const { return create_lsn; }
 
   /** Apply freed_ranges to the file.
   @param writable whether the file is writable
@@ -525,9 +531,6 @@ public:
 
   /** Note that operations on the tablespace must stop. */
   inline void set_stopping();
-
-  /** Note that operations on the tablespace can resume after truncation */
-  inline void clear_stopping();
 
   /** Drop the tablespace and wait for any pending operations to cease
   @param id               tablespace identifier
@@ -1623,14 +1626,6 @@ inline void fil_space_t::set_stopping()
 #else
   n_pending.fetch_or(STOPPING_WRITES, std::memory_order_relaxed);
 #endif
-}
-
-inline void fil_space_t::clear_stopping()
-{
-  mysql_mutex_assert_owner(&fil_system.mutex);
-  static_assert(STOPPING_WRITES == 1U << 30, "compatibility");
-  ut_d(auto n=) n_pending.fetch_sub(STOPPING_WRITES, std::memory_order_relaxed);
-  ut_ad((n & STOPPING) == STOPPING_WRITES);
 }
 
 /** Flush pending writes from the file system cache to the file. */

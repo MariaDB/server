@@ -258,9 +258,21 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
+/** Set create_lsn. */
+inline void fil_space_t::set_create_lsn(lsn_t lsn)
+{
+#ifndef SUX_LOCK_GENERIC
+  ut_ad(latch.is_write_locked());
+#endif
+  /* Concurrent log_checkpoint_low() must be impossible. */
+  mysql_mutex_assert_owner(&log_sys.mutex);
+  create_lsn= lsn;
+}
+
 /** Commit a mini-transaction that is shrinking a tablespace.
-@param space   tablespace that is being shrunk */
-void mtr_t::commit_shrink(fil_space_t &space)
+@param space   tablespace that is being shrunk
+@param size    new size in pages */
+void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 {
   ut_ad(is_active());
   ut_ad(!is_inside_ibuf());
@@ -278,16 +290,23 @@ void mtr_t::commit_shrink(fil_space_t &space)
   const lsn_t start_lsn= do_write().first;
   ut_d(m_log.erase());
 
+  fil_node_t *file= UT_LIST_GET_LAST(space.chain);
   mysql_mutex_lock(&log_sys.flush_order_mutex);
+  mysql_mutex_lock(&fil_system.mutex);
+  ut_ad(file->is_open());
+  space.size= file->size= size;
+  space.set_create_lsn(m_commit_lsn);
+  mysql_mutex_unlock(&fil_system.mutex);
+
+  space.clear_freed_ranges();
+
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
 
   os_file_truncate(space.chain.start->name, space.chain.start->handle,
-                   os_offset_t{space.size} << srv_page_size_shift, true);
+                   os_offset_t{size} << srv_page_size_shift, true);
 
-  space.clear_freed_ranges();
-
-  const page_id_t high{space.id, space.size};
+  const page_id_t high{space.id, size};
 
   for (mtr_memo_slot_t &slot : m_memo)
   {
@@ -330,13 +349,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
   }
 
   mysql_mutex_unlock(&log_sys.flush_order_mutex);
-
-  mysql_mutex_lock(&fil_system.mutex);
-  ut_ad(space.is_being_truncated);
-  ut_ad(space.is_stopping_writes());
-  space.clear_stopping();
-  space.is_being_truncated= false;
-  mysql_mutex_unlock(&fil_system.mutex);
 
   release();
   release_resources();

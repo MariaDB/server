@@ -558,7 +558,7 @@ fil_space_extend_must_retry(
 	ut_ad(UT_LIST_GET_LAST(space->chain) == node);
 	ut_ad(size >= FIL_IBD_FILE_INITIAL_SIZE);
 	ut_ad(node->space == space);
-	ut_ad(space->referenced() || space->is_being_truncated);
+	ut_ad(space->referenced());
 
 	*success = space->size >= size;
 
@@ -647,8 +647,7 @@ fil_space_extend_must_retry(
 	default:
 		ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 		      || space->purpose == FIL_TYPE_IMPORT);
-		if (space->purpose == FIL_TYPE_TABLESPACE
-		    && !space->is_being_truncated) {
+		if (space->purpose == FIL_TYPE_TABLESPACE) {
 			goto do_flush;
 		}
 		break;
@@ -733,12 +732,10 @@ bool fil_space_extend(fil_space_t *space, uint32_t size)
   bool success= false;
   const bool acquired= space->acquire();
   mysql_mutex_lock(&fil_system.mutex);
-  if (acquired || space->is_being_truncated)
-  {
+  if (acquired)
     while (fil_space_extend_must_retry(space, UT_LIST_GET_LAST(space->chain),
                                        size, &success))
       mysql_mutex_lock(&fil_system.mutex);
-  }
   mysql_mutex_unlock(&fil_system.mutex);
   if (acquired)
     space->release();
@@ -3058,11 +3055,9 @@ fil_space_validate_for_mtr_commit(
 	ut_ad(!is_predefined_tablespace(space->id));
 
 	/* We are serving mtr_commit(). While there is an active
-	mini-transaction, we should have !space->stop_new_ops. This is
+	mini-transaction, we should have !space->is_stopping(). This is
 	guaranteed by meta-data locks or transactional locks. */
-	ut_ad(!space->is_stopping()
-	      || space->is_being_truncated /* fil_truncate_prepare() */
-	      || space->referenced());
+	ut_ad(!space->is_stopping() || space->referenced());
 }
 #endif /* UNIV_DEBUG */
 

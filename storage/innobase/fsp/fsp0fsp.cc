@@ -1034,77 +1034,11 @@ static
 buf_block_t*
 fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 {
-  buf_block_t *block;
-
-  if (UNIV_UNLIKELY(space->is_being_truncated))
-  {
-    const page_id_t page_id{space->id, offset};
-    uint32_t state;
-    block= mtr->get_already_latched(page_id, MTR_MEMO_PAGE_X_FIX);
-    if (block)
-      goto have_latch;
-    else
-    {
-      buf_pool_t::hash_chain &chain=
-        buf_pool.page_hash.cell_get(page_id.fold());
-      mysql_mutex_lock(&buf_pool.mutex);
-      block= reinterpret_cast<buf_block_t*>
-        (buf_pool.page_hash.get(page_id, chain));
-      if (!block)
-      {
-        mysql_mutex_unlock(&buf_pool.mutex);
-        goto create;
-      }
-    }
-
-    if (!mtr->have_x_latch(*block))
-    {
-      const bool got{block->page.lock.x_lock_try()};
-      mysql_mutex_unlock(&buf_pool.mutex);
-      if (!got)
-      {
-        block->page.lock.x_lock();
-        const page_id_t id{block->page.id()};
-        if (UNIV_UNLIKELY(id != page_id))
-        {
-          ut_ad(id.is_corrupted());
-          block->page.lock.x_unlock();
-          goto create;
-        }
-      }
-      state= block->page.fix() + 1;
-      mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
-    }
-    else
-    {
-      mysql_mutex_unlock(&buf_pool.mutex);
-    have_latch:
-      state= block->page.state();
-    }
-
-    ut_ad(state > buf_page_t::FREED);
-    ut_ad(state < buf_page_t::READ_FIX);
-    ut_ad((state & buf_page_t::LRU_MASK) != buf_page_t::IBUF_EXIST);
-    ut_ad(block->page.lock.x_lock_count() == 1);
-    ut_ad(block->page.frame);
-#ifdef BTR_CUR_HASH_ADAPT
-    ut_ad(!block->index);
-#endif
-
-    block->page.set_reinit(state < buf_page_t::UNFIXED
-                           ? buf_page_t::FREED
-                           : (state & buf_page_t::LRU_MASK));
-  }
-  else
-  {
-  create:
-    buf_block_t *free_block= buf_LRU_get_free_block(false);
-    block= buf_page_create(space, static_cast<uint32_t>(offset),
-                           space->zip_size(), mtr, free_block);
-    if (UNIV_UNLIKELY(block != free_block))
-      buf_pool.free_block(free_block);
-  }
-
+  buf_block_t *free_block= buf_LRU_get_free_block(false);
+  buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(offset),
+                                      space->zip_size(), mtr, free_block);
+  if (UNIV_UNLIKELY(block != free_block))
+    buf_pool.free_block(free_block);
   fsp_init_file_page(space, block, mtr);
   return block;
 }
@@ -1799,7 +1733,6 @@ page_alloc:
 
 		ut_d(const auto x = block->page.lock.x_lock_count());
 		ut_ad(x || block->page.lock.not_recursive());
-		ut_ad(x == 1 || space->is_being_truncated);
 		ut_ad(x <= 2);
 		ut_ad(!fil_page_get_type(block->page.frame));
 		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->page.frame,
