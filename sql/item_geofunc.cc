@@ -22,10 +22,6 @@
   This file defines all spatial functions
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 /*
@@ -35,7 +31,6 @@
 */
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
-#ifdef HAVE_SPATIAL
 #include <m_ctype.h>
 #include "opt_range.h"
 #include "item_geofunc.h"
@@ -4078,5 +4073,3 @@ static Native_func_registry func_array_geom[] =
 Native_func_registry_array
   native_func_registry_array_geom(func_array_geom,
                                   array_elements(func_array_geom));
-
-#endif /*HAVE_SPATIAL*/

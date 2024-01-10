@@ -21,10 +21,6 @@
 
 /* This file defines all string functions */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 extern size_t username_char_length;
 
 class Item_str_func :public Item_func

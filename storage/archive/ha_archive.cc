@@ -17,10 +17,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #include "sql_class.h"                          // SSV
 #include "sql_table.h"                          // build_table_filename

@@ -468,7 +468,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
     if (keydef->flag & HA_SPATIAL)
     {
-#ifdef HAVE_SPATIAL
       /* BAR TODO to support 3D and more dimensions in the future */
       uint sp_segs=SPDIMS*2;
       keydef->flag=HA_SPATIAL;
@@ -500,10 +499,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       key_length+=SPLEN*sp_segs;
       length++;                              /* At least one length uchar */
       min_key_length++;
-#else
-      my_errno= HA_ERR_UNSUPPORTED;
-      goto err_no_lock;
-#endif /*HAVE_SPATIAL*/
     }
     else if (keydef->flag & HA_FULLTEXT)
     {
@@ -952,7 +947,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     for (j=0 ; j < keydefs[i].keysegs-sp_segs ; j++)
       if (_ma_keyseg_write(file, &keydefs[i].seg[j]))
        goto err;
-#ifdef HAVE_SPATIAL
     for (j=0 ; j < sp_segs ; j++)
     {
       HA_KEYSEG sseg;
@@ -969,7 +963,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       if (_ma_keyseg_write(file, &sseg))
         goto err;
     }
-#endif
   }
   /* Create extra keys for unique definitions */
   offset= real_reclength - uniques*MARIA_UNIQUE_HASH_LENGTH;

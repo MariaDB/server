@@ -16,8 +16,6 @@
 
 #include "mariadb.h"
 
-#ifdef HAVE_SPATIAL
-
 #include "sql_class.h"
 #include "sql_type_geom.h"
 #include "item_geofunc.h"
@@ -1010,5 +1008,3 @@ Binlog_type_info Field_geom::binlog_type_info() const
   return Binlog_type_info(Field_geom::type(), pack_length_no_ptr(), 1,
                           field_charset(), type_handler_geom()->geometry_type());
 }
-
-#endif // HAVE_SPATIAL
