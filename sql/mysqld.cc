@@ -1472,11 +1472,8 @@ const char *libwrapName= NULL;
 int allow_severity = LOG_INFO;
 int deny_severity = LOG_WARNING;
 #endif
-#ifdef HAVE_QUERY_CACHE
 ulong query_cache_min_res_unit= QUERY_CACHE_MIN_RESULT_DATA_SIZE;
 Query_cache query_cache;
-#endif
-
 
 my_bool opt_use_ssl  = 1;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
@@ -7444,7 +7441,6 @@ SHOW_VAR status_vars[]= {
   {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
   {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
 #endif /* HAVE_REPLICATION */
-#ifdef HAVE_QUERY_CACHE
   {"Qcache_free_blocks",       (char*) &query_cache.free_memory_blocks, SHOW_LONG_NOFLUSH},
   {"Qcache_free_memory",       (char*) &query_cache.free_memory, SHOW_LONG_NOFLUSH},
   {"Qcache_hits",              (char*) &query_cache.hits,       SHOW_LONG},
@@ -7453,7 +7449,6 @@ SHOW_VAR status_vars[]= {
   {"Qcache_not_cached",        (char*) &query_cache.refused,    SHOW_LONG},
   {"Qcache_queries_in_cache",  (char*) &query_cache.queries_in_cache, SHOW_LONG_NOFLUSH},
   {"Qcache_total_blocks",      (char*) &query_cache.total_blocks, SHOW_LONG_NOFLUSH},
-#endif /*HAVE_QUERY_CACHE*/
   {"Queries",                  (char*) &show_queries,            SHOW_SIMPLE_FUNC},
   {"Questions",                (char*) offsetof(STATUS_VAR, questions), SHOW_LONG_STATUS},
 #ifdef HAVE_REPLICATION
@@ -7852,21 +7847,9 @@ static int mysql_init_variables(void)
 #else
   have_dlopen=SHOW_OPTION_NO;
 #endif
-#ifdef HAVE_QUERY_CACHE
   have_query_cache=SHOW_OPTION_YES;
-#else
-  have_query_cache=SHOW_OPTION_NO;
-#endif
-#ifdef HAVE_SPATIAL
   have_geometry=SHOW_OPTION_YES;
-#else
-  have_geometry=SHOW_OPTION_NO;
-#endif
-#ifdef HAVE_RTREE_KEYS
   have_rtree_keys=SHOW_OPTION_YES;
-#else
-  have_rtree_keys=SHOW_OPTION_NO;
-#endif
 #ifdef HAVE_CRYPT
   have_crypt=SHOW_OPTION_YES;
 #else
@@ -8176,9 +8159,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     SYSVAR_AUTOSIZE(delay_key_write_options, (uint) DELAY_KEY_WRITE_NONE);
     SYSVAR_AUTOSIZE(myisam_recover_options, HA_RECOVER_DEFAULT);
     ha_open_options&= ~(HA_OPEN_DELAY_KEY_WRITE);
-#ifdef HAVE_QUERY_CACHE
     SYSVAR_AUTOSIZE(query_cache_size, 0);
-#endif
     sql_print_warning("The syntax '--safe-mode' is deprecated and will be "
                       "removed in a future release.");
     break;

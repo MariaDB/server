@@ -16,11 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class interface */
-#endif
-
 #include "my_time.h"                            /* my_time_t */
 #include "mysql_time.h"                         /* MYSQL_TIME */
 #include "sql_list.h"                           /* Sql_alloc */

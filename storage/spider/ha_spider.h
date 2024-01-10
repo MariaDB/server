@@ -14,10 +14,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface
-#endif
-
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
 #define SPIDER_LONGLONG_LEN 20
