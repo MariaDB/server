@@ -378,8 +378,8 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
     ut_ad(rseg_hdr->page.id() == rseg_hdr_id);
     block->page.lock.x_lock();
     ut_ad(block->page.id() == id);
-    mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
-    mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
+    mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
+    mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
@@ -502,7 +502,7 @@ loop:
   mtr.start();
   rseg_hdr->page.lock.x_lock();
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
-  mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
+  mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
 
   goto loop;
 }
