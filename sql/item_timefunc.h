@@ -19,10 +19,6 @@
 
 /* Function items used by mysql */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 class MY_LOCALE;
 
 

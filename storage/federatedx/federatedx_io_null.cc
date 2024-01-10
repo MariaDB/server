@@ -35,11 +35,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "m_string.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
-
 #define SAVEPOINT_REALIZED  1
 #define SAVEPOINT_RESTRICT  2
 #define SAVEPOINT_EMITTED 4

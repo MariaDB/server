@@ -101,10 +101,6 @@
 	Author  Olivier Bertrand
 	*/
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
 #include <my_global.h>

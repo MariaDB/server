@@ -46,11 +46,9 @@ int mi_rnext(MI_INFO *info, uchar *buf, int inx)
   if (!flag)
   {
     switch(info->s->keyinfo[inx].key_alg){
-#ifdef HAVE_RTREE_KEYS
     case HA_KEY_ALG_RTREE:
       error=rtree_get_first(info,inx,info->lastkey_length);
       break;
-#endif
     case HA_KEY_ALG_BTREE:
     default:
       error=_mi_search_first(info,info->s->keyinfo+inx,
@@ -75,7 +73,6 @@ int mi_rnext(MI_INFO *info, uchar *buf, int inx)
   else
   {
     switch (info->s->keyinfo[inx].key_alg) {
-#ifdef HAVE_RTREE_KEYS
     case HA_KEY_ALG_RTREE:
       /*
 	Note that rtree doesn't support that the table
@@ -84,7 +81,6 @@ int mi_rnext(MI_INFO *info, uchar *buf, int inx)
       */
       error= rtree_get_next(info,inx,info->lastkey_length);
       break;
-#endif
     case HA_KEY_ALG_BTREE:
     default:
       if (!changed)

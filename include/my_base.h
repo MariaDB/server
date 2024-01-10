@@ -676,13 +676,8 @@ typedef struct st_page_range
 #define unused_page_range { UNUSED_PAGE_NO, UNUSED_PAGE_NO }
 
 /* For number of records */
-#ifdef BIG_TABLES
 #define rows2double(A)	ulonglong2double(A)
 typedef my_off_t	ha_rows;
-#else
-#define rows2double(A)	(double) (A)
-typedef ulong		ha_rows;
-#endif
 
 #define HA_POS_ERROR	(~ (ha_rows) 0)
 #define HA_OFFSET_ERROR	(~ (my_off_t) 0)
