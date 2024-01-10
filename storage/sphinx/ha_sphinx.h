@@ -2,11 +2,6 @@
 // $Id: ha_sphinx.h 4818 2014-09-24 08:53:38Z tomat $
 //
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface // gcc class implementation
-#endif
-
-
 #if MYSQL_VERSION_ID>=50515
 #define TABLE_ARG	TABLE_SHARE
 #elif MYSQL_VERSION_ID>50100

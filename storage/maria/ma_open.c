@@ -762,15 +762,10 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 	}
 	if (keyinfo->flag & HA_SPATIAL)
 	{
-#ifdef HAVE_SPATIAL
 	  uint sp_segs=SPDIMS*2;
 	  keyinfo->seg=pos-sp_segs;
 	  keyinfo->keysegs--;
           versioning= 0;
-#else
-	  my_errno=HA_ERR_UNSUPPORTED;
-	  goto err;
-#endif
 	}
         else if (keyinfo->flag & HA_FULLTEXT)
 	{
@@ -1401,12 +1396,8 @@ static void setup_key_functions(register MARIA_KEYDEF *keyinfo)
 {
   if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
   {
-#ifdef HAVE_RTREE_KEYS
     keyinfo->ck_insert = maria_rtree_insert;
     keyinfo->ck_delete = maria_rtree_delete;
-#else
-    DBUG_ASSERT(0); /* maria_open should check it never happens */
-#endif
   }
   else
   {

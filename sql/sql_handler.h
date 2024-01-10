@@ -16,10 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_class.h"                 /* enum_ha_read_mode */
 #include "my_base.h"                   /* ha_rkey_function, ha_rows */
 #include "sql_list.h"                  /* List */
