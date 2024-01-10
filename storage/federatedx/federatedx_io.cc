@@ -35,10 +35,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "m_string.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 typedef federatedx_io *(*instantiate_io_type)(MEM_ROOT *server_root,
                                               FEDERATEDX_SERVER *server);
 struct io_schemes_st

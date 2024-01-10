@@ -207,7 +207,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
 #endif
   }
-#ifdef HAVE_QUERY_CACHE
   if (options & REFRESH_QUERY_CACHE_FREE)
   {
     query_cache.pack(thd);              // FLUSH QUERY CACHE
@@ -217,7 +216,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   {
     query_cache.flush();			// RESET QUERY CACHE
   }
-#endif /*HAVE_QUERY_CACHE*/
 
   DBUG_ASSERT(!thd || thd->locked_tables_mode ||
               !thd->mdl_context.has_locks() ||

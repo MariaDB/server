@@ -18,10 +18,6 @@
   Semi-join subquery optimization code definitions
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 int check_and_do_in_subquery_rewrites(JOIN *join);
 bool convert_join_subqueries_to_semijoins(JOIN *join);
 int pull_out_semijoin_tables(JOIN *join);
