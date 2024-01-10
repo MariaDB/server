@@ -22,10 +22,16 @@
 #
 # Usage:
 #
-# generate_option_list.pl > mariadbd_options.h
+# generate_option_list.pl <mariadbd_path> > mariadbd_options.h
 
 use strict;
 use warnings;
+
+if ($#ARGV != 0) {
+    print "usage: $0 <mariadbd_path>\n";
+    exit;
+}
+my $mariadbd_path = $ARGV[0];
 
 sub split_comma {
     return split(/[\s,\.]+/, $_[0] =~ s/\([^\)]*\)//gr);
@@ -63,7 +69,7 @@ sub generate_typelib_map {
 
 my %enums;
 my %sets;
-my $help_output = readpipe('mariadbd'
+my $help_output = readpipe('"' . $mariadbd_path =~ s/"/\\"/gr . '"'
                            . ' --no-defaults'
                            . ' --plugin-maturity=unknown'
                            . ' --plugin-load="'
