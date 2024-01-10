@@ -7882,7 +7882,14 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_RETURN(error);
 }
 
-#include <chrono>
+inline static
+ulonglong rdtsc()
+{
+  uint32_t hi, lo;
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return ( (ulonglong)lo)|( ((ulonglong)hi)<<32 );
+}
+
 int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
@@ -7917,7 +7924,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   {
     bool count_time= false;
     DBUG_EXECUTE_IF("binlog_log_row_time", count_time=true;);
-    auto now= std::chrono::high_resolution_clock::now();
+    ulonglong now= rdtsc();
     rows_changed++;
     Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
     error= binlog_log_row(old_data, new_data, log_func);
@@ -7943,10 +7950,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     }
 #endif /* WITH_WSREP */
     if (likely(count_time))
-      table->in_use->status_var.dbug_time_spent+=
-              std::chrono::duration_cast<std::chrono::nanoseconds>(
-                      std::chrono::high_resolution_clock::now() - now).count();
-
+      table->in_use->status_var.dbug_time_spent+= rdtsc() - now;
   }
   return error;
 }
