@@ -27,10 +27,6 @@
     (This shouldn't be needed)
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"                          // HAVE_*
 
 #include "sql_priv.h"

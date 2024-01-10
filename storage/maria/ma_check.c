@@ -1219,10 +1219,8 @@ static int check_keys_in_record(HA_CHECK *param, MARIA_HA *info, int extend,
              concurrent threads when running maria_chk
           */
           int search_result=
-#ifdef HAVE_RTREE_KEYS
             (keyinfo->flag & (HA_SPATIAL | HA_RTREE_INDEX)) ?
             maria_rtree_find_first(info, &key, MBR_EQUAL | MBR_DATA) :
-#endif
             _ma_search(info, &key, SEARCH_SAME, share->state.key_root[keynr]);
           if (search_result)
           {

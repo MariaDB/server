@@ -16,10 +16,6 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
-
 #include "mysql.h"
 #include "sp_head.h"
 #include "sql_cursor.h"

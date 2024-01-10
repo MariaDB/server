@@ -22,10 +22,6 @@
     Rewrites that make non-sargable date[time] comparisons sargable.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "my_json_writer.h"
