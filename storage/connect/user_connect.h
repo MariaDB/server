@@ -25,10 +25,6 @@
   /sql/handler.h and /storage/connect/user_connect.cc
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface     /* gcc class implementation */
-#endif
-
 /*****************************************************************************/
 /*  This is the global structure having all CONNECT information.             */
 /*****************************************************************************/

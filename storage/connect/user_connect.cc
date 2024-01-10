@@ -30,9 +30,6 @@
 /****************************************************************************/
 /*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2020       */
 /****************************************************************************/
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
 
 #define DONT_DEFINE_VOID
 #define MYSQL_SERVER

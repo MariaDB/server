@@ -90,10 +90,6 @@
     -Brian
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #include <mysql/plugin.h>
 #include "ha_example.h"
