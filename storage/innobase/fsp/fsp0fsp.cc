@@ -42,8 +42,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "fsp0types.h"
 #include "log.h"
 
-typedef uint32_t page_no_t;
-
 /** Returns the first extent descriptor for a segment.
 We think of the extent lists of the segment catenated in the order
 FSEG_FULL -> FSEG_NOT_FULL -> FSEG_FREE.
@@ -332,7 +330,7 @@ xdes_t*
 xdes_get_descriptor_with_space_hdr(
 	buf_block_t*		header,
 	const fil_space_t*	space,
-	page_no_t		offset,
+	uint32_t		offset,
 	mtr_t*			mtr,
 	dberr_t*		err = nullptr,
 	buf_block_t**		desc_block = nullptr,
@@ -396,7 +394,7 @@ try to add new extents to the space free list
 @param[out]	err		error code
 @param[out]	xdes		extent descriptor page
 @return the extent descriptor */
-static xdes_t *xdes_get_descriptor(const fil_space_t *space, page_no_t offset,
+static xdes_t *xdes_get_descriptor(const fil_space_t *space, uint32_t offset,
                                    mtr_t *mtr, dberr_t *err= nullptr,
                                    buf_block_t **xdes= nullptr)
 {
@@ -842,8 +840,7 @@ fsp_fill_free_list(
       if (i)
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
-        buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(i),
-                               zip_size, mtr, f);
+        buf_block_t *block= buf_page_create(space, i, zip_size, mtr, f);
         if (UNIV_UNLIKELY(block != f))
           buf_pool.free_block(f);
         fsp_init_file_page(space, block, mtr);
@@ -855,9 +852,7 @@ fsp_fill_free_list(
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
         buf_block_t *block=
-          buf_page_create(space,
-                          static_cast<uint32_t>(i + FSP_IBUF_BITMAP_OFFSET),
-                          zip_size, mtr, f);
+          buf_page_create(space, i + FSP_IBUF_BITMAP_OFFSET, zip_size, mtr, f);
         if (UNIV_UNLIKELY(block != f))
           buf_pool.free_block(f);
         fsp_init_file_page(space, block, mtr);
@@ -1028,13 +1023,11 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 @param[in]	offset		page number of the allocated page
 @param[in,out]	mtr		mini-transaction
 @return block, initialized */
-static
-buf_block_t*
-fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
+static buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                                    mtr_t *mtr)
 {
-  buf_block_t *free_block= buf_LRU_get_free_block(false);
-  buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(offset),
-                                      space->zip_size(), mtr, free_block);
+  buf_block_t *free_block= buf_LRU_get_free_block(false),
+    *block= buf_page_create(space, offset, space->zip_size(), mtr, free_block);
   if (UNIV_UNLIKELY(block != free_block))
     buf_pool.free_block(free_block);
   fsp_init_file_page(space, block, mtr);
@@ -1154,7 +1147,7 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 @param[in]      offset  page number in the extent
 @param[in,out]  mtr     mini-transaction
 @return error code */
-static dberr_t fsp_free_extent(fil_space_t* space, page_no_t offset,
+static dberr_t fsp_free_extent(fil_space_t* space, uint32_t offset,
                                mtr_t* mtr)
 {
   ut_ad(space->is_owner());
@@ -1191,7 +1184,7 @@ The page is marked as free and clean.
 @param[in]	offset		page number
 @param[in,out]	mtr		mini-transaction
 @return error code */
-static dberr_t fsp_free_page(fil_space_t *space, page_no_t offset, mtr_t *mtr)
+static dberr_t fsp_free_page(fil_space_t *space, uint32_t offset, mtr_t *mtr)
 {
 	xdes_t*		descr;
 	ulint		frag_n_used;
@@ -2467,7 +2460,7 @@ fseg_free_page_low(
 	fseg_inode_t*		seg_inode,
 	buf_block_t*		iblock,
 	fil_space_t*		space,
-	page_no_t		offset,
+	uint32_t		offset,
 	mtr_t*			mtr
 #ifdef BTR_CUR_HASH_ADAPT
 	,bool			ahi=false
@@ -2833,7 +2826,7 @@ fseg_free_step(
 		return true;
 	}
 
-	page_no_t page_no = fseg_get_nth_frag_page_no(inode, n);
+	uint32_t page_no = fseg_get_nth_frag_page_no(inode, n);
 
 	if (fseg_free_page_low(inode, iblock, space, page_no, mtr
 #ifdef BTR_CUR_HASH_ADAPT
