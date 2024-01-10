@@ -13,10 +13,6 @@
 // did not, you can find it at http://www.gnu.org/
 //
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation // gcc: Class implementation
-#endif
-
 #if defined(_MSC_VER) && _MSC_VER>=1400
 #define _CRT_SECURE_NO_DEPRECATE 1
 #define _CRT_NONSTDC_NO_DEPRECATE 1

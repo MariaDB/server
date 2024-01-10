@@ -21,10 +21,6 @@
   The actual communction is handled by the net_xxx functions in net_serv.cc
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "protocol.h"

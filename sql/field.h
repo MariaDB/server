@@ -21,10 +21,6 @@
   variables must declare the size_of() member function.
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "mysqld.h"                             /* system_charset_info */
 #include "table.h"                              /* TABLE */
 #include "sql_string.h"                         /* String */

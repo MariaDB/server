@@ -17,8 +17,6 @@
 #ifndef _rt_index_h
 #define _rt_index_h
 
-#ifdef HAVE_RTREE_KEYS
-
 #define rt_PAGE_FIRST_KEY(share, page, nod_flag) (page + share->keypage_header + nod_flag)
 #define rt_PAGE_NEXT_KEY(share, key, key_length, nod_flag) (key + key_length +\
               (nod_flag ? nod_flag : share->base.rec_reflength))
@@ -42,5 +40,4 @@ ha_rows maria_rtree_estimate(MARIA_HA *info, MARIA_KEY *key, uint32 flag);
 
 int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
                            my_off_t *new_page_offs);
-#endif /*HAVE_RTREE_KEYS*/
 #endif /* _rt_index_h */

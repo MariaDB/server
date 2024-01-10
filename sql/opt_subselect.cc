@@ -22,10 +22,6 @@
 
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_base.h"
 #include "sql_const.h"

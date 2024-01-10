@@ -22,9 +22,6 @@
 /*  -----------------------                                            */
 /*  This program are the CONNECT general purpose semantic routines.    */
 /***********************************************************************/
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
 
 /***********************************************************************/
 /*  Include application header files                                   */

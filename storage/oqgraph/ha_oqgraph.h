@@ -22,10 +22,6 @@
    ======================================================================
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "handler.h"
 #include "table.h"
 

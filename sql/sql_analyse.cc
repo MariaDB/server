@@ -23,10 +23,6 @@
 **	 - type set is out of optimization yet
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_LEX 1
 
 #include "mariadb.h"

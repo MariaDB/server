@@ -22,10 +22,6 @@
 #ifndef HA_MROONGA_HPP_
 #define HA_MROONGA_HPP_
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -86,11 +82,7 @@ extern "C" {
 #  define MRN_HANDLER_HAVE_SET_HA_SHARE_REF
 #endif
 
-#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
-#  define MRN_BIG_TABLES
-#elif defined(BIG_TABLES)
-#  define MRN_BIG_TABLES
-#endif
+#define MRN_BIG_TABLES
 
 #ifdef MRN_BIG_TABLES
 #  define MRN_HA_ROWS_FORMAT "llu"

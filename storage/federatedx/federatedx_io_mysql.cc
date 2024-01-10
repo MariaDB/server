@@ -39,11 +39,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mysqld_error.h"
 #include "sql_servers.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
-
 #define SAVEPOINT_REALIZED  1
 #define SAVEPOINT_RESTRICT  2
 #define SAVEPOINT_EMITTED 4
