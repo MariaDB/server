@@ -3057,7 +3057,7 @@ public:
     m_pcre(NULL), m_pcre_match_data(NULL),
     m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
-    m_library_charset(&my_charset_utf8mb3_general_ci)
+    m_library_charset(&my_charset_utf8mb4_general_ci)
   {}
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags);
