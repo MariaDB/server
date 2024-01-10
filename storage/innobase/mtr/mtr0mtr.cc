@@ -508,9 +508,20 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
+/** Set create_lsn. */
+inline void fil_space_t::set_create_lsn(lsn_t lsn)
+{
+#ifndef SUX_LOCK_GENERIC
+  /* Concurrent log_checkpoint_low() must be impossible. */
+  ut_ad(latch.is_write_locked());
+#endif
+  create_lsn= lsn;
+}
+
 /** Commit a mini-transaction that is shrinking a tablespace.
-@param space   tablespace that is being shrunk */
-void mtr_t::commit_shrink(fil_space_t &space)
+@param space   tablespace that is being shrunk
+@param size    new size in pages */
+void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 {
   ut_ad(is_active());
   ut_ad(!high_level_read_only);
@@ -528,19 +539,34 @@ void mtr_t::commit_shrink(fil_space_t &space)
   const lsn_t start_lsn= do_write().first;
   ut_d(m_log.erase());
 
+  fil_node_t *file= UT_LIST_GET_LAST(space.chain);
+  mysql_mutex_lock(&fil_system.mutex);
+  ut_ad(file->is_open());
+  ut_ad(space.size >= size);
+  ut_ad(file->size >= space.size - size);
+  file->size-= space.size - size;
+  space.size= space.size_in_header= size;
+
+  if (space.id == TRX_SYS_SPACE)
+    srv_sys_space.set_last_file_size(file->size);
+
+  space.set_create_lsn(m_commit_lsn);
+  mysql_mutex_unlock(&fil_system.mutex);
+
+  space.clear_freed_ranges();
+
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
 #ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
 #endif
 
-  os_file_truncate(
-    space.chain.end->name, space.chain.end->handle,
-    os_offset_t{space.chain.end->size} << srv_page_size_shift, true);
+  os_file_truncate(file->name, file->handle,
+                   os_offset_t{file->size} << srv_page_size_shift, true);
 
   space.clear_freed_ranges();
 
-  const page_id_t high{space.id, space.size};
+  const page_id_t high{space.id, size};
   size_t modified= 0;
   auto it= m_memo.rbegin();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -600,13 +626,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   log_sys.latch.wr_unlock();
   m_latch_ex= false;
-
-  mysql_mutex_lock(&fil_system.mutex);
-  ut_ad(space.is_being_truncated);
-  ut_ad(space.is_stopping_writes());
-  space.clear_stopping();
-  space.is_being_truncated= false;
-  mysql_mutex_unlock(&fil_system.mutex);
 
   release();
   release_resources();
@@ -998,10 +1017,9 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 #ifndef DBUG_OFF
   do
   {
-    if (m_log_mode != MTR_LOG_ALL)
+    if (m_log_mode != MTR_LOG_ALL ||
+        _db_keyword_(nullptr, "skip_page_checksum", 1))
       continue;
-    DBUG_EXECUTE_IF("skip_page_checksum", continue;);
-
     for (const mtr_memo_slot_t& slot : m_memo)
       if (slot.type & MTR_MEMO_MODIFY)
       {
