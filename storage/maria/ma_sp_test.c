@@ -19,7 +19,6 @@
 #include <my_global.h>
 #include "maria_def.h"
 
-#ifdef HAVE_SPATIAL
 #include "ma_sp_defs.h"
 
 #define MAX_REC_LENGTH 1024
@@ -563,10 +562,3 @@ static void maria_rtree_PrintWKB(uchar *wkb, uint n_dims)
 }
 
 #include "ma_check_standalone.h"
-
-#else
-int main(int argc __attribute__((unused)),char *argv[] __attribute__((unused)))
-{
-  exit(0);
-}
-#endif /*HAVE_SPATIAL*/

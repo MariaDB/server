@@ -49,9 +49,7 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 }
 
 
-#ifdef HAVE_SPATIAL
 extern Native_func_registry_array native_func_registry_array_geom;
-#endif
 
 
 /*
@@ -6611,20 +6609,16 @@ Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
 int item_create_init()
 {
   size_t count= native_func_registry_array.count();
-#ifdef HAVE_SPATIAL
   count+= native_func_registry_array_geom.count();
-#endif
 
   if (native_functions_hash.init(count) ||
       native_functions_hash.append(native_func_registry_array.elements(),
                                    native_func_registry_array.count()))
     return true;
 
-#ifdef HAVE_SPATIAL
   if (native_functions_hash.append(native_func_registry_array_geom.elements(),
                                    native_func_registry_array_geom.count()))
     return true;
-#endif
 
   count+= oracle_func_registry_array.count();
 
@@ -6633,11 +6627,9 @@ int item_create_init()
                                           native_func_registry_array.count()))
     return true;
 
-#ifdef HAVE_SPATIAL
   if (native_functions_hash_oracle.append(native_func_registry_array_geom.elements(),
                                           native_func_registry_array_geom.count()))
     return true;
-#endif
 
   return 
     native_functions_hash_oracle.replace(oracle_func_registry_array.elements(),
