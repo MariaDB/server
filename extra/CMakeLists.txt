@@ -46,7 +46,17 @@ ADD_CUSTOM_TARGET(GenError
                   DEPENDS
                   ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
 
-MYSQL_ADD_EXECUTABLE(mariadb-upgrade-config-file mariadb_upgrade_config_file.c COMPONENT Client)
+
+ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
+  COMMAND perl ${PROJECT_SOURCE_DIR}/scripts/generate_option_list.pl
+  "$<TARGET_FILE:mariadbd>"
+  ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
+  DEPENDS mariadbd)
+
+MYSQL_ADD_EXECUTABLE(mariadb-upgrade-config-file
+  mariadb_upgrade_config_file.c
+  ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
+  COMPONENT Client)
 TARGET_LINK_LIBRARIES(mariadb-upgrade-config-file  mysys)
 
 MYSQL_ADD_EXECUTABLE(my_print_defaults my_print_defaults.c COMPONENT Client)
