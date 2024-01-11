@@ -181,12 +181,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1(j mysql_json);
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `j` mysql_json /* JSON from MySQL 5.7 */ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-drop table t1;
+ERROR HY000: Cannot create table `test`.`t1`: Run mariadb-upgrade, to upgrade table with mysql_json type.
 create table `testjson` (
 `t` json /* JSON from MySQL 5.7*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -210,6 +205,17 @@ testjson	CREATE TABLE `testjson` (
   `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table testjson;
+#
+# MDEV-32235: mysql_json cannot be used on newly created table
+#
+CREATE TABLE t(j mysql_json);
+ERROR HY000: Cannot create table `test`.`t`: Run mariadb-upgrade, to upgrade table with mysql_json type.
+CREATE TABLE IF NOT EXISTS t(j mysql_json);
+ERROR HY000: Cannot create table `test`.`t`: Run mariadb-upgrade, to upgrade table with mysql_json type.
+CREATE OR REPLACE TABLE t(j mysql_json);
+ERROR HY000: Cannot create table `test`.`t`: Run mariadb-upgrade, to upgrade table with mysql_json type.
+CREATE TEMPORARY TABLE t(j mysql_json);
+ERROR HY000: Cannot create table `test`.`t`: Run mariadb-upgrade, to upgrade table with mysql_json type.
 #
 # End of 10.5 tests
 #
