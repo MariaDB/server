@@ -370,3 +370,26 @@ drop table t1;
 
 explain
 VALUES ( (VALUES (2))) UNION VALUES ( (SELECT 3));
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+EXPLAIN SELECT * FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6);
+EXPLAIN DELETE t2 FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6);
+prepare stmt from "EXPLAIN DELETE t2 FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6)";
+execute stmt;
+execute stmt;
+
+# Cleanup
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
