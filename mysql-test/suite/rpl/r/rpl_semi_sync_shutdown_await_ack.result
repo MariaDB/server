@@ -9,9 +9,6 @@ connection server_1;
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
 # Suppress slave errors related to the simulated error
 connection server_2;
 call mtr.add_suppression("reply failed");
@@ -129,9 +126,6 @@ SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 connection server_1_con2;
 connection default;
 connection server_1;
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -255,9 +249,6 @@ SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 connection server_1_con2;
 connection default;
 connection server_1;
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -377,9 +368,6 @@ SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 connection server_1_con2;
 connection default;
 connection server_1;
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -505,9 +493,6 @@ SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 connection server_1_con2;
 connection default;
 connection server_1;
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
 TRUNCATE TABLE t1;
 #-- Bring slaves back up
 connection server_2;
@@ -540,8 +525,5 @@ SET @@GLOBAL.rpl_semi_sync_slave_enabled = @sav_enabled_server_3;
 SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 include/start_slave.inc
 connection server_1;
-SET @@GLOBAL.rpl_semi_sync_master_timeout= @sav_master_timeout;
-SET @@GLOBAL.rpl_semi_sync_master_enabled= @sav_enabled_master;
-SET @@GLOBAL.debug_dbug= @sav_master_dbug;
 drop table t1;
 include/rpl_end.inc

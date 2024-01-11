@@ -155,11 +155,15 @@ if (!$server_2_expect_row_count)
 }
 if ($server_2_expect_row_count)
 {
+  # At this point, because the master has shutdown, the IO thread may or may
+  # not have realized the shutdown, and started to try to automatically
+  # reconnect. Rather than issue `stop_slave.inc` now, which may or may not
+  # result in an error state, we force the error for consistency by waiting
+  # for the IO thread to fail to reconnect to the shutdown master.
   --echo #-- Waiting for IO thread to realize master shutdown and stop
   --let $slave_io_errno=2003
   --source include/wait_for_slave_io_error.inc
   --source include/stop_slave_sql.inc
-  #--source include/stop_slave.inc
 }
 SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
@@ -175,6 +179,8 @@ if (!$server_3_expect_row_count)
 }
 if ($server_3_expect_row_count)
 {
+  # Wait for error to be detected naturally, rather than issue `stop_slave` for
+  # the IO thread, see the comment above for $server_2_expect_row_count.
   --echo #-- Waiting for IO thread to realize master shutdown and stop
   --let $slave_io_errno=2003
   --source include/wait_for_slave_io_error.inc
@@ -199,12 +205,6 @@ EOF
 --connection server_1
 --enable_reconnect
 --source include/wait_until_connected_again.inc
-
-# Because we restarted, we have to store the default values again for later
-# restoration at cleanup
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
 
 TRUNCATE TABLE t1;
 --save_master_pos

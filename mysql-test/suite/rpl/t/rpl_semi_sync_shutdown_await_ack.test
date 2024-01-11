@@ -69,9 +69,8 @@ call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
 
-set @sav_master_timeout= @@global.rpl_semi_sync_master_timeout;
-set @sav_enabled_master= @@GLOBAL.rpl_semi_sync_master_enabled;
-set @sav_master_dbug= @@GLOBAL.debug_dbug;
+--let $sav_master_timeout= `SELECT @@GLOBAL.rpl_semi_sync_master_timeout`
+--let $sav_enabled_master= `SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
 
 --echo # Suppress slave errors related to the simulated error
 --connection server_2
@@ -160,13 +159,6 @@ while (`SELECT $i <= $slave_last`)
 --echo # slave does not send a `QUIT` in this case (Rpl_semi_sync_master_yes_tx
 --echo # should be 1 because server_3 will send the ACK within a valid timeout).
 --echo #
-
-# mysqld_delay_kill_threads_phase1 ensures that server_2 will have enough time
-# to start a new connection that has the intent to kill the active semi-sync
-# connection
-
-# slave_delay_killing_semisync_connection ensures that the primary has force
-# killed its current connection before it is able to issue `KILL`
 --let server_2_dbug= "+d,corrupt_queue_event,delay_semisync_kill_connection_for_mdev_28141"
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
@@ -195,9 +187,10 @@ let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 0;
 source include/wait_for_status_var.inc;
 
-SET @@GLOBAL.rpl_semi_sync_master_timeout= @sav_master_timeout;
-SET @@GLOBAL.rpl_semi_sync_master_enabled= @sav_enabled_master;
-SET @@GLOBAL.debug_dbug= @sav_master_dbug;
+--disable_query_log
+--eval SET @@GLOBAL.rpl_semi_sync_master_timeout= $sav_master_timeout;
+--eval SET @@GLOBAL.rpl_semi_sync_master_enabled= $sav_enabled_master;
+--enable_query_log
 
 drop table t1;
 
