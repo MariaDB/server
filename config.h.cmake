@@ -231,7 +231,6 @@
 #cmakedefine HAVE_STRTOUL 1
 #cmakedefine HAVE_STRTOULL 1
 #cmakedefine HAVE_TELL 1
-#cmakedefine HAVE_THR_SETCONCURRENCY 1
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
 #cmakedefine HAVE_TIMES 1
