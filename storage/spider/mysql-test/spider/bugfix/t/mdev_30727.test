@@ -1,0 +1,8 @@
+CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+# The function functions properly after the plugin is installed
+install soname 'ha_spider';
+--error ER_FOREIGN_SERVER_DOESNT_EXIST
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+--disable_query_log
+--source ../../include/clean_up_spider.inc

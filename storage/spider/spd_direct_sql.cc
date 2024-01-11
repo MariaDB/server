@@ -1512,6 +1512,21 @@ long long spider_direct_sql_body(
   uint use_real_table = 0;
 #endif
   DBUG_ENTER("spider_direct_sql_body");
+  if (!spider_hton_ptr)
+  {
+    error_num= 1;
+    /*
+      my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "SPIDER");
+     */
+    /*
+      my_error(ER_NO, MYF(0));
+     */
+    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    /*
+      my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME), HA_ERR_OUT_OF_MEM);
+     */
+    goto error;
+  }
   SPIDER_BACKUP_DASTATUS;
   if (!(direct_sql = (SPIDER_DIRECT_SQL *)
     spider_bulk_malloc(spider_current_trx, SPD_MID_DIRECT_SQL_BODY_1, MYF(MY_WME | MY_ZEROFILL),

@@ -1,0 +1,9 @@
+CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+spider_direct_sql ('SELECT * FROM s','a','srv "b"')
+NULL
+install soname 'ha_spider';
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  b
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
