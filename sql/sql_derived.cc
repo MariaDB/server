@@ -1201,8 +1201,10 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
 
-  if (unit->executed && !unit->uncacheable && !unit->describe &&
-      !derived_is_recursive)
+  /* Only fill derived tables once, unless the derived table is dependent in
+     which case we will delete all of its rows and refill it below. */
+  if (unit->executed && !(unit->uncacheable & UNCACHEABLE_DEPENDENT) &&
+      !unit->describe && !derived_is_recursive)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
@@ -1259,6 +1261,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
+    assert (!unit->executed || (unit->uncacheable & UNCACHEABLE_DEPENDENT));
     SELECT_LEX *first_select= unit->first_select();
     unit->set_limit(unit->global_parameters());
     if (unit->select_limit_cnt == HA_POS_ERROR)
