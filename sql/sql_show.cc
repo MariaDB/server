@@ -7097,7 +7097,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+          auto access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str,
                                         key_part->field->field_name.str);
 
@@ -7659,7 +7659,7 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+          auto access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str,
                                         key_part->field->field_name.str);
 
@@ -7702,7 +7702,7 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
       {
         while ((r_info= it1++))
         {
-          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+          auto access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str, r_info->str);
 
           if (!access)
