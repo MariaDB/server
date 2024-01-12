@@ -100,6 +100,8 @@ trx_init(
 {
 	trx->state = TRX_STATE_NOT_STARTED;
 
+	memset(trx->row_ops, 0, sizeof trx->row_ops);
+
 	trx->is_recovered = false;
 
 	trx->op_info = "";
@@ -1436,7 +1438,12 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     }
 
     if (UNIV_LIKELY(!dict_operation))
+    {
       release_locks();
+      // Inaccurately (on purpose) update the operation counters.
+      for (size_t op= 0; op < array_elements(row_ops); op++)
+        trx_sys.row_ops[op]= trx_sys.row_ops[op] + row_ops[op];
+    }
   }
 
   if (trx_undo_t *&undo= rsegs.m_noredo.undo)
@@ -1516,6 +1523,7 @@ void trx_t::commit_cleanup()
 
   check_foreigns= true;
   check_unique_secondary= true;
+
   assert_freed();
   trx_init(this);
   mutex.wr_unlock();

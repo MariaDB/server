@@ -382,6 +382,7 @@ struct trx_lock_t
 					only be modified by the thread that is
 					serving the running transaction. */
 
+
   /** Pre-allocated record locks */
   struct {
     alignas(CPU_LEVEL1_DCACHE_LINESIZE) ib_lock_t lock;
@@ -755,6 +756,10 @@ public:
 
   Transitions to COMMITTED are protected by trx_t::mutex. */
   Atomic_relaxed<trx_state_t> state;
+
+  enum row_op_names { ROW_INSERT= 0, ROW_DELETE, ROW_UPDATE };
+  /** Row operation counters */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) size_t row_ops[3];
 
   /** The locks of the transaction. Protected by lock_sys.latch
   (insertions also by trx_t::mutex). */

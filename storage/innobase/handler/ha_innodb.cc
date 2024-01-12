@@ -1008,6 +1008,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"row_lock_time_avg", &export_vars.innodb_row_lock_time_avg, SHOW_ULONGLONG},
   {"row_lock_time_max", &export_vars.innodb_row_lock_time_max, SHOW_ULONGLONG},
   {"row_lock_waits", &export_vars.innodb_row_lock_waits, SHOW_SIZE_T},
+  {"rows_deleted", &trx_sys.row_ops[trx_t::ROW_DELETE], SHOW_SIZE_T},
+  {"rows_inserted", &trx_sys.row_ops[trx_t::ROW_INSERT], SHOW_SIZE_T},
+  {"rows_updated", &trx_sys.row_ops[trx_t::ROW_UPDATE], SHOW_SIZE_T},
   {"num_open_files", &fil_system.n_open, SHOW_SIZE_T},
   {"truncated_status_writes", &truncated_status_writes, SHOW_SIZE_T},
   {"available_undo_logs", &srv_available_undo_logs, SHOW_ULONG},
@@ -7787,7 +7790,6 @@ ha_innobase::write_row(
 #ifdef WITH_WSREP
 	bool		wsrep_auto_inc_inserted= false;
 #endif
-	int		error_result = 0;
 	bool		auto_inc_used = false;
 	mariadb_set_stats set_stats_temporary(handler_stats);
 
@@ -7818,9 +7820,9 @@ ha_innobase::write_row(
 			&& table->next_number_field->val_int() == 0;
 #endif
 
-		if ((error_result = update_auto_increment())) {
+		if (int error_result = update_auto_increment()) {
 			/* MySQL errors are passed straight back. */
-			goto func_exit;
+			DBUG_RETURN(error_result);
 		}
 
 		auto_inc_used = true;
@@ -7841,7 +7843,7 @@ ha_innobase::write_row(
 		ROW_INS_VERSIONED : ROW_INS_NORMAL;
 
 	/* Execute insert graph that will result in actual insert. */
-	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
+	error = row_insert_for_mysql(record, m_prebuilt, vers_set_fields);
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -7898,11 +7900,8 @@ ha_innobase::write_row(
 					WSREP_DEBUG(
 					    "retrying insert: %s",
 					    wsrep_thd_query(m_user_thd));
-					error= DB_SUCCESS;
 					wsrep_thd_self_abort(m_user_thd);
-                                        /* jump straight to func exit over
-                                         * later wsrep hooks */
-                                        goto func_exit;
+					DBUG_RETURN(0);
 				}
                                 break;
 #endif /* WITH_WSREP */
@@ -7957,18 +7956,28 @@ set_max_autoinc:
 	}
 
 	/* Cleanup and exit. */
-	if (error == DB_TABLESPACE_DELETED) {
+	switch (UNIV_EXPECT(error, DB_SUCCESS)) {
+	case DB_SUCCESS:
+		break;
+	case DB_TABLESPACE_DELETED:
 		ib_senderrf(
 			trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_DISCARDED,
 			table->s->table_name.str);
+		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
+	case DB_FTS_INVALID_DOCID:
+		my_error(HA_FTS_INVALID_DOCID, MYF(0));
+		DBUG_RETURN(HA_FTS_INVALID_DOCID);
+	default:
+		DBUG_RETURN(convert_error_code_to_mysql(error, m_prebuilt
+							->table->flags,
+							m_user_thd));
 	}
 
-	error_result = convert_error_code_to_mysql(
-		error, m_prebuilt->table->flags, m_user_thd);
+	trx->row_ops[trx_t::ROW_INSERT]++;
 
 #ifdef WITH_WSREP
-	if (!error_result && trx->is_wsrep()
+	if (trx->is_wsrep()
 	    && !trx->is_bulk_insert()
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)
@@ -7980,18 +7989,12 @@ set_max_autoinc:
 				      record,
 				      NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
-			error_result = HA_ERR_INTERNAL_ERROR;
-			goto func_exit;
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
 #endif /* WITH_WSREP */
 
-	if (error_result == HA_FTS_INVALID_DOCID) {
-		my_error(HA_FTS_INVALID_DOCID, MYF(0));
-	}
-
-func_exit:
-	DBUG_RETURN(error_result);
+	DBUG_RETURN(0);
 }
 
 /** Fill the update vector's "old_vrow" field for those non-updated,
@@ -8558,9 +8561,6 @@ ha_innobase::update_row(
 	const uchar*	old_row,
 	const uchar*	new_row)
 {
-	int		err;
-
-	dberr_t		error;
 	trx_t*		trx = thd_to_trx(m_user_thd);
 	mariadb_set_stats set_stats_temporary(handler_stats);
 
@@ -8600,12 +8600,12 @@ ha_innobase::update_row(
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
 
-	error = calc_row_difference(
+	dberr_t error = calc_row_difference(
 		uvect, old_row, new_row, table, m_upd_buf, m_upd_buf_size,
 		m_prebuilt, autoinc);
 
-	if (error != DB_SUCCESS) {
-		goto func_exit;
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		goto err_exit;
 	}
 
 	if (!uvect->n_fields) {
@@ -8614,29 +8614,42 @@ ha_innobase::update_row(
 		should not increase the count of updated rows.
 		This is fix for http://bugs.mysql.com/29157 */
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
-	} else {
-		if (m_prebuilt->upd_node->is_delete) {
-			trx->fts_next_doc_id = 0;
+	}
+
+	if (m_prebuilt->upd_node->is_delete) {
+		trx->fts_next_doc_id = 0;
+	}
+
+	/* row_start was updated by vers_make_update()
+	in calc_row_difference() */
+	error = row_update_for_mysql(m_prebuilt);
+
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+	err_exit:
+		if (error == DB_FTS_INVALID_DOCID) {
+			my_error(HA_FTS_INVALID_DOCID, MYF(0));
+			DBUG_RETURN(HA_FTS_INVALID_DOCID);
 		}
+		DBUG_RETURN(convert_error_code_to_mysql(error,
+							m_prebuilt->table
+							->flags, m_user_thd));
+	}
 
-		/* row_start was updated by vers_make_update()
-		in calc_row_difference() */
-		error = row_update_for_mysql(m_prebuilt);
-
-		if (error == DB_SUCCESS && m_prebuilt->versioned_write
-		    /* Multiple UPDATE of same rows in single transaction create
-		       historical rows only once. */
-		    && trx->id != table->vers_start_id()) {
-			/* UPDATE is not used by ALTER TABLE. Just precaution
-			as we don't need history generation for ALTER TABLE. */
-			ut_ad(thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
-			error = row_insert_for_mysql((byte*) old_row,
-						     m_prebuilt,
-						     ROW_INS_HISTORICAL);
+	if (UNIV_UNLIKELY(m_prebuilt->versioned_write)
+	    /* Multiple UPDATE of same rows in single transaction create
+	    historical rows only once. */
+	    && trx->id != table->vers_start_id()) {
+		/* UPDATE is not used by ALTER TABLE. Just precaution
+		as we don't need history generation for ALTER TABLE. */
+		ut_ad(thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
+		error = row_insert_for_mysql(old_row, m_prebuilt,
+					     ROW_INS_HISTORICAL);
+		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+			goto err_exit;
 		}
 	}
 
-	if (error == DB_SUCCESS && autoinc) {
+	if (autoinc) {
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
@@ -8671,20 +8684,15 @@ ha_innobase::update_row(
 							  m_prebuilt->table),
 						  autoinc);
 			}
+
+			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+				goto err_exit;
+			}
 		}
 	}
 
-func_exit:
-	if (error == DB_FTS_INVALID_DOCID) {
-		err = HA_FTS_INVALID_DOCID;
-		my_error(HA_FTS_INVALID_DOCID, MYF(0));
-	} else {
-		err = convert_error_code_to_mysql(
-			error, m_prebuilt->table->flags, m_user_thd);
-	}
-
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && trx->is_wsrep()
+	if (trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
 		DBUG_PRINT("wsrep", ("update row key"));
@@ -8706,7 +8714,8 @@ func_exit:
 	}
 #endif /* WITH_WSREP */
 
-	DBUG_RETURN(err);
+	trx->row_ops[trx_t::ROW_UPDATE]++;
+	DBUG_RETURN(0);
 }
 
 /**********************************************************************//**
@@ -8744,8 +8753,16 @@ ha_innobase::delete_row(
 
 	error = row_update_for_mysql(m_prebuilt);
 
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		DBUG_RETURN(convert_error_code_to_mysql(
+				    error, m_prebuilt->table->flags,
+				    m_user_thd));
+	}
+
+	trx->row_ops[trx_t::ROW_DELETE]++;
+
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && trx->is_wsrep()
+	if (trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
@@ -8756,8 +8773,8 @@ ha_innobase::delete_row(
 		}
 	}
 #endif /* WITH_WSREP */
-	DBUG_RETURN(convert_error_code_to_mysql(
-			    error, m_prebuilt->table->flags, m_user_thd));
+
+	DBUG_RETURN(0);
 }
 
 /**********************************************************************//**
@@ -9285,7 +9302,7 @@ ha_innobase::general_fetch(
 	DBUG_ENTER("general_fetch");
 
 	mariadb_set_stats set_stats_temporary(handler_stats);
-	const trx_t*	trx = m_prebuilt->trx;
+	trx_t*	trx = m_prebuilt->trx;
 
 	ut_ad(trx == thd_to_trx(m_user_thd));
 

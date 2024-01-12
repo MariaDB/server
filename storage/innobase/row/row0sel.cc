@@ -4456,12 +4456,10 @@ early_not_found:
 			DBUG_RETURN(DB_RECORD_NOT_FOUND);
 		}
 
+#if SIZEOF_SIZE_T < 8
+		if (UNIV_LIKELY(~prebuilt->n_rows_fetched))
+#endif
 		prebuilt->n_rows_fetched++;
-
-		if (prebuilt->n_rows_fetched > 1000000000) {
-			/* Prevent wrap-over */
-			prebuilt->n_rows_fetched = 500000000;
-		}
 
 		mode = pcur->search_mode;
 	}
@@ -4733,12 +4731,8 @@ wait_table_again:
 
 		if (UNIV_UNLIKELY(need_to_process)) {
 			if (UNIV_UNLIKELY(!btr_pcur_get_rec(pcur))) {
-				mtr.commit();
-				trx->op_info = "";
-				if (UNIV_LIKELY_NULL(heap)) {
-					mem_heap_free(heap);
-				}
-				return DB_CORRUPTION;
+				err = DB_CORRUPTION;
+				goto page_corrupted;
 			}
 
 			if (UNIV_UNLIKELY(prebuilt->row_read_type
@@ -4839,8 +4833,7 @@ page_corrupted:
 			if (err == DB_DECRYPTION_FAILED) {
 				btr_decryption_failed(*index);
 			}
-			rec = NULL;
-			goto page_read_error;
+			goto page_corrupted;
 		}
 	}
 
@@ -5007,8 +5000,7 @@ wrong_offs:
 				" reimport the table.";
 			ut_ad(0);
 			err = DB_CORRUPTION;
-
-			goto page_read_error;
+			goto page_corrupted;
 		} else {
 			/* The user may be dumping a corrupt table. Jump
 			over the corruption to recover as much as possible. */
