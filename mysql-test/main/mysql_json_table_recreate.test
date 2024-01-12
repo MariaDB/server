@@ -97,8 +97,9 @@ drop table mysql_json_test_big;
 create table t1(j json);
 show create table t1;
 drop table t1;
---error ER_CANT_CREATE_TABLE
 create table t1(j mysql_json);
+show create table t1;
+drop table t1;
 # `json` type should not have character set and collation other than utf8mb4_bin
 --error ER_PARSE_ERROR
 create table `testjson` (
@@ -119,20 +120,6 @@ create table `testjson` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 show create table testjson;
 drop table testjson;
-
-
---echo #
---echo # MDEV-32235: mysql_json cannot be used on newly created table
---echo #
-
---error ER_CANT_CREATE_TABLE
-CREATE TABLE t(j mysql_json);
---error ER_CANT_CREATE_TABLE
-CREATE TABLE IF NOT EXISTS t(j mysql_json);
---error ER_CANT_CREATE_TABLE
-CREATE OR REPLACE TABLE t(j mysql_json);
---error ER_CANT_CREATE_TABLE
-CREATE TEMPORARY TABLE t(j mysql_json);
 
 --echo #
 --echo # End of 10.5 tests

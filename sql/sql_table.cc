@@ -3657,19 +3657,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (sql_field->vcol_info)
       sql_field->flags&= ~NOT_NULL_FLAG;
 
-    if (sql_field->real_field_type() == MYSQL_TYPE_BLOB &&
-        thd->lex->sql_command == SQLCOM_CREATE_TABLE)
-    {
-      if (!strcmp(sql_field->type_handler()->name().ptr(), "MYSQL_JSON"))
-      {
-        my_printf_error(ER_CANT_CREATE_TABLE,
-                        "Cannot create table %`s.%`s: "
-                        "Run mariadb-upgrade, "
-                        "to upgrade table with mysql_json type.", MYF(0),
-                        alter_info->db.str, alter_info->table_name.str);
-        DBUG_RETURN(TRUE);
-      }
-    }
     /*
       Initialize length from its original value (number of characters),
       which was set in the parser. This is necessary if we're
