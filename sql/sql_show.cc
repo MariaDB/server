@@ -5209,6 +5209,25 @@ end:
 }
 
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
+                                                  const privilege_t need)
+{
+  /* 
+    We know that the table or at least some of the columns have
+    necessary privileges, but the caller didn't pass down the GRANT_INFO
+    object, so we have to rediscover everything again :( 
+  */
+  if (!(thd->col_access & need))
+  {
+    check_grant(thd, need, tables, 0, 1, 1);
+    return tables->grant.privilege & need;
+  }
+  return thd->col_access & need;
+}
+#endif
+
+
 class Warnings_only_error_handler : public Internal_error_handler
 {
 public:
@@ -7069,17 +7088,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    bool need_column_checks= false;
-    /* we know that the table or at least some of the columns have
-       necessary privileges, but the caller didn't pass down the GRANT_INFO
-       object, so we have to rediscover everything again :( */
-    if (!(thd->col_access & TABLE_ACLS))
-    {
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.privilege & TABLE_ACLS))
-        need_column_checks= true;
-    }
+    bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
+                                                             TABLE_ACLS);
 #endif
 
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
@@ -7424,17 +7434,8 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
-    const privilege_t need= TABLE_ACLS & ~SELECT_ACL;
-    if (!(thd->col_access & need))
-    {
-      /* we know that the table or at least some of the columns have
-         necessary privileges, but the caller didn't pass down the GRANT_INFO
-         object, so we have to rediscover everything again :( */
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.all_privilege() & need))
-        DBUG_RETURN(0);
-    }
+    if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL))
+      DBUG_RETURN(0);
 #endif
 
     List<FOREIGN_KEY_INFO> f_key_list;
@@ -7634,17 +7635,8 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
                            HA_STATUS_TIME);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    bool need_column_checks= false;
-    /* we know that the table or at least some of the columns have
-       necessary privileges, but the caller didn't pass down the GRANT_INFO
-       object, so we have to rediscover everything again :( */
-    if (!(thd->col_access & TABLE_ACLS))
-    {
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.privilege & TABLE_ACLS))
-        need_column_checks= true;
-    }
+    bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
+                                                             TABLE_ACLS);
 #endif
 
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
@@ -8490,17 +8482,9 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
-    const privilege_t need= TABLE_ACLS & ~SELECT_ACL;
-    if (!(thd->col_access & need))
-    {
-      /* we know that the table or at least some of the columns have
-         necessary privileges, but the caller didn't pass down the GRANT_INFO
-         object, so we have to rediscover everything again :( */
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.all_privilege() & need))
-        DBUG_RETURN(0);
-    }
+    privilege_t need= TABLE_ACLS & ~SELECT_ACL;
+    if (!get_schema_privileges_for_show(thd, tables, need))
+      DBUG_RETURN(0);
 #endif
 
     show_table->file->get_foreign_key_list(thd, &f_key_list);
