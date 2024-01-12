@@ -37,6 +37,11 @@ public:
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *,
                           const Record_addr &, const Type_all_attributes &,
                           TABLE_SHARE *) const override;
+  bool Column_definition_fix_attributes(Column_definition *c) const override
+  {
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "MYSQL_JSON");
+    return true;
+  }
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *def,
                                               const Field *field) const override;

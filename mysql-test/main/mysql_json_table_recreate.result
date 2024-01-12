@@ -30,6 +30,12 @@ show create table mysql_json_test;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 select * from mysql_json_test;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+CREATE TABLE t2 AS SELECT * FROM mysql_json_test;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+CREATE TABLE t2 (a mysql_json /*new column*/) AS SELECT * FROM mysql_json_test;
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE TABLE t2 (actual mysql_json /*existing column*/) AS SELECT * FROM mysql_json_test;
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
 LOCK TABLES mysql_json_test WRITE;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 alter table mysql_json_test force;
@@ -181,12 +187,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1(j mysql_json);
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `j` mysql_json /* JSON from MySQL 5.7 */ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-drop table t1;
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
 create table `testjson` (
 `t` json /* JSON from MySQL 5.7*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -210,6 +211,31 @@ testjson	CREATE TABLE `testjson` (
   `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table testjson;
+#
+# MDEV-32235: mysql_json cannot be used on newly created table
+#
+CREATE TABLE t(j mysql_json);
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE TABLE IF NOT EXISTS t(j mysql_json);
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE OR REPLACE TABLE t(j mysql_json);
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE TEMPORARY TABLE t(j mysql_json);
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE TABLE t1 (a TEXT);
+ALTER TABLE t1 MODIFY a mysql_json;
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+DROP TABLE t1;
+CREATE FUNCTION f1() RETURNS mysql_json RETURN NULL;
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE FUNCTION f1(a mysql_json) RETURNS INT RETURN 0;
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a mysql_json;
+END;
+$$
+ERROR HY000: 'MYSQL_JSON' is not allowed in this context
 #
 # End of 10.5 tests
 #
