@@ -2319,18 +2319,24 @@ static void buf_flush_page_cleaner()
     }
 
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    if (buf_pool.ran_out())
+    if (buf_pool.running_short())
       goto no_wait;
     else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
       break;
 
+    /* Disabling the deep sleep code for page cleaner. We should evaluate the
+    possibility of backing off and sleeping longer up to a maximum value if
+    needed. With deep sleep, the wake up for free pages happen at emergency
+    when it could be too late. It is possible to signal the page cleaner at
+    earlier stage, but it seems better to avoid too much signalling across and
+    synchronizing among user threads when there is no emergency.
     if (buf_pool.page_cleaner_idle() &&
         (!UT_LIST_GET_LEN(buf_pool.flush_list) ||
          srv_max_dirty_pages_pct_lwm == 0.0))
-      /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
+      We are idle; wait for buf_pool.page_cleaner_wakeup()
       my_cond_wait(&buf_pool.do_flush_list,
                    &buf_pool.flush_list_mutex.m_mutex);
-    else
+    else */
       my_cond_timedwait(&buf_pool.do_flush_list,
                         &buf_pool.flush_list_mutex.m_mutex, &abstime);
   no_wait:
@@ -2365,7 +2371,7 @@ static void buf_flush_page_cleaner()
       }
       while (false);
 
-      if (!buf_pool.ran_out())
+      if (!buf_pool.running_short())
         continue;
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       oldest_lsn= buf_pool.get_oldest_modification(0);
@@ -2394,7 +2400,7 @@ static void buf_flush_page_cleaner()
       if (oldest_lsn >= soft_lsn_limit)
         buf_flush_async_lsn= soft_lsn_limit= 0;
     }
-    else if (buf_pool.ran_out())
+    else if (buf_pool.running_short())
     {
       buf_pool.page_cleaner_set_idle(false);
       buf_pool.n_flush_inc();
@@ -2509,7 +2515,8 @@ static void buf_flush_page_cleaner()
                                    MONITOR_FLUSH_ADAPTIVE_PAGES,
                                    n_flushed);
     }
-    else if (buf_flush_async_lsn <= oldest_lsn)
+    /* We need to go for LRU scan, if running low in free pages. */
+    else if (buf_flush_async_lsn <= oldest_lsn && !buf_pool.running_short())
       goto check_oldest_and_set_idle;
 
     n= n >= n_flushed ? n - n_flushed : 0;

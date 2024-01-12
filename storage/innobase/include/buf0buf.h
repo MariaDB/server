@@ -1488,10 +1488,18 @@ public:
         n_chunks_new / 4 * chunks->size;
   }
 
-  /** @return whether the buffer pool has run out */
+  /** @return whether the buffer pool is falling short of free pages. */
   TPOOL_SUPPRESS_TSAN
-  bool ran_out() const
-  { return UNIV_UNLIKELY(!try_LRU_scan || !UT_LIST_GET_LEN(free)); }
+  bool running_short() const
+  {
+    /* The threshold is currently 50% of the innodb_lru_scan_depth configured by
+    the user. In the future, it is possible to evaluate it at runtime based on
+    the current load. If the free page count falls below the threshold, the page
+    cleaner frees up more pages from the LRU tail to ensure free page
+    availability for the user connections. */
+    auto threshold = srv_LRU_scan_depth / 2;
+    return UNIV_UNLIKELY(!try_LRU_scan || threshold > UT_LIST_GET_LEN(free));
+  }
 
   /** @return whether the buffer pool is shrinking */
   inline bool is_shrinking() const
