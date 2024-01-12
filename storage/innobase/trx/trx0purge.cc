@@ -456,6 +456,7 @@ loop:
     if (rseg_ref >= rseg.REF || !purge_sys.sees(rseg.needs_purge))
     {
       if (!(rseg.SKIP & rseg_ref) && !freed &&
+          ut_d(!trx_rseg_n_slots_debug &&)
           &rseg == &trx_sys.rseg_array[purge_sys.m_skipped_rseg])
         rseg.set_skip_allocation();
       goto func_exit;
