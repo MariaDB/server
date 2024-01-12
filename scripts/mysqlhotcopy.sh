@@ -288,6 +288,7 @@ if ( defined $opt{regexp} ) {
     $sth_dbs->execute;
     while ( my ($db_name) = $sth_dbs->fetchrow_array ) {
 	next if $db_name =~ m/^information_schema$/i;
+	next if $db_name =~ m/^performance_schema$/i;
 	push @db_desc, { 'src' => $db_name, 't_regex' => $t_regex } if ( $db_name =~ m/$opt{regexp}/o );
     }
 }
