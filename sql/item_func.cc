@@ -131,6 +131,16 @@ Item_args::Item_args(THD *thd, const Item_args *other)
 }
 
 
+void Item_func::wrong_param_count_error(const LEX_CSTRING &schema_name,
+                                        const LEX_CSTRING &func_name)
+{
+  DBUG_ASSERT(schema_name.length);
+  Database_qualified_name qname(schema_name, func_name);
+  my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0),
+           ErrConvDQName(&qname).ptr());
+}
+
+
 void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 {
   List_iterator_fast<Item> li(list);
@@ -626,13 +636,12 @@ table_map Item_func::not_null_tables() const
 void Item_func::print(String *str, enum_query_type query_type)
 {
   str->append(func_name());
-  str->append('(');
-  print_args(str, 0, query_type);
-  str->append(')');
+  print_args_parenthesized(str, query_type);
 }
 
 
-void Item_func::print_args(String *str, uint from, enum_query_type query_type)
+void Item_func::print_args(String *str, uint from,
+                           enum_query_type query_type) const
 {
   for (uint i=from ; i < arg_count ; i++)
   {
@@ -1815,7 +1824,7 @@ void Item_func_neg::fix_length_and_dec_int()
     Use val() to get value as arg_type doesn't mean that item is
     Item_int or Item_float due to existence of Item_param.
   */
-  if (args[0]->const_item())
+  if (args[0]->const_item() && !args[0]->is_expensive())
   {
     longlong val= args[0]->val_int();
     if ((ulonglong) val >= (ulonglong) LONGLONG_MIN &&
@@ -2793,8 +2802,17 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
       No need to send a Rand log event if seed was given eg: RAND(seed),
       as it will be replicated in the query as such.
     */
+    DBUG_ASSERT((!rand &&
+                 (thd->active_stmt_arena_to_use()->
+                    is_stmt_prepare_or_first_stmt_execute() ||
+                  thd->active_stmt_arena_to_use()->
+                    is_conventional() ||
+                  thd->active_stmt_arena_to_use()->state ==
+                    Query_arena::STMT_SP_QUERY_ARGUMENTS
+                 )
+                ) || rand);
     if (!rand && !(rand= (struct my_rnd_struct*)
-                   thd->stmt_arena->alloc(sizeof(*rand))))
+                   thd->active_stmt_arena_to_use()->alloc(sizeof(*rand))))
       return TRUE;
   }
   else

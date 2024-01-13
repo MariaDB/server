@@ -413,26 +413,6 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 }
 
 
-bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
-{
-  DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
-
-  if (args[0]->cmp_type() == STRING_RESULT &&
-      args[1]->cmp_type() == STRING_RESULT)
-  {
-    DTCollation tmp;
-    if (agg_arg_charsets_for_comparison(tmp, args, 2))
-      return true;
-    cmp->m_compare_collation= tmp.collation;
-  }
-  //  Convert constants when compared to int/year field
-  DBUG_ASSERT(functype() != LIKE_FUNC);
-  convert_const_compared_to_int_field(thd);
-
-  return cmp->set_cmp_func(this, &args[0], &args[1], true);
-}
-
-
 /*
   Comparison operators remove arguments' dependency on PAD_CHAR_TO_FULL_LENGTH
   in case of PAD SPACE comparison collations: trailing spaces do not affect
@@ -452,6 +432,7 @@ Item_bool_rowready_func2::value_depends_on_sql_mode() const
 
 bool Item_bool_rowready_func2::fix_length_and_dec()
 {
+  THD *thd= current_thd;
   max_length= 1;				     // Function returns 0 or 1
 
   /*
@@ -460,7 +441,16 @@ bool Item_bool_rowready_func2::fix_length_and_dec()
   */
   if (!args[0] || !args[1])
     return FALSE;
-  return setup_args_and_comparator(current_thd, &cmp);
+  convert_const_compared_to_int_field(thd);
+  Type_handler_hybrid_field_type tmp;
+  if (tmp.aggregate_for_comparison(func_name(), args, 2, false) ||
+      tmp.type_handler()->Item_bool_rowready_func2_fix_length_and_dec(thd,
+                                                                      this))
+  {
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
+  return false;
 }
 
 
@@ -477,27 +467,22 @@ bool Item_bool_rowready_func2::fix_length_and_dec()
   items, holding the cached converted value of the original (constant) item.
 */
 
-int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
+int Arg_comparator::set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                                 const Type_handler *compare_handler,
                                  Item **a1, Item **a2)
 {
   owner= owner_arg;
   set_null= set_null && owner_arg;
   a= a1;
   b= a2;
-  Item *tmp_args[2]= {*a1, *a2};
-  Type_handler_hybrid_field_type tmp;
-  if (tmp.aggregate_for_comparison(owner_arg->func_name(), tmp_args, 2, false))
-  {
-    DBUG_ASSERT(current_thd->is_error());
-    return 1;
-  }
-  m_compare_handler= tmp.type_handler();
+  m_compare_handler= compare_handler;
   return m_compare_handler->set_comparator_func(this);
 }
 
 
 bool Arg_comparator::set_cmp_func_for_row_arguments()
 {
+  THD *thd= current_thd;
   uint n= (*a)->cols();
   if (n != (*b)->cols())
   {
@@ -514,8 +499,8 @@ bool Arg_comparator::set_cmp_func_for_row_arguments()
       my_error(ER_OPERAND_COLUMNS, MYF(0), (*a)->element_index(i)->cols());
       return true;
     }
-    if (comparators[i].set_cmp_func(owner, (*a)->addr(i),
-                                           (*b)->addr(i), set_null))
+    if (comparators[i].set_cmp_func(thd, owner, (*a)->addr(i),
+                                    (*b)->addr(i), set_null))
       return true;
   }
   return false;
@@ -541,7 +526,16 @@ bool Arg_comparator::set_cmp_func_string()
   {
     /*
       We must set cmp_collation here as we may be called from for an automatic
-      generated item, like in natural join
+      generated item, like in natural join.
+      Allow reinterpted superset as subset.
+      Use charset narrowing only for equalities, as that would allow
+      to construct ref access.
+      Non-equality comparisons with constants work without charset narrowing,
+      the constant gets converted.
+      Non-equality comparisons with non-constants would need narrowing to
+      enable range optimizer to handle e.g.
+        t1.mb3key_col <= const_table.mb4_col
+      But this doesn't look important.
     */
     if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
       return true;
@@ -1447,6 +1441,23 @@ bool Item_in_optimizer::invisible_mode()
 {
   /* MAX/MIN transformed or EXISTS->IN prepared => do nothing */
   return (args[1]->get_IN_subquery() == NULL);
+}
+
+
+bool Item_in_optimizer::walk(Item_processor processor,
+                             bool walk_subquery,
+                             void *arg)
+{
+  bool res= FALSE;
+  if (args[1]->type() == Item::SUBSELECT_ITEM &&
+      ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
+      !(((Item_subselect *)args[1])->substype() == Item_subselect::IN_SUBS &&
+        ((Item_in_subselect *)args[1])->test_strategy(SUBS_IN_TO_EXISTS)))
+    res= args[0]->walk(processor, walk_subquery, arg);
+  if (!res)
+    res= args[1]->walk(processor, walk_subquery, arg);
+
+  return res || (this->*processor)(arg);
 }
 
 
@@ -2748,8 +2759,9 @@ Item_func_nullif::fix_length_and_dec()
   fix_char_length(args[2]->max_char_length());
   maybe_null=1;
   m_arg0= args[0];
-  if (setup_args_and_comparator(thd, &cmp))
-    return TRUE;
+  convert_const_compared_to_int_field(thd);
+  if (cmp.set_cmp_func(thd, this, &args[0], &args[1], true/*set_null*/))
+    return true;
   /*
     A special code for EXECUTE..PREPARE.
 
@@ -3421,7 +3433,13 @@ void Item_func_case_simple::print(String *str, enum_query_type query_type)
 
 void Item_func_decode_oracle::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  if (query_type & QT_FOR_FRM)
+  {
+    // 10.3 downgrade compatibility for FRM
+    str->append(STRING_WITH_LEN("decode_oracle"));
+  }
+  else
+    print_sql_mode_qualified_name(str, query_type);
   str->append('(');
   args[0]->print(str, query_type);
   for (uint i= 1, count= when_count() ; i <= count; i++)

@@ -11,3 +11,39 @@ Database	Create Database
 mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 DROP DATABASE mysql_test;
 DROP DATABASE mysql_TEST;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-33019 The database part is not case sensitive in SP names
+#
+CREATE DATABASE DB1;
+CREATE DATABASE db1;
+CREATE PROCEDURE DB1.sp() SELECT 'This is DB1.sp' AS ret;
+CREATE PROCEDURE db1.sp() SELECT 'This is db1.sp' AS ret;
+CALL DB1.sp();
+ret
+This is DB1.sp
+CALL db1.sp();
+ret
+This is db1.sp
+DROP DATABASE DB1;
+CALL DB1.sp();
+ERROR 42000: PROCEDURE DB1.sp does not exist
+CALL db1.sp();
+ret
+This is db1.sp
+DROP DATABASE db1;
+CREATE PROCEDURE SP() SELECT 'This is SP' AS ret;
+CREATE PROCEDURE sp() SELECT 'This is sp' AS ret;
+ERROR 42000: PROCEDURE sp already exists
+CALL SP();
+ret
+This is SP
+CALL sp();
+ret
+This is SP
+DROP PROCEDURE SP;
+#
+# End of 10.4 tests
+#

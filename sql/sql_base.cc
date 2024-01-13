@@ -73,7 +73,9 @@ No_such_table_error_handler::handle_condition(THD *,
                                               Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
-  if (sql_errno == ER_NO_SUCH_TABLE || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE)
+  if (sql_errno == ER_NO_SUCH_TABLE
+      || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE
+      || sql_errno == ER_UNKNOWN_SEQUENCES)
   {
     m_handled_errors++;
     return TRUE;
@@ -2097,6 +2099,7 @@ retry_share:
       if (thd->has_read_only_protection())
       {
         MYSQL_UNBIND_TABLE(table->file);
+        table->vcol_cleanup_expr(thd);
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
@@ -2116,6 +2119,7 @@ retry_share:
       if (result)
       {
         MYSQL_UNBIND_TABLE(table->file);
+        table->vcol_cleanup_expr(thd);
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
@@ -7652,7 +7656,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   while ((item= it++))
   {
     if (make_pre_fix)
-      pre_fix->push_back(item, thd->stmt_arena->mem_root);
+      pre_fix->push_back(item, thd->active_stmt_arena_to_use()->mem_root);
 
     if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {

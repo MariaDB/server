@@ -28,6 +28,7 @@
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
 #include "sql_time.h"
+#include "sql_schema.h"
 #include "mem_root_array.h"
 
 C_MODE_START
@@ -1749,7 +1750,8 @@ public:
                                        QT_ITEM_IDENT_SKIP_DB_NAMES |
                                        QT_ITEM_IDENT_SKIP_TABLE_NAMES |
                                        QT_NO_DATA_EXPANSION |
-                                       QT_TO_SYSTEM_CHARSET),
+                                       QT_TO_SYSTEM_CHARSET |
+                                       QT_FOR_FRM),
                      LOWEST_PRECEDENCE);
   }
   virtual void print(String *str, enum_query_type query_type);
@@ -5237,10 +5239,17 @@ public:
                func_name());
       return true;
     }
+    /*
+      If necessary, convert both *a and *b to the collation in tmp:
+    */
+    Single_coll_err error_for_a= {(*b)->collation, true};
+    Single_coll_err error_for_b= {(*a)->collation, false};
     if (agg_item_set_converter(tmp, func_name(),
-                               a, 1, MY_COLL_CMP_CONV, 1) ||
+                               a, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_a) ||
         agg_item_set_converter(tmp, func_name(),
-                               b, 1, MY_COLL_CMP_CONV, 1))
+                               b, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_b))
       return true;
     *cs= tmp.collation;
     return false;
@@ -5269,6 +5278,14 @@ public:
     if (walk_args(processor, walk_subquery, arg))
       return true;
     return (this->*processor)(arg);
+  }
+  /*
+    Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema
+  */
+  virtual const Schema *schema() const
+  {
+    // A function does not belong to a built-in schema by default
+    return NULL;
   }
   /*
     This method is used for debug purposes to print the name of an

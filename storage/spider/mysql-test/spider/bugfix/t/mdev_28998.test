@@ -12,6 +12,7 @@ if (`select not(count(*)) from information_schema.system_variables where variabl
 --source ../../t/test_init.inc
 --enable_result_log
 --enable_query_log
+set spider_same_server_link=1;
 evalp CREATE SERVER s FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
 CREATE TABLE t1 (a INT);

@@ -687,10 +687,29 @@
 {
   ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
   Memcheck:Leak
+   fun:malloc
+   fun:strdup
+   ...
+   obj:*/libodbc.so*
+   fun:_ZN7ODBConn12AllocConnectEj
+}
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
+  Memcheck:Leak
    fun:calloc
    ...
    obj:*/libodbc.so*
    fun:_ZN7ODBConn10GetDriversEP7_qryres
+}
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:calloc
+   ...
+   obj:*/libodbc.so*
+   fun:_ZN7ODBConn12AllocConnectEj
 }
 
 {

@@ -102,9 +102,12 @@ if [ -z "$BACKUP_BIN" ]; then
 fi
 
 DATA="$WSREP_SST_OPT_DATA"
+
 INFO_FILE='xtrabackup_galera_info'
+DONOR_INFO_FILE='donor_galera_info'
 IST_FILE='xtrabackup_ist'
 MAGIC_FILE="$DATA/$INFO_FILE"
+DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
@@ -650,14 +653,14 @@ get_stream()
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             strmcmd="'$STREAM_BIN' -x"
         else
-            strmcmd="'$STREAM_BIN' -c '$INFO_FILE'"
+            strmcmd="'$STREAM_BIN' -c '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     else
         sfmt='tar'
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             strmcmd='tar xfi -'
         else
-            strmcmd="tar cf - '$INFO_FILE'"
+            strmcmd="tar cf - '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     fi
     wsrep_log_info "Streaming with $sfmt"
@@ -679,6 +682,7 @@ cleanup_at_exit()
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Removing $MAGIC_FILE file due to signal"
         [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+        [ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE" || :
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
@@ -915,6 +919,7 @@ monitor_process()
 }
 
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -rf "$DONOR_MAGIC_FILE"
 
 read_cnf
 setup_ports
@@ -1042,6 +1047,23 @@ setup_commands()
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
 
+send_magic()
+{
+    # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+    # (separated by a space).
+    echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
+    echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$DONOR_MAGIC_FILE"
+    if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+        # Let joiner know that we know its secret
+        echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+    fi
+
+    if [ $WSREP_SST_OPT_BYPASS -eq 0 -a $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+        # Tell joiner what to expect:
+        echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
+    fi
+}
+
 get_stream
 get_transfer
 
@@ -1099,20 +1121,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         wsrep_log_info "Streaming GTID file before SST"
-
-        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
-        # (separated by a space).
-        echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
-
-        if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
-            # Let joiner know that we know its secret
-            echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
-        fi
-
-        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
-            # Tell joiner what to expect:
-            echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
-        fi
+        send_magic
 
         ttcmd="$tcmd"
 
@@ -1202,9 +1211,8 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Bypassing the SST for IST"
         echo "continue" # now server can resume updating data
 
-        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
-        # (separated by a space).
-        echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
+        send_magic
+
         echo "1" > "$DATA/$IST_FILE"
 
         if [ -n "$scomp" ]; then
@@ -1310,7 +1318,7 @@ else # joiner
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
+    SST_PID="$DATA/wsrep_sst.pid"
 
     # give some time for previous SST to complete:
     check_round=0
@@ -1451,8 +1459,8 @@ else # joiner
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
-
         MAGIC_FILE="$DATA/$INFO_FILE"
+
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $jpid
 
@@ -1590,9 +1598,16 @@ else # joiner
         exit 2
     fi
 
+    # use donor magic file, if present
+    # if IST was used, donor magic file was not created
     # Remove special tags from the magic file, and from the output:
-    coords=$(head -n1 "$MAGIC_FILE")
-    wsrep_log_info "Galera co-ords from recovery: $coords"
+    if [ -r "$DONOR_MAGIC_FILE" ]; then
+        coords=$(head -n1 "$DONOR_MAGIC_FILE")
+        wsrep_log_info "Galera co-ords from donor: $coords"
+    else
+        coords=$(head -n1 "$MAGIC_FILE")
+        wsrep_log_info "Galera co-ords from recovery: $coords"
+    fi
     echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"

@@ -912,6 +912,19 @@ static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_unicode_ci[]=
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                   4,  TCHAR,  0},
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100,  TCHAR,  0},
 
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 2,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 3,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},               100,  TCHAR,  0},
+
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 2,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 3,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 4,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},               100,  TCHAR,  0},
+
   {{NULL, 0},                {NULL, 0},                         0,    0,  0}
 };
 
@@ -938,6 +951,19 @@ static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_unicode_nopad_ci[]=
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                   3,  TVCHAR,  0},
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                   4,  TVCHAR,  0},
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100,  TVCHAR,  0},
+
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 2,  TCHAR,  -1},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 3,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},               100,  TCHAR,  0},
+
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 2,  TCHAR,  -1},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 3,  TCHAR,  -1},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 4,  TCHAR,   0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},               100,  TCHAR,   0},
 
   {{NULL, 0},                {NULL, 0},                         0,    0,  0}
 };

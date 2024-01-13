@@ -643,6 +643,12 @@ hard_fail:
 
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
+      /* The underlying file page of this buffer pool page could actually
+      be marked as freed, or a read of the page into the buffer pool might
+      be in progress. We may read uninitialized data here.
+      Suppress warnings of comparing uninitialized values. */
+      MEM_MAKE_DEFINED(&prev, sizeof prev);
+      MEM_MAKE_DEFINED(&next, sizeof next);
       if (prev == FIL_NULL || next == FIL_NULL)
         goto hard_fail;
       page_id_t id= page_id;

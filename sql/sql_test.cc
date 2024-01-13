@@ -29,12 +29,14 @@
 #include <thr_alarm.h>
 #include "sql_connect.h"
 #include "thread_cache.h"
-#if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
+#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
+#if defined(HAVE_MALLOC_H)
 #include <malloc.h>
-#elif defined(HAVE_MALLINFO) && defined(HAVE_SYS_MALLOC_H)
+#elif defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
 #elif defined(HAVE_MALLOC_ZONE)
 #include <malloc/malloc.h>
+#endif
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER

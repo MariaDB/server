@@ -564,5 +564,76 @@ update t1 set b = 30 limit 1;
 drop table t1;
 
 --echo #
+--echo # MDEV-32839 LONG UNIQUE gives error when used with REPLACE
+--echo #
+create table t1 (
+  f1 bigint(20) not null auto_increment primary key,
+  f2 varchar(30) default null,
+  f3 varchar(30) default null,
+  f4 varchar(255) default null,
+  f5 varchar(30) default null,
+  f6 varchar(255) default null,
+  f7 varchar(255) default null,
+  unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=myisam;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+drop table t1;
+
+create table t1 (
+  f1 bigint(20) not null auto_increment primary key,
+  f2 varchar(30) default null,
+  f3 varchar(30) default null,
+  f4 varchar(255) default null,
+  f5 varchar(30) default null,
+  f6 varchar(255) default null,
+  f7 varchar(255) default null,
+  unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=innodb;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+drop table t1;
+
+create table t1 (
+  f1 bigint(20) not null auto_increment primary key,
+  f2 varchar(30) default null,
+  f3 varchar(30) default null,
+  f4 varchar(255) default null,
+  f5 varchar(30) default null,
+  f6 varchar(255) default null,
+  f7 varchar(255) default null,
+  unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=myisam partition by key(f1) partitions 2;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+drop table t1;
+
+create table t1 (
+  f1 bigint(20) not null auto_increment primary key,
+  f2 varchar(30) default null,
+  f3 varchar(30) default null,
+  f4 varchar(255) default null,
+  f5 varchar(30) default null,
+  f6 varchar(255) default null,
+  f7 varchar(255) default null,
+  unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=innodb partition by key(f1) partitions 2;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

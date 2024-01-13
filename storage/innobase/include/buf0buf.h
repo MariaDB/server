@@ -1786,15 +1786,12 @@ public:
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
   /** Number of pending LRU flush; protected by mutex. */
   ulint n_flush_LRU_;
-  /** broadcast when n_flush_LRU reaches 0; protected by mutex */
+  /** broadcast when n_flush_LRU_ reaches 0; protected by mutex */
   pthread_cond_t done_flush_LRU;
   /** Number of pending flush_list flush; protected by mutex */
   ulint n_flush_list_;
-  /** broadcast when n_flush_list reaches 0; protected by mutex */
+  /** broadcast when n_flush_list_ reaches 0; protected by mutex */
   pthread_cond_t done_flush_list;
-
-  TPOOL_SUPPRESS_TSAN ulint n_flush_LRU() const { return n_flush_LRU_; }
-  TPOOL_SUPPRESS_TSAN ulint n_flush_list() const { return n_flush_list_; }
 
 	/** @name General fields */
 	/* @{ */
@@ -1949,7 +1946,7 @@ public:
     last_activity_count= activity_count;
   }
 
-  // n_flush_LRU() + n_flush_list()
+  // n_flush_LRU_ + n_flush_list_
   // is approximately COUNT(io_fix()==BUF_IO_WRITE) in flush_list
 
 	unsigned	freed_page_clock;/*!< a sequence number used
@@ -1979,7 +1976,8 @@ public:
 	UT_LIST_BASE_NODE_T(buf_page_t) free;
 					/*!< base node of the free
 					block list */
-  /** signaled each time when the free list grows; protected by mutex */
+  /** signaled each time when the free list grows and
+  broadcast each time try_LRU_scan is set; protected by mutex */
   pthread_cond_t done_free;
 
 	UT_LIST_BASE_NODE_T(buf_page_t) withdraw;
@@ -2032,7 +2030,8 @@ public:
   a delete-buffering operation is pending. Protected by mutex. */
   buf_page_t watch[innodb_purge_threads_MAX + 1];
   /** Reserve a buffer. */
-  buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
+  buf_tmp_buffer_t *io_buf_reserve(bool wait_for_reads)
+  { return io_buf.reserve(wait_for_reads); }
 
   /** @return whether any I/O is pending */
   bool any_io_pending()
@@ -2045,9 +2044,9 @@ public:
     return any_pending;
   }
   /** @return total amount of pending I/O */
-  ulint io_pending() const
+  TPOOL_SUPPRESS_TSAN ulint io_pending() const
   {
-    return n_pend_reads + n_flush_LRU() + n_flush_list();
+    return n_pend_reads + n_flush_LRU_ + n_flush_list_;
   }
 
 private:
@@ -2080,34 +2079,12 @@ private:
     /** array of slots */
     buf_tmp_buffer_t *slots;
 
-    void create(ulint n_slots)
-    {
-      this->n_slots= n_slots;
-      slots= static_cast<buf_tmp_buffer_t*>
-        (ut_malloc_nokey(n_slots * sizeof *slots));
-      memset((void*) slots, 0, n_slots * sizeof *slots);
-    }
+    void create(ulint n_slots);
 
-    void close()
-    {
-      for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      {
-        aligned_free(s->crypt_buf);
-        aligned_free(s->comp_buf);
-      }
-      ut_free(slots);
-      slots= nullptr;
-      n_slots= 0;
-    }
+    void close();
 
     /** Reserve a buffer */
-    buf_tmp_buffer_t *reserve()
-    {
-      for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-        if (s->acquire())
-          return s;
-      return nullptr;
-    }
+    buf_tmp_buffer_t *reserve(bool wait_for_reads);
   } io_buf;
 
   /** whether resize() is in the critical path */
@@ -2218,7 +2195,10 @@ inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 /** Clear oldest_modification after removing from buf_pool.flush_list */
 inline void buf_page_t::clear_oldest_modification()
 {
-  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
+#ifdef SAFE_MUTEX
+  if (oldest_modification() != 2)
+    mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
+#endif /* SAFE_MUTEX */
   ut_d(const auto state= state_);
   ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_ZIP_PAGE ||
         state == BUF_BLOCK_REMOVE_HASH);
@@ -2337,7 +2317,7 @@ MEMORY:		is not in free list, LRU list, or flush list, nor page
 		hash table
 FILE_PAGE:	space and offset are defined, is in page hash table
 		if io_fix == BUF_IO_WRITE,
-			buf_pool.n_flush_LRU() || buf_pool.n_flush_list()
+			buf_pool.n_flush_LRU_ || buf_pool.n_flush_list_
 
 		(1) if buf_fix_count == 0, then
 			is in LRU list, not in free list

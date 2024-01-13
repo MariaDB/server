@@ -504,8 +504,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Item *item;
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
-  int result_code;
-  int compl_result_code;
+  int result_code= 0;
+  int compl_result_code= 0;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
   bool is_table_modified= false;

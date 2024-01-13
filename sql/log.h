@@ -822,6 +822,7 @@ public:
   int  write_cache(THD *thd, IO_CACHE *cache);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
+  bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
@@ -1247,6 +1248,7 @@ static inline TC_LOG *get_tc_log_implementation()
 
 #ifdef WITH_WSREP
 IO_CACHE* wsrep_get_cache(THD *, bool);
+bool wsrep_is_binlog_cache_empty(THD *);
 void wsrep_thd_binlog_trx_reset(THD * thd);
 void wsrep_thd_binlog_stmt_rollback(THD * thd);
 #endif /* WITH_WSREP */

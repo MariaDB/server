@@ -724,7 +724,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_wfc()
 #endif /*WITH_WSREP */
 {
-  ulong tmp;
   bzero(&variables, sizeof(variables));
 
   /*
@@ -877,14 +876,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   tablespace_op=FALSE;
 
-  /*
-    Initialize the random generator. We call my_rnd() without a lock as
-    it's not really critical if two threads modifies the structure at the
-    same time.  We ensure that we have an unique number foreach thread
-    by adding the address of the stack.
-  */
-  tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
-  my_rnd_init(&rand, tmp + (ulong)((size_t) &rand), tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   lock_info.mysql_thd= (void *)this;
 
@@ -1256,7 +1247,9 @@ void THD::init()
 
   user_time.val= start_time= start_time_sec_part= 0;
 
-  server_status= SERVER_STATUS_AUTOCOMMIT;
+  server_status= 0;
+  if (variables.option_bits & OPTION_AUTOCOMMIT)
+    server_status|= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
   if (variables.sql_mode & MODE_ANSI_QUOTES)
@@ -1315,15 +1308,23 @@ void THD::init()
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
-  if (variables.sql_log_bin)
-    variables.option_bits|= OPTION_BIN_LOG;
-  else
-    variables.option_bits&= ~OPTION_BIN_LOG;
+  set_binlog_bit();
 
   select_commands= update_commands= other_commands= 0;
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
   last_global_update_time= current_connect_time= time(NULL);
+
+  /*
+    Initialize the random generator. We call my_rnd() without a lock as
+    it's not really critical if two threads modify the structure at the
+    same time.  We ensure that we have a unique number for each thread
+    by adding the address of this THD.
+  */
+  ulong tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
+  my_rnd_init(&rand, tmp + (ulong)(intptr) this,
+                     (ulong)(my_timer_cycles() + global_query_id));
+
 #ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
 #endif //EMBEDDED_LIBRARY
@@ -1616,6 +1617,10 @@ void THD::free_connection()
     vio_delete(net.vio);
   net.vio= nullptr;
   net_end(&net);
+  delete(rgi_fake);
+  rgi_fake= NULL;
+  delete(rli_fake);
+  rli_fake= NULL;
 #endif
  if (!cleanup_done)
    cleanup();
@@ -1654,6 +1659,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  proc_info= "login";                           // Same as in THD::THD()
   transaction->on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
@@ -1666,6 +1672,7 @@ void THD::reset_for_reuse()
   wsrep_cs().reset_error();
   wsrep_aborter= 0;
   wsrep_abort_by_kill= NOT_KILLED;
+  my_free(wsrep_abort_by_kill_err);
   wsrep_abort_by_kill_err= 0;
 #ifndef DBUG_OFF
   wsrep_killed_state= 0;
@@ -1708,6 +1715,8 @@ THD::~THD()
 
 #ifdef WITH_WSREP
   mysql_cond_destroy(&COND_wsrep_thd);
+  my_free(wsrep_abort_by_kill_err);
+  wsrep_abort_by_kill_err= 0;
 #endif
   mdl_context.destroy();
 
@@ -1720,17 +1729,6 @@ THD::~THD()
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
-  if (rgi_fake)
-  {
-    delete rgi_fake;
-    rgi_fake= NULL;
-  }
-  if (rli_fake)
-  {
-    delete rli_fake;
-    rli_fake= NULL;
-  }
-  
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
   my_free(semisync_info);
@@ -1738,6 +1736,7 @@ THD::~THD()
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
   my_free(m_token_array);
+  my_free(killed_err);
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
@@ -2165,7 +2164,11 @@ void THD::reset_killed()
     mysql_mutex_assert_not_owner(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_kill);
     killed= NOT_KILLED;
-    killed_err= 0;
+    if (unlikely(killed_err))
+    {
+      my_free(killed_err);
+      killed_err= 0;
+    }
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
@@ -2176,6 +2179,7 @@ void THD::reset_killed()
       mysql_mutex_assert_not_owner(&LOCK_thd_kill);
       mysql_mutex_lock(&LOCK_thd_kill);
       wsrep_abort_by_kill= NOT_KILLED;
+      my_free(wsrep_abort_by_kill_err);
       wsrep_abort_by_kill_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
@@ -5881,8 +5885,6 @@ void THD::set_examined_row_count(ha_rows count)
 void THD::inc_sent_row_count(ha_rows count)
 {
   m_sent_row_count+= count;
-  DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
-                  m_examined_row_count= (ULONGLONG_MAX - 1000000););
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 

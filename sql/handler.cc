@@ -7263,7 +7263,12 @@ int handler::ha_write_row(const uchar *buf)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
+    {
+      if (table->next_number_field && buf == table->record[0])
+        if (int err= update_auto_increment())
+          error= err;
       DBUG_RETURN(error);
+    }
   }
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);

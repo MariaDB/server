@@ -253,6 +253,10 @@ public:
   */
   void skip_data_till_eof()
   {
+#ifndef EMBEDDED_LIBRARY
+    if (mysql_bin_log.is_open())
+      cache.read_function= cache.real_read_function;
+#endif
     while (GET != my_b_EOF)
       ;
   }

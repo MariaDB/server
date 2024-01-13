@@ -724,3 +724,38 @@ DROP TABLE t1;
 --remove_file $datadir/test/load_t1
 
 
+--echo #
+--echo # MDEV-28566 Assertion `!expr->is_fixed()' failed in bool
+--echo #            Virtual_column_info::fix_session_expr(THD*)
+--echo #
+
+CREATE TABLE t1 (c1 CHAR(1));
+FLUSH TABLES WITH READ LOCK;
+--error ER_CANT_UPDATE_WITH_READLOCK
+UPDATE t1 SET c1=1;
+unlock tables;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR AS (CONCAT (0,DAYNAME (0))));
+FLUSH TABLES WITH READ LOCK;
+--error ER_CANT_UPDATE_WITH_READLOCK
+UPDATE t1 SET c1=1;
+unlock tables;
+UPDATE t1 SET c1=1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int primary key, c1 CHAR AS (CONCAT (0,DAYNAME (0))));
+insert into t1 (a) values (1);
+FLUSH TABLES WITH READ LOCK;
+--error ER_CANT_UPDATE_WITH_READLOCK
+UPDATE t1 SET c1=1;
+--error ER_CANT_UPDATE_WITH_READLOCK
+UPDATE t1 SET a=2;
+unlock tables;
+UPDATE t1 SET a=2;
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+UPDATE t1 SET c1=1;
+SELECT * FROM t1;
+DROP TABLE t1;

@@ -175,9 +175,9 @@ def	information_schema	GEOMETRY_COLUMNS	MAX_PPR	12	NULL	NO	tinyint	NULL	NULL	3	0
 def	information_schema	GEOMETRY_COLUMNS	SRID	13	NULL	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)					NEVER	NULL
 def	information_schema	GEOMETRY_COLUMNS	STORAGE_TYPE	9	NULL	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)					NEVER	NULL
 def	information_schema	GLOBAL_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)					NEVER	NULL
+def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(4096)					NEVER	NULL
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)					NEVER	NULL
+def	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(4096)					NEVER	NULL
 def	information_schema	INDEX_STATISTICS	INDEX_NAME	3	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(192)					NEVER	NULL
 def	information_schema	INDEX_STATISTICS	ROWS_READ	4	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)					NEVER	NULL
 def	information_schema	INDEX_STATISTICS	TABLE_NAME	2	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(192)					NEVER	NULL
@@ -337,9 +337,9 @@ def	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	4	NULL	NO	varchar	64	192
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG	2	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)					NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	SESSION_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)					NEVER	NULL
+def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(4096)					NEVER	NULL
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)					NEVER	NULL
+def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(4096)					NEVER	NULL
 def	information_schema	SPATIAL_REF_SYS	AUTH_NAME	2	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)					NEVER	NULL
 def	information_schema	SPATIAL_REF_SYS	AUTH_SRID	3	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(5)					NEVER	NULL
 def	information_schema	SPATIAL_REF_SYS	SRID	1	NULL	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)					NEVER	NULL
@@ -722,9 +722,9 @@ NULL	information_schema	GEOMETRY_COLUMNS	COORD_DIMENSION	tinyint	NULL	NULL	NULL	
 NULL	information_schema	GEOMETRY_COLUMNS	MAX_PPR	tinyint	NULL	NULL	NULL	NULL	tinyint(2)
 NULL	information_schema	GEOMETRY_COLUMNS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	GLOBAL_STATUS	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
+3.0000	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	varchar	4096	12288	utf8	utf8_general_ci	varchar(4096)
 3.0000	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
+3.0000	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	varchar	4096	12288	utf8	utf8_general_ci	varchar(4096)
 3.0000	information_schema	INDEX_STATISTICS	TABLE_SCHEMA	varchar	192	576	utf8	utf8_general_ci	varchar(192)
 3.0000	information_schema	INDEX_STATISTICS	TABLE_NAME	varchar	192	576	utf8	utf8_general_ci	varchar(192)
 3.0000	information_schema	INDEX_STATISTICS	INDEX_NAME	varchar	192	576	utf8	utf8_general_ci	varchar(192)
@@ -884,9 +884,9 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	SCHEMA_PRIVILEGES	IS_GRANTABLE	varchar	3	9	utf8	utf8_general_ci	varchar(3)
 3.0000	information_schema	SESSION_STATUS	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	SESSION_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
+3.0000	information_schema	SESSION_STATUS	VARIABLE_VALUE	varchar	4096	12288	utf8	utf8_general_ci	varchar(4096)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
+3.0000	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	varchar	4096	12288	utf8	utf8_general_ci	varchar(4096)
 NULL	information_schema	SPATIAL_REF_SYS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	SPATIAL_REF_SYS	AUTH_NAME	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)

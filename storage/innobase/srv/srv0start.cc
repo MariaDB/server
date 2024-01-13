@@ -1073,10 +1073,14 @@ dberr_t srv_start(bool create_new_db)
 	if (srv_force_recovery) {
 		ib::info() << "!!! innodb_force_recovery is set to "
 			<< srv_force_recovery << " !!!";
+		if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
+			srv_read_only_mode = true;
+		}
 	}
 
-	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
-		srv_read_only_mode = true;
+	if (srv_read_only_mode) {
+		sql_print_information("InnoDB: Started in read only mode");
+		srv_use_doublewrite_buf = false;
 	}
 
 	high_level_read_only = srv_read_only_mode

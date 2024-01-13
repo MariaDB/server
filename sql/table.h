@@ -1585,7 +1585,7 @@ public:
   void mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap);
   void mark_index_columns_for_read(uint index);
   void restore_column_maps_after_keyread(MY_BITMAP *backup);
-  void mark_auto_increment_column(void);
+  void mark_auto_increment_column(bool insert_fl);
   void mark_columns_needed_for_update(void);
   void mark_columns_needed_for_delete(void);
   void mark_columns_needed_for_insert(void);
@@ -2056,7 +2056,6 @@ public:
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
   bool check_unit(THD *thd);
-  void bad_expression_data_type_error(const char *type) const;
   bool eq(const vers_history_point_t &point) const;
 };
 

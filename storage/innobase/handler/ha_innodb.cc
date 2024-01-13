@@ -3893,11 +3893,6 @@ static int innodb_init_params()
 	}
 #endif
 
-	if (srv_read_only_mode) {
-		ib::info() << "Started in read only mode";
-		srv_use_doublewrite_buf = FALSE;
-	}
-
 #ifdef LINUX_NATIVE_AIO
 #elif !defined _WIN32
 	/* Currently native AIO is supported only on windows and linux
@@ -7665,20 +7660,6 @@ ha_innobase::write_row(
 #endif
 
 		if ((error_result = update_auto_increment())) {
-			/* We don't want to mask autoinc overflow errors. */
-
-			/* Handle the case where the AUTOINC sub-system
-			failed during initialization. */
-			if (m_prebuilt->autoinc_error == DB_UNSUPPORTED) {
-				error_result = ER_AUTOINC_READ_FAILED;
-				/* Set the error message to report too. */
-				my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-				goto func_exit;
-			} else if (m_prebuilt->autoinc_error != DB_SUCCESS) {
-				error = m_prebuilt->autoinc_error;
-				goto report_error;
-			}
-
 			/* MySQL errors are passed straight back. */
 			goto func_exit;
 		}
@@ -7816,7 +7797,6 @@ set_max_autoinc:
 		}
 	}
 
-report_error:
 	/* Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
@@ -11651,8 +11631,6 @@ index_bad:
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
 	DBUG_RETURN(true);
 }
@@ -14344,7 +14322,7 @@ ha_innobase::info_low(
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (!ib_table->is_readable()) {
-		ib_table->stat_initialized = true;
+		dict_stats_empty_table(ib_table, true);
 	}
 
 	if (flag & HA_STATUS_TIME) {
@@ -15412,29 +15390,33 @@ ha_innobase::extra(
 	enum ha_extra_function operation)
 			   /*!< in: HA_EXTRA_FLUSH or some other flag */
 {
-	check_trx_exists(ha_thd());
-
 	/* Warning: since it is not sure that MySQL calls external_lock
 	before calling this function, the trx field in m_prebuilt can be
 	obsolete! */
+	trx_t *trx;
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
+		(void)check_trx_exists(ha_thd());
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
+		trx = check_trx_exists(ha_thd());
 		reset_template();
-		thd_to_trx(ha_thd())->duplicates = 0;
+		trx->duplicates = 0;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 
@@ -15445,18 +15427,23 @@ ha_innobase::extra(
 		either, because the calling threads may change.
 		CAREFUL HERE, OR MEMORY CORRUPTION MAY OCCUR! */
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_IGNORE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates |= TRX_DUP_IGNORE;
 		break;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_IGNORE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates &= ~TRX_DUP_IGNORE;
 		break;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_REPLACE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates |= TRX_DUP_REPLACE;
 		break;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_REPLACE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates &= ~TRX_DUP_REPLACE;
 		break;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15470,6 +15457,7 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 0;
 		break;
 	default:/* Do nothing */
@@ -18318,11 +18306,18 @@ static
 void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync();
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  if (!*(my_bool*) save)
+    return;
+  const uint s= srv_fil_make_page_dirty_debug;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (s)
+    buf_flush_sync();
+  else
+  {
+    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+    os_aio_wait_until_no_pending_writes();
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
@@ -20920,6 +20915,10 @@ Compare_keys ha_innobase::compare_key_parts(
       return Compare_keys::NotEqual;
 
     if (old_part.length >= new_part.length)
+      return Compare_keys::NotEqual;
+
+    if (old_part.length == old_field.key_length() &&
+        new_part.length != new_field.length)
       return Compare_keys::NotEqual;
 
     return Compare_keys::EqualButKeyPartLength;

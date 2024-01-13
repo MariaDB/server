@@ -1368,5 +1368,5 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
-# End of 10.10 tests
+# End of 10.5 tests
 #

@@ -1002,11 +1002,10 @@ static Sys_var_charptr_fscs Sys_datadir(
 static Sys_var_dbug Sys_dbug(
        "debug", "Built-in DBUG debugger", sys_var::SESSION,
        CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_has_super), ON_UPDATE(0),
-       DEPRECATED("'@@debug_dbug'")); // since 5.5.37
+       ON_CHECK(check_has_super));
 
 static Sys_var_dbug Sys_debug_dbug(
-       "debug_dbug", "Built-in DBUG debugger", sys_var::SESSION,
+       "debug_dbug", "Built-in DBUG debugger. Alias for --debug", sys_var::SESSION,
        CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
 #endif
@@ -1471,7 +1470,7 @@ static Sys_var_bit Sys_log_slow_slave_statements(
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
-       "Log some not critical warnings to the general log file."
+       "Log some non critical warnings to the error log."
        "Value can be between 0 and 11. Higher values mean more verbosity",
        SESSION_VAR(log_warnings),
        CMD_LINE(OPT_ARG, 'W'),
@@ -4442,10 +4441,7 @@ static bool fix_sql_log_bin_after_update(sys_var *self, THD *thd,
 {
   DBUG_ASSERT(type == OPT_SESSION);
 
-  if (thd->variables.sql_log_bin)
-    thd->variables.option_bits |= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  thd->set_binlog_bit();
 
   return FALSE;
 }
@@ -5447,7 +5443,7 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
+get_master_info_ulonglong_value(THD *thd) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5455,7 +5451,7 @@ get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
   if ((mi= get_master_info(&thd->variables.default_master_connection,
                            Sql_condition::WARN_LEVEL_WARN)))
   {
-    res= *((ulonglong*) (((uchar*) mi) + master_info_offset));
+    res= (mi->*mi_accessor_func)();
     mi->release();
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -5525,7 +5521,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
        "sql_slave_skip_counter", "Skip the next N events from the master log",
        SESSION_VAR(slave_skip_counter), NO_CMD_LINE,
-       MASTER_INFO_VAR(rli.slave_skip_counter),
+       &Master_info::get_slave_skip_counter,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        ON_UPDATE(update_slave_skip_counter));
 
@@ -5541,7 +5537,7 @@ static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
        "relay log will be rotated automatically when the size exceeds this "
        "value.  If 0 at startup, it's set to max_binlog_size",
        SESSION_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
-       MASTER_INFO_VAR(rli.max_relay_log_size),
+       &Master_info::get_max_relay_log_size,
        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
        ON_UPDATE(update_max_relay_log_size));
 

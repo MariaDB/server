@@ -117,7 +117,8 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
   }
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_update(THD *thd, SHOW_VAR *var, void *,
+                                system_status_var *, enum_var_type)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
@@ -128,7 +129,8 @@ static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
   DBUG_RETURN(error_num);
 }
 
-static int spider_direct_delete(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_delete(THD *thd, SHOW_VAR *var, void *,
+                                system_status_var *, enum_var_type)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
@@ -140,7 +142,8 @@ static int spider_direct_delete(THD *thd, SHOW_VAR *var, char *buff)
 }
 #endif
 
-static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, void *,
+                                     system_status_var *, enum_var_type)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
@@ -151,7 +154,8 @@ static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, char *buff)
   DBUG_RETURN(error_num);
 }
 
-static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, void *,
+                                   system_status_var *, enum_var_type)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
@@ -162,7 +166,8 @@ static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, char *buff)
   DBUG_RETURN(error_num);
 }
 
-static int spider_parallel_search(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_parallel_search(THD *thd, SHOW_VAR *var, void *,
+                                  system_status_var *, enum_var_type)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
@@ -174,7 +179,8 @@ static int spider_parallel_search(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-static int spider_hs_result_free(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_hs_result_free(THD *thd, SHOW_VAR *var, void *,
+                                 system_status_var *, enum_var_type)
 {
   int error_num = 0;
   SPIDER_TRX *trx;
@@ -2688,7 +2694,7 @@ static MYSQL_SYSVAR_UINT(
   "Static thread count of table sts",
   NULL,
   NULL,
-  10,
+  1,
   1,
   4294967295U,
   0
@@ -2707,7 +2713,7 @@ static MYSQL_SYSVAR_UINT(
   "Static thread count of table crd",
   NULL,
   NULL,
-  10,
+  1,
   1,
   4294967295U,
   0

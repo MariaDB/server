@@ -1416,6 +1416,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   DBUG_LOG("trx", "Commit in memory: " << this);
   state= TRX_STATE_NOT_STARTED;
+  *detailed_error= '\0';
 
   assert_freed();
   trx_init(this);
