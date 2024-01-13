@@ -9395,6 +9395,35 @@ bool TABLE_LIST::change_refs_to_fields()
   return FALSE;
 }
 
+/*
+  @brief
+  Switches a derived table/view that previously was planned to be merged to
+  materialization.
+
+  @param drop_field_translation   Whether the function must reset this
+                                  DT/view's field_translation table to NULL.
+                                  Normally this must be done because
+                                  field_translation is not relevant for
+                                  materialized DT/views and can break the name
+                                  resolution at 2nd execution. But in some
+                                  cases field_translation is used later at the
+                                  execution phase so it must not be reset
+
+  @return FALSE ok
+  @return TRUE  error
+*/
+bool TABLE_LIST::switch_from_merge_to_materialization(
+    bool drop_field_translation)
+{
+  if (change_refs_to_fields())
+    return TRUE;
+  set_materialized_derived();
+
+  if (drop_field_translation)
+    field_translation= nullptr;
+  return FALSE;
+}
+
 
 void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
 {

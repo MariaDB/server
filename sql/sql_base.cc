@@ -1276,8 +1276,7 @@ retry:
     {
       DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
+      derived->switch_from_merge_to_materialization(false);
       goto retry;
     }
   }

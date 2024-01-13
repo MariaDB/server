@@ -353,8 +353,12 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if (derived->dt_handler)
   {
-    derived->change_refs_to_fields();
-    derived->set_materialized_derived();
+    /*
+      drop_field_translation= false in the next call because field_translation
+      will be later used in mysql_derived_fill() to reconfigure the translation
+      towards the result table filled by external storage engine
+    */
+    derived->switch_from_merge_to_materialization(false);
     DBUG_RETURN(FALSE);
   }
 
@@ -464,8 +468,7 @@ unconditional_materialization:
     trace_derived.add("cause", cause);
   }
 
-  derived->change_refs_to_fields();
-  derived->set_materialized_derived();
+  derived->switch_from_merge_to_materialization(true);
   if (!derived->table || !derived->table->is_created())
     res= mysql_derived_create(thd, lex, derived);
   goto exit_merge;
@@ -1041,8 +1044,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     if (derived->is_merged_derived())
     {
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
+      derived->switch_from_merge_to_materialization(true);
     }
     if ((res= mysql_derived_create(thd, lex, derived)))
       goto err;

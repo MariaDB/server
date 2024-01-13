@@ -2925,6 +2925,7 @@ struct TABLE_LIST
   bool init_derived(THD *thd, bool init_view);
   int fetch_number_of_rows();
   bool change_refs_to_fields();
+  bool switch_from_merge_to_materialization(bool drop_field_translation);
 
   bool single_table_updatable();
 
