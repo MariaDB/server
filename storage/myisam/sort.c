@@ -432,7 +432,7 @@ static my_bool thr_find_all_keys_exec(MI_SORT_PARAM *sort_param)
     }
     if ((sort_keys= (uchar**) my_malloc(PSI_INSTRUMENT_ME,
                     (size_t)(keys * (sort_length + sizeof(char*)) +
-                   ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
+                   (sort_param->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
       if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek,

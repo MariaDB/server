@@ -313,7 +313,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
       keyinfo->keylength+= (uint16) diff_length;
       keyinfo->minlength+= (uint16) diff_length;
       keyinfo->maxlength+= (uint16) diff_length;
-      keyinfo->seg[keyinfo->flag & HA_FULLTEXT ?
+      keyinfo->seg[keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
                    FT_SEGS : keyinfo->keysegs].length= (uint16) rec_reflength;
     }
     if (share->ft2_keyinfo.seg)

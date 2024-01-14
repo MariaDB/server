@@ -464,14 +464,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     min_key_length= key_length= pointer;
 
     if (keydef->key_alg == HA_KEY_ALG_RTREE)
-      keydef->flag|= HA_RTREE_INDEX;            /* For easier tests */
-
-    if (keydef->flag & HA_SPATIAL)
     {
       /* BAR TODO to support 3D and more dimensions in the future */
       uint sp_segs=SPDIMS*2;
-      keydef->flag=HA_SPATIAL;
-
+      keydef->flag=HA_SPATIAL_legacy;
       if (flags & HA_DONT_TOUCH_DATA)
       {
         /*
@@ -500,9 +496,9 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       length++;                              /* At least one length uchar */
       min_key_length++;
     }
-    else if (keydef->flag & HA_FULLTEXT)
+    else if (keydef->key_alg == HA_KEY_ALG_FULLTEXT)
     {
-      keydef->flag=HA_FULLTEXT | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
+      keydef->flag=HA_FULLTEXT_legacy | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
       options|=HA_OPTION_PACK_KEYS;             /* Using packed keys */
 
       for (j=0, keyseg=keydef->seg ; (int) j < keydef->keysegs ;
@@ -940,7 +936,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   DBUG_PRINT("info", ("write key and keyseg definitions"));
   for (i=0 ; i < share.base.keys - uniques; i++)
   {
-    uint sp_segs=(keydefs[i].flag & HA_SPATIAL) ? 2*SPDIMS : 0;
+    uint sp_segs=keydefs[i].key_alg == HA_KEY_ALG_RTREE ? 2*SPDIMS : 0;
 
     if (_ma_keydef_write(file, &keydefs[i]))
       goto err;
