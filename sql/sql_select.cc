@@ -7236,7 +7236,8 @@ static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
     {
       if (!(form->keys_in_use_for_query.is_set(key)))
 	continue;
-      if (form->key_info[key].flags & (HA_FULLTEXT | HA_SPATIAL))
+      if (form->key_info[key].algorithm == HA_KEY_ALG_FULLTEXT ||
+          form->key_info[key].algorithm == HA_KEY_ALG_RTREE)
 	continue;
 
       KEY *keyinfo= form->key_info+key;

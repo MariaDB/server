@@ -3122,15 +3122,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
       }
  
-      /* Fix fulltext keys for old .frm files */
-      if (share->key_info[key].flags & HA_FULLTEXT)
-	share->key_info[key].algorithm= HA_KEY_ALG_FULLTEXT;
-
       key_part= keyinfo->key_part;
       uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
 	                                    keyinfo->user_defined_key_parts;
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
         key_parts++;
+      if (keyinfo->algorithm == HA_KEY_ALG_UNDEF) // old .frm
+      {
+        if (keyinfo->flags & HA_FULLTEXT_legacy)
+          keyinfo->algorithm= HA_KEY_ALG_FULLTEXT;
+        else if (keyinfo->flags & HA_SPATIAL_legacy)
+          keyinfo->algorithm= HA_KEY_ALG_RTREE;
+      }
       for (i=0; i < key_parts; key_part++, i++)
       {
         Field *field;

@@ -3571,6 +3571,22 @@ PSI_table_share *handler::ha_table_share_psi() const
   return table_share->m_psi;
 }
 
+const char *handler::index_type(uint key_number)
+{
+  static const char* alg2str[]= { "???", "BTREE", "SPATIAL", "HASH",
+                                  "FULLTEXT", "HASH", "HASH" };
+  enum ha_key_alg alg= table_share->key_info[key_number].algorithm;
+  if (!alg)
+  {
+    if (index_flags(key_number, 0, 1) & HA_READ_RANGE)
+      alg= HA_KEY_ALG_BTREE;
+    else
+      alg= HA_KEY_ALG_HASH;
+  }
+  return alg2str[alg];
+}
+
+
 /** @brief
   Open database-handler.
 
