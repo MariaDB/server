@@ -182,6 +182,8 @@ ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: INPLACE ADD or DROP of 
 CREATE FULLTEXT INDEX idx ON t1(col9);
 ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col5x % col6x)
 VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
+Warnings:
+Note	1831	Duplicate index `ftidx`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 (
 col1 int(11) NOT NULL,

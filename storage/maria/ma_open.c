@@ -760,14 +760,14 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
 	}
-	if (keyinfo->flag & HA_SPATIAL)
+	if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
 	{
 	  uint sp_segs=SPDIMS*2;
 	  keyinfo->seg=pos-sp_segs;
 	  keyinfo->keysegs--;
           versioning= 0;
 	}
-        else if (keyinfo->flag & HA_FULLTEXT)
+        else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
 	{
           versioning= 0;
           DBUG_ASSERT(fulltext_keys);
@@ -791,6 +791,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
             memcpy(&share->ft2_keyinfo, keyinfo, sizeof(MARIA_KEYDEF));
             share->ft2_keyinfo.keysegs=1;
             share->ft2_keyinfo.flag=0;
+            share->ft2_keyinfo.key_alg=HA_KEY_ALG_BTREE;
             share->ft2_keyinfo.keylength=
             share->ft2_keyinfo.minlength=
             share->ft2_keyinfo.maxlength=HA_FT_WLEN+share->base.rec_reflength;
@@ -1404,7 +1405,7 @@ static void setup_key_functions(register MARIA_KEYDEF *keyinfo)
     keyinfo->ck_insert = _ma_ck_write;
     keyinfo->ck_delete = _ma_ck_delete;
   }
-  if (keyinfo->flag & HA_SPATIAL)
+  if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
     keyinfo->make_key= _ma_sp_make_key;
   else
     keyinfo->make_key= _ma_make_key;
@@ -1459,11 +1460,15 @@ static void setup_key_functions(register MARIA_KEYDEF *keyinfo)
   /* set keyinfo->write_comp_flag */
   if (keyinfo->flag & HA_SORT_ALLOWS_SAME)
     keyinfo->write_comp_flag=SEARCH_BIGGER; /* Put after same key */
-  else if (keyinfo->flag & ( HA_NOSAME | HA_FULLTEXT))
+  else if (keyinfo->flag & HA_NOSAME)
   {
     keyinfo->write_comp_flag= SEARCH_FIND | SEARCH_UPDATE; /* No duplicates */
     if (keyinfo->flag & HA_NULL_ARE_EQUAL)
       keyinfo->write_comp_flag|= SEARCH_NULL_ARE_EQUAL;
+  }
+  else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
+  {
+    keyinfo->write_comp_flag= SEARCH_FIND | SEARCH_UPDATE;
   }
   else
     keyinfo->write_comp_flag= SEARCH_SAME; /* Keys in rec-pos order */
