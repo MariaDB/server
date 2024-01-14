@@ -4092,8 +4092,7 @@ public:
   */
   virtual enum row_type get_row_type() const { return ROW_TYPE_NOT_USED; }
 
-  virtual const char *index_type(uint key_number) { DBUG_ASSERT(0); return "";}
-
+  virtual const char *index_type(uint key_number);
 
   /**
     Signal that the table->read_set and table->write_set table maps changed
