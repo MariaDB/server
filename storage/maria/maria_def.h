@@ -1700,14 +1700,6 @@ my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, my_bool temporary,
                              myf flags)__attribute__((visibility("default"))) ;
 
-
-/*
-  This cannot be in my_base.h as it clashes with HA_SPATIAL.
-  But it was introduced for Aria engine, and is only used there.
-  So it can safely stay here, only visible to Aria
-*/
-#define HA_RTREE_INDEX	        16384	/* For RTREE search */
-
 #define MARIA_FLUSH_DATA  1
 #define MARIA_FLUSH_INDEX 2
 int _ma_flush_table_files(MARIA_HA *info, uint flush_data_or_index,

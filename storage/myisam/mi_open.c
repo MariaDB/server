@@ -386,14 +386,14 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
 	}
-        if (keyinfo->flag & HA_SPATIAL)
+        if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
 	{
           uint sp_segs= SPDIMS*2;
           keyinfo->seg= pos - sp_segs;
           DBUG_ASSERT(keyinfo->keysegs == sp_segs + 1);
           keyinfo->keysegs= sp_segs;
 	}
-        else if (keyinfo->flag & HA_FULLTEXT)
+        else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
 	{
           if (!fulltext_keys)
           { /* 4.0 compatibility code, to be removed in 5.0 */
@@ -421,6 +421,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
             memcpy(& share->ft2_keyinfo, keyinfo, sizeof(MI_KEYDEF));
             share->ft2_keyinfo.keysegs=1;
             share->ft2_keyinfo.flag=0;
+            share->ft2_keyinfo.key_alg=HA_KEY_ALG_BTREE;
             share->ft2_keyinfo.keylength=
             share->ft2_keyinfo.minlength=
             share->ft2_keyinfo.maxlength=HA_FT_WLEN+share->base.rec_reflength;

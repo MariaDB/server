@@ -98,7 +98,7 @@ int main(int argc,char *argv[])
   aio->info=info;
 
   if ((inx >= info->s->base.keys) ||
-      !(info->s->keyinfo[inx].flag & HA_FULLTEXT))
+      info->s->keyinfo[inx].key_alg != HA_KEY_ALG_FULLTEXT)
   {
     printf("Key %d in table %s is not a FULLTEXT key\n", inx, info->filename);
     goto err;
