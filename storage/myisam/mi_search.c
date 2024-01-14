@@ -1473,7 +1473,7 @@ _mi_calc_var_pack_key_length(MI_KEYDEF *keyinfo,uint nod_flag,uchar *next_key,
   key_length=_mi_keylength(keyinfo,key)+nod_flag;
 
   sort_order=0;
-  if ((keyinfo->flag & HA_FULLTEXT) &&
+  if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT &&
       ((keyseg->type == HA_KEYTYPE_TEXT) ||
        (keyseg->type == HA_KEYTYPE_VARTEXT1) ||
        (keyseg->type == HA_KEYTYPE_VARTEXT2)) &&

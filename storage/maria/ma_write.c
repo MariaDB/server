@@ -175,7 +175,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
 	mysql_rwlock_wrlock(&keyinfo->root_lock);
 	keyinfo->version++;
       }
-      if (keyinfo->flag & HA_FULLTEXT )
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_ma_ft_add(info,i, buff,record,filepos))
         {
@@ -357,7 +357,7 @@ err:
            @todo RECOVERY BUG
            The key deletes below should generate CLR_ENDs
         */
-	if (keyinfo->flag & HA_FULLTEXT)
+	if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
         {
           if (_ma_ft_del(info,i,buff,record,filepos))
 	  {
@@ -662,7 +662,7 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
     else
       dup_key_pos= HA_OFFSET_ERROR;
 
-    if (keyinfo->flag & HA_FULLTEXT)
+    if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint off;
       int  subkeys;
@@ -869,7 +869,7 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   if (a_length <= share->max_index_block_size)
   {
     if (share->max_index_block_size - a_length < 32 &&
-        (keyinfo->flag & HA_FULLTEXT) && key_pos == endpos &&
+        keyinfo->key_alg == HA_KEY_ALG_FULLTEXT && key_pos == endpos &&
         share->base.key_reflength <= share->rec_reflength &&
         share->options & (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD))
     {

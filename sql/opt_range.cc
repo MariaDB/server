@@ -2854,7 +2854,7 @@ SQL_SELECT::test_quick_select(THD *thd,
             add("cause", "not applicable");
         continue;
       }
-      if (key_info->flags & HA_FULLTEXT)
+      if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
       {
         trace_idx_details.add("usable", false).add("cause", "fulltext");
         continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
@@ -2874,8 +2874,7 @@ SQL_SELECT::test_quick_select(THD *thd,
         cur_key_len += key_part_info->store_length;
 	key_parts->field=	 key_part_info->field;
 	key_parts->null_bit=	 key_part_info->null_bit;
-        key_parts->image_type =
-          (key_info->flags & HA_SPATIAL) ? Field::itMBR : Field::itRAW;
+        key_parts->image_type =  Field::image_type(key_info->algorithm);
         /* Only HA_PART_KEY_SEG is used */
         key_parts->flag=         (uint8) key_part_info->key_part_flag;
         trace_keypart.add(key_parts->field->field_name);
@@ -12288,7 +12287,7 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
   bool create_err= FALSE;
   DBUG_ENTER("get_quick_select");
 
-  if (param->table->key_info[param->real_keynr[idx]].flags & HA_SPATIAL)
+  if (param->table->key_info[param->real_keynr[idx]].algorithm & HA_KEY_ALG_RTREE)
     quick=new QUICK_RANGE_SELECT_GEOM(param->thd, param->table,
                                       param->real_keynr[idx],
                                       MY_TEST(parent_alloc),
@@ -14763,8 +14762,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   bool has_min_max_fld= false, has_other_fld= false;
   if (join->conds && min_max_arg_item &&
       !check_group_min_max_predicates(join->conds, min_max_arg_item,
-                                      (index_info->flags & HA_SPATIAL) ?
-                                      Field::itMBR : Field::itRAW,
+                                      Field::image_type(index_info->algorithm),
                                       &has_min_max_fld, &has_other_fld))
   {
     if (unlikely(trace_group.trace_started()))

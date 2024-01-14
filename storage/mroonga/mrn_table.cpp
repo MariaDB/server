@@ -516,9 +516,7 @@ error:
 
 bool mrn_is_geo_key(const KEY *key_info)
 {
-  return key_info->algorithm == HA_KEY_ALG_UNDEF &&
-    KEY_N_KEY_PARTS(key_info) == 1 &&
-    key_info->key_part[0].field->type() == MYSQL_TYPE_GEOMETRY;
+  return key_info->algorithm == HA_KEY_ALG_RTREE;
 }
 
 int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
@@ -631,7 +629,7 @@ int mrn_parse_index_param(MRN_SHARE *share, TABLE *table)
     bool is_wrapper_mode = share->engine != NULL;
 
     if (is_wrapper_mode) {
-      if (!(key_info->flags & HA_FULLTEXT) && !mrn_is_geo_key(key_info)) {
+      if (key_info->algorithm != HA_KEY_ALG_FULLTEXT && !mrn_is_geo_key(key_info)) {
         continue;
       }
     }

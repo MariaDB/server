@@ -5076,7 +5076,7 @@ ha_innobase::index_flags(
 
 	/* For spatial index, we don't support descending scan
 	and ICP so far. */
-	if (table_share->key_info[key].flags & HA_SPATIAL) {
+	if (table_share->key_info[key].algorithm == HA_KEY_ALG_RTREE) {
 		return HA_READ_NEXT | HA_READ_ORDER| HA_READ_RANGE
 			| HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
 	}
@@ -10858,12 +10858,12 @@ create_index(
 	ut_a(!key->name.streq(GEN_CLUST_INDEX));
 	const ha_table_option_struct& o = *form->s->option_struct;
 
-	if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
+	if (key->algorithm == HA_KEY_ALG_FULLTEXT ||
+	    key->algorithm == HA_KEY_ALG_RTREE) {
 		/* Only one of these can be specified at a time. */
-		ut_ad(~key->flags & (HA_SPATIAL | HA_FULLTEXT));
 		ut_ad(!(key->flags & HA_NOSAME));
 		index = dict_mem_index_create(table, key->name.str,
-					      (key->flags & HA_SPATIAL)
+					      key->algorithm == HA_KEY_ALG_RTREE
 					      ? DICT_SPATIAL : DICT_FTS,
 					      key->user_defined_key_parts);
 
@@ -10979,7 +10979,7 @@ create_index(
 					 & HA_REVERSE_SORT);
 	}
 
-	ut_ad(key->flags & HA_FULLTEXT || !(index->type & DICT_FTS));
+	ut_ad(key->algorithm == HA_KEY_ALG_FULLTEXT || !(index->type & DICT_FTS));
 
 	/* Even though we've defined max_supported_key_part_length, we
 	still do our own checking using field_lengths to be absolutely
@@ -11271,7 +11271,7 @@ create_table_info_t::check_table_options()
 			break;
 		}
 		for (ulint i = 0; i < m_form->s->keys; i++) {
-			if (m_form->key_info[i].flags & HA_SPATIAL) {
+			if (m_form->key_info[i].algorithm == HA_KEY_ALG_RTREE) {
 				push_warning(m_thd,
 					     Sql_condition::WARN_LEVEL_WARN,
 					     HA_ERR_UNSUPPORTED,
@@ -11524,7 +11524,7 @@ bool create_table_info_t::innobase_table_flags()
 	for (uint i = 0; i < m_form->s->keys; i++) {
 		const KEY*	key = &m_form->key_info[i];
 
-		if (key->flags & HA_FULLTEXT) {
+		if (key->algorithm == HA_KEY_ALG_FULLTEXT) {
 			m_flags2 |= DICT_TF2_FTS;
 
 			/* We don't support FTS indexes in temporary
@@ -11973,7 +11973,8 @@ create_table_info_t::gcols_in_fulltext_or_spatial()
 {
 	for (ulint i = 0; i < m_form->s->keys; i++) {
 		const KEY*	key = m_form->key_info + i;
-		if (!(key->flags & (HA_SPATIAL | HA_FULLTEXT))) {
+		if (key->algorithm != HA_KEY_ALG_RTREE &&
+		    key->algorithm != HA_KEY_ALG_FULLTEXT) {
 			continue;
 		}
 		for (ulint j = 0; j < key->user_defined_key_parts; j++) {
@@ -14901,8 +14902,8 @@ ha_innobase::info_low(
 
 			for (j = 0; j < key->ext_key_parts; j++) {
 
-				if ((key->flags & HA_FULLTEXT)
-				    || (key->flags & HA_SPATIAL)) {
+				if ((key->algorithm == HA_KEY_ALG_FULLTEXT)
+				    || (key->algorithm == HA_KEY_ALG_RTREE)) {
 
 					/* The record per key does not apply to
 					FTS or Spatial indexes. */
