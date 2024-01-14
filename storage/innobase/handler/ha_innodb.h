@@ -65,8 +65,6 @@ public:
 
         const char* table_type() const override;
 
-	const char* index_type(uint key_number) override;
-
 	Table_flags table_flags() const override;
 
 	ulong index_flags(uint idx, uint part, bool all_parts) const override;

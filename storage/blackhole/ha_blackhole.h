@@ -45,7 +45,6 @@ public:
     The name of the index type that will be used for display
     don't implement this method unless you really have indexes
   */
-  const char *index_type(uint key_number) override;
   ulonglong table_flags() const override
   {
     return(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
