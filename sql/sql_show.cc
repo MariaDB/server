@@ -2094,7 +2094,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   Build a CREATE TABLE statement for a table.
 
   SYNOPSIS
-    show_create_table()
+    show_create_table_ex()
     thd               The thread
     table_list        A list containing one table to write statement
                       for.
@@ -2149,7 +2149,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                       !create_info_arg;
   handlerton *hton;
   int error= 0;
-  DBUG_ENTER("show_create_table");
+  DBUG_ENTER("show_create_table_ex");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2385,9 +2385,9 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
     else if (key_info->flags & HA_NOSAME)
       packet->append(STRING_WITH_LEN("UNIQUE KEY "));
-    else if (key_info->flags & HA_FULLTEXT)
+    else if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
       packet->append(STRING_WITH_LEN("FULLTEXT KEY "));
-    else if (key_info->flags & HA_SPATIAL)
+    else if (key_info->algorithm == HA_KEY_ALG_RTREE)
       packet->append(STRING_WITH_LEN("SPATIAL KEY "));
     else
       packet->append(STRING_WITH_LEN("KEY "));
@@ -2413,9 +2413,9 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (key_part->field)
         append_identifier(thd, packet, &key_part->field->field_name);
       if (key_part->field &&
-          (key_part->length !=
-           table->field[key_part->fieldnr-1]->key_length() &&
-           !(key_info->flags & (HA_FULLTEXT | HA_SPATIAL))))
+          key_part->length != table->field[key_part->fieldnr-1]->key_length() &&
+          key_info->algorithm != HA_KEY_ALG_RTREE &&
+          key_info->algorithm != HA_KEY_ALG_FULLTEXT)
       {
         packet->append_parenthesized((long) key_part->length /
                                       key_part->field->charset()->mbmaxlen);
@@ -2563,11 +2563,6 @@ static void store_key_options(THD *thd, String *packet, TABLE_SHARE *share,
     if (key_info->algorithm == HA_KEY_ALG_HASH ||
         key_info->algorithm == HA_KEY_ALG_LONG_HASH)
       packet->append(STRING_WITH_LEN(" USING HASH"));
-
-    /* send USING only in non-default case: non-spatial rtree */
-    if ((key_info->algorithm == HA_KEY_ALG_RTREE) &&
-        !(key_info->flags & HA_SPATIAL))
-      packet->append(STRING_WITH_LEN(" USING RTREE"));
 
     if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
         share->key_block_size != key_info->block_size)
@@ -7317,9 +7312,6 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
                                    ? "D" : "A", 1, cs);
             table->field[8]->set_notnull();
           }
-          if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-            table->field[13]->store(STRING_WITH_LEN("HASH"), cs);
-          else
           {
             /*
               We have to use table key information to get the key statistics
@@ -7338,7 +7330,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
             table->field[13]->store(tmp, strlen(tmp), cs);
           }
         }
-        if (!(key_info->flags & HA_FULLTEXT) &&
+        if (key_info->algorithm != HA_KEY_ALG_FULLTEXT &&
             (key_part->field &&
              key_part->length !=
              show_table->s->field[key_part->fieldnr-1]->key_length()))

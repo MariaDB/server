@@ -687,9 +687,8 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
 
     /* For SPATIAL, FULLTEXT and HASH indexes (anything other than B-tree),
        ignore the ASC/DESC attribute of columns. */
-    const uchar ha_reverse_sort=
-      key->algorithm > HA_KEY_ALG_BTREE || key->flags & (HA_FULLTEXT|HA_SPATIAL)
-      ? 0 : HA_REVERSE_SORT;
+    const uchar ha_reverse_sort= key->algorithm > HA_KEY_ALG_BTREE
+                                 ? 0 : HA_REVERSE_SORT;
 
     for (key_part=key->key_part,key_part_end=key_part+key->user_defined_key_parts ;
 	 key_part != key_part_end ;
