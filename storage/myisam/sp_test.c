@@ -88,7 +88,7 @@ int run_test(const char *filename)
   
   keyinfo[0].seg=keyseg;
   keyinfo[0].keysegs=1;
-  keyinfo[0].flag=HA_SPATIAL;
+  keyinfo[0].flag=0;
   keyinfo[0].key_alg=KEYALG;
   
   keyinfo[0].seg[0].type= HA_KEYTYPE_BINARY;

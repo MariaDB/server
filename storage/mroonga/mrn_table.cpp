@@ -631,7 +631,9 @@ int mrn_parse_index_param(MRN_SHARE *share, TABLE *table)
     bool is_wrapper_mode = share->engine != NULL;
 
     if (is_wrapper_mode) {
-      if (!(key_info->flags & HA_FULLTEXT) && !mrn_is_geo_key(key_info)) {
+      if (
+        !(key_info->flags & HA_FULLTEXT_legacy) &&
+        !mrn_is_geo_key(key_info)) {
         continue;
       }
     }
