@@ -12205,6 +12205,9 @@ bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
 { return 0; }
 inline privilege_t public_access()
 { return NO_ACL; }
+privilege_t get_column_grant(THD *, GRANT_INFO *,
+                             const char *, const char *, const char *)
+{ return ALL_KNOWN_ACL; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 

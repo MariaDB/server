@@ -5209,11 +5209,11 @@ end:
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
                                                   const privilege_t need,
                                                   bool any)
 {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* 
     We know that the table or at least some of the columns have
     necessary privileges, but the caller didn't pass down the GRANT_INFO
@@ -5226,8 +5226,10 @@ static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
                 : tables->grant.privilege) & need;
   }
   return thd->col_access & need;
-}
+#else
+  return need;
 #endif
+}
 
 
 class Warnings_only_error_handler : public Internal_error_handler
@@ -7089,10 +7091,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       set_statistics_for_table(thd, show_table);
     }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
                                                              TABLE_ACLS, false);
-#endif
 
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
@@ -7103,7 +7103,6 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING *str;
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (need_column_checks)
       {
         uint j;
@@ -7120,7 +7119,6 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           continue;
         key_part= key_info->key_part;
       }
-#endif
 
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
@@ -7434,12 +7432,10 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   }
   else if (!tables->view)
   {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
     if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL, 
                                         true))
       DBUG_RETURN(0);
-#endif
 
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
@@ -7637,10 +7633,8 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
     show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
                                                              TABLE_ACLS, false);
-#endif
 
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
@@ -7648,7 +7642,6 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
         continue;
       uint f_idx= 0;
       KEY_PART_INFO *key_part= key_info->key_part;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (need_column_checks)
       {
         uint j;
@@ -7665,7 +7658,6 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
           continue;
         key_part= key_info->key_part;
       }
-#endif
 
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
@@ -8483,12 +8475,10 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
     privilege_t need= TABLE_ACLS & ~SELECT_ACL;
     if (!get_schema_privileges_for_show(thd, tables, need, true))
       DBUG_RETURN(0);
-#endif
 
     show_table->file->get_foreign_key_list(thd, &f_key_list);
     FOREIGN_KEY_INFO *f_key_info;
