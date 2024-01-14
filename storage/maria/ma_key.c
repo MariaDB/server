@@ -201,7 +201,7 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
   int_key->flag= 0;                             /* Always return full key */
   int_key->keyinfo= info->s->keyinfo + keynr;
 
-  is_ft= int_key->keyinfo->flag & HA_FULLTEXT;
+  is_ft= int_key->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT;
   for (keyseg= int_key->keyinfo->seg ; keyseg->type ;keyseg++)
   {
     enum ha_base_keytype type=(enum ha_base_keytype) keyseg->type;
@@ -373,7 +373,7 @@ MARIA_KEY *_ma_pack_key(register MARIA_HA *info, MARIA_KEY *int_key,
   /* only key prefixes are supported */
   DBUG_ASSERT(((keypart_map+1) & keypart_map) == 0);
 
-  is_ft= int_key->keyinfo->flag & HA_FULLTEXT;
+  is_ft= int_key->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT;
   for (keyseg=int_key->keyinfo->seg ; keyseg->type && keypart_map;
        old+= keyseg->length, keyseg++)
   {

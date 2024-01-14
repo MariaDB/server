@@ -168,18 +168,6 @@ extern "C" void myrg_print_wrong_table(const char *table_name)
 }
 
 
-const char *ha_myisammrg::index_type(uint key_number)
-{
-  return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
-	  "FULLTEXT" :
-	  (table->key_info[key_number].flags & HA_SPATIAL) ?
-	  "SPATIAL" :
-	  (table->key_info[key_number].algorithm == HA_KEY_ALG_RTREE) ?
-	  "RTREE" :
-	  "BTREE");
-}
-
-
 /**
   Callback function for open of a MERGE parent table.
 
