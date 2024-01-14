@@ -67,12 +67,6 @@ public:
   ~ha_example() = default;
 
   /** @brief
-    The name of the index type that will be used for display.
-    Don't implement this method unless you really have indexes.
-   */
-  const char *index_type(uint inx) override { return "HASH"; }
-
-  /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */
