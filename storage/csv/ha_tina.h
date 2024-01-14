@@ -102,7 +102,6 @@ public:
       delete file_buff;
     free_root(&blobroot, MYF(0));
   }
-  const char *index_type(uint inx) { return "NONE"; }
   ulonglong table_flags() const
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_NO_AUTO_INCREMENT |

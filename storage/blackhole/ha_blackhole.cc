@@ -101,17 +101,6 @@ int ha_blackhole::truncate()
   DBUG_RETURN(0);
 }
 
-const char *ha_blackhole::index_type(uint key_number)
-{
-  DBUG_ENTER("ha_blackhole::index_type");
-  DBUG_RETURN((table_share->key_info[key_number].flags & HA_FULLTEXT) ? 
-              "FULLTEXT" :
-              (table_share->key_info[key_number].flags & HA_SPATIAL) ?
-              "SPATIAL" :
-              (table_share->key_info[key_number].algorithm ==
-               HA_KEY_ALG_RTREE) ? "RTREE" : "BTREE");
-}
-
 int ha_blackhole::write_row(const uchar * buf)
 {
   DBUG_ENTER("ha_blackhole::write_row");

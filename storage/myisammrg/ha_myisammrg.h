@@ -77,7 +77,6 @@ public:
 
   ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_myisammrg();
-  const char *index_type(uint key_number) override;
   ulonglong table_flags() const override
   {
     return (HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_NO_TRANSACTIONS |
