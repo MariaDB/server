@@ -446,10 +446,10 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
 
     if ((!(param->testflag & T_SILENT)))
       printf ("- check data record references index: %d\n",key+1);
-    if (keyinfo->flag & (HA_FULLTEXT | HA_SPATIAL))
+    if (keyinfo->key_alg > HA_KEY_ALG_BTREE)
       full_text_keys++;
     if (share->state.key_root[key] == HA_OFFSET_ERROR &&
-	(info->state->records == 0 || keyinfo->flag & HA_FULLTEXT))
+	(info->state->records == 0 || keyinfo->key_alg == HA_KEY_ALG_FULLTEXT))
       goto do_stat;
     if (!_mi_fetch_keypage(info,keyinfo,share->state.key_root[key],
                            DFLT_INIT_HITS,info->buff,0))
@@ -469,7 +469,7 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
     if (chk_index(param,info,keyinfo,share->state.key_root[key],info->buff,
 		  &keys, param->key_crc+key,1))
       DBUG_RETURN(-1);
-    if(!(keyinfo->flag & (HA_FULLTEXT | HA_SPATIAL)))
+    if (keyinfo->key_alg <= HA_KEY_ALG_BTREE)
     {
       if (keys != info->state->records)
       {
@@ -736,7 +736,7 @@ static int chk_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
   DBUG_DUMP("buff",(uchar*) buff,mi_getint(buff));
 
   /* TODO: implement appropriate check for RTree keys */
-  if (keyinfo->flag & HA_SPATIAL)
+  if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
     DBUG_RETURN(0);
 
   if (!(temp_buff=(uchar*) my_alloca((uint) keyinfo->block_length)))
@@ -830,7 +830,7 @@ static int chk_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
     (*key_checksum)+= mi_byte_checksum((uchar*) key,
 				       key_length- info->s->rec_reflength);
     record= _mi_dpos(info,0,key+key_length);
-    if (keyinfo->flag & HA_FULLTEXT) /* special handling for ft2 */
+    if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT) /* special handling for ft2 */
     {
       uint off;
       int  subkeys;
@@ -1209,7 +1209,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
       {
         if (mi_is_key_active(info->s->state.key_map, key))
 	{
-          if(!(keyinfo->flag & HA_FULLTEXT))
+          if(keyinfo->key_alg != HA_KEY_ALG_FULLTEXT)
 	  {
 	    uint key_length=_mi_make_key(info,key,info->lastkey,record,
 					 start_recpos);
@@ -1218,8 +1218,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
 	      /* We don't need to lock the key tree here as we don't allow
 		 concurrent threads when running myisamchk
 	      */
-              int search_result=
-                (keyinfo->flag & HA_SPATIAL) ?
+              int search_result= keyinfo->key_alg == HA_KEY_ALG_RTREE ?
                 rtree_find_first(info, key, info->lastkey, key_length,
                                  MBR_EQUAL | MBR_DATA) : 
                 _mi_search(info,keyinfo,info->lastkey,key_length,
@@ -1278,7 +1277,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
     for (key=0 ; key < info->s->base.keys;  key++)
     {
       if (key_checksum[key] != param->key_crc[key] &&
-          !(info->s->keyinfo[key].flag & (HA_FULLTEXT | HA_SPATIAL)))
+          (info->s->keyinfo[key].key_alg <= HA_KEY_ALG_BTREE))
       {
 	mi_check_print_error(param,"Checksum for key: %2d doesn't match checksum for records",
 		    key+1);
@@ -1767,12 +1766,12 @@ static int writekeys(MI_SORT_PARAM *sort_param)
   {
     if (mi_is_key_active(info->s->state.key_map, i))
     {
-      if (info->s->keyinfo[i].flag & HA_FULLTEXT )
+      if (info->s->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_mi_ft_add(info, i, key, buff, filepos))
 	  goto err;
       }
-      else if (info->s->keyinfo[i].flag & HA_SPATIAL)
+      else if (info->s->keyinfo[i].key_alg == HA_KEY_ALG_RTREE)
       {
 	uint key_length=_mi_make_key(info,i,key,buff,filepos);
 	if (rtree_insert(info, i, key, key_length))
@@ -1796,7 +1795,7 @@ static int writekeys(MI_SORT_PARAM *sort_param)
     {
       if (mi_is_key_active(info->s->state.key_map, i))
       {
-	if (info->s->keyinfo[i].flag & HA_FULLTEXT)
+	if (info->s->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
         {
           if (_mi_ft_del(info,i, key,buff,filepos))
 	    break;
@@ -2026,7 +2025,7 @@ static int sort_one_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
 		llstr(pagepos,llbuff));
     goto err;
   }
-  if ((nod_flag=mi_test_if_nod(buff)) || keyinfo->flag & HA_FULLTEXT)
+  if ((nod_flag=mi_test_if_nod(buff)) || keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     used_length=mi_getint(buff);
     keypos=buff+2+nod_flag;
@@ -2051,7 +2050,7 @@ static int sort_one_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
 	  (key_length=(*keyinfo->get_key)(keyinfo,nod_flag,&keypos,key)) == 0)
 	break;
       DBUG_ASSERT(keypos <= endpos);
-      if (keyinfo->flag & HA_FULLTEXT)
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
       {
         uint off;
         int  subkeys;
@@ -2361,7 +2360,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
     info->state->records=info->state->del=share->state.split=0;
     info->state->empty=0;
 
-    if (sort_param.keyinfo->flag & HA_FULLTEXT)
+    if (sort_param.keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                     sort_param.keyinfo->seg->charset->mbmaxlen;
@@ -2830,7 +2829,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     istep=1;
     if ((!(param->testflag & T_SILENT)))
       printf ("- Fixing index %d\n",key+1);
-    if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
+    if (sort_param[i].keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       sort_param[i].key_read=sort_ft_key_read;
       sort_param[i].key_write=sort_ft_key_write;
@@ -2875,7 +2874,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     total_key_length+=sort_param[i].key_length;
 #endif
 
-    if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
+    if (sort_param[i].keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                     sort_param[i].keyinfo->seg->charset->mbmaxlen;
@@ -4684,14 +4683,15 @@ static ha_checksum mi_byte_checksum(const uchar *buf, uint length)
 my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
 {
   uint key_maxlength=key->maxlength;
-  if (key->flag & HA_FULLTEXT)
+  if (key->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                   key->seg->charset->mbmaxlen;
     key_maxlength+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
+    return (ulonglong) rows * key_maxlength > myisam_max_temp_length;
   }
-  return (key->flag & HA_SPATIAL) ||
-          (key->flag & (HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY | HA_FULLTEXT) &&
+  return key->key_alg == HA_KEY_ALG_RTREE ||
+          (key->flag & (HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY) &&
 	  ((ulonglong) rows * key_maxlength > myisam_max_temp_length));
 }
 

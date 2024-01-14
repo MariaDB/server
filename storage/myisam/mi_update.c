@@ -87,7 +87,7 @@ int mi_update(register MI_INFO *info, const uchar *oldrec,
   {
     if (mi_is_key_active(share->state.key_map, i))
     {
-      if (share->keyinfo[i].flag & HA_FULLTEXT )
+      if (share->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT )
       {
 	if (_mi_ft_cmp(info,i,oldrec, newrec))
 	{
@@ -203,7 +203,7 @@ err:
     {
       if (((ulonglong) 1 << i) & changed)
       {
-	if (share->keyinfo[i].flag & HA_FULLTEXT)
+	if (share->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
 	{
 	  if ((flag++ && _mi_ft_del(info,i, new_key,newrec,pos)) ||
 	      _mi_ft_add(info,i, old_key,oldrec,pos))

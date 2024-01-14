@@ -269,6 +269,8 @@ ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Note	1831	Duplicate index `ft2`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
 ENGINE=InnoDB;
@@ -279,6 +281,8 @@ ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 Warnings:
 Warning	1088	failed to load FOREIGN KEY constraints
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Note	1831	Duplicate index `ft2`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 #
 # MDEV-18630 Conditional jump or move depends on uninitialised value

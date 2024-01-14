@@ -7458,8 +7458,8 @@ const char *ha_spider::index_type(
   DBUG_PRINT("info",("spider flags=%ld", key_info->flags));
   DBUG_PRINT("info",("spider algorithm=%d", key_info->algorithm));
   DBUG_RETURN(
-    (key_info->flags & HA_FULLTEXT) ? "FULLTEXT" :
-    (key_info->flags & HA_SPATIAL) ? "SPATIAL" :
+    (key_info->algorithm == HA_KEY_ALG_FULLTEXT) ? "FULLTEXT" :
+    (key_info->algorithm == HA_KEY_ALG_RTREE) ? "SPATIAL" :
     (key_info->algorithm == HA_KEY_ALG_HASH) ? "HASH" :
     (key_info->algorithm == HA_KEY_ALG_RTREE) ? "RTREE" :
     "BTREE"

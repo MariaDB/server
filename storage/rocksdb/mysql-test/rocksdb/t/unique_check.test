@@ -172,3 +172,11 @@ insert into t3 values (1, 1), (1, 1);
 set @@session.unique_checks = @old_val;
 # cleanup
 drop table t1, t2, t3;
+
+--echo #
+--echo # MDEV-35077 Assertion failure in myrocks::ha_rocksdb::position_to_correct_key upon using unique hash key
+--echo #
+ 
+CREATE TABLE t (s INT, UNIQUE(s) USING HASH) ENGINE=RocksDB;
+UPDATE t SET s = 1 WHERE s > 2;
+DROP TABLE t;

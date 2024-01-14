@@ -1476,7 +1476,7 @@ static uint innobase_fulltext_exist(const TABLE* table)
 	uint count = 0;
 
 	for (uint i = 0; i < table->s->keys; i++) {
-		if (table->key_info[i].flags & HA_FULLTEXT) {
+		if (table->key_info[i].algorithm == HA_KEY_ALG_FULLTEXT) {
 			count++;
 		}
 	}
@@ -1514,7 +1514,7 @@ innobase_spatial_exist(
 	const   TABLE*  table)
 {
 	for (uint i = 0; i < table->s->keys; i++) {
-	       if (table->key_info[i].flags & HA_SPATIAL) {
+	       if (table->key_info[i].algorithm == HA_KEY_ALG_RTREE) {
 		       return(true);
 	       }
 	}
@@ -2447,7 +2447,7 @@ innodb_instant_alter_column_allowed_reason:
 
 		/* Do not support adding/droping a virtual column, while
 		there is a table rebuild caused by adding a new FTS_DOC_ID */
-		if ((new_key->flags & HA_FULLTEXT) && add_drop_v_cols
+		if ((new_key->algorithm == HA_KEY_ALG_FULLTEXT) && add_drop_v_cols
 		    && !DICT_TF2_FLAG_IS_SET(m_prebuilt->table,
 					     DICT_TF2_FTS_HAS_DOC_ID)) {
 			ha_alter_info->unsupported_reason =
@@ -2757,10 +2757,9 @@ cannot_create_many_fulltext_index:
 			const KEY* key =
 				&ha_alter_info->key_info_buffer[
 					ha_alter_info->index_add_buffer[i]];
-			if (key->flags & HA_FULLTEXT) {
+			if (key->algorithm == HA_KEY_ALG_FULLTEXT) {
 				DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
-					      & ~(HA_FULLTEXT
-						  | HA_PACK_KEY
+					      & ~(HA_PACK_KEY
 						  | HA_GENERATED_KEY
 						  | HA_BINARY_PACK_KEY)));
 				if (add_fulltext) {
@@ -2797,7 +2796,7 @@ cannot_create_many_fulltext_index:
 						&fts_doc_col_no, &num_v, true);
 			}
 
-			if (online && (key->flags & HA_SPATIAL)) {
+			if (online && key->algorithm == HA_KEY_ALG_RTREE) {
 
 				if (ha_alter_info->online) {
 					ha_alter_info->unsupported_reason = my_get_err_msg(
@@ -3036,7 +3035,7 @@ innobase_find_equiv_index(
 		const KEY*	key = &keys[*it];
 
 		if (key->user_defined_key_parts < n_cols
-		    || key->flags & HA_SPATIAL) {
+		    || key->algorithm == HA_KEY_ALG_RTREE) {
 no_match:
 			continue;
 		}
@@ -3878,15 +3877,13 @@ innobase_create_index_def(
 	index->rebuild = new_clustered;
 
 	if (key_clustered) {
-		DBUG_ASSERT(!(key->flags & (HA_FULLTEXT | HA_SPATIAL)));
+		DBUG_ASSERT(key->algorithm <= HA_KEY_ALG_BTREE);
 		DBUG_ASSERT(key->flags & HA_NOSAME);
 		index->ind_type = DICT_CLUSTERED | DICT_UNIQUE;
-	} else if (key->flags & HA_FULLTEXT) {
-		DBUG_ASSERT(!(key->flags & (HA_SPATIAL | HA_NOSAME)));
+	} else if (key->algorithm == HA_KEY_ALG_FULLTEXT) {
+		DBUG_ASSERT(!(key->flags & HA_NOSAME));
 		DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
-			      & ~(HA_FULLTEXT
-				  | HA_PACK_KEY
-				  | HA_BINARY_PACK_KEY)));
+			      & ~(HA_PACK_KEY | HA_BINARY_PACK_KEY)));
 		index->ind_type = DICT_FTS;
 
 		/* Note: key->parser is only parser name,
@@ -3913,7 +3910,7 @@ innobase_create_index_def(
 				index->parser = &fts_default_parser;);
 			ut_ad(index->parser);
 		}
-	} else if (key->flags & HA_SPATIAL) {
+	} else if (key->algorithm == HA_KEY_ALG_RTREE) {
 		DBUG_ASSERT(!(key->flags & HA_NOSAME));
 		index->ind_type = DICT_SPATIAL;
 		ut_ad(n_fields == 1);
@@ -3936,7 +3933,7 @@ innobase_create_index_def(
 		index->ind_type = (key->flags & HA_NOSAME) ? DICT_UNIQUE : 0;
 	}
 
-	if (!(key->flags & HA_SPATIAL)) {
+	if (key->algorithm != HA_KEY_ALG_RTREE) {
 		for (i = 0; i < n_fields; i++) {
 			innobase_create_index_field_def(
 				new_clustered, altered_table,
@@ -5091,7 +5088,7 @@ innobase_check_gis_columns(
 		const KEY&	key = ha_alter_info->key_info_buffer[
 			ha_alter_info->index_add_buffer[key_num]];
 
-		if (!(key.flags & HA_SPATIAL)) {
+		if (key.algorithm != HA_KEY_ALG_RTREE) {
 			continue;
 		}
 
@@ -8068,14 +8065,13 @@ check_if_ok_to_rename:
 	for (ulint i = 0; i < ha_alter_info->key_count; i++) {
 		const KEY* key = &ha_alter_info->key_info_buffer[i];
 
-		if (key->flags & HA_FULLTEXT) {
+		if (key->algorithm == HA_KEY_ALG_FULLTEXT) {
 			/* The column length does not matter for
 			fulltext search indexes. But, UNIQUE
 			fulltext indexes are not supported. */
 			DBUG_ASSERT(!(key->flags & HA_NOSAME));
 			DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
-				      & ~(HA_FULLTEXT
-					  | HA_PACK_KEY
+				      & ~(HA_PACK_KEY
 					  | HA_BINARY_PACK_KEY)));
 			add_fts_idx = true;
 			continue;
