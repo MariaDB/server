@@ -77,7 +77,7 @@ int maria_delete(MARIA_HA *info,const uchar *record)
     if (maria_is_key_active(share->state.key_map, i))
     {
       keyinfo->version++;
-      if (keyinfo->flag & HA_FULLTEXT)
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_ma_ft_del(info, i, old_key, record, info->cur_row.lastpos))
           goto err;
@@ -232,9 +232,9 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
     result= 1;
     goto err;
   }
-  if ((error= d_search(info, key, (keyinfo->flag & HA_FULLTEXT ?
-                                   SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT:
-                                   SEARCH_SAME),
+  if ((error= d_search(info, key, keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
+                                  SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT :
+                                  SEARCH_SAME,
                        &page)))
   {
     if (error < 0)
@@ -315,7 +315,7 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
   page_flag= anc_page->flag;
   nod_flag=  anc_page->node;
 
-  if (!flag && (keyinfo->flag & HA_FULLTEXT))
+  if (!flag && keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     uint off;
     int  subkeys;

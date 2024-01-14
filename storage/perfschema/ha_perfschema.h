@@ -53,8 +53,6 @@ public:
 
   ~ha_perfschema();
 
-  const char *index_type(uint) { return ""; }
-
   /** Capabilities of the performance schema tables. */
   ulonglong table_flags(void) const
   {
