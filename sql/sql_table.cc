@@ -2135,8 +2135,8 @@ static int sort_keys(KEY *a, KEY *b)
                       (b_flags & HA_KEY_HAS_PART_KEY_SEG));
   }
 
-  return_if_nonzero((a_flags & HA_FULLTEXT) -
-                    (b_flags & HA_FULLTEXT));
+  return_if_nonzero((a->algorithm == HA_KEY_ALG_FULLTEXT) -
+                    (b->algorithm == HA_KEY_ALG_FULLTEXT));
 
   /*
     Prefer original key order.	usable_key_parts contains here
@@ -3161,25 +3161,30 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
     switch (key->type) {
     case Key::MULTIPLE:
-	key_info->flags= 0;
-	break;
+        key_info->flags= 0;
+        break;
     case Key::FULLTEXT:
-	key_info->flags= HA_FULLTEXT;
-	if ((key_info->parser_name= &key->key_create_info.parser_name)->str)
+        key_info->flags= HA_FULLTEXT_legacy;
+        if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
+          key->key_create_info.algorithm= HA_KEY_ALG_FULLTEXT;
+        if ((key_info->parser_name= &key->key_create_info.parser_name)->str)
           key_info->flags|= HA_USES_PARSER;
         else
           key_info->parser_name= 0;
-	break;
+        break;
     case Key::SPATIAL:
-	key_info->flags= HA_SPATIAL;
-	break;
+        key_info->flags= HA_SPATIAL_legacy;
+        if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
+          key->key_create_info.algorithm= HA_KEY_ALG_RTREE;
+        break;
     case Key::FOREIGN_KEY:
-      key_number--;				// Skip this key
+      key_number--;                             // Skip this key
       continue;
     case Key::IGNORE_KEY:
       DBUG_ASSERT(0);
       break;
-    default:
+    case Key::PRIMARY:
+    case Key::UNIQUE:
       key_info->flags = HA_NOSAME;
       break;
     }
@@ -3214,7 +3219,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     */
 
     /* TODO: Add proper checks if handler supports key_type and algorithm */
-    if (key_info->flags & HA_SPATIAL)
+    if (key_info->algorithm == HA_KEY_ALG_RTREE)
     {
       if (!(file->ha_table_flags() & HA_CAN_RTREEKEYS))
       {
@@ -3223,20 +3228,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       }
       if (key_info->user_defined_key_parts != 1)
       {
-	my_error(ER_WRONG_ARGUMENTS, MYF(0), "SPATIAL INDEX");
-	DBUG_RETURN(TRUE);
-      }
-    }
-    else if (key_info->algorithm == HA_KEY_ALG_RTREE)
-    {
-      if ((key_info->user_defined_key_parts & 1) == 1)
-      {
 	my_error(ER_WRONG_ARGUMENTS, MYF(0), "RTREE INDEX");
 	DBUG_RETURN(TRUE);
       }
-      /* TODO: To be deleted */
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RTREE INDEX");
-      DBUG_RETURN(TRUE);
     }
 
     /* Take block size from key part or table part */
@@ -8785,7 +8779,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (!cfield->field->type_handler()->type_can_have_key_part() ||
             !cfield->type_handler()->type_can_have_key_part() ||
             /* spatial keys can't have sub-key length */
-            (key_info->flags & HA_SPATIAL) ||
+            key_info->algorithm == HA_KEY_ALG_RTREE ||
             (cfield->field->field_length == key_part_length &&
              !f_is_blob(key_part->key_type)) ||
             (cfield->length &&
@@ -8850,7 +8844,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         key_create_info.comment= key_info->comment;
       key_create_info.is_ignored= key_info->is_ignored;
 
-      if (key_info->flags & HA_SPATIAL)
+      if (key_info->algorithm == HA_KEY_ALG_RTREE)
         key_type= Key::SPATIAL;
       else if (key_info->flags & HA_NOSAME)
       {
@@ -8869,7 +8863,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           goto err;
         }
       }
-      else if (key_info->flags & HA_FULLTEXT)
+      else if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
         key_type= Key::FULLTEXT;
       else
         key_type= Key::MULTIPLE;

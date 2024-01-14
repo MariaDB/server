@@ -259,11 +259,11 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     share.state.key_root[i]= HA_OFFSET_ERROR;
     min_key_length_skip=length=real_length_diff=0;
     key_length=pointer;
-    if (keydef->flag & HA_SPATIAL)
+    if (keydef->key_alg == HA_KEY_ALG_RTREE)
     {
       /* BAR TODO to support 3D and more dimensions in the future */
       uint sp_segs=SPDIMS*2;
-      keydef->flag=HA_SPATIAL;
+      keydef->flag=HA_SPATIAL_legacy;
 
       if (flags & HA_DONT_TOUCH_DATA)
       {
@@ -294,9 +294,9 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
       length++;                              /* At least one length byte */
       min_key_length_skip+=SPLEN*2*SPDIMS;
     }
-    else if (keydef->flag & HA_FULLTEXT)
+    else if (keydef->key_alg == HA_KEY_ALG_FULLTEXT)
     {
-      keydef->flag=HA_FULLTEXT | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
+      keydef->flag=HA_FULLTEXT_legacy | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
       options|=HA_OPTION_PACK_KEYS;             /* Using packed keys */
 
       for (j=0, keyseg=keydef->seg ; (int) j < keydef->keysegs ;
@@ -716,7 +716,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   DBUG_PRINT("info", ("write key and keyseg definitions"));
   for (i=0 ; i < share.base.keys - uniques; i++)
   {
-    uint sp_segs=(keydefs[i].flag & HA_SPATIAL) ? 2*SPDIMS : 0;
+    uint sp_segs=keydefs[i].key_alg == HA_KEY_ALG_RTREE ? 2*SPDIMS : 0;
 
     if (mi_keydef_write(file, &keydefs[i]))
       goto err;

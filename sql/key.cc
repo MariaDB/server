@@ -148,7 +148,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
-		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
+                                        Field::image_type(key_info->algorithm));
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;

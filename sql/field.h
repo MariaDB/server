@@ -843,6 +843,8 @@ public:
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
   enum imagetype { itRAW, itMBR};
+  static enum imagetype image_type(enum ha_key_alg alg)
+  { return alg == HA_KEY_ALG_RTREE ? itMBR : itRAW; }
 
   utype	unireg_check;
   field_visibility_t invisible;
