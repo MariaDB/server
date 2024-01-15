@@ -199,11 +199,13 @@ xb_fil_cur_open(
 		return(XB_FIL_CUR_SKIP);
 	}
 
+#ifdef HAVE_FCNTL_DIRECT
 	if (srv_file_flush_method == SRV_O_DIRECT
 	    || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
 
 		os_file_set_nocache(cursor->file, node->name, "OPEN");
 	}
+#endif
 
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 

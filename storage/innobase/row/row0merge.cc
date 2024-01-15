@@ -4193,13 +4193,14 @@ row_merge_file_create(
 	merge_file->fd = row_merge_file_create_low(path);
 	merge_file->offset = 0;
 	merge_file->n_rec = 0;
-
+#ifdef HAVE_FCNTL_DIRECT
 	if (merge_file->fd != OS_FILE_CLOSED) {
 		if (srv_disable_sort_file_cache) {
 			os_file_set_nocache(merge_file->fd,
 				"row0merge.cc", "sort");
 		}
 	}
+#endif
 	return(merge_file->fd);
 }
 

@@ -49,11 +49,6 @@ Updated 14/02/2015
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
 #include "zlib.h"
-#ifdef __linux__
-#include <linux/fs.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#endif
 #include "row0mysql.h"
 #ifdef HAVE_LZ4
 #include "lz4.h"

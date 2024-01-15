@@ -30,6 +30,7 @@
 #cmakedefine HAVE_DLFCN_H 1
 #cmakedefine HAVE_EXECINFO_H 1
 #cmakedefine HAVE_FCNTL_H 1
+#cmakedefine HAVE_FCNTL_DIRECT 1
 #cmakedefine HAVE_FENV_H 1
 #cmakedefine HAVE_FLOAT_H 1
 #cmakedefine HAVE_FNMATCH_H 1

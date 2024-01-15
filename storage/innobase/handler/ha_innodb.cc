@@ -4101,7 +4101,7 @@ static int innodb_init_params()
 
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 	if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/*
                   Force O_DIRECT on Unixes (on Windows writes are always
@@ -4133,9 +4133,7 @@ static int innodb_init_params()
 	}
 #endif
 
-#ifndef _WIN32
-	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
-#else
+#ifdef _WIN32
 	switch (srv_file_flush_method) {
 	case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
 		srv_file_flush_method = SRV_ALL_O_DIRECT_FSYNC;
@@ -4146,6 +4144,8 @@ static int innodb_init_params()
 	default:
 		ut_ad(srv_file_flush_method <= SRV_ALL_O_DIRECT_FSYNC);
 	}
+#else
+	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
 #endif
 	innodb_buffer_pool_size_init();
 
