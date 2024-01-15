@@ -3138,8 +3138,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     {
       DBUG_ASSERT(granted_thd->wsrep_aborter == request_thd->thread_id);
       WSREP_DEBUG("BF thread waiting for a victim to release locks");
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
     }
     else if (wsrep_thd_is_toi(granted_thd) ||
              wsrep_thd_is_applying(granted_thd))
@@ -3218,13 +3216,12 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     }
     mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
     mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
+    DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
   }
   else
   {
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
   }
-
-  DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
 }
 
 /**/
