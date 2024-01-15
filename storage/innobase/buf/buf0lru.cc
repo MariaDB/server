@@ -426,9 +426,7 @@ got_block:
 
 		if (UNIV_UNLIKELY(available < scan_depth)) {
 			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-			buf_pool.page_cleaner_wakeup(available < scan_depth / 2
-						     ? buf_pool.WAKE_NOW_LRU
-						     : buf_pool.WAKE_IDLE_LRU);
+			buf_pool.page_cleaner_wakeup(true);
 			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		}
 
@@ -461,7 +459,7 @@ got_block:
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		const auto n_flush = buf_pool.n_flush();
 		if (!buf_pool.try_LRU_scan) {
-			buf_pool.page_cleaner_wakeup(buf_pool.WAKE_NOW_LRU);
+			buf_pool.page_cleaner_wakeup(true);
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		mysql_mutex_lock(&buf_pool.mutex);

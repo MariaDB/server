@@ -1777,17 +1777,9 @@ public:
     return page_cleaner_status > PAGE_CLEANER_IDLE;
   }
 
-  enum wakeup_reason {
-    /** Immediately wake up for LRU eviction */
-    WAKE_NOW_LRU= -1,
-    /** Wake up normally from indefinite sleep (@see page_cleaner_idle()) */
-    WAKE_IDLE= 0,
-    /** Wake up due to LRU eviction from indefinite sleep */
-    WAKE_IDLE_LRU
-  };
   /** Wake up the page cleaner if needed.
-  @param reason  how the page cleaner should be woken up */
-  void page_cleaner_wakeup(wakeup_reason reason= WAKE_IDLE);
+  @param for_LRU  whether to wake up for LRU eviction */
+  void page_cleaner_wakeup(bool for_LRU= false);
 
   /** Register whether an explicit wakeup of the page cleaner is needed */
   void page_cleaner_set_idle(bool deep_sleep)

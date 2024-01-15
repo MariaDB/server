@@ -112,17 +112,11 @@ static void buf_flush_validate_skip()
 }
 #endif /* UNIV_DEBUG */
 
-void buf_pool_t::page_cleaner_wakeup(wakeup_reason reason)
+void buf_pool_t::page_cleaner_wakeup(bool for_LRU)
 {
   if (!page_cleaner_idle())
   {
-    /* Many ISA provide N and Z flags, which we desire to use for
-    efficient checking of the wakeup reason. */
-    static_assert(WAKE_NOW_LRU < 0, "efficiency");
-    static_assert(WAKE_IDLE == 0, "efficiency");
-    static_assert(WAKE_IDLE_LRU > 0, "efficiency");
-
-    if (reason < WAKE_IDLE)
+    if (for_LRU)
       /* Ensure that the page cleaner is not in a timed wait. */
       pthread_cond_signal(&do_flush_list);
     return;
@@ -156,7 +150,7 @@ void buf_pool_t::page_cleaner_wakeup(wakeup_reason reason)
   - by allowing last_activity_count to updated when page-cleaner is made
     active and has work to do. This ensures that the last_activity signal
     is consumed by the page-cleaner before the next one is generated. */
-  if (reason != WAKE_IDLE ||
+  if (for_LRU ||
       (pct_lwm != 0.0 && (pct_lwm <= dirty_pct ||
                           last_activity_count == srv_get_activity_count())) ||
       srv_max_buf_pool_modified_pct <= dirty_pct)
