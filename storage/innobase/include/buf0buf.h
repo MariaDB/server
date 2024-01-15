@@ -1488,10 +1488,8 @@ public:
         n_chunks_new / 4 * chunks->size;
   }
 
-  /** @return whether the buffer pool has run out */
-  TPOOL_SUPPRESS_TSAN
-  bool ran_out() const
-  { return UNIV_UNLIKELY(!try_LRU_scan || !UT_LIST_GET_LEN(free)); }
+  /** @return whether the buffer pool is running low */
+  bool need_LRU_eviction() const;
 
   /** @return whether the buffer pool is shrinking */
   inline bool is_shrinking() const
@@ -1779,9 +1777,17 @@ public:
     return page_cleaner_status > PAGE_CLEANER_IDLE;
   }
 
+  enum wakeup_reason {
+    /** Immediately wake up for LRU eviction */
+    WAKE_NOW_LRU= -1,
+    /** Wake up normally from indefinite sleep (@see page_cleaner_idle()) */
+    WAKE_IDLE= 0,
+    /** Wake up due to LRU eviction from indefinite sleep */
+    WAKE_IDLE_LRU
+  };
   /** Wake up the page cleaner if needed.
-  @param for_LRU  whether to wake up for LRU eviction */
-  void page_cleaner_wakeup(bool for_LRU= false);
+  @param reason  how the page cleaner should be woken up */
+  void page_cleaner_wakeup(wakeup_reason reason= WAKE_IDLE);
 
   /** Register whether an explicit wakeup of the page cleaner is needed */
   void page_cleaner_set_idle(bool deep_sleep)
