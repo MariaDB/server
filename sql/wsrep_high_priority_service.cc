@@ -390,6 +390,17 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
               wsrep_thd_transaction_state_str(m_thd),
               m_thd->killed);
 
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_rollback_mdl_release",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_rollback_mdl_release_reached "
+                      "WAIT_FOR signal.wsrep_rollback_mdl_release";
+                    DBUG_ASSERT(!debug_sync_set_action(m_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif
   m_thd->release_transactional_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
