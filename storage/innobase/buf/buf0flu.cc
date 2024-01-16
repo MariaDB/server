@@ -2546,6 +2546,8 @@ static void buf_flush_page_cleaner()
     else if (buf_flush_async_lsn <= oldest_lsn &&
              !buf_pool.need_LRU_eviction())
       goto check_oldest_and_set_idle;
+    else
+      mysql_mutex_lock(&buf_pool.mutex);
 
     n= srv_max_io_capacity;
     n= n >= n_flushed ? n - n_flushed : 0;

@@ -5118,6 +5118,14 @@ static int init_server_components()
 
   tc_log= 0; // ha_initialize_handlerton() needs that
 
+	/*
+	  Plugins may not be completed because system table DDLs are only
+    run after the ddl recovery done. Therefore between the
+    plugin_init() call and the ha_signal_ddl_recovery_done() call
+    below only things related to preparation for recovery should be
+    done and nothing else, and definitely not anything assuming that
+    all plugins have been initialised.
+	*/
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
                   (opt_abort ? PLUGIN_INIT_SKIP_INITIALIZATION : 0)))
