@@ -140,6 +140,9 @@ private:
   bool m_initialized{false};
   /** whether purge is enabled; protected by latch and std::atomic */
   std::atomic<bool> m_enabled{false};
+  /** the primary candidate for iterator::free_history();
+  may be changed when holding trx_sys.rseg_array[m_skipped_rseg].latch */
+  Atomic_relaxed<uint8_t> m_skipped_rseg;
 public:
   /** whether purge is active (may hold table handles) */
   std::atomic<bool> m_active{false};
@@ -197,6 +200,11 @@ public:
 			return undo_no <= other.undo_no;
 		}
 
+		/** Remove unnecessary history data from a rollback segment.
+		@param rseg   rollback segment
+		@return error code */
+		inline dberr_t free_history_rseg(trx_rseg_t &rseg) const;
+
 		/** Free the undo pages up to this. */
 		dberr_t free_history() const;
 
@@ -240,14 +248,14 @@ public:
 					by the pq_mutex */
 	mysql_mutex_t	pq_mutex;	/*!< Mutex protecting purge_queue */
 
-	/** Undo tablespace file truncation (only accessed by the
-	srv_purge_coordinator_thread) */
-	struct {
-		/** The undo tablespace that is currently being truncated */
-		fil_space_t*	current;
-		/** The undo tablespace that was last truncated */
-		fil_space_t*	last;
-	} truncate;
+  /** innodb_undo_log_truncate=ON state;
+  only modified by purge_coordinator_callback() */
+  struct {
+    /** The undo tablespace that is currently being truncated */
+    Atomic_relaxed<fil_space_t*> current;
+    /** The undo tablespace that was last truncated, starting from 0 */
+    ulint last;
+  } truncate;
 
   /** Create the instance */
   void create();
@@ -357,6 +365,13 @@ public:
     typically via purge_sys_t::view_guard. */
     return view.sees(id);
   }
+
+  /** Check if innodb_undo_log_truncate=ON needs to be handled.
+  This is only to be called by purge_coordinator_callback().
+  @return undo tablespace chosen by innodb_undo_log_truncate=ON
+  @retval nullptr truncation is not currently possible */
+  fil_space_t *truncating_tablespace();
+
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   template<bool also_end_view= false>
   void clone_oldest_view()
