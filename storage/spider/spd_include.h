@@ -791,7 +791,6 @@ typedef struct st_spider_conn
   SPIDER_CONN_LOOP_CHECK *loop_check_ignored_first;
   SPIDER_CONN_LOOP_CHECK *loop_check_ignored_last;
   SPIDER_CONN_LOOP_CHECK *loop_check_meraged_first;
-  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_last;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share

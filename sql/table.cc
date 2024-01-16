@@ -7585,7 +7585,7 @@ inline void TABLE::mark_index_columns_for_read(uint index)
     always set and sometimes read.
 */
 
-void TABLE::mark_auto_increment_column()
+void TABLE::mark_auto_increment_column(bool is_insert)
 {
   DBUG_ASSERT(found_next_number_field);
   /*
@@ -7593,7 +7593,8 @@ void TABLE::mark_auto_increment_column()
     store() to check overflow of auto_increment values
   */
   bitmap_set_bit(read_set, found_next_number_field->field_index);
-  bitmap_set_bit(write_set, found_next_number_field->field_index);
+  if (is_insert)
+    bitmap_set_bit(write_set, found_next_number_field->field_index);
   if (s->next_number_keypart)
     mark_index_columns_for_read(s->next_number_index);
   file->column_bitmaps_signal();
@@ -7718,7 +7719,7 @@ void TABLE::mark_columns_needed_for_update()
   else
   {
     if (found_next_number_field)
-      mark_auto_increment_column();
+      mark_auto_increment_column(false);
   }
 
   if (file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_DELETE)
@@ -7794,7 +7795,7 @@ void TABLE::mark_columns_needed_for_insert()
     triggers->mark_fields_used(TRG_EVENT_INSERT);
   }
   if (found_next_number_field)
-    mark_auto_increment_column();
+    mark_auto_increment_column(true);
   if (default_field)
     mark_default_fields_for_write(TRUE);
   if (s->versioned)

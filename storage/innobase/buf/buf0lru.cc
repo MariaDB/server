@@ -62,7 +62,7 @@ static bool buf_lru_switched_on_innodb_mon = false;
 
 /** True if diagnostic message about difficult to find free blocks
 in the buffer bool has already printed. */
-static bool	buf_lru_free_blocks_error_printed;
+bool buf_lru_free_blocks_error_printed;
 
 /******************************************************************//**
 These statistics are not 'of' LRU but 'for' LRU.  We keep count of I/O
@@ -417,9 +417,19 @@ retry:
 	/* If there is a block in the free list, take it */
 	if ((block = buf_LRU_get_free_only()) != nullptr) {
 got_block:
+		const ulint available = UT_LIST_GET_LEN(buf_pool.free);
+		const ulint scan_depth = srv_LRU_scan_depth;
+
 		if (!have_mutex) {
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
+
+		if (UNIV_UNLIKELY(available < scan_depth)) {
+			mysql_mutex_lock(&buf_pool.flush_list_mutex);
+			buf_pool.page_cleaner_wakeup(true);
+			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+		}
+
 		block->page.zip.clear();
 		return block;
 	}

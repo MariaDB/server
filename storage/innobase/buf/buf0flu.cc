@@ -1745,6 +1745,7 @@ after releasing buf_pool.mutex.
 @return evict ? number of processed pages : number of pages written */
 ulint buf_flush_LRU(ulint max_n, bool evict)
 {
+  extern bool buf_lru_free_blocks_error_printed;
   mysql_mutex_assert_owner(&buf_pool.mutex);
 
   flush_counters_t n;
@@ -1758,6 +1759,30 @@ ulint buf_flush_LRU(ulint max_n, bool evict)
       pages+= n.evicted;
     buf_pool.try_LRU_scan= true;
     pthread_cond_broadcast(&buf_pool.done_free);
+  }
+  else if (!pages && !buf_pool.try_LRU_scan &&
+           !buf_lru_free_blocks_error_printed)
+  {
+    /* For example, with the minimum innodb_buffer_pool_size=5M and
+    the default innodb_page_size=16k there are only a little over 316
+    pages in the buffer pool. The buffer pool can easily be exhausted
+    by a workload of some dozen concurrent connections. The system could
+    reach a deadlock like the following:
+
+    (1) Many threads are waiting in buf_LRU_get_free_block()
+    for buf_pool.done_free.
+    (2) Some threads are waiting for a page latch which is held by
+    another thread that is waiting in buf_LRU_get_free_block().
+    (3) This thread is the only one that could make progress, but
+    we fail to do so because all the pages that we scanned are
+    buffer-fixed or latched by some thread. */
+
+    buf_lru_free_blocks_error_printed= true;
+    sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
+                      " %zu blocks are in use and %zu free."
+                      " Consider increasing innodb_buffer_pool_size.",
+                      UT_LIST_GET_LEN(buf_pool.LRU),
+                      UT_LIST_GET_LEN(buf_pool.free));
   }
 
   return pages;
@@ -2391,6 +2416,15 @@ func_exit:
 	goto func_exit;
 }
 
+TPOOL_SUPPRESS_TSAN
+bool buf_pool_t::need_LRU_eviction() const
+{
+  /* try_LRU_scan==false means that buf_LRU_get_free_block() is waiting
+  for buf_flush_page_cleaner() to evict some blocks */
+  return UNIV_UNLIKELY(!try_LRU_scan ||
+                       UT_LIST_GET_LEN(free) < srv_LRU_scan_depth / 2);
+}
+
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
 /* Avoid GCC 4.8.5 internal compiler error "could not split insn".
 We would only need this for buf_flush_page_cleaner(),
@@ -2429,21 +2463,21 @@ static void buf_flush_page_cleaner()
     }
 
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    if (buf_pool.ran_out())
-      goto no_wait;
-    else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
-      break;
+    if (!buf_pool.need_LRU_eviction())
+    {
+      if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
+        break;
 
-    if (buf_pool.page_cleaner_idle() &&
-        (!UT_LIST_GET_LEN(buf_pool.flush_list) ||
-         srv_max_dirty_pages_pct_lwm == 0.0))
-      /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
-      my_cond_wait(&buf_pool.do_flush_list,
-                   &buf_pool.flush_list_mutex.m_mutex);
-    else
-      my_cond_timedwait(&buf_pool.do_flush_list,
-                        &buf_pool.flush_list_mutex.m_mutex, &abstime);
-  no_wait:
+      if (buf_pool.page_cleaner_idle() &&
+          (!UT_LIST_GET_LEN(buf_pool.flush_list) ||
+           srv_max_dirty_pages_pct_lwm == 0.0))
+        /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
+        my_cond_wait(&buf_pool.do_flush_list,
+                     &buf_pool.flush_list_mutex.m_mutex);
+      else
+        my_cond_timedwait(&buf_pool.do_flush_list,
+                          &buf_pool.flush_list_mutex.m_mutex, &abstime);
+    }
     set_timespec(abstime, 1);
 
     lsn_limit= buf_flush_sync_lsn;
@@ -2475,7 +2509,7 @@ static void buf_flush_page_cleaner()
       }
       while (false);
 
-      if (!buf_pool.ran_out())
+      if (!buf_pool.need_LRU_eviction())
         continue;
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       oldest_lsn= buf_pool.get_oldest_modification(0);
@@ -2504,7 +2538,7 @@ static void buf_flush_page_cleaner()
       if (oldest_lsn >= soft_lsn_limit)
         buf_flush_async_lsn= soft_lsn_limit= 0;
     }
-    else if (buf_pool.ran_out())
+    else if (buf_pool.need_LRU_eviction())
     {
       buf_pool.page_cleaner_set_idle(false);
       buf_pool.n_flush_inc();
@@ -2619,9 +2653,13 @@ static void buf_flush_page_cleaner()
                                    MONITOR_FLUSH_ADAPTIVE_PAGES,
                                    n_flushed);
     }
-    else if (buf_flush_async_lsn <= oldest_lsn)
+    else if (buf_flush_async_lsn <= oldest_lsn &&
+             !buf_pool.need_LRU_eviction())
       goto check_oldest_and_set_idle;
+    else
+      mysql_mutex_lock(&buf_pool.mutex);
 
+    n= srv_max_io_capacity;
     n= n >= n_flushed ? n - n_flushed : 0;
     goto LRU_flush;
   }
