@@ -925,6 +925,7 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
       *wrap_table_share= *table->s;
       mrn_init_sql_alloc(current_thd, &(wrap_table_share->mem_root));
       wrap_table_share->keys = share->wrap_keys;
+      wrap_table_share->total_keys = share->wrap_keys;
       wrap_table_share->key_info = share->wrap_key_info;
       wrap_table_share->primary_key = share->wrap_primary_key;
       wrap_table_share->keys_in_use.init(share->wrap_keys);

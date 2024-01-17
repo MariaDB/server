@@ -2367,7 +2367,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
   key_info= table->s->key_info;
   primary_key= share->primary_key;
 
-  for (uint i=0 ; i < share->keys ; i++,key_info++)
+  for (uint i=0 ; i < share->total_keys ; i++,key_info++)
   {
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
@@ -2390,6 +2390,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(STRING_WITH_LEN("FULLTEXT KEY "));
     else if (key_info->algorithm == HA_KEY_ALG_RTREE)
       packet->append(STRING_WITH_LEN("SPATIAL KEY "));
+    else if (key_info->algorithm == HA_KEY_ALG_MHNSW)
+      packet->append(STRING_WITH_LEN("VECTOR KEY "));
     else
       packet->append(STRING_WITH_LEN("KEY "));
 
@@ -2415,6 +2417,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         append_identifier(thd, packet, &key_part->field->field_name);
       if (key_part->field &&
           key_part->length != table->field[key_part->fieldnr-1]->key_length() &&
+          key_info->algorithm != HA_KEY_ALG_MHNSW &&
           key_info->algorithm != HA_KEY_ALG_RTREE &&
           key_info->algorithm != HA_KEY_ALG_FULLTEXT)
       {
@@ -7256,7 +7259,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
     bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
                                                              TABLE_ACLS, false);
 
-    for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
+    for (uint i=0 ; i < show_table->s->total_keys ; i++,key_info++)
     {
       if ((key_info->flags & HA_INVISIBLE_KEY) &&
           !DBUG_IF("test_invisible_index"))
@@ -7312,6 +7315,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
                                    ? "D" : "A", 1, cs);
             table->field[8]->set_notnull();
           }
+          if (i < show_table->s->keys)
           {
             /*
               We have to use table key information to get the key statistics
@@ -7329,6 +7333,12 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
             const char *tmp= show_table->file->index_type(i);
             table->field[13]->store(tmp, strlen(tmp), cs);
           }
+          else
+          {
+            /* there are no others at the moment */
+            DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_MHNSW);
+            table->field[13]->store(STRING_WITH_LEN("VECTOR"), cs);
+          }
         }
         if (key_info->algorithm != HA_KEY_ALG_FULLTEXT &&
             (key_part->field &&
@@ -7342,7 +7352,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
         uint flags= key_part->field ? key_part->field->flags : 0;
         const char *pos= flags & NOT_NULL_FLAG ? "" : "YES";
         table->field[12]->store(pos, strlen(pos), cs);
-        if (!show_table->s->keys_in_use.is_set(i))
+        if (i < show_table->s->keys && !show_table->s->keys_in_use.is_set(i))
           table->field[14]->store(STRING_WITH_LEN("disabled"), cs);
         DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                    (key_info->comment.length > 0));
