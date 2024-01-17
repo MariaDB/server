@@ -724,6 +724,7 @@ SYMBOL symbols[] = {
   { "VIEW",		SYM(VIEW_SYM)},
   { "VIRTUAL",          SYM(VIRTUAL_SYM)},
   { "VISIBLE",          SYM(VISIBLE_SYM)},
+  { "VECTOR",           SYM(VECTOR_SYM)},
   { "VERSIONING",       SYM(VERSIONING_SYM)},
   { "WAIT",		SYM(WAIT_SYM)},
   { "WARNINGS",		SYM(WARNINGS)},

@@ -2073,6 +2073,7 @@ public:
   }
   virtual COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                                 bool top_level);
+  virtual key_map part_of_sortkey() const { return key_map(0); }
   virtual void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                               uint *and_level,
                               table_map usable_tables,
@@ -3746,6 +3747,7 @@ public:
   {
     return field->field_length;
   }
+  key_map part_of_sortkey() const override { return field->part_of_sortkey; }
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **) override;
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
@@ -5923,6 +5925,10 @@ public:
   const Type_extra_attributes type_extra_attributes() const override
   {
     return ref ? (*ref)->type_extra_attributes() : Type_extra_attributes();
+  }
+  key_map part_of_sortkey() const override
+  {
+    return ref ? (*ref)->part_of_sortkey() : Item::part_of_sortkey();
   }
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
