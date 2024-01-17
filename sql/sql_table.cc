@@ -1314,7 +1314,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   TABLE_LIST *table;
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
-  LEX_CUSTRING version;
+  LEX_CUSTRING version= {0, 0};
   LEX_CSTRING partition_engine_name= null_clex_str;
   StringBuffer<160> unknown_tables(system_charset_info);
   DDL_LOG_STATE local_ddl_log_state;
@@ -1404,6 +1404,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     Table_type table_type;
     size_t path_length= 0;
     char *path_end= 0;
+    uint drop_index_from= 0, drop_index_to=0;
+
     error= 0;
 
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: %p  s: %p",
@@ -1545,6 +1547,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       version= thd->strmake_lex_custring(share->tabledef_version);
       if (plugin_ref pp= IF_PARTITIONING(share->default_part_plugin, NULL))
         partition_engine_name= thd->strmake_lex_cstring(*plugin_name(pp));
+      drop_index_from= share->keys;
+      drop_index_to= share->total_keys;
       tdc_release_share(share);
     }
     else
@@ -1620,14 +1624,12 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       }
 #endif
 
+      error= -1;
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
       {
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
-        {
-          error= -1;
           goto err;
-        }
         close_all_tables_for_name(thd, table->table->s,
                                   HA_EXTRA_PREPARE_FOR_DROP, NULL);
         table->table= 0;
@@ -1652,13 +1654,24 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       else
         res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db, &table_name);
       if (res)
-      {
-        error= -1;
         goto err;
+
+      if (path + sizeof(path) > path_end + HLINDEX_BUF_LEN)
+      {
+        for (uint i= drop_index_from; i < drop_index_to; i++)
+        {
+          my_snprintf(path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+          int err= ha_delete_table(thd, hton, path, &db, &table_name, enoent_warning);
+          set_if_bigger(error, err);
+        }
+        *path_end= 0;
       }
 
       debug_crash_here("ddl_log_drop_before_delete_table");
-      error= ha_delete_table(thd, hton, path, &db, &table_name, enoent_warning);
+      {
+        int err= ha_delete_table(thd, hton, path, &db, &table_name, enoent_warning);
+        set_if_bigger(error, err);
+      }
       debug_crash_here("ddl_log_drop_after_delete_table");
 
       if (!error)
@@ -2131,6 +2144,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   - LONG UNIQUE keys
   - Normal keys
   - Fulltext keys
+  - Vector keys
 
   This will make checking for duplicated keys faster and ensure that
   PRIMARY keys are prioritized.
@@ -2166,6 +2180,10 @@ static int sort_keys(KEY *a, KEY *b)
     return_if_nonzero((a_flags & HA_KEY_HAS_PART_KEY_SEG) -
                       (b_flags & HA_KEY_HAS_PART_KEY_SEG));
   }
+
+  /* must be very last */
+  return_if_nonzero((a->algorithm == HA_KEY_ALG_VECTOR) -
+                    (b->algorithm == HA_KEY_ALG_VECTOR));
 
   return_if_nonzero((a->algorithm == HA_KEY_ALG_FULLTEXT) -
                     (b->algorithm == HA_KEY_ALG_FULLTEXT));
@@ -2697,6 +2715,34 @@ Type_handler_blob_common::Key_part_spec_init_ft(Key_part_spec *part,
 }
 
 
+bool Type_handler_string::Key_part_spec_init_vector(Key_part_spec *part,
+                                                    const Column_definition &def)
+                                                    const
+{
+  part->length= 0;
+  return def.charset != &my_charset_bin;
+}
+
+
+bool Type_handler_varchar::Key_part_spec_init_vector(Key_part_spec *part,
+                                                     const Column_definition &def)
+                                                     const
+{
+  part->length= 0;
+  return def.charset != &my_charset_bin;
+}
+
+
+bool
+Type_handler_blob_common::Key_part_spec_init_vector(Key_part_spec *part,
+                                                    const Column_definition &def)
+                                                    const
+{
+  part->length= 1;
+  return def.charset != &my_charset_bin;
+}
+
+
 static bool
 key_add_part_check_null(const handler *file, KEY *key_info,
                         const Column_definition *sql_field,
@@ -3196,6 +3242,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     case Key::FOREIGN_KEY:
       key_number--;                             // Skip this key
       continue;
+    case Key::VECTOR:
+        if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
+          key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
+        break;
     case Key::IGNORE_KEY:
       DBUG_ASSERT(0);
       break;
@@ -3317,6 +3367,27 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       cols2.rewind();
       const Type_handler *field_type= sql_field->type_handler();
       switch(key->type) {
+
+      case Key::VECTOR:
+        if (field_type->Key_part_spec_init_vector(column, *sql_field))
+        {
+          my_error(ER_WRONG_ARGUMENTS, MYF(0), "VECTOR INDEX");
+          DBUG_RETURN(TRUE);
+        }
+        if (sql_field->check_vcol_for_key(thd))
+          DBUG_RETURN(TRUE);
+        if (!(sql_field->flags & NOT_NULL_FLAG))
+        {
+          my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "VECTOR");
+          DBUG_RETURN(TRUE);
+        }
+        if (create_info->tmp_table())
+        {
+          my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0), "VECTOR",
+                   file->table_type());
+          DBUG_RETURN(TRUE);
+        }
+        break;
 
       case Key::FULLTEXT:
         if (field_type->Key_part_spec_init_ft(column, *sql_field) ||
@@ -3648,6 +3719,13 @@ without_overlaps_err:
              (qsort_cmp) sort_keys);
   }
   create_info->null_bits= null_fields;
+
+  if (*key_count >= 2 &&
+      (*key_info_buffer)[*key_count-2].algorithm == HA_KEY_ALG_VECTOR)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "multiple VECTOR indexes");
+    DBUG_RETURN(TRUE);
+  }
 
   /* Check fields. */
   it.rewind();
@@ -8882,6 +8960,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       else if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
         key_type= Key::FULLTEXT;
+      else if (key_info->algorithm == HA_KEY_ALG_VECTOR)
+        key_type= Key::VECTOR;
       else
         key_type= Key::MULTIPLE;
 

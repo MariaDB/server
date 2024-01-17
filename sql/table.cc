@@ -501,6 +501,9 @@ void TABLE_SHARE::destroy()
   }
   delete sequence;
 
+  if (hlindex)
+    hlindex->destroy();
+
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
   {
@@ -515,7 +518,7 @@ void TABLE_SHARE::destroy()
 
   /* Release fulltext parsers */
   info_it= key_info;
-  for (idx= keys; idx; idx--, info_it++)
+  for (idx= total_keys; idx; idx--, info_it++)
   {
     if (info_it->flags & HA_USES_PARSER)
     {
@@ -791,6 +794,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
   KEY_PART_INFO *key_part= NULL;
   ulong *rec_per_key= NULL;
   DBUG_ASSERT(keyinfo == first_keyinfo);
+  DBUG_ASSERT(share->keys == 0);
 
   if (!keys)
   {  
@@ -873,7 +877,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
-      if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+      if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH &&
+          keyinfo->algorithm != HA_KEY_ALG_VECTOR)
         rec_per_key++;
       key_part->fieldnr=  (uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset=   (uint) uint2korr(strpos+2)-1;
@@ -915,6 +920,9 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       share->ext_key_parts++;
     }
 
+    if (keyinfo->algorithm != HA_KEY_ALG_VECTOR)
+      share->keys++;
+
     if (i && share->use_ext_keys && !((keyinfo->flags & HA_NOSAME)))
     {
       /* Reserve place for extended key parts */
@@ -953,7 +961,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                 (keyinfo->comment.length > 0));
   }
 
-  share->keys= keys; // do it *after* all key_info's are initialized
+  share->total_keys= keys;   // do it *after* all key_info's are initialized
 
   return 0;
 }
@@ -1485,6 +1493,11 @@ key_map TABLE_SHARE::usable_indexes(THD *thd)
 {
   key_map usable_indexes(keys_in_use);
   usable_indexes.subtract(ignored_indexes);
+
+  /* take into account keys that the engine knows nothing about */
+  for (uint i= keys; i < total_keys; i++)
+    usable_indexes.set_bit(i);
+
   return usable_indexes;
 }
 
@@ -4156,19 +4169,19 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
     KEY	*key_info, *key_info_end;
     KEY_PART_INFO *key_part;
 
-    if (!multi_alloc_root(root, &key_info, share->keys*sizeof(KEY),
+    if (!multi_alloc_root(root, &key_info, share->total_keys*sizeof(KEY),
                           &key_part, share->ext_key_parts*sizeof(KEY_PART_INFO),
                           NullS))
       return 1;
 
     outparam->key_info= key_info;
 
-    memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
+    memcpy(key_info, share->key_info, sizeof(*key_info)*share->total_keys);
     memcpy(key_part, key_info->key_part,
            sizeof(*key_part)*share->ext_key_parts);
 
     my_ptrdiff_t adjust_ptrs= PTR_BYTE_DIFF(key_part, key_info->key_part);
-    for (key_info_end= key_info + share->keys ;
+    for (key_info_end= key_info + share->total_keys ;
          key_info < key_info_end ;
          key_info++)
     {
@@ -4366,7 +4379,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                         &outparam->opt_range,
                         share->keys * sizeof(TABLE::OPT_RANGE),
                         &outparam->const_key_parts,
-                        share->keys * sizeof(key_part_map),
+                        share->total_keys * sizeof(key_part_map),
                         NullS))
     goto err;
 
@@ -4777,6 +4790,8 @@ int closefrm(TABLE *table)
   DBUG_ENTER("closefrm");
   DBUG_PRINT("enter", ("table: %p", table));
 
+  if (table->hlindex)
+    closefrm(table->hlindex);
   if (table->db_stat)
     error=table->file->ha_close();
   table->alias.free();
@@ -8411,22 +8426,22 @@ bool TABLE::alloc_keys(uint key_count)
   DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE);
 
   if (!multi_alloc_root(&mem_root,
-                        &new_key_info, sizeof(*key_info)*(s->keys+key_count),
+                        &new_key_info, sizeof(*key_info)*(s->total_keys+key_count),
                         &new_const_key_parts,
-                        sizeof(*new_const_key_parts)*(s->keys+key_count),
+                        sizeof(*new_const_key_parts)*(s->total_keys+key_count),
                         NullS))
     return TRUE;
-  if (s->keys)
+  if (s->total_keys)
   {
-    memmove(new_key_info, s->key_info, sizeof(*key_info) * s->keys);
+    memmove(new_key_info, s->key_info, sizeof(*key_info) * s->total_keys);
     memmove(new_const_key_parts, const_key_parts,
-            s->keys * sizeof(const_key_parts));
+            s->total_keys * sizeof(const_key_parts));
   }
   s->key_info= key_info= new_key_info;
   const_key_parts= new_const_key_parts;
-  bzero((char*) (const_key_parts + s->keys),
+  bzero((char*) (const_key_parts + s->total_keys),
         sizeof(*const_key_parts) * key_count);
-  max_keys= s->keys+key_count;
+  max_keys= s->total_keys+key_count;
   return FALSE;
 }
 
@@ -8654,6 +8669,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
 
   set_if_bigger(s->max_key_length, keyinfo->key_length);
   s->keys++;
+  s->total_keys++;
   s->ext_key_parts+= keyinfo->ext_key_parts;
   s->key_parts+= keyinfo->user_defined_key_parts;
   return FALSE;
@@ -8712,7 +8728,7 @@ void TABLE::use_index(int key_to_save, key_map *map_to_update)
     }
   }
   *map_to_update= new_bitmap;
-  s->keys= saved_keys;
+  s->total_keys= s->keys= saved_keys;
   s->key_parts= s->ext_key_parts= key_parts;
 }
 
@@ -9070,7 +9086,7 @@ void init_mdl_requests(TABLE_LIST *table_list)
 
 bool TABLE::update_const_key_parts(COND *conds)
 {
-  bzero((char*) const_key_parts, sizeof(key_part_map) * s->keys);
+  bzero((char*) const_key_parts, sizeof(key_part_map) * s->total_keys);
 
   if (conds == NULL)
     return FALSE;
@@ -10851,7 +10867,7 @@ inline void TABLE::initialize_opt_range_structures()
 {
   TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
   TRASH_ALLOC((void*)opt_range, s->keys * sizeof(*opt_range));
-  TRASH_ALLOC(const_key_parts, s->keys * sizeof(*const_key_parts));
+  TRASH_ALLOC(const_key_parts, s->total_keys * sizeof(*const_key_parts));
 }
 
 
