@@ -710,6 +710,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> VARIANCE_SYM
 %token  <kwd> VAR_SAMP_SYM
 %token  <kwd> VARYING                       /* SQL-2003-R */
+%token  <kwd> VECTOR_SYM
 %token  <kwd> WHEN_SYM                      /* SQL-2003-R */
 %token  <kwd> WHERE                         /* SQL-2003-R */
 %token  <kwd> WHILE_SYM
@@ -1655,7 +1656,7 @@ rule:
         option_type opt_var_type opt_var_ident_type
 
 %type <key_type>
-        constraint_key_type fulltext spatial
+        constraint_key_type fulltext spatial_or_vector
 
 %type <key_alg>
         btree_or_rtree opt_key_algorithm_clause opt_USING_key_algorithm
@@ -2630,7 +2631,7 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace spatial INDEX_SYM
+        | create_or_replace spatial_or_vector INDEX_SYM
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
@@ -5912,7 +5913,7 @@ key_def:
               MYSQL_YYABORT;
           }
           '(' key_list ')' fulltext_key_options { }
-        | spatial opt_key_or_index opt_if_not_exists opt_ident
+        | spatial_or_vector opt_key_or_index opt_if_not_exists opt_ident
           {
             Lex->option_list= NULL;
             if (unlikely(Lex->add_key($1, &$4, HA_KEY_ALG_UNDEF, $3)))
@@ -6995,11 +6996,12 @@ fulltext:
           FULLTEXT_SYM { $$= Key::FULLTEXT;}
         ;
 
-spatial:
+spatial_or_vector:
           SPATIAL_SYM
           {
             $$= Key::SPATIAL;
           }
+        | VECTOR_SYM { $$= Key::VECTOR;}
         ;
 
 normal_key_options:
@@ -16689,6 +16691,7 @@ reserved_keyword_udt_not_param_type:
         | VARIANCE_SYM
         | VARYING
         | VAR_SAMP_SYM
+        | VECTOR_SYM
         | WHEN_SYM
         | WHERE
         | WHILE_SYM

@@ -668,6 +668,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
 
       if (c_key->algorithm == HA_KEY_ALG_RTREE ||
           c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+          c_key->algorithm == HA_KEY_ALG_VECTOR ||
           (ha_rkey_mode != HA_READ_KEY_EXACT &&
            (table->key_info[handler->keyno].index_flags &
             (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))

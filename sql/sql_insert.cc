@@ -933,6 +933,13 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
   if (duplic == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
+
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
+
+  table->reset_default_fields();
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
+
   /*
     let's *try* to start bulk inserts. It won't necessary
     start them as values_list.elements should be greater than
@@ -960,7 +967,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           goto abort;
       }
     }
-    table->file->prepare_for_insert(create_lookup_handler);
+    if (table->file->prepare_for_insert(create_lookup_handler))
+      goto abort;
     /**
       This is a simple check for the case when the table has a trigger
       that reads from it, or when the statement invokes a stored function
@@ -977,12 +985,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     else
       table->file->ha_reset_copy_info();
   }
-
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
-
-  table->reset_default_fields();
-  table->prepare_triggers_for_insert_stmt_or_event();
-  table->mark_columns_needed_for_insert();
 
   if (fields.elements || !value_count || table_list->view != 0)
   {
