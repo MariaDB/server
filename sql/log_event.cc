@@ -2907,6 +2907,41 @@ XA_prepare_log_event(const uchar *buf,
   User_var_log_event methods
 **************************************************************************/
 
+bool Log_event_data_type::unpack_optional_attributes(const char *pos,
+                                                     const char *end)
+
+{
+  for ( ; pos < end; )
+  {
+    switch (*pos) {
+    case CHUNK_SIGNED:
+      m_is_unsigned= false;
+      pos++;
+      continue;
+    case CHUNK_UNSIGNED:
+      m_is_unsigned= true;
+      pos++;
+      continue;
+    case CHUNK_DATA_TYPE_NAME:
+      {
+        pos++;
+        if (pos >= end)
+          return true;
+        uint length= (uchar) *pos++;
+        if (pos + length > end)
+          return true;
+        m_data_type_name= {pos, length};
+        pos+= length;
+        continue;
+      }
+    default:
+      break; // Unknown chunk
+    }
+  }
+  return false;
+}
+
+
 User_var_log_event::
 User_var_log_event(const uchar *buf, uint event_len,
                    const Format_description_log_event* description_event)
@@ -2916,7 +2951,8 @@ User_var_log_event(const uchar *buf, uint event_len,
 #endif
 {
   bool error= false;
-  const uchar *buf_start= buf, *buf_end= buf + event_len;
+  const uchar *const buf_start= buf;
+  const char *buf_end= reinterpret_cast<const char*>(buf) + event_len;
 
   /* The Post-Header is empty. The Variable Data part begins immediately. */
   buf+= description_event->common_header_len +
@@ -2944,11 +2980,8 @@ User_var_log_event(const uchar *buf, uint event_len,
 
   buf+= UV_NAME_LEN_SIZE + name_len;
   is_null= (bool) *buf;
-  flags= User_var_log_event::UNDEF_F;    // defaults to UNDEF_F
   if (is_null)
   {
-    type= STRING_RESULT;
-    charset_number= my_charset_bin.number;
     val_len= 0;
     val= 0;  
   }
@@ -2963,8 +2996,8 @@ User_var_log_event(const uchar *buf, uint event_len,
       goto err;
     }
 
-    type= (Item_result) buf[UV_VAL_IS_NULL];
-    charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
+    m_type= (Item_result) buf[UV_VAL_IS_NULL];
+    m_charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
     val_len= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
                        UV_CHARSET_NUMBER_SIZE);
 
@@ -2977,19 +3010,13 @@ User_var_log_event(const uchar *buf, uint event_len,
       the flags value.
 
       Old events will not have this extra byte, thence,
-      we keep the flags set to UNDEF_F.
+      we keep m_is_unsigned==false.
     */
-    size_t bytes_read= (val + val_len) - (char*) buf_start;
-    if (bytes_read > event_len)
+    const char *pos= val + val_len;
+    if (pos > buf_end || unpack_optional_attributes(pos, buf_end))
     {
       error= true;
       goto err;
-    }
-    if ((data_written - bytes_read) > 0)
-    {
-      flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
-                    UV_CHARSET_NUMBER_SIZE + UV_VAL_LEN_SIZE +
-                    val_len);
     }
   }
 
