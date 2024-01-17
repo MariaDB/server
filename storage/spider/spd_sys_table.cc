@@ -1766,6 +1766,16 @@ int spider_delete_xa_member(
   DBUG_RETURN(0);
 }
 
+/**
+  Delete a Spider table from mysql.spider_tables.
+
+  @param  table           The table mysql.spider_tables
+  @param  name            The name of the Spider table to delete
+  @param  old_link_count  The number of links in the deleted table
+
+  @retval 0               Success
+  @retval nonzero         Failure
+*/
 int spider_delete_tables(
   TABLE *table,
   const char *name,
@@ -1781,10 +1791,20 @@ int spider_delete_tables(
   {
     spider_store_tables_link_idx(table, roop_count);
     if ((error_num = spider_check_sys_table(table, table_key)))
-      break;
+    {
+      /* There's a problem with finding the first record for the
+      spider table, likely because it does not exist. Fail */
+      if (roop_count == 0)
+        DBUG_RETURN(error_num);
+      /* At least one row has been deleted for the Spider table.
+      Success */
+      else
+        break;
+    }
     else {
       if ((error_num = spider_delete_sys_table_row(table)))
       {
+        /* There's a problem deleting the row. Fail */
         DBUG_RETURN(error_num);
       }
     }

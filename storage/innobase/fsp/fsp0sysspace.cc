@@ -568,7 +568,7 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 	}
 
 	err = it->read_first_page(
-		m_ignore_read_only ?  false : srv_read_only_mode);
+		m_ignore_read_only && srv_read_only_mode);
 
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -582,20 +582,17 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 
 	/* Check the contents of the first page of the
 	first datafile. */
-	for (int retry = 0; retry < 2; ++retry) {
+	err = it->validate_first_page();
 
-		err = it->validate_first_page();
-
-		if (err != DB_SUCCESS
-		    && (retry == 1
-			|| recv_sys.dblwr.restore_first_page(
+	if (err != DB_SUCCESS) {
+		if (recv_sys.dblwr.restore_first_page(
 				it->m_space_id, it->m_filepath,
-				it->handle()))) {
-
+				it->handle())) {
 			it->close();
-
 			return(err);
 		}
+		err = it->read_first_page(
+			m_ignore_read_only && srv_read_only_mode);
 	}
 
 	/* Make sure the tablespace space ID matches the
@@ -611,13 +608,6 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 		it->close();
 
 		return(err);
-	}
-
-	if (srv_operation == SRV_OPERATION_NORMAL) {
-		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
-		ut_ad(!log_sys.next_checkpoint_lsn);
-		log_sys.next_checkpoint_lsn = mach_read_from_8(
-			it->m_first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
 	}
 
 	it->close();

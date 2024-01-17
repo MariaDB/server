@@ -7041,7 +7041,25 @@ Item *Item_float::neg(THD *thd)
   else if (value < 0 && max_length)
     max_length--;
   value= -value;
-  presentation= 0;
+  if (presentation)
+  {
+    if (*presentation == '-')
+    {
+      // Strip double minus: -(-1) -> '1' instead of '--1'
+      presentation++;
+    }
+    else
+    {
+      size_t presentation_length= strlen(presentation);
+      if (char *tmp= (char*) thd->alloc(presentation_length + 2))
+      {
+        tmp[0]= '-';
+        // Copy with the trailing '\0'
+        memcpy(tmp + 1, presentation, presentation_length + 1);
+        presentation= tmp;
+      }
+    }
+  }
   name= null_clex_str;
   return this;
 }

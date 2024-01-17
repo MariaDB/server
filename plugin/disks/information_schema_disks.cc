@@ -19,10 +19,14 @@
 #include <sys/types.h>
 #if defined(HAVE_GETMNTENT)
 #include <mntent.h>
+#elif defined(HAVE_SYS_MNTENT)
+#include <sys/mntent.h>
 #elif !defined(HAVE_GETMNTINFO_TAKES_statvfs)
 /* getmntinfo (the not NetBSD variants) */
 #include <sys/param.h>
+#if defined(HAVE_SYS_UCRED)
 #include <sys/ucred.h>
+#endif
 #include <sys/mount.h>
 #endif
 #if defined(HAVE_GETMNTENT_IN_SYS_MNTAB)

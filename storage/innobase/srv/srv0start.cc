@@ -1306,6 +1306,10 @@ dberr_t srv_start(bool create_new_db)
 		ut_ad(buf_page_cleaner_is_active);
 	}
 
+	if (innodb_encrypt_temporary_tables && !log_crypt_init()) {
+		return srv_init_abort(DB_ERROR);
+	}
+
 	/* Check if undo tablespaces and redo log files exist before creating
 	a new system tablespace */
 	if (create_new_db) {
@@ -1314,6 +1318,11 @@ dberr_t srv_start(bool create_new_db)
 			return(srv_init_abort(DB_ERROR));
 		}
 		recv_sys.debug_free();
+	} else {
+		err = recv_recovery_read_checkpoint();
+		if (err != DB_SUCCESS) {
+			return srv_init_abort(err);
+		}
 	}
 
 	/* Open or create the data files. */
@@ -1338,12 +1347,9 @@ dberr_t srv_start(bool create_new_db)
 			" old data files which contain your precious data!";
 		/* fall through */
 	default:
-		/* Other errors might come from Datafile::validate_first_page() */
-		return(srv_init_abort(err));
-	}
-
-	if (innodb_encrypt_temporary_tables && !log_crypt_init()) {
-		return srv_init_abort(DB_ERROR);
+		/* Other errors might be flagged by
+		Datafile::validate_first_page() */
+		return srv_init_abort(err);
 	}
 
 	if (create_new_db) {
@@ -1359,10 +1365,10 @@ dberr_t srv_start(bool create_new_db)
 			return srv_init_abort(err);
 		}
 
-		srv_undo_space_id_start= 1;
+		srv_undo_space_id_start = 1;
 	}
 
-	/* Open log file and data files in the systemtablespace: we keep
+	/* Open data files in the system tablespace: we keep
 	them open until database shutdown */
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 

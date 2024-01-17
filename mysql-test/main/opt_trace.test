@@ -875,6 +875,20 @@ drop table t0;
 --enable_view_protocol
 
 --echo #
+--echo # MDEV-29298: INSERT ... SELECT Does not produce an optimizer trace
+--echo #
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,1), (2,2), (3,3), (4,4), (5,5);
+set optimizer_trace=1;
+
+insert into t2 select * from t1 where a<= b and a>4;
+
+select QUERY, LENGTH(trace)>1 from information_schema.optimizer_trace;
+
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 

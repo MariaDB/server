@@ -110,7 +110,7 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
   }
 
 extern handlerton *spider_hton_ptr;
-static void spider_trx_status_var(THD *thd, SHOW_VAR *var, char *buff,
+static void spider_trx_status_var(THD *thd, SHOW_VAR *var, void *buff,
                                  ulonglong SPIDER_TRX::*counter)
 {
   DBUG_ENTER("spider_direct_update");
@@ -126,35 +126,40 @@ static void spider_trx_status_var(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_update(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type)
 {
   DBUG_ENTER("spider_direct_update");
   spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_update_count);
   DBUG_RETURN(0);
 }
 
-static int spider_direct_delete(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_delete(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type)
 {
   DBUG_ENTER("spider_direct_delete");
   spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_delete_count);
   DBUG_RETURN(0);
 }
 
-static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, void *buff,
+                                     system_status_var *, enum_var_type)
 {
   DBUG_ENTER("spider_direct_order_limit");
   spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_order_limit_count);
   DBUG_RETURN(0);
 }
 
-static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, void *buff,
+                                   system_status_var *, enum_var_type)
 {
   DBUG_ENTER("spider_direct_aggregate");
   spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_aggregate_count);
   DBUG_RETURN(0);
 }
 
-static int spider_parallel_search(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_parallel_search(THD *thd, SHOW_VAR *var, void *buff,
+                                  system_status_var *, enum_var_type)
 {
   DBUG_ENTER("spider_parallel_search");
   spider_trx_status_var(thd, var, buff, &SPIDER_TRX::parallel_search_count);
