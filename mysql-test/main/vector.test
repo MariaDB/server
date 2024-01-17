@@ -1,0 +1,31 @@
+error ER_NO_INDEX_ON_TEMPORARY;
+create temporary table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+
+error ER_NOT_SUPPORTED_YET;
+create table t1 (id int auto_increment primary key,
+  u blob not null, vector index (u),
+  v blob not null, vector index (v));
+
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+show create table t1;
+show keys from t1;
+query_vertical select * from information_schema.statistics where table_name='t1';
+# print unpack(H40,pack(f5,map{rand}1..5))
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+select id, hex(v) from t1;
+flush tables;
+select id,vec_distance(v, x'b047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+select t1.id as id1, t2.id as id2, vec_distance(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
+drop table t1;
+let $datadir=`select @@datadir`;
+list_files $datadir/test;
