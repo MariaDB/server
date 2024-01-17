@@ -1886,7 +1886,7 @@ int spider_conn_queue_loop_check(
   loop_check_buf[lex_str.length] = '\0';
   DBUG_PRINT("info", ("spider param name=%s", lex_str.str));
   loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
-  if (!loop_check || loop_check->type != STRING_RESULT)
+  if (!loop_check || loop_check->type_handler()->result_type() != STRING_RESULT)
   {
     DBUG_PRINT("info", ("spider client is not Spider"));
     lex_str.str = "";

@@ -49,6 +49,11 @@ recv_find_max_checkpoint(ulint* max_field)
 ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	MY_ATTRIBUTE((nonnull));
 
+/** Read the latest checkpoint information from log file
+and store it in log_sys.next_checkpoint and recv_sys.mlog_checkpoint_lsn
+@return error code or DB_SUCCESS */
+dberr_t recv_recovery_read_max_checkpoint();
+
 /** Start recovering from a redo log checkpoint.
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
 of first system tablespace page
@@ -141,7 +146,18 @@ struct recv_dblwr_t
   @param file      tablespace file handle
   @return whether the operation failed */
   bool restore_first_page(
-         ulint space_id, const char *name, os_file_t file);
+         ulint space_id, const char *name, pfs_os_file_t file);
+
+  /** Restore the first page of the given tablespace from
+  doublewrite buffer.
+  1) Find the page which has page_no as 0
+  2) Read first 3 pages from tablespace file
+  3) Compare the space_ids from the pages with page0 which
+  was retrieved from doublewrite buffer
+  @param name tablespace filepath
+  @param file tablespace file handle
+  @return space_id or 0 in case of error */
+  uint32_t find_first_page(const char *name, pfs_os_file_t file);
 
   typedef std::deque<byte*, ut_allocator<byte*> > list;
 
