@@ -110,5 +110,5 @@ SELECT COUNT(*) AS EXPECT_101 FROM t1;
 DROP TABLE t1;
 
 --disable_query_log
-SET GLOBAL innodb_thread_sleep_delay = @wsrep_slave_threads_orig;
+SET GLOBAL wsrep_slave_threads = @wsrep_slave_threads_orig;
 --enable_query_log

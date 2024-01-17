@@ -1897,7 +1897,7 @@ static int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
 }
 
 static int wsrep_alter_table_query(THD *thd, uchar** buf, size_t* buf_len,
-                                   Alter_info *alter_info)
+                                   const Alter_info *alter_info)
 {
   String log_query;
   log_query.append(thd->query(), thd->query_length());
@@ -2290,7 +2290,8 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
 }
 
-static int wsrep_TOI_event_buf(THD* thd, uchar** buf, size_t* buf_len, Alter_info *alter_info)
+static int wsrep_TOI_event_buf(THD* thd, uchar** buf, size_t* buf_len,
+                               const Alter_info *alter_info)
 {
   int err;
   switch (thd->lex->sql_command)
