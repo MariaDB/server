@@ -24,6 +24,19 @@
 #include <my_global.h>
 #include "item.h"
 
+key_map Item_func_vec_distance::part_of_sortkey() const
+{
+  key_map map(0);
+  if (Item_field *item= get_field_arg())
+  {
+    Field *f= item->field;
+    for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
+      if (f->table->s->key_info[i].algorithm == HA_KEY_ALG_VECTOR &&
+          f->key_start.is_set(i))
+        map.set_bit(i);
+  }
+  return map;
+}
 
 double Item_func_vec_distance::val_real()
 {
