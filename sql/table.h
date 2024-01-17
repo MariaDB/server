@@ -99,6 +99,9 @@ typedef ulonglong nested_join_map;
 #define TMP_TABLE_KEY_EXTRA 8
 #define ROCKSDB_DIRECTORY_NAME "#rocksdb"
 
+#define HLINDEX_TEMPLATE "#i#%02u"
+#define HLINDEX_BUF_LEN  16 /* with extension .ibd/.MYI/etc and safety margin */
+
 /**
   Enumerate possible types of a table from re-execution
   standpoint.
@@ -738,7 +741,8 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
-  LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
+  LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
+  TABLE_SHARE *hlindex;
 
   /*
     EITS statistics data from the last time the table was opened or ANALYZE
@@ -834,7 +838,10 @@ struct TABLE_SHARE
   uint table_check_constraints, field_check_constraints;
 
   uint rec_buff_length;                 /* Size of table->record[] buffer */
-  uint keys, key_parts;
+  uint keys;                            /* Number of KEY's for the engine */
+  uint total_keys;                      /* total number of KEY's, including
+                                           high level indexes             */
+  uint key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
   uint max_key_length, max_unique_length;
 
@@ -1357,12 +1364,16 @@ public:
   /* Tables used in DEFAULT and CHECK CONSTRAINT (normally sequence tables) */
   TABLE_LIST *internal_tables;
 
+  TABLE *hlindex;
   /*
     Not-null for temporary tables only. Non-null values means this table is
     used to compute GROUP BY, it has a unique of GROUP BY columns.
     (set by create_tmp_table)
   */
-  ORDER		*group;
+  union {
+    ORDER       *group;                   /* only for temporary tables */
+    void        *context;                 /* only for hlindexes */
+  };
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
   MY_BITMAP     def_read_set, def_write_set, tmp_set;
@@ -1774,6 +1785,14 @@ public:
   void evaluate_update_default_function();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
+
+  int hlindex_open(uint nr);
+  int hlindex_first(uint nr, Item *item, ulonglong limit);
+  int hlindex_next();
+
+  int open_hlindexes_for_write();
+  int update_hlindexes();
+  int reset_hlindexes();
 
   void prepare_triggers_for_insert_stmt_or_event();
   bool prepare_triggers_for_delete_stmt_or_event();
