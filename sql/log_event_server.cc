@@ -7521,7 +7521,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
        indexed and it cannot have a DEFAULT value).
     */
     m_table->auto_increment_field_not_null= FALSE;
-    m_table->mark_auto_increment_column();
+    m_table->mark_auto_increment_column(true);
   }
 
   return error;

@@ -727,7 +727,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_wfc()
 #endif /*WITH_WSREP */
 {
-  ulong tmp;
   bzero(&variables, sizeof(variables));
 
   /*
@@ -879,14 +878,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   tablespace_op=FALSE;
 
-  /*
-    Initialize the random generator. We call my_rnd() without a lock as
-    it's not really critical if two threads modifies the structure at the
-    same time.  We ensure that we have an unique number foreach thread
-    by adding the address of the stack.
-  */
-  tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
-  my_rnd_init(&rand, tmp + (ulong)((size_t) &rand), tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   lock_info.mysql_thd= (void *)this;
 
@@ -1314,6 +1305,17 @@ void THD::init()
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
   last_global_update_time= current_connect_time= time(NULL);
+
+  /*
+    Initialize the random generator. We call my_rnd() without a lock as
+    it's not really critical if two threads modify the structure at the
+    same time.  We ensure that we have a unique number for each thread
+    by adding the address of this THD.
+  */
+  ulong tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
+  my_rnd_init(&rand, tmp + (ulong)(intptr) this,
+                     (ulong)(my_timer_cycles() + global_query_id));
+
 #ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
 #endif //EMBEDDED_LIBRARY
