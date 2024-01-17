@@ -439,7 +439,8 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
     {
       DBUG_ASSERT(bitmap_is_set(cols, i));
       Field *f= conv_table->field[i];
-      bool result= unpack_field(tabledef, f, &st, i);
+      IF_DBUG(bool result=,) 
+      unpack_field(tabledef, f, &st, i);
       DBUG_ASSERT(result);
     }
 

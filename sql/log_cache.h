@@ -237,7 +237,8 @@ private:
       delete pending();
       set_pending(0);
     }
-    my_bool res= reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
+    IF_DBUG(my_bool res=,)
+    reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
     DBUG_ASSERT(res == 0);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
