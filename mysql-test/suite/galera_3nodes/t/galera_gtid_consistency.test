@@ -2,7 +2,6 @@
 --source include/big_test.inc
 --source include/force_restart.inc
 
-
 #
 # Testing gtid consistency in 3 node cluster when nodes drop
 # and join back to cluster.
@@ -378,4 +377,3 @@ DROP TABLE t3;
 --disconnect node_2b
 --disconnect node_1b
 --disconnect node_1c
-
