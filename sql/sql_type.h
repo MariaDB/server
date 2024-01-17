@@ -4238,6 +4238,11 @@ public:
                                           const handler *file) const;
   virtual bool Key_part_spec_init_spatial(Key_part_spec *part,
                                           const Column_definition &def) const;
+  virtual bool Key_part_spec_init_vector(Key_part_spec *part,
+                                         const Column_definition &def) const
+  {
+    return true; // Error
+  }
   virtual bool Key_part_spec_init_ft(Key_part_spec *part,
                                      const Column_definition &def) const
   {
@@ -7222,6 +7227,8 @@ public:
                                         ulonglong table_flags) const override;
   bool Key_part_spec_init_ft(Key_part_spec *part,
                              const Column_definition &def) const override;
+  bool Key_part_spec_init_vector(Key_part_spec *part,
+                                 const Column_definition &def) const;
   Field *make_table_field(MEM_ROOT *root,
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -7319,6 +7326,8 @@ public:
                                         ulonglong table_flags) const override;
   bool Key_part_spec_init_ft(Key_part_spec *part,
                              const Column_definition &def) const override;
+  bool Key_part_spec_init_vector(Key_part_spec *part,
+                                 const Column_definition &def) const;
   Field *make_table_field(MEM_ROOT *root,
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -7421,6 +7430,8 @@ public:
                                         uchar *buff) const override;
   bool Key_part_spec_init_ft(Key_part_spec *part,
                              const Column_definition &def) const override;
+  bool Key_part_spec_init_vector(Key_part_spec *part,
+                                 const Column_definition &def) const;
   bool Key_part_spec_init_primary(Key_part_spec *part,
                                   const Column_definition &def,
                                   const handler *file) const override;
