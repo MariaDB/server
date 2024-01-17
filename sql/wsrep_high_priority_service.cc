@@ -356,6 +356,19 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
   DBUG_ENTER("Wsrep_high_priority_service::rollback");
   m_thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, false);
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_rollback_mdl_release",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_rollback_mdl_release_reached "
+                      "WAIT_FOR signal.wsrep_rollback_mdl_release";
+                    DBUG_ASSERT(!debug_sync_set_action(m_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif
+
   m_thd->release_transactional_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
