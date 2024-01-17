@@ -1755,7 +1755,7 @@ search:
         - recreate index stats
       */
       pfs->destroy_index_stats();
-      pfs->m_key_count= share->keys;
+      pfs->m_key_count= share->total_keys;
       for (uint index= 0; index < pfs->m_key_count; index++)
       {
         (void)pfs->find_or_create_index_stat(share, index);
