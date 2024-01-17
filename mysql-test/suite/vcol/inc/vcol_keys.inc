@@ -94,7 +94,7 @@ drop table t1;
 if (!$skip_spatial_index_check)
 {
   --echo # Error "All parts of a SPATIAL index must be NOT NULL"
-  --error ER_SPATIAL_CANT_HAVE_NULL
+  --error ER_INDEX_CANNOT_HAVE_NULL
   create table t1 (a int, b geometry as (a+1) persistent, spatial index (b));
   create table t1 (a int, b int as (a+1) persistent);
   --error ER_WRONG_ARGUMENTS
