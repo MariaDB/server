@@ -3203,7 +3203,6 @@ protected:
   Table_flags cached_table_flags;       /* Set on init() and open() */
 
   ha_rows estimation_rows_to_insert;
-  handler *lookup_handler;
   /* Statistics for the query. Updated if handler_stats.in_use is set */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
@@ -3212,6 +3211,7 @@ public:
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
   uchar *ref;			/* Pointer to current row */
   uchar *dup_ref;		/* Pointer to duplicate row */
+  handler *lookup_handler;
   uchar *lookup_buffer;
 
   /* General statistics for the table like number of row, file sizes etc */
@@ -3418,8 +3418,8 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
-    lookup_handler(this),
-    ht(ht_arg), costs(0), ref(0), lookup_buffer(NULL), handler_stats(NULL),
+    ht(ht_arg), costs(0), ref(0), lookup_handler(this),
+    lookup_buffer(NULL), handler_stats(NULL),
     end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),

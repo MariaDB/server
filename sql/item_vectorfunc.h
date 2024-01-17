@@ -22,7 +22,14 @@
 
 class Item_func_vec_distance: public Item_real_func
 {
-protected:
+  Item_field *get_field_arg() const
+  {
+    if (args[0]->type() == Item::FIELD_ITEM && args[1]->const_item())
+      return (Item_field*)(args[0]);
+    if (args[1]->type() == Item::FIELD_ITEM && args[0]->const_item())
+      return (Item_field*)(args[1]);
+    return NULL;
+  }
   bool check_arguments() const override
   {
     return check_argument_types_or_binary(NULL, 0, arg_count);
@@ -36,6 +43,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("vec_distance") };
     return name;
   }
+  key_map part_of_sortkey() const override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
 };
