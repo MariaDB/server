@@ -235,10 +235,10 @@ CREATE TABLE t (a TEXT, b TEXT GENERATED ALWAYS AS (a));
 ALTER TABLE t ADD FULLTEXT INDEX (b);
 DROP TABLE t;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 CREATE TABLE t (a geometry not null, b geometry GENERATED ALWAYS AS (a), spatial INDEX idx (b));
 CREATE TABLE t (a geometry not null, b geometry GENERATED ALWAYS AS (a));
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE t ADD SPATIAL INDEX (b);
 DROP TABLE t;
 
@@ -527,7 +527,7 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 # No spatial and FTS index on virtual columns
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c point, d point GENERATED ALWAYS AS (c), spatial index idx (d));
 
 --error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
