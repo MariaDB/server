@@ -56,6 +56,7 @@
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
 #include "rpl_rli.h"   // rpl_group_info
+#include "vector_mhnsw.h"
 #ifdef  _WIN32
 #include <io.h>
 #endif
@@ -9826,3 +9827,114 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
 /**
   @} (end of group Data_Dictionary)
 */
+
+int TABLE::hlindex_open(uint nr)
+{
+  DBUG_ASSERT(s->total_keys - s->keys == 1);
+  DBUG_ASSERT(nr == s->keys);
+  if (!hlindex)
+  {
+    mysql_mutex_lock(&s->LOCK_share);
+    if (!s->hlindex)
+    {
+      mysql_mutex_unlock(&s->LOCK_share);
+      TABLE_SHARE *share;
+      char *path= NULL;
+      size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
+
+      share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof(*share));
+      path= (char*)alloc_root(&s->mem_root, path_len);
+      if (!share || !path)
+        return 1;
+
+      my_snprintf(path, path_len, "%s" HLINDEX_TEMPLATE,
+                  s->normalized_path.str, nr);
+      init_tmp_table_share(in_use, share, s->db.str, 0, s->table_name.str,
+                           path, false);
+      share->db_plugin= s->db_plugin;
+
+      if (share->init_from_sql_statement_string(in_use, false,
+                        mhnsw_hlindex_table.str, mhnsw_hlindex_table.length))
+      {
+        free_table_share(share);
+        return 1;
+      }
+
+      mysql_mutex_lock(&s->LOCK_share);
+      if (!s->hlindex)
+      {
+        s->hlindex= share;
+        mysql_mutex_unlock(&s->LOCK_share);
+      }
+      else
+      {
+        mysql_mutex_unlock(&s->LOCK_share);
+        free_table_share(share);
+      }
+    }
+    else
+      mysql_mutex_unlock(&s->LOCK_share);
+    TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
+    if (!table ||
+        open_table_from_share(in_use, s->hlindex, &empty_clex_str, db_stat, 0,
+                              in_use->open_options, table, 0))
+      return 1;
+    hlindex= table;
+  }
+  hlindex->in_use= in_use;      // mark in use for this query
+  hlindex->use_all_columns();
+  return hlindex->file->ha_external_lock(in_use, F_WRLCK);
+}
+
+int TABLE::open_hlindexes_for_write()
+{
+  DBUG_ASSERT(s->total_keys - s->keys <= 1);
+  for (uint i= s->keys; i < s->total_keys; i++)
+  {
+    KEY *key= s->key_info + i;
+    if (hlindex)
+      hlindex->in_use= 0;
+    for (uint j=0; j < key->usable_key_parts; j++)
+      if (bitmap_is_set(write_set, key->key_part[j].fieldnr - 1))
+      {
+        if (hlindex_open(i))
+          return 1;
+        break;
+      }
+  }
+  return 0;
+}
+
+int TABLE::reset_hlindexes()
+{
+  if (hlindex)
+    hlindex->file->ha_external_unlock(in_use);
+  return 0;
+}
+
+int TABLE::update_hlindexes()
+{
+  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_insert(this, key_info + s->keys))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindex_first(uint nr, Item *item, ulonglong limit)
+{
+  DBUG_ASSERT(s->total_keys - s->keys == 1);
+  DBUG_ASSERT(nr == s->keys);
+
+  if (hlindex_open(nr))
+    return HA_ERR_CRASHED;
+
+  DBUG_ASSERT(hlindex->in_use == in_use);
+
+  return mhnsw_first(this, item, limit);
+}
+
+int TABLE::hlindex_next()
+{
+  return mhnsw_next(this);
+}
