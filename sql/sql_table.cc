@@ -3302,8 +3302,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           DBUG_RETURN(TRUE);
         if (!(sql_field->flags & NOT_NULL_FLAG))
         {
-          my_message(ER_SPATIAL_CANT_HAVE_NULL,
-                     ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
+          my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "SPATIAL");
           DBUG_RETURN(TRUE);
         }
         break;

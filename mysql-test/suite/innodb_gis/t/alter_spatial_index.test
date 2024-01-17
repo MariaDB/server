@@ -134,31 +134,31 @@ SELECT c1,ST_AsText(c2),ST_AsText(c4) FROM tab WHERE MBRWithin(tab.c4, @g1);
 
 DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c2 MULTIPOINT;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c3 MULTILINESTRING;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c4 MULTIPOLYGON;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c3 MULTILINESTRING NULL;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c4 MULTIPOLYGON NULL;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c4 Geometry NULL;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab CHANGE COLUMN c2 c22 POINT;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab CHANGE COLUMN c3 c33 LINESTRING;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab CHANGE COLUMN c4 c44 POLYGON;
 
 # --error ER_SPATIAL_MUST_HAVE_GEOM_COL
@@ -716,7 +716,7 @@ create table t1 (c1 int) engine=innodb;
 insert into t1 values(NULL);
 
 # Add spatial index fail, since geometry column can't be null.
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 alter table t1 add b geometry, add spatial index(b), algorithm=inplace;
 
 # Add spatial index fail, since there's invalid geo data.
@@ -736,7 +736,7 @@ create table t1 (c1 int) engine=innodb;
 insert into t1 values(NULL);
 
 # Add spatial index fail, since geometry column can't be null.
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 alter table t1 add b geometry, add spatial index(b), algorithm=copy;
 
 # Add spatial index fail, since there's a NULL or invalid geo data.
