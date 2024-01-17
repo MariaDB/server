@@ -48,6 +48,7 @@
 #include "rowid_filter.h"
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
+#include "vector_mhnsw.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -3575,7 +3576,7 @@ PSI_table_share *handler::ha_table_share_psi() const
 const char *handler::index_type(uint key_number)
 {
   static const char* alg2str[]= { "???", "BTREE", "SPATIAL", "HASH",
-                                  "FULLTEXT", "HASH", "HASH" };
+                                  "FULLTEXT", "HASH", "HASH", "VECTOR" };
   enum ha_key_alg alg= table_share->key_info[key_number].algorithm;
   if (!alg)
   {
@@ -6401,6 +6402,36 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   {
     PSI_CALL_drop_table_share(is_tmp, share.db.str, (uint)share.db.length,
                         share.table_name.str, (uint)share.table_name.length);
+    goto err;
+  }
+
+  /* create secondary tables for high level indexes */
+  if (share.hlindexes())
+  {
+    /* as of now: only one vector index can be here */
+    DBUG_ASSERT(share.hlindexes() == 1);
+    DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
+    TABLE_SHARE index_share;
+    char file_name[FN_REFLEN+1];
+    HA_CREATE_INFO index_cinfo;
+    char *path_end= strmov(file_name, path);
+
+    if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
+      goto err;
+
+    for (uint i= share.keys; i < share.total_keys; i++)
+    {
+      my_snprintf(path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+      init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
+      index_share.db_plugin= share.db_plugin;
+      if ((error= index_share.init_from_sql_statement_string(thd, false,
+                        mhnsw_hlindex_table.str, mhnsw_hlindex_table.length)))
+        break;
+
+      if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo)))
+        break;
+    }
+    free_table_share(&index_share);
   }
 
 err:
@@ -7651,6 +7682,8 @@ int handler::ha_reset()
     delete lookup_handler;
     lookup_handler= this;
   }
+  if (table->reset_hlindexes())
+    return 1;
   DBUG_RETURN(reset());
 }
 
@@ -8042,8 +8075,12 @@ bool handler::prepare_for_row_logging()
 
 int handler::prepare_for_insert(bool do_create)
 {
+  if (table->open_hlindexes_for_write())
+    return 1;
+
   /* Preparation for unique of blob's */
-  if (table->s->long_unique_table || table->s->period.unique_keys)
+  if (table->s->long_unique_table || table->s->period.unique_keys ||
+      table->hlindex)
   {
     if (do_create && create_lookup_handler())
       return 1;
@@ -8093,7 +8130,7 @@ int handler::ha_write_row(const uchar *buf)
                       { error= write_row(buf); })
 
   MYSQL_INSERT_ROW_DONE(error);
-  if (likely(!error))
+  if (!error && !((error= table->update_hlindexes())))
   {
     rows_stats.inserted++;
     Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
