@@ -180,9 +180,6 @@ private:
   /* On ARM, we do more spinning */
   typedef srw_spin_lock log_rwlock;
   typedef pthread_mutex_wrapper<true> log_lsn_lock;
-#elif defined _WIN32
-  typedef srw_lock log_rwlock;
-  typedef pthread_mutex_wrapper<false> log_lsn_lock;
 #else
   typedef srw_lock log_rwlock;
   typedef srw_mutex log_lsn_lock;
