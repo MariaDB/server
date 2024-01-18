@@ -1764,20 +1764,6 @@ dberr_t recv_sys_t::find_checkpoint()
     {
       if (wrong_size)
         return DB_CORRUPTION;
-      if (log_sys.next_checkpoint_lsn < 8204)
-      {
-        /* Before MDEV-14425, InnoDB had a minimum LSN of 8192+12=8204.
-        Likewise, mariadb-backup --prepare would create an empty
-        ib_logfile0 after applying the log. We will allow an upgrade
-        from such an empty log.
-
-        If a user replaces the redo log with an empty file and the
-        FIL_PAGE_FILE_FLUSH_LSN field was zero in the system
-        tablespace (see SysTablespace::read_lsn_and_check_flags()) we
-        must refuse to start up. */
-        sql_print_error("InnoDB: ib_logfile0 is empty, and LSN is unknown.");
-        return DB_CORRUPTION;
-      }
       lsn= log_sys.next_checkpoint_lsn;
       log_sys.format= log_t::FORMAT_3_23;
       goto upgrade;

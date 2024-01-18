@@ -33,6 +33,7 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "os0file.h"
 #include "row0mysql.h"
 #include "buf0dblwr.h"
+#include "log.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such
@@ -610,6 +611,40 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 		return(err);
 	}
 
+	if (srv_force_recovery != 6
+	    && srv_operation == SRV_OPERATION_NORMAL
+	    && !log_sys.next_checkpoint_lsn
+	    && log_sys.format == log_t::FORMAT_3_23) {
+
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		/* Prepare for possible upgrade from 0-sized
+		ib_logfile0. */
+		log_sys.next_checkpoint_lsn = mach_read_from_8(
+			it->m_first_page + 26
+			/*FIL_PAGE_FILE_FLUSH_LSN*/);
+		if (log_sys.next_checkpoint_lsn < 8204) {
+			/* Before MDEV-14425, InnoDB had a minimum
+			 LSN of 8192+12=8204. Likewise,
+			 mariadb-backup --prepare would create an
+			 empty ib_logfile0 after applying the log.
+			 We will allow an upgrade from such an
+			 empty log. */
+			sql_print_error("InnoDB: ib_logfile0 is "
+					"empty, and LSN is unknown.");
+			log_sys.latch.wr_unlock();
+			it->close();
+			return DB_CORRUPTION;
+		}
+
+                log_sys.last_checkpoint_lsn =
+				log_sys.next_checkpoint_lsn;
+                log_sys.set_recovered_lsn(
+				log_sys.next_checkpoint_lsn);
+                recv_sys.lsn = recv_sys.file_checkpoint =
+				log_sys.next_checkpoint_lsn;
+                log_sys.next_checkpoint_no = 0;
+		log_sys.latch.wr_unlock();
+	}
 	it->close();
 
 	return(DB_SUCCESS);
