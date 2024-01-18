@@ -1849,6 +1849,8 @@ private:
   bool transform_all_conds_and_on_exprs_in_join_list(THD *thd,
                                                  List<TABLE_LIST> *join_list,
                                                  Item_transformer transformer);
+  bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
+                               bool need_distinct);
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};

@@ -1507,6 +1507,12 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
           },
           {
             "test_if_skip_sort_order": []
+          },
+          {
+            "prepare_sum_aggregators": {
+              "function": "min(t1.d)",
+              "type of aggregator": "simple"
+            }
           }
         ]
       }
@@ -1708,6 +1714,18 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
           },
           {
             "test_if_skip_sort_order": []
+          },
+          {
+            "prepare_sum_aggregators": {
+              "function": "min(t1.a)",
+              "type of aggregator": "simple"
+            }
+          },
+          {
+            "prepare_sum_aggregators": {
+              "function": "max(t1.a)",
+              "type of aggregator": "simple"
+            }
           }
         ]
       }

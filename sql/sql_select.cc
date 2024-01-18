@@ -290,8 +290,6 @@ static void update_tmptable_sum_func(Item_sum **func,TABLE *tmp_table);
 static void copy_sum_funcs(Item_sum **func_ptr, Item_sum **end);
 static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab);
 static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr);
-static bool prepare_sum_aggregators(THD *thd, Item_sum **func_ptr,
-                                    bool need_distinct);
 static bool init_sum_functions(Item_sum **func, Item_sum **end);
 static bool update_sum_func(Item_sum **func);
 static void select_describe(JOIN *join, bool need_tmp_table,bool need_order,
@@ -4197,7 +4195,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     if (make_sum_func_list(all_fields, fields_list, true))
       goto err;
     if (prepare_sum_aggregators(thd, sum_funcs,
-                                !(tables_list && 
+                                !(tables_list &&
                                   join_tab->is_using_agg_loose_index_scan())))
       goto err;
     if (setup_sum_funcs(thd, sum_funcs))
@@ -27147,15 +27145,48 @@ static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr)
 }
 
 
-static bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
+bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
                                     bool need_distinct)
 {
   Item_sum *func;
   DBUG_ENTER("prepare_sum_aggregators");
   while ((func= *(func_ptr++)))
   {
+    bool need_distinct_aggregator= need_distinct && func->has_with_distinct();
+    if (need_distinct_aggregator && table_count - const_tables == 1)
+    {
+      /*
+        Check if we can optimize aggregation and avoid de-duplication
+        of values. If there is:
+        - only one table involved in the join
+        - some arguments of the aggregate function are fields
+          (not functions or subqueries)
+        - there is a unique index on those fields,
+        then the values retrieved are guaranteed to be unique, so there's
+        no need to do the de-duplication, and we can employ SIMPLE_AGGREGATOR
+      */
+      List<Item> arg_fields;
+      for (uint i= 0; i < func->argument_count(); i++)
+        if (func->arguments()[i]->type() == Item::FIELD_ITEM)
+          arg_fields.push_back(func->arguments()[i]);
+
+      // Handle the case SELECT AGGR_FN(DISTINCT a) FROM t1 GROUP BY b, c;
+      for (ORDER *group= group_list; group ; group= group->next)
+        if ((*group->item)->type() == Item::FIELD_ITEM)
+          arg_fields.push_back(*group->item);
+
+      if (list_contains_unique_index(join_tab[const_tables].table,
+                                     find_field_in_item_list,
+                                     (void *) &arg_fields))
+        need_distinct_aggregator= false;
+    }
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_aggr(thd, "prepare_sum_aggregators");
+    trace_aggr.add("function", func);
+    trace_aggr.add("type of aggregator",
+                   need_distinct_aggregator ? "distinct" : "simple");
     if (func->set_aggregator(thd,
-                             need_distinct && func->has_with_distinct() ?
+                             need_distinct_aggregator ?
                              Aggregator::DISTINCT_AGGREGATOR :
                              Aggregator::SIMPLE_AGGREGATOR))
       DBUG_RETURN(TRUE);

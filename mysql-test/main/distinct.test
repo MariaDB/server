@@ -928,4 +928,4 @@ drop table t1;
 
 --echo #
 --echo # end of 10.5 tests
---echo #
+
