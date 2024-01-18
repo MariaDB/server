@@ -7127,6 +7127,19 @@ dbug_gtid_accept:
       rli->ign_gtids.remove_if_present(&event_gtid);
     if (save_buf != NULL)
       buf= save_buf;
+
+    DBUG_EXECUTE_IF("pause_io_thread_after_queueing_insertion_event", {
+      if (((uchar) buf[EVENT_TYPE_OFFSET] == QUERY_EVENT ||
+           (uchar) buf[EVENT_TYPE_OFFSET] == WRITE_ROWS_EVENT ||
+           (uchar) buf[EVENT_TYPE_OFFSET] == WRITE_ROWS_EVENT_V1))
+      {
+        DBUG_ASSERT(!debug_sync_set_action(
+            mi->io_thd,
+            STRING_WITH_LEN("now SIGNAL io_thread_queued_insertion_event "
+                            "WAIT_FOR continue_io_thread")));
+        DBUG_SET("-d,pause_io_thread_after_queueing_insertion_event");
+      }
+    });
   }
   mysql_mutex_unlock(log_lock);
 

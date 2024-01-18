@@ -58,4 +58,46 @@ SET GLOBAL BINLOG_CHECKSUM=@old_binlog_checksum;
 DROP TABLE t1;
 --sync_slave_with_master
 SET GLOBAL BINLOG_CHECKSUM=@old_binlog_checksum;
+
+
+--echo #
+--echo # MDEV-33268: IO Thread Can Write Gtid_list_log_event Mid-transaction
+--echo #             into Relay Log
+--connection master
+create table t33268 (a int);
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2), MASTER_USE_GTID=Slave_Pos;
+set @old_dbug= @@GLOBAL.debug_dbug;
+set @@GLOBAL.debug_dbug= "+d,pause_io_thread_after_queueing_insertion_event";
+START SLAVE IO_THREAD;
+START SLAVE SQL_THREAD;
+
+--connection master
+set statement gtid_domain_id=2 for insert into t33268 values (1);
+insert into t33268 values (2);
+
+--connection slave
+--echo # Waiting for debug_sync io_thread_queued_insertion_event signal..
+set debug_sync="now wait_for io_thread_queued_insertion_event";
+
+--connection slave1
+--send stop slave io_thread;
+
+--connection slave
+--echo # Wait for stop slave to be recognized
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE '%Killing slave%';
+--source include/wait_condition.inc
+
+--connection slave
+set debug_sync="now signal continue_io_thread";
+
+--connection slave1
+--reap
+
+--connection slave
+--source include/stop_slave_sql.inc
+
 --source include/rpl_end.inc
