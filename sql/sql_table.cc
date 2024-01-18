@@ -2582,51 +2582,35 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
   return 0;
 }
 
-#define LONG_HASH_FIELD_NAME_LENGTH 30
-static inline void make_long_hash_field_name(LEX_CSTRING *buf, uint num)
+#define INTERNAL_FIELD_NAME_LENGTH  30
+
+static Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
+                                          List<Create_field> *create_list)
 {
-  buf->length= my_snprintf((char *)buf->str,
-          LONG_HASH_FIELD_NAME_LENGTH, "DB_ROW_HASH_%u", num);
+  char buf[INTERNAL_FIELD_NAME_LENGTH]= {0};
+  LEX_CSTRING name= { buf, 0 };
+  bool dup_found= true;
+  for (uint num= 1; dup_found; num++)
+  {
+    name.length= my_snprintf(buf, sizeof(buf), "%s%u", prefix, num);
+    for (auto &dup_field : *create_list)
+      if ((dup_found= dup_field.field_name.streq(name)))
+        break;
+  }
+  return Lex_ident_column(thd->strmake_lex_cstring(name));
 }
 
-/**
-  Add fully invisible hash field to table in case of long
-  unique column
-  @param  thd           Thread Context.
-  @param  create_list   List of table fields.
-  @param  key_info      current long unique key info
-*/
-static Create_field *add_hash_field(THD *thd, List<Create_field> *create_list,
-                                    KEY *key_info)
+static Create_field *add_internal_field(THD *thd, Type_handler *type_handler,
+                                        uint flags, const char *prefix,
+                                        List<Create_field> *create_list)
 {
-  List_iterator<Create_field> it(*create_list);
-  Create_field *dup_field, *cf= new (thd->mem_root) Create_field();
-  cf->flags|= UNSIGNED_FLAG | LONG_UNIQUE_HASH_FIELD;
-  cf->decimals= 0;
-  cf->length= cf->char_length= cf->pack_length= HA_HASH_FIELD_LENGTH;
+  class Column_derived_attributes dat(&my_charset_bin);
+  Create_field *cf= new (thd->mem_root) Create_field();
+  cf->flags|= flags | NOT_NULL_FLAG;
   cf->invisible= INVISIBLE_FULL;
-  cf->pack_flag|= FIELDFLAG_MAYBE_NULL;
-  cf->vcol_info= new (thd->mem_root) Virtual_column_info();
-  cf->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
-  uint num= 1;
-  Lex_ident_column field_name;
-  field_name.str= (char *)thd->alloc(LONG_HASH_FIELD_NAME_LENGTH);
-  make_long_hash_field_name(&field_name, num);
-  /*
-    Check for collisions
-   */
-  while ((dup_field= it++))
-  {
-    if (dup_field->field_name.streq(field_name))
-    {
-      num++;
-      make_long_hash_field_name(&field_name, num);
-      it.rewind();
-    }
-  }
-  cf->field_name= Lex_ident_column(field_name);
-  cf->set_handler(&type_handler_slonglong);
-  key_info->algorithm= HA_KEY_ALG_LONG_HASH;
+  cf->field_name= make_internal_field_name(thd, prefix, create_list);
+  cf->set_handler(type_handler);
+  cf->prepare_stage1(thd, thd->mem_root, COLUMN_DEFINITION_TABLE_FIELD, &dat);
   create_list->push_back(cf,thd->mem_root);
   return cf;
 }
@@ -3523,19 +3507,24 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
          !(file->ha_table_flags() & HA_CAN_HASH_KEYS ) &&
          file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS))
     {
-      Create_field *hash_fld= add_hash_field(thd, &alter_info->create_list,
-                                             key_info);
+      Create_field *hash_fld=
+        add_internal_field(thd, &type_handler_ulonglong,
+                           UNSIGNED_FLAG | LONG_UNIQUE_HASH_FIELD,
+                           "DB_ROW_HASH_", &alter_info->create_list);
       if (!hash_fld)
         DBUG_RETURN(TRUE);
+      key_info->algorithm= HA_KEY_ALG_LONG_HASH;
       hash_fld->offset= record_offset;
       hash_fld->charset= create_info->default_table_charset;
+      hash_fld->vcol_info= new (thd->mem_root) Virtual_column_info();
+      hash_fld->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
+      DBUG_ASSERT(hash_fld->pack_length == HA_HASH_FIELD_LENGTH);
       record_offset+= hash_fld->pack_length;
       if (key_info->flags & HA_NULL_PART_KEY)
-        null_fields++;
-      else
       {
-        hash_fld->flags|= NOT_NULL_FLAG;
-        hash_fld->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
+        null_fields++;
+        hash_fld->flags&= ~NOT_NULL_FLAG;
+        hash_fld->pack_flag|= FIELDFLAG_MAYBE_NULL;
       }
     }
     if (validate_comment_length(thd, &key->key_create_info.comment,
