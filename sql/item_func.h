@@ -3447,8 +3447,8 @@ public:
   String *str_result(String *str) override;
   my_decimal *val_decimal_result(my_decimal *) override;
   bool is_null_result() override;
-  bool update_hash(void *ptr, size_t length, enum Item_result type,
-                   CHARSET_INFO *cs, bool unsigned_arg);
+  bool update_hash(void *ptr, size_t length, const Type_handler *th,
+                   CHARSET_INFO *cs);
   bool send(Protocol *protocol, st_value *buffer) override;
   void make_send_field(THD *thd, Send_field *tmp_field) override;
   bool check(bool use_result_field);
@@ -4295,7 +4295,6 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
 extern bool volatile  mqh_used;
 
 bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-                 Item_result type, CHARSET_INFO *cs,
-                 bool unsigned_arg);
+                 const Type_handler *th, CHARSET_INFO *cs);
 
 #endif /* ITEM_FUNC_INCLUDED */

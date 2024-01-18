@@ -421,7 +421,7 @@ void purge_sys_t::rseg_enable(trx_rseg_t &rseg)
     /* If innodb_undo_tablespaces>0, the rollback segment 0
     (which always resides in the system tablespace) will
     never be used; @see trx_assign_rseg_low() */
-    if (!(skipped%= TRX_SYS_N_RSEGS) && srv_undo_tablespaces)
+    if (!(skipped&= (TRX_SYS_N_RSEGS - 1)) && srv_undo_tablespaces)
       skipped++;
     skipped_rseg= skipped;
   }
