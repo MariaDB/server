@@ -2208,6 +2208,11 @@ public:
   virtual bool view_used_tables_processor(void *arg) { return 0; }
   virtual bool eval_not_null_tables(void *arg) { return 0; }
   virtual bool is_subquery_processor(void *arg) { return 0; }
+  virtual bool with_subquery_processor(void *arg)
+  {
+    with_flags= with_flags & ~item_with_t::SUBQUERY;
+    return 0;
+  }
   virtual bool count_sargable_conds(void *arg) { return 0; }
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
@@ -5483,6 +5488,19 @@ public:
     if (walk_args(processor, walk_subquery, arg))
       return true;
     return (this->*processor)(arg);
+  }
+  bool with_subquery_processor (void *opt_arg) override
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->with_subquery())
+      {
+        with_flags|= item_with_t::SUBQUERY;
+        return FALSE;
+      }
+    }
+    with_flags&= ~item_with_t::SUBQUERY;
+    return FALSE;
   }
   /*
     Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema

@@ -17992,6 +17992,7 @@ static COND *build_equal_items(JOIN *join, COND *cond,
   {
     cond= cond->build_equal_items(thd, inherited, link_equal_fields,
                                   cond_equal_ref);
+    cond->walk(&Item::with_subquery_processor, 1, 0);
     if (*cond_equal_ref)
     {
       (*cond_equal_ref)->upper_levels= inherited;

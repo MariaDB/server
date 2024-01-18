@@ -265,6 +265,11 @@ public:
   bool expr_cache_is_needed(THD *) override;
   void get_cache_parameters(List<Item> &parameters) override;
   bool is_subquery_processor (void *opt_arg) override { return 1; }
+  bool with_subquery_processor (void *opt_arg) override
+  {
+    with_flags|= item_with_t::SUBQUERY;
+    return FALSE;
+  }
   bool exists2in_processor(void *opt_arg) override { return 0; }
   bool limit_index_condition_pushdown_processor(void *opt_arg) override
   {
