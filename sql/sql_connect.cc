@@ -779,6 +779,10 @@ void update_global_user_stats(THD *thd, bool create_user, time_t now)
 bool thd_init_client_charset(THD *thd, uint cs_number)
 {
   CHARSET_INFO *cs;
+
+  // Test a non-default collation ID. See also comments in this function below.
+  DBUG_EXECUTE_IF("thd_init_client_charset_utf8mb3_bin", cs_number= 83;);
+
   /*
    Use server character set and collation if
    - opt_character_set_client_handshake is not set
@@ -801,9 +805,25 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
                cs->cs_name.str);
       return true;
     }
-    Sql_used used;
-    cs= global_system_variables.character_set_collations.
-          get_collation_for_charset(&used, cs);
+    /*
+      Some connectors (e.g. JDBC, Node.js) can send non-default collation IDs
+      in the handshake packet, to set @@collation_connection right during
+      handshake. Although this is a non-documenting feature,
+      for better backward compatibility with such connectors let's:
+      a. resolve only default collations according to @@character_set_collations
+      b. preserve non-default collations as is
+
+      Perhaps eventually we should change (b) also to resolve non-default
+      collations accoding to @@character_set_collations. Clients that used to
+      send a non-default collation ID in the handshake packet will have to set
+      @@character_set_collations instead.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+    {
+      Sql_used used;
+      cs= global_system_variables.character_set_collations.
+            get_collation_for_charset(&used, cs);
+    }
     thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
   }
