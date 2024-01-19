@@ -1189,6 +1189,11 @@ public:
     return count;
   }
 
+  /** Disable further allocation of transactions in a rollback segment
+  that are subject to innodb_undo_log_truncate=ON
+  @param space   undo tablespace that will be truncated */
+  inline void undo_truncate_start(fil_space_t &space);
+
 private:
   static my_bool find_same_or_older_callback(rw_trx_hash_element_t *element,
                                              trx_id_t *id)
