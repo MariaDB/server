@@ -2685,7 +2685,12 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
                    "Rotate_event (out of memory?),"
                    " SHOW SLAVE STATUS may be inaccurate");
     }
-    if (rli->ign_gtids.count())
+    if (mi->events_queued_since_last_gtid)
+    {
+      fprintf(stderr, "\n\tFound queued events, writing incident event\n");
+      rli->relay_log.write_incident_already_locked(mi->io_thd);
+    }
+    else if (rli->ign_gtids.count())
     {
       DBUG_ASSERT(!rli->is_in_group());         // Ensure no active transaction
       glev= new Gtid_list_log_event(&rli->ign_gtids,
@@ -2697,6 +2702,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
                    "Gtid_list_event (out of memory?),"
                    " gtid_slave_pos may be inaccurate");
     }
+
 
     /* Can unlock before writing as slave SQL thd will soon see our event. */
     mysql_mutex_unlock(log_lock);
