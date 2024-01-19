@@ -7177,9 +7177,6 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         table->field[12]->store(pos, strlen(pos), cs);
         if (!show_table->s->keys_in_use.is_set(i))
           table->field[14]->store(STRING_WITH_LEN("disabled"), cs);
-        else
-          table->field[14]->store("", 0, cs);
-        table->field[14]->set_notnull();
         DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                    (key_info->comment.length > 0));
         if (key_info->flags & HA_USES_COMMENT)
@@ -9763,7 +9760,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
   Column("NULLABLE",      Varchar(3),  NOT_NULL, "Null",        OPEN_FRM_ONLY),
   Column("INDEX_TYPE",    Varchar(16), NOT_NULL, "Index_type",  OPEN_FULL_TABLE),
-  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
+  Column("COMMENT",       Varchar(16), NOT_NULL, "Comment",     OPEN_FRM_ONLY),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
   Column("IGNORED",      Varchar(3),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
