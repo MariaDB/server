@@ -3454,7 +3454,7 @@ static void write_io_callback(void *c)
 
   if (UNIV_UNLIKELY(cb->m_err != 0))
     ib::info () << "IO Error: " << cb->m_err
-                << "during write of "
+                << " during write of "
                 << cb->m_len << " bytes, for file "
                 << request.node->name << "(" << cb->m_fh << "), returned "
                 << cb->m_ret_len;
