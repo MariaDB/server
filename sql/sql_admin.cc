@@ -776,7 +776,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
       if (table->table->s->tmp_table)
-        thd->close_unused_temporary_table_instances(tables);
+        thd->close_unused_temporary_table_instances(table);
       else
       {
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))

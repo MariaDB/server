@@ -467,12 +467,12 @@ enum json_num_states {
 
 static int json_num_states[NS_NUM_STATES][N_NUM_CLASSES]=
 {
-/*         -        +       0        1..9    POINT    E       END_OK   ERROR */
+/*         -        +       0         1..9    POINT    E       END_OK   ERROR */
 /*OK*/   { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR },
 /*GO*/   { NS_GO1,  JE_SYN, NS_Z,     NS_INT, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR },
 /*GO1*/  { JE_SYN,  JE_SYN, NS_Z1,    NS_INT, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR },
-/*ZERO*/ { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, NS_FRAC, JE_SYN, NS_OK,  JE_BAD_CHR },
-/*ZE1*/  { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, NS_FRAC, JE_SYN, NS_OK,  JE_BAD_CHR },
+/*ZERO*/ { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, NS_FRAC, NS_EX,  NS_OK,  JE_BAD_CHR },
+/*ZE1*/  { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, NS_FRAC, NS_EX,  NS_OK,  JE_BAD_CHR },
 /*INT*/  { JE_SYN,  JE_SYN, NS_INT,   NS_INT, NS_FRAC, NS_EX,  NS_OK,  JE_BAD_CHR },
 /*FRAC*/ { JE_SYN,  JE_SYN, NS_FRAC,  NS_FRAC,JE_SYN,  NS_EX,  NS_OK,  JE_BAD_CHR },
 /*EX*/   { NS_EX,   NS_EX,  NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR }, 

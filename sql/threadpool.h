@@ -64,9 +64,6 @@ extern int tp_get_thread_count();
 /* Activate threadpool scheduler */
 extern void tp_scheduler(void);
 
-extern int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
-                                        enum enum_var_type scope);
-
 enum  TP_PRIORITY {
   TP_PRIORITY_HIGH,
   TP_PRIORITY_LOW,

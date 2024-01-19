@@ -70,24 +70,15 @@ PageBulk::init()
 		alloc_mtr.start();
 		m_index->set_modified(alloc_mtr);
 
-		ulint	n_reserved;
-		bool	success;
-		success = fsp_reserve_free_extents(&n_reserved,
-						   m_index->table->space,
-						   1, FSP_NORMAL, &alloc_mtr);
-		if (!success) {
-			alloc_mtr.commit();
-			m_mtr.commit();
-			return(DB_OUT_OF_FILE_SPACE);
-		}
-
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
 					   &alloc_mtr, &m_mtr);
 
-		m_index->table->space->release_free_extents(n_reserved);
-
 		alloc_mtr.commit();
+		if (!new_block) {
+			m_mtr.commit();
+			return DB_OUT_OF_FILE_SPACE;
+		}
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);

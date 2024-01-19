@@ -1967,4 +1967,50 @@ SELECT * FROM t1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-31657: CTE with the same name as base table used twice
+--echo #             in another CTE
+--echo #
+
+create table t (a int);
+insert into t values (3), (7), (1);
+
+let $q1=
+with
+t as (select * from t),
+cte as (select t1.a as t1a, t2.a as t2a from t as t1, t as t2 where t1.a=t2.a)
+select * from cte;
+
+eval $q1;
+
+create table s (a int);
+insert into s values (1), (4), (7);
+
+let $q2=
+with
+t as (select * from t),
+s as (select a-1 as a from s),
+cte as (select t.a as ta, s.a as sa from t, s where t.a=s.a
+        union
+        select t.a+1, s.a+1 from t, s where t.a=s.a+1)
+select * from cte;
+
+eval $q2;
+
+let $q3=
+with
+t as (select * from t),
+cte as (select t.a as ta, s.a as sa from t, s where t.a=s.a
+        union
+        select t.a+1, s.a+1 from t, s where t.a=s.a),
+s as (select a+10 as a from s)
+select * from cte;
+
+eval $q3;
+
+drop table t,s;
+
+--ERROR ER_NO_SUCH_TABLE
+eval $q1;
+
 --echo # End of 10.4 tests
