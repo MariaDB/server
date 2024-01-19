@@ -11203,7 +11203,16 @@ ha_innobase::commit_inplace_alter_table(
 			fts_optimize_remove_table(ctx->old_table);
 		}
 
-		error = lock_table_children(ctx->old_table, trx);
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (auto f : ctx->old_table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
 
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);

@@ -1316,14 +1316,14 @@ class dict_sys_t
   /** The my_hrtime_coarse().val of the oldest lock_wait() start, or 0 */
   std::atomic<ulonglong> latch_ex_wait_start;
 
-#ifdef UNIV_DEBUG
-  typedef index_lock dict_lock;
-#else
-  typedef srw_lock dict_lock;
-#endif
-
   /** the rw-latch protecting the data dictionary cache */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) dict_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
+#ifdef UNIV_DEBUG
+  /** whether latch is being held in exclusive mode (by any thread) */
+  Atomic_relaxed<pthread_t> latch_ex;
+  /** number of S-latch holders */
+  Atomic_counter<uint32_t> latch_readers;
+#endif
 public:
   /** Indexes of SYS_TABLE[] */
   enum
@@ -1491,12 +1491,15 @@ public:
   }
 
 #ifdef UNIV_DEBUG
-  /** @return whether the current thread is holding the latch */
-  bool frozen() const { return latch.have_any(); }
-  /** @return whether the current thread is holding a shared latch */
-  bool frozen_not_locked() const { return latch.have_s(); }
+  /** @return whether any thread (not necessarily the current thread)
+  is holding the latch; that is, this check may return false
+  positives */
+  bool frozen() const { return latch_readers || latch_ex; }
+  /** @return whether any thread (not necessarily the current thread)
+  is holding a shared latch */
+  bool frozen_not_locked() const { return latch_readers; }
   /** @return whether the current thread holds the exclusive latch */
-  bool locked() const { return latch.have_x(); }
+  bool locked() const { return latch_ex == pthread_self(); }
 #endif
 private:
   /** Acquire the exclusive latch */
@@ -1511,12 +1514,13 @@ public:
   /** Exclusively lock the dictionary cache. */
   void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
   {
-#ifdef UNIV_DEBUG
-    ut_ad(!latch.have_any());
-    if (!latch.x_lock_try())
-#else
-    if (!latch.wr_lock_try())
-#endif
+    if (latch.wr_lock_try())
+    {
+      ut_ad(!latch_readers);
+      ut_ad(!latch_ex);
+      ut_d(latch_ex= pthread_self());
+    }
+    else
       lock_wait(SRW_LOCK_ARGS(file, line));
   }
 
@@ -1531,30 +1535,24 @@ public:
   /** Unlock the data dictionary cache. */
   void unlock()
   {
-# ifdef UNIV_DEBUG
-    latch.x_unlock();
-# else
+    ut_ad(latch_ex == pthread_self());
+    ut_ad(!latch_readers);
+    ut_d(latch_ex= 0);
     latch.wr_unlock();
-# endif
   }
   /** Acquire a shared lock on the dictionary cache. */
   void freeze()
   {
-# ifdef UNIV_DEBUG
-    ut_ad(!latch.have_any());
-    latch.s_lock();
-# else
     latch.rd_lock();
-# endif
+    ut_ad(!latch_ex);
+    ut_d(latch_readers++);
   }
   /** Release a shared lock on the dictionary cache. */
   void unfreeze()
   {
-# ifdef UNIV_DEBUG
-    latch.s_unlock();
-# else
+    ut_ad(!latch_ex);
+    ut_ad(latch_readers--);
     latch.rd_unlock();
-# endif
   }
 #endif
 
