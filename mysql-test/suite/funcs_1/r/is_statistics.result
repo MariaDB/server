@@ -42,7 +42,7 @@ SUB_PART	bigint(3)	YES		NULL
 PACKED	varchar(10)	YES		NULL	
 NULLABLE	varchar(3)	NO		NULL	
 INDEX_TYPE	varchar(16)	NO		NULL	
-COMMENT	varchar(16)	YES		NULL	
+COMMENT	varchar(16)	NO		NULL	
 INDEX_COMMENT	varchar(1024)	NO		NULL	
 IGNORED	varchar(3)	NO		NULL	
 SHOW CREATE TABLE information_schema.STATISTICS;
@@ -62,7 +62,7 @@ STATISTICS	CREATE TEMPORARY TABLE `STATISTICS` (
   `PACKED` varchar(10),
   `NULLABLE` varchar(3) NOT NULL,
   `INDEX_TYPE` varchar(16) NOT NULL,
-  `COMMENT` varchar(16),
+  `COMMENT` varchar(16) NOT NULL,
   `INDEX_COMMENT` varchar(1024) NOT NULL,
   `IGNORED` varchar(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
@@ -82,7 +82,7 @@ SUB_PART	bigint(3)	YES		NULL
 PACKED	varchar(10)	YES		NULL	
 NULLABLE	varchar(3)	NO		NULL	
 INDEX_TYPE	varchar(16)	NO		NULL	
-COMMENT	varchar(16)	YES		NULL	
+COMMENT	varchar(16)	NO		NULL	
 INDEX_COMMENT	varchar(1024)	NO		NULL	
 IGNORED	varchar(3)	NO		NULL	
 SELECT table_catalog, table_schema, table_name, index_schema, index_name
