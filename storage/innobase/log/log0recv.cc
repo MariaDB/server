@@ -3871,16 +3871,20 @@ uint32_t recv_dblwr_t::find_first_page(const char *name, pfs_os_file_t file)
     for (const page_t *page : pages)
     {
       uint32_t space_id= page_get_space_id(page);
+      byte *read_page= nullptr;
       if (page_get_page_no(page) > 0 || space_id == 0)
+      {
 next_page:
+        aligned_free(read_page);
         continue;
+      }
       uint32_t flags= mach_read_from_4(
         FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
       page_id_t page_id(space_id, 0);
       size_t page_size= fil_space_t::physical_size(flags);
       if (file_size < 4 * page_size)
         goto next_page;
-      byte *read_page=
+      read_page=
         static_cast<byte*>(aligned_malloc(3 * page_size, page_size));
       /* Read 3 pages from the file and match the space id
       with the space id which is stored in
@@ -3892,7 +3896,10 @@ next_page:
       {
         byte *cur_page= read_page + j * page_size;
         if (buf_is_zeroes(span<const byte>(cur_page, page_size)))
-          return 0;
+        {
+          space_id= 0;
+          goto early_exit;
+        }
         if (mach_read_from_4(cur_page + FIL_PAGE_OFFSET) != j + 1 ||
             memcmp(cur_page + FIL_PAGE_SPACE_ID,
                    page + FIL_PAGE_SPACE_ID, 4) ||
@@ -3900,7 +3907,11 @@ next_page:
           goto next_page;
       }
       if (!restore_first_page(space_id, name, file))
+      {
+early_exit:
+        aligned_free(read_page);
         return space_id;
+      }
       break;
     }
   }
