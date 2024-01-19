@@ -5451,6 +5451,15 @@ static int init_server_components()
 #else
   locked_in_memory= 0;
 #endif
+#ifdef PR_SET_THP_DISABLE
+  /*
+    Engine page buffers are now allocated.
+    Disable transparent huge pages for all
+    future allocations as these causes memory
+    leaks.
+  */
+  prctl(PR_SET_THP_DISABLE, 1, 0, 0, 0);
+#endif
 
   ft_init_stopwords();
 
