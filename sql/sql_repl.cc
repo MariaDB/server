@@ -510,7 +510,7 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
   }
   else
   {
-    DBUG_ASSERT(entry->type == STRING_RESULT);
+    DBUG_ASSERT(entry->type_handler()->result_type() == STRING_RESULT);
     String str;
     uint dummy_errors;
     str.copy(entry->value, entry->length, &my_charset_bin, &my_charset_bin,

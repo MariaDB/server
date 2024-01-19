@@ -2049,7 +2049,7 @@ all_fail:
   ut_d(purge_sys.resume_FTS());
 }
 
-static void innodb_ddl_recovery_done(handlerton*)
+static int innodb_ddl_recovery_done(handlerton*)
 {
   ut_ad(!ddl_recovery_done);
   ut_d(ddl_recovery_done= true);
@@ -2060,6 +2060,7 @@ static void innodb_ddl_recovery_done(handlerton*)
       drop_garbage_tables_after_restore();
     srv_init_purge_tasks();
   }
+  return 0;
 }
 
 /********************************************************************//**
