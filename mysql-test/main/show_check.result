@@ -74,7 +74,7 @@ def	information_schema	STATISTICS	STATISTICS	SUB_PART	Sub_part	8	3	0	Y	36864	0	6
 def	information_schema	STATISTICS	STATISTICS	PACKED	Packed	253	10	0	Y	4096	0	8
 def	information_schema	STATISTICS	STATISTICS	NULLABLE	Null	253	3	0	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	INDEX_TYPE	Index_type	253	16	5	N	4097	0	8
-def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	Y	4096	0	8
+def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	INDEX_COMMENT	Index_comment	253	1024	0	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	IGNORED	Ignored	253	3	2	N	4097	0	8
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -660,7 +660,7 @@ def	information_schema	STATISTICS	STATISTICS	SUB_PART	Sub_part	8	3	4	Y	36864	0	6
 def	information_schema	STATISTICS	STATISTICS	PACKED	Packed	253	10	0	Y	4096	0	63
 def	information_schema	STATISTICS	STATISTICS	NULLABLE	Null	253	3	0	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_TYPE	Index_type	253	16	5	N	4097	0	63
-def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	Y	4096	0	63
+def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_COMMENT	Index_comment	253	1024	0	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	IGNORED	Ignored	253	3	2	N	4097	0	63
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -931,7 +931,7 @@ def	information_schema	STATISTICS	STATISTICS	SUB_PART	Sub_part	8	3	0	Y	36864	0	6
 def	information_schema	STATISTICS	STATISTICS	PACKED	Packed	253	30	0	Y	4096	0	33
 def	information_schema	STATISTICS	STATISTICS	NULLABLE	Null	253	9	0	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	INDEX_TYPE	Index_type	253	48	5	N	4097	0	33
-def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	48	0	Y	4096	0	33
+def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	48	0	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	INDEX_COMMENT	Index_comment	253	3072	0	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	IGNORED	Ignored	253	9	2	N	4097	0	33
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
