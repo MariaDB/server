@@ -60,6 +60,9 @@ DllExport ulonglong CharToNumber(PCSZ, int, ulonglong, bool,
                                  bool *minus = NULL, bool *rc = NULL);
 DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 
+/* Type for date and timestamps */
+typedef longlong dtval_timestamp_t;
+
 /***********************************************************************/
 /*  Class VALUE represents a constant or variable of any valid type.   */
 /***********************************************************************/
@@ -407,21 +410,24 @@ public:
 /***********************************************************************/
 /*  Class DTVAL: represents a time stamp value.                        */
 /***********************************************************************/
-class DllExport DTVAL : public TYPVAL<int> {
+
+class DllExport DTVAL : public TYPVAL<dtval_timestamp_t> {
  public:
   // Constructors
   DTVAL(PGLOBAL g, int n, int p, PCSZ fmt);
   DTVAL(int n);
-  using TYPVAL<int>::SetValue;
+  using TYPVAL<dtval_timestamp_t>::SetValue;
 
   // Implementation
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(const char *p, int n);
   virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual void   SetValue(int n);
+  virtual void   SetValue(dtval_timestamp_t n);
+  virtual void   SetBinValue(void* p);
+  virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual PSZ    GetCharValue(void) { return Sdate; }
-	virtual char  *GetCharString(char *p);
+  virtual char  *GetCharString(char *p);
   virtual int    ShowValue(char *buf, int len);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
           bool   SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);
@@ -438,7 +444,7 @@ class DllExport DTVAL : public TYPVAL<int> {
 
  protected:
   // Default constructor not to be used
-  DTVAL(void) : TYPVAL<int>() {}
+  DTVAL(void) : TYPVAL<dtval_timestamp_t>() {}
 
   // Members
   static int    Shift;        // Time zone shift in seconds
