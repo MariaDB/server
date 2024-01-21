@@ -3576,6 +3576,7 @@ public:
   uint64 seq_no;
   uint64 commit_id;
   uint32 domain_id;
+  // ToDo: Use MYSQL_XID here, don't use different class member type per #ifdef.
 #ifdef MYSQL_SERVER
   event_xid_t xid;
 #else

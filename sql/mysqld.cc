@@ -5169,7 +5169,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 
-  if (ha_recover(0))
+  if (ha_recover(0, 0))
   {
     unireg_abort(1);
   }

@@ -1,0 +1,47 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/not_valgrind.inc
+
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+XA START 'a';
+INSERT INTO t1 VALUES (1);
+XA END 'a';
+XA PREPARE 'a';
+XA COMMIT 'a';
+
+--connect(con1,localhost,root,,)
+XA START 'b';
+INSERT INTO t1 VALUES (2);
+XA END 'b';
+XA PREPARE 'b';
+
+--connection default
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+
+XA START 'c';
+INSERT INTO t1 VALUES (3);
+XA END 'c';
+XA PREPARE 'c';
+XA COMMIT 'c';
+
+--source include/restart_mysqld.inc
+
+PURGE BINARY LOGS TO 'master-bin.000003';
+SHOW BINARY LOGS;
+
+SELECT * FROM t1 ORDER BY a;
+XA COMMIT 'b';
+SELECT * FROM t1 ORDER BY a;
+
+SHOW BINLOG EVENTS IN 'master-bin.000001';
+SHOW BINLOG EVENTS IN 'master-bin.000002';
+SHOW BINLOG EVENTS IN 'master-bin.000003';
+
+PURGE BINARY LOGS TO 'master-bin.000003';
+SHOW BINARY LOGS;
+
+# Cleanup.
+
+DROP TABLE t1;

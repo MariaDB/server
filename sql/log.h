@@ -454,12 +454,14 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     /* This is the `all' parameter for ha_commit_ordered(). */
     bool all;
     /*
-      True if we need to increment xid_count in trx_group_commit_leader() and
+      1 if we need to increment int_xid_count in trx_group_commit_leader() and
       decrement in unlog() (this is needed if there is a participating engine
       that does not implement the commit_checkpoint_request() handlerton
       method).
     */
-    bool need_unlog;
+    uint int_xid_count;
+    /* 1 if this is an external XA prepare. */
+    uint ext_xid_count;
     /*
       Fields used to pass the necessary information to the last thread in a
       group commit, only used when opt_optimize_thread_scheduling is not set.
@@ -480,6 +482,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     XID xid;
     ulong binlog_id;
     /* ToDo: Is binlog_id enough, to find the filename ? */
+    /* ToDo: Or maybe just have a pointer to the filename in binlog_xid_count_list, that list keeps entries around for checkpoints as long as they are needed. */
     char binlog_file[FN_REFLEN];
     size_t binlog_offset;
   };
@@ -596,13 +599,18 @@ public:
     char *binlog_name;
     uint binlog_name_len;
     ulong binlog_id;
-    /* Total prepared XIDs and pending checkpoint requests in this binlog. */
-    long xid_count;
+    /*
+      Total prepared internal XIDs and pending checkpoint requests in this
+      binlog.
+    */
+    long int_xid_count;
+    /* Total prepared external XID in this binlog. */
+    long ext_xid_count;
     long notify_count;
     /* For linking in requests to the binlog background thread. */
     xid_count_per_binlog *next_in_queue;
     xid_count_per_binlog(char *log_file_name, uint log_file_name_len)
-      :binlog_id(0), xid_count(0), notify_count(0)
+      :binlog_id(0), int_xid_count(0), ext_xid_count(0), notify_count(0)
     {
       binlog_name_len= log_file_name_len;
       binlog_name= (char *) my_malloc(PSI_INSTRUMENT_ME, binlog_name_len, MYF(MY_ZEROFILL));
@@ -727,8 +735,14 @@ public:
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
   void commit_checkpoint_notify(void *cookie);
+  int recover_update_xa_xid(MEM_ROOT *mem_root, HASH *xa_xids, MYSQL_XID *xid,
+                            xid_count_per_binlog *binlog_entry,
+                            my_off_t binlog_offset,
+                            bool first_round, bool is_commit);
+  int recover_xa_prepared_xids(HASH *xa_xids);
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
-              Format_description_log_event *fdle, bool do_xa);
+              Format_description_log_event *orig_fdle,
+              bool do_int_xa, bool do_ext_xa);
   int do_binlog_recovery(const char *opt_name, bool do_xa_recovery);
 #if !defined(MYSQL_CLIENT)
 
@@ -845,12 +859,14 @@ public:
   bool append(Log_event* ev);
   bool append_no_lock(Log_event* ev);
 
-  void mark_xids_active(ulong cookie, uint xid_count);
-  void mark_xid_done(ulong cookie, bool write_checkpoint);
+  void mark_xids_active(ulong cookie, uint int_xid_count, uint ext_xid_count);
+  void mark_xid_done(ulong cookie, uint int_xid_count, uint ext_xid_count,
+                     bool write_checkpoint);
   int insert_prepared_xid(XID *xid, size_t binlog_offset);
   int binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid);
   int read_xa_to_trx_cache(THD *thd, xa_prepared *prepared_trx,
                            binlog_cache_mngr *cache_mngr);
+  void ext_xa_complete_commit(XID *xid);
   void make_log_name(char* buf, const char* log_ident);
   bool is_active(const char* log_file_name);
   bool can_purge_log(const char *log_file_name);

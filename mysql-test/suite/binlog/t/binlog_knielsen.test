@@ -1,0 +1,43 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (2, 0);
+
+XA START 'a';
+INSERT INTO t1 VALUES (1, 0);
+XA END 'a';
+XA PREPARE 'a';
+XA COMMIT 'a';
+
+SHOW BINLOG EVENTS;
+
+--connect(con1,localhost,root,,)
+XA START 'b';
+UPDATE t1 SET b=2 WHERE a=2;
+XA END 'b';
+XA PREPARE 'b';
+SHOW BINLOG EVENTS;
+--disconnect con1
+--sleep 0.1
+
+--connection default
+SHOW BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+SHOW BINARY LOGS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+eval PURGE BINARY LOGS TO '$file';
+SHOW BINARY LOGS;
+RESET MASTER;
+
+XA COMMIT 'b';
+
+SHOW BINLOG EVENTS;
+
+eval PURGE BINARY LOGS TO '$file';
+SHOW BINARY LOGS;
+
+DROP TABLE t1;

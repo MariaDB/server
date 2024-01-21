@@ -939,6 +939,12 @@ struct xid_t {
 };
 typedef struct xid_t XID;
 
+struct xid_with_status : public xid_t
+{
+  bool committed;  // Else in prepared state
+  xid_with_status() = default;
+};
+
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
 #define MAX_XID_LIST_SIZE  (1024*128)
@@ -5177,7 +5183,7 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
-int ha_recover(HASH *commit_list);
+int ha_recover(HASH *commit_list, HASH *ext_xa_list);
 
 /* transactions: these functions never call handlerton functions directly */
 int ha_enable_transaction(THD *thd, bool on);
