@@ -14,29 +14,29 @@ show binlog events in <file> from  <pos>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 0
-master-bin.000001	#	Table_map	1	#	table_id: 4294967294 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967294 flags: STMT_END_F
+master-bin.000001	#	Table_map	1	#	table_id: 281474976710654 (test.t)
+master-bin.000001	#	Write_rows_v1	1	#	table_id: 281474976710654 flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	GTID #-#-#
 master-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t comment ''
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 1
-master-bin.000001	#	Table_map	1	#	table_id: 4294967295 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967295 flags: STMT_END_F
+master-bin.000001	#	Table_map	1	#	table_id: 281474976710655 (test.t)
+master-bin.000001	#	Write_rows_v1	1	#	table_id: 281474976710655 flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	GTID #-#-#
 master-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t comment ''
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 2
-master-bin.000001	#	Table_map	1	#	table_id: 4294967296 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967296 flags: STMT_END_F
+master-bin.000001	#	Table_map	1	#	table_id: 1 (test.t)
+master-bin.000001	#	Write_rows_v1	1	#	table_id: 1 flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	GTID #-#-#
 master-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t comment ''
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 3
-master-bin.000001	#	Table_map	1	#	table_id: 4294967297 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967297 flags: STMT_END_F
+master-bin.000001	#	Table_map	1	#	table_id: 2 (test.t)
+master-bin.000001	#	Write_rows_v1	1	#	table_id: 2 flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 connection slave;
 connection master;

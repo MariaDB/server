@@ -3311,7 +3311,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   }
   else
   {
-    m_table_id= (ulong) uint6korr(post_start);
+    m_table_id= (ulonglong) uint6korr(post_start);
     post_start+= RW_FLAGS_OFFSET;
   }
 
@@ -3668,11 +3668,12 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   else
   {
     DBUG_ASSERT(post_header_len == TABLE_MAP_HEADER_LEN);
-    m_table_id= (ulong) uint6korr(post_start);
+    m_table_id= (ulonglong) uint6korr(post_start);
     post_start+= TM_FLAGS_OFFSET;
   }
 
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT((m_table_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
+              (m_table_id & MAX_TABLE_MAP_ID) != 0);
 
   m_flags= uint2korr(post_start);
 

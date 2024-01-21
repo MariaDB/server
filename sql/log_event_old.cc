@@ -47,12 +47,12 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
   const Relay_log_info *rli= rgi->rli;
 
   /*
-    If m_table_id == ~0UL, then we have a dummy event that does not
+    If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
     tables_to_lock list, close the thread tables, and return with
     success.
    */
-  if (ev->m_table_id == ~0UL)
+  if (ev->m_table_id == UINT32_MAX)
   {
     /*
        This one is supposed to be set: just an extra check so that
@@ -1123,13 +1123,14 @@ int Update_rows_log_event_old::do_exec_row(TABLE *table)
 **************************************************************************/
 
 #ifndef MYSQL_CLIENT
-Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
+Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
+                                       ulong table_id,
                                        MY_BITMAP const *cols,
                                        bool is_transactional)
   : Log_event(thd_arg, 0, is_transactional),
     m_row_count(0),
     m_table(tbl_arg),
-    m_table_id(tid),
+    m_table_id(table_id),
     m_width(tbl_arg ? tbl_arg->s->fields : 1),
     m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0) 
 #ifdef HAVE_REPLICATION
@@ -1142,12 +1143,13 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
 
   /*
     We allow a special form of dummy event when the table, and cols
-    are null and the table id is ~0UL.  This is a temporary
+    are null and the table id is UINT_MAXINT.  This is a temporary
     solution, to be able to terminate a started statement in the
     binary log: the extraneous events will be removed in the future.
    */
-  DBUG_ASSERT((tbl_arg && tbl_arg->s && tid != ~0UL) ||
-              (!tbl_arg && !cols && tid == ~0UL));
+  DBUG_ASSERT((tbl_arg && tbl_arg->s &&
+               (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
+              (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
 
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
       set_flags(NO_FOREIGN_KEY_CHECKS_F);
@@ -1209,7 +1211,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
   }
   else
   {
-    m_table_id= (ulong) uint6korr(post_start);
+    m_table_id= (ulonglong) uint6korr(post_start);
     post_start+= RW_FLAGS_OFFSET;
   }
 
@@ -1364,12 +1366,12 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
   Relay_log_info const *rli= rgi->rli;
 
   /*
-    If m_table_id == ~0UL, then we have a dummy event that does not
+    If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
     tables_to_lock list, close the thread tables, and return with
     success.
    */
-  if (m_table_id == ~0UL)
+  if (m_table_id == UINT32_MAX)
   {
     /*
        This one is supposed to be set: just an extra check so that
@@ -1786,7 +1788,7 @@ bool Old_rows_log_event::write_data_header()
   // This method should not be reached.
   assert(0);
 
-  DBUG_ASSERT(m_table_id != ~0UL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
                     int4store(buf + 0, m_table_id);
