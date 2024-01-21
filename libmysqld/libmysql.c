@@ -3229,7 +3229,8 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   {
     longlong data= my_strtoll10(value, &endptr, &err);
     *param->error= (IS_TRUNCATED(data, param->is_unsigned,
-                                 INT_MIN32, INT_MAX32, UINT_MAX32) || err > 0);
+                                 (longlong) INT_MIN32, (longlong) INT_MAX32,
+                                 (longlong) UINT_MAX32) || err > 0);
     longstore(buffer, (int32) data);
     break;
   }
@@ -3346,7 +3347,8 @@ static void fetch_long_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
     break;
   case MYSQL_TYPE_LONG:
     *param->error= IS_TRUNCATED(value, param->is_unsigned,
-                                INT_MIN32, INT_MAX32, UINT_MAX32);
+                                (longlong) INT_MIN32, (longlong) INT_MAX32,
+                                (longlong) UINT_MAX32);
     longstore(buffer, (int32) value);
     break;
   case MYSQL_TYPE_LONGLONG:
