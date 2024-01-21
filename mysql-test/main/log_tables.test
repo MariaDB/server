@@ -1033,6 +1033,24 @@ use test;
 flush tables with read lock;
 unlock tables;
 
+--echo #
+--echo # MDEV-33267 User with minimal permissions can intentionally corrupt mysql.slow_log table
+--echo #
+truncate mysql.slow_log;
+set global log_output= 'TABLE';
+create user u@localhost;
+set slow_query_log=on, long_query_time=0.1;
+select 'before evil-doing', sleep(0.2);
+--connect (con1,localhost,u,,)
+set @@timestamp= 2147483647;
+set slow_query_log=on, long_query_time=0.1;
+select 'evil-doing', sleep(1.1);
+--disconnect con1
+--connection default
+select 'after evil-doing', sleep(0.2);
+select distinct sql_text from mysql.slow_log where sql_text like '%evil%';
+set global log_output=default;
+drop user u@localhost;
 
 SET @@global.log_output=       @old_log_output;
 SET @@global.slow_query_log=   @old_slow_query_log;
