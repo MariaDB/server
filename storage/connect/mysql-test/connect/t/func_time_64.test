@@ -1,0 +1,24 @@
+--source include/have_64bit_timestamp.inc
+
+let $MARIADB_DATADIR= `select @@datadir`;
+
+set @@time_zone="+00:00";
+create table t1 (c timestamp) ENGINE=Connect TABLE_TYPE=DOS FILE_NAME='func_time_64.dos';
+insert into t1 values (from_unixtime(power(2,31)-1));
+insert into t1 values (from_unixtime(power(2,32)-1));
+
+select c, unix_timestamp(c) from t1;
+
+drop table t1;
+--remove_file $MARIADB_DATADIR/test/func_time_64.dos
+
+create table t1 (d datetime, c timestamp) ENGINE=Connect TABLE_TYPE=BIN FILE_NAME='func_time_64.dos';
+insert into t1 (d,c) values (from_unixtime(power(2,31)-1), from_unixtime(power(2,31)-1));
+insert into t1 (d,c) values (from_unixtime(power(2,32)-1), from_unixtime(power(2,32)-1));
+insert ignore into t1 values ("1962-03-03","1962-03-03");
+
+select d, c, unix_timestamp(c) from t1;
+
+drop table t1;
+--remove_file $MARIADB_DATADIR/test/func_time_64.dos
+
