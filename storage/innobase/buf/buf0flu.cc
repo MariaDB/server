@@ -1798,7 +1798,7 @@ ulint buf_flush_LRU(ulint max_n, bool evict)
     pthread_cond_broadcast(&buf_pool.done_free);
   }
   else if (!pages && !buf_pool.try_LRU_scan &&
-           buf_pool.LRU_warned.test_and_set(std::memory_order_acquire))
+           !buf_pool.LRU_warned.test_and_set(std::memory_order_acquire))
   {
     /* For example, with the minimum innodb_buffer_pool_size=5M and
     the default innodb_page_size=16k there are only a little over 316
