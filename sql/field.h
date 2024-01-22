@@ -4038,6 +4038,8 @@ public:
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *,const uchar *) const override;
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
+    override;
   void sort_string(uchar *buff,uint length) override;
   void update_data_type_statistics(Data_type_statistics *st) const override
   {

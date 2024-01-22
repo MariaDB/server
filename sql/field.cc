@@ -7566,6 +7566,19 @@ int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
+int Field_string::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
+                             size_t prefix_char_len) const
+{
+  size_t field_len= table->field[field_index]->field_length;
+
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   a_ptr, field_len,
+                                                   b_ptr, field_len,
+                                                   prefix_char_len,
+                                                   0);
+}
+
+
 void Field_string::sort_string(uchar *to,uint length)
 {
 #ifdef DBUG_ASSERT_EXISTS

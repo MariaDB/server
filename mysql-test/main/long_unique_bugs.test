@@ -635,5 +635,13 @@ select * from t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-29954 Unique hash key on column prefix is computed incorrectly
+--echo #
+create table t1 (c char(10),unique key a using hash (c(1)));
+insert into t1 values (0);
+check table t1 extended;
+drop table t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

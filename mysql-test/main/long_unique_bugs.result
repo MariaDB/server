@@ -651,5 +651,14 @@ f1	f2	f3	f4	f5	f6	f7
 4	00004	0001009089999		netstes	psit	e
 drop table t1;
 #
+# MDEV-29954 Unique hash key on column prefix is computed incorrectly
+#
+create table t1 (c char(10),unique key a using hash (c(1)));
+insert into t1 values (0);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
 # End of 10.5 tests
 #
