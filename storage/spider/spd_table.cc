@@ -4913,7 +4913,7 @@ SPIDER_SHARE *spider_get_share(
     ((char *) lex_str.str)[lex_str.length] = '\0';
     DBUG_PRINT("info",("spider loop check param name=%s", lex_str.str));
     loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
-    if (loop_check && loop_check->type == STRING_RESULT)
+    if (loop_check && loop_check->type_handler()->result_type() == STRING_RESULT)
     {
       lex_str.length = top_share->path.length + spider_unique_id.length + 1;
       lex_str.str = loop_check_buf + buf_sz - top_share->path.length -
@@ -7127,9 +7127,10 @@ bool spider_init_system_tables()
   Spider is typically loaded before ddl_recovery, but DDL statements
   cannot be executed before ddl_recovery, so we delay system table creation.
 */
-static void spider_after_ddl_recovery(handlerton *)
+static int spider_after_ddl_recovery(handlerton *)
 {
-  spider_init_system_tables();
+  DBUG_EXECUTE_IF("fail_spider_ddl_recovery_done", return 1;);
+  return spider_init_system_tables();
 }
 
 int spider_db_init(
@@ -7151,16 +7152,6 @@ int spider_db_init(
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->signal_ddl_recovery_done= spider_after_ddl_recovery;
   spider_hton->close_connection = spider_close_connection;
@@ -7233,10 +7224,6 @@ int spider_db_init(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (pthread_attr_init(&spider_pt_attr))
     goto error_pt_attr_init;
-/*
-  if (pthread_attr_setdetachstate(&spider_pt_attr, PTHREAD_CREATE_DETACHED))
-    goto error_pt_attr_setstate;
-*/
 #endif
 
 #if MYSQL_VERSION_ID < 50500

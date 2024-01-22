@@ -3940,8 +3940,6 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait)
 {
-  ut_ad(!dict_sys.frozen());
-
   mem_heap_t *heap= mem_heap_create(512);
   sel_node_t *node= sel_node_create(heap);
   que_thr_t *thr= pars_complete_graph_for_exec(node, trx, heap, nullptr);
@@ -3977,36 +3975,6 @@ run_again:
 
   return err;
 }
-
-/** Lock the child tables of a table.
-@param table    parent table
-@param trx      transaction
-@return error code */
-dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
-{
-  dict_sys.freeze(SRW_LOCK_CALL);
-  std::vector<dict_table_t*> children;
-
-  for (auto f : table->referenced_set)
-    if (dict_table_t *child= f->foreign_table)
-    {
-      child->acquire();
-      children.emplace_back(child);
-    }
-  dict_sys.unfreeze();
-
-  dberr_t err= DB_SUCCESS;
-
-  for (auto child : children)
-    if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
-      break;
-
-  for (auto child : children)
-    child->release();
-
-  return err;
-}
-
 
 /** Exclusively lock the data dictionary tables.
 @param trx  dictionary transaction

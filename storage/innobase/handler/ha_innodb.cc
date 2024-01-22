@@ -598,13 +598,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
 #  ifdef BTR_CUR_HASH_ADAPT
   { &btr_search_latch_key, "btr_search_latch", 0 },
 #  endif
-  { &dict_operation_lock_key, "dict_operation_lock",
-#  ifdef UNIV_DEBUG
-    PSI_RWLOCK_FLAG_SX
-#  else
-    0
-#  endif
-  },
+  { &dict_operation_lock_key, "dict_operation_lock", 0 },
   { &fil_space_latch_key, "fil_space_latch", 0 },
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
@@ -2155,7 +2149,7 @@ all_fail:
   ut_d(purge_sys.resume_FTS());
 }
 
-static void innodb_ddl_recovery_done(handlerton*)
+static int innodb_ddl_recovery_done(handlerton*)
 {
   ut_ad(!ddl_recovery_done);
   ut_d(ddl_recovery_done= true);
@@ -2166,6 +2160,7 @@ static void innodb_ddl_recovery_done(handlerton*)
       drop_garbage_tables_after_restore();
     srv_init_purge_tasks();
   }
+  return 0;
 }
 
 /********************************************************************//**
@@ -4101,7 +4096,7 @@ static int innodb_init_params()
 
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 	if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/*
                   Force O_DIRECT on Unixes (on Windows writes are always
@@ -4133,9 +4128,7 @@ static int innodb_init_params()
 	}
 #endif
 
-#ifndef _WIN32
-	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
-#else
+#ifdef _WIN32
 	switch (srv_file_flush_method) {
 	case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
 		srv_file_flush_method = SRV_ALL_O_DIRECT_FSYNC;
@@ -4146,6 +4139,8 @@ static int innodb_init_params()
 	default:
 		ut_ad(srv_file_flush_method <= SRV_ALL_O_DIRECT_FSYNC);
 	}
+#else
+	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
 #endif
 	innodb_buffer_pool_size_init();
 
@@ -13545,7 +13540,14 @@ int ha_innobase::delete_table(const char *name)
       /* FOREIGN KEY constraints cannot exist on partitioned tables. */;
 #endif
     else
-      err= lock_table_children(table, trx);
+    {
+      dict_sys.freeze(SRW_LOCK_CALL);
+      for (const dict_foreign_t* f : table->referenced_set)
+        if (dict_table_t* child= f->foreign_table)
+          if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+            break;
+      dict_sys.unfreeze();
+    }
   }
 
   dict_table_t *table_stats= nullptr, *index_stats= nullptr;
@@ -13943,7 +13945,14 @@ int ha_innobase::truncate()
   dict_table_t *table_stats = nullptr, *index_stats = nullptr;
   MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 
-  dberr_t error= lock_table_children(ib_table, trx);
+  dberr_t error= DB_SUCCESS;
+
+  dict_sys.freeze(SRW_LOCK_CALL);
+  for (const dict_foreign_t *f : ib_table->referenced_set)
+    if (dict_table_t *child= f->foreign_table)
+      if ((error= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+        break;
+  dict_sys.unfreeze();
 
   if (error == DB_SUCCESS)
     error= lock_table_for_trx(ib_table, trx, LOCK_X);
@@ -14134,7 +14143,16 @@ ha_innobase::rename_table(
 		/* There is no need to lock any FOREIGN KEY child tables. */
 	} else if (dict_table_t *table = dict_table_open_on_name(
 		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
-		error = lock_table_children(table, trx);
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (const dict_foreign_t* f : table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
 		if (error == DB_SUCCESS) {
 			error = lock_table_for_trx(table, trx, LOCK_X);
 		}

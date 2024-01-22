@@ -357,8 +357,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
   ut_ad(!node->is_open());
   ut_ad(node->space->is_closing());
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ulint type;
   static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096, "compatibility");
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+  ulint type;
   switch (FSP_FLAGS_GET_ZIP_SSIZE(node->space->flags)) {
   case 1:
   case 2:
@@ -367,6 +368,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
   default:
     type= OS_DATA_FILE;
   }
+#else
+  constexpr auto type= OS_DATA_FILE;
+#endif
 
   for (;;)
   {
@@ -1937,9 +1941,10 @@ fil_ibd_create(
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);
 
-	ulint type;
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
 		      "compatibility");
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+	ulint type;
 	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 	case 1:
 	case 2:
@@ -1948,6 +1953,9 @@ fil_ibd_create(
 	default:
 		type = OS_DATA_FILE;
 	}
+#else
+	constexpr auto type = OS_DATA_FILE;
+#endif
 
 	file = os_file_create(
 		innodb_data_file_key, path,
