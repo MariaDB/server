@@ -78,11 +78,6 @@ id int(11) NOT NULL AUTO_INCREMENT,
 PRIMARY KEY (id)
 ) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_P_1
 INSERT INTO t1 () VALUES ();
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT LAST_INSERT_ID();
 LAST_INSERT_ID()
 777
@@ -90,11 +85,6 @@ SELECT MAX(id) FROM t1;
 MAX(id)
 777
 INSERT INTO t2 () VALUES ();
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT LAST_INSERT_ID();
 LAST_INSERT_ID()
 1554
@@ -152,17 +142,7 @@ id
 4662
 5439
 TRUNCATE TABLE t1;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 TRUNCATE TABLE t2;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t1 () VALUES (),(),(),();
 SELECT LAST_INSERT_ID();
 LAST_INSERT_ID()

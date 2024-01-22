@@ -15,8 +15,6 @@ engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t_sp1 () values (),(),();
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t_sp1 () values (),(),();
 select * from t_sp1;
 id
@@ -43,11 +41,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t values (1),(2),(10),(11);
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select * from t where a > 1 order by a;
 a
 2
@@ -66,8 +59,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 select a, b from ts where a > 0 and b = 'g' order by a;
 a	b
 2	g
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table ts, auto_test_local.t;
 drop database auto_test_local;
 for master_1

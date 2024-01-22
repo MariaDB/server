@@ -14,8 +14,6 @@ SELECT a FROM t2 WHERE a IN ( SELECT a FROM t2 );
 a
 1
 2
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DROP TABLE t1, t2;
 DROP SERVER srv;
 for master_1

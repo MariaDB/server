@@ -11,8 +11,6 @@ Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT TRIM(BOTH ' ' FROM c) FROM ts ORDER BY c;
 TRIM(BOTH ' ' FROM c)
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t, ts;
 drop server srv;
 for master_1

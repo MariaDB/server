@@ -19,10 +19,6 @@ Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT t1_spider.* FROM t1_spider LEFT JOIN t2_spider LEFT JOIN t3_spider ON b = c ON a = b;
 a
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DROP TABLE t1_spider, t2_spider, t3_spider, t1, t2, t3;
 drop server s;
 for master_1

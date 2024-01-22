@@ -13,8 +13,6 @@ CREATE TABLE t1_SPIDER (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's'
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 AS SELECT a FROM t1_SPIDER;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t2;
 a
 1

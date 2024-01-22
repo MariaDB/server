@@ -16,8 +16,6 @@ insert into td values (11), (42);
 select max(a) from ts;
 max(a)
 42
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table td, ts;
 create table td (a int, PRIMARY KEY (a));
 create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_26151",TABLE "td", casual_read "1"';
@@ -28,8 +26,6 @@ insert into td values (11), (42);
 select max(a) from ts;
 max(a)
 42
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select min(a) from ts;
 min(a)
 11

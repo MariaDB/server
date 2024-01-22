@@ -62,11 +62,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 WHERE a > 1
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -92,11 +87,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l2 (a, b, c) VALUES (3, 'B', '2010-09-26 00:00:00');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 UPDATE ta_l2 SET a = 4 WHERE a = 3;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -119,11 +109,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
@@ -170,11 +155,6 @@ id int(11) NOT NULL AUTO_INCREMENT,
 PRIMARY KEY (id)
 ) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_P_1
 INSERT INTO t1 () VALUES ();
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT LAST_INSERT_ID();
 LAST_INSERT_ID()
 777

@@ -51,8 +51,6 @@ SELECT a, b, c FROM tb_l
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -85,8 +83,6 @@ IGNORE SELECT a, b, c FROM tb_l
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	1062	Duplicate entry '1' for key 'PRIMARY'
 Warning	1062	Duplicate entry '2' for key 'PRIMARY'
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
@@ -111,8 +107,6 @@ REPLACE SELECT a, b, c FROM tb_l
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -129,8 +123,6 @@ CREATE TABLE ta_l_no_idx
 MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
 SELECT a, b, c FROM tb_l
 Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
@@ -321,9 +313,6 @@ a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
 insert
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59');
 connection master_1;
@@ -334,9 +323,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 insert select
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO ta_l (a, b, c) SELECT a, b, c FROM tb_l;
 connection master_1;
@@ -351,9 +337,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 insert select a
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES ((SELECT a FROM tb_l ORDER BY a LIMIT 1),
 'e', '2008-01-01 23:59:59');
@@ -365,9 +348,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 insert low_priority
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT LOW_PRIORITY INTO ta_l (a, b, c) values (2, 'e', '2008-01-01 23:59:59');
 connection master_1;
@@ -378,9 +358,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 insert high_priority
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT HIGH_PRIORITY INTO ta_l (a, b, c) VALUES (2, 'e',
 '2008-01-01 23:59:59');
@@ -402,9 +379,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 insert update (insert)
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59') ON DUPLICATE
 KEY UPDATE b = 'f', c = '2005-08-08 11:11:11';
@@ -425,9 +399,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 replace
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59');
 connection master_1;
 REPLACE INTO ta_l (a, b, c) VALUES (2, 'f', '2008-02-02 02:02:02');
@@ -476,9 +447,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 update
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59');
 connection master_1;
@@ -566,9 +534,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -599,9 +564,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete select
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -621,9 +583,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete select a
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -647,9 +606,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete join
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -669,9 +625,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete low_priority
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -695,9 +648,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete ignore
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -721,9 +671,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete quick
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -747,9 +694,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete pushdown
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -765,9 +709,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 delete index pushdown
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
 (4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
@@ -784,9 +725,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 truncate
 connection master_1;
 TRUNCATE TABLE ta_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')

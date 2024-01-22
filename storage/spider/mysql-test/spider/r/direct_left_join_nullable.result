@@ -81,21 +81,9 @@ Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_c values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_d values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 select test
 connection child2_1;

@@ -51,9 +51,6 @@ Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 0.9
 create different primary key table
@@ -69,9 +66,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO ta_l_int (a, b, c) VALUES (2, NULL, 3);
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 create un-correspond primary key table
 connection master_1;
 DROP TABLE IF EXISTS ta_l_int;
@@ -87,9 +81,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO ta_l_int (a, b, c) VALUES (2, NULL, 3);
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 deinit
 connection master_1;

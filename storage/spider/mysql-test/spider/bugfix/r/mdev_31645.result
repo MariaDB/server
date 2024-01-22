@@ -11,8 +11,6 @@ Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t2 WHERE b IN (SELECT b FROM t2 WHERE a > 10);
 a	b
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t2
 WHERE A BETWEEN 0 AND 10 AND B IN(SELECT B FROM t2 WHERE A BETWEEN 11 AND 20);
 a	b

@@ -2613,12 +2613,13 @@ int spider_parse_connect_info(
       continue;
     }
 
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        HA_ERR_UNSUPPORTED,
-                        "Spider table params in COMMENT or CONNECTION "
-                        "strings have been deprecated "
-                        "and will be removed in a future release. "
-                        "Please use table options instead.");
+    if (create_table)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          HA_ERR_UNSUPPORTED,
+                          "Spider table params in COMMENT or CONNECTION "
+                          "strings have been deprecated "
+                          "and will be removed in a future release. "
+                          "Please use table options instead.");
     start_param = connect_string;
     parse.error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
     while (*start_param != '\0')

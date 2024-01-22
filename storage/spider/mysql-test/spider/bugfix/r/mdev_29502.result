@@ -15,8 +15,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 SELECT MAX(a) FROM t1;
 MAX(a)
 48
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT SUM(a) FROM t1;
 SUM(a)
 71
@@ -47,8 +45,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 SELECT MAX(a + b), SUM(a - b) FROM t1;
 MAX(a + b)	SUM(a - b)
 145	-25
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
 Spider_direct_aggregate	0
@@ -61,8 +57,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 SELECT IF(COUNT(a > 0),'Y','N'), MAX(a) FROM t1;
 IF(COUNT(a > 0),'Y','N')	MAX(a)
 Y	97
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
 Spider_direct_aggregate	2

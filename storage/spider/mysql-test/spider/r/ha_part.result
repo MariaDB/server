@@ -81,11 +81,6 @@ INSERT INTO ta_l2 (a, b, c) VALUES
 (3, 'e', '2007-06-04 20:03:11'),
 (4, 'd', '2003-11-30 05:01:03'),
 (5, 'c', '2001-12-31 23:59:59');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 select test
 connection master_1;
@@ -154,10 +149,6 @@ Warning	1287	'lst' is deprecated and will be removed in a future release
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	1287	'msi' is deprecated and will be removed in a future release
 Warning	1287	'mkd' is deprecated and will be removed in a future release
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
 ORDER BY db_name, table_name, link_id;
 db_name	table_name	link_id	link_status
@@ -168,11 +159,6 @@ auto_test_local	ta_l2#P#pt2	1	2
 SELECT spider_copy_tables('ta_l2#P#pt2', '0', '1');
 spider_copy_tables('ta_l2#P#pt2', '0', '1')
 1
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 ALTER TABLE ta_l2
 PARTITION BY KEY(a) (
@@ -195,10 +181,6 @@ Warning	1287	'lst' is deprecated and will be removed in a future release
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	1287	'msi' is deprecated and will be removed in a future release
 Warning	1287	'mkd' is deprecated and will be removed in a future release
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
 ORDER BY db_name, table_name, link_id;
 db_name	table_name	link_id	link_status
@@ -209,11 +191,6 @@ auto_test_local	ta_l2#P#pt2	1	1
 INSERT INTO ta_l2 (a, b, c) VALUES
 (8, 'g', '2011-05-05 21:33:30'),
 (9, 'h', '2011-05-05 22:32:10');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -256,11 +233,6 @@ INSERT INTO ta_l2 (a, b, c) VALUES
 (3, 'e', '2007-06-04 20:03:11'),
 (4, 'd', '2003-11-30 05:01:03'),
 (5, 'c', '2001-12-31 23:59:59');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 
 select test
 connection master_1;
@@ -330,10 +302,6 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 Warning	1287	'msi' is deprecated and will be removed in a future release
 Warning	1287	'mkd' is deprecated and will be removed in a future release
 Warning	1287	'alc' is deprecated and will be removed in a future release
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
 ORDER BY db_name, table_name, link_id;
 db_name	table_name	link_id	link_status
@@ -344,11 +312,6 @@ auto_test_local	ta_l2#P#pt2	1	1
 INSERT INTO ta_l2 (a, b, c) VALUES
 (8, 'g', '2011-05-05 21:33:30'),
 (9, 'h', '2011-05-05 22:32:10');
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
