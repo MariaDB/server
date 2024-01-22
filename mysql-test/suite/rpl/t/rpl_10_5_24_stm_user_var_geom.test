@@ -1,0 +1,57 @@
+--source include/have_binlog_format_statement.inc
+
+--echo #
+--echo # MDEV-27666 User variable not parsed as geometry variable in geometry function
+--echo #
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master-bin.000001
+
+#
+# Simulate a MariaDB-10.5.24 master
+#
+# mariadb-bin-10.5.24-geom-user-var.000001 was recorded against this script:
+#
+# using this command line:
+#   mariadbd --log-bin --binlog-format=statement \
+#            --server-id=1 --character-set-server=latin1
+# with the following SQL script:
+#
+#SET @p=POINT(0,0);
+#CREATE TABLE t1 AS SELECT @p AS p;
+#INSERT INTO t1 VALUES (POINT(1,1));
+
+--copy_file $MYSQL_TEST_DIR/std_data/rpl/mariadb-bin-10.5.24-geom-user-var.000001 $datadir/master-bin.000001
+
+--let $rpl_server_number= 1
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+SHOW CREATE TABLE t1;
+SELECT AsText(p) FROM t1 ORDER BY p;
+
+--source include/stop_slave.inc
+DROP TABLE t1;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
