@@ -51,7 +51,7 @@ connection default;
 flush table t1 for export;
 
 let $restart_parameters=;
---let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
+--let CLEANUP_IF_CHECKPOINT=XA COMMIT 'x';drop table t1;
 --source ../include/no_checkpoint_end.inc
 
 perl;
