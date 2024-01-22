@@ -975,7 +975,7 @@ os_file_create_simple_func(
 	*success = false;
 
 	int		create_flag;
-	const char*	mode_str	= NULL;
+	const char*	mode_str __attribute__((unused));
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -1051,6 +1051,7 @@ os_file_create_simple_func(
 
 	} while (retry);
 
+#ifdef HAVE_FCNTL_DIRECT
 	/* This function is always called for data files, we should disable
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
@@ -1065,6 +1066,7 @@ os_file_create_simple_func(
 			break;
 		}
 	}
+#endif
 
 #ifndef _WIN32
 	if (!read_only
@@ -1150,7 +1152,7 @@ os_file_create_func(
 	);
 
 	int		create_flag;
-	const char*	mode_str	= NULL;
+	const char*	mode_str __attribute__((unused));
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
@@ -1192,10 +1194,13 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
+#ifdef HAVE_FCNTL_DIRECT
 	ut_a(type == OS_LOG_FILE
 	     || type == OS_DATA_FILE
 	     || type == OS_DATA_FILE_NO_O_DIRECT);
-
+#else
+	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
+#endif
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
 	/* We let O_DSYNC only affect log files */
@@ -1241,7 +1246,7 @@ os_file_create_func(
 		return file;
 	}
 
-#if (defined __sun__ && defined DIRECTIO_ON) || defined O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	if (type == OS_DATA_FILE) {
 		switch (srv_file_flush_method) {
 		case SRV_O_DSYNC:
@@ -2175,10 +2180,8 @@ os_file_create_func(
 		if (srv_file_flush_method == SRV_O_DSYNC)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
-	else if (type == OS_DATA_FILE)
-	{
-		switch (srv_file_flush_method)
-		{
+	else if (type == OS_DATA_FILE) {
+		switch (srv_file_flush_method) {
 		case SRV_FSYNC:
 		case SRV_LITTLESYNC:
 		case SRV_NOSYNC:
@@ -3042,30 +3045,15 @@ os_file_handle_error_cond_exit(
 	return(false);
 }
 
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 /** Tries to disable OS caching on an opened file descriptor.
 @param[in]	fd		file descriptor to alter
 @param[in]	file_name	file name, used in the diagnostic message
 @param[in]	name		"open" or "create"; used in the diagnostic
 				message */
 void
-os_file_set_nocache(
-	int	fd		MY_ATTRIBUTE((unused)),
-	const char*	file_name	MY_ATTRIBUTE((unused)),
-	const char*	operation_name	MY_ATTRIBUTE((unused)))
+os_file_set_nocache(int fd, const char *file_name, const char *operation_name)
 {
-	/* some versions of Solaris may not have DIRECTIO_ON */
-#if defined(__sun__) && defined(DIRECTIO_ON)
-	if (directio(fd, DIRECTIO_ON) == -1) {
-		int	errno_save = errno;
-
-		ib::error()
-			<< "Failed to set DIRECTIO_ON on file "
-			<< file_name << "; " << operation_name << ": "
-			<< strerror(errno_save) << ","
-			" continuing anyway.";
-	}
-#elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
 		int		errno_save = errno;
 		static bool	warning_message_printed = false;
@@ -3084,10 +3072,8 @@ os_file_set_nocache(
 				<< ", continuing anyway.";
 		}
 	}
-#endif /* defined(__sun__) && defined(DIRECTIO_ON) */
 }
-
-#endif /* _WIN32 */
+#endif /* HAVE_FCNTL_DIRECT */
 
 /** Check if the file system supports sparse files.
 @param fh	file handle
@@ -3457,7 +3443,7 @@ static void write_io_callback(void *c)
 
   if (UNIV_UNLIKELY(cb->m_err != 0))
     ib::info () << "IO Error: " << cb->m_err
-                << "during write of "
+                << " during write of "
                 << cb->m_len << " bytes, for file "
                 << request.node->name << "(" << cb->m_fh << "), returned "
                 << cb->m_ret_len;
