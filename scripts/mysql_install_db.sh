@@ -658,7 +658,7 @@ then
   then
     echo
     echo "You can start the MariaDB daemon with:"
-    echo "cd '$basedir' ; $bindir/mariadb-safe --datadir='$ldata'"
+    echo "cd '$basedir' ; $bindir/mariadbd-safe --datadir='$ldata'"
     echo
     echo "You can test the MariaDB daemon with mysql-test-run.pl"
     echo "cd '$basedir/@INSTALL_MYSQLTESTDIR@' ; perl mariadb-test-run.pl"
