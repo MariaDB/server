@@ -7475,7 +7475,7 @@ Item* Item::propagate_equal_fields_and_change_item_tree(THD *thd,
                                                         Item **place)
 {
   Item *item= propagate_equal_fields(thd, ctx, cond);
-  if (item && item != this)
+  if (item && item != this && !item->with_subquery())
     thd->change_item_tree(place, item);
   return item;
 }

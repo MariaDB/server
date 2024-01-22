@@ -1,0 +1,5 @@
+CREATE TABLE t ( x VARCHAR ( 1 ) ) ;
+INSERT INTO t VALUES ( 'y' ) , ( NULL ) ;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT x FROM t GROUP BY x HAVING x >= ( x = x ) AND x = ( SELECT x FROM t GROUP BY x ORDER BY x );
+drop table t;
