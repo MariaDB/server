@@ -4742,7 +4742,7 @@ SPIDER_SHARE *spider_get_share(
     ((char *) lex_str.str)[lex_str.length] = '\0';
     DBUG_PRINT("info",("spider loop check param name=%s", lex_str.str));
     loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
-    if (loop_check && loop_check->type == STRING_RESULT)
+    if (loop_check && loop_check->type_handler()->result_type() == STRING_RESULT)
     {
       lex_str.length = top_share->path.length + spider_unique_id.length + 1;
       lex_str.str = loop_check_buf + buf_sz - top_share->path.length -

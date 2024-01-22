@@ -297,9 +297,6 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 	log_sys.log.create();
 
 	log_sys.log.open_file(logfile0);
-	if (!fil_system.sys_space->open(create_new_db)) {
-		return DB_ERROR;
-	}
 
 	/* Create a log checkpoint. */
 	mysql_mutex_lock(&log_sys.mutex);
@@ -1274,40 +1271,6 @@ dberr_t srv_start(bool create_new_db)
 
 	/* Check if undo tablespaces and redo log files exist before creating
 	a new system tablespace */
-	if (create_new_db) {
-		err = srv_check_undo_redo_logs_exists();
-		if (err != DB_SUCCESS) {
-			return(srv_init_abort(DB_ERROR));
-		}
-		recv_sys.debug_free();
-	}
-
-	/* Open or create the data files. */
-	ulint	sum_of_new_sizes;
-
-	err = srv_sys_space.open_or_create(
-		false, create_new_db, &sum_of_new_sizes, &flushed_lsn);
-
-	switch (err) {
-	case DB_SUCCESS:
-		break;
-	case DB_CANNOT_OPEN_FILE:
-		ib::error()
-			<< "Could not open or create the system tablespace. If"
-			" you tried to add new data files to the system"
-			" tablespace, and it failed here, you should now"
-			" edit innodb_data_file_path in my.cnf back to what"
-			" it was, and remove the new ibdata files InnoDB"
-			" created in this failed attempt. InnoDB only wrote"
-			" those files full of zeros, but did not yet use"
-			" them in any way. But be careful: do not remove"
-			" old data files which contain your precious data!";
-		/* fall through */
-	default:
-		/* Other errors might come from Datafile::validate_first_page() */
-		return(srv_init_abort(err));
-	}
-
 	srv_log_file_size_requested = srv_log_file_size;
 
 	if (innodb_encrypt_temporary_tables && !log_crypt_init()) {
@@ -1317,18 +1280,17 @@ dberr_t srv_start(bool create_new_db)
 	std::string logfile0;
 	bool create_new_log = create_new_db;
 	if (create_new_db) {
+		err = srv_check_undo_redo_logs_exists();
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(DB_ERROR));
+		}
+		recv_sys.debug_free();
 		flushed_lsn = log_sys.get_lsn();
 		log_sys.set_flushed_lsn(flushed_lsn);
 
 		err = create_log_file(true, flushed_lsn, logfile0);
 
 		if (err != DB_SUCCESS) {
-			for (Tablespace::const_iterator
-			       i = srv_sys_space.begin();
-			     i != srv_sys_space.end(); i++) {
-				os_file_delete(innodb_data_file_key,
-					       i->filepath());
-			}
 			return(srv_init_abort(err));
 		}
 	} else {
@@ -1343,51 +1305,84 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		create_new_log = srv_log_file_size == 0;
-		if (create_new_log) {
-			if (flushed_lsn < lsn_t(1000)) {
-				ib::error()
-					<< "Cannot create log file because"
-					" data files are corrupt or the"
-					" database was not shut down cleanly"
-					" after creating the data files.";
-				return srv_init_abort(DB_ERROR);
+		if (!create_new_log) {
+			srv_log_file_found = log_file_found;
+
+			log_sys.log.open_file(get_log_file_path());
+
+			log_sys.log.create();
+
+			if (!log_set_capacity(
+				srv_log_file_size_requested)) {
+				return(srv_init_abort(DB_ERROR));
 			}
 
-			srv_log_file_size = srv_log_file_size_requested;
+			/* Enable checkpoints in the page cleaner. */
+			recv_sys.recovery_on = false;
 
-			err = create_log_file(false, flushed_lsn, logfile0);
-
-			if (err == DB_SUCCESS) {
-				err = create_log_file_rename(flushed_lsn,
-							     logfile0);
-			}
+			err= recv_recovery_read_max_checkpoint();
 
 			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
+				return srv_init_abort(err);
 			}
+		}
+	}
 
-			/* Suppress the message about
-			crash recovery. */
-			flushed_lsn = log_sys.get_lsn();
-			goto file_checked;
+	/* Open or create the data files. */
+	ulint	sum_of_new_sizes;
+
+	err = srv_sys_space.open_or_create(
+		false, create_new_db, &sum_of_new_sizes, &flushed_lsn);
+
+	switch (err) {
+	case DB_SUCCESS:
+		break;
+	case DB_CANNOT_OPEN_FILE:
+		sql_print_error("InnoDB: Could not open or create the system"
+			" tablespace. If you tried to add new data files"
+			" to the system tablespace, and it failed here,"
+			" you should now edit innodb_data_file_path"
+			" in my.cnf back to what it was, and remove the"
+			" new ibdata files InnoDB created in this failed"
+			" attempt. InnoDB only wrote those files full of"
+			" zeros, but did not yet use them in any way. But"
+			" be careful: do not remove old data files which"
+			" contain your precious data!");
+		/* fall through */
+	default:
+		/* Other errors might come from Datafile::validate_first_page() */
+		return(srv_init_abort(err));
+	}
+
+	if (!create_new_db && create_new_log) {
+		if (flushed_lsn < lsn_t(1000)) {
+			sql_print_error(
+				"InnoDB: Cannot create log file because"
+				" data files are corrupt or the"
+				" database was not shut down cleanly"
+				" after creating the data files.");
+			return srv_init_abort(DB_ERROR);
 		}
 
-		srv_log_file_found = log_file_found;
+		srv_log_file_size = srv_log_file_size_requested;
 
-		log_sys.log.open_file(get_log_file_path());
-
-		log_sys.log.create();
-
-		if (!log_set_capacity(srv_log_file_size_requested)) {
-			return(srv_init_abort(DB_ERROR));
+		err = create_log_file(false, flushed_lsn, logfile0);
+		if (err == DB_SUCCESS) {
+			err = create_log_file_rename(flushed_lsn, logfile0);
 		}
 
-		/* Enable checkpoints in the page cleaner. */
-		recv_sys.recovery_on = false;
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
+
+		/* Suppress the message about
+		crash recovery. */
+		flushed_lsn = log_sys.get_lsn();
+		goto file_checked;
 	}
 
 file_checked:
-	/* Open log file and data files in the systemtablespace: we keep
+	/* Open data files in the systemtablespace: we keep
         them open until database shutdown */
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 

@@ -4658,7 +4658,6 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
     entry->length=0;
     entry->update_query_id=0;
     entry->set_charset(NULL);
-    entry->unsigned_flag= 0;
     /*
       If we are here, we were called from a SET or a query which sets a
       variable. Imagine it is this:
@@ -4670,7 +4669,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
       by Item_func_get_user_var (because that's not necessary).
     */
     entry->used_query_id=current_thd->query_id;
-    entry->type=STRING_RESULT;
+    entry->set_handler(&type_handler_long_blob);
     memcpy((char*) entry->name.str, name->str, name->length+1);
     if (my_hash_insert(hash,(uchar*) entry))
     {
@@ -4746,9 +4745,12 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:
-    set_handler(type_handler_long_blob.
-                type_handler_adjusted_to_max_octet_length(max_length,
-                                                          collation.collation));
+    if (args[0]->field_type() == MYSQL_TYPE_GEOMETRY)
+      set_handler(args[0]->type_handler());
+    else
+      set_handler(type_handler_long_blob.
+                  type_handler_adjusted_to_max_octet_length(max_length,
+                                                            collation.collation));
     break;
   case REAL_RESULT:
     set_handler(&type_handler_double);
@@ -4873,9 +4875,9 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 
 bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-            Item_result type, CHARSET_INFO *cs,
-            bool unsigned_arg)
+            const Type_handler *th, CHARSET_INFO *cs)
 {
+  entry->set_handler(th);
   if (set_null)
   {
     char *pos= (char*) entry+ ALIGN_SIZE(sizeof(user_var_entry));
@@ -4886,7 +4888,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
   }
   else
   {
-    if (type == STRING_RESULT)
+    if (th->result_type() == STRING_RESULT)
       length++;					// Store strings with end \0
     if (length <= extra_size)
     {
@@ -4915,20 +4917,18 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	  return 1;
       }
     }
-    if (type == STRING_RESULT)
+    if (th->result_type() == STRING_RESULT)
     {
       length--;					// Fix length change above
       entry->value[length]= 0;			// Store end \0
     }
     if (length)
       memmove(entry->value, ptr, length);
-    if (type == DECIMAL_RESULT)
+    if (th->result_type() == DECIMAL_RESULT)
       ((my_decimal*)entry->value)->fix_buffer_pointer();
     entry->length= length;
     entry->set_charset(cs);
-    entry->unsigned_flag= unsigned_arg;
   }
-  entry->type=type;
 #ifdef USER_VAR_TRACKING
 #ifndef EMBEDDED_LIBRARY
   THD *thd= current_thd;
@@ -4941,9 +4941,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 
 bool
 Item_func_set_user_var::update_hash(void *ptr, size_t length,
-                                    Item_result res_type,
-                                    CHARSET_INFO *cs,
-                                    bool unsigned_arg)
+                                    const Type_handler *th,
+                                    CHARSET_INFO *cs)
 {
   /*
     If we set a variable explicitly to NULL then keep the old
@@ -4957,9 +4956,8 @@ Item_func_set_user_var::update_hash(void *ptr, size_t length,
   else
     null_value= args[0]->null_value;
   if (null_value && null_item)
-    res_type= m_var_entry->type;                 // Don't change type of item
-  if (::update_hash(m_var_entry, null_value,
-                    ptr, length, res_type, cs, unsigned_arg))
+    th= m_var_entry->type_handler(); // Don't change type of item
+  if (::update_hash(m_var_entry, null_value, ptr, length, th, cs))
   {
     null_value= 1;
     return 1;
@@ -4975,7 +4973,7 @@ double user_var_entry::val_real(bool *null_value)
   if ((*null_value= (value == 0)))
     return 0.0;
 
-  switch (type) {
+  switch (type_handler()->result_type()) {
   case REAL_RESULT:
     return *(double*) value;
   case INT_RESULT:
@@ -5000,7 +4998,7 @@ longlong user_var_entry::val_int(bool *null_value) const
   if ((*null_value= (value == 0)))
     return 0;
 
-  switch (type) {
+  switch (type_handler()->result_type()) {
   case REAL_RESULT:
     return (longlong) *(double*) value;
   case INT_RESULT:
@@ -5029,12 +5027,12 @@ String *user_var_entry::val_str(bool *null_value, String *str,
   if ((*null_value= (value == 0)))
     return (String*) 0;
 
-  switch (type) {
+  switch (type_handler()->result_type()) {
   case REAL_RESULT:
     str->set_real(*(double*) value, decimals, charset());
     break;
   case INT_RESULT:
-    if (!unsigned_flag)
+    if (!type_handler()->is_unsigned())
       str->set(*(longlong*) value, charset());
     else
       str->set(*(ulonglong*) value, charset());
@@ -5061,7 +5059,7 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
   if ((*null_value= (value == 0)))
     return 0;
 
-  switch (type) {
+  switch (type_handler()->result_type()) {
   case REAL_RESULT:
     double2my_decimal(E_DEC_FATAL_ERROR, *(double*) value, val);
     break;
@@ -5200,33 +5198,37 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, &my_charset_numeric, 0);
+		     &type_handler_double, &my_charset_numeric);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, &my_charset_numeric, unsigned_flag);
+                     unsigned_flag ? (Type_handler *) &type_handler_ulonglong :
+                                     (Type_handler *) &type_handler_slonglong,
+                     &my_charset_numeric);
     break;
   }
   case STRING_RESULT:
   {
     if (!save_result.vstr)					// Null value
-      res= update_hash((void*) 0, 0, STRING_RESULT, &my_charset_bin, 0);
+      res= update_hash((void*) 0, 0, &type_handler_long_blob, &my_charset_bin);
     else
       res= update_hash((void*) save_result.vstr->ptr(),
-		       save_result.vstr->length(), STRING_RESULT,
-		       save_result.vstr->charset(), 0);
+                       save_result.vstr->length(),
+                       field_type() == MYSQL_TYPE_GEOMETRY ?
+                       type_handler() : &type_handler_long_blob,
+                       save_result.vstr->charset());
     break;
   }
   case DECIMAL_RESULT:
   {
     if (!save_result.vdec)					// Null value
-      res= update_hash((void*) 0, 0, DECIMAL_RESULT, &my_charset_bin, 0);
+      res= update_hash((void*) 0, 0, &type_handler_newdecimal, &my_charset_bin);
     else
       res= update_hash((void*) save_result.vdec,
-                       sizeof(my_decimal), DECIMAL_RESULT,
-                       &my_charset_numeric, 0);
+                       sizeof(my_decimal), &type_handler_newdecimal,
+                       &my_charset_numeric);
     break;
   }
   case ROW_RESULT:
@@ -5618,9 +5620,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
   user_var_event->value= (char*) user_var_event +
     ALIGN_SIZE(sizeof(BINLOG_USER_VAR_EVENT));
   user_var_event->user_var_event= var_entry;
-  user_var_event->type= var_entry->type;
+  user_var_event->th= var_entry->type_handler();
   user_var_event->charset_number= var_entry->charset()->number;
-  user_var_event->unsigned_flag= var_entry->unsigned_flag;
   if (!var_entry->value)
   {
     /* NULL value*/
@@ -5663,9 +5664,9 @@ bool Item_func_get_user_var::fix_length_and_dec()
   */
   if (likely(!error && m_var_entry))
   {
-    unsigned_flag= m_var_entry->unsigned_flag;
+    unsigned_flag= m_var_entry->type_handler()->is_unsigned();
     max_length= (uint32)m_var_entry->length;
-    switch (m_var_entry->type) {
+    switch (m_var_entry->type_handler()->result_type()) {
     case REAL_RESULT:
       collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DBL_DIG + 8);
@@ -5684,6 +5685,8 @@ bool Item_func_get_user_var::fix_length_and_dec()
       collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
+      if (m_var_entry->type_handler()->field_type() == MYSQL_TYPE_GEOMETRY)
+        set_handler(m_var_entry->type_handler());
       break;
     case DECIMAL_RESULT:
       collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
@@ -5756,7 +5759,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(thd->lex->exchange);
   if (!(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
-  entry->type= STRING_RESULT;
+  entry->set_handler(&type_handler_long_blob);
   /*
     Let us set the same collation which is used for loading
     of fields in LOAD DATA INFILE.
@@ -5772,15 +5775,14 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 
 void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
 {
-  ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
+  ::update_hash(entry, TRUE, 0, 0, &type_handler_long_blob, cs);
 }
 
 
 void Item_user_var_as_out_param::set_value(const char *str, uint length,
                                            CHARSET_INFO* cs)
 {
-  ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
-                0 /* unsigned_arg */);
+  ::update_hash(entry, FALSE, (void*)str, length, &type_handler_long_blob, cs);
 }
 
 

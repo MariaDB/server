@@ -17,6 +17,7 @@ call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile");
 call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
 call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
 call mtr.add_suppression("\\[Warning\\] Found 1 prepared XA transactions");
+call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile:");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -24,7 +25,7 @@ let MYSQLD_DATADIR=`select @@datadir`;
 let ALGO=`select @@innodb_checksum_algorithm`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
-create table t1 (f1 int primary key, f2 blob) engine=innodb;
+create table t1 (f1 int primary key, f2 blob) stats_persistent=0, engine=innodb;
 
 start transaction;
 insert into t1 values(1, repeat('#',12));
@@ -38,7 +39,10 @@ commit work;
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
 --source include/restart_mysqld.inc
-
+# Ensure that buf_flush_page_cleaner() has woken up from its
+# first my_cond_timedwait() and gone idle.
+sleep 1;
+--source ../include/no_checkpoint_start.inc
 connect (dml,localhost,root,,);
 XA START 'x';
 insert into t1 values (6, repeat('%', @@innodb_page_size/2));
@@ -50,8 +54,8 @@ connection default;
 flush table t1 for export;
 
 let $restart_parameters=;
-let $shutdown_timeout=0;
---source include/shutdown_mysqld.inc
+--let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
+--source ../include/no_checkpoint_end.inc
 
 perl;
 use IO::Handle;
@@ -115,6 +119,35 @@ EOF
 let SEARCH_PATTERN=InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\];
+--source include/search_pattern_in_file.inc
+XA ROLLBACK 'x';
+check table t1;
+select f1, f2 from t1;
+
+--source ../include/no_checkpoint_start.inc
+connect (dml,localhost,root,,);
+XA START 'x';
+insert into t1 values (6, repeat('%', @@innodb_page_size/2));
+XA END 'x';
+XA PREPARE 'x';
+disconnect dml;
+connection default;
+
+flush table t1 for export;
+
+let $restart_parameters=;
+--source ../include/no_checkpoint_end.inc
+
+# Zero out the first page in file and try to recover from dblwr
+perl;
+use IO::Handle;
+open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/t1.ibd") or die;
+syswrite(FILE, chr(0) x $ENV{INNODB_PAGE_SIZE});
+close FILE;
+EOF
+
+--source include/start_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile;
 --source include/search_pattern_in_file.inc
 XA ROLLBACK 'x';
 check table t1;

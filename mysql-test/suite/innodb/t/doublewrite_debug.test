@@ -17,6 +17,7 @@ call mtr.add_suppression("Plugin 'InnoDB' (init function returned error|registra
 call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile");
 call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
 call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
+call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile:");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
