@@ -958,12 +958,11 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
   if (latch_ex_wait_start.compare_exchange_strong
       (old, now, std::memory_order_relaxed, std::memory_order_relaxed))
   {
-#ifdef UNIV_DEBUG
-    latch.x_lock(SRW_LOCK_ARGS(file, line));
-#else
     latch.wr_lock(SRW_LOCK_ARGS(file, line));
-#endif
     latch_ex_wait_start.store(0, std::memory_order_relaxed);
+    ut_ad(!latch_readers);
+    ut_ad(!latch_ex);
+    ut_d(latch_ex= pthread_self());
     return;
   }
 
@@ -978,39 +977,33 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
   if (waited > threshold / 4)
     ib::warn() << "A long wait (" << waited
                << " seconds) was observed for dict_sys.latch";
-#ifdef UNIV_DEBUG
-  latch.x_lock(SRW_LOCK_ARGS(file, line));
-#else
   latch.wr_lock(SRW_LOCK_ARGS(file, line));
-#endif
+  ut_ad(!latch_readers);
+  ut_ad(!latch_ex);
+  ut_d(latch_ex= pthread_self());
 }
 
 #ifdef UNIV_PFS_RWLOCK
 ATTRIBUTE_NOINLINE void dict_sys_t::unlock()
 {
-# ifdef UNIV_DEBUG
-  latch.x_unlock();
-# else
+  ut_ad(latch_ex == pthread_self());
+  ut_ad(!latch_readers);
+  ut_d(latch_ex= 0);
   latch.wr_unlock();
-# endif
 }
 
 ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line)
 {
-# ifdef UNIV_DEBUG
-  latch.s_lock(file, line);
-# else
   latch.rd_lock(file, line);
-# endif
+  ut_ad(!latch_ex);
+  ut_d(latch_readers++);
 }
 
 ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
 {
-# ifdef UNIV_DEBUG
-  latch.s_unlock();
-# else
+  ut_ad(!latch_ex);
+  ut_ad(latch_readers--);
   latch.rd_unlock();
-# endif
 }
 #endif /* UNIV_PFS_RWLOCK */
 
@@ -4522,11 +4515,7 @@ void dict_sys_t::close()
   temp_id_hash.free();
 
   unlock();
-#ifdef UNIV_DEBUG
-  latch.free();
-#else
   latch.destroy();
-#endif
 
   mysql_mutex_destroy(&dict_foreign_err_mutex);
 

@@ -1130,7 +1130,7 @@ os_file_create_func(
 	);
 
 	int		create_flag = O_RDONLY | O_CLOEXEC;
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	const char*	mode_str = "OPEN";
 #endif
 
@@ -1148,12 +1148,12 @@ os_file_create_func(
 		   || create_mode == OS_FILE_OPEN_RETRY) {
 		create_flag = O_RDWR | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_CREATE) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 		mode_str = "CREATE";
 #endif
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_OVERWRITE) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 		mode_str = "OVERWRITE";
 #endif
 		create_flag = O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC;
@@ -1165,19 +1165,19 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	ut_a(type == OS_LOG_FILE
-	     || type == OS_DATA_FILE
-	     || type == OS_DATA_FILE_NO_O_DIRECT);
-
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
 	create_flag |= O_CLOEXEC;
 
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
+	ut_a(type == OS_LOG_FILE
+	     || type == OS_DATA_FILE
+	     || type == OS_DATA_FILE_NO_O_DIRECT);
 	int direct_flag = type == OS_DATA_FILE && create_mode != OS_FILE_CREATE
 		&& !fil_system.is_buffered()
 		? O_DIRECT : 0;
 #else
+	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
 	constexpr int direct_flag = 0;
 #endif
 
@@ -1194,7 +1194,7 @@ os_file_create_func(
 		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 			if (direct_flag && errno == EINVAL) {
 				direct_flag = 0;
 				continue;
@@ -1224,7 +1224,7 @@ os_file_create_func(
 		}
 	}
 
-#if (defined __sun__ && defined DIRECTIO_ON) || defined O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	if (type == OS_DATA_FILE && create_mode == OS_FILE_CREATE
 	    && !fil_system.is_buffered()) {
 # ifdef __linux__
@@ -3012,30 +3012,15 @@ os_file_handle_error_cond_exit(
 	return(false);
 }
 
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 /** Tries to disable OS caching on an opened file descriptor.
 @param[in]	fd		file descriptor to alter
 @param[in]	file_name	file name, used in the diagnostic message
 @param[in]	name		"open" or "create"; used in the diagnostic
 				message */
 void
-os_file_set_nocache(
-	int	fd		MY_ATTRIBUTE((unused)),
-	const char*	file_name	MY_ATTRIBUTE((unused)),
-	const char*	operation_name	MY_ATTRIBUTE((unused)))
+os_file_set_nocache(int fd, const char *file_name, const char *operation_name)
 {
-	/* some versions of Solaris may not have DIRECTIO_ON */
-#if defined(__sun__) && defined(DIRECTIO_ON)
-	if (directio(fd, DIRECTIO_ON) == -1) {
-		int	errno_save = errno;
-
-		ib::error()
-			<< "Failed to set DIRECTIO_ON on file "
-			<< file_name << "; " << operation_name << ": "
-			<< strerror(errno_save) << ","
-			" continuing anyway.";
-	}
-#elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
 		int		errno_save = errno;
 		static bool	warning_message_printed = false;
@@ -3054,10 +3039,8 @@ os_file_set_nocache(
 				<< ", continuing anyway.";
 		}
 	}
-#endif /* defined(__sun__) && defined(DIRECTIO_ON) */
 }
-
-#endif /* _WIN32 */
+#endif /* HAVE_FCNTL_DIRECT */
 
 /** Check if the file system supports sparse files.
 @param fh	file handle
@@ -3427,7 +3410,7 @@ static void write_io_callback(void *c)
 
   if (UNIV_UNLIKELY(cb->m_err != 0))
     ib::info () << "IO Error: " << cb->m_err
-                << "during write of "
+                << " during write of "
                 << cb->m_len << " bytes, for file "
                 << request.node->name << "(" << cb->m_fh << "), returned "
                 << cb->m_ret_len;

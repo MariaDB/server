@@ -1,7 +1,7 @@
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/libmysqld/include
-                    ${PCRE_INCLUDES}
+                    ${PCRE_INCLUDE_DIRS}
                     ${CMAKE_SOURCE_DIR}/sql
                     ${MY_READLINE_INCLUDE_DIR}
                     )

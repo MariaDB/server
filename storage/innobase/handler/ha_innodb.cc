@@ -580,13 +580,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
 #  ifdef BTR_CUR_HASH_ADAPT
   { &btr_search_latch_key, "btr_search_latch", 0 },
 #  endif
-  { &dict_operation_lock_key, "dict_operation_lock",
-#  ifdef UNIV_DEBUG
-    PSI_RWLOCK_FLAG_SX
-#  else
-    0
-#  endif
-  },
+  { &dict_operation_lock_key, "dict_operation_lock", 0 },
   { &fil_space_latch_key, "fil_space_latch", 0 },
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
@@ -3975,7 +3969,7 @@ static int innodb_init_params()
 	} else if (innodb_flush_method >= 4 /* O_DIRECT */
 		   IF_WIN(&& innodb_flush_method < 8 /* normal */,)) {
 		/* O_DIRECT and similar settings do nothing */
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 	} else if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/* If atomic writes are enabled, do the same as with
 		innodb_flush_method=O_DIRECT: retain the default settings */
@@ -13441,7 +13435,14 @@ int ha_innobase::delete_table(const char *name)
       /* FOREIGN KEY constraints cannot exist on partitioned tables. */;
 #endif
     else
-      err= lock_table_children(table, trx);
+    {
+      dict_sys.freeze(SRW_LOCK_CALL);
+      for (const dict_foreign_t* f : table->referenced_set)
+        if (dict_table_t* child= f->foreign_table)
+          if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+            break;
+      dict_sys.unfreeze();
+    }
   }
 
   dict_table_t *table_stats= nullptr, *index_stats= nullptr;
@@ -13839,7 +13840,14 @@ int ha_innobase::truncate()
   dict_table_t *table_stats = nullptr, *index_stats = nullptr;
   MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 
-  dberr_t error= lock_table_children(ib_table, trx);
+  dberr_t error= DB_SUCCESS;
+
+  dict_sys.freeze(SRW_LOCK_CALL);
+  for (const dict_foreign_t *f : ib_table->referenced_set)
+    if (dict_table_t *child= f->foreign_table)
+      if ((error= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+        break;
+  dict_sys.unfreeze();
 
   if (error == DB_SUCCESS)
     error= lock_table_for_trx(ib_table, trx, LOCK_X);
@@ -14030,7 +14038,16 @@ ha_innobase::rename_table(
 		/* There is no need to lock any FOREIGN KEY child tables. */
 	} else if (dict_table_t *table = dict_table_open_on_name(
 		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
-		error = lock_table_children(table, trx);
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (const dict_foreign_t* f : table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
 		if (error == DB_SUCCESS) {
 			error = lock_table_for_trx(table, trx, LOCK_X);
 		}

@@ -502,9 +502,9 @@ err_exit:
 			return DB_SUCCESS;
 		}
 
-		sql_print_error("InnoDB: %s in datafile: %s, Space ID: %zu, "
-				"Flags: %zu", error_txt, m_filepath,
-				m_space_id, m_flags);
+		sql_print_error("InnoDB: %s in datafile: %s, Space ID: "
+				UINT32PF ", " "Flags: " UINT32PF,
+				error_txt, m_filepath, m_space_id, m_flags);
 		m_is_valid = false;
 		return DB_CORRUPTION;
 	}
