@@ -7562,7 +7562,7 @@ int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr) const
                                                    a_ptr, field_length,
                                                    b_ptr, field_length,
                                                    Field_string::char_length(),
-                        MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
+                                                   0);
 }
 
 
