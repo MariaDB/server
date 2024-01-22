@@ -1300,5 +1300,38 @@ f
 foo
 SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
+# MDEV-32587 JSON_VALID fail to validate integer zero in scientific notation
+#
+select JSON_VALID(' {"number": 1E-4}');
+JSON_VALID(' {"number": 1E-4}')
+1
+select JSON_VALID(' {"number": 0E-4}');
+JSON_VALID(' {"number": 0E-4}')
+1
+select JSON_VALID(' {"number": 0.0}');
+JSON_VALID(' {"number": 0.0}')
+1
+select JSON_VALID(' {"number": 0.1E-4}');
+JSON_VALID(' {"number": 0.1E-4}')
+1
+select JSON_VALID(' {"number": 0e-4}');
+JSON_VALID(' {"number": 0e-4}')
+1
+select JSON_VALID(' {"number": -0E-4}');
+JSON_VALID(' {"number": -0E-4}')
+1
+select JSON_VALUE(' {"number": 0E-4}', '$.number');
+JSON_VALUE(' {"number": 0E-4}', '$.number')
+0E-4
+select JSON_VALID(' {"number": 00E-4}');
+JSON_VALID(' {"number": 00E-4}')
+0
+select JSON_VALID(' {"number": 01E-4}');
+JSON_VALID(' {"number": 01E-4}')
+0
+select JSON_VALID(' {"number": 0E-4.0}');
+JSON_VALID(' {"number": 0E-4.0}')
+0
+#
 # End of 10.4 tests
 #

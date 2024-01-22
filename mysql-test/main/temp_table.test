@@ -661,3 +661,19 @@ DROP TEMPORARY TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-31523: Using two temporary tables in OPTIMIZE TABLE lead to crash
+--echo #
+
+CREATE TEMPORARY TABLE t1 (c INT) ENGINE=MyISAM;
+CREATE TEMPORARY TABLE t2 (c INT) ENGINE=MyISAM;
+optimize TABLE t1,t2;
+SHOW TABLES;
+--echo # in 11.2 and above here should be listed above used temporary tables
+
+DROP TEMPORARY TABLE t1, t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
