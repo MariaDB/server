@@ -8955,6 +8955,21 @@ DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
 DROP VIEW v1;
+#
+# MDEV-33270: Call of SP invoking another SP with a parameter
+#             requiring type conversion
+#
+SET NAMES latin1;
+CREATE PROCEDURE p1 (a text) BEGIN SELECT a; END |
+CREATE PROCEDURE p2 () CALL p1(concat('x',_utf8'x')) |
+CALL p2();
+a
+xx
+CALL p2();
+a
+xx
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
 # End of 10.4 tests
 #
 #

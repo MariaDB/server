@@ -819,7 +819,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
       if (table->table->s->tmp_table)
-        thd->close_unused_temporary_table_instances(tables);
+        thd->close_unused_temporary_table_instances(table);
       else
       {
         /* Store information about table for ddl log */
