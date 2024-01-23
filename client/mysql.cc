@@ -90,6 +90,7 @@ extern "C" {
 #undef bcmp				// Fix problem with new readline
 #if defined(_WIN32)
 #include <conio.h>
+#include <windows.h>
 #else
 # ifdef __APPLE__
 #  include <editline/readline.h>
@@ -171,6 +172,9 @@ static int connect_flag=CLIENT_INTERACTIVE;
 static my_bool opt_binary_mode= FALSE;
 static my_bool opt_connect_expired_password= FALSE;
 static int interrupted_query= 0;
+#ifdef USE_LIBEDIT_INTERFACE
+static int sigint_received= 0;
+#endif
 static char *current_host,*current_db,*current_user=0,*opt_password=0,
             *current_prompt=0, *delimiter_str= 0,
             *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME,
@@ -1073,7 +1077,32 @@ extern "C" sig_handler handle_sigint(int sig);
 static sig_handler window_resize(int sig);
 #endif
 
+static void end_in_sig_handler(int sig);
+static bool kill_query(const char *reason);
 
+#ifdef _WIN32
+static BOOL WINAPI ctrl_handler_windows(DWORD fdwCtrlType)
+{
+  switch (fdwCtrlType)
+  {
+    // Handle the CTRL-C signal.
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+      handle_sigint(SIGINT);
+      return TRUE; // this means that the signal is handled
+    case CTRL_CLOSE_EVENT:
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+      kill_query("Terminate");
+      end_in_sig_handler(SIGINT + 1);
+      aborted= 1;
+  }
+  // This means to pass the signal to the next handler. This allows
+  // my_cgets and the internal ReadConsole call to exit and gracefully
+  // abort the program.
+  return FALSE;
+}
+#endif
 const char DELIMITER_NAME[]= "delimiter";
 const uint DELIMITER_NAME_LEN= sizeof(DELIMITER_NAME) - 1;
 inline bool is_delimiter_command(char *name, ulong len)
@@ -1209,11 +1238,12 @@ int main(int argc,char *argv[])
   if (!status.batch)
     ignore_errors=1;				// Don't abort monitor
 
-  if (opt_sigint_ignore)
-    signal(SIGINT, SIG_IGN);
-  else
-    signal(SIGINT, handle_sigint);              // Catch SIGINT to clean up
-  signal(SIGQUIT, mysql_end);			// Catch SIGQUIT to clean up
+#ifndef _WIN32
+  signal(SIGINT, handle_sigint);   // Catch SIGINT to clean up
+  signal(SIGQUIT, mysql_end);      // Catch SIGQUIT to clean up
+#else
+  SetConsoleCtrlHandler(ctrl_handler_windows, TRUE);
+#endif
 
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
   /* Readline will call this if it installs a handler */
@@ -1379,30 +1409,35 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 }
 
 
-/*
-  This function handles sigint calls
-  If query is in process, kill query
-  If 'source' is executed, abort source command
-  no query in process, terminate like previous behavior
- */
+void end_in_sig_handler(int sig)
+{
+#ifdef _WIN32
+  /*
+   When SIGINT is raised on Windows, the OS creates a new thread to handle the
+   interrupt. Once that thread completes, the main thread continues running
+   only to find that it's resources have already been free'd when the sigint
+   handler called mysql_end().
+  */
+  mysql_thread_end();
+#else
+  mysql_end(sig);
+#endif
+}
 
-sig_handler handle_sigint(int sig)
+
+/*
+  Kill a running query. Returns true if we were unable to connect to the server.
+*/
+bool kill_query(const char *reason)
 {
   char kill_buffer[40];
   MYSQL *kill_mysql= NULL;
 
-  /* terminate if no query being executed, or we already tried interrupting */
-  if (!executing_query || (interrupted_query == 2))
-  {
-    tee_fprintf(stdout, "Ctrl-C -- exit!\n");
-    goto err;
-  }
-
   kill_mysql= mysql_init(kill_mysql);
   if (!do_connect(kill_mysql,current_host, current_user, opt_password, "", 0))
   {
-    tee_fprintf(stdout, "Ctrl-C -- sorry, cannot connect to server to kill query, giving up ...\n");
-    goto err;
+    tee_fprintf(stdout, "%s -- sorry, cannot connect to server to kill query, giving up ...\n", reason);
+    return true;
   }
 
   /* First time try to kill the query, second time the connection */
@@ -1417,27 +1452,65 @@ sig_handler handle_sigint(int sig)
           (interrupted_query == 1) ? "QUERY " : "",
           mysql_thread_id(&mysql));
   if (verbose)
-    tee_fprintf(stdout, "Ctrl-C -- sending \"%s\" to server ...\n",
+    tee_fprintf(stdout, "%s -- sending \"%s\" to server ...\n", reason,
                 kill_buffer);
   mysql_real_query(kill_mysql, kill_buffer, (uint) strlen(kill_buffer));
   mysql_close(kill_mysql);
-  tee_fprintf(stdout, "Ctrl-C -- query killed. Continuing normally.\n");
+  if (interrupted_query == 1)
+    tee_fprintf(stdout, "%s -- query killed.\n", reason);
+  else
+    tee_fprintf(stdout, "%s -- connection killed.\n", reason);
+
   if (in_com_source)
     aborted= 1;                                 // Abort source command
-  return;
+  return false;
+}
 
-err:
-#ifdef _WIN32
+/*
+  This function handles sigint calls
+  If query is in process, kill query
+  If 'source' is executed, abort source command
+  no query in process, regenerate prompt.
+*/
+sig_handler handle_sigint(int sig)
+{
+  if (opt_sigint_ignore)
+    return;
+
   /*
-   When SIGINT is raised on Windows, the OS creates a new thread to handle the
-   interrupt. Once that thread completes, the main thread continues running 
-   only to find that it's resources have already been free'd when the sigint 
-   handler called mysql_end(). 
+     On Unix only, if no query is being executed just clear the prompt,
+     don't exit. On Windows we exit.
   */
-  mysql_thread_end();
+  if (!executing_query)
+  {
+#ifndef _WIN32
+    tee_fprintf(stdout, "^C\n");
+#ifdef USE_LIBEDIT_INTERFACE
+    /* Libedit will regenerate it outside of the signal handler. */
+    sigint_received= 1;
 #else
-  mysql_end(sig);
-#endif  
+    rl_on_new_line();           // Regenerate the prompt on a newline
+    rl_replace_line("", 0);     // Clear the previous text
+    rl_redisplay();
+#endif
+#else // WIN32
+    tee_fprintf(stdout, "Ctrl-C -- exit!\n");
+    end_in_sig_handler(sig);
+#endif
+    return;
+  }
+
+  /*
+    When executing a query, this newline makes the prompt look like so:
+    ^C
+    Ctrl-C -- query killed.
+  */
+  tee_fprintf(stdout, "\n");
+  if (kill_query("Ctrl-C"))
+  {
+    aborted= 1;
+    end_in_sig_handler(sig);
+  }
 }
 
 
@@ -2004,6 +2077,12 @@ static int get_options(int argc, char **argv)
   return(0);
 }
 
+static inline void reset_prompt(char *in_string, bool *ml_comment) {
+  glob_buffer.length(0);
+  *ml_comment = false;
+  *in_string = 0;
+}
+
 static int read_and_execute(bool interactive)
 {
 #if defined(_WIN32)
@@ -2095,7 +2174,7 @@ static int read_and_execute(bool interactive)
       size_t clen;
       do
       {
-	line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
+        line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
         buffer.append(line, clen);
         /* 
            if we got buffer fully filled than there is a chance that
@@ -2117,9 +2196,35 @@ static int read_and_execute(bool interactive)
         the readline/libedit library.
       */
       if (line)
+      {
         free(line);
+        glob_buffer.length(0);
+      }
       line= readline(prompt);
-#endif /* defined(_WIN32) */
+#ifdef USE_LIBEDIT_INTERFACE
+      /*
+        libedit handles interrupts different than libreadline.
+        libreadline has its own signal handlers, thus a sigint during readline
+        doesn't force readline to return null string.
+
+        However libedit returns null if the interrupt signal is raised.
+        We can also get an empty string when ctrl+d is pressed (EoF).
+
+        We need this sigint_received flag, to differentiate between the two
+        cases. This flag is only set during our handle_sigint function when
+        LIBEDIT_INTERFACE is used.
+      */
+      if (!line && sigint_received)
+      {
+        // User asked to clear the input.
+        sigint_received= 0;
+        reset_prompt(&in_string, &ml_comment);
+        continue;
+      }
+      // For safety, we always mark this as cleared.
+      sigint_received= 0;
+#endif
+#endif /* defined(__WIN__) */
 
       /*
         When Ctrl+d or Ctrl+z is pressed, the line may be NULL on some OS

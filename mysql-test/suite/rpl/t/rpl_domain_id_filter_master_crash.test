@@ -67,10 +67,26 @@ connection master;
 save_master_pos;
 
 --connection slave
+
+# Left to its own devices, the IO thread may or may not stop in error,
+# depending on what it is doing when its connection to the primary is killed
+# (e.g. a failed read results in an error, whereas if the IO thread is idly
+# waiting for events when the connection dies, it will enter into a reconnect
+# loop and reconnect). So we manually stop/start the IO thread to ensure it is
+# in a consistent state
+#
+# FIXME: We shouldn't need to stop/start the SQL thread here, but due to
+# MDEV-33268, we have to. So after fixing 33268, this should only stop/start
+# the IO thread. Note the SQL thread must be stopped first due to an invalid
+# DBUG_ASSERT in the IO thread's stop logic that depends on the state of the
+# SQL thread (also reported and to be fixed in the same ticket).
+#
+--source include/stop_slave_sql.inc
 --let rpl_allow_error=1
---source include/wait_for_slave_io_to_start.inc
+--source include/stop_slave_io.inc
 --let rpl_allow_error=
---source include/wait_for_slave_sql_to_start.inc
+--source include/start_slave.inc
+
 sync_with_master;
 select * from ti;
 select * from tm;
