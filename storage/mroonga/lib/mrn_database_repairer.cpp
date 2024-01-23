@@ -179,8 +179,15 @@ namespace mrn {
 
     const char *raw_path_prefix = mrn::PathMapper::default_path_prefix;
 
+    if (using_catalogs) {
+      my_snprintf(base_directory_buffer_, MRN_MAX_PATH_SIZE, "./%s",
+          thd_->catalog->path.str);
+      base_directory_ = base_directory_buffer_;
+    }
+
     if (!raw_path_prefix) {
-      base_directory_ = ".";
+      if (!using_catalogs)
+        base_directory_ = ".";
       path_prefix_ = NULL;
       DBUG_VOID_RETURN;
     }

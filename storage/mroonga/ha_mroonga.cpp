@@ -9157,7 +9157,10 @@ void ha_mroonga::remove_related_files(const char *base_path)
   MRN_DBUG_ENTER_METHOD();
 
   const char *base_directory_name = ".";
-  size_t base_path_length = strlen(base_path);
+  if (using_catalogs)
+    base_directory_name = current_thd->catalog->path.str;
+  const char *true_base = basename(base_path);
+  size_t base_path_length = strlen(true_base);
 #ifdef WIN32
   WIN32_FIND_DATA data;
   HANDLE finder = FindFirstFile(base_directory_name, &data);
@@ -9176,15 +9179,18 @@ void ha_mroonga::remove_related_files(const char *base_path)
   DIR *dir = opendir(base_directory_name);
   if (dir) {
     while (struct dirent *entry = readdir(dir)) {
+      char file_to_delete[MRN_MAX_PATH_SIZE];
       struct stat file_status;
-      if (stat(entry->d_name, &file_status) != 0) {
+      my_snprintf(file_to_delete, MRN_MAX_PATH_SIZE, "%s%c%s",
+          base_directory_name, FN_LIBCHAR, entry->d_name);
+      if (stat(file_to_delete, &file_status) != 0) {
         continue;
       }
       if (!((file_status.st_mode & S_IFMT) == S_IFREG)) {
         continue;
       }
-      if (strncmp(entry->d_name, base_path, base_path_length) == 0) {
-        unlink(entry->d_name);
+      if (strncmp(entry->d_name, true_base, base_path_length) == 0) {
+        unlink(file_to_delete);
       }
     }
     closedir(dir);

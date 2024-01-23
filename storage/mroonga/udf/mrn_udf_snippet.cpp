@@ -31,6 +31,8 @@
 #include <mrn_variables.hpp>
 #include <mrn_current_thread.hpp>
 
+#include <sql_table.h>
+
 MRN_BEGIN_DECLS
 
 extern mrn::DatabaseManager *mrn_db_manager;
@@ -186,14 +188,23 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *init, UDF_ARGS *args, char *messa
     strcpy(message, "mroonga_snippet() out of memory");
     goto error;
   }
+
+  if (!MRN_THD_DB_PATH(current_thd)) {
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+        "mroonga_snippet(): no current database");
+    goto error;
+  }
+
   snip_info->ctx = mrn_context_pool->pull();
   {
-    const char *current_db_path = MRN_THD_DB_PATH(current_thd);
+    char db_dir_path[FN_REFLEN + 1];
+    build_table_filename(current_thd->catalog, db_dir_path,
+        sizeof(db_dir_path) - 1, current_thd->db.str, "", "", 0);
     const char *action;
-    if (current_db_path) {
+    if (db_dir_path) {
       action = "open database";
       mrn::Database *db;
-      int error = mrn_db_manager->open(current_db_path, &db);
+      int error = mrn_db_manager->open(db_dir_path, &db);
       if (error == 0) {
         snip_info->db = db->get();
         grn_ctx_use(snip_info->ctx, snip_info->db);

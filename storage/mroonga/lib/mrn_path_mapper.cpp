@@ -55,13 +55,28 @@ namespace mrn {
 
     if (original_mysql_path_[0] == FN_CURLIB &&
         original_mysql_path_[1] == FN_LIBCHAR) {
+      if (using_catalogs) {
+        strcpy(db_path_, current_thd->catalog->path.str);
+      }
       if (path_prefix_) {
-        strcpy(db_path_, path_prefix_);
+        strcat(db_path_, path_prefix_);
       }
 
-      int i = 2, j = strlen(db_path_), len;
+      int i = 2, j = strlen(db_path_), len, hit_slash = 0;
       len = strlen(original_mysql_path_);
-      while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
+      while (i < len) {
+        if (using_catalogs && hit_slash == 0)
+        {
+          // Skip the beginning of path, we added catalog to path before prefix
+          if (original_mysql_path_[i] == FN_LIBCHAR) {
+            hit_slash = 1;
+          }
+          i++;
+          continue;
+        }
+        if (original_mysql_path_[i] == FN_LIBCHAR) {
+          break;
+        }
         db_path_[j++] = original_mysql_path_[i++];
       }
       db_path_[j] = '\0';

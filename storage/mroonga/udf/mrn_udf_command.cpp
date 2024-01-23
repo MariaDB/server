@@ -120,20 +120,22 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *init, UDF_ARGS *args,
     goto error;
   }
 
+  if (!MRN_THD_DB_PATH(current_thd)) {
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+        "mroonga_command(): no current database");
+    goto error;
+  }
+
   info->ctx = mrn_context_pool->pull();
   {
-    const char *current_db_path = MRN_THD_DB_PATH(current_thd);
+    char db_dir_path[FN_REFLEN + 1];
+    build_table_filename(current_thd->catalog, db_dir_path,
+        sizeof(db_dir_path) - 1, current_thd->db.str, "", "", 0);
     const char *action;
-    if (current_db_path) {
+    if (db_dir_path) {
       action = "open database";
-      char encoded_db_path[FN_REFLEN + 1];
-      uint encoded_db_path_length =
-        tablename_to_filename(current_db_path,
-                              encoded_db_path,
-                              sizeof(encoded_db_path));
-      encoded_db_path[encoded_db_path_length] = '\0';
       mrn::Database *db;
-      int error = mrn_db_manager->open(encoded_db_path, &db);
+      int error = mrn_db_manager->open(db_dir_path, &db);
       if (error == 0) {
         info->db = db->get();
         grn_ctx_use(info->ctx, info->db);

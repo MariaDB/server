@@ -17,9 +17,6 @@
 
 --source ../../include/mroonga/check_ha_mroonga_so.inc
 
-# Does not yet work with catalogs, should be fixed
---source include/not_catalogs.inc
-
 disable_query_log;
 
 let have_mroonga_storage_engine=`SELECT 1 FROM information_schema.plugins WHERE plugin_name = "mroonga"`;

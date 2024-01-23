@@ -35,12 +35,13 @@ INSERT INTO diaries (title, body) VALUES ("Groonga (2)", "started Groonga.");
 
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("+starting" IN BOOLEAN MODE);
 
---remove_file $MYSQLD_DATADIR/repair_test.mrn.000010E.c
+--remove_file $MARIADB_DATADIR/repair_test.mrn.000010E.c
 
 FLUSH TABLES;
 
 # Error ER_CANT_OPEN_FILE system call error: No such file or directory: failed to open path: <repair_test.mrn.000010E.c>
 --error ER_CANT_OPEN_FILE
+--replace_regex /def\///
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("+starting" IN BOOLEAN MODE);
 
 REPAIR TABLE diaries;

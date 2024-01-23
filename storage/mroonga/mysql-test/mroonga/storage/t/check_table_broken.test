@@ -30,7 +30,7 @@ CREATE TABLE diaries (
 
 INSERT INTO diaries VALUES ('Hello');
 
---remove_file $MYSQLD_DATADIR/check_test.mrn.000010C
+--remove_file $MARIADB_DATADIR/check_test.mrn.000010C
 
 FLUSH TABLES;
 

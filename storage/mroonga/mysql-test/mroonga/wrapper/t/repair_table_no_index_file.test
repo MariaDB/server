@@ -36,12 +36,13 @@ INSERT INTO diaries (title, body) VALUES ("groonga (2)", "started groonga.");
 
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 
---remove_file $MYSQLD_DATADIR/repair_test.mrn.000010A
+--remove_file $MARIADB_DATADIR/repair_test.mrn.000010A
 
 FLUSH TABLES;
 
 # Error ER_CANT_OPEN_FILE system call error: No such file or directory: failed to open path: <repair_test.mrn.000010A>
 --error ER_CANT_OPEN_FILE
+--replace_regex /def\///
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 
 REPAIR TABLE diaries;

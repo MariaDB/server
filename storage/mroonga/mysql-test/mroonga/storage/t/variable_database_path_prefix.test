@@ -27,7 +27,7 @@ CREATE TABLE counts (
   id INT PRIMARY KEY AUTO_INCREMENT
 );
 
---file_exists $MYSQLD_DATADIR/test/mroonga.data/clean_test.mrn
+--file_exists $MARIADB_DATADIR/test/mroonga.data/clean_test.mrn
 
 INSERT INTO counts VALUES (NULL);
 
@@ -39,6 +39,6 @@ SET GLOBAL mroonga_database_path_prefix = NULL;
 
 USE test;
 
---rmdir $MYSQLD_DATADIR/test/mroonga.data
+--rmdir $MARIADB_DATADIR/test/mroonga.data
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

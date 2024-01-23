@@ -331,7 +331,16 @@ namespace mrn {
 
     char database_directory[MRN_MAX_PATH_SIZE];
     size_t database_directory_length = last_path_separator - path_prefix;
-    strncpy(database_directory, path_prefix, database_directory_length);
+    if (using_catalogs) {
+      my_snprintf(database_directory, MRN_MAX_PATH_SIZE, "%s%.*s",
+          current_thd->catalog->path.str, database_directory_length,
+          path_prefix);
+      database_directory_length+= current_thd->catalog->path.length;
+    }
+    else
+    {
+      strncpy(database_directory, path_prefix, database_directory_length);
+    }
     database_directory[database_directory_length] = '\0';
     mkdir_p(database_directory);
 

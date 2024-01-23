@@ -15,6 +15,9 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
+# Error code at the end of the test is different for Catalogs
+--source include/not_catalogs.inc
+
 --source ../../include/mroonga/have_mroonga.inc
 
 set @mroonga_log_level_backup=@@mroonga_log_level;
