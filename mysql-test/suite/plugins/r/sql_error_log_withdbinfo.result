@@ -28,10 +28,10 @@ CREATE DATABASE `NULL`;
 USE `NULL`;
 DROP DATABASE db;
 ERROR HY000: Can't drop database 'db'; database doesn't exist
-THREAD_ID `test` TIME HOSTNAME ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
-THREAD_ID `test` TIME HOSTNAME ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
-THREAD_ID NULL TIME HOSTNAME ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
-THREAD_ID `NULL` TIME HOSTNAME ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
+TIME THREAD_ID HOSTNAME `test` ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
+TIME THREAD_ID HOSTNAME `test` ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
+TIME THREAD_ID HOSTNAME NULL ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
+TIME THREAD_ID HOSTNAME `NULL` ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
 DROP DATABASE `NULL`;
 # Reset
 CREATE DATABASE test;
