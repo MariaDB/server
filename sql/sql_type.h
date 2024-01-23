@@ -24,6 +24,7 @@
 
 #include "mysqld.h"
 #include "lex_string.h"
+#include "sql_type_timeofday.h"
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
@@ -2520,6 +2521,20 @@ public:
   }
   Datetime(my_time_t unix_time, ulong second_part,
            const Time_zone* time_zone);
+  Datetime(uint year_arg, uint month_arg, uint day_arg, const TimeOfDay6 &td)
+  {
+    neg= 0;
+    year= year_arg;
+    month= month_arg;
+    day= day_arg;
+    hour= td.hour();
+    minute= td.minute();
+    second= td.second();
+    second_part= td.usecond();
+    time_type= MYSQL_TIMESTAMP_DATETIME;
+    if (!is_valid_datetime_slow())
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
 
   bool is_valid_datetime() const
   {
@@ -2663,6 +2678,12 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime());
     return Temporal::fraction_remainder(dec);
+  }
+
+  Datetime time_of_day(const TimeOfDay6 &td) const
+  {
+    DBUG_ASSERT(is_valid_datetime()); // not SQL NULL
+    return Datetime(year, month, day, td);
   }
 
   Datetime &trunc(uint dec)

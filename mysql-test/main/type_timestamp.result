@@ -2026,3 +2026,186 @@ DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
 # End of 10.6 tests
+#
+# Start of 11.3 tests
+#
+#
+# MDEV-33299 Assertion `(tm->tv_usec % (int) log_10_int[6 - dec]) == 0' failed in void my_timestamp_to_binary(const timeval*, uchar*, uint)
+#
+CREATE TABLE t1(a TIMESTAMP,KEY(a));
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23' ;
+a
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+DROP TABLE t1;
+CREATE TABLE t1(a TIMESTAMP,KEY(a));
+INSERT INTO t1 VALUES ('2023-12-31 23:59:59');
+INSERT INTO t1 VALUES ('2024-01-22 10:20:30');
+INSERT INTO t1 VALUES ('2024-01-23 10:20:30');
+INSERT INTO t1 VALUES ('2024-01-23 23:59:59');
+INSERT INTO t1 VALUES ('2024-01-24 00:00:00');
+INSERT INTO t1 VALUES ('2024-12-31 23:59:59');
+INSERT INTO t1 VALUES ('2025-01-01 00:00:00');
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+a
+2023-12-31 23:59:59
+2024-01-22 10:20:30
+2024-01-23 10:20:30
+2024-01-23 23:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-23 23:59:59'
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+2023-12-31 23:59:59
+2024-01-22 10:20:30
+2024-01-23 10:20:30
+2024-01-23 23:59:59
+2024-01-24 00:00:00
+2024-12-31 23:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-12-31 23:59:59'
+SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+a
+2024-01-24 00:00:00
+2024-12-31 23:59:59
+2025-01-01 00:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-24 00:00:00'
+SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+a
+2024-01-22 10:20:30
+2024-01-23 10:20:30
+2024-01-23 23:59:59
+2024-01-24 00:00:00
+2024-12-31 23:59:59
+2025-01-01 00:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00'
+DROP TABLE t1;
+CREATE TABLE t1(a TIMESTAMP(3),KEY(a));
+INSERT INTO t1 VALUES ('2023-12-31 23:59:59.999');
+INSERT INTO t1 VALUES ('2024-01-22 10:20:30.001');
+INSERT INTO t1 VALUES ('2024-01-23 10:20:30.002');
+INSERT INTO t1 VALUES ('2024-01-23 23:59:59.999');
+INSERT INTO t1 VALUES ('2024-01-24 00:00:00.000');
+INSERT INTO t1 VALUES ('2024-12-31 23:59:59.999');
+INSERT INTO t1 VALUES ('2025-01-01 00:00:00.000');
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+a
+2023-12-31 23:59:59.999
+2024-01-22 10:20:30.001
+2024-01-23 10:20:30.002
+2024-01-23 23:59:59.999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-23 23:59:59.999'
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+2023-12-31 23:59:59.999
+2024-01-22 10:20:30.001
+2024-01-23 10:20:30.002
+2024-01-23 23:59:59.999
+2024-01-24 00:00:00.000
+2024-12-31 23:59:59.999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-12-31 23:59:59.999'
+SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+a
+2024-01-24 00:00:00.000
+2024-12-31 23:59:59.999
+2025-01-01 00:00:00.000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	3	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-24 00:00:00.000'
+SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+a
+2024-01-22 10:20:30.001
+2024-01-23 10:20:30.002
+2024-01-23 23:59:59.999
+2024-01-24 00:00:00.000
+2024-12-31 23:59:59.999
+2025-01-01 00:00:00.000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00.000'
+DROP TABLE t1;
+CREATE TABLE t1(a TIMESTAMP(6),KEY(a));
+INSERT INTO t1 VALUES ('2023-12-31 23:59:59.999999');
+INSERT INTO t1 VALUES ('2024-01-22 10:20:30.000001');
+INSERT INTO t1 VALUES ('2024-01-23 10:20:30.000002');
+INSERT INTO t1 VALUES ('2024-01-23 23:59:59.999999');
+INSERT INTO t1 VALUES ('2024-01-24 00:00:00.000000');
+INSERT INTO t1 VALUES ('2024-12-31 23:59:59.999999');
+INSERT INTO t1 VALUES ('2025-01-01 00:00:00.000000');
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+a
+2023-12-31 23:59:59.999999
+2024-01-22 10:20:30.000001
+2024-01-23 10:20:30.000002
+2024-01-23 23:59:59.999999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-23 23:59:59.999999'
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+2023-12-31 23:59:59.999999
+2024-01-22 10:20:30.000001
+2024-01-23 10:20:30.000002
+2024-01-23 23:59:59.999999
+2024-01-24 00:00:00.000000
+2024-12-31 23:59:59.999999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-12-31 23:59:59.999999'
+SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+a
+2024-01-24 00:00:00.000000
+2024-12-31 23:59:59.999999
+2025-01-01 00:00:00.000000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	3	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-24 00:00:00.000000'
+SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+a
+2024-01-22 10:20:30.000001
+2024-01-23 10:20:30.000002
+2024-01-23 23:59:59.999999
+2024-01-24 00:00:00.000000
+2024-12-31 23:59:59.999999
+2025-01-01 00:00:00.000000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00.000000'
+DROP TABLE t1;
+#
+# End of 11.3 tests
+#

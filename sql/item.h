@@ -4479,6 +4479,13 @@ protected:
   MYSQL_TIME ltime;
 public:
   Item_datetime(THD *thd): Item_int(thd, 0) { unsigned_flag=0; }
+  Item_datetime(THD *thd, const Datetime &dt, decimal_digits_t dec)
+   :Item_int(thd, 0),
+    ltime(*dt.get_mysql_time())
+  {
+    unsigned_flag= 0;
+    decimals= dec;
+  }
   int save_in_field(Field *field, bool no_conversions) override;
   longlong val_int() override;
   double val_real() override { return (double)val_int(); }
@@ -5014,6 +5021,8 @@ public:
    :Item_literal(thd),
     m_value(value)
   {
+    DBUG_ASSERT(value.is_zero_datetime() ||
+                !value.to_timestamp().fraction_remainder(dec));
     collation= DTCollation_numeric();
     decimals= dec;
   }
