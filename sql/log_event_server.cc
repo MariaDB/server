@@ -5254,13 +5254,14 @@ bool sql_ex_info::write_data(Log_event_writer *writer)
 	Rows_log_event member functions
 **************************************************************************/
 
-Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
+Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
+                               ulonglong table_id,
                                MY_BITMAP const *cols, bool is_transactional,
                                Log_event_type event_type)
   : Log_event(thd_arg, 0, is_transactional),
     m_row_count(0),
     m_table(tbl_arg),
-    m_table_id(tid),
+    m_table_id(table_id),
     m_width(tbl_arg ? tbl_arg->s->fields : 1),
     m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0),
     m_type(event_type), m_extra_row_data(0)
@@ -5272,12 +5273,13 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
 {
   /*
     We allow a special form of dummy event when the table, and cols
-    are null and the table id is ~0UL.  This is a temporary
+    are null and the table id is UINT32_MAX.  This is a temporary
     solution, to be able to terminate a started statement in the
     binary log: the extraneous events will be removed in the future.
    */
-  DBUG_ASSERT((tbl_arg && tbl_arg->s && tid != ~0UL) ||
-              (!tbl_arg && !cols && tid == ~0UL));
+  DBUG_ASSERT((tbl_arg && tbl_arg->s &&
+               (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
+              (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
 
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
@@ -5425,12 +5427,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
   /*
-    If m_table_id == ~0ULL, then we have a dummy event that does not
+    If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
     tables_to_lock list, close the thread tables, and return with
     success.
    */
-  if (m_table_id == ~0ULL)
+  if (m_table_id == UINT32_MAX)
   {
     /*
        This one is supposed to be set: just an extra check so that
@@ -6069,7 +6071,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 bool Rows_log_event::write_data_header()
 {
   uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
                     int4store(buf + 0, m_table_id);
@@ -6277,7 +6279,7 @@ int Table_map_log_event::save_field_metadata()
   Mats says tbl->s lives longer than this event so it's ok to copy pointers
   (tbl->s->db etc) and not pointer content.
  */
-Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
+Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulonglong tid,
                                          bool is_transactional)
   : Log_event(thd, 0, is_transactional),
     m_table(tbl),
@@ -6300,7 +6302,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   uchar cbuf[MAX_INT_WIDTH];
   uchar *cbuf_end;
   DBUG_ENTER("Table_map_log_event::Table_map_log_event(TABLE)");
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   /*
     In TABLE_SHARE, "db" and "table_name" are 0-terminated (see this comment in
     table.cc / alloc_table_share():
@@ -6627,7 +6629,7 @@ int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 
 bool Table_map_log_event::write_data_header()
 {
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   uchar buf[TABLE_MAP_HEADER_LEN];
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
@@ -7082,7 +7084,7 @@ void Table_map_log_event::pack_info(Protocol *protocol)
   Constructor used to build an event for writing to the binary log.
  */
 Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                           ulong tid_arg,
+                                           ulonglong tid_arg,
                                            bool is_transactional)
   :Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->rpl_write_set,
                   is_transactional, WRITE_ROWS_EVENT_V1)
@@ -7092,7 +7094,7 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
                                            THD *thd_arg,
                                            TABLE *tbl_arg,
-                                           ulong tid_arg,
+                                           ulonglong tid_arg,
                                            bool is_transactional)
   : Write_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
@@ -8216,7 +8218,8 @@ end:
  */
 
 Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                             ulong tid, bool is_transactional)
+                                             ulonglong tid,
+                                             bool is_transactional)
   : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
                    DELETE_ROWS_EVENT_V1)
 {
@@ -8224,7 +8227,7 @@ Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
                                            THD *thd_arg, TABLE *tbl_arg,
-                                           ulong tid_arg,
+                                           ulonglong tid_arg,
                                            bool is_transactional)
   : Delete_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
@@ -8365,7 +8368,7 @@ uint8 Delete_rows_log_event::get_trg_event_map()
   Constructor used to build an event for writing to the binary log.
  */
 Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                             ulong tid,
+                                             ulonglong tid,
                                              bool is_transactional)
 : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
                  UPDATE_ROWS_EVENT_V1)
@@ -8373,9 +8376,9 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   init(tbl_arg->rpl_write_set);
 }
 
-Update_rows_compressed_log_event::Update_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                                                   ulong tid,
-                                                                   bool is_transactional)
+Update_rows_compressed_log_event::
+Update_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
+                                 ulonglong tid, bool is_transactional)
 : Update_rows_log_event(thd_arg, tbl_arg, tid, is_transactional)
 {
   m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;
