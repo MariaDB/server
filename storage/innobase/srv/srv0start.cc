@@ -1277,6 +1277,36 @@ dberr_t srv_start(bool create_new_db)
 		return srv_init_abort(DB_ERROR);
 	}
 
+	/* Open system tablespace and undo spaces. It is a special case for
+	restore with empty redo log file. We support restore in such case and
+	proceed after opening system tablespaces. */
+	ulint	sum_of_new_sizes;
+
+	auto open_system_spaces = [&]() {
+		ut_ad(!create_new_db);
+		ut_ad(srv_operation == SRV_OPERATION_RESTORE ||
+		      srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+
+		/* Open system tablespace ibdata1. */
+		auto err = srv_sys_space.open_or_create(
+			false, false, &sum_of_new_sizes, &flushed_lsn);
+		if (err != DB_SUCCESS) {
+			return srv_init_abort(err);
+		}
+
+		/* Open data files for system tablespace. */
+		if (!fil_system.sys_space->open(false)) {
+			return srv_init_abort(DB_ERROR);
+		}
+
+		/* Open undo tablespaces. */
+		err = srv_undo_tablespaces_init(false);
+		if (err != DB_SUCCESS) {
+			return srv_init_abort(err);
+		}
+		return DB_SUCCESS;
+	};
+
 	std::string logfile0;
 	bool create_new_log = create_new_db;
 	if (create_new_db) {
@@ -1299,7 +1329,8 @@ dberr_t srv_start(bool create_new_db)
 		bool log_file_found;
 		if (dberr_t err = find_and_check_log_file(log_file_found)) {
 			if (err == DB_NOT_FOUND) {
-				return DB_SUCCESS;
+				/* For restore, we need to continue. */
+				return open_system_spaces();
 			}
 			return srv_init_abort(err);
 		}
@@ -1329,8 +1360,6 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	/* Open or create the data files. */
-	ulint	sum_of_new_sizes;
-
 	err = srv_sys_space.open_or_create(
 		false, create_new_db, &sum_of_new_sizes, &flushed_lsn);
 
@@ -1378,10 +1407,8 @@ dberr_t srv_start(bool create_new_db)
 		/* Suppress the message about
 		crash recovery. */
 		flushed_lsn = log_sys.get_lsn();
-		goto file_checked;
 	}
 
-file_checked:
 	/* Open data files in the systemtablespace: we keep
         them open until database shutdown */
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
