@@ -159,8 +159,8 @@ static io_slots *write_slots;
 
 /**
   Statistics for asynchronous I/O
-  @param[in] op operation type (aio_opcode::AIO_PREAD or aio_opcode::AIO_PWRITE)
-  @param[in] stats pointer to the structure to fill
+  @param op operation type (aio_opcode::AIO_PREAD or aio_opcode::AIO_PWRITE)
+  @param stats pointer to the structure to fill
 */
 void innodb_io_slots_stats(tpool::aio_opcode op, innodb_async_io_stats_t *stats)
 {

@@ -89,7 +89,7 @@ public:
   void set_max_tasks(unsigned int max_concurrent_tasks);
   void execute(task* t);
   void cancel_pending(task *t);
-  void get_stats(group_stats* stats);
+  void get_stats(group_stats *stats);
   ~task_group();
 };
 
