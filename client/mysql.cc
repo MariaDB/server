@@ -90,7 +90,6 @@ extern "C" {
 #undef bcmp				// Fix problem with new readline
 #if defined(__WIN__)
 #include <conio.h>
-#include <windows.h>
 #else
 # ifdef __APPLE__
 #  include <editline/readline.h>
@@ -1080,29 +1079,6 @@ static sig_handler window_resize(int sig);
 static void end_in_sig_handler(int sig);
 static bool kill_query(const char *reason);
 
-#ifdef _WIN32
-static BOOL WINAPI ctrl_handler_windows(DWORD fdwCtrlType)
-{
-  switch (fdwCtrlType)
-  {
-    // Handle the CTRL-C signal.
-    case CTRL_C_EVENT:
-    case CTRL_BREAK_EVENT:
-      handle_sigint(SIGINT);
-      return TRUE; // this means that the signal is handled
-    case CTRL_CLOSE_EVENT:
-    case CTRL_LOGOFF_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
-      kill_query("Terminate");
-      end_in_sig_handler(SIGINT + 1);
-      aborted= 1;
-  }
-  // This means to pass the signal to the next handler. This allows
-  // my_cgets and the internal ReadConsole call to exit and gracefully
-  // abort the program.
-  return FALSE;
-}
-#endif
 const char DELIMITER_NAME[]= "delimiter";
 const uint DELIMITER_NAME_LEN= sizeof(DELIMITER_NAME) - 1;
 inline bool is_delimiter_command(char *name, ulong len)
@@ -1235,12 +1211,11 @@ int main(int argc,char *argv[])
   if (!status.batch)
     ignore_errors=1;				// Don't abort monitor
 
-#ifndef _WIN32
-  signal(SIGINT, handle_sigint);   // Catch SIGINT to clean up
+  if (opt_sigint_ignore)
+    signal(SIGINT, SIG_IGN);
+  else
+    signal(SIGINT, handle_sigint);   // Catch SIGINT to clean up
   signal(SIGQUIT, mysql_end);      // Catch SIGQUIT to clean up
-#else
-  SetConsoleCtrlHandler(ctrl_handler_windows, TRUE);
-#endif
 
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
   /* Readline will call this if it installs a handler */
@@ -1471,9 +1446,6 @@ bool kill_query(const char *reason)
 */
 sig_handler handle_sigint(int sig)
 {
-  if (opt_sigint_ignore)
-    return;
-
   /*
      On Unix only, if no query is being executed just clear the prompt,
      don't exit. On Windows we exit.
