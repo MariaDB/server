@@ -52,6 +52,7 @@ PageBulk::init()
 
 	if (m_page_no == FIL_NULL) {
 		mtr_t	alloc_mtr;
+		dberr_t err= DB_SUCCESS;
 
 		/* We commit redo log for allocation by a separate mtr,
 		because we don't guarantee pages are committed following
@@ -60,27 +61,14 @@ PageBulk::init()
 		alloc_mtr.start();
 		m_index->set_modified(alloc_mtr);
 
-		uint32_t n_reserved;
-		dberr_t err = fsp_reserve_free_extents(
-			&n_reserved, m_index->table->space, 1, FSP_NORMAL,
-			&alloc_mtr);
-		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-oom:
-			alloc_mtr.commit();
-			m_mtr.commit();
-			return err;
-		}
-
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
 					   &alloc_mtr, &m_mtr, &err);
-		if (!new_block) {
-			goto oom;
-		}
-
-		m_index->table->space->release_free_extents(n_reserved);
-
 		alloc_mtr.commit();
+		if (!new_block) {
+			m_mtr.commit();
+			return err;
+		}
 
 		new_page = buf_block_get_frame(new_block);
 		m_page_no = new_block->page.id().page_no();

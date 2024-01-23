@@ -3163,8 +3163,18 @@ fallback:
 				return true;
 			}
 			current_size &= ~4095ULL;
+#  ifdef __linux__
+			if (!fallocate(file, 0, current_size,
+				       size - current_size)) {
+				err = 0;
+				break;
+			}
+
+			err = errno;
+#  else
 			err = posix_fallocate(file, current_size,
 					      size - current_size);
+#  endif
 		}
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);

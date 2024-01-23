@@ -918,6 +918,10 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
 int Log_event_writer::write_data(const uchar *pos, size_t len)
 {
   DBUG_ENTER("Log_event_writer::write_data");
+
+  if (!len)
+    DBUG_RETURN(0);
+
   if (checksum_len)
     crc= my_checksum(crc, pos, len);
 
