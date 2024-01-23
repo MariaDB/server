@@ -28716,7 +28716,6 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
 			    bool distinct,const char *message)
 {
   THD *thd=join->thd;
-  select_result *result=join->result;
   DBUG_ENTER("select_describe");
 
   if (join->select_lex->pushdown_select)
@@ -28751,7 +28750,7 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
 
     if (unit->explainable())
     {
-      if (mysql_explain_union(thd, unit, result))
+      if (mysql_explain_union(thd, unit, unit->result))
         DBUG_VOID_RETURN;
     }
   }
