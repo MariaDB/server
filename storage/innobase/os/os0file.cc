@@ -121,7 +121,7 @@ public:
 		return m_cache.pos();
 	}
 
-	std::chrono::duration<float> wait_time()
+	std::chrono::duration<double> wait_time()
 	{
 		return m_cache.wait_time();
 	}
@@ -167,9 +167,7 @@ void innodb_io_slots_stats(tpool::aio_opcode op, innodb_async_io_stats_t *stats)
    io_slots *slots= op == tpool::aio_opcode::AIO_PREAD? read_slots : write_slots;
 
    stats->pending_ops = slots->pending_io_count();
-   stats->slot_wait_time_sec=
-       std::chrono::duration_cast<std::chrono::duration<float>>(
-           slots->wait_time()).count();
+   stats->slot_wait_time_sec= slots->wait_time().count();
    slots->task_group().get_stats(&stats->completion_stats);
 }
 

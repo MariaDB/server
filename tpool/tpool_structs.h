@@ -86,7 +86,7 @@ template<typename T, bool timed=false> class cache
    Total time spent waiting on entries in cache, inside get()
    Only valid if timed template parameter is true.
   */
-  std::chrono::duration<float> m_wait_time;
+  std::chrono::duration<double> m_wait_time;
 
 private:
 
@@ -205,7 +205,7 @@ public:
     return m_pos;
   }
 
-  TPOOL_SUPPRESS_TSAN std::chrono::duration<float> wait_time()
+  TPOOL_SUPPRESS_TSAN std::chrono::duration<double> wait_time()
   {
     return m_wait_time;
   }
