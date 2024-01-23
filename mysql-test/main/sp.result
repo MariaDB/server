@@ -9008,4 +9008,77 @@ BEGIN NOT ATOMIC DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1); SELECT r.a
 r.a
 1
 SET SESSION log_slow_verbosity= @tmp;
+# 
+# MDEV-31616 Problems with a stored function EMPTY() on upgrade to 10.6.
+# 
+CREATE OR REPLACE FUNCTION empty(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'empty' has the same name as a native function
+SELECT empty('1');
+empty('1')
+0
+Warnings:
+Note	1585	This function 'empty' has the same name as a native function
+DROP FUNCTION empty;
+CREATE OR REPLACE FUNCTION json_table(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'json_table' has the same name as a native function
+SELECT json_table('1');
+json_table('1')
+0
+Warnings:
+Note	1585	This function 'json_table' has the same name as a native function
+DROP FUNCTION json_table;
+CREATE OR REPLACE FUNCTION nested(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'nested' has the same name as a native function
+SELECT nested('1');
+nested('1')
+0
+Warnings:
+Note	1585	This function 'nested' has the same name as a native function
+DROP FUNCTION nested;
+CREATE OR REPLACE FUNCTION ordinality(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'ordinality' has the same name as a native function
+SELECT ordinality('1');
+ordinality('1')
+0
+Warnings:
+Note	1585	This function 'ordinality' has the same name as a native function
+DROP FUNCTION ordinality;
+CREATE OR REPLACE FUNCTION path(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'path' has the same name as a native function
+SELECT path('1');
+path('1')
+0
+Warnings:
+Note	1585	This function 'path' has the same name as a native function
+DROP FUNCTION path;
+CREATE OR REPLACE FUNCTION fast(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'fast' has the same name as a native function
+SELECT fast('1');
+fast('1')
+0
+Warnings:
+Note	1585	This function 'fast' has the same name as a native function
+DROP FUNCTION fast;
+CREATE OR REPLACE FUNCTION relay(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'relay' has the same name as a native function
+SELECT relay('1');
+relay('1')
+0
+Warnings:
+Note	1585	This function 'relay' has the same name as a native function
+DROP FUNCTION relay;
+CREATE OR REPLACE FUNCTION database() RETURNS int RETURN 333;
+Warnings:
+Note	1585	This function 'database' has the same name as a native function
+SELECT database();
+database()
+test
+DROP FUNCTION database;
 DROP TABLE t1;
