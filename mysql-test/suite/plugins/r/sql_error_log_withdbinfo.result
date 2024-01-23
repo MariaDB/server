@@ -6,32 +6,35 @@ sql_error_log_rotate	OFF
 sql_error_log_rotations	9
 sql_error_log_size_limit	1000000
 sql_error_log_with_db_and_thread_info	ON
-set global sql_error_log_rate=1;
-# Trying to set the variable at runtime
+#
+# Use some database to demonstrate database name is printed
+#
+CREATE DATABASE db;
+USE db;
 SET sql_error_log_with_db_and_thread_info=OFF;
 ERROR HY000: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable
-#
-# Using test database from mtr
-#
 DROP DATABASE db;
-ERROR HY000: Can't drop database 'db'; database doesn't exist
 #
-# Using no database at all
+# Using no database at all. *NO-ONE* is special database name to
+# connect to "no-database" i.e NULL database.
 #
-DROP DATABASE test;
-DROP DATABASE db;
-ERROR HY000: Can't drop database 'db'; database doesn't exist
+connect  con1,localhost,root,,*NO-ONE*;
+DROP DATABASE dbnodb;
+ERROR HY000: Can't drop database 'dbnodb'; database doesn't exist
+disconnect con1;
+connection default;
 #
 # Using database with name `NULL`
 #
 CREATE DATABASE `NULL`;
 USE `NULL`;
-DROP DATABASE db;
-ERROR HY000: Can't drop database 'db'; database doesn't exist
-TIME THREAD_ID HOSTNAME `test` ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
-TIME THREAD_ID HOSTNAME `test` ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
-TIME THREAD_ID HOSTNAME NULL ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
-TIME THREAD_ID HOSTNAME `NULL` ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
+DROP DATABASE dbnodb;
+ERROR HY000: Can't drop database 'dbnodb'; database doesn't exist
 DROP DATABASE `NULL`;
-# Reset
-CREATE DATABASE test;
+#
+# Printing the last 3 lines from log file. Because those line have the errors from
+# above statements
+#
+TIME THREAD_ID HOSTNAME `db` ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
+TIME THREAD_ID HOSTNAME NULL ERROR 1008: Can't drop database 'dbnodb'; database doesn't exist : DROP DATABASE dbnodb 
+TIME THREAD_ID HOSTNAME `NULL` ERROR 1008: Can't drop database 'dbnodb'; database doesn't exist : DROP DATABASE dbnodb 

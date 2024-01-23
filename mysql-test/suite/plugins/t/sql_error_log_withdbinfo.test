@@ -4,30 +4,33 @@ if (!$SQL_ERRLOG_SO) {
   skip No SQL_ERROR_LOG plugin;
 }
 
-show variables like 'sql_error_log%';
-set global sql_error_log_rate=1;
-
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
---echo # Trying to set the variable at runtime
+show variables like 'sql_error_log%';
+
+
+--echo #
+--echo # Use some database to demonstrate database name is printed
+--echo #
+
+CREATE DATABASE db;
+USE db;
 
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET sql_error_log_with_db_and_thread_info=OFF;
 
---echo #
---echo # Using test database from mtr
---echo #
-
---error ER_DB_DROP_EXISTS
 DROP DATABASE db;
 
 --echo #
---echo # Using no database at all
+--echo # Using no database at all. *NO-ONE* is special database name to
+--echo # connect to "no-database" i.e NULL database.
 --echo #
 
-DROP DATABASE test;
+connect  con1,localhost,root,,*NO-ONE*;
 --error ER_DB_DROP_EXISTS
-DROP DATABASE db;
+DROP DATABASE dbnodb;
+disconnect con1;
+connection default;
 
 --echo #
 --echo # Using database with name `NULL`
@@ -35,15 +38,15 @@ DROP DATABASE db;
 CREATE DATABASE `NULL`;
 USE `NULL`;
 --error ER_DB_DROP_EXISTS
-DROP DATABASE db;
-
-
---let SEARCH_FILE= $MYSQLD_DATADIR/sql_errors.log
---let LINES_TO_READ=4
---replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `test` /TIME THREAD_ID HOSTNAME `test` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* NULL /TIME THREAD_ID HOSTNAME NULL //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `NULL` /TIME THREAD_ID HOSTNAME `NULL` /
---source include/read_head.inc
+DROP DATABASE dbnodb;
 
 DROP DATABASE `NULL`;
 
---echo # Reset
-CREATE DATABASE test;
+--echo #
+--echo # Printing the last 3 lines from log file. Because those line have the errors from
+--echo # above statements
+--echo #
+--let SEARCH_FILE= $MYSQLD_DATADIR/sql_errors.log
+--let LINES_TO_READ=3
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `mtr`/TIME THREAD_ID HOSTNAME `mtr` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `db` /TIME THREAD_ID HOSTNAME `db` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* NULL /TIME THREAD_ID HOSTNAME NULL //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `NULL` /TIME THREAD_ID HOSTNAME `NULL` /
+--source include/read_last_n.inc
