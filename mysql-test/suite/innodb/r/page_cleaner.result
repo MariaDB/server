@@ -3,12 +3,22 @@ SET @save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
 SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
 SET GLOBAL innodb_max_dirty_pages_pct=0.0;
 SET GLOBAL innodb_max_dirty_pages_pct=90.0;
+select variable_value into @innodb_async_writes_total_count_before
+from information_schema.global_status
+where variable_name='innodb_async_writes_total_count';
 CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_10000;
 SELECT variable_value>0 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 variable_value>0
 1
 SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+select (cast(variable_value as unsigned) >
+cast(@innodb_async_writes_total_count_before as unsigned))
+as innodb_async_writes_grow
+from information_schema.global_status
+where variable_name='innodb_async_writes_total_count';
+innodb_async_writes_grow
+1
 DROP TABLE t;
 SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;
 SET GLOBAL innodb_max_dirty_pages_pct_lwm = @save_pct_lwm;
