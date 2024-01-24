@@ -57,6 +57,10 @@ public:
   {
     return false;
   }
+  bool is_prepared_xa()
+  {
+    return false;
+  }
   bool is_xa_rollback()
   {
     return false;
