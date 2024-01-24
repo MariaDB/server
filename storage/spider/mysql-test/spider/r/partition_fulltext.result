@@ -59,6 +59,16 @@ words text NOT NULL,
 PRIMARY KEY (pkey),
 FULLTEXT (words)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'bka_mode' is deprecated and will be removed in a future release
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'bka_mode' is deprecated and will be removed in a future release
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'bka_mode' is deprecated and will be removed in a future release
 INSERT INTO tbl_a (pkey, words) VALUES (0, 'abc'),(1, 'def'),(2, 'ghi'),(3, 'jkl'),(4, 'mno'),(5, 'pqr'),(6, 'stu'),(7, 'vwx');
 
 select test

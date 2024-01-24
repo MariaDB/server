@@ -11,6 +11,7 @@
 # set @@global.debug_dbug="+d,xid_thd_trace,enter,exit,info,error:o,/tmp/trace2.out:i:F:L";
 #set @@global.debug_dbug="d:t:i:o,mysqld.trace";
 
+--enable_prepare_warnings
 set global query_cache_type= on;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
