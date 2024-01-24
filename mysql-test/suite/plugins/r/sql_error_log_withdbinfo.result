@@ -19,9 +19,11 @@ ERROR HY000: Can't drop database 'db'; database doesn't exist
 #
 # Using no database at all
 #
-DROP DATABASE test;
-DROP DATABASE db;
-ERROR HY000: Can't drop database 'db'; database doesn't exist
+connect  con1,localhost,root,,*NO-ONE*;
+DROP DATABASE dbnodb;
+ERROR HY000: Can't drop database 'dbnodb'; database doesn't exist
+disconnect con1;
+connection default;
 #
 # Using database with name `NULL`
 #
@@ -29,10 +31,11 @@ CREATE DATABASE `NULL`;
 USE `NULL`;
 DROP DATABASE db;
 ERROR HY000: Can't drop database 'db'; database doesn't exist
-3 `mtr` 2024-01-24  7:17:08 root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
-3 `mtr` 2024-01-24  7:17:08 root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
-3 `mtr` 2024-01-24  7:17:08 root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
-THREAD_ID `test` TIME HOSTNAME ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
+THREAD_ID `DB` TIME HOSTNAME root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
+THREAD_ID `DB` TIME HOSTNAME root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
+THREAD_ID `DB` TIME HOSTNAME root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
+THREAD_ID `DB` TIME HOSTNAME root[root] @ localhost [] ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
+THREAD_ID `DB` TIME HOSTNAME root[root] @ localhost [] ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
+THREAD_ID NULL TIME HOSTNAME root[root] @ localhost [] ERROR 1008: Can't drop database 'dbnodb'; database doesn't exist : DROP DATABASE dbnodb 
+THREAD_ID `DB` TIME HOSTNAME root[root] @ localhost [] ERROR 1008: Can't drop database 'db'; database doesn't exist : DROP DATABASE db 
 DROP DATABASE `NULL`;
-# Reset
-CREATE DATABASE test;
