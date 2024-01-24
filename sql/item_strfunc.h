@@ -1788,6 +1788,9 @@ public:
     collation.set(args[0]->collation);
     ulonglong max_result_length= (ulonglong) args[0]->max_length * 2 +
                                   2 * collation.collation->mbmaxlen;
+    // NULL argument is returned as a string "NULL" without quotes
+    if (args[0]->maybe_null())
+      set_if_bigger(max_result_length, 4 * collation.collation->mbmaxlen);
     max_length= (uint32) MY_MIN(max_result_length, MAX_BLOB_WIDTH);
     return FALSE;
   }

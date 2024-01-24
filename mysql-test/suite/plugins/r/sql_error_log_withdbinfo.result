@@ -1,0 +1,38 @@
+show variables like 'sql_error_log%';
+Variable_name	Value
+sql_error_log_filename	sql_errors.log
+sql_error_log_rate	1
+sql_error_log_rotate	OFF
+sql_error_log_rotations	9
+sql_error_log_size_limit	1000000
+sql_error_log_warnings	ON
+sql_error_log_with_db_and_thread_info	ON
+set global sql_error_log_rate=1;
+# Trying to set the variable at runtime
+SET sql_error_log_with_db_and_thread_info=OFF;
+ERROR HY000: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable
+#
+# Using test database from mtr
+#
+DROP DATABASE db;
+ERROR HY000: Can't drop database 'db'; database doesn't exist
+#
+# Using no database at all
+#
+DROP DATABASE test;
+DROP DATABASE db;
+ERROR HY000: Can't drop database 'db'; database doesn't exist
+#
+# Using database with name `NULL`
+#
+CREATE DATABASE `NULL`;
+USE `NULL`;
+DROP DATABASE db;
+ERROR HY000: Can't drop database 'db'; database doesn't exist
+3 `mtr` 2024-01-24  7:17:08 root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
+3 `mtr` 2024-01-24  7:17:08 root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
+3 `mtr` 2024-01-24  7:17:08 root[root] @ localhost [] WARNING 1286: Unknown storage engine 'InnoDB' : SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql 
+THREAD_ID `test` TIME HOSTNAME ERROR 1238: Variable 'sql_error_log_with_db_and_thread_info' is a read only variable : SET sql_error_log_with_db_and_thread_info=OFF 
+DROP DATABASE `NULL`;
+# Reset
+CREATE DATABASE test;
