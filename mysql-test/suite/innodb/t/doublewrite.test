@@ -39,9 +39,6 @@ commit work;
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
 --source include/restart_mysqld.inc
-# Ensure that buf_flush_page_cleaner() has woken up from its
-# first my_cond_timedwait() and gone idle.
-sleep 1;
 --source ../include/no_checkpoint_start.inc
 connect (dml,localhost,root,,);
 XA START 'x';
@@ -54,7 +51,7 @@ connection default;
 flush table t1 for export;
 
 let $restart_parameters=;
---let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
+--let CLEANUP_IF_CHECKPOINT=XA COMMIT 'x';drop table t1;
 --source ../include/no_checkpoint_end.inc
 
 perl;
