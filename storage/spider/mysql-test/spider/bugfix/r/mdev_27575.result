@@ -4,8 +4,6 @@
 for master_1
 for child2
 for child3
-call mtr.add_suppression("\\[ERROR\\] Table 'mysql.spider_table_sts' doesn't exist");
-call mtr.add_suppression("\\[ERROR\\] Server shutdown in progress");
 SET GLOBAL default_tmp_storage_engine=spider;
 ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'
 # restart

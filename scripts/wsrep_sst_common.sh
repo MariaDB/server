@@ -1166,9 +1166,9 @@ is_local_ip()
     # the domain name check:
     if [ "${2:-0}" -eq 0 ]; then
        # We consider all the names of a given host to be local addresses:
-       [ "$1" = "$(hostname -s)" -o \
-         "$1" = "$(hostname -f)" -o \
-         "$1" = "$(hostname -d)" ] && return 0
+       [ "$1" = "$(hostname -s 2>/dev/null)" -o \
+         "$1" = "$(hostname -f 2>/dev/null)" -o \
+         "$1" = "$(hostname -d 2>/dev/null)" ] && return 0
     fi
     # If the address contains anything other than digits
     # and separators, it is not a local address:

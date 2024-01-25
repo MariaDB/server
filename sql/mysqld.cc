@@ -5273,6 +5273,14 @@ static int init_server_components()
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
   }
 
+  /*
+    Plugins may not be completed because system table DDLs are only
+    run after the ddl recovery done. Therefore between the
+    plugin_init() call and the ha_signal_ddl_recovery_done() call
+    below only things related to preparation for recovery should be
+    done and nothing else, and definitely not anything assuming that
+    all plugins have been initialised.
+  */
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
                   (opt_abort ? PLUGIN_INIT_SKIP_INITIALIZATION : 0)))
@@ -5607,6 +5615,15 @@ static int init_server_components()
 #else
   locked_in_memory= 0;
 #endif
+#ifdef PR_SET_THP_DISABLE
+  /*
+    Engine page buffers are now allocated.
+    Disable transparent huge pages for all
+    future allocations as these causes memory
+    leaks.
+  */
+  prctl(PR_SET_THP_DISABLE, 1, 0, 0, 0);
+#endif
 
   ft_init_stopwords();
 
@@ -5853,8 +5870,6 @@ int mysqld_main(int argc, char **argv)
                         my_thread_stack_size, new_thread_stack_size);
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
   }
-
-  (void) thr_setconcurrency(concurrency);	// 10 by default
 
   select_thread=pthread_self();
   select_thread_in_use=1;
@@ -6926,8 +6941,8 @@ struct my_option my_long_options[]=
 #endif
 };
 
-static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
-                        enum enum_var_type scope)
+static int show_queries(THD *thd, SHOW_VAR *var, void *,
+                        system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONGLONG;
   var->value= &thd->query_id;
@@ -6935,16 +6950,16 @@ static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_net_compression(THD *thd, SHOW_VAR *var, void *,
+                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_MY_BOOL;
   var->value= &thd->net.compress;
   return 0;
 }
 
-static int show_starttime(THD *thd, SHOW_VAR *var, char *buff,
-                          enum enum_var_type scope)
+static int show_starttime(THD *thd, SHOW_VAR *var, void *buff,
+                          system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6953,8 +6968,8 @@ static int show_starttime(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 #ifdef ENABLED_PROFILING
-static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_flushstatustime(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6964,32 +6979,28 @@ static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff,
 #endif
 
 #ifdef HAVE_REPLICATION
-static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff,
-                           enum enum_var_type scope)
+static int show_rpl_status(THD *, SHOW_VAR *var, void *, system_status_var *,
+                           enum_var_type)
 {
   var->type= SHOW_CHAR;
   var->value= const_cast<char*>(rpl_status_type[(int)rpl_status]);
   return 0;
 }
 
-static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
-                              enum enum_var_type scope)
+static int show_slave_running(THD *thd, SHOW_VAR *var, void *buff,
+                              system_status_var *, enum_var_type)
 {
-  Master_info *mi= NULL;
-  bool UNINIT_VAR(tmp);
-
-  var->type= SHOW_MY_BOOL;
-  var->value= buff;
-
-  if ((mi= get_master_info(&thd->variables.default_master_connection,
-                           Sql_condition::WARN_LEVEL_NOTE)))
+  if (Master_info *mi=
+      get_master_info(&thd->variables.default_master_connection,
+                      Sql_condition::WARN_LEVEL_NOTE))
   {
-    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
-                    mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
+    *((my_bool*) buff)=
+      (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
+       mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
     mi->release();
+    var->type= SHOW_MY_BOOL;
+    var->value= buff;
   }
-  if (mi)
-    *((my_bool *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
   return 0;
@@ -6999,7 +7010,8 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
 /* How many masters this slave is connected to */
 
 
-static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
+static int show_slaves_running(THD *, SHOW_VAR *var, void *buff,
+                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
@@ -7010,19 +7022,17 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
-                                          enum enum_var_type scope)
+static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, void *buff,
+                                          system_status_var *, enum_var_type)
 {
-  Master_info *mi;
-
-  var->type= SHOW_LONGLONG;
-  var->value= buff;
-
-  if ((mi= get_master_info(&thd->variables.default_master_connection,
-                           Sql_condition::WARN_LEVEL_NOTE)))
+  if (Master_info *mi=
+      get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE))
   {
     *((longlong *)buff)= mi->received_heartbeats;
     mi->release();
+    var->type= SHOW_LONGLONG;
+    var->value= buff;
   }
   else
     var->type= SHOW_UNDEF;
@@ -7030,19 +7040,17 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
-                                 enum enum_var_type scope)
+static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
+                                 system_status_var *, enum_var_type)
 {
-  Master_info *mi;
-
-  var->type= SHOW_CHAR;
-  var->value= buff;
-
-  if ((mi= get_master_info(&thd->variables.default_master_connection,
-                           Sql_condition::WARN_LEVEL_NOTE)))
+  if (Master_info *mi=
+      get_master_info(&thd->variables.default_master_connection,
+                      Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(buff, "%.3f", mi->heartbeat_period);
+    sprintf(static_cast<char*>(buff), "%.3f", mi->heartbeat_period);
     mi->release();
+    var->type= SHOW_CHAR;
+    var->value= buff;
   }
   else
     var->type= SHOW_UNDEF;
@@ -7052,19 +7060,20 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
 #endif /* HAVE_REPLICATION */
 
 
-static int show_max_used_connections_time(THD *thd, SHOW_VAR *var, char *buff,
-                                 enum enum_var_type scope)
+static int show_max_used_connections_time(THD *, SHOW_VAR *var, void *buff,
+                                          system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   var->value= buff;
 
-  get_date(buff, GETDATE_DATE_TIME | GETDATE_FIXEDLENGTH, max_used_connections_time);
+  get_date(static_cast<char*>(buff),
+           GETDATE_DATE_TIME | GETDATE_FIXEDLENGTH, max_used_connections_time);
   return 0;
 }
 
 
-static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
-                            enum enum_var_type scope)
+static int show_open_tables(THD *, SHOW_VAR *var, void *buff,
+                            system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7072,8 +7081,8 @@ static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_prepared_stmt_count(THD *, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7083,8 +7092,8 @@ static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
-                                  enum enum_var_type scope)
+static int show_table_definitions(THD *, SHOW_VAR *var, void *buff,
+                                  system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7103,8 +7112,8 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
          inside an Event.
  */
 
-static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_ssl_get_version(THD *thd, SHOW_VAR *var, void *,
+                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7114,8 +7123,8 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
-                                        enum enum_var_type scope)
+static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, void *buff,
+                                        system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7126,8 +7135,8 @@ static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7142,8 +7151,8 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
-                                     enum enum_var_type scope)
+static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, void *buff,
+                                     system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7155,8 +7164,8 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
-                               enum enum_var_type scope)
+static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, void *buff,
+                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7166,9 +7175,10 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, void *buf,
+                                    system_status_var *, enum_var_type)
 {
+  char *buff= static_cast<char*>(buf);
   var->type= SHOW_CHAR;
   var->value= buff;
   if (thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7253,8 +7263,8 @@ end:
 */
 
 static int
-show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
-                               enum enum_var_type scope)
+show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, void *buff,
+                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7263,7 +7273,7 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
     X509 *cert= SSL_get_certificate(ssl);
     const ASN1_TIME *not_before= X509_get0_notBefore(cert);
 
-    var->value= my_asn1_time_to_string(not_before, buff,
+    var->value= my_asn1_time_to_string(not_before, static_cast<char*>(buff),
                                        SHOW_VAR_FUNC_BUFF_SIZE);
     if (!var->value)
       return 1;
@@ -7287,8 +7297,8 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
 */
 
 static int
-show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
-                              enum enum_var_type scope)
+show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, void *buff,
+                              system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7297,7 +7307,7 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
     X509 *cert= SSL_get_certificate(ssl);
     const ASN1_TIME *not_after= X509_get0_notAfter(cert);
 
-    var->value= my_asn1_time_to_string(not_after, buff,
+    var->value= my_asn1_time_to_string(not_after, static_cast<char*>(buff),
                                        SHOW_VAR_FUNC_BUFF_SIZE);
     if (!var->value)
       return 1;
@@ -7351,7 +7361,7 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, void *buff,
 }
 
 
-static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
                             struct system_status_var *status_var,
                             enum enum_var_type scope)
 {
@@ -7407,8 +7417,8 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
 #endif
 
 #ifdef HAVE_POOL_OF_THREADS
-static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
-                                 enum enum_var_type scope)
+static int show_threadpool_idle_threads(THD *, SHOW_VAR *var, void *buff,
+                                        system_status_var *, enum_var_type)
 {
   var->type= SHOW_INT;
   var->value= buff;
@@ -7417,8 +7427,8 @@ static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_threadpool_threads(THD *thd, SHOW_VAR *var, char *buff,
-                                   enum enum_var_type scope)
+static int show_threadpool_threads(THD *, SHOW_VAR *var, void *buff,
+                                   system_status_var *, enum_var_type)
 {
   var->type= SHOW_INT;
   var->value= buff;
@@ -7573,7 +7583,7 @@ SHOW_VAR status_vars[]= {
   SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_avg_wait_time", &SHOW_FNAME(avg_net_wait_time)),
   {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
-  {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_slave_status",  &rpl_semi_sync_enabled),
   {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
 #endif /* HAVE_REPLICATION */
 #ifdef HAVE_QUERY_CACHE

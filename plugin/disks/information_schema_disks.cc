@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #if defined(HAVE_GETMNTENT)
 #include <mntent.h>
-#elif !defined(HAVE_GETMNTINFO_TAKES_statvfs)
+#elif defined(HAVE_GETMNTINFO) && !defined(HAVE_GETMNTINFO_TAKES_statvfs)
 /* getmntinfo (the not NetBSD variants) */
 #include <sys/param.h>
 #include <sys/ucred.h>
@@ -28,6 +28,9 @@
 #if defined(HAVE_GETMNTENT_IN_SYS_MNTAB)
 #include <sys/mnttab.h>
 #define HAVE_GETMNTENT
+#if defined(HAVE_SYS_MNTENT_H)
+#include <sys/mntent.h>
+#endif
 #endif
 #include <sql_class.h>
 #include <sql_i_s.h>

@@ -103,7 +103,8 @@ inline bool sql_command_can_be_traced(enum enum_sql_command sql_command)
          sql_command == SQLCOM_UPDATE ||
          sql_command == SQLCOM_DELETE ||
          sql_command == SQLCOM_DELETE_MULTI ||
-         sql_command == SQLCOM_UPDATE_MULTI;
+         sql_command == SQLCOM_UPDATE_MULTI ||
+         sql_command == SQLCOM_INSERT_SELECT;
 }
 
 void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
