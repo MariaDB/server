@@ -11530,7 +11530,8 @@ bool create_table_info_t::innobase_table_flags()
 			/* We don't support FTS indexes in temporary
 			tables. */
 			if (is_temp) {
-				my_error(ER_INNODB_NO_FT_TEMP_TABLE, MYF(0));
+				my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0),
+					 "FULLTEXT",  "InnoDB");
 				DBUG_RETURN(false);
 			}
 
