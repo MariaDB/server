@@ -6318,6 +6318,38 @@ int handler::calculate_checksum()
 ** Some general functions that isn't in the handler class
 ****************************************************************************/
 
+static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
+                                      HA_CREATE_INFO *create_info)
+{
+  TABLE table;
+  bool is_tmp __attribute__((unused)) =
+    create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
+  share->m_psi= PSI_CALL_get_table_share(is_tmp, share);
+
+  if (open_table_from_share(thd, share, &empty_clex_str, 0, READ_ALL, 0,
+                            &table, true))
+    return 1;
+
+  update_create_info_from_table(create_info, &table);
+
+  Table_path_buffer name_buff;
+  Lex_cstring name= table.file->get_canonical_filename(share->path, &name_buff);
+  int error= table.file->ha_create(name.str, &table, create_info);
+
+  if (error)
+  {
+    if (!thd->is_error())
+      my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
+               share->table_name.str, error);
+    table.file->print_error(error, MYF(ME_WARNING));
+    PSI_CALL_drop_table_share(is_tmp, share->db.str, (uint)share->db.length,
+                        share->table_name.str, (uint)share->table_name.length);
+  }
+
+  (void) closefrm(&table);
+  return error;
+}
+
 /**
   Initiates table-file and calls appropriate database-creator.
 
@@ -6339,13 +6371,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
                     LEX_CUSTRING *frm, bool skip_frm_file)
 {
   int error= 1;
-  TABLE table;
-  Table_path_buffer name_buff;
-  const char *name;
   TABLE_SHARE share;
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
-  bool temp_table __attribute__((unused)) =
-    create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
   DBUG_ENTER("ha_create_table");
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
@@ -6371,29 +6398,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       goto err;
   }
 
-  share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
+  error= ha_create_table_from_share(thd, &share, create_info);
 
-  if (open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0,
-                            &table, true))
-    goto err;
-
-  update_create_info_from_table(create_info, &table);
-
-  name= table.file->get_canonical_filename(share.path, &name_buff).str;
-
-  error= table.file->ha_create(name, &table, create_info);
-
-  if (unlikely(error))
-  {
-    if (!thd->is_error())
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
-    table.file->print_error(error, MYF(ME_WARNING));
-    PSI_CALL_drop_table_share(temp_table, share.db.str, (uint)share.db.length,
-                              share.table_name.str, (uint)share.table_name.length);
-  }
-
-  (void) closefrm(&table);
- 
 err:
   free_table_share(&share);
   DBUG_RETURN(error != 0);
