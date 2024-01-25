@@ -107,10 +107,11 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
       {
         if (event->database.str)
         {
+          
           logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %llu "
                       "%s %`s ERROR %d: %s : %s \n",
               t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
-              t.tm_sec, event->general_thread_id, event->general_user, event->database.str,
+              t.tm_sec, event->general_thread_id, event->general_user, "db_name",
               event->general_error_code, event->general_command, event->general_query);
         }
         else
