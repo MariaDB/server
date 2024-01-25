@@ -2407,5 +2407,14 @@ DROP TEMPORARY TABLE t2;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-33313 Incorrect error message for "ALTER TABLE ... DROP CONSTRAINT ..., DROP col, DROP col"
+--echo #
+create table t2(id int primary key) engine=innodb;
+create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign key(t2_id) references t2(id)) engine=innodb;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

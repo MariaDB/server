@@ -8804,7 +8804,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       case Alter_drop::CHECK_CONSTRAINT:
       case Alter_drop::PERIOD:
         my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
-                 alter_info->drop_list.head()->name);
+                 drop->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
