@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+
+# inspired by iputils-ping
+#
+# cap_ipc_lock is required if a user wants to use --memlock
+# and has insufficient RLIMIT_MEMLOCK (MDEV-33301)
+
+PROGRAM=$(dpkg-divert --truename /usr/sbin/mysqld)
+
+if [ "$1" = configure ]; then
+  # If we have setcap installed, try setting
+  # which allows us to install our binaries without the setuid
+  # bit.
+  if command -v setcap > /dev/null; then
+    if ! setcap cap_ipc_lock+ep "$PROGRAM"; then
+      echo "Setcap failed on $PROGRAM, required with --memlock if insufficent RLIMIT_MEMLOCK" >&2
+    fi
+  fi
+fi
+
+
+#DEBHELPER#
+
+exit 0
