@@ -22145,9 +22145,9 @@ DELETE FROM t1;
 DROP VIEW v1;
 CREATE VIEW v1 AS SELECT f1, f2, f3, 'HELLO' AS my_greeting FROM t1;
 INSERT INTO v1 SET f1 = 1;
-ERROR HY000: The target table v1 of the INSERT is not insertable-into
 SELECT * from t1;
 f1	f2	f3	f4
+1	NULL	NULL	NULL
 DELETE FROM t1;
 INSERT INTO v1 SET f1 = 1, my_greeting = 'HELLO';
 ERROR HY000: The target table v1 of the INSERT is not insertable-into
