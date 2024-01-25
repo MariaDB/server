@@ -111,14 +111,12 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-#-- Waiting for IO thread to realize master shutdown and stop
-include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-#-- Waiting for IO thread to realize master shutdown and stop
-include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
@@ -235,13 +233,12 @@ set debug_sync= "now signal continue_semisync_kill_connection";
 set debug_sync= "reset";
 #-- Stop slaves
 connection server_2;
-include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-#-- Waiting for IO thread to stop from corrupt_queue_event injection
-include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
@@ -354,13 +351,12 @@ set debug_sync= "now signal continue_semisync_kill_connection";
 set debug_sync= "reset";
 #-- Stop slaves
 connection server_2;
-include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-#-- Waiting for IO thread to realize master shutdown and stop
-include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
@@ -479,13 +475,12 @@ set debug_sync= "now signal continue_semisync_kill_connection";
 set debug_sync= "reset";
 #-- Stop slaves
 connection server_2;
-include/wait_for_slave_io_error.inc [errno=1595]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 connection server_3;
-#-- Waiting for IO thread to realize master shutdown and stop
-include/wait_for_slave_io_error.inc [errno=2003]
+include/stop_slave_io.inc
 include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;

@@ -146,46 +146,32 @@ if (!$server_3_expect_row_count)
 --echo #-- Stop slaves
 
 --connection server_2
-if (!$server_2_expect_row_count)
-{
-  # ER_SLAVE_RELAY_LOG_WRITE_FAILURE
-  --let $slave_io_errno=1595
-  --source include/wait_for_slave_io_error.inc
-  --source include/stop_slave_sql.inc
-}
-if ($server_2_expect_row_count)
-{
-  # At this point, because the master has shutdown, the IO thread may or may
-  # not have realized the shutdown, and started to try to automatically
-  # reconnect. Rather than issue `stop_slave.inc` now, which may or may not
-  # result in an error state, we force the error for consistency by waiting
-  # for the IO thread to fail to reconnect to the shutdown master.
-  --echo #-- Waiting for IO thread to realize master shutdown and stop
-  --let $slave_io_errno=2003
-  --source include/wait_for_slave_io_error.inc
-  --source include/stop_slave_sql.inc
-}
+# If server_2_expect_row_count is 0, we are simulating an error on the replica
+# and the IO thread will end with errno 1595.
+# Otherwise, we still expect error, because the master has shutdown at this
+# point, and the IO thread may or may not have realized the shutdown, and
+# started to try to automatically reconnect. This may result in the IO thread
+# giving a 2003 error if the slave tries to reconnect to a shutdown master.
+# Additionally disable warnings because the slave may have stopped in err
+# automatically, and we don't want a sporadic "Slave is already stopped"
+# warning.
+--disable_warnings
+--let $rpl_allow_error= 1
+--source include/stop_slave_io.inc
+--enable_warnings
+--let $rpl_allow_error=
+--source include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 
 --connection server_3
-if (!$server_3_expect_row_count)
-{
-  --echo #-- Waiting for IO thread to stop from corrupt_queue_event injection
-  # ER_SLAVE_RELAY_LOG_WRITE_FAILURE (1595) if corrupt_queue failure
-  --let $slave_io_errno=1595
-  --source include/wait_for_slave_io_error.inc
-  --source include/stop_slave_sql.inc
-}
-if ($server_3_expect_row_count)
-{
-  # Wait for error to be detected naturally, rather than issue `stop_slave` for
-  # the IO thread, see the comment above for $server_2_expect_row_count.
-  --echo #-- Waiting for IO thread to realize master shutdown and stop
-  --let $slave_io_errno=2003
-  --source include/wait_for_slave_io_error.inc
-  --source include/stop_slave_sql.inc
-}
+# Expect error for IO thread, see above comment for stopping server_2
+--disable_warnings
+--let $rpl_allow_error= 1
+--source include/stop_slave_io.inc
+--enable_warnings
+--let $rpl_allow_error=
+--source include/stop_slave_sql.inc
 SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 
