@@ -9601,11 +9601,11 @@ ER_INNODB_FT_LIMIT
         spa "Actualmente InnoDB soporta la creación de un índice FULLTEXT a la vez"
         sw "InnoDB kwa sasa inaruhusu uundaji wa faharasa moja ya FULLTEXT kwa wakati mmoja"
 
-ER_INNODB_NO_FT_TEMP_TABLE
-        chi "无法在临时InnoDB表上创建FullText索引"
-        eng "Cannot create FULLTEXT index on temporary InnoDB table"
-        spa "No puedo crear índice FULLTEXT en tabla temporaria InnoDB"
-        sw "Haiwezi kuunda faharisi ya FULLTEXT kwenye jedwali la muda la InnoDB"
+ER_NO_INDEX_ON_TEMPORARY
+        chi "无法在临时%2$s表上创建%1$s索引"
+        eng "Cannot create %s index on temporary %s table"
+        spa "No puedo crear índice %s en tabla temporaria %s"
+        sw "Haiwezi kuunda faharisi ya %s kwenye jedwali la muda la %s"
 
 ER_INNODB_FT_WRONG_DOCID_COLUMN
         chi "列'%-.192s'是innodb fulltext索引的错误类型"
