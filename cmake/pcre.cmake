@@ -4,6 +4,9 @@ SET(WITH_PCRE "auto" CACHE STRING
    "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
 
 MACRO(BUNDLE_PCRE2)
+  SET(WITH_PCRE "bundled" CACHE STRING
+   "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
+
   SET(dir "${CMAKE_BINARY_DIR}/extra/pcre2")
   SET(PCRE_INCLUDE_DIRS ${dir}/src/pcre2-build ${dir}/src/pcre2/src)
   MESSAGE(STATUS "Will download and bundle pcre2")
