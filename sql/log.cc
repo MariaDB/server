@@ -1457,7 +1457,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
     query_utime= (current_utime - thd->start_utime);
     lock_utime=  (thd->utime_after_lock - thd->start_utime);
     my_hrtime_t current_time= { hrtime_from_time(thd->start_time) +
-                                thd->start_time_sec_part + query_utime };
+                                thd->start_time_sec_part };
 
     if (!query || thd->get_command() == COM_STMT_PREPARE)
     {
