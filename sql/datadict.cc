@@ -57,7 +57,6 @@ static int read_string(File file, uchar**to, size_t length)
 */
 
 Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
-                       LEX_CSTRING *partition_engine_name,
                        LEX_CUSTRING *table_version)
 {
   File file;
@@ -85,11 +84,6 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
   {
     engine_name->length= 0;
     ((char*) (engine_name->str))[0]= 0;
-  }
-  if (partition_engine_name)
-  {
-    partition_engine_name->length= 0;
-    partition_engine_name->str= 0;
   }
   if (table_version)
   {
@@ -133,25 +127,10 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     {
       if (engine_name)
         *engine_name= hton2plugin[ht->slot]->name;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-      if (partition_engine_name && dbt == DB_TYPE_PARTITION_DB)
-      {
-        handlerton *p_ht;
-        legacy_db_type new_dbt= (legacy_db_type) header[61];
-        if (new_dbt >= DB_TYPE_FIRST_DYNAMIC)
-          goto cont;
-        if (!(p_ht= ha_resolve_by_legacy_type(thd, new_dbt)))
-          goto err;
-        *partition_engine_name= *hton_name(p_ht);
-      }
-#endif // WITH_PARTITION_STORAGE_ENGINE
       goto err;
     }
   }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-cont:
-#endif
   /* read the true engine name */
   if (engine_name)
   {
@@ -197,43 +176,6 @@ cont:
       }
     }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (partition_engine_name && dbt == DB_TYPE_PARTITION_DB)
-    {
-      uint len;
-      const uchar *extra2;
-      /* Length of the MariaDB extra2 segment in the form file. */
-      len = uint2korr(frm_image+4);
-      extra2= frm_image + 64;
-      if (*extra2 != '/')   // old frm had '/' there
-      {
-        const uchar *e2end= extra2 + len;
-        while (extra2 + 3 <= e2end)
-        {
-          uchar type= *extra2++;
-          size_t length= *extra2++;
-          if (!length)
-          {
-            if (extra2 + 2 >= e2end)
-              break;
-            length= uint2korr(extra2);
-            extra2+= 2;
-            if (length < 256)
-              break;
-          }
-          if (extra2 + length > e2end)
-            break;
-          if (type == EXTRA2_DEFAULT_PART_ENGINE)
-          {
-            partition_engine_name->str= thd->strmake((char*)extra2, length);
-            partition_engine_name->length= length;
-            break;
-          }
-          extra2+= length;
-        }
-      }
-    }
-#endif // WITH_PARTITION_STORAGE_ENGINE
     my_free(frm_image);
   }
 
