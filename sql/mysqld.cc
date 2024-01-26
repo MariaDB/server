@@ -79,6 +79,7 @@
 #include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
+#include <fstream>
 
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -1707,6 +1708,7 @@ void kill_mysql(THD *thd)
 
 static void close_connections(void)
 {
+  uint zzz=0;
   DBUG_ENTER("close_connections");
 
   /* Clear thread cache */
@@ -1816,7 +1818,18 @@ static void close_connections(void)
 
   while (THD_count::connection_thd_count() - n_threads_awaiting_ack &&
          DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1))
+  {
+    if (((++zzz) % 100) == 99)
+    {
+      raise(SIGABRT);
+      //std::ofstream outfile;
+
+      //outfile.open("/tmp/mysqlmon.out",
+      //             std::ios_base::app); // append instead of overwrite
+      //outfile << '(' << getpid() << ')' << " taking slow to close conns\n";
+    }
     my_sleep(1000);
+  }
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
