@@ -558,8 +558,8 @@ public:
   Item_func_regexp_replace(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c)
     {}
-  const Schema *schema() const { return &mariadb_schema; }
-  void print(String *str, enum_query_type query_type)
+  const Schema *schema() const override { return &mariadb_schema; }
+  void print(String *str, enum_query_type query_type) override
   {
     print_sql_mode_qualified_name(str, query_type);
     print_args_parenthesized(str, query_type);
