@@ -6657,7 +6657,6 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
-                     LEX_CSTRING *partition_engine_name,
                      handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
@@ -6683,21 +6682,6 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     if (!hton)
       hton= &dummy;
     *hton= element->share->db_type();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (partition_engine_name && element->share->db_type() == partition_hton)
-    {
-      if (!static_cast<Partition_share *>(element->share->ha_share)->
-          partition_engine_name)
-      {
-        /* Partition engine found, but table has never been opened */
-        tdc_unlock_share(element);
-        goto retry_from_frm;
-      }
-      lex_string_set(partition_engine_name,
-        static_cast<Partition_share *>(element->share->ha_share)->
-          partition_engine_name);
-    }
-#endif
     *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
     if (*hton != view_pseudo_hton && element->share->tabledef_version.length &&
         table_id &&
@@ -6708,9 +6692,6 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(TRUE);
   }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-retry_from_frm:
-#endif
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
@@ -6723,9 +6704,7 @@ retry_from_frm:
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
-      Table_type type= dd_frm_type(thd, path, &engine,
-                                   partition_engine_name,
-                                   table_id);
+      Table_type type= dd_frm_type(thd, path, &engine, table_id);
 
       switch (type) {
       case TABLE_TYPE_UNKNOWN:
