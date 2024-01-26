@@ -88,8 +88,8 @@ class ha_archive final : public handler
 public:
   ha_archive(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_archive() = default;
-  const char *index_type(uint inx) { return "NONE"; }
-  ulonglong table_flags() const
+  const char *index_type(uint inx) override { return "NONE"; }
+  ulonglong table_flags() const override
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_CAN_BIT_FIELD |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
@@ -97,70 +97,74 @@ public:
             HA_HAS_RECORDS | HA_CAN_REPAIR | HA_SLOW_RND_POS |
             HA_FILE_BASED | HA_CAN_INSERT_DELAYED | HA_CAN_GEOMETRY);
   }
-  ulong index_flags(uint idx, uint part, bool all_parts) const
+  ulong index_flags(uint idx, uint part, bool all_parts) const override
   {
     return HA_ONLY_WHOLE_INDEX;
   }
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
-                                  ulonglong *nb_reserved_values);
-  uint max_supported_keys()          const { return 1; }
-  uint max_supported_key_length()    const { return sizeof(ulonglong); }
-  uint max_supported_key_part_length() const { return sizeof(ulonglong); }
-  ha_rows records() { return share->rows_recorded; }
+                                  ulonglong *nb_reserved_values) override;
+  uint max_supported_keys() const override { return 1; }
+  uint max_supported_key_length() const override { return sizeof(ulonglong); }
+  uint max_supported_key_part_length() const override
+    { return sizeof(ulonglong); }
+  ha_rows records() override { return share->rows_recorded; }
   IO_AND_CPU_COST scan_time() override;
   IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
                                ulonglong blocks) override;
   IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
-  int index_init(uint keynr, bool sorted);
+  int index_init(uint keynr, bool sorted) override;
   virtual int index_read(uchar * buf, const uchar * key,
-			 uint key_len, enum ha_rkey_function find_flag);
+			 uint key_len, enum ha_rkey_function find_flag)
+                         override;
   virtual int index_read_idx(uchar * buf, uint index, const uchar * key,
 			     uint key_len, enum ha_rkey_function find_flag);
-  int index_next(uchar * buf);
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
-  int write_row(const uchar * buf);
+  int index_next(uchar * buf) override;
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int write_row(const uchar * buf) override;
   int real_write_row(const uchar *buf, azio_stream *writer);
-  int truncate();
-  int rnd_init(bool scan=1);
-  int rnd_next(uchar *buf);
-  int rnd_pos(uchar * buf, uchar *pos);
+  int truncate() override;
+  int rnd_init(bool scan=1) override;
+  int rnd_next(uchar *buf) override;
+  int rnd_pos(uchar * buf, uchar *pos) override;
   int get_row(azio_stream *file_to_read, uchar *buf);
   int get_row_version2(azio_stream *file_to_read, uchar *buf);
   int get_row_version3(azio_stream *file_to_read, uchar *buf);
   Archive_share *get_share(const char *table_name, int *rc);
   int init_archive_reader();
   // Always try auto_repair in case of HA_ERR_CRASHED_ON_USAGE
-  bool auto_repair(int error) const
+  bool auto_repair(int error) const override
   { return error == HA_ERR_CRASHED_ON_USAGE; }
   int read_data_header(azio_stream *file_to_read);
-  void position(const uchar *record);
-  int info(uint);
-  int extra(enum ha_extra_function operation);
-  void update_create_info(HA_CREATE_INFO *create_info);
-  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
-  int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-  int repair(THD* thd, HA_CHECK_OPT* check_opt);
-  int check_for_upgrade(HA_CHECK_OPT *check_opt);
-  void start_bulk_insert(ha_rows rows, uint flags);
-  int end_bulk_insert();
-  enum row_type get_row_type() const 
+  void position(const uchar *record) override;
+  int info(uint) override;
+  int extra(enum ha_extra_function operation) override;
+  void update_create_info(HA_CREATE_INFO *create_info) override;
+  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info)
+    override;
+  int optimize(THD* thd, HA_CHECK_OPT* check_opt) override;
+  int repair(THD* thd, HA_CHECK_OPT* check_opt) override;
+  int check_for_upgrade(HA_CHECK_OPT *check_opt) override;
+  void start_bulk_insert(ha_rows rows, uint flags) override;
+  int end_bulk_insert() override;
+  enum row_type get_row_type() const override
   { 
     return ROW_TYPE_COMPRESSED;
   }
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);
-  bool is_crashed() const;
-  int check(THD* thd, HA_CHECK_OPT* check_opt);
-  bool check_and_repair(THD *thd);
+                             enum thr_lock_type lock_type) override;
+  bool is_crashed() const override;
+  int check(THD* thd, HA_CHECK_OPT* check_opt) override;
+  bool check_and_repair(THD *thd) override;
   uint32 max_row_length(const uchar *buf);
   bool fix_rec_buff(unsigned int length);
   int unpack_row(azio_stream *file_to_read, uchar *record);
   unsigned int pack_row(const uchar *record, azio_stream *writer);
-  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
-  int external_lock(THD *thd, int lock_type);
+  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes)
+    override;
+  int external_lock(THD *thd, int lock_type) override;
 private:
   void flush_and_clear_pending_writes();
 };
