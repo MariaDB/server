@@ -1289,12 +1289,11 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         if (keypart->key_part_flag & HA_PART_KEY_SEG)
         {
           int length= keypart->length/keypart->field->charset()->mbmaxlen;
+          Field *kpf= table->field[keypart->field->field_index];
           list_item= new (mem_root) Item_func_left(thd,
-                       new (mem_root) Item_field(thd, keypart->field),
+                       new (mem_root) Item_field(thd, kpf),
                        new (mem_root) Item_int(thd, length));
           list_item->fix_fields(thd, NULL);
-          keypart->field->vcol_info=
-            table->field[keypart->field->field_index]->vcol_info;
         }
         else
           list_item= new (mem_root) Item_field(thd, keypart->field);
