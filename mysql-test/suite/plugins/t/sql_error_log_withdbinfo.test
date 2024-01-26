@@ -43,8 +43,7 @@ DROP DATABASE db;
 
 --let SEARCH_FILE= $MYSQLD_DATADIR/sql_errors.log
 --let LINES_TO_READ=7
---replace_regex /[1-9]* `[A-Za-z0-9]*` [1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] /THREAD_ID `DB` TIME HOSTNAME /  /[1-9]* NULL [1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] /THREAD_ID NULL TIME HOSTNAME /
-
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `mtr` /TIME THREAD_ID HOSTNAME `mtr` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `test` /TIME THREAD_ID HOSTNAME `test` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* NULL /TIME THREAD_ID HOSTNAME NULL //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `NULL` /TIME THREAD_ID HOSTNAME `NULL` /
 --source include/read_head.inc
 
 DROP DATABASE `NULL`;

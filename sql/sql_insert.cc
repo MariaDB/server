@@ -1799,7 +1799,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 
 	/* Check if there is more uniq keys after field */
 
-static int last_uniq_key(TABLE *table,uint keynr)
+static int last_uniq_key(TABLE *table, const KEY *key, uint keynr)
 {
   /*
     When an underlying storage engine informs that the unique key
@@ -1819,7 +1819,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
     return 0;
 
   while (++keynr < table->s->keys)
-    if (table->key_info[keynr].flags & HA_NOSAME)
+    if (key[keynr].flags & HA_NOSAME)
       return 0;
   return 1;
 }
@@ -2134,8 +2134,27 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           tables which have ON UPDATE but have no ON DELETE triggers,
           we just should not expose this fact to users by invoking
           ON UPDATE triggers.
+
+          Note, TABLE_SHARE and TABLE see long uniques differently:
+          - TABLE_SHARE sees as HA_KEY_ALG_LONG_HASH and HA_NOSAME
+          - TABLE sees as usual non-unique indexes
         */
-        if (last_uniq_key(table,key_nr) &&
+        bool is_long_unique= table->s->key_info &&
+                             table->s->key_info[key_nr].algorithm ==
+                             HA_KEY_ALG_LONG_HASH;
+        if ((is_long_unique ?
+             /*
+               We have a long unique. Test that there are no in-engine
+               uniques and the current long unique is the last long unique.
+             */
+             !(table->key_info[0].flags & HA_NOSAME) &&
+             last_uniq_key(table, table->s->key_info, key_nr) :
+             /*
+               We have a normal key - not a long unique.
+               Test is the current normal key is unique and
+               it is the last normal unique.
+             */
+             last_uniq_key(table, table->key_info, key_nr)) &&
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
