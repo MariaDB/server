@@ -4093,6 +4093,8 @@ public:
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *,const uchar *) const override;
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
+    override;
   void sort_string(uchar *buff,uint length) override;
   void update_data_type_statistics(Data_type_statistics *st) const override
   {
@@ -4115,9 +4117,6 @@ public:
   bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
                              uint16 mflags, int *order_var) const override;
   uint row_pack_length() const override { return field_length; }
-  int pack_cmp(const uchar *a,const uchar *b,uint key_length,
-               bool insert_or_update);
-  int pack_cmp(const uchar *b,uint key_length,bool insert_or_update);
   uint packed_col_length(const uchar *to, uint length) override;
   uint max_packed_col_length(uint max_length) override;
   uint size_of() const override { return sizeof *this; }

@@ -1235,7 +1235,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
     query_utime= (current_utime - thd->start_utime);
     lock_utime=  (thd->utime_after_lock - thd->start_utime);
     my_hrtime_t current_time= { hrtime_from_time(thd->start_time) +
-                                thd->start_time_sec_part + query_utime };
+                                thd->start_time_sec_part };
 
     if (!query || thd->get_command() == COM_STMT_PREPARE)
     {
@@ -3656,7 +3656,6 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                          bool null_created_arg,
                          bool need_mutex)
 {
-  File file= -1;
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
 
@@ -4013,8 +4012,6 @@ err:
   sql_print_error(fatal_log_error, (name) ? name : log_name, tmp_errno);
   if (new_xid_list_entry)
     delete new_xid_list_entry;
-  if (file >= 0)
-    mysql_file_close(file, MYF(0));
   close(LOG_CLOSE_INDEX);
   DBUG_RETURN(1);
 }
@@ -5287,8 +5284,6 @@ int MYSQL_BIN_LOG::new_file_without_locking()
 /**
   Start writing to a new log file or reopen the old file.
 
-  @param need_lock		Set to 1 if caller has not locked LOCK_log
-
   @retval
     nonzero - error
 
@@ -6098,12 +6093,13 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate)
   int error= 1;
   bool is_transactional= table->file->row_logging_has_trans;
   DBUG_ENTER("THD::binlog_write_table_map");
-  DBUG_PRINT("enter", ("table: %p  (%s: #%lu)",
+  DBUG_PRINT("enter", ("table: %p  (%s: #%llu)",
                        table, table->s->table_name.str,
                        table->s->table_map_id));
 
   /* Pre-conditions */
-  DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
+  DBUG_ASSERT((table->s->table_map_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
+              (table->s->table_map_id & MAX_TABLE_MAP_ID) != 0);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
@@ -6857,18 +6853,12 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
             BINLOG_USER_VAR_EVENT *user_var_event;
             get_dynamic(&thd->user_var_events,(uchar*) &user_var_event, i);
 
-            /* setting flags for user var log event */
-            uchar flags= User_var_log_event::UNDEF_F;
-            if (user_var_event->unsigned_flag)
-              flags|= User_var_log_event::UNSIGNED_F;
-
             User_var_log_event e(thd, user_var_event->user_var_event->name.str,
                                  user_var_event->user_var_event->name.length,
                                  user_var_event->value,
                                  user_var_event->length,
-                                 user_var_event->type,
-                                 user_var_event->charset_number,
-                                 flags,
+                            user_var_event->th->user_var_log_event_data_type(
+                               user_var_event->charset_number),
                                  using_trans,
                                  direct);
             if (write_event(&e, cache_data, file))
@@ -11077,7 +11067,7 @@ Recovery_context::Recovery_context() :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
-  do_truncate(rpl_semi_sync_slave_enabled),
+  do_truncate(repl_semisync_slave.get_slave_enabled()),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)
