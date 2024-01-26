@@ -4430,7 +4430,7 @@ int create_table_impl(THD *thd,
     handlerton *db_type;
     if (!internal_tmp_table &&
         ha_table_exists(thd, &db, &table_name,
-                        &create_info->org_tabledef_version, NULL, &db_type))
+                        &create_info->org_tabledef_version, &db_type))
     {
       if (ha_check_if_updates_are_ignored(thd, db_type, "CREATE"))
       {
