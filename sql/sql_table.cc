@@ -1564,7 +1564,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         */
         char engine_buf[NAME_CHAR_LEN + 1];
         LEX_CSTRING engine= { engine_buf, 0 };
-        table_type= dd_frm_type(thd, path, &engine, NULL, &version);
+        table_type= dd_frm_type(thd, path, &engine, &version);
         if (table_type == TABLE_TYPE_NORMAL || table_type == TABLE_TYPE_SEQUENCE)
         {
           plugin_ref p= plugin_lock_by_name(thd, &engine,
@@ -4449,7 +4449,7 @@ int create_table_impl(THD *thd,
     handlerton *db_type;
     if (!internal_tmp_table &&
         ha_table_exists(thd, &db, &table_name,
-                        &create_info->org_tabledef_version, NULL, &db_type))
+                        &create_info->org_tabledef_version, &db_type))
     {
       if (ha_check_if_updates_are_ignored(thd, db_type, "CREATE"))
       {
