@@ -660,7 +660,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   File file;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
-  char	path[FN_REFLEN];
+  char	path[FN_REFLEN + 1];
   size_t frmlen, read_length;
   uint length;
   DBUG_ENTER("open_table_def");
@@ -669,8 +669,8 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
-                 path);
+  length=(uint) (strxnmov(path, sizeof(path) - 1,
+                          share->normalized_path.str, reg_ext, NullS) - path);
   if (flags & GTS_FORCE_DISCOVERY)
   {
     const char *path2= share->normalized_path.str;
