@@ -115,6 +115,101 @@ set use_stat_tables= @save_use_stat_tables;
 --echo #
 
 --echo #
+--echo # MDEV-33314: Crash inside calculate_cond_selectivity_for_table() with many columns
+--echo #
+
+let $N_CONDS=160;
+let $N_LAST_COND=159;
+--echo #
+--echo # create table t1 (col0 int, col1 int, col2 int, ...);
+--echo #
+let $create_tbl= create table t1 ( col0 int;
+let $i=1;
+
+while ($i < $N_CONDS) {
+  let $create_tbl= $create_tbl, col$i int;
+  let $i=`select $i + 1`;
+}
+
+let $create_tbl= $create_tbl );
+#echo $create_tbl;
+evalp $create_tbl;
+
+
+--echo #
+--echo # insert into t1 select seq, ... seq from seq_1_to_10;
+--echo #
+let $insert_cmd= insert into t1 select seq;
+let $i=1;
+
+while ($i < $N_CONDS) {
+  let $insert_cmd = $insert_cmd ,seq;
+  let $i=`select $i + 1`;
+}
+let $insert_cmd= $insert_cmd from seq_1_to_100;
+
+# echo $insert_cmd;
+evalp $insert_cmd;
+
+analyze table t1 persistent for all;
+set @trace_tmp=@@optimizer_trace;
+set optimizer_trace=1;
+
+--echo #
+--echo # Basic testcase: don't crash for many-column selectivity
+--echo # explain extended select * from t1 where col0>1 and col1>1 and col2>1 and ...
+--echo #
+let $query_tbl= explain format=json select * from t1 where col0>1;
+
+let $i=1;
+while ($i < $N_CONDS) {
+  let $query_tbl= $query_tbl and col$i>1;
+  let $i=`select $i + 1`;
+}
+
+#echo $query_tbl;
+evalp $query_tbl;
+
+select 
+  json_detailed(json_extract(trace,'$**.selectivity_for_columns[0]')) as JS
+from 
+ information_schema.optimizer_trace;
+
+evalp $query_tbl;
+eval select
+  json_detailed(json_extract(trace,'\$**.selectivity_for_columns[$N_LAST_COND]')) as JS
+from 
+ information_schema.optimizer_trace;
+
+
+--echo # 
+--echo # Check if not being able to infer anything for the first MAX_KEY
+--echo #   columns doesn't prevent further inferences.
+--echo # 
+--echo # explain extended select * from t1
+--echo # where (1>2 or col0>1 or col1>1 or ...) and col99>1
+--echo #
+let $query_tbl= explain format=json select * from t1 where (1>2 ;
+
+let $i=1;
+while ($i < $N_LAST_COND) {
+  let $query_tbl= $query_tbl or col$i>1;
+  let $i=`select $i + 1`;
+}
+let $query_tbl= $query_tbl) and col$N_LAST_COND>1;
+
+#echo $query_tbl;
+evalp $query_tbl;
+
+select 
+  json_detailed(json_extract(trace,'$**.selectivity_for_columns')) as JS
+from 
+ information_schema.optimizer_trace;
+
+set optimizer_trace=@trace_tmp;
+drop table t1;
+
+--echo #
 --echo # Clean up
 --echo #
 --source include/restore_charset.inc
