@@ -5693,7 +5693,6 @@ int ha_discover_table_names(THD *thd, const LEX_CSTRING *db, MY_DIR *dirp,
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name,
                      LEX_CUSTRING *table_version= 0,
-                     LEX_CSTRING *partition_engine_name= 0,
                      handlerton **hton= 0, bool *is_sequence= 0);
 bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
                                      const char *op);
