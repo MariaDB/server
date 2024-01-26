@@ -1265,6 +1265,7 @@ static uint32 get_comment(THD *thd, uint32 comment_pos,
   return 0;
 }
 
+
 /**
   Execute the drop of a sequence, view or table (normal or temporary).
 
@@ -1535,20 +1536,51 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
     cpath = { path, (size_t)(path_end - path) };
 
+    Dummy_error_handler err_handler;
+    thd->push_internal_handler(&err_handler);
+    if (TABLE_SHARE *share= tdc_acquire_share(thd, table, GTS_TABLE))
     {
-      char engine_buf[NAME_CHAR_LEN + 1];
-      LEX_CSTRING engine= { engine_buf, 0 };
-
-      table_type= dd_frm_type(thd, path, &engine, &partition_engine_name,
-                              &version);
-      if (table_type == TABLE_TYPE_NORMAL || table_type == TABLE_TYPE_SEQUENCE)
-      {
-        plugin_ref p= plugin_lock_by_name(thd, &engine,
-                                           MYSQL_STORAGE_ENGINE_PLUGIN);
-        hton= p ? plugin_hton(p) : NULL;
-      }
-      // note that for TABLE_TYPE_VIEW and TABLE_TYPE_UNKNOWN hton == NULL
+      table_type= share->table_type;
+      hton= plugin_hton(plugin_lock(thd, share->db_plugin));
+      version= thd->strmake_lex_custring(share->tabledef_version);
+      if (plugin_ref pp= IF_PARTITIONING(share->default_part_plugin, NULL))
+        partition_engine_name= thd->strmake_lex_cstring(*plugin_name(pp));
+      tdc_release_share(share);
     }
+    else
+    {
+      switch (err_handler.got_error()) {
+      case ER_WRONG_OBJECT:
+        table_type= TABLE_TYPE_VIEW;
+        break;
+      case ER_NO_SUCH_TABLE: /* no .frm */
+        table_type= TABLE_TYPE_UNKNOWN;
+        break;
+      case ER_NOT_FORM_FILE:
+      {
+        /*
+          cannot open the frm, let's at least get the engine
+          see main.partition_not_blackhole and connect.drop-open-error
+        */
+        char engine_buf[NAME_CHAR_LEN + 1];
+        LEX_CSTRING engine= { engine_buf, 0 };
+        table_type= dd_frm_type(thd, path, &engine, NULL, &version);
+        if (table_type == TABLE_TYPE_NORMAL || table_type == TABLE_TYPE_SEQUENCE)
+        {
+          plugin_ref p= plugin_lock_by_name(thd, &engine,
+                                           MYSQL_STORAGE_ENGINE_PLUGIN);
+          hton= p ? plugin_hton(p) : NULL;
+        }
+        break;
+      }
+      case ER_FAILED_READ_FROM_PAR_FILE: /* no .par file */
+        hton= partition_hton;
+        /* fall through */
+      default: /* unreadable (corrupted?) .frm, still need to DROP it */
+        table_type= TABLE_TYPE_NORMAL;
+      }
+    }
+    thd->pop_internal_handler();
 
     thd->replication_flags= 0;
     const bool was_view= table_type == TABLE_TYPE_VIEW;
