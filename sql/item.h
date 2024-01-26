@@ -744,6 +744,7 @@ class Item: public Value_source,
   static void *operator new(size_t size);
 
 public:
+  virtual bool allowed_in_expr_cache() const { return true; }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
@@ -3635,6 +3636,11 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg) override;
+  bool allowed_in_expr_cache() const override
+  {
+    return field->allowed_in_expr_cache();
+  }
+
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;

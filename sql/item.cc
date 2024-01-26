@@ -8907,6 +8907,19 @@ void Item_cache_wrapper::cleanup()
   DBUG_VOID_RETURN;
 }
 
+static bool are_parameters_cache_compatible(Item *orig_item)
+{
+  List<Item> items;
+  orig_item->get_cache_parameters(items);
+  List_iterator<Item> li(items);
+  Item_iterator_list it(li);
+  Item *item = nullptr;
+  while ((item = it.next()))
+    if (!item->real_item()->allowed_in_expr_cache())
+      return false;
+  return true;
+}
+
 
 /**
   Create an expression cache that uses a temporary table
@@ -8928,7 +8941,8 @@ bool Item_cache_wrapper::set_cache(THD *thd)
 {
   DBUG_ENTER("Item_cache_wrapper::set_cache");
   DBUG_ASSERT(expr_cache == 0);
-  expr_cache= new Expression_cache_tmptable(thd, parameters, expr_value);
+  if (are_parameters_cache_compatible(orig_item))
+    expr_cache= new Expression_cache_tmptable(thd, parameters, expr_value);
   DBUG_RETURN(expr_cache == NULL);
 }
 
