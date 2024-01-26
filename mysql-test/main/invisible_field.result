@@ -444,7 +444,7 @@ d	int(11)	YES	UNI	NULL
 drop table t1;
 SHOW STATUS LIKE 'Feature_invisible_columns';
 Variable_name	Value
-Feature_invisible_columns	52
+Feature_invisible_columns	54
 #invisible is non reserved
 create table t1(a int unique , invisible int invisible, c int );
 desc t1;
