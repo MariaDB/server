@@ -1,14 +1,9 @@
 SET SQL_MODE="";
-SET @old_general_log_state = @@global.general_log;
 SET @old_log_output=       @@global.log_output;
 SET @old_slow_query_log=   @@global.slow_query_log;
 SET @old_general_log=      @@global.general_log;
 SET @old_long_query_time=  @@session.long_query_time;
 use mysql;
-SET @saved_long_query_time = @@long_query_time;
-SET @saved_log_output = @@log_output;
-SET @saved_general_log = @@GLOBAL.general_log;
-SET @saved_slow_query_log = @@GLOBAL.slow_query_log;
 truncate table general_log;
 select * from general_log;
 event_time	user_host	thread_id	server_id	command_type	argument
@@ -120,6 +115,9 @@ show open tables;
 Database	Table	In_use	Name_locked
 SET GLOBAL GENERAL_LOG=ON;
 SET GLOBAL SLOW_QUERY_LOG=ON;
+#
+# Bug#23924 general_log truncates queries with character set introducers.
+#
 truncate table mysql.general_log;
 set names binary;
 select _koi8r'����' as test;
@@ -131,6 +129,9 @@ TIMESTAMP	USER_HOST	THREAD_ID	1	Query	set names binary
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	select _koi8r'\xD4\xC5\xD3\xD4' as test
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	select * from mysql.general_log
 set names utf8;
+#
+# Bug #16905    Log tables: unicode statements are logged incorrectly
+#
 truncate table mysql.general_log;
 set names utf8;
 create table bug16905 (s char(15) character set utf8 default 'пусто');
@@ -142,6 +143,9 @@ TIMESTAMP	USER_HOST	THREAD_ID	1	Query	create table bug16905 (s char(15) characte
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	insert into bug16905 values ('новое')
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	select * from mysql.general_log
 drop table bug16905;
+#
+# Bug #17600: Invalid data logged into mysql.slow_log
+#
 truncate table mysql.slow_log;
 set session long_query_time=1;
 select sleep(2);
@@ -150,7 +154,11 @@ sleep(2)
 select * from mysql.slow_log;
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id	rows_affected
 TIMESTAMP	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	mysql	0	0	1	select sleep(2)	THREAD_ID	0
-set @@session.long_query_time = @saved_long_query_time;
+set @@session.long_query_time = @old_long_query_time;
+#
+# Bug #18559 log tables cannot change engine, and gets deadlocked when
+# dropping w/ log on
+#
 alter table mysql.general_log engine=myisam;
 ERROR HY000: You cannot 'ALTER' a log table if logging is enabled
 alter table mysql.slow_log engine=myisam;
@@ -232,7 +240,7 @@ TIMESTAMP	USER_HOST	THREAD_ID	1	Query	truncate table mysql.slow_log
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	set session long_query_time=1
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	select sleep(2)
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	select * from mysql.slow_log
-TIMESTAMP	USER_HOST	THREAD_ID	1	Query	set @@session.long_query_time = @saved_long_query_time
+TIMESTAMP	USER_HOST	THREAD_ID	1	Query	set @@session.long_query_time = @old_long_query_time
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	alter table mysql.general_log engine=myisam
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	alter table mysql.slow_log engine=myisam
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	drop table mysql.general_log
@@ -300,17 +308,20 @@ ON UPDATE CURRENT_TIMESTAMP,
 set global general_log='ON';
 set global slow_query_log='ON';
 use test;
+#
+# Bug #20139 Infinite loop after "FLUSH" and "LOCK tabX, general_log"
+#
 flush tables with read lock;
 unlock tables;
 use mysql;
 lock tables general_log read local, help_category read local;
 ERROR HY000: You can't use locks with log tables
 unlock tables;
+#
+# Bug #17544 Cannot do atomic log rotate and
+# Bug #21785 Server crashes after rename of the log table
+#
 SET SESSION long_query_time = 1000;
-drop table if exists mysql.renamed_general_log;
-drop table if exists mysql.renamed_slow_log;
-drop table if exists mysql.general_log_new;
-drop table if exists mysql.slow_log_new;
 use mysql;
 RENAME TABLE general_log TO renamed_general_log;
 ERROR HY000: Cannot rename 'general_log'. When logging enabled, rename to/from log table must rename two tables: the log table to an archive table and another table back to 'general_log'
@@ -356,13 +367,16 @@ set global slow_query_log='ON';
 ERROR 42S02: Table 'mysql.slow_log' doesn't exist
 RENAME TABLE general_log2 TO general_log;
 RENAME TABLE slow_log2 TO slow_log;
-SET SESSION long_query_time = @saved_long_query_time;
+SET SESSION long_query_time = @old_long_query_time;
 set global general_log='ON';
 set global slow_query_log='ON';
 flush logs;
 flush logs;
 drop table renamed_general_log, renamed_slow_log;
 use test;
+#
+# Bug #21966 Strange warnings on repair of the log tables
+#
 use mysql;
 repair table general_log;
 Table	Op	Msg_type	Msg_text
@@ -380,6 +394,10 @@ slow_log
 slow_log_new
 drop table slow_log_new, general_log_new;
 use test;
+#
+# Bug#69953 / MDEV-4851
+# Log tables should be modifable on LOG_OUTPUT != TABLE
+#
 SET GLOBAL LOG_OUTPUT = 'FILE';
 SET GLOBAL slow_query_log = 1;
 SET GLOBAL general_log = 1;
@@ -388,6 +406,10 @@ ALTER TABLE mysql.general_log ADD COLUMN comment_text TEXT NOT NULL;
 SET GLOBAL LOG_OUTPUT = 'NONE';
 ALTER TABLE mysql.slow_log DROP COLUMN comment_text;
 ALTER TABLE mysql.general_log DROP COLUMN comment_text;
+#
+# Bug#27857 (Log tables supplies the wrong value for generating
+#            AUTO_INCREMENT numbers)
+#
 SET GLOBAL LOG_OUTPUT = 'TABLE';
 SET GLOBAL general_log = 0;
 FLUSH LOGS;
@@ -451,16 +473,15 @@ START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own sl
 START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	THREAD_ID	0	3
 START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	THREAD_ID	0	4
 SET GLOBAL slow_query_log = 0;
-SET SESSION long_query_time =@saved_long_query_time;
+SET SESSION long_query_time =@old_long_query_time;
 FLUSH LOGS;
 ALTER TABLE mysql.slow_log DROP COLUMN seq;
 ALTER TABLE mysql.slow_log ENGINE = CSV;
 SET GLOBAL general_log = @old_general_log;
 SET GLOBAL slow_query_log = @old_slow_query_log;
-drop procedure if exists proc25422_truncate_slow;
-drop procedure if exists proc25422_truncate_general;
-drop procedure if exists proc25422_alter_slow;
-drop procedure if exists proc25422_alter_general;
+#
+# Bug#25422 (Hang with log tables)
+#
 use test//
 create procedure proc25422_truncate_slow (loops int)
 begin
@@ -485,26 +506,26 @@ end//
 create procedure proc25422_alter_slow (loops int)
 begin
 declare v1 int default 0;
+declare old_log_state int default @@global.slow_query_log;
 declare ER_BAD_LOG_STATEMENT condition for 1575;
 declare continue handler for ER_BAD_LOG_STATEMENT begin end;
 while v1 < loops do
-set @old_log_state = @@global.slow_query_log;
 set global slow_query_log = 'OFF';
 alter table mysql.slow_log engine = CSV;
-set global slow_query_log = @old_log_state;
+set global slow_query_log = old_log_state;
 set v1 = v1 + 1;
 end while;
 end//
 create procedure proc25422_alter_general (loops int)
 begin
 declare v1 int default 0;
+declare old_log_state int default @@global.general_log;
 declare ER_BAD_LOG_STATEMENT condition for 1575;
 declare continue handler for ER_BAD_LOG_STATEMENT begin end;
 while v1 < loops do
-set @old_log_state = @@global.general_log;
 set global general_log = 'OFF';
 alter table mysql.general_log engine = CSV;
-set global general_log = @old_log_state;
+set global general_log = old_log_state;
 set v1 = v1 + 1;
 end while;
 end//
@@ -563,17 +584,19 @@ drop procedure proc25422_truncate_slow;
 drop procedure proc25422_truncate_general;
 drop procedure proc25422_alter_slow;
 drop procedure proc25422_alter_general;
+#
+# Bug#23044 (Warnings on flush of a log table)
+#
 FLUSH TABLE mysql.general_log;
 show warnings;
 Level	Code	Message
 FLUSH TABLE mysql.slow_log;
 show warnings;
 Level	Code	Message
-DROP TABLE IF EXISTS `db_17876.slow_log_data`;
-DROP TABLE IF EXISTS `db_17876.general_log_data`;
-DROP PROCEDURE IF EXISTS `db_17876.archiveSlowLog`;
-DROP PROCEDURE IF EXISTS `db_17876.archiveGeneralLog`;
-DROP DATABASE IF EXISTS `db_17876`;
+#
+# Bug#17876 (Truncating mysql.slow_log in a SP after using cursor locks the
+#            thread)
+#
 CREATE DATABASE db_17876;
 CREATE TABLE `db_17876.slow_log_data` (
 `start_time` timestamp(6)  default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
@@ -686,6 +709,9 @@ DROP PROCEDURE IF EXISTS `db_17876.archiveGeneralLog`;
 DROP DATABASE IF EXISTS `db_17876`;
 SET GLOBAL general_log = @old_general_log;
 SET GLOBAL slow_query_log = @old_slow_query_log;
+#
+# Bug#21557 entries in the general query log truncated at 1000 characters.
+#
 select CONNECTION_ID() into @thread_id;
 truncate table mysql.general_log;
 set global general_log = on;
@@ -902,9 +928,9 @@ Execute	select '000 001 002 003 004 005 006 007 008 009010 011 012 013 014 015 0
 Query	set global general_log = off
 deallocate prepare long_query;
 set global general_log = @old_general_log;
-DROP TABLE IF EXISTS log_count;
-DROP TABLE IF EXISTS slow_log_copy;
-DROP TABLE IF EXISTS general_log_copy;
+#
+# Bug#34306: Can't make copy of log tables when server binary log is enabled
+#
 CREATE TABLE log_count (count BIGINT(21));
 SET GLOBAL general_log = ON;
 SET GLOBAL slow_query_log = ON;
@@ -926,9 +952,12 @@ CREATE TABLE general_log_copy SELECT * FROM mysql.general_log;
 INSERT INTO general_log_copy SELECT * FROM mysql.general_log;
 INSERT INTO log_count (count) VALUES ((SELECT count(*) FROM mysql.general_log));
 DROP TABLE general_log_copy;
-SET GLOBAL general_log = @saved_general_log;
-SET GLOBAL slow_query_log = @saved_slow_query_log;
+SET GLOBAL general_log = @old_general_log;
+SET GLOBAL slow_query_log = @old_slow_query_log;
 DROP TABLE log_count;
+#
+# Bug #31700: thd->examined_row_count not incremented for 'const' type queries
+#
 SET SESSION long_query_time = 0;
 SET GLOBAL slow_query_log = ON;
 FLUSH LOGS;
@@ -954,9 +983,10 @@ TIMESTAMP	1	1	SELECT SQL_NO_CACHE 'Bug#31700 - KEY', f1,f2,f3,SLEEP(1.1) FROM t1
 TIMESTAMP	1	1	SELECT SQL_NO_CACHE 'Bug#31700 - PK',  f1,f2,f3,SLEEP(1.1) FROM t1 WHERE f1=2
 DROP TABLE t1;
 TRUNCATE TABLE mysql.slow_log;
+#
+# Bug #47924 main.log_tables times out sporadically
+#
 use mysql;
-drop table if exists renamed_general_log;
-drop table if exists renamed_slow_log;
 RENAME TABLE general_log TO renamed_general_log;
 ERROR HY000: Cannot rename 'general_log'. When logging enabled, rename to/from log table must rename two tables: the log table to an archive table and another table back to 'general_log'
 RENAME TABLE slow_log TO renamed_slow_log;
@@ -964,7 +994,34 @@ ERROR HY000: Cannot rename 'slow_log'. When logging enabled, rename to/from log 
 use test;
 flush tables with read lock;
 unlock tables;
-SET @@session.long_query_time= @old_long_query_time;
+#
+# MDEV-33267 User with minimal permissions can intentionally corrupt mysql.slow_log table
+#
+truncate mysql.slow_log;
+set global log_output= 'TABLE';
+create user u@localhost;
+set slow_query_log=on, long_query_time=0.1;
+select 'before evil-doing', sleep(0.2);
+before evil-doing	sleep(0.2)
+before evil-doing	0
+connect  con1,localhost,u,,;
+set @@timestamp= 2147483647;
+set slow_query_log=on, long_query_time=0.1;
+select 'evil-doing', sleep(1.1);
+evil-doing	sleep(1.1)
+evil-doing	0
+disconnect con1;
+connection default;
+select 'after evil-doing', sleep(0.2);
+after evil-doing	sleep(0.2)
+after evil-doing	0
+select distinct sql_text from mysql.slow_log where sql_text like '%evil%';
+sql_text
+select 'before evil-doing', sleep(0.2)
+select 'evil-doing', sleep(1.1)
+select 'after evil-doing', sleep(0.2)
+set global log_output=default;
+drop user u@localhost;
 SET @@global.log_output=       @old_log_output;
 SET @@global.slow_query_log=   @old_slow_query_log;
 SET @@global.general_log=      @old_general_log;
