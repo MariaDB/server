@@ -1325,6 +1325,13 @@ public:
   {
     return strmake_lex_cstring(from.str, from.length);
   }
+  LEX_CUSTRING strmake_lex_custring(const LEX_CUSTRING &from) const
+  {
+    const void *tmp= memdup(from.str, from.length);
+    if (!tmp)
+      return {0,0};
+    return {(const uchar*)tmp, from.length};
+  }
   LEX_CSTRING strmake_lex_cstring_trim_whitespace(const LEX_CSTRING &from,
                                                   CHARSET_INFO *cs)
   {
