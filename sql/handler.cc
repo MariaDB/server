@@ -2612,8 +2612,18 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   else
     x= *member->full_xid;
 
-  rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
-    hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
+  rc= 0;
+  if (xarecover_decide_to_commit(member, ptr_commit_max))
+  {
+    rc= hton->commit_by_xid(hton, &x);
+  }
+  else
+  {
+    if (hton->recover_rollback_by_xid)
+      rc= hton->recover_rollback_by_xid(hton, &x);
+    else
+      rc= hton->rollback_by_xid(hton, &x);
+  }
 
   /*
     It's fine to have non-zero rc which would be from transaction
@@ -2792,7 +2802,11 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         }
         else if (!info->mem_root)
         {
-          int rc= hton->rollback_by_xid(hton, info->list+i);
+          int rc= 0;
+          if (hton->recover_rollback_by_xid)
+            rc= hton->recover_rollback_by_xid(hton, info->list+i);
+          else
+            rc= hton->rollback_by_xid(hton, info->list+i);
           if (rc == 0)
           {
             DBUG_EXECUTE("info",{

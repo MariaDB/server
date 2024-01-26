@@ -1,0 +1,49 @@
+CREATE TABLE t1 (id int primary key, data int) ENGINE = InnoDB;
+INSERT INTO t1 VALUES (0, 1);
+#
+# 1. Check DML in prepared state can rollback correctly.
+#
+SET debug = "d,crash_before_writing_xid";
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+ERROR HY000: Lost connection to server during query
+# restart: --debug=d,print_log_after_rollback_on_recovery
+# Check whether the prepared transaction of UPDATE has been rollback.
+# Expect (0,1)
+SELECT * FROM t1;
+id	data
+0	1
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+SELECT * FROM t1;
+id	data
+0	2
+include/assert_grep.inc [Server reported: recovery_rollback_thread]
+#
+# 2. Check DML can rollback automatically after second crash.
+#
+SET debug = "d,crash_before_writing_xid";
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+ERROR HY000: Lost connection to server during query
+# restart: --debug=d,print_log_after_rollback_on_recovery,block_rollback_thread
+SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_state = "RUNNING";
+COUNT(*)
+1
+SELECT * FROM t1;
+id	data
+0	2
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+id	data
+0	3
+SET debug = "d,crash_dispatch_command_before";
+SELECT 1;
+ERROR HY000: Lost connection to server during query
+# restart: --debug=d,print_log_after_rollback_on_recovery
+SELECT * FROM t1;
+id	data
+0	2
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+SELECT * FROM t1;
+id	data
+0	3
+include/assert_grep.inc [Server reported: recovery_rollback_thread]
+DROP TABLE t1;

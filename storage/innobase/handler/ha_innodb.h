@@ -940,3 +940,16 @@ which is in the prepared state
 
 @return 0 or error number */
 int innobase_rollback_by_xid(handlerton* hton, XID* xid);
+
+/**
+This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state asynchronously.
+
+It only set the transaction's status to ACTIVE and persist the status.
+The transaction will be rolled back by background rollback thread.
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_recover_rollback_by_xid(handlerton *hton, XID *xid);

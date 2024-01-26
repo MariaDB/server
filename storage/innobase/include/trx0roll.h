@@ -66,13 +66,16 @@ que_thr_t*
 trx_rollback_step(
 /*==============*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*******************************************************************//**
-Rollback a transaction used in MySQL.
+/*******************************************************************/ /**
+Rollback a transaction used in MySQL. If fast_rollback is true, it will
+do a fast rollback, which just change trx's state back to ACTIVE and
+persist it to redo log.
 @return error code or DB_SUCCESS */
 dberr_t
 trx_rollback_for_mysql(
 /*===================*/
-	trx_t*	trx)	/*!< in/out: transaction */
+	trx_t*	trx,	        /*!< in/out: transaction */
+	bool fast_rollback=false)	/*!< in: fast rollback a prepared trx */
 	MY_ATTRIBUTE((nonnull));
 /*******************************************************************//**
 Rollback the latest SQL statement for MySQL.
