@@ -4454,6 +4454,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Warning: a long semaphore wait:/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
+     qr/InnoDB: Could not free any blocks in the buffer pool!/,
      qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
      qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/Slave: Unknown table 't1' .* 1051/,
