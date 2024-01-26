@@ -117,21 +117,20 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
       {
         if (event->database.str)
         {
-          logger_printf(logfile, "%llu %`s %04d-%02d-%02d %2d:%02d:%02d "
-                      "%s %s %d: %s : %s \n",
-              event->general_thread_id, event->database.str, t.tm_year + 1900,
-              t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
-              t.tm_sec, event->general_user, type, event->general_error_code,
-              event->general_command, event->general_query);
+          logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %llu "
+                      "%s %`s %s %d: %s : %s \n",
+              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
+              t.tm_sec, event->general_thread_id, event->general_user,
+              event->database.str, type,
+              event->general_error_code, event->general_command, event->general_query);
         }
         else
         {
-          logger_printf(logfile, "%llu %s %04d-%02d-%02d %2d:%02d:%02d "
-                      "%s %s %d: %s : %s \n",
-              event->general_thread_id, "NULL", t.tm_year + 1900,
-              t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
-              t.tm_sec, event->general_user, type, event->general_error_code,
-              event->general_command, event->general_query);
+          logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %llu "
+                      "%s NULL %s %d: %s : %s \n",
+              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
+              t.tm_sec, event->general_thread_id, event->general_user, type,
+              event->general_error_code, event->general_command, event->general_query);
         }
       }
       else
