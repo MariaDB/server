@@ -15764,6 +15764,7 @@ keyword_func_sp_var_and_label:
         | AUTHORS_SYM
         | AUTO_INC
         | AUTOEXTEND_SIZE_SYM
+        | AUTO_SYM
         | AVG_ROW_LENGTH
         | BLOCK_SYM
         | BODY_MARIADB_SYM

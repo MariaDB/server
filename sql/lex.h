@@ -79,6 +79,7 @@ SYMBOL symbols[] = {
   { "AT",		SYM(AT_SYM)},
   { "ATOMIC",		SYM(ATOMIC_SYM)},
   { "AUTHORS",	        SYM(AUTHORS_SYM)},
+  { "AUTO",             SYM(AUTO_SYM)},
   { "AUTO_INCREMENT",	SYM(AUTO_INC)},
   { "AUTOEXTEND_SIZE",	SYM(AUTOEXTEND_SIZE_SYM)},
   { "AVG",		SYM(AVG_SYM)},
