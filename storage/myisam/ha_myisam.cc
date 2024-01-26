@@ -946,6 +946,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
       file->s->keyinfo[i].parser=
         (struct st_mysql_ftparser *)plugin_decl(parser)->info;
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
+    table->s->key_info[i].block_size= table->key_info[i].block_size;
   }
   my_errno= 0;
 
