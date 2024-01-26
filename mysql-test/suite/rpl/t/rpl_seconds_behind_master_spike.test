@@ -132,6 +132,7 @@ while (!$caught_up)
     }
     sleep 0.1;
 }
+set debug_sync="RESET";
 --enable_query_log
 
 --connection master
