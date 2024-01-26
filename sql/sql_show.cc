@@ -151,7 +151,7 @@ static const LEX_CSTRING ha_choice_values[]=
   { STRING_WITH_LEN("1") }
 };
 
-static void store_key_options(THD *, String *, TABLE *, KEY *);
+static void store_key_options(THD *, String *, TABLE_SHARE *, KEY *);
 
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
@@ -2434,7 +2434,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
 
     packet->append(')');
-    store_key_options(thd, packet, table, &table->key_info[i]);
+    store_key_options(thd, packet, share, &share->key_info[i]);
     if (key_info->parser)
     {
       LEX_CSTRING *parser_name= plugin_name(key_info->parser);
@@ -2541,7 +2541,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
 }
 
 
-static void store_key_options(THD *thd, String *packet, TABLE *table,
+static void store_key_options(THD *thd, String *packet, TABLE_SHARE *share,
                               KEY *key_info)
 {
   bool limited_mysql_mode= (thd->variables.sql_mode &
@@ -2571,7 +2571,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
       packet->append(STRING_WITH_LEN(" USING RTREE"));
 
     if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
-        table->s->key_block_size != key_info->block_size)
+        share->key_block_size != key_info->block_size)
     {
       packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
       packet->append_ulonglong(key_info->block_size);
