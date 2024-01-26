@@ -1810,7 +1810,7 @@ EXPLAIN EXTENDED SELECT oracle_schema.REGEXP_REPLACE('test','t','')
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Level	Code	Message
-Note	1003	select regexp_replace('test','t','') AS `oracle_schema.REGEXP_REPLACE('test','t','')`
+Note	1003	select oracle_schema.regexp_replace('test','t','') AS `oracle_schema.REGEXP_REPLACE('test','t','')`
 ----------
 sql_mode='ORACLE'   qualifier=''
 query
@@ -1832,7 +1832,7 @@ EXPLAIN EXTENDED SELECT mariadb_schema.REGEXP_REPLACE('test','t','')
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Level	Code	Message
-Note	1003	select regexp_replace('test','t','') AS "mariadb_schema.REGEXP_REPLACE('test','t','')"
+Note	1003	select mariadb_schema.regexp_replace('test','t','') AS "mariadb_schema.REGEXP_REPLACE('test','t','')"
 ----------
 sql_mode='ORACLE'   qualifier='maxdb_schema.'
 query
@@ -1840,7 +1840,7 @@ EXPLAIN EXTENDED SELECT maxdb_schema.REGEXP_REPLACE('test','t','')
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Level	Code	Message
-Note	1003	select regexp_replace('test','t','') AS "maxdb_schema.REGEXP_REPLACE('test','t','')"
+Note	1003	select mariadb_schema.regexp_replace('test','t','') AS "maxdb_schema.REGEXP_REPLACE('test','t','')"
 ----------
 sql_mode='ORACLE'   qualifier='oracle_schema.'
 query
