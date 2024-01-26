@@ -1775,7 +1775,10 @@ protected:
 class Create_func_regexp_replace : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
+  {
+    return new (thd->mem_root) Item_func_regexp_replace(thd, arg1, arg2, arg3);
+  }
 
   static Create_func_regexp_replace s_singleton;
 
@@ -1783,6 +1786,28 @@ protected:
   Create_func_regexp_replace() = default;
   virtual ~Create_func_regexp_replace() = default;
 };
+
+Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
+
+
+class Create_func_regexp_replace_oracle : public Create_func_arg3
+{
+public:
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
+  {
+    return new (thd->mem_root) Item_func_regexp_replace_oracle(thd, arg1,
+                                                               arg2, arg3);
+  }
+
+  static Create_func_regexp_replace_oracle s_singleton;
+
+protected:
+  Create_func_regexp_replace_oracle() = default;
+  virtual ~Create_func_regexp_replace_oracle() = default;
+};
+
+Create_func_regexp_replace_oracle
+  Create_func_regexp_replace_oracle::s_singleton;
 
 
 class Create_func_regexp_substr : public Create_func_arg2
@@ -4751,15 +4776,6 @@ Create_func_regexp_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
-Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
-
-Item*
-Create_func_regexp_replace::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
-{
-  return new (thd->mem_root) Item_func_regexp_replace(thd, arg1, arg2, arg3);
-}
-
-
 Create_func_regexp_substr Create_func_regexp_substr::s_singleton;
 
 Item*
@@ -5668,6 +5684,8 @@ const Native_func_registry func_array_oracle_overrides[] =
   { { STRING_WITH_LEN("LENGTH") },  BUILDER(Create_func_char_length)},
   { { STRING_WITH_LEN("LPAD") },    BUILDER(Create_func_lpad_oracle)},
   { { STRING_WITH_LEN("LTRIM") },   BUILDER(Create_func_ltrim_oracle)},
+  { { STRING_WITH_LEN("REGEXP_REPLACE") },
+                                    BUILDER(Create_func_regexp_replace_oracle)},
   { { STRING_WITH_LEN("RPAD") },    BUILDER(Create_func_rpad_oracle)},
   { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)},
   { {0, 0}, NULL}
