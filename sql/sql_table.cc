@@ -4678,7 +4678,6 @@ int mysql_create_table_no_lock(THD *thd,
   int res;
   uint path_length;
   char path[FN_REFLEN + 1];
-  LEX_CSTRING cpath;
   const LEX_CSTRING *db= &table_list->db;
   const LEX_CSTRING *table_name= &table_list->table_name;
   LEX_CUSTRING frm= {0,0};
@@ -4701,8 +4700,8 @@ int mysql_create_table_no_lock(THD *thd,
       return true;
     }
   }
-  lex_string_set3(&cpath, path, path_length);
 
+  LEX_CSTRING cpath= { path, path_length };
   res= create_table_impl(thd, ddl_log_state_create, ddl_log_state_rm, *db,
                          *table_name, *db, *table_name, cpath, *create_info,
                          create_info, alter_info, create_table_mode,

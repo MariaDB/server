@@ -233,12 +233,6 @@ static inline void lex_string_set(LEX_CSTRING *lex_str, const char *c_str)
   lex_str->str= c_str;
   lex_str->length= strlen(c_str);
 }
-static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
-                                   size_t len)
-{
-  lex_str->str= c_str;
-  lex_str->length= len;
-}
 
 /*
   Copies src into dst and ensures dst is a NULL terminated C string.
