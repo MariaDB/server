@@ -16825,17 +16825,17 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
   }
 
   if (sel_arg->min_flag & NEAR_MIN)
-    lex_string_set3(&tmp, "<", 1);
+    tmp = { STRING_WITH_LEN("<") };
   else
-    lex_string_set3(&tmp, "<=", 2);
+    tmp = { STRING_WITH_LEN("<=") };
   out.append(&tmp);
 
   out.append(sel_arg->field->field_name);
 
   if (sel_arg->min_flag & NEAR_MAX)
-    lex_string_set3(&tmp, "<", 1);
+    tmp = { STRING_WITH_LEN("<") };
   else
-    lex_string_set3(&tmp, "<=", 2);
+    tmp = { STRING_WITH_LEN("<=") };
   out.append(&tmp);
 
   if (sel_arg->max_flag & NO_MAX_RANGE)
