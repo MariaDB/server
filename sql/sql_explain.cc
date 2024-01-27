@@ -540,21 +540,20 @@ uint Explain_union::make_union_table_name(char *buf)
   switch (operation)
   {
     case OP_MIX:
-      lex_string_set3(&type, STRING_WITH_LEN("<unit"));
+      type= { STRING_WITH_LEN("<unit") };
       break;
     case OP_UNION:
-      lex_string_set3(&type, STRING_WITH_LEN("<union"));
+      type= { STRING_WITH_LEN("<union") };
       break;
     case OP_INTERSECT:
-      lex_string_set3(&type, STRING_WITH_LEN("<intersect"));
+      type= { STRING_WITH_LEN("<intersect") };
       break;
     case OP_EXCEPT:
-      lex_string_set3(&type, STRING_WITH_LEN("<except"));
+      type= { STRING_WITH_LEN("<except") };
       break;
     default:
       DBUG_ASSERT(0);
-      type.str= NULL;
-      type.length= 0;
+      type= { NULL, 0 };
   }
   memcpy(buf, type.str, (len= (uint)type.length));
 
