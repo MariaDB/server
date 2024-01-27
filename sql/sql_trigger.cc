@@ -1383,7 +1383,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
     if (stmt_query)
     {
       /* This code is executed in case of DROP TRIGGER */
-      lex_string_set3(&query, thd->query(), thd->query_length());
+      query = { thd->query(), thd->query_length() };
     }
     if (ddl_log_drop_trigger(ddl_log_state, &tables->db, &tables->table_name,
                              sp_name, &query))

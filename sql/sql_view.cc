@@ -1932,12 +1932,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 
   for (view= views; view; view= view->next_local)
   {
-    LEX_CSTRING cpath;
     bool not_exist;
-    size_t length;
-    length= build_table_filename(path, sizeof(path) - 1,
-                                 view->db.str, view->table_name.str, reg_ext, 0);
-    lex_string_set3(&cpath, path, length);
+    size_t length= build_table_filename(path, sizeof(path) - 1, view->db.str,
+                                        view->table_name.str, reg_ext, 0);
+    LEX_CSTRING cpath= { path, length };
 
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
