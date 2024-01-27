@@ -1251,7 +1251,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
 
   const uchar* const ptr_rows_data= (const uchar*) ptr_after_width;
   size_t const data_size= event_len - (ptr_rows_data - (const uchar *) buf);
-  DBUG_PRINT("info",("m_table_id: %lu  m_flags: %d  m_width: %lu  data_size: %zu",
+  DBUG_PRINT("info",("m_table_id: %llu  m_flags: %d  m_width: %lu  data_size: %zu",
                      m_table_id, m_flags, m_width, data_size));
   DBUG_DUMP("rows_data", (uchar*) ptr_rows_data, data_size);
 
@@ -1790,7 +1790,7 @@ bool Old_rows_log_event::write_data_header()
   DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
-                    int4store(buf + 0, m_table_id);
+                    int4store(buf + 0, (ulong) m_table_id);
                     int2store(buf + 4, m_flags);
                     return write_data(buf, 6);
                   });
@@ -1837,7 +1837,7 @@ void Old_rows_log_event::pack_info(Protocol *protocol)
   char const *const flagstr=
     get_flags(STMT_END_F) ? " flags: STMT_END_F" : "";
   size_t bytes= my_snprintf(buf, sizeof(buf),
-                               "table_id: %lu%s", m_table_id, flagstr);
+                               "table_id: %llu%s", m_table_id, flagstr);
   protocol->store(buf, bytes, &my_charset_bin);
 }
 #endif
@@ -1859,9 +1859,10 @@ bool Old_rows_log_event::print_helper(FILE *file,
 
   if (!print_event_info->short_form)
   {
+    char llbuff[22];
     if (print_header(head, print_event_info, !do_print_encoded) ||
-        my_b_printf(head, "\t%s: table id %lu%s\n",
-                    name, m_table_id,
+        my_b_printf(head, "\t%s: table id %s%s\n",
+                    name, ullstr(m_table_id, llbuff),
                     do_print_encoded ? " flags: STMT_END_F" : "") ||
         print_base64(body, print_event_info, do_print_encoded))
       goto err;
