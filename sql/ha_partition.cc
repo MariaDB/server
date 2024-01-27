@@ -144,9 +144,9 @@ int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
     if (create_partition_name(from_buff, sizeof(from_buff), from_path,
                               name_buffer_ptr, NORMAL_PART_NAME, FALSE))
       res=1;
-    table_name_ptr= from_buff + dirname_length(from_buff);
 
-    lex_string_set3(&table_name, table_name_ptr, strlen(table_name_ptr));
+    table_name_ptr= from_buff + dirname_length(from_buff);
+    lex_string_set(&table_name, table_name_ptr);
 
     if (((*file)->ht)->notify_tabledef_changed((*file)->ht, db, &table_name,
                                                frm, version, *file))

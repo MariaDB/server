@@ -2212,8 +2212,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
         mysql_mutex_unlock(&LOCK_gdl);
         save_db= thd->db;
-        lex_string_set3(&thd->db, recovery_state.db.ptr(),
-                        recovery_state.db.length());
+        thd->db= recovery_state.db.to_lex_cstring();
         (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
                                  recovery_state.query.ptr(),
                                  recovery_state.query.length(),
