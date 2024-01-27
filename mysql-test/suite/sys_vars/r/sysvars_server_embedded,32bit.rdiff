@@ -1,5 +1,5 @@
---- sysvars_server_embedded.result
-+++ sysvars_server_embedded.result
+--- suite/sys_vars/r/sysvars_server_embedded.result
++++ suite/sys_vars/r/sysvars_server_embedded,32bit.reject
 @@ -34,7 +34,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	ARIA_BLOCK_SIZE
