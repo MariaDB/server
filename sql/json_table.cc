@@ -1062,19 +1062,19 @@ int Json_table_column::On_response::print(const char *name, String *str) const
   switch (m_response)
   {
     case Json_table_column::RESPONSE_NULL:
-      lex_string_set3(&resp, STRING_WITH_LEN("NULL"));
+      resp= { STRING_WITH_LEN("NULL") };
       break;
     case Json_table_column::RESPONSE_ERROR:
-      lex_string_set3(&resp, STRING_WITH_LEN("ERROR"));
+      resp= { STRING_WITH_LEN("ERROR") };
       break;
     case Json_table_column::RESPONSE_DEFAULT:
     {
-      lex_string_set3(&resp, STRING_WITH_LEN("DEFAULT"));
+      resp= { STRING_WITH_LEN("DEFAULT") };
       ds= m_default->val_str(&val);
       break;
     }
     default:
-      lex_string_set3(&resp, "", 0);
+      resp= { "", 0 };
       DBUG_ASSERT(FALSE); /* should never happen. */
   }
 
@@ -1477,5 +1477,3 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
 
   return res;
 }
-
-
