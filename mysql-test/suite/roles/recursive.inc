@@ -52,14 +52,14 @@ show grants;
 --sorted_result
 select * from information_schema.applicable_roles;
 
-show status like 'debug%';
+show status like 'acl_debug%';
 
 #
 # global privileges
 #
 connection default;
 grant select on *.* to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(*) from mysql.roles_mapping;
@@ -72,7 +72,7 @@ select * from information_schema.enabled_roles;
 
 connection default;
 revoke select on *.* from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 # global privileges are cached in the THD, changes don't take effect immediately
 select count(*) from mysql.roles_mapping;
@@ -87,7 +87,7 @@ set role none;
 #
 connection default;
 grant select on mysql.* to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(*) from mysql.roles_mapping;
@@ -98,7 +98,7 @@ show grants;
 
 connection default;
 revoke select on mysql.* from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(*) from mysql.roles_mapping;
@@ -110,7 +110,7 @@ set role none;
 
 connection default;
 grant select on mysql.roles_mapping to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(*) from mysql.roles_mapping;
@@ -121,7 +121,7 @@ show grants;
 
 connection default;
 revoke select on mysql.roles_mapping from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(*) from mysql.roles_mapping;
@@ -133,7 +133,7 @@ set role none;
 
 connection default;
 grant select(User) on mysql.roles_mapping to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(*) from mysql.roles_mapping;
@@ -146,7 +146,7 @@ show grants;
 
 connection default;
 grant select(Host) on mysql.roles_mapping to role3;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_COLUMNACCESS_DENIED_ERROR
 select count(concat(User,Host,Role)) from mysql.roles_mapping;
@@ -156,7 +156,7 @@ show grants;
 
 connection default;
 revoke select(User) on mysql.roles_mapping from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_COLUMNACCESS_DENIED_ERROR
 select count(concat(User,Host)) from mysql.roles_mapping;
@@ -164,7 +164,7 @@ select count(concat(Host)) from mysql.roles_mapping;
 
 connection default;
 revoke select(Host) on mysql.roles_mapping from role3;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_TABLEACCESS_DENIED_ERROR
 select count(concat(Host)) from mysql.roles_mapping;
@@ -178,7 +178,7 @@ connection default;
 create procedure pr1() select "pr1";
 create function fn1() returns char(10) return "fn1";
 grant execute on procedure test.pr1 to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_PROCACCESS_DENIED_ERROR
 call pr1();
@@ -189,13 +189,13 @@ select fn1();
 
 connection default;
 grant execute on function test.fn1 to role5;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 select fn1();
 
 connection default;
 revoke execute on procedure test.pr1 from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_PROCACCESS_DENIED_ERROR
 call pr1();
@@ -203,7 +203,7 @@ select fn1();
 
 connection default;
 revoke execute on function test.fn1 from role5;
-show status like 'debug%';
+show status like 'acl_debug%';
 connection foo;
 --error ER_PROCACCESS_DENIED_ERROR
 select fn1();
@@ -218,27 +218,27 @@ drop function fn1;
 #
 
 grant select on mysql.roles_mapping to role3;
-show status like 'debug%';
+show status like 'acl_debug%';
 # this grant only propagates to roles role2 and role4,
 # and tries to propagate to role5, discovering that it already has it
 grant select on mysql.roles_mapping to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 # this only tries to propagate to role5 and exits early
 revoke select on mysql.roles_mapping from role3;
-show status like 'debug%';
+show status like 'acl_debug%';
 # propagates to all 8 roles, normally
 revoke select on mysql.roles_mapping from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 
 grant select on mysql.* to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 # only entries for `test` are merged, not for `mysql`
 grant select on test.* to role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 revoke select on mysql.* from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 revoke select on test.* from role1;
-show status like 'debug%';
+show status like 'acl_debug%';
 
 #
 # cleanup

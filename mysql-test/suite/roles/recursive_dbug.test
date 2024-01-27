@@ -3,7 +3,7 @@
 #
 source include/have_debug.inc;
 
-show status like 'debug%';
+show status like 'acl_debug%';
 
 set @old_dbug=@@global.debug_dbug;
 set global debug_dbug="+d,role_merge_stats";

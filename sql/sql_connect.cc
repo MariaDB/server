@@ -337,7 +337,7 @@ void free_max_user_conn(void)
 }
 
 
-void reset_mqh(LEX_USER *lu, bool get_them= 0)
+void reset_mqh(SQL_CATALOG *catalog, LEX_USER *lu, bool get_them= 0)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_lock(&LOCK_user_conn);
@@ -355,7 +355,7 @@ void reset_mqh(LEX_USER *lu, bool get_them= 0)
                                                    temp_len)))
     {
       uc->questions=0;
-      get_mqh(temp_user,&temp_user[lu->user.length+1],uc);
+      get_mqh(catalog, temp_user,&temp_user[lu->user.length+1],uc);
       uc->updates=0;
       uc->conn_per_hour=0;
     }
@@ -368,7 +368,7 @@ void reset_mqh(LEX_USER *lu, bool get_them= 0)
       USER_CONN *uc=(struct user_conn *)
         my_hash_element(&hash_user_connections, idx);
       if (get_them)
-	get_mqh(uc->user,uc->host,uc);
+        get_mqh(catalog, uc->user,uc->host,uc);
       uc->questions=0;
       uc->updates=0;
       uc->conn_per_hour=0;
@@ -923,7 +923,8 @@ int thd_set_peer_addr(THD *thd,
       (thd->main_security_ctx.ip ?
         thd->main_security_ctx.ip : "unknown ip")));
   if ((!check_proxy_networks || !is_proxy_protocol_allowed((struct sockaddr *) addr)) 
-      && acl_check_host(thd->main_security_ctx.host, thd->main_security_ctx.ip))
+      && acl_check_host(thd->catalog,
+                        thd->main_security_ctx.host, thd->main_security_ctx.ip))
   {
     /* HOST_CACHE stats updated by acl_check_host(). */
     my_error(ER_HOST_NOT_PRIVILEGED, MYF(0),

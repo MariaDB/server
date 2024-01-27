@@ -38,21 +38,24 @@ drop catalog def;
 --echo # Test status vars
 --echo #
 
-flush status;
-create catalog cat1;
+exec $MARIADB_INSTALL_DB --defaults-file=$MYSQLTEST_REAL_VARDIR/my.cnf --datadir=$MARIADB_TOPDIR --basedir=$MYSQL_BINDIR --auth-root-authentication-method=normal --silent --catalogs=cat1;
+
+connect(con1,localhost,root,,cat1.test);
 use catalog cat1;
+flush status;
+
 select catalog();
 select database();
 create database foo;
 use foo;
-connect (con1,localhost,root,,cat1.foo);
-connection con1;
-select catalog();
-select database();
+select count(*) from mysql.user;
+select count(*) from mysql.global_priv;
+
 create table t1 (a int);
 drop table t1;
 disconnect con1;
 connection default;
+use catalog cat1;
 select catalog();
 show status like "Com_create_table";
 show catalog status like "Com_create_table";
@@ -60,8 +63,8 @@ show server status like "Com_create_table";
 show global status like "Com_create_table";
 select * from information_schema.session_status where variable_name="Com_create_table";
 select * from information_schema.catalog_status where variable_name="Com_create_table";
-select * from information_schema.server_status where variable_name="Com_create_table";
 select * from information_schema.global_status where variable_name="Com_create_table";
+select * from information_schema.server_status where variable_name="Com_create_table";
 drop database foo;
 use catalog def;
 show status like "Com_create_table";
@@ -70,8 +73,16 @@ show server status like "Com_create_table";
 show global status like "Com_create_table";
 select * from information_schema.session_status where variable_name="Com_create_table";
 select * from information_schema.catalog_status where variable_name="Com_create_table";
-select * from information_schema.server_status where variable_name="Com_create_table";
 select * from information_schema.global_status where variable_name="Com_create_table";
+select * from information_schema.server_status where variable_name="Com_create_table";
+use catalog cat1;
+show databases;
+drop database test;
+--disable_warnings
+drop database performance_schema;
+--enable_warnings
+drop database sys;
+drop database mysql;
 drop catalog cat1;
 
 --echo #

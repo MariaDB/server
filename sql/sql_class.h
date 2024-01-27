@@ -5416,6 +5416,17 @@ public:
   SQL_CATALOG *get_catalog_from_db(LEX_CSTRING *db) const;
   void change_catalog(SQL_CATALOG *new_catalog);
   void reset_catalog();
+  /*
+   We should use only master_access for a user if the server was started
+   with --skip-grants or if the user has CATALOG_ACL and changed to another
+   catalog than 'def'.
+  */
+  bool use_master_access()
+  {
+    return unlikely(opt_noacl ||
+                    ((security_ctx->master_access & CATALOG_ACL) &&
+                     catalog != default_catalog()));
+  }
 };
 
 
@@ -7416,7 +7427,7 @@ class Switch_to_definer_security_ctx
   Switch_to_definer_security_ctx(THD *thd, TABLE_LIST *table) :
     m_thd(thd), m_sctx(thd->security_ctx)
   {
-    if (table->security_ctx)
+    if (table->security_ctx && !thd->use_master_access())
       thd->security_ctx= table->security_ctx;
   }
   ~Switch_to_definer_security_ctx() { m_thd->security_ctx = m_sctx; }

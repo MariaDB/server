@@ -165,9 +165,6 @@ public:
   virtual MDL_key::enum_mdl_namespace get_mdl_type() const= 0;
   virtual const Sp_handler *sp_handler_mysql_proc() const { return this; }
   virtual sp_cache **get_cache(THD *) const { return NULL; }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  virtual HASH *get_priv_hash() const { return NULL; }
-#endif
   virtual ulong recursion_depth(THD *thd) const { return 0; }
   /**
     Return appropriate error about recursion limit reaching
@@ -270,9 +267,6 @@ public:
   }
   const Sp_handler *package_routine_handler() const;
   sp_cache **get_cache(THD *) const;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
-#endif
   ulong recursion_depth(THD *thd) const;
   void recursion_level_error(THD *thd, const sp_head *sp) const;
   bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const;
@@ -320,9 +314,6 @@ public:
   }
   const Sp_handler *package_routine_handler() const;
   sp_cache **get_cache(THD *) const;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
-#endif
   bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
                          Item *item, LEX *lex) const;
 };
@@ -392,9 +383,6 @@ public:
     return MDL_key::PACKAGE_BODY;
   }
   sp_cache **get_cache(THD *) const;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
-#endif
 };
 
 
@@ -425,9 +413,6 @@ public:
     return MDL_key::PACKAGE_BODY;
   }
   sp_cache **get_cache(THD *) const;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
-#endif
 };
 
 

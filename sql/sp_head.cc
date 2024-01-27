@@ -3032,7 +3032,8 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
                  (sp->m_definer.host.length == 0 &&
                   (!strcmp(sp->m_definer.user.str,
                            thd->security_ctx->priv_role) ||
-                   check_role_is_granted(thd->security_ctx->priv_role, NULL,
+                   check_role_is_granted(thd->catalog,
+                                         thd->security_ctx->priv_role, NULL,
                                          sp->m_definer.user.str))));
   if (!*full_access)
     return check_some_routine_access(thd, sp->m_db.str, sp->m_name.str,

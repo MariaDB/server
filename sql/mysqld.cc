@@ -736,7 +736,7 @@ mysql_mutex_t LOCK_prepared_stmt_count;
 mysql_mutex_t LOCK_des_key_file;
 #endif
 mysql_mutex_t LOCK_backup_log, LOCK_optimizer_costs;
-mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
+mysql_rwlock_t LOCK_sys_init_connect, LOCK_sys_init_slave;
 mysql_rwlock_t LOCK_ssl_refresh;
 mysql_rwlock_t LOCK_all_status_vars;
 mysql_prlock_t LOCK_system_variables_hash;
@@ -1992,8 +1992,8 @@ static void clean_up(bool print_message)
   ignore_db_dirs_free();
   servers_free(1);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  acl_free(1);
-  grant_free();
+  catalogs_grant_free();
+  catalogs_acl_free();
 #endif
   query_cache_destroy();
   hostname_cache_free();
@@ -2112,7 +2112,6 @@ static void clean_up_mutexes()
   DBUG_ENTER("clean_up_mutexes");
   server_threads.destroy();
   thread_cache.destroy();
-  mysql_rwlock_destroy(&LOCK_grant);
   mysql_mutex_destroy(&LOCK_start_thread);
   mysql_mutex_destroy(&LOCK_status);
   mysql_rwlock_destroy(&LOCK_all_status_vars);
@@ -4545,7 +4544,6 @@ static int init_thread_environment()
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_connect, &LOCK_sys_init_connect);
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_slave, &LOCK_sys_init_slave);
   mysql_rwlock_init(key_rwlock_LOCK_ssl_refresh, &LOCK_ssl_refresh);
-  mysql_rwlock_init(key_rwlock_LOCK_grant, &LOCK_grant);
   mysql_rwlock_init(key_rwlock_LOCK_all_status_vars, &LOCK_all_status_vars);
   mysql_cond_init(key_COND_start_thread, &COND_start_thread, NULL);
 #ifdef HAVE_REPLICATION
@@ -5907,15 +5905,20 @@ int mysqld_main(int argc, char **argv)
   */
   start_signal_handler();				// Creates pidfile
 
-  if (late_init_all_catalogs())
-    unireg_abort(1);
-
-  if (mysql_rm_tmp_tables() || acl_init(default_catalog(), opt_noacl) ||
+  if (using_catalogs)
+  {
+    if (late_init_all_catalogs())
+      unireg_abort(1);
+  }
+  else
+  {
+    if (acl_init(default_catalog(), opt_noacl) ||
+        (!opt_noacl && grant_init(default_catalog())))
+      unireg_abort(1);
+  }
+  if (mysql_rm_tmp_tables() ||
       my_tz_init((THD *)0, default_tz_name, opt_bootstrap))
     unireg_abort(1);
-
-  if (!opt_noacl)
-    (void) grant_init(default_catalog());
 
   udf_init();
 
@@ -7361,43 +7364,6 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-#ifndef DBUG_OFF
-static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
-                             system_status_var *, enum_var_type)
-{
-#define add_var(X,Y,Z)                  \
-  v->name= X;                           \
-  v->value= (char*)Y;                   \
-  v->type= Z;                           \
-  v++;
-
-  var->type= SHOW_ARRAY;
-  var->value= buff;
-
-  SHOW_VAR *v= (SHOW_VAR *)buff;
-
-  if (_db_keyword_(0, "role_merge_stats", 1))
-  {
-    static SHOW_VAR roles[]= {
-      {"global",  &role_global_merges,  SHOW_ULONG},
-      {"db",      &role_db_merges,      SHOW_ULONG},
-      {"table",   &role_table_merges,   SHOW_ULONG},
-      {"column",  &role_column_merges,  SHOW_ULONG},
-      {"routine", &role_routine_merges, SHOW_ULONG},
-      {NullS, NullS, SHOW_LONG}
-    };
-
-    add_var("role_merges", roles, SHOW_ARRAY);
-  }
-
-  v->name= 0;
-
-#undef add_var
-
-  return 0;
-}
-#endif
-
 #ifdef HAVE_POOL_OF_THREADS
 static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
                                  enum enum_var_type scope)
@@ -7463,9 +7429,6 @@ SHOW_VAR status_vars[]= {
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
-#ifndef DBUG_OFF
-  SHOW_FUNC_ENTRY("Debug",     &debug_status_func),
-#endif
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},

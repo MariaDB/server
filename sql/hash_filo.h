@@ -71,6 +71,7 @@ public:
     first_link(NULL), last_link(NULL)
   {
     bzero((char*) &cache,sizeof(cache));
+    clear(false);
   }
 
   ~hash_filo()

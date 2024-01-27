@@ -2844,7 +2844,8 @@ bool sp_process_definer(THD *thd)
   /* Check that the specified definer exists. Emit a warning if not. */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (!is_acl_user(lex->definer->host.str, lex->definer->user.str))
+  if (!is_acl_user(thd->catalog,
+                   lex->definer->host.str, lex->definer->user.str))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
@@ -3138,7 +3139,8 @@ mysql_create_routine(THD *thd, LEX *lex)
       which doesn't any check routine privileges,
       so no routine privilege record  will insert into mysql.procs_priv.
     */
-    if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
+    if (thd->slave_thread && is_acl_user(thd->catalog,
+                                         definer->host.str, definer->user.str))
     {
       thd->change_security_context(&security_context,
                                    &thd->lex->definer->user,
@@ -6911,7 +6913,7 @@ check_access(THD *thd, privilege_t want_access,
     {
       if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
       {
-        db_access= acl_get_all3(sctx, db, db_is_pattern);
+        db_access= acl_get_all3(thd, db, db_is_pattern);
       }
       else
       {
@@ -6956,7 +6958,7 @@ check_access(THD *thd, privilege_t want_access,
   }
 
   if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
-    db_access= acl_get_all3(sctx, db, db_is_pattern);
+    db_access= acl_get_all3(thd, db, db_is_pattern);
   else
     db_access= sctx->db_access;
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
@@ -7351,7 +7353,7 @@ bool check_some_routine_access(THD *thd, const char *db, const char *name,
   if (!check_access(thd, SHOW_PROC_ACLS, db, &save_priv, NULL, 0, 1) ||
       (save_priv & SHOW_PROC_ACLS))
     return FALSE;
-  return check_routine_level_acl(thd, db, name, sph);
+  return check_routine_level_acl(thd, db, name, sph->type());
 }
 
 

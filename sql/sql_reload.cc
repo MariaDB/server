@@ -91,7 +91,13 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 
     if (likely(thd))
     {
-      bool reload_acl_failed= acl_reload(thd);
+      /*
+        catalog_acl is not set in the case of bootstrap or when
+        using --skip-grant-tables
+      */
+      bool reload_acl_failed= (thd->catalog->catalog_acl ?
+                               acl_reload(thd) :
+                               acl_init(thd->catalog, 0));
       bool reload_grants_failed= grant_reload(thd);
       bool reload_servers_failed= servers_reload(thd);
 
@@ -112,7 +118,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       delete tmp_thd;
       thd= 0;
     }
-    reset_mqh((LEX_USER *)NULL, TRUE);
+    // TODO(cvicentiu) Do we ever actually test this?
+    // DBUG_ASSERT(thd);
+    reset_mqh(thd ? thd->catalog : default_catalog(), (LEX_USER *)NULL, TRUE);
   }
 #endif
   if (options & REFRESH_LOG)
@@ -420,10 +428,15 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
    }
  }
 #endif
- if (options & REFRESH_USER_RESOURCES)
-   reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
- if (options & REFRESH_SSL)
- {
+  if (options & REFRESH_USER_RESOURCES)
+  {
+    // TODO(cvicentiu) do we actually test this?
+    // DBUG_ASSERT(thd)
+    reset_mqh(thd ? thd->catalog : default_catalog(),
+              (LEX_USER *) NULL, 0);             /* purecov: inspected */
+  }
+  if (options & REFRESH_SSL)
+  {
    if (reinit_ssl())
      result= 1;
 #ifdef WITH_WSREP

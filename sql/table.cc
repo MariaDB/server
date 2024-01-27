@@ -6792,8 +6792,9 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
   {
     DBUG_PRINT("info", ("This table is suid view => load contest"));
     DBUG_ASSERT(view && view_sctx);
-    if (acl_getroot(view_sctx, definer.user.str, definer.host.str,
-                                definer.host.str, thd->db.str))
+    if (acl_getroot(view_sctx, thd->catalog,
+                    definer.user.str, definer.host.str,
+                    definer.host.str, thd->db.str))
     {
       if ((thd->lex->sql_command == SQLCOM_SHOW_CREATE) ||
           (thd->lex->sql_command == SQLCOM_SHOW_FIELDS))
@@ -6895,7 +6896,8 @@ bool TABLE_LIST::prepare_security(THD *thd)
   DBUG_ASSERT(!prelocking_placeholder);
   if (prepare_view_security_context(thd))
     DBUG_RETURN(TRUE);
-  thd->security_ctx= find_view_security_context(thd);
+  if (!thd->use_master_access())
+    thd->security_ctx= find_view_security_context(thd);
   opt_trace_disable_if_no_security_context_access(thd);
   while ((tbl= tb++))
   {

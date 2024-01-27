@@ -20,18 +20,21 @@
 
 #define MY_CATALOG_OPT_FILE "catalog.opt"
 
+#include "mariadb.h"
 #include "sql_hset.h"
 #include "sql_string.h"
 #include "privilege.h"
 #include "status_var.h"
 
 struct Schema_specification_st;
+class Catalog_acl;
 
 class SQL_CATALOG
 {
 public:
   SQL_CATALOG *next;                            // For drop catalog
   SQL_CATALOG(const LEX_CSTRING *name, const LEX_CSTRING *path);
+  Catalog_acl *catalog_acl;
   const LEX_CSTRING name;
   const LEX_CSTRING path;             // Directory path, including '/'
   LEX_CSTRING comment;                // Comment from 'catalog.opt'

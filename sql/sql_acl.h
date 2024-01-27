@@ -51,15 +51,17 @@ enum mysql_db_table_field
   MYSQL_DB_FIELD_COUNT
 };
 
+class Catalog_acl;
+
 extern const TABLE_FIELD_DEF mysql_db_table_def;
 extern bool mysql_user_table_is_in_short_password_format;
 
-extern LEX_CSTRING host_not_specified;
-extern LEX_CSTRING current_user;
-extern LEX_CSTRING current_role;
-extern LEX_CSTRING current_user_and_current_role;
-extern LEX_CSTRING none;
-extern LEX_CSTRING public_name;
+extern const LEX_CSTRING host_not_specified;
+extern const LEX_CSTRING current_user;
+extern const LEX_CSTRING current_role;
+extern const LEX_CSTRING current_user_and_current_role;
+extern const LEX_CSTRING none;
+extern const LEX_CSTRING public_name;
 
 
 static inline int access_denied_error_code(int passwd_used)
@@ -75,15 +77,15 @@ static inline int access_denied_error_code(int passwd_used)
 /* prototypes */
 
 bool hostname_requires_resolving(const char *hostname);
-bool  acl_init(SQL_CATALOG *catalog, bool dont_read_acl_tables);
-bool acl_reload(THD *thd);
-void acl_free(bool end=0);
-privilege_t acl_get_all3(Security_context *sctx, const char *db,
-                         bool db_is_patern);
+bool acl_init(SQL_CATALOG *catalog, bool dont_read_acl_tables);
+void catalogs_acl_free();
+void catalogs_grant_free();
+privilege_t acl_get_all3(THD *thd, const char *db, bool db_is_pattern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
-bool acl_getroot(Security_context *sctx, const char *user, const char *host,
+bool acl_getroot(Security_context *sctx, SQL_CATALOG *catalog,
+                 const char *user, const char *host,
                  const char *ip, const char *db);
-bool acl_check_host(const char *host, const char *ip);
+bool acl_check_host(SQL_CATALOG *catalog, const char *host, const char *ip);
 bool check_change_password(THD *thd, LEX_USER *user);
 bool change_password(THD *thd, LEX_USER *user);
 
@@ -97,7 +99,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
                          List <LEX_USER> &user_list, privilege_t rights,
                          bool revoke, bool write_to_binlog);
 bool grant_init(SQL_CATALOG *catalog);
-void grant_free(void);
+bool acl_reload(THD *thd);
 bool grant_reload(THD *thd);
 bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
@@ -130,7 +132,8 @@ bool mysql_show_create_user(THD *thd, LEX_USER *user);
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 void get_privilege_desc(char *to, uint max_length, privilege_t access);
-void get_mqh(const char *user, const char *host, USER_CONN *uc);
+void get_mqh(SQL_CATALOG *catalog,
+             const char *user, const char *host, USER_CONN *uc);
 bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_rename_user(THD *thd, List <LEX_USER> &list);
@@ -143,8 +146,8 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
 bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
                          const Sp_handler *sph);
 bool check_routine_level_acl(THD *thd, const char *db, const char *name,
-                             const Sp_handler *sph);
-bool is_acl_user(const char *host, const char *user);
+                             enum_sp_type sp_type);
+bool is_acl_user(SQL_CATALOG *catalog, const char *host, const char *user);
 int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
@@ -274,8 +277,6 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
                         const char *schema_name,
                         const char *table_name);
 
-bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
-                                   bool with_grant);
 int acl_setrole(THD *thd, const char *rolename, privilege_t access);
 int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access);
 int acl_check_set_default_role(THD *thd, const char *host, const char *user,
@@ -289,14 +290,10 @@ extern SHOW_VAR acl_statistics[];
 
    If hostname == NULL, search for a role as the starting grantee.
 */
-bool check_role_is_granted(const char *username,
+bool check_role_is_granted(SQL_CATALOG *catalog,
+                           const char *username,
                            const char *hostname,
                            const char *rolename);
-
-#ifndef DBUG_OFF
-extern ulong role_global_merges, role_db_merges, role_table_merges,
-             role_column_merges, role_routine_merges;
-#endif
 
 
 class Sql_cmd_grant: public Sql_cmd

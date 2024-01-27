@@ -20,6 +20,7 @@
 #endif
 
 #include "mariadb.h"
+#include "sql_acl.h"                            // acl_init
 #include "sql_class.h"                          // killed_state
 #include "mysql/services.h"                     // LEX_CSTRING
 #include "sql_db.h"                             // load_opt()
@@ -153,8 +154,20 @@ SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize)
   {
     if (catalog->initialized < 2 && initialize && late_init_done)
     {
-      if (catalog->late_init())
-        catalog= 0;                             // Catalog not usable
+      /*
+        Don't call late_init() for users with CATALOG_ACL.
+        CATALOG_ACL users uses their original grants in all catalogs.
+        Another reason is that we want CATALOG_ACL users to be able to
+        execute CREATE CATALOG ; USE CATALOG to be able to create
+        the privilege tables in the catalog
+      */
+      if (!opt_bootstrap &&
+          !(current_thd &&
+            current_thd->security_ctx->master_access & CATALOG_ACL))
+      {
+        if (catalog->late_init())
+          catalog= 0;                             // Catalog not usable
+      }
     }
   }
   mysql_mutex_unlock(&LOCK_catalogs);
@@ -253,7 +266,7 @@ void SQL_CATALOG::initialize_from_env()
     privileges allowed for this catalog. Note that the ACL's for the
     default_catalog is set in init_catalog_directories!
   */
-  acl= using_catalogs ? CATALOG_ACLS : ALL_KNOWN_ACL;
+  acl= using_catalogs ? (ALL_KNOWN_ACL & ~CATALOG_ACLS) : ALL_KNOWN_ACL;
 
   mysql_mutex_init(key_LOCK_catalogs, &lock_status, MY_MUTEX_INIT_SLOW);
   initialized= 1;
@@ -263,18 +276,29 @@ void SQL_CATALOG::initialize_from_env()
   Update catalog variables after MariaDB has fully started and all
   engines are up and running.
 
-  Things done:
-  - TODO: Read privilege tables
+  This may fail if privlege tables are not up to date
 */
 
 bool SQL_CATALOG::late_init()
 {
-  initialized= 2;
-  return 0;
+  bool res= 0;
+  if (opt_bootstrap)
+    return 0;
+  acl_init(this, opt_noacl);
+  if (!opt_noacl)
+  {
+    bool res= grant_init(this);
+    if (!res)
+      initialized= 2;
+  }
+  return res;
 }
 
 /*
   Call late_init() for all catalogs
+
+  Normally this is not done as we want to have a quick start of
+  MariaDB. Instead we call late_init() on the first access.
 */
 
 bool late_init_all_catalogs()
@@ -367,6 +391,8 @@ void SQL_CATALOG::free()
 {
   my_free((char*) comment.str);
   comment.str= 0;
+  // Todo: delete catalog_acl;
+  catalog_acl= 0;
   if (initialized)
   {
     initialized= 0;

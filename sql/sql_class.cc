@@ -4636,7 +4636,7 @@ THD::change_security_context(Security_context *new_ctx,
                                     security_ctx->priv_host));
   if (needs_change)
   {
-    if (acl_getroot(new_ctx,
+    if (acl_getroot(new_ctx, catalog,
                     definer_user->str, definer_host->str,
                     definer_host->str, db->str))
     {

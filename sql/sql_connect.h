@@ -22,6 +22,7 @@
 #include <mysql/psi/mysql_socket.h>
 #include <hash.h>
 #include "violite.h"
+#include "catalog.h"
 
 /*
   Object to hold connect information to be given to the newly created thread
@@ -85,7 +86,7 @@ void free_global_client_stats(void);
 pthread_handler_t handle_one_connection(void *arg);
 void do_handle_one_connection(CONNECT *connect, bool put_in_cache);
 bool init_new_connection_handler_thread();
-void reset_mqh(LEX_USER *lu, bool get_them);
+void reset_mqh(SQL_CATALOG *catalog, LEX_USER *lu, bool get_them);
 bool check_mqh(THD *thd, uint check_command);
 void time_out_user_resource_limits(THD *thd, USER_CONN *uc);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS

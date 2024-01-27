@@ -168,7 +168,7 @@ static ulonglong get_magic_sort(const char *templ, ...)
     }
 
     /* A wildcard pattern.  Encoded in magic_bits bits.  */
-    uint maxlen= *templ == 'd' ? max_dbname_length : max_hostname_length;
+    uint maxlen= *templ == 'd' ? MAX_DBNAME_LENGTH : MAX_HOSTNAME_LENGTH;
     DBUG_ASSERT(maxlen <= 255);
     DBUG_ASSERT(*templ == 'd' || *templ == 'h');
 

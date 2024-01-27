@@ -351,11 +351,9 @@ typedef struct st_grant_info
     orig_want_privilege(NO_ACL)
   { }
 
-  void read(const Security_context *sctx, const char *db,
-            const char *table);
+  void set(GRANT_TABLE *user, GRANT_TABLE *role,
+           GRANT_TABLE *g_public, uint grant_version);
 
-  inline void refresh(const Security_context *sctx, const char *db,
-                     const char *table);
   inline privilege_t aggregate_privs();
   inline privilege_t aggregate_cols();
 } GRANT_INFO;

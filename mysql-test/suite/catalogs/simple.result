@@ -42,29 +42,28 @@ ERROR HY000: Catalog directory 'def' is not empty
 #
 # Test status vars
 #
-flush status;
-create catalog cat1;
+connect con1,localhost,root,,cat1.test;
 use catalog cat1;
+flush status;
 select catalog();
 catalog()
 cat1
 select database();
 database()
-NULL
+test
 create database foo;
 use foo;
-connect  con1,localhost,root,,cat1.foo;
-connection con1;
-select catalog();
-catalog()
-cat1
-select database();
-database()
-foo
+select count(*) from mysql.user;
+count(*)
+8
+select count(*) from mysql.global_priv;
+count(*)
+8
 create table t1 (a int);
 drop table t1;
 disconnect con1;
 connection default;
+use catalog cat1;
 select catalog();
 catalog()
 cat1
@@ -73,29 +72,26 @@ Variable_name	Value
 Com_create_table	0
 show catalog status like "Com_create_table";
 Variable_name	Value
-Com_create_table	1
+Com_create_table	17
 show server status like "Com_create_table";
 Variable_name	Value
-Com_create_table	1
+Com_create_table	17
 show global status like "Com_create_table";
 Variable_name	Value
-Com_create_table	1
+Com_create_table	17
 select * from information_schema.session_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
 select * from information_schema.catalog_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	1
-select * from information_schema.server_status where variable_name="Com_create_table";
-VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	1
+COM_CREATE_TABLE	17
 select * from information_schema.global_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
+select * from information_schema.server_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	17
 drop database foo;
-Warnings:
-Error	1146	Table 'mysql.proc' doesn't exist
-Error	1146	Table 'mysql.event' doesn't exist
 use catalog def;
 show status like "Com_create_table";
 Variable_name	Value
@@ -105,7 +101,7 @@ Variable_name	Value
 Com_create_table	0
 show server status like "Com_create_table";
 Variable_name	Value
-Com_create_table	1
+Com_create_table	17
 show global status like "Com_create_table";
 Variable_name	Value
 Com_create_table	0
@@ -115,12 +111,24 @@ COM_CREATE_TABLE	0
 select * from information_schema.catalog_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
-select * from information_schema.server_status where variable_name="Com_create_table";
-VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	1
 select * from information_schema.global_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
+select * from information_schema.server_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	17
+use catalog cat1;
+show databases;
+Database
+information_schema
+mysql
+performance_schema
+sys
+test
+drop database test;
+drop database performance_schema;
+drop database sys;
+drop database mysql;
 drop catalog cat1;
 #
 # Test catalog variables
