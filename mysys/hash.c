@@ -798,7 +798,7 @@ void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *current_record,
    @retval 1  iteration aborted becasue action returned 1
 */
 
-my_bool my_hash_iterate(HASH *hash, my_hash_walk_action action, void *argument)
+my_bool my_hash_iterate(const HASH *hash, my_hash_walk_action action, void *argument)
 {
   uint records, i;
 

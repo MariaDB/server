@@ -94,7 +94,7 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
                        size_t old_key_length);
 void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *state, uchar *new_row);
 my_bool my_hash_check(HASH *hash); /* Only in debug library */
-my_bool my_hash_iterate(HASH *hash, my_hash_walk_action action, void *argument);
+my_bool my_hash_iterate(const HASH *hash, my_hash_walk_action action, void *argument);
 
 #define my_hash_clear(H) bzero((char*) (H), sizeof(*(H)))
 #define my_hash_inited(H) ((H)->blength != 0)
