@@ -4619,36 +4619,33 @@ bool Security_context::check_access(const privilege_t want_access,
                 is reported in the thread.
   @retval FALSE success
 */
-
 bool
-Security_context::
-change_security_context(THD *thd,
-                        LEX_CSTRING *definer_user,
-                        LEX_CSTRING *definer_host,
-                        LEX_CSTRING *db,
-                        Security_context **backup)
+THD::change_security_context(Security_context *new_ctx,
+                             LEX_CSTRING *definer_user,
+                             LEX_CSTRING *definer_host,
+                             LEX_CSTRING *db,
+                             Security_context **backup)
 {
-  bool needs_change;
-
   DBUG_ENTER("Security_context::change_security_context");
 
   DBUG_ASSERT(definer_user->str && definer_host->str);
 
   *backup= NULL;
-  needs_change= (strcmp(definer_user->str, thd->security_ctx->priv_user) ||
-                 my_strcasecmp(system_charset_info, definer_host->str,
-                               thd->security_ctx->priv_host));
+  bool needs_change= (strcmp(definer_user->str, security_ctx->priv_user) ||
+                      my_strcasecmp(system_charset_info, definer_host->str,
+                                    security_ctx->priv_host));
   if (needs_change)
   {
-    if (acl_getroot(this, definer_user->str, definer_host->str,
-                                definer_host->str, db->str))
+    if (acl_getroot(new_ctx,
+                    definer_user->str, definer_host->str,
+                    definer_host->str, db->str))
     {
       my_error(ER_NO_SUCH_USER, MYF(0), definer_user->str,
                definer_host->str);
       DBUG_RETURN(TRUE);
     }
-    *backup= thd->security_ctx;
-    thd->security_ctx= this;
+    *backup= security_ctx;
+    security_ctx= new_ctx;
   }
 
   DBUG_RETURN(FALSE);
@@ -4656,11 +4653,10 @@ change_security_context(THD *thd,
 
 
 void
-Security_context::restore_security_context(THD *thd,
-                                           Security_context *backup)
+THD::restore_security_context(Security_context *backup)
 {
   if (backup)
-    thd->security_ctx= backup;
+    security_ctx= backup;
 }
 #endif
 

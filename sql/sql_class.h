@@ -1342,18 +1342,6 @@ public:
   }
 
   bool set_user(char *user_arg);
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  bool
-  change_security_context(THD *thd,
-                          LEX_CSTRING *definer_user,
-                          LEX_CSTRING *definer_host,
-                          LEX_CSTRING *db,
-                          Security_context **backup);
-
-  void
-  restore_security_context(THD *thd, Security_context *backup);
-#endif
   bool user_matches(Security_context *);
   /**
     Check global access
@@ -2561,6 +2549,16 @@ public:
   Security_context *security_ctx;
   Security_context *security_context() const { return security_ctx; }
   void set_security_context(Security_context *sctx) { security_ctx = sctx; }
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool change_security_context(Security_context *new_ctx,
+                               LEX_CSTRING *definer_user,
+                               LEX_CSTRING *definer_host,
+                               LEX_CSTRING *db,
+                               Security_context **backup);
+
+  void restore_security_context(Security_context *backup);
+#endif
 
   /*
     Points to info-string that we show in SHOW PROCESSLIST

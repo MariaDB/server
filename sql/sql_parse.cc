@@ -3140,10 +3140,11 @@ mysql_create_routine(THD *thd, LEX *lex)
     */
     if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
     {
-      security_context.change_security_context(thd, &thd->lex->definer->user,
-                                               &thd->lex->definer->host,
-                                               &thd->lex->sphead->m_db,
-                                               &backup);
+      thd->change_security_context(&security_context,
+                                   &thd->lex->definer->user,
+                                   &thd->lex->definer->host,
+                                   &thd->lex->sphead->m_db,
+                                   &backup);
       restore_backup_context= true;
     }
 
@@ -3165,7 +3166,7 @@ mysql_create_routine(THD *thd, LEX *lex)
     if (restore_backup_context)
     {
       DBUG_ASSERT(thd->slave_thread == 1);
-      thd->security_ctx->restore_security_context(thd, backup);
+      thd->restore_security_context(backup);
     }
 
 #endif

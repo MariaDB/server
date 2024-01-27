@@ -1737,10 +1737,11 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
 {
   *save_ctx= 0;
   if (sp->suid() != SP_IS_NOT_SUID &&
-      sp->m_security_ctx.change_security_context(thd, &sp->m_definer.user,
-                                                 &sp->m_definer.host,
-                                                 &sp->m_db,
-                                                 save_ctx))
+      thd->change_security_context(&sp->m_security_ctx,
+                                   &sp->m_definer.user,
+                                   &sp->m_definer.host,
+                                   &sp->m_db,
+                                   save_ctx))
     return TRUE;
 
   /*
@@ -1756,7 +1757,7 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
   if (*save_ctx &&
       sp->check_execute_access(thd))
   {
-    sp->m_security_ctx.restore_security_context(thd, *save_ctx);
+    thd->restore_security_context(*save_ctx);
     *save_ctx= 0;
     return TRUE;
   }
@@ -1806,7 +1807,7 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
     res= sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (switch_security_ctx)
-    m_security_ctx.restore_security_context(thd, save_security_ctx);
+    thd->restore_security_context(save_security_ctx);
 #endif
   return res;
 }
@@ -1881,11 +1882,11 @@ sp_head::execute_trigger(THD *thd,
 
 
   if (suid() != SP_IS_NOT_SUID &&
-      m_security_ctx.change_security_context(thd,
-                                             &m_definer.user,
-                                             &m_definer.host,
-                                             &m_db,
-                                             &save_ctx))
+    thd->change_security_context(&m_security_ctx,
+                                 &m_definer.user,
+                                 &m_definer.host,
+                                 &m_db,
+                                 &save_ctx))
     DBUG_RETURN(TRUE);
 
   /*
@@ -1911,7 +1912,7 @@ sp_head::execute_trigger(THD *thd,
              thd->security_ctx->priv_user, thd->security_ctx->host_or_ip,
              db_name->str, table_name->str);
 
-    m_security_ctx.restore_security_context(thd, save_ctx);
+    thd->restore_security_context(save_ctx);
     DBUG_RETURN(TRUE);
   }
 #endif // NO_EMBEDDED_ACCESS_CHECKS
@@ -1948,7 +1949,7 @@ err_with_cleanup:
   thd->restore_active_arena(&call_arena, &backup_arena);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  m_security_ctx.restore_security_context(thd, save_ctx);
+  thd->restore_security_context(save_ctx);
 #endif // NO_EMBEDDED_ACCESS_CHECKS
 
   delete nctx;
@@ -2246,7 +2247,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  m_security_ctx.restore_security_context(thd, save_security_ctx);
+  thd->restore_security_context(save_security_ctx);
 #endif
 
 err_with_cleanup:
@@ -2485,7 +2486,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (save_security_ctx)
-    m_security_ctx.restore_security_context(thd, save_security_ctx);
+    thd->restore_security_context(save_security_ctx);
 #endif
 
   if (!save_spcont)

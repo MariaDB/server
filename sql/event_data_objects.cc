@@ -1397,9 +1397,9 @@ Event_job_data::execute(THD *thd, bool drop)
   lex_start(thd);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (event_sctx.change_security_context(thd,
-                                         &definer_user, &definer_host,
-                                         &dbname, &save_sctx))
+  if (thd->change_security_context(&event_sctx,
+                                   &definer_user, &definer_host,
+                                   &dbname, &save_sctx))
   {
     sql_print_error("Event Scheduler: "
                     "[%s].[%s.%s] execution failed, "
@@ -1558,8 +1558,7 @@ end:
     }
   }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (save_sctx)
-    event_sctx.restore_security_context(thd, save_sctx);
+  thd->restore_security_context(save_sctx);
 #endif
 #ifdef WITH_WSREP
   wsrep_after_command_ignore_result(thd);
