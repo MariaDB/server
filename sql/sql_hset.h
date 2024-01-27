@@ -48,6 +48,14 @@ public:
     /* This is used if the user wants to call my_hash_init() themselves */
     bzero(&m_hash, sizeof(m_hash));
   }
+
+  void init(PSI_memory_key psi_key, CHARSET_INFO *charset, ulong default_array_elements,
+            size_t key_offset, size_t key_length, my_hash_get_key get_key,
+            void (*free_element)(void*), uint flags)
+  {
+    my_hash_init(psi_key, &m_hash, charset, default_array_elements, key_offset,
+                 key_length, get_key, free_element, flags);
+  }
   /**
     Destroy the hash by freeing the buckets table.
     free_element() is called for every element.
