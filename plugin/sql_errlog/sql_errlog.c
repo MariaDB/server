@@ -117,7 +117,7 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
       {
         if (event->database.str)
         {
-          logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %llu "
+          logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %lu "
                       "%s %`s %s %d: %s : %s \n",
               t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
               t.tm_sec, event->general_thread_id, event->general_user,
@@ -126,7 +126,7 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
         }
         else
         {
-          logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %llu "
+          logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %lu "
                       "%s NULL %s %d: %s : %s \n",
               t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
               t.tm_sec, event->general_thread_id, event->general_user, type,
