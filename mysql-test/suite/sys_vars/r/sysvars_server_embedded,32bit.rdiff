@@ -1,5 +1,5 @@
---- sysvars_server_embedded.result
-+++ sysvars_server_embedded.result
+--- suite/sys_vars/r/sysvars_server_embedded.result
++++ suite/sys_vars/r/sysvars_server_embedded,32bit.reject
 @@ -34,7 +34,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	ARIA_BLOCK_SIZE
@@ -290,16 +290,7 @@
  VARIABLE_COMMENT	Precision of the result of '/' operator will be increased on that value
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	38
-@@ -914,7 +914,7 @@
- COMMAND_LINE_ARGUMENT	REQUIRED
- VARIABLE_NAME	EXPIRE_LOGS_DAYS
- VARIABLE_SCOPE	GLOBAL
--VARIABLE_TYPE	BIGINT UNSIGNED
-+VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	If non-zero, binary logs will be purged after expire_logs_days days; possible purges happen at startup and at binary log rotation
- NUMERIC_MIN_VALUE	0
- NUMERIC_MAX_VALUE	99
-@@ -944,7 +944,7 @@
+@@ -954,7 +954,7 @@
  COMMAND_LINE_ARGUMENT	NULL
  VARIABLE_NAME	EXTRA_MAX_CONNECTIONS
  VARIABLE_SCOPE	GLOBAL
@@ -742,6 +733,15 @@
  NUMERIC_MAX_VALUE	62
 @@ -2334,7 +2334,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
+ VARIABLE_NAME	OPTIMIZER_ADJUST_SECONDARY_KEY_COSTS
+ VARIABLE_SCOPE	SESSION
+-VARIABLE_TYPE	BIGINT UNSIGNED
++VARIABLE_TYPE	INT UNSIGNED
+ VARIABLE_COMMENT	0 = No changes. 1 = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. 2 = Remove 'max_seek optimization' for secondary keys and slight adjustment of filter cost. This option will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
+ NUMERIC_MIN_VALUE	0
+ NUMERIC_MAX_VALUE	2
+@@ -2284,7 +2284,7 @@
+ COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARGS
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -767,7 +767,6 @@
  VARIABLE_COMMENT	Controls the heuristic(s) applied during query optimization to prune less-promising partial plans from the optimizer search space. Meaning: 0 - do not apply any heuristic, thus perform exhaustive search: 1 - prune plans based on cost and number of retrieved rows eq_ref: 2 - prune also if we find an eq_ref chain
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
-@@ -2364,7 +2364,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	OPTIMIZER_SEARCH_DEPTH
  VARIABLE_SCOPE	SESSION
