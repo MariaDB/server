@@ -47,8 +47,16 @@ ADD_CUSTOM_TARGET(GenError
                   ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
 
 
+IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
+  ADD_EXECUTABLE(generate_option_list generate_option_list.cc)
+  TARGET_LINK_LIBRARIES(generate_option_list mysys pcre2-8)
+  IF(TARGET pcre2)
+    ADD_DEPENDENCIES(generate_option_list pcre2)
+  ENDIF()
+ENDIF()
+
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
-  COMMAND perl ${PROJECT_SOURCE_DIR}/scripts/generate_option_list.pl
+  COMMAND generate_option_list
   "$<TARGET_FILE:mariadbd>"
   ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
   DEPENDS mariadbd)
