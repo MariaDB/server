@@ -163,6 +163,7 @@ std::vector<std::string> split_list(std::string &str)
   std::vector<std::string> result;
   std::string current;
   std::string parens_removed= remove_paretheses(str);
+  bool seen_dot= false;
 
   for (auto it= parens_removed.begin(); it != parens_removed.end(); ++it)
   {
@@ -172,12 +173,17 @@ std::vector<std::string> split_list(std::string &str)
     case '\n':
     case '\r':
     case ',':
-    case '.':
+      seen_dot= false;
       if (!current.empty())
         result.push_back(current);
       current.clear();
       break;
+    case '.':
+      seen_dot= true;
+      break;
     default:
+      if (seen_dot)
+        current.push_back('.');
       current.push_back(*it);
     }
   }
