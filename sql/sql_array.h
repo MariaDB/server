@@ -126,6 +126,21 @@ public:
                         prealloc, increment, MYF(0));
   }
 
+  Dynamic_array(const Dynamic_array &other) = delete;
+  Dynamic_array operator=(const Dynamic_array &other) = delete;
+
+  Dynamic_array(Dynamic_array &&other) noexcept
+  {
+    array= other.array;
+    memset(&other.array, 0, sizeof(other.array));
+  };
+  Dynamic_array& operator=(Dynamic_array &&other) noexcept
+  {
+    array= other.array;
+    memset(&other.array, 0, sizeof(other.array));
+    return *this;
+  }
+
   void init(PSI_memory_key psi_key, size_t prealloc=16, size_t increment=16)
   {
     init_dynamic_array2(psi_key, &array, sizeof(Elem), 0, prealloc, increment, MYF(0));
