@@ -1,5 +1,7 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+# This does not crash on 32 bit because of less memory used
+--source include/have_64bit.inc
 --echo #
 --echo # MDEV-33150 double-locking of LOCK_thd_kill in performance_schema.session_status
 --echo #
