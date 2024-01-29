@@ -4414,6 +4414,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         continue;
 
       {
+        /* Check that there is no same field and table CHECK constraint names*/
+        while((dup_field=it2++))
+        {
+          if (!lex_string_cmp(system_charset_info,
+                              &check->name, &dup_field->field_name))
+          {
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+            DBUG_RETURN(TRUE);
+          }
+        }
+        it2.rewind();
+      }
+
+      {
         /* Check that there's no repeating table CHECK constraint names. */
         List_iterator_fast<Virtual_column_info>
           dup_it(alter_info->check_constraint_list);

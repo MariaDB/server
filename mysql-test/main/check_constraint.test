@@ -198,7 +198,7 @@ drop table t1;
 --echo #
 --echo # MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
 --echo #
-create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
+create table t1 (id varchar(2), constraint id1 check (id regexp '[a-z]'));
 alter table t1 force;
 show create table t1;
 drop table t1;
@@ -215,6 +215,42 @@ insert t1 (a) values (1);
 --error ER_CONSTRAINT_FAILED
 insert t1 (a) values (-1);
 drop table t1;
+
+--echo #
+--echo # MDEV-24598: duplicate CHECK constraint name
+--echo #
+
+# Field constraints have th name of columns, it is not possible to have duplicated
+# constraints (ER_DUP_FIELDNAME)
+
+# Table constraints with the same name will raise ER_DUP_CONSTRAINT_NAME
+--error ER_DUP_CONSTRAINT_NAME
+create table t (a int check (a>2),
+                constraint a1 check (a < 5),
+                constraint a1 check (a > 5));
+
+# Table constraint that has the same name as field
+--error ER_DUP_CONSTRAINT_NAME
+create table t (a int check (a>2),
+                constraint a check (a < 5));
+
+# Check native Json constraint
+--error ER_DUP_CONSTRAINT_NAME
+CREATE TABLE t (
+path VARCHAR(100) NOT NULL COLLATE 'utf8_general_ci',
+json_c1 JSON NOT NULL DEFAULT '' COLLATE 'utf8mb4_bin',
+json_c2 JSON NOT NULL DEFAULT '' COLLATE 'utf8mb4_bin',
+comment VARCHAR(100) NULL DEFAULT NULL COLLATE 'utf8_general_ci',
+UNIQUE INDEX path (path),
+CONSTRAINT json_c1 CHECK (path > 0)
+);
+select * from information_schema.check_constraints where table_name='t';
+
+# Check Alter table
+create table t(a int);
+--error ER_DUP_CONSTRAINT_NAME
+alter table t add constraint a check (a > 10);
+drop table t;
 
 --echo #
 --echo # End of 10.4 tests
