@@ -27,7 +27,8 @@
 --connection slave
 --source include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,pause_sql_thread_on_fde,negate_clock_diff_with_master";
+SET @@global.debug_dbug="+d,pause_sql_thread_on_relay_fde_after_trans";
+SET @@global.debug_dbug="+d,negate_clock_diff_with_master";
 --source include/start_slave.inc
 
 --let $sleep_time=2
@@ -46,12 +47,6 @@ insert into t1 values (1);
 flush logs;
 
 --connection slave
---echo # Ignore FDEs that happen before the CREATE/INSERT commands
-SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
-SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
-SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
-SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
-
 --echo # On the next FDE, the slave should have the master CREATE/INSERT events
 SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
 select count(*)=1 from t1;
