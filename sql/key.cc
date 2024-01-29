@@ -605,7 +605,7 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
       }
       /*
         No null values in the fields
-        We use the virtual method cmp_max with a max length parameter.
+        We use the virtual method cmp_prefix with a max length parameter.
         For most field types this translates into a cmp without
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.

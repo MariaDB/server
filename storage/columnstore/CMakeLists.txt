@@ -15,6 +15,13 @@ IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_subdirectory(columnstore)
 
+    # https://jira.mariadb.org/browse/MCOL-5611
+    FIND_PACKAGE(Boost 1.80.0 COMPONENTS system filesystem thread regex date_time chrono atomic)
+    IF (Boost_FOUND)
+        MESSAGE_ONCE(CS_NO_BOOST "Boost Libraries >= 1.80.0 not supported!")
+        return()
+    ENDIF()
+
     IF(TARGET columnstore)
         # Needed to bump the component changes up to the main scope
         APPEND_FOR_CPACK(CPACK_COMPONENTS_ALL)
