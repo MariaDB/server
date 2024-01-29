@@ -92,7 +92,7 @@ a	b
 16301234-5566-f777-e888-99aabbccddee	63
 CHECK TABLE t1 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
 CALL show_table(0);
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -110,7 +110,7 @@ a	b
 14701234-5566-b777-e888-99aabbccddee	47
 CHECK TABLE t1 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
 CALL show_table(0);
 Table	Create Table
 t1	CREATE TABLE `t1` (

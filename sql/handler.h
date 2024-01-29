@@ -72,10 +72,28 @@ class select_result;
 #define HA_ADMIN_TRY_ALTER       -7
 #define HA_ADMIN_WRONG_CHECKSUM  -8
 #define HA_ADMIN_NOT_BASE_TABLE  -9
+/*
+  Table needs to be rebuilt with handler::repair.
+  For example to fix a changed index sort order.
+  Rows with duplicated unique key values should be deleted.
+  For engines that do not support REPAIR, ALTER TABLE FORCE
+  is used.
+*/
 #define HA_ADMIN_NEEDS_UPGRADE  -10
+/*
+  Needs rebuild with ALTER TABLE ... FORCE.
+  Will recreate the .frm file with a new version to remove old
+  incompatibilities.
+ */
 #define HA_ADMIN_NEEDS_ALTER    -11
-#define HA_ADMIN_NEEDS_CHECK    -12
-#define HA_ADMIN_COMMIT_ERROR   -13
+/*
+  Needs rebuild with ALTER TABLE ... FORCE, ALGORITHM=COPY
+  This will take care of data conversions like MySQL JSON format
+  and updating version tables timestamps.
+ */
+#define HA_ADMIN_NEEDS_DATA_CONVERSION  -12
+#define HA_ADMIN_NEEDS_CHECK    -13
+#define HA_ADMIN_COMMIT_ERROR   -14
 
 /**
    Return values for check_if_supported_inplace_alter().
@@ -2252,6 +2270,12 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
   bool sequence;                        // If SEQUENCE=1 was used
+  /*
+    True if we are using OPTIMIZE TABLE, REPAIR TABLE or ALTER TABLE FORCE
+    in which case the 'new' table should have identical storage layout
+    as the original.
+  */
+  bool recreate_identical_table;
 
   List<Virtual_column_info> *check_constraint_list;
 
@@ -5316,7 +5340,7 @@ private:
   virtual void release_auto_increment() { return; };
   /** admin commands - called from mysql_admin_table */
   virtual int check_for_upgrade(HA_CHECK_OPT *check_opt)
-  { return 0; }
+  { return HA_ADMIN_OK; }
   virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
 

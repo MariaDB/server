@@ -640,7 +640,7 @@ public:
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
-	int create_table(bool create_fk = true);
+	int create_table(bool create_fk = true, bool strict= true);
 
   static void create_table_update_dict(dict_table_t* table, THD* thd,
                                        const HA_CREATE_INFO& info,

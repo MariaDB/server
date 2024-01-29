@@ -61,6 +61,10 @@ copy_file std_data/bug37631.MYI $MYSQLD_DATADIR/test/t1.MYI;
 CHECK TABLE t1;
 --echo # query the table created using mysql 4.0
 SELECT * FROM t1;
+ALTER TABLE t1 algorithm=NOCOPY;
+CHECK TABLE t1;
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
 DROP TABLE t1;
 
 #

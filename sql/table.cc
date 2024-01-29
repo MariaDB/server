@@ -1858,6 +1858,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 
   share->frm_version= frm_image[2];
+  if (share->frm_version < FRM_VER_TRUE_VARCHAR)
+    share->keep_original_mysql_version= 1;
+
   /*
     Check if .frm file created by MySQL 5.0. In this case we want to
     display CHAR fields as CHAR and not as VARCHAR.

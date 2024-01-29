@@ -4919,7 +4919,7 @@ bool handler::get_error_message(int error, String* buf)
   Check for incompatible collation changes.
    
   @retval
-    HA_ADMIN_NEEDS_UPGRADE   Table may have data requiring upgrade.
+    HA_ADMIN_NEEDS_UPGRADE   Table may have data requiring a recreate index
   @retval
     0                        No upgrade required.
 */
@@ -4965,16 +4965,12 @@ int handler::check_long_hash_compatibility() const
       /*
         The old (pre-MDEV-27653)  hash function was wrong.
         So the long hash unique constraint can have some
-        duplicate records. REPAIR TABLE can't fix this,
-        it will fail on a duplicate key error.
-        Only "ALTER IGNORE TABLE .. FORCE" can fix this.
-        So we need to return HA_ADMIN_NEEDS_ALTER here,
-        (not HA_ADMIN_NEEDS_UPGRADE which is used elsewhere),
-        to properly send the error message text corresponding
-        to ER_TABLE_NEEDS_REBUILD (rather than to ER_TABLE_NEEDS_UPGRADE)
-        to the user.
+        duplicate records.
+        We use HA_ADMIN_NEEDS_DATA_CONVERSION to ensure that
+        key is re-generated and checked in ha_write_row().
+        This will send the error ER_TABLE_NEEDS_REBUILD to the user.
       */
-      return HA_ADMIN_NEEDS_ALTER;
+      return HA_ADMIN_NEEDS_DATA_CONVERSION;
     }
   }
   return 0;
@@ -4989,7 +4985,7 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
 
   if (table->s->incompatible_version ||
       check_old_types())
-    return HA_ADMIN_NEEDS_ALTER;
+    return HA_ADMIN_NEEDS_DATA_CONVERSION;
 
   if (!table->s->mysql_version)
   {
@@ -5021,7 +5017,7 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
     call above did not find data types that want upgrade.
   */
   if (table->s->frm_version < FRM_VER_TRUE_VARCHAR)
-    return HA_ADMIN_NEEDS_ALTER;
+    return HA_ADMIN_NEEDS_DATA_CONVERSION;
 
   if (unlikely((error= check_collation_compatibility())))
     return error;
@@ -5233,6 +5229,11 @@ bool non_existing_table_error(int error)
   @retval
     HA_ADMIN_NEEDS_ALTER      Table has structures requiring ALTER TABLE
   @retval
+    HA_ADMIN_NEEDS_DATA_CONVERSION
+                              Table has structures requiring
+                              ALTER TABLE FORCE, algortithm=COPY to
+                              recreate data.
+  @retval
     HA_ADMIN_NOT_IMPLEMENTED
 */
 
@@ -5307,7 +5308,12 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
   DBUG_ASSERT(result == HA_ADMIN_NOT_IMPLEMENTED ||
               ha_table_flags() & HA_CAN_REPAIR);
 
-  if (result == HA_ADMIN_OK && !opt_readonly)
+  /*
+    Update frm version if no errors and there are no version incompatibiltes
+    in the data (as these are not fixed by repair).
+  */
+  if (result == HA_ADMIN_OK && !opt_readonly &&
+      table->file->ha_check_for_upgrade(check_opt) == HA_ADMIN_OK)
     result= update_frm_version(table);
   return result;
 }

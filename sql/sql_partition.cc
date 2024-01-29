@@ -4938,9 +4938,6 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       !(thd->work_part_info= thd->work_part_info->get_clone(thd)))
     DBUG_RETURN(TRUE);
 
-  /* ALTER_PARTITION_ADMIN is handled in mysql_admin_table */
-  DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_ADMIN));
-
   partition_info *saved_part_info= NULL;
 
   if (alter_info->partition_flags &

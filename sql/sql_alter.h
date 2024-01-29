@@ -319,7 +319,10 @@ public:
    */
   enum_alter_table_algorithm algorithm(const THD *thd) const;
   bool algorithm_is_nocopy(const THD *thd) const;
-
+  bool algorithm_not_specified() const
+  {
+    return requested_algorithm == ALTER_TABLE_ALGORITHM_NONE;
+  }
   uint check_vcol_field(Item_field *f) const;
 
 private:

@@ -2234,6 +2234,7 @@ int view_checksum(THD *thd, TABLE_LIST *view)
   @retval HA_ADMIN_OK               OK
   @retval HA_ADMIN_NOT_IMPLEMENTED  it is not VIEW
   @retval HA_ADMIN_WRONG_CHECKSUM   check sum is wrong
+  @retval HA_ADMIN_NEEDS_UPGRADE    We need to recreate the view
 */
 int view_check(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt)
 {

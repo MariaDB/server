@@ -11194,7 +11194,7 @@ create_table_info_t::create_options_are_invalid()
 
 	if (!m_create_info->data_file_name
 	    || !m_create_info->data_file_name[0]) {
-	} else if (!my_use_symdir) {
+	} else if (!my_use_symdir && !m_create_info->recreate_identical_table) {
 		my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING),
 			 "DATA DIRECTORY");
 	} else if (!create_option_data_directory_is_valid()) {
@@ -11474,7 +11474,7 @@ create_table_info_t::parse_table_name(
 	we ignore the DATA DIRECTORY. */
 	if (m_create_info->data_file_name
 	    && m_create_info->data_file_name[0]
-	    && my_use_symdir) {
+	    && (my_use_symdir || m_create_info->recreate_identical_table)) {
 		if (!create_option_data_directory_is_valid()) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11944,7 +11944,7 @@ create_table_info_t::set_tablespace_type(
 		m_use_file_per_table
 		&& m_create_info->data_file_name
 		&& m_create_info->data_file_name[0]
-		&& my_use_symdir;
+               && (my_use_symdir || m_create_info->recreate_identical_table);
 }
 
 /** Initialize the create_table_info_t object.
@@ -12646,8 +12646,9 @@ create_table_info_t::create_foreign_keys()
 }
 
 /** Create the internal innodb table.
-@param create_fk	whether to add FOREIGN KEY constraints */
-int create_table_info_t::create_table(bool create_fk)
+@param create_fk	whether to add FOREIGN KEY constraints
+@param strict		whether to give warnings for too big rows */
+int create_table_info_t::create_table(bool create_fk, bool strict)
 {
 	int		error;
 	int		primary_key_no;
@@ -12826,7 +12827,7 @@ int create_table_info_t::create_table(bool create_fk)
 
 	/* In TRUNCATE TABLE, we will merely warn about the maximum
 	row size being too large. */
-	if (!row_size_is_acceptable(*m_table, create_fk)) {
+	if (!row_size_is_acceptable(*m_table, create_fk && strict)) {
 		DBUG_RETURN(convert_error_code_to_mysql(
 			    DB_TOO_BIG_RECORD, m_flags, NULL));
 	}
@@ -13171,7 +13172,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
     /* We can't possibly have foreign key information when creating a
     stub table for importing .frm / .cfg / .ibd because it is not
     stored in any of these files. */
-    error= info.create_table(own_trx);
+    error= info.create_table(own_trx, !create_info->recreate_identical_table);
 
   if (own_trx || (info.flags2() & DICT_TF2_TEMPORARY))
   {

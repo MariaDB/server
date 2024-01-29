@@ -48,9 +48,11 @@ const LEX_CSTRING msg_optimize= { STRING_WITH_LEN("optimize") };
 /* Prepare, run and cleanup for mysql_recreate_table() */
 
 static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
-                                 Recreate_info *recreate_info)
+                                 Recreate_info *recreate_info,
+                                 bool table_copy)
 {
   bool result_code;
+  TABLE_LIST *save_next_global;
   DBUG_ENTER("admin_recreate_table");
 
   trans_rollback_stmt(thd);
@@ -68,8 +70,13 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
+  /* Ignore if there is more than one table in the list */
+  save_next_global= table_list->next_global;
+  table_list->next_global= 0;
   result_code= (thd->open_temporary_tables(table_list) ||
-                mysql_recreate_table(thd, table_list, recreate_info, false));
+                mysql_recreate_table(thd, table_list, recreate_info,
+                                     table_copy));
+  table_list->next_global= save_next_global;
   reenable_binlog(thd);
   /*
     mysql_recreate_table() can push OK or ERROR.
@@ -286,6 +293,11 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       goto end;
     }
   }
+  /*
+    We have now fixed the table. However the frm file is still of old format.
+    We cannot update the frm_file to FRM_VER_TRUE_VARCHAR as the new format
+    are not compatible with the data.
+  */
 
 end:
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
@@ -532,7 +544,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               const LEX_CSTRING *operator_name,
                               thr_lock_type lock_type,
                               bool org_open_for_modify,
-                              bool repair_table_use_frm,
+                              bool no_errors_from_open,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
                                                   HA_CHECK_OPT *),
@@ -597,7 +609,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     uchar tabledef_version_buff[MY_UUID_SIZE];
     const char *db= table->db.str;
     bool fatal_error=0;
-    bool open_error= 0;
+    bool open_error= 0, recreate_used= 0;
+    bool require_data_conversion= 0, require_alter_table= 0;
     bool collect_eis=  FALSE;
     bool open_for_modify= org_open_for_modify;
     Recreate_info recreate_info;
@@ -635,7 +648,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     while (1)
     {
       open_error= open_only_one_table(thd, table,
-                                      repair_table_use_frm,
+                                      no_errors_from_open,
                                       (view_operator_func != NULL));
       thd->open_options&= ~extra_open_options;
 
@@ -859,28 +872,37 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       /* purecov: end */
     }
 
-    if (operator_func == &handler::ha_repair &&
-        !(check_opt->sql_flags & TT_USEFRM))
+    if (operator_func == &handler::ha_repair)
     {
       handler *file= table->table->file;
       int check_for_upgrade= file->ha_check_for_upgrade(check_opt);
+      require_data_conversion=
+         check_for_upgrade == HA_ADMIN_NEEDS_DATA_CONVERSION;
+      require_alter_table= check_for_upgrade == HA_ADMIN_NEEDS_ALTER;
 
-      if (check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
+      if (!(check_opt->sql_flags & (TT_USEFRM | TT_FORCE)))
       {
-        /* We use extra_open_options to be able to open crashed tables */
-        thd->open_options|= extra_open_options;
-        result_code= admin_recreate_table(thd, table, &recreate_info) ?
-                     HA_ADMIN_FAILED : HA_ADMIN_OK;
-        thd->open_options&= ~extra_open_options;
-        goto send_result;
-      }
-      if (check_for_upgrade)
-      {
-        /* If repair is not implemented for the engine, run ALTER TABLE */
-        need_repair_or_alter= 1;
+        if (require_data_conversion || require_alter_table)
+        {
+          /* We use extra_open_options to be able to open crashed tables */
+          thd->open_options|= extra_open_options;
+          result_code= (admin_recreate_table(thd, table, &recreate_info, 1) ?
+                        HA_ADMIN_FAILED : HA_ADMIN_OK);
+          recreate_used= 1;
+          thd->open_options&= ~extra_open_options;
+          goto send_result;
+        }
+        if (check_for_upgrade ||
+            !(table->table->file->ha_table_flags() & HA_CAN_REPAIR))
+        {
+          /*
+            If data upgrade is needed or repair is not implemented for the
+            engine, run ALTER TABLE FORCE
+          */
+          need_repair_or_alter= 1;
+        }
       }
     }
-
     result_code= compl_result_code= HA_ADMIN_OK;
 
     if (operator_func == &handler::ha_analyze)
@@ -949,7 +971,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       table->lock_type= TL_READ;
       DBUG_ASSERT(view_operator_func == NULL);
       open_error= open_only_one_table(thd, table,
-                                      repair_table_use_frm, FALSE);
+                                      no_errors_from_open, FALSE);
       thd->open_options&= ~extra_open_options;
 
       if (unlikely(!open_error))
@@ -1092,10 +1114,11 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         repair was not implemented and we need to upgrade the table
         to a new version so we recreate the table with ALTER TABLE
       */
-      result_code= admin_recreate_table(thd, table, &recreate_info);
+      result_code= admin_recreate_table(thd, table, &recreate_info, 1);
+      recreate_used= 1;
     }
-send_result:
 
+send_result:
     lex->cleanup_after_one_table_open();
     thd->clear_error();  // these errors shouldn't get client
 
@@ -1136,6 +1159,34 @@ send_result:
       }
       thd->get_stmt_da()->clear_warning_info(thd->query_id);
     }
+
+    /*
+      Give a warning if REPAIR TABLE was used but table still needs an
+      ALTER TABLE. This can only happen for old type tables where REPAIR
+      was using FORCE to recover old data.
+    */
+    if (operator_func == &handler::ha_repair && ! recreate_used &&
+        (require_data_conversion || require_alter_table))
+    {
+      char buf[MYSQL_ERRMSG_SIZE];
+      if (result_code == HA_ADMIN_OK)
+      {
+        protocol->prepare_for_resend();
+        protocol->store(&table_name, system_charset_info);
+        protocol->store(operator_name, system_charset_info);
+	protocol->store(STRING_WITH_LEN("note"), system_charset_info);
+        protocol->store(STRING_WITH_LEN("Table data recovered"),system_charset_info);
+        if (protocol->write())
+          goto err;
+      }
+      my_snprintf(buf, sizeof(buf),
+                  ER_THD(thd, ER_TABLE_NEEDS_REBUILD),
+                  table_name.str);
+      if (send_check_errmsg(thd, table, operator_name, buf) < 0)
+        goto err;
+      result_code= HA_ADMIN_FAILED;
+    }
+
     protocol->prepare_for_resend();
     protocol->store(&table_name, system_charset_info);
     protocol->store(operator_name, system_charset_info);
@@ -1227,7 +1278,8 @@ send_result_message:
                  *save_next_global= table->next_global;
       table->next_local= table->next_global= 0;
 
-      result_code= admin_recreate_table(thd, table, &recreate_info);
+      result_code= admin_recreate_table(thd, table, &recreate_info, 0);
+      recreate_used= 1;
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
@@ -1310,6 +1362,7 @@ send_result_message:
     }
 
     case HA_ADMIN_NEEDS_UPGRADE:
+    case HA_ADMIN_NEEDS_DATA_CONVERSION:
     case HA_ADMIN_NEEDS_ALTER:
     {
       char buf[MYSQL_ERRMSG_SIZE];
@@ -1318,7 +1371,7 @@ send_result_message:
           table->table->file->ha_table_flags() & HA_CAN_REPAIR ? "TABLE" : 0;
 
       protocol->store(&error_clex_str, system_charset_info);
-      if (what_to_upgrade)
+      if (what_to_upgrade && result_code == HA_ADMIN_NEEDS_UPGRADE)
         length= my_snprintf(buf, sizeof(buf),
                             ER_THD(thd, ER_TABLE_NEEDS_UPGRADE),
                             what_to_upgrade, table->table_name.str);
@@ -1611,7 +1664,8 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
 
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
-    mysql_recreate_table(thd, first_table, &recreate_info, true) :
+    mysql_recreate_table(thd, first_table, &recreate_info,
+                         false) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       &msg_optimize, TL_WRITE, 1, 0, 0, 0,
                       &handler::ha_optimize, 0, true);
@@ -1639,7 +1693,8 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, &msg_repair,
                          TL_WRITE, 1,
-                         MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
+                         MY_TEST(m_lex->check_opt.sql_flags &
+                                 (TT_USEFRM | TT_FORCE)),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
                          &handler::ha_repair, &view_repair, true);
 

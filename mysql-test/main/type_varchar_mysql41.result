@@ -137,7 +137,7 @@ VERSION
 a	b
 CHECK TABLE t1 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
 CALL show_table;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -149,7 +149,7 @@ VERSION
 a	b
 CHECK TABLE t1 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
 CALL show_table;
 Table	Create Table
 t1	CREATE TABLE `t1` (
