@@ -8496,7 +8496,7 @@ alter_list_item:
             $5->after= $6;
           }
         | MODIFY_SYM opt_column opt_if_exists_table_element
-          field_spec opt_place
+          column_def opt_place
           {
             Lex->alter_info.flags|= ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
