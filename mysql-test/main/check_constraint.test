@@ -253,5 +253,72 @@ alter table t add constraint a check (a > 10);
 drop table t;
 
 --echo #
+--echo # MDEV-24602: cannot specify a name for a column check constraint
+--echo #
+# Table constraints (unnamed and named)
+create table t(t int,
+               check (t>0),
+               constraint check(t>1),
+               constraint t_named check(t>2));
+show create table t;
+SELECT CONSTRAINT_NAME, TABLE_NAME, CONSTRAINT_TYPE
+FROM information_schema.TABLE_CONSTRAINTS WHERE
+TABLE_NAME = 't' AND TABLE_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t;
+
+# Field constraints (with and without the names)
+create table t(t0 int,
+               t1 int check (t1>0),
+               t2 int constraint check(t2>0),
+               t3 int constraint t_field check(t3>0));
+show create table t;
+SELECT CONSTRAINT_NAME, TABLE_NAME, CONSTRAINT_TYPE
+FROM information_schema.TABLE_CONSTRAINTS WHERE
+TABLE_NAME = 't' AND TABLE_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t;
+
+# Field constraint names are the same
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t1 int constraint t1_check check(t1>0),
+               t2 int check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               t4 int constraint t_field check(t4>0));
+
+# Table constraint names are the same
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t1 int constraint t1_check check(t1>0),
+               t2 int check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               constraint table_check1 check(t1>0),
+               constraint table_check1 check(t2>0));
+
+# Table and field constraint names are the same
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t1 int constraint t1_check check(t1>0),
+               t2 int check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               constraint t_field check(t1>0));
+
+#  Adding table constraint with the same name will result in error for  alter table.
+create table t(t1 int constraint t1 check(t1>0));
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+--error ER_DUP_CONSTRAINT_NAME
+alter table t add constraint t1 check (t1<0);
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+# Show create table will show field constraint
+show create table t;
+alter table t modify column t1 int constraint t1_greater_pi_check check (t1>3.14);
+# Show create table will show again field constraint
+show create table t;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t;
+--echo #
 --echo # End of 10.4 tests
 --echo #

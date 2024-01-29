@@ -6615,6 +6615,12 @@ column_def:
           { $$= $1; }
         | field_spec references
           { $$= $1; }
+        | field_spec constraint check_constraint
+          {
+            $$= $1;
+            $$->check_constraint= $3;
+            $$->check_constraint->name= $2;
+          }
         ;
 
 key_def:
@@ -8481,7 +8487,7 @@ alter_list_item:
         | ADD constraint_def
           {
             Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
-	  }
+          }
         | ADD CONSTRAINT IF_SYM not EXISTS field_ident check_constraint
          {
            Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;

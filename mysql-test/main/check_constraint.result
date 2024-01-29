@@ -318,5 +318,103 @@ alter table t add constraint a check (a > 10);
 ERROR HY000: Duplicate CHECK constraint name 'a'
 drop table t;
 #
+# MDEV-24602: cannot specify a name for a column check constraint
+#
+create table t(t int,
+check (t>0),
+constraint check(t>1),
+constraint t_named check(t>2));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`t` > 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`t` > 1),
+  CONSTRAINT `t_named` CHECK (`t` > 2)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT CONSTRAINT_NAME, TABLE_NAME, CONSTRAINT_TYPE
+FROM information_schema.TABLE_CONSTRAINTS WHERE
+TABLE_NAME = 't' AND TABLE_SCHEMA = 'test';
+CONSTRAINT_NAME	TABLE_NAME	CONSTRAINT_TYPE
+CONSTRAINT_1	t	CHECK
+CONSTRAINT_2	t	CHECK
+t_named	t	CHECK
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t	CONSTRAINT_1	`t` > 0
+def	test	t	CONSTRAINT_2	`t` > 1
+def	test	t	t_named	`t` > 2
+drop table t;
+create table t(t0 int,
+t1 int check (t1>0),
+t2 int constraint check(t2>0),
+t3 int constraint t_field check(t3>0));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t0` int(11) DEFAULT NULL,
+  `t1` int(11) DEFAULT NULL CHECK (`t1` > 0),
+  `t2` int(11) DEFAULT NULL CHECK (`t2` > 0),
+  `t3` int(11) DEFAULT NULL CHECK (`t3` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT CONSTRAINT_NAME, TABLE_NAME, CONSTRAINT_TYPE
+FROM information_schema.TABLE_CONSTRAINTS WHERE
+TABLE_NAME = 't' AND TABLE_SCHEMA = 'test';
+CONSTRAINT_NAME	TABLE_NAME	CONSTRAINT_TYPE
+t1	t	CHECK
+t2	t	CHECK
+t_field	t	CHECK
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t	t1	`t1` > 0
+def	test	t	t2	`t2` > 0
+def	test	t	t_field	`t3` > 0
+drop table t;
+create table t(t1 int constraint t1_check check(t1>0),
+t2 int check(t2>0),
+t3 int constraint t_field check(t3>0),
+t4 int constraint t_field check(t4>0));
+ERROR HY000: Duplicate CHECK constraint name 't_field'
+create table t(t1 int constraint t1_check check(t1>0),
+t2 int check(t2>0),
+t3 int constraint t_field check(t3>0),
+constraint table_check1 check(t1>0),
+constraint table_check1 check(t2>0));
+ERROR HY000: Duplicate CHECK constraint name 'table_check1'
+create table t(t1 int constraint t1_check check(t1>0),
+t2 int check(t2>0),
+t3 int constraint t_field check(t3>0),
+constraint t_field check(t1>0));
+ERROR HY000: Duplicate CHECK constraint name 't_field'
+create table t(t1 int constraint t1 check(t1>0));
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t	t1	`t1` > 0
+alter table t add constraint t1 check (t1<0);
+ERROR HY000: Duplicate CHECK constraint name 't1'
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t	t1	`t1` > 0
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t1` int(11) DEFAULT NULL CHECK (`t1` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+alter table t modify column t1 int constraint t1_greater_pi_check check (t1>3.14);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t1` int(11) DEFAULT NULL CHECK (`t1` > 3.14)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t	t1_greater_pi_check	`t1` > 3.14
+drop table t;
+#
 # End of 10.4 tests
 #
