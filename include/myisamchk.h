@@ -30,6 +30,7 @@
 #define TT_USEFRM               1U
 #define TT_FOR_UPGRADE          2U
 #define TT_FROM_MYSQL           4U
+#define TT_FORCE                8U
 
 /* Bits set in out_flag */
 #define O_NEW_DATA	2U
