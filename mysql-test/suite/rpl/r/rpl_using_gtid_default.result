@@ -117,6 +117,8 @@ include/start_slave.inc
 # not master_use_gtid=no should warn the user that Using_Gtid is being
 # changed to No.
 #
+connection master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO master_log_pos=io_log_pos, master_log_file='io_log_file';

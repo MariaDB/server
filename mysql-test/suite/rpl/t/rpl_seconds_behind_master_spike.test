@@ -34,7 +34,8 @@ CHANGE MASTER TO MASTER_USE_GTID=NO;
 --source include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
 SET @@global.debug_dbug="+d,pause_sql_thread_on_fde,negate_clock_diff_with_master";
---source include/start_slave.inc
+#--source include/start_slave.inc
+start slave io_thread;
 
 --let $sleep_time=2
 --echo # Future events must be logged at least $sleep_time seconds after
@@ -50,8 +51,12 @@ insert into t1 values (1);
 --echo # Flush logs on master forces slave to generate a Format description
 --echo # event in its relay log
 flush logs;
+--sleep 1
+--source include/save_master_pos.inc
 
 --connection slave
+--source include/sync_io_with_master.inc
+START SLAVE SQL_THREAD;
 --echo # Ignore FDEs that happen before the CREATE/INSERT commands
 SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
 SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
