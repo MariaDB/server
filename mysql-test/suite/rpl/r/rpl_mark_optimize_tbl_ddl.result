@@ -30,7 +30,7 @@ test.t1	optimize	note	Table does not support optimize, doing recreate + analyze 
 test.t1	optimize	status	OK
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected

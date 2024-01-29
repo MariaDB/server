@@ -1823,7 +1823,7 @@ DELETE FROM t4 WHERE c1 = 33;
 #
 REPAIR TABLE t4;
 Table	Op	Msg_type	Msg_text
-test.t4	repair	note	The storage engine for the table doesn't support repair
+test.t4	repair	status	OK
 REPAIR TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	repair	status	OK
@@ -1836,7 +1836,7 @@ c1
 LOCK TABLES t3 WRITE, t2 WRITE, t4 WRITE, t1 WRITE;
 REPAIR TABLE t4;
 Table	Op	Msg_type	Msg_text
-test.t4	repair	note	The storage engine for the table doesn't support repair
+test.t4	repair	status	OK
 REPAIR TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	repair	status	OK
@@ -2396,7 +2396,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	repair	note	The storage engine for the table doesn't support repair
 REPAIR TABLE m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 DROP TABLE m1, t1;
 CREATE TEMPORARY TABLE m1 (f1 BIGINT) ENGINE=MRG_MyISAM UNION(t1);
 REPAIR TABLE m1 USE_FRM;
@@ -2409,7 +2409,7 @@ Table	Op	Msg_type	Msg_text
 m1	repair	error	Cannot repair temporary table from .frm file
 REPAIR TABLE m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 DROP TABLE m1, t1;
 create temporary table t1_temp(i int);
 create temporary table tm_temp_temp (i int) engine=merge union=(t1_temp) insert_method=last;
@@ -3855,7 +3855,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	check	status	OK
 repair table m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 checksum table m1;
 Table	Checksum
 test.m1	3459908756
@@ -3868,7 +3868,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	check	status	OK
 repair table m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 checksum table m1;
 Table	Checksum
 test.m1	3459908756
@@ -3881,7 +3881,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	check	status	OK
 repair table m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 checksum table m1;
 Table	Checksum
 test.m1	3459908756
