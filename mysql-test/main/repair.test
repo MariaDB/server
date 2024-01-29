@@ -218,6 +218,8 @@ repair table t1;
 repair table t1 use_frm;
 select count(*) from t1;
 check table t1;
+alter table t1 force;
+check table t1;
 drop table t1;
 
 set @@global.character_set_server=@save_global_character_set_server;
