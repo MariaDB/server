@@ -167,9 +167,9 @@ static void init_tina_psi_keys(void)
   extensions exist for this handler.
 */
 static const char *ha_tina_exts[] = {
+  CSN_EXT,
   CSV_EXT,
   CSM_EXT,
-  CSN_EXT,
   NullS
 };
 

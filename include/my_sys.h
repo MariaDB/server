@@ -44,7 +44,7 @@ C_MODE_START
   area, and we would like to avoid unexpected truncation.
 */
 #define MYSYS_ERRMSG_SIZE   (512)
-#define MYSYS_STRERROR_SIZE (128)
+#define MYSYS_STRERROR_SIZE (256)
 
 #define MY_FILE_ERROR	((size_t) -1)
 
