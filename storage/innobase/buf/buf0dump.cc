@@ -180,7 +180,7 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 	char	buf[FN_REFLEN];
 
 	mysql_mutex_lock(&LOCK_global_system_variables);
-	snprintf(buf, sizeof buf, "%s/%s", get_buf_dump_dir(),
+	snprintf(buf, sizeof buf, "%s" FN_ROOTDIR "%s", get_buf_dump_dir(),
 		 srv_buf_dump_filename);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 
@@ -214,7 +214,7 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 			format = "%s%s";
 			break;
 		default:
-			format = "%s/%s";
+			format = "%s" FN_ROOTDIR "%s";
 		}
 
 		snprintf(path, path_size, format,

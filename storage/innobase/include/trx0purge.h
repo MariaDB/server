@@ -140,6 +140,15 @@ private:
   bool m_initialized{false};
   /** whether purge is enabled; protected by latch and std::atomic */
   std::atomic<bool> m_enabled{false};
+  /** The primary candidate for iterator::free_history() is
+  rseg=trx_sys.rseg_array[skipped_rseg]. This field may be changed
+  after invoking rseg.set_skip_allocation() and rseg.clear_skip_allocation()
+  and while holding the exclusive rseg.latch.
+
+  This may only be 0 if innodb_undo_tablespaces=0, because rollback segment
+  0 always resides in the system tablespace and would never be used when
+  dedicated undo tablespaces are in use. */
+  Atomic_relaxed<uint8_t> skipped_rseg;
 public:
   /** whether purge is active (may hold table handles) */
   std::atomic<bool> m_active{false};
@@ -197,6 +206,11 @@ public:
 			return undo_no <= other.undo_no;
 		}
 
+		/** Remove unnecessary history data from a rollback segment.
+		@param rseg   rollback segment
+		@return error code */
+		inline dberr_t free_history_rseg(trx_rseg_t &rseg) const;
+
 		/** Free the undo pages up to this. */
 		dberr_t free_history() const;
 
@@ -240,14 +254,15 @@ public:
 					by the pq_mutex */
 	mysql_mutex_t	pq_mutex;	/*!< Mutex protecting purge_queue */
 
-	/** Undo tablespace file truncation (only accessed by the
-	srv_purge_coordinator_thread) */
-	struct {
-		/** The undo tablespace that is currently being truncated */
-		fil_space_t*	current;
-		/** The undo tablespace that was last truncated */
-		fil_space_t*	last;
-	} truncate;
+  /** innodb_undo_log_truncate=ON state;
+  only modified by purge_coordinator_callback() */
+  struct {
+    /** The undo tablespace that is currently being truncated */
+    Atomic_relaxed<fil_space_t*> current;
+    /** The number of the undo tablespace that was last truncated,
+    relative from srv_undo_space_id_start */
+    uint32_t last;
+  } truncate_undo_space;
 
   /** Create the instance */
   void create();
@@ -357,6 +372,26 @@ public:
     typically via purge_sys_t::view_guard. */
     return view.sees(id);
   }
+
+private:
+  /** Enable the use of a rollback segment and advance skipped_rseg,
+  after iterator::free_history_rseg() had invoked
+  rseg.set_skip_allocation(). */
+  inline void rseg_enable(trx_rseg_t &rseg);
+
+  /** Try to start truncating a tablespace.
+  @param id        undo tablespace identifier
+  @param size      the maximum desired undo tablespace size, in pages
+  @return undo tablespace whose truncation was started
+  @retval nullptr  if truncation is not currently possible */
+  inline fil_space_t *undo_truncate_try(uint32_t id, uint32_t size);
+public:
+  /** Check if innodb_undo_log_truncate=ON needs to be handled.
+  This is only to be called by purge_coordinator_callback().
+  @return undo tablespace chosen by innodb_undo_log_truncate=ON
+  @retval nullptr if truncation is not currently possible */
+  fil_space_t *truncating_tablespace();
+
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   template<bool also_end_view= false>
   void clone_oldest_view()

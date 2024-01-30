@@ -2299,7 +2299,7 @@ ds_ctxt_t::make_hardlink(const char *from_path, const char *to_path)
 	}
 	else
 	{
-		strncpy(to_path_full, to_path, sizeof(to_path_full));
+		strncpy(to_path_full, to_path, sizeof(to_path_full)-1);
 	}
 #ifdef _WIN32
 	return  CreateHardLink(to_path_full, from_path, NULL);
