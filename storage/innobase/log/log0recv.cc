@@ -4120,9 +4120,10 @@ static bool recv_scan_log(bool last_phase)
 
           const lsn_t end{recv_sys.file_checkpoint};
           ut_ad(!end || end == recv_sys.lsn);
+          bool corrupt_fs = recv_sys.is_corrupt_fs();
           mysql_mutex_unlock(&recv_sys.mutex);
 
-          if (!end)
+          if (!end && !corrupt_fs)
           {
             recv_sys.set_corrupt_log();
             sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
@@ -4602,6 +4603,9 @@ read_only_recovery:
 					LSN_PF, recv_sys.lsn);
                         goto err_exit;
 		}
+		if (recv_sys.is_corrupt_fs()) {
+			goto err_exit;
+		}
 		ut_ad(recv_sys.file_checkpoint);
 		if (rewind) {
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
@@ -4640,9 +4644,9 @@ read_only_recovery:
 
 			do {
 				rescan = recv_scan_log(false);
-				ut_ad(!recv_sys.is_corrupt_fs());
 
-				if (recv_sys.is_corrupt_log()) {
+				if (recv_sys.is_corrupt_log() ||
+				    recv_sys.is_corrupt_fs()) {
 					goto err_exit;
 				}
 

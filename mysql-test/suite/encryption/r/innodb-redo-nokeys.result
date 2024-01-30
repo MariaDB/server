@@ -8,8 +8,6 @@ call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) co
 call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=[1-9][0-9]*, page number=0\\] of corrupted file '.*test.t[1-5]\\.ibd'");
 call mtr.add_suppression("InnoDB: Failed to read page .* from file '.*'");
 call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch");
-call mtr.add_suppression("InnoDB: Missing FILE_CHECKPOINT");
-call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption");
 call mtr.add_suppression("InnoDB: Encryption key is not found for");
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
@@ -23,6 +21,15 @@ insert into t2 select * from t1;
 insert into t3 select * from t1;
 insert into t4 select * from t1;
 commit;
+
+# Flush all dirty pages from buffer pool
+SET @no_checkpoint_save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @no_checkpoint_save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct= @no_checkpoint_save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm= @no_checkpoint_save_pct_lwm;
+
 CREATE TABLE t5 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 begin;
@@ -42,6 +49,6 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /\[ERROR\] InnoDB: Encryption key is not found for .*test.t1.ibd/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Encryption key is not found for .*test.t[1-5].ibd/ in mysqld.1.err
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 drop table t1,t2,t3,t4,t5;
