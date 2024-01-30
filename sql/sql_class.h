@@ -657,6 +657,15 @@ enum killed_type
   KILL_TYPE_QUERY
 };
 
+#define SECONDS_TO_WAIT_FOR_KILL 2
+#define SECONDS_TO_WAIT_FOR_DUMP_THREAD_KILL 10
+#if !defined(_WIN32) && defined(HAVE_SELECT)
+/* my_sleep() can wait for sub second times */
+#define WAIT_FOR_KILL_TRY_TIMES 20
+#else
+#define WAIT_FOR_KILL_TRY_TIMES 2
+#endif
+
 #include "sql_lex.h"				/* Must be here */
 
 class Delayed_insert;
@@ -694,7 +703,6 @@ typedef struct system_variables
   ulonglong max_statement_time;
   ulonglong optimizer_switch;
   ulonglong optimizer_trace;
-  ulong optimizer_trace_max_mem_size;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
@@ -758,6 +766,8 @@ typedef struct system_variables
   ulong optimizer_use_condition_selectivity;
   ulong optimizer_max_sel_arg_weight;
   ulong optimizer_max_sel_args;
+  ulong optimizer_trace_max_mem_size;
+  ulong optimizer_adjust_secondary_key_costs;
   ulong use_stat_tables;
   double sample_percentage;
   ulong histogram_size;

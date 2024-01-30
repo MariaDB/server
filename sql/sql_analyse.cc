@@ -953,7 +953,8 @@ void field_longlong::get_opt_type(String *answer,
 					       UINT_MAX24 : INT_MAX24))
     snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", (int) max_length);
   else if (min_arg >= INT_MIN32 && max_arg <= (min_arg >= 0 ?
-					       UINT_MAX32 : INT_MAX32))
+					       (longlong) UINT_MAX32 :
+                                               (longlong) INT_MAX32))
     snprintf(buff, sizeof(buff), "INT(%d)", (int) max_length);
   else
     snprintf(buff, sizeof(buff), "BIGINT(%d)", (int) max_length);

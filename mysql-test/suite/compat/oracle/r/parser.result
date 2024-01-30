@@ -84,7 +84,7 @@ DECLARE history INT; BEGIN history:=10; SELECT history; END
 SELECT history FROM t1
 SELECT history 'alias' FROM t1
 SELECT history()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.history does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT history.history()
 Error	1630	FUNCTION history.history does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT history DATE FROM t1
@@ -106,7 +106,7 @@ DECLARE next INT; BEGIN next:=10; SELECT next; END
 SELECT next FROM t1
 SELECT next 'alias' FROM t1
 SELECT next()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.next does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT next.next()
 Error	1630	FUNCTION next.next does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT next DATE FROM t1
@@ -151,7 +151,7 @@ DECLARE previous INT; BEGIN previous:=10; SELECT previous; END
 SELECT previous FROM t1
 SELECT previous 'alias' FROM t1
 SELECT previous()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.previous does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT previous.previous()
 Error	1630	FUNCTION previous.previous does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT previous DATE FROM t1
@@ -174,7 +174,7 @@ DECLARE system INT; BEGIN system:=10; SELECT system; END
 SELECT system FROM t1
 SELECT system 'alias' FROM t1
 SELECT system()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.system does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT system.system()
 Error	1630	FUNCTION system.system does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT system DATE FROM t1
@@ -196,7 +196,7 @@ DECLARE system_time INT; BEGIN system_time:=10; SELECT system_time; END
 SELECT system_time FROM t1
 SELECT system_time 'alias' FROM t1
 SELECT system_time()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.system_time does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT system_time.system_time()
 Error	1630	FUNCTION system_time.system_time does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT system_time DATE FROM t1
@@ -264,7 +264,7 @@ DECLARE transaction INT; BEGIN transaction:=10; SELECT transaction; END
 SELECT transaction FROM t1
 SELECT transaction 'alias' FROM t1
 SELECT transaction()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.transaction does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT transaction.transaction()
 Error	1630	FUNCTION transaction.transaction does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT transaction DATE FROM t1
@@ -308,7 +308,7 @@ DECLARE versioning INT; BEGIN versioning:=10; SELECT versioning; END
 SELECT versioning FROM t1
 SELECT versioning 'alias' FROM t1
 SELECT versioning()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.versioning does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT versioning.versioning()
 Error	1630	FUNCTION versioning.versioning does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT versioning DATE FROM t1
@@ -330,7 +330,7 @@ DECLARE without INT; BEGIN without:=10; SELECT without; END
 SELECT without FROM t1
 SELECT without 'alias' FROM t1
 SELECT without()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+Error	1630	FUNCTION test.without does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT without.without()
 Error	1630	FUNCTION without.without does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT without DATE FROM t1

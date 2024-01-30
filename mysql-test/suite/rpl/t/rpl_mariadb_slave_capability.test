@@ -11,7 +11,7 @@ set @old_master_binlog_checksum= @@global.binlog_checksum;
 # empty Gtid_list event
 #
 # Test this by binlog rotation before we log any GTIDs.
-connection slave;
+sync_slave_with_master;
 
 # Need to stop/start the master without GTID before setting debug_dbug
 --source include/stop_slave.inc

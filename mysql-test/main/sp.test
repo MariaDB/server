@@ -10566,6 +10566,26 @@ DROP FUNCTION f2;
 DROP FUNCTION f3;
 DROP VIEW v1;
 
+--echo #
+--echo # MDEV-33270: Call of SP invoking another SP with a parameter
+--echo #             requiring type conversion
+--echo #
+
+SET NAMES latin1;
+
+--delimiter |
+
+CREATE PROCEDURE p1 (a text) BEGIN SELECT a; END |
+CREATE PROCEDURE p2 () CALL p1(concat('x',_utf8'x')) |
+
+--delimiter ;
+
+CALL p2();
+CALL p2();
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
 --echo # End of 10.4 tests
 --echo #
 
@@ -10618,6 +10638,44 @@ BEGIN NOT ATOMIC DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1); SELECT r.a
 --delimiter ;
 
 SET SESSION log_slow_verbosity= @tmp;
+
+--echo # 
+--echo # MDEV-31616 Problems with a stored function EMPTY() on upgrade to 10.6.
+--echo # 
+CREATE OR REPLACE FUNCTION empty(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT empty('1');
+DROP FUNCTION empty;
+
+CREATE OR REPLACE FUNCTION json_table(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT json_table('1');
+DROP FUNCTION json_table;
+
+CREATE OR REPLACE FUNCTION nested(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT nested('1');
+DROP FUNCTION nested;
+
+CREATE OR REPLACE FUNCTION ordinality(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT ordinality('1');
+DROP FUNCTION ordinality;
+
+CREATE OR REPLACE FUNCTION path(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT path('1');
+DROP FUNCTION path;
+
+
+CREATE OR REPLACE FUNCTION fast(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT fast('1');
+DROP FUNCTION fast;
+
+CREATE OR REPLACE FUNCTION relay(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT relay('1');
+DROP FUNCTION relay;
+
+CREATE OR REPLACE FUNCTION database() RETURNS int RETURN 333;
+SELECT database();
+DROP FUNCTION database;
+
+
 # Cleanup
 DROP TABLE t1;
 

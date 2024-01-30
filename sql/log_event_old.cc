@@ -47,12 +47,12 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
   const Relay_log_info *rli= rgi->rli;
 
   /*
-    If m_table_id == ~0UL, then we have a dummy event that does not
+    If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
     tables_to_lock list, close the thread tables, and return with
     success.
    */
-  if (ev->m_table_id == ~0UL)
+  if (ev->m_table_id == UINT32_MAX)
   {
     /*
        This one is supposed to be set: just an extra check so that
@@ -1123,13 +1123,14 @@ int Update_rows_log_event_old::do_exec_row(TABLE *table)
 **************************************************************************/
 
 #ifndef MYSQL_CLIENT
-Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
+Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
+                                       ulonglong table_id,
                                        MY_BITMAP const *cols,
                                        bool is_transactional)
   : Log_event(thd_arg, 0, is_transactional),
     m_row_count(0),
     m_table(tbl_arg),
-    m_table_id(tid),
+    m_table_id(table_id),
     m_width(tbl_arg ? tbl_arg->s->fields : 1),
     m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0) 
 #ifdef HAVE_REPLICATION
@@ -1142,12 +1143,12 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
 
   /*
     We allow a special form of dummy event when the table, and cols
-    are null and the table id is ~0UL.  This is a temporary
+    are null and the table id is UINT32_MAX.  This is a temporary
     solution, to be able to terminate a started statement in the
     binary log: the extraneous events will be removed in the future.
    */
-  DBUG_ASSERT((tbl_arg && tbl_arg->s && tid != ~0UL) ||
-              (!tbl_arg && !cols && tid == ~0UL));
+  DBUG_ASSERT((tbl_arg && tbl_arg->s && table_id != UINT32_MAX) ||
+              (!tbl_arg && !cols && table_id == UINT32_MAX));
 
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
       set_flags(NO_FOREIGN_KEY_CHECKS_F);
@@ -1208,7 +1209,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
   }
   else
   {
-    m_table_id= (ulong) uint6korr(post_start);
+    m_table_id= (ulonglong) uint6korr(post_start);
     post_start+= RW_FLAGS_OFFSET;
   }
 
@@ -1248,7 +1249,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
 
   const uchar* const ptr_rows_data= (const uchar*) ptr_after_width;
   size_t const data_size= event_len - (ptr_rows_data - (const uchar *) buf);
-  DBUG_PRINT("info",("m_table_id: %lu  m_flags: %d  m_width: %lu  data_size: %zu",
+  DBUG_PRINT("info",("m_table_id: %llu  m_flags: %d  m_width: %lu  data_size: %zu",
                      m_table_id, m_flags, m_width, data_size));
   DBUG_DUMP("rows_data", (uchar*) ptr_rows_data, data_size);
 
@@ -1362,12 +1363,12 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
   Relay_log_info const *rli= rgi->rli;
 
   /*
-    If m_table_id == ~0UL, then we have a dummy event that does not
+    If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
     tables_to_lock list, close the thread tables, and return with
     success.
    */
-  if (m_table_id == ~0UL)
+  if (m_table_id == UINT32_MAX)
   {
     /*
        This one is supposed to be set: just an extra check so that
@@ -1784,10 +1785,10 @@ bool Old_rows_log_event::write_data_header()
   // This method should not be reached.
   assert(0);
 
-  DBUG_ASSERT(m_table_id != ~0UL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
-                    int4store(buf + 0, m_table_id);
+                    int4store(buf + 0, (ulong) m_table_id);
                     int2store(buf + 4, m_flags);
                     return write_data(buf, 6);
                   });
@@ -1834,7 +1835,7 @@ void Old_rows_log_event::pack_info(Protocol *protocol)
   char const *const flagstr=
     get_flags(STMT_END_F) ? " flags: STMT_END_F" : "";
   size_t bytes= my_snprintf(buf, sizeof(buf),
-                               "table_id: %lu%s", m_table_id, flagstr);
+                               "table_id: %llu%s", m_table_id, flagstr);
   protocol->store(buf, bytes, &my_charset_bin);
 }
 #endif
@@ -1856,9 +1857,10 @@ bool Old_rows_log_event::print_helper(FILE *file,
 
   if (!print_event_info->short_form)
   {
+    char llbuff[22];
     if (print_header(head, print_event_info, !do_print_encoded) ||
-        my_b_printf(head, "\t%s: table id %lu%s\n",
-                    name, m_table_id,
+        my_b_printf(head, "\t%s: table id %s%s\n",
+                    name, ullstr(m_table_id, llbuff),
                     do_print_encoded ? " flags: STMT_END_F" : "") ||
         print_base64(body, print_event_info, do_print_encoded))
       goto err;
@@ -2398,7 +2400,7 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
 #if !defined(MYSQL_CLIENT)
 Write_rows_log_event_old::Write_rows_log_event_old(THD *thd_arg,
                                                    TABLE *tbl_arg,
-                                                   ulong tid_arg,
+                                                   ulonglong tid_arg,
                                                    MY_BITMAP const *cols,
                                                    bool is_transactional)
   : Old_rows_log_event(thd_arg, tbl_arg, tid_arg, cols, is_transactional)
@@ -2510,7 +2512,7 @@ bool Write_rows_log_event_old::print(FILE *file,
 #ifndef MYSQL_CLIENT
 Delete_rows_log_event_old::Delete_rows_log_event_old(THD *thd_arg,
                                                      TABLE *tbl_arg,
-                                                     ulong tid,
+                                                     ulonglong tid,
                                                      MY_BITMAP const *cols,
                                                      bool is_transactional)
   : Old_rows_log_event(thd_arg, tbl_arg, tid, cols, is_transactional),
@@ -2618,7 +2620,7 @@ bool Delete_rows_log_event_old::print(FILE *file,
 #if !defined(MYSQL_CLIENT)
 Update_rows_log_event_old::Update_rows_log_event_old(THD *thd_arg,
                                                      TABLE *tbl_arg,
-                                                     ulong tid,
+                                                     ulonglong tid,
                                                      MY_BITMAP const *cols,
                                                      bool is_transactional)
   : Old_rows_log_event(thd_arg, tbl_arg, tid, cols, is_transactional),

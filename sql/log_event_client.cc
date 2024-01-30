@@ -1503,8 +1503,9 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
       !(td= map->create_table_def()))
   {
-    return (my_b_printf(file, "### Row event for unknown table #%lu",
-                        (ulong) m_table_id));
+    char llbuff[22];
+    return (my_b_printf(file, "### Row event for unknown table #%s",
+                        ullstr(m_table_id, llbuff)));
   }
 
   /* If the write rows event contained no values for the AI */
