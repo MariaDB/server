@@ -2187,7 +2187,7 @@ static bool innodb_init_param()
 
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
-		if (xtrabackup_use_memory > UINT_MAX32) {
+          if (xtrabackup_use_memory > (longlong) UINT_MAX32) {
 			msg("mariabackup: use-memory can't be over 4GB"
 			    " on 32-bit systems");
 		}

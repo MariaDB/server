@@ -73,14 +73,15 @@ private:
   /** Reference counter to track is_persistent() transactions,
   with SKIP flag. */
   std::atomic<uint32_t> ref;
-
+public:
   /** Whether undo tablespace truncation is pending */
   static constexpr uint32_t SKIP= 1;
   /** Transaction reference count multiplier */
   static constexpr uint32_t REF= 2;
 
+  /** @return the reference count and flags */
   uint32_t ref_load() const { return ref.load(std::memory_order_relaxed); }
-
+private:
   /** Set the SKIP bit */
   void ref_set_skip()
   {

@@ -1190,6 +1190,11 @@ public:
     return count;
   }
 
+  /** Disable further allocation of transactions in a rollback segment
+  that are subject to innodb_undo_log_truncate=ON
+  @param space   undo tablespace that will be truncated */
+  inline void undo_truncate_start(fil_space_t &space);
+
   /** Set the undo log empty value */
   void set_undo_non_empty(bool val)
   {

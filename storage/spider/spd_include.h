@@ -793,7 +793,6 @@ typedef struct st_spider_conn
   SPIDER_CONN_LOOP_CHECK *loop_check_ignored_first;
   SPIDER_CONN_LOOP_CHECK *loop_check_ignored_last;
   SPIDER_CONN_LOOP_CHECK *loop_check_meraged_first;
-  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_last;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
@@ -1230,6 +1229,7 @@ typedef struct st_spider_share
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
   uint               *conn_keys_lengths;
+  /* The index in `spider_dbton' of each data node link. */
   uint               *sql_dbton_ids;
 
   uint               server_names_charlen;
@@ -1305,10 +1305,16 @@ typedef struct st_spider_share
   /* Number of `SPIDER_DBTON`s used */
   uint               use_dbton_count;
   /* Index of each `SPIDER_DBTON` in `spider_dbton` to use */
+  /* Actual size is `use_dbton_count'. Values are the indices of item
+  in `spider_dbton'. */
   uint               use_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_dbton_ids'. */
   uint               dbton_id_to_seq[SPIDER_DBTON_SIZE];
   uint               use_sql_dbton_count;
+  /* Actual size is `use_sql_dbton_count'. Values are the indices of
+  item in `spider_dbton'. */
   uint               use_sql_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_sql_dbton_ids'. */
   uint               sql_dbton_id_to_seq[SPIDER_DBTON_SIZE];
 
   SPIDER_ALTER_TABLE alter_table;

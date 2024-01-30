@@ -142,9 +142,11 @@ static const ulint OS_FILE_NORMAL = 62;
 /* @} */
 
 /** Types for file create @{ */
-static const ulint OS_DATA_FILE = 100;
-static const ulint OS_LOG_FILE = 101;
-static const ulint OS_DATA_FILE_NO_O_DIRECT = 103;
+static constexpr ulint OS_DATA_FILE = 100;
+static constexpr ulint OS_LOG_FILE = 101;
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+static constexpr ulint OS_DATA_FILE_NO_O_DIRECT = 103;
+#endif
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */
@@ -373,7 +375,7 @@ os_file_create_simple_no_error_handling_func(
 	bool*		success)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#ifdef  _WIN32
+#ifndef HAVE_FCNTL_DIRECT
 #define os_file_set_nocache(fd, file_name, operation_name) do{}while(0)
 #else
 /** Tries to disable OS caching on an opened file descriptor.
