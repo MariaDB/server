@@ -147,9 +147,6 @@ int pthread_cancel(pthread_t thread);
 #ifndef _REENTRANT
 #define _REENTRANT
 #endif
-#ifdef HAVE_THR_SETCONCURRENCY
-#include <thread.h>			/* Probably solaris */
-#endif
 #ifdef HAVE_SCHED_H
 #include <sched.h>
 #endif
@@ -618,9 +615,6 @@ extern int my_rw_trywrlock(my_rw_lock_t *);
 
 #define GETHOSTBYADDR_BUFF_SIZE 2048
 
-#ifndef HAVE_THR_SETCONCURRENCY
-#define thr_setconcurrency(A) pthread_dummy(0)
-#endif
 #if !defined(HAVE_PTHREAD_ATTR_SETSTACKSIZE) && ! defined(pthread_attr_setstacksize)
 #define pthread_attr_setstacksize(A,B) pthread_dummy(0)
 #endif

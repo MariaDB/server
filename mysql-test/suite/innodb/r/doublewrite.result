@@ -1,7 +1,7 @@
 #
 # MDEV-32242 innodb.doublewrite test case always is skipped
 #
-create table t1 (f1 int primary key, f2 blob) engine=innodb stats_persistent=0;
+create table t1 (f1 int primary key, f2 blob) stats_persistent=0, engine=innodb;
 start transaction;
 insert into t1 values(1, repeat('#',12));
 insert into t1 values(2, repeat('+',12));
@@ -19,9 +19,32 @@ XA PREPARE 'x';
 disconnect dml;
 connection default;
 flush table t1 for export;
+# Kill the server
 # restart
 FOUND 1 /InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile/ in mysqld.1.err
 FOUND 1 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\]/ in mysqld.1.err
+XA ROLLBACK 'x';
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select f1, f2 from t1;
+f1	f2
+1	############
+2	++++++++++++
+3	////////////
+4	------------
+5	............
+connect  dml,localhost,root,,;
+XA START 'x';
+insert into t1 values (6, repeat('%', @@innodb_page_size/2));
+XA END 'x';
+XA PREPARE 'x';
+disconnect dml;
+connection default;
+flush table t1 for export;
+# Kill the server
+# restart
+FOUND 1 /InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile/ in mysqld.1.err
 XA ROLLBACK 'x';
 check table t1;
 Table	Op	Msg_type	Msg_text

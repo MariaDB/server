@@ -5286,6 +5286,33 @@ ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 # End of 10.4 tests
 #
 #
+# Start of 10.5 tests
+#
+#
+# MDEV-28651 quote(NULL) returns incorrect result in view ('NU' instead of 'NULL')
+#
+CREATE VIEW v1 AS SELECT quote(NULL);
+SELECT * FROM v1;
+quote(NULL)
+NULL
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+quote(NULL)	varbinary(4)	YES		NULL	
+CREATE TABLE t1 AS SELECT * FROM v1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `quote(NULL)` varbinary(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t1;
+quote(NULL)
+NULL
+DROP TABLE t1;
+DROP VIEW v1;
+#
+# End of 10.5 tests
+#
+#
 # MDEV-25704 Function random_bytes
 #
 create table t1 as select random_bytes(100);

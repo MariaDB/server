@@ -1,0 +1,36 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+#
+# MDEV-32984 Update federated table and column privileges
+#
+connection slave;
+create database db1;
+create user my@localhost identified by '1qaz2wsx';
+create table db1.t1 (
+f1 int auto_increment primary key,
+f2 varchar(50),
+f3 varchar(50),
+unique (f2)
+);
+grant insert, select (f1, f2, f3), update (f3) on db1.t1 to my@localhost;
+connection master;
+create table tt1 engine=federated connection='mysql://my:1qaz2wsx@localhost:$SLAVE_MYPORT/db1/t1';
+insert into tt1 (f2,f3) values ('test','123');
+select * from tt1;
+f1	f2	f3
+1	test	123
+update tt1 set f3='123456' where f2='test';
+drop table tt1;
+connection slave;
+drop database db1;
+drop user my@localhost;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

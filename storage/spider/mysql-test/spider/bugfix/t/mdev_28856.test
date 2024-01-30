@@ -9,6 +9,7 @@
 
 # This test covers some table params under consideration for inclusion
 # in the engine-defined options to be implemented in MDEV-28856.
+set spider_same_server_link=1;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
