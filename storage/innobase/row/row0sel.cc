@@ -4406,12 +4406,10 @@ row_search_mvcc(
 			goto func_exit;
 		}
 
+#if SIZEOF_SIZE_T < 8
+		if (UNIV_LIKELY(~prebuilt->n_rows_fetched))
+#endif
 		prebuilt->n_rows_fetched++;
-
-		if (prebuilt->n_rows_fetched > 1000000000) {
-			/* Prevent wrap-over */
-			prebuilt->n_rows_fetched = 500000000;
-		}
 
 		mode = pcur->search_mode;
 	}
