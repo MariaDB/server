@@ -1,0 +1,21 @@
+--echo #
+--echo # regression introduced by MDEV-14448
+--echo #
+source include/not_embedded.inc;
+source include/not_windows.inc;
+
+write_file $MYSQL_TMP_DIR/mysql_in;
+delimiter $
+select 1;
+$
+EOF
+let TERM=dumb;
+replace_regex /id is \d+/id is X/ /Server version: .*/Server version: Y/ / \(\d+\.\d+ sec\)//;
+error 0,127;
+exec socat EXEC:"$MYSQL",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
+if ($sys_errno == 127)
+{
+  remove_file $MYSQL_TMP_DIR/mysql_in;
+  skip no socat;
+}
+remove_file $MYSQL_TMP_DIR/mysql_in;

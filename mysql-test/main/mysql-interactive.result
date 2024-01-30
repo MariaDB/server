@@ -1,0 +1,24 @@
+#
+# regression introduced by MDEV-14448
+#
+delimiter $
+select 1;
+$
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is X
+Server version: Y
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [(none)]> delimiter $
+MariaDB [(none)]> select 1;
+    -> $
++---+
+| 1 |
++---+
+| 1 |
++---+
+1 row in set
+
+MariaDB [(none)]> 
