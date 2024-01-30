@@ -475,9 +475,9 @@ EOF
                     # Preparing binlog files for transfer:
                     wsrep_log_info "Preparing binlog files for transfer:"
                     tar_type=0
-                    if tar --help | grep -qw -F -- '--transform'; then
+                    if tar --help 2>/dev/null | grep -qw -F -- '--transform'; then
                         tar_type=1
-                    elif tar --version | grep -qw -E '^bsdtar'; then
+                    elif tar --version 2>/dev/null | grep -qw -E '^bsdtar'; then
                         tar_type=2
                     fi
                     if [ $tar_type -eq 2 ]; then
@@ -980,7 +980,7 @@ EOF
             fi
             # Extracting binlog files:
             wsrep_log_info "Extracting binlog files:"
-            if tar --version | grep -qw -E '^bsdtar'; then
+            if tar --version 2>/dev/null | grep -qw -E '^bsdtar'; then
                 tar -tf "$BINLOG_TAR_FILE" > "$tmpfile" && \
                 tar -xvf "$BINLOG_TAR_FILE" > /dev/null || RC=$?
             else
