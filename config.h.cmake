@@ -73,6 +73,7 @@
 #cmakedefine HAVE_SYS_IOCTL_H 1
 #cmakedefine HAVE_SYS_MALLOC_H 1
 #cmakedefine HAVE_SYS_MMAN_H 1
+#cmakedefine HAVE_SYS_MNTENT_H 1
 #cmakedefine HAVE_SYS_NDIR_H 1
 #cmakedefine HAVE_SYS_PTE_H 1
 #cmakedefine HAVE_SYS_PTEM_H 1

@@ -656,6 +656,15 @@ enum killed_type
   KILL_TYPE_QUERY
 };
 
+#define SECONDS_TO_WAIT_FOR_KILL 2
+#define SECONDS_TO_WAIT_FOR_DUMP_THREAD_KILL 10
+#if !defined(_WIN32) && defined(HAVE_SELECT)
+/* my_sleep() can wait for sub second times */
+#define WAIT_FOR_KILL_TRY_TIMES 20
+#else
+#define WAIT_FOR_KILL_TRY_TIMES 2
+#endif
+
 #include "sql_lex.h"				/* Must be here */
 
 class Delayed_insert;
@@ -760,9 +769,10 @@ typedef struct system_variables
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
-  ulong optimizer_trace_max_mem_size;
   ulong optimizer_max_sel_arg_weight;
   ulong optimizer_max_sel_args;
+  ulong optimizer_trace_max_mem_size;
+  ulong optimizer_adjust_secondary_key_costs;
   ulong use_stat_tables;
   ulong histogram_size;
   ulong histogram_type;

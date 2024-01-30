@@ -875,7 +875,7 @@ struct TABLE_SHARE
   bool keep_original_mysql_version;
   bool optimizer_costs_inited;
 
-  ulong table_map_id;                   /* for row-based replication */
+  ulonglong table_map_id;               /* for row-based replication */
 
   /*
     Things that are incompatible between the stored version and the
@@ -1037,7 +1037,7 @@ struct TABLE_SHARE
     return (table_category == TABLE_CATEGORY_LOG);
   }
 
-  inline ulong get_table_def_version()
+  inline ulonglong get_table_def_version()
   {
     return table_map_id;
   }
@@ -1116,7 +1116,7 @@ struct TABLE_SHARE
 
    @sa TABLE_LIST::is_the_same_definition()
   */
-  ulong get_table_ref_version() const
+  ulonglong get_table_ref_version() const
   {
     return (tmp_table == SYSTEM_TMP_TABLE) ? 0 : table_map_id;
   }
@@ -2894,7 +2894,7 @@ struct TABLE_LIST
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
   inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
-                        ulong table_ref_version_arg)
+                               ulonglong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;
     m_table_ref_version= table_ref_version_arg;
@@ -3049,7 +3049,7 @@ private:
   /** See comments for set_table_ref_id() */
   enum enum_table_ref_type m_table_ref_type;
   /** See comments for set_table_ref_id() */
-  ulong m_table_ref_version;
+  ulonglong m_table_ref_version;
 };
 
 class Item;

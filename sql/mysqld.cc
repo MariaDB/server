@@ -5587,6 +5587,15 @@ static int init_server_components()
 #else
   locked_in_memory= 0;
 #endif
+#ifdef PR_SET_THP_DISABLE
+  /*
+    Engine page buffers are now allocated.
+    Disable transparent huge pages for all
+    future allocations as these causes memory
+    leaks.
+  */
+  prctl(PR_SET_THP_DISABLE, 1, 0, 0, 0);
+#endif
 
   ft_init_stopwords();
 
@@ -7553,7 +7562,7 @@ SHOW_VAR status_vars[]= {
   SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_avg_wait_time", &SHOW_FNAME(avg_net_wait_time)),
   {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
-  {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_slave_status",  &rpl_semi_sync_enabled),
   {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
 #endif /* HAVE_REPLICATION */
 #ifdef HAVE_QUERY_CACHE
