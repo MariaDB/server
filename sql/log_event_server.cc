@@ -2816,7 +2816,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
     flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
-    flags_extra(0), extra_engines(0), thread_id(thd_arg->thread_id)
+    flags_extra(0), extra_engines(0),
+    thread_id(thd_arg->variables.pseudo_thread_id)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -3072,6 +3073,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
+  thd->variables.pseudo_thread_id= this->thread_id;
   rgi->gtid_ev_flags2= flags2;
 
   rgi->gtid_ev_flags_extra= flags_extra;

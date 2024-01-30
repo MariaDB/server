@@ -1,9 +1,8 @@
 #
 #   Verify that GTID log events are written into the binary log along with the
-# id of the thread which executed the transaction. On the primary, this is the
-# id of the user connection. On a replica, this is either the id of the SQL
-# Thread id, if serial, or the id of the corresponding worker thread, if
-# parallel. Psuedo_thread_id is disregarded and only used for Query log events.
+# id of the thread which originally executed the transaction. On the primary,
+# this is the id of the user connection (or the pseudo_thread_id). The replica
+# should maintain this value when binlogging.
 #
 # References:
 #   MDEV-7850:  MariaDB doesn't show thread_id for ROW-based events in binlog
@@ -38,7 +37,7 @@ optimize table t1;
 --source include/assert_grep.inc
 
 --echo #
---echo # GTID event's thread_id should not use psuedo_thread_id
+--echo # GTID event's thread_id should use psuedo_thread_id
 --connection master
 --let $old_pseudo_id= `SELECT @@SESSION.pseudo_thread_id`
 set @@pseudo_thread_id=99999;
@@ -46,8 +45,8 @@ insert into t1 values(2);
 --echo # MYSQL_BINLOG local > primary_outfile
 --exec $MYSQL_BINLOG $local > $primary_outfile
 
---let $assert_count= 0
---let $assert_text= GTID event's thread_id does not use pseudo_thread_id
+--let $assert_count= 1
+--let $assert_text= GTID event's thread_id should use pseudo_thread_id
 --let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=99999\$
 --source include/assert_grep.inc
 
@@ -59,8 +58,6 @@ insert into t1 values(2);
 --echo #
 --echo # Test the serial replica
 --connection slave
---let $sql_thread_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Slave_SQL'`
-
 --let replica_thread_id=`select connection_id()`
 --let datadir= `select @@datadir`
 --let filename= query_get_value(SHOW MASTER STATUS, File, 1)
@@ -75,8 +72,14 @@ insert into t1 values(2);
 --let $assert_file= $replica_outfile
 --source include/assert_grep.inc
 
---let $assert_text= Ensure each GTID event has the thread id of the SQL Thread
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$sql_thread_id\$
+--let $assert_count= 3
+--let $assert_text= Ensure GTID events logged with primary's thread id maintain that value
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--source include/assert_grep.inc
+
+--let $assert_count= 1
+--let $assert_text= Ensure GTID event logged with pseudo_thread_id on primary maintains that value
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=99999\$
 --source include/assert_grep.inc
 
 
@@ -94,7 +97,6 @@ insert into t1 values(4);
 --sync_slave_with_master
 
 --connection slave
---let $worker_thread_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Slave_worker'`
 --echo # MYSQL_BINLOG local > replica_outfile
 --exec $MYSQL_BINLOG $local > $replica_outfile
 
@@ -104,9 +106,9 @@ insert into t1 values(4);
 #--let $assert_file= $replica_outfile
 --source include/assert_grep.inc
 
---let $assert_count= 2
---let $assert_text= Ensure only the new GTID events have the thread id of the worker thread
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$worker_thread_id\$
+--let $assert_count= 5
+--let $assert_text= Ensure GTID the new events are logged on the replica with the thread_id of the master primary thread id
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
 --source include/assert_grep.inc
 
 --source include/stop_slave.inc
