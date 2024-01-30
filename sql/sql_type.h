@@ -24,12 +24,15 @@
 
 #include "mysqld.h"
 #include "lex_string.h"
+#include "sql_type_timeofday.h"
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
 #include "sql_type_string.h"
 #include "sql_type_real.h"
 #include "compat56.h"
+#include "log_event_data_type.h"
+
 C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
@@ -2520,6 +2523,20 @@ public:
   }
   Datetime(my_time_t unix_time, ulong second_part,
            const Time_zone* time_zone);
+  Datetime(uint year_arg, uint month_arg, uint day_arg, const TimeOfDay6 &td)
+  {
+    neg= 0;
+    year= year_arg;
+    month= month_arg;
+    day= day_arg;
+    hour= td.hour();
+    minute= td.minute();
+    second= td.second();
+    second_part= td.usecond();
+    time_type= MYSQL_TIMESTAMP_DATETIME;
+    if (!is_valid_datetime_slow())
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
 
   bool is_valid_datetime() const
   {
@@ -2663,6 +2680,12 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime());
     return Temporal::fraction_remainder(dec);
+  }
+
+  Datetime time_of_day(const TimeOfDay6 &td) const
+  {
+    DBUG_ASSERT(is_valid_datetime()); // not SQL NULL
+    return Datetime(year, month, day, td);
   }
 
   Datetime &trunc(uint dec)
@@ -2838,6 +2861,11 @@ class Timestamp_or_zero_datetime: protected Timestamp
 {
   bool m_is_zero_datetime;
 public:
+  static Timestamp_or_zero_datetime zero()
+  {
+    return Timestamp_or_zero_datetime(Timestamp(0, 0), true);
+  }
+public:
   Timestamp_or_zero_datetime()
    :Timestamp(0,0), m_is_zero_datetime(true)
   { }
@@ -2845,7 +2873,7 @@ public:
    :Timestamp(native.length() ? Timestamp(native) : Timestamp(0,0)),
     m_is_zero_datetime(native.length() == 0)
   { }
-  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime)
+  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime= false)
    :Timestamp(tm), m_is_zero_datetime(is_zero_datetime)
   { }
   Timestamp_or_zero_datetime(THD *thd, const MYSQL_TIME *ltime, uint *err_code);
@@ -2868,6 +2896,11 @@ public:
     if (other.is_zero_datetime())
       return 1;
     return Timestamp::cmp(other);
+  }
+  const Timestamp &to_timestamp() const
+  {
+    DBUG_ASSERT(!is_zero_datetime());
+    return *this;
   }
   bool to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const;
   /*
@@ -3673,6 +3706,9 @@ public:
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
                                                       const LEX_CSTRING &name);
+  static const Type_handler *handler_by_log_event_data_type(
+                                             THD *thd,
+                                             const Log_event_data_type &type);
   static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -3957,6 +3993,12 @@ public:
   {
     return false;
   }
+
+  virtual Log_event_data_type user_var_log_event_data_type(uint charset_nr) const
+  {
+    return Log_event_data_type({NULL,0}/*data type name*/, result_type(),
+                               charset_nr, is_unsigned());
+  }
   virtual uint Column_definition_gis_options_image(uchar *buff,
                                                    const Column_definition &def)
                                                    const
@@ -4206,6 +4248,33 @@ public:
   virtual Item *make_const_item_for_comparison(THD *thd,
                                                Item *src,
                                                const Item *cmp) const= 0;
+  /**
+    When aggregating function arguments for comparison
+    (e.g. for  =, <, >, <=, >=, NULLIF), in some cases we rewrite
+    arguments. For example, if the predicate
+        timestamp_expr0 = datetime_const_expr1
+    decides to compare arguments as DATETIME,
+    we can try to rewrite datetime_const_expr1 to a TIMESTAMP constant
+    and perform the comparison as TIMESTAMP, which is faster because
+    does not have to perform TIMESTAMP->DATETIME data type conversion per row.
+
+    "this" is the type handler that is used to compare
+    "subject" and "counterpart" (DATETIME in the above example).
+    @param thd          the current thread
+    @param subject      the comparison side that we want try to rewrite
+    @param counterpart  the other comparison side
+    @retval             subject, if the subject does not need to be rewritten
+    @retval             NULL in case of error (e.g. EOM)
+    @retval             Otherwise, a pointer to a new Item which can
+                        be used as a replacement for the subject.
+  */
+  virtual Item *convert_item_for_comparison(THD *thd,
+                                            Item *subject,
+                                            const Item *counterpart) const
+  {
+    return subject;
+  }
+
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual Item *make_constructor_item(THD *thd, List<Item> *args) const
   {
@@ -6524,6 +6593,9 @@ public:
   }
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item *convert_item_for_comparison(THD *thd,
+                                    Item *subject,
+                                    const Item *counterpart) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const override;
   double Item_func_min_max_val_real(Item_func_min_max *) const override;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
@@ -6695,6 +6767,8 @@ public:
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,

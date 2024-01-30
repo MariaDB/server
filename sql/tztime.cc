@@ -2391,6 +2391,59 @@ void Time_zone::adjust_leap_second(MYSQL_TIME *t)
     t->second= 59;
 }
 
+
+/*
+  @brief
+    Check if timestamp<->datetime conversion is guaranteed to be reversible
+    around the given time value.
+*/
+
+bool Time_zone::is_monotone_continuous_around(my_time_t sec) const
+{
+  const my_time_t width= 24 * 60 * 60;
+  /*
+    Let's check that the TIMESTAMP range [sec - width, sec + width]
+    converts back to a DATETIME range [dtmin, dtmax], and the difference
+    (dtmax-dtmin), calculated using DATETIME arithmetics,
+    is also equal to exactly 2*width.
+
+    This should almost guarantee that the TIMESTAMP range around sec
+    is monotone and continuous and thus has no DST changes or leap seconds.
+
+    It's still possible that there are two or more timezone offset changes
+    in the given range. But there are no such time zones according to
+    our knowledge.
+    Note, DST changes and leap seconds do not interfere on a short time_t range:
+    - Leap seconds happen in winter and summer
+    - DST changes happen in spring and fall
+
+    The largest time zone change that ever happened in a single place
+    was 24 hours:
+    - from SST (UTC-11) - the American Samoa Time Zone
+    - to WST (UTC+13) - the Independent State of Samoa Time Zone
+    The Independent State of Samoa used SST until it moved across
+    the International Date Line at the end of 29 December 2011, to WST.
+    It is now 24 hours ahead of American Samoa
+    (and 25 hours in Southern hemisphere summer).
+    Let's use 24 hours as width (48 hours range total).
+  */
+
+  if (sec < width || sec > TIMESTAMP_MAX_VALUE - width)
+    return false;
+
+  MYSQL_TIME dtmin, dtmax;
+  gmt_sec_to_TIME(&dtmin, sec - width);
+  gmt_sec_to_TIME(&dtmax, sec + width);
+
+  ulonglong seconds;
+  ulong useconds;
+  if (calc_time_diff(&dtmax, &dtmin, 1, &seconds, &useconds))
+    return false; // dtmax is smaller than dtmin, should not happen.
+  if (seconds != (ulonglong) width * 2)
+    return false; // Anomalies found (DST changes or leap seconds)
+  return true;
+}
+
 #endif /* !defined(TESTTIME) && !defined(TZINFO2SQL) */
 
 

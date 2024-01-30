@@ -1002,7 +1002,8 @@ static my_bool signal_ddl_recovery_done(THD *, plugin_ref plugin, void *)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->signal_ddl_recovery_done)
-    (hton->signal_ddl_recovery_done)(hton);
+	  if ((hton->signal_ddl_recovery_done)(hton))
+		  plugin_ref_to_int(plugin)->state= PLUGIN_IS_DELETED;
   return 0;
 }
 

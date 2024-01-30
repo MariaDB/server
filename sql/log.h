@@ -364,13 +364,13 @@ struct Rows_event_factory
 {
   int type_code;
 
-  Rows_log_event *(*create)(THD*, TABLE*, ulong, bool is_transactional);
+  Rows_log_event *(*create)(THD*, TABLE*, ulonglong, bool is_transactional);
 
   template<class RowsEventT>
   static Rows_event_factory get()
   {
     return { RowsEventT::TYPE_CODE,
-             [](THD* thd, TABLE* table, ulong flags, bool is_transactional)
+             [](THD* thd, TABLE* table, ulonglong flags, bool is_transactional)
                      -> Rows_log_event*
              {
                return new RowsEventT(thd, table, flags, is_transactional);

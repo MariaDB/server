@@ -1,3 +1,4 @@
+source include/have_perfschema.inc;
 disable_query_log;
 source ../../include/init_spider.inc;
 enable_query_log;

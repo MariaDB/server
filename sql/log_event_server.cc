@@ -790,6 +790,10 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
 int Log_event_writer::write_data(const uchar *pos, size_t len)
 {
   DBUG_ENTER("Log_event_writer::write_data");
+
+  if (!len)
+    DBUG_RETURN(0);
+
   if (checksum_len)
     crc= my_checksum(crc, pos, len);
 
@@ -3791,11 +3795,16 @@ bool XA_prepare_log_event::write(Log_event_writer *writer)
 #if defined(HAVE_REPLICATION)
 static bool
 user_var_append_name_part(THD *thd, String *buf,
-                          const char *name, size_t name_len)
+                          const char *name, size_t name_len,
+                          const LEX_CSTRING &data_type_name)
 {
   return buf->append('@') ||
     append_identifier(thd, buf, name, name_len) ||
-    buf->append('=');
+    buf->append('=') ||
+    (data_type_name.length &&
+     (buf->append(STRING_WITH_LEN("/*")) ||
+      buf->append(data_type_name.str, data_type_name.length) ||
+      buf->append(STRING_WITH_LEN("*/"))));
 }
 
 void User_var_log_event::pack_info(Protocol* protocol)
@@ -3805,14 +3814,15 @@ void User_var_log_event::pack_info(Protocol* protocol)
     char buf_mem[FN_REFLEN+7];
     String buf(buf_mem, sizeof(buf_mem), system_charset_info);
     buf.length(0);
-    if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+    if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                  m_data_type_name) ||
         buf.append(NULL_clex_str))
       return;
     protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
     {
       double real_val;
@@ -3821,7 +3831,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       float8get(real_val, val);
       buf.length(0);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2, my_gcvt(real_val, MY_GCVT_ARG_DOUBLE,
                                    MY_GCVT_MAX_FIELD_WIDTH, buf2, NULL)))
         return;
@@ -3834,10 +3845,11 @@ void User_var_log_event::pack_info(Protocol* protocol)
       char buf_mem[FN_REFLEN + 22];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       buf.length(0);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2,
                  longlong10_to_str(uint8korr(val), buf2,
-                   ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10))-buf2))
+                   (is_unsigned() ? 10 : -10))-buf2))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
@@ -3850,7 +3862,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String str(buf2, sizeof(buf2), &my_charset_bin);
       buf.length(0);
       my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(str))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -3866,7 +3879,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       CHARSET_INFO *cs;
       buf.length(0);
-      if (!(cs= get_charset(charset_number, MYF(0))))
+      if (!(cs= get_charset(m_charset_number, MYF(0))))
       {
         if (buf.append(STRING_WITH_LEN("???")))
           return;
@@ -3875,7 +3888,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       {
         size_t old_len;
         char *beg, *end;
-        if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+        if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                      m_data_type_name) ||
             buf.append('_') ||
             buf.append(cs->cs_name) ||
             buf.append(' '))
@@ -3923,10 +3937,10 @@ bool User_var_log_event::write(Log_event_writer *writer)
   }    
   else
   {
-    buf1[1]= type;
-    int4store(buf1 + 2, charset_number);
+    buf1[1]= m_type;
+    int4store(buf1 + 2, m_charset_number);
 
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       float8store(buf2, *(double*) val);
       break;
@@ -3956,15 +3970,30 @@ bool User_var_log_event::write(Log_event_writer *writer)
     buf1_length= 10;
   }
 
-  /* Length of the whole event */
-  event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len;
+  uchar data_type_name_chunk_signature= (uchar) CHUNK_DATA_TYPE_NAME;
+  uint data_type_name_chunk_signature_length= m_data_type_name.length ? 1 : 0;
+  uchar data_type_name_length_length= m_data_type_name.length ? 1 : 0;
 
+  /* Length of the whole event */
+  event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len +
+                data_type_name_chunk_signature_length +
+                data_type_name_length_length +
+                (uint) m_data_type_name.length;
+
+  uchar unsig= m_is_unsigned ? CHUNK_UNSIGNED : CHUNK_SIGNED;
+  uchar data_type_name_length= (uchar) m_data_type_name.length;
   return write_header(writer, event_length) ||
          write_data(writer, buf, sizeof(buf))   ||
          write_data(writer, name, name_len)     ||
          write_data(writer, buf1, buf1_length) ||
          write_data(writer, pos, val_len) ||
-         write_data(writer, &flags, unsigned_len) ||
+         write_data(writer, &unsig, unsigned_len) ||
+         write_data(writer, &data_type_name_chunk_signature,
+                    data_type_name_chunk_signature_length) ||
+         write_data(writer, &data_type_name_length,
+                    data_type_name_length_length) ||
+         write_data(writer, m_data_type_name.str,
+                    (uint) m_data_type_name.length) ||
          write_footer(writer);
 }
 
@@ -3988,7 +4017,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     current_thd->query_id= query_id; /* recreating original time context */
   }
 
-  if (!(charset= get_charset(charset_number, MYF(MY_WME))))
+  if (!(charset= get_charset(m_charset_number, MYF(MY_WME))))
   {
     rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                 ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4007,7 +4036,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       if (val_len != 8)
       {
@@ -4071,13 +4100,10 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   if (e->fix_fields(thd, 0))
     DBUG_RETURN(1);
 
-  /*
-    A variable can just be considered as a table with
-    a single record and with a single column. Thus, like
-    a column value, it could always have IMPLICIT derivation.
-   */
-  e->update_hash((void*) val, val_len, type, charset,
-                 (flags & User_var_log_event::UNSIGNED_F));
+  const Type_handler *th= Type_handler::handler_by_log_event_data_type(thd,
+                                                                       *this);
+  e->update_hash((void*) val, val_len, th, charset);
+
   if (!is_deferred())
     free_root(thd->mem_root, 0);
   else
@@ -4508,13 +4534,14 @@ bool sql_ex_info::write_data(Log_event_writer *writer)
 	Rows_log_event member functions
 **************************************************************************/
 
-Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
+Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
+                               ulonglong table_id,
                                MY_BITMAP const *cols, bool is_transactional,
                                Log_event_type event_type)
   : Log_event(thd_arg, 0, is_transactional),
     m_row_count(0),
     m_table(tbl_arg),
-    m_table_id(tid),
+    m_table_id(table_id),
     m_width(tbl_arg ? tbl_arg->s->fields : 1),
     m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0),
     m_type(event_type), m_extra_row_data(0)
@@ -4526,12 +4553,13 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
 {
   /*
     We allow a special form of dummy event when the table, and cols
-    are null and the table id is ~0UL.  This is a temporary
+    are null and the table id is UINT32_MAX.  This is a temporary
     solution, to be able to terminate a started statement in the
     binary log: the extraneous events will be removed in the future.
    */
-  DBUG_ASSERT((tbl_arg && tbl_arg->s && tid != ~0UL) ||
-              (!tbl_arg && !cols && tid == ~0UL));
+  DBUG_ASSERT((tbl_arg && tbl_arg->s &&
+               (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
+              (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
 
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
@@ -4679,12 +4707,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
   /*
-    If m_table_id == ~0ULL, then we have a dummy event that does not
+    If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
     tables_to_lock list, close the thread tables, and return with
     success.
    */
-  if (m_table_id == ~0ULL)
+  if (m_table_id == UINT32_MAX)
   {
     /*
        This one is supposed to be set: just an extra check so that
@@ -5357,10 +5385,10 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 bool Rows_log_event::write_data_header(Log_event_writer *writer)
 {
   uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
-                    int4store(buf + 0, m_table_id);
+                    int4store(buf + 0, (ulong) m_table_id);
                     int2store(buf + 4, m_flags);
                     return (write_data(writer, buf, 6));
                   });
@@ -5565,7 +5593,7 @@ int Table_map_log_event::save_field_metadata()
   Mats says tbl->s lives longer than this event so it's ok to copy pointers
   (tbl->s->db etc) and not pointer content.
  */
-Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
+Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulonglong tid,
                                          bool is_transactional)
   : Log_event(thd, 0, is_transactional),
     m_table(tbl),
@@ -5588,7 +5616,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   uchar cbuf[MAX_INT_WIDTH];
   uchar *cbuf_end;
   DBUG_ENTER("Table_map_log_event::Table_map_log_event(TABLE)");
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   /*
     In TABLE_SHARE, "db" and "table_name" are 0-terminated (see this comment in
     table.cc / alloc_table_share():
@@ -5874,7 +5902,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
       char buf[256];
 
       my_snprintf(buf, sizeof(buf), 
-                  "Found table map event mapping table id %u which "
+                  "Found table map event mapping table id %llu which "
                   "was already mapped but with different settings.",
                   table_list->table_id);
 
@@ -5916,11 +5944,11 @@ int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 
 bool Table_map_log_event::write_data_header(Log_event_writer *writer)
 {
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT(m_table_id != UINT32_MAX);
   uchar buf[TABLE_MAP_HEADER_LEN];
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
-                    int4store(buf + 0, m_table_id);
+                    int4store(buf + 0, (ulong) m_table_id);
                     int2store(buf + 4, m_flags);
                     return (write_data(writer, buf, 6));
                   });
@@ -6356,7 +6384,7 @@ void Table_map_log_event::pack_info(Protocol *protocol)
 {
     char buf[256];
     size_t bytes= my_snprintf(buf, sizeof(buf),
-                                 "table_id: %llu (%s.%s)",
+                              "table_id: %llu (%s.%s)",
                               m_table_id, m_dbnam, m_tblnam);
     protocol->store(buf, bytes, &my_charset_bin);
 }
@@ -6371,7 +6399,7 @@ void Table_map_log_event::pack_info(Protocol *protocol)
   Constructor used to build an event for writing to the binary log.
  */
 Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                           ulong tid_arg,
+                                           ulonglong tid_arg,
                                            bool is_transactional)
   :Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->rpl_write_set,
                   is_transactional, WRITE_ROWS_EVENT_V1)
@@ -6381,7 +6409,7 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
                                            THD *thd_arg,
                                            TABLE *tbl_arg,
-                                           ulong tid_arg,
+                                           ulonglong tid_arg,
                                            bool is_transactional)
   : Write_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
@@ -6467,7 +6495,7 @@ Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
        indexed and it cannot have a DEFAULT value).
     */
     m_table->auto_increment_field_not_null= FALSE;
-    m_table->mark_auto_increment_column();
+    m_table->mark_auto_increment_column(true);
   }
 
   return error;
@@ -7645,7 +7673,8 @@ end:
  */
 
 Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                             ulong tid, bool is_transactional)
+                                             ulonglong tid,
+                                             bool is_transactional)
   : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
                    DELETE_ROWS_EVENT_V1)
 {
@@ -7653,7 +7682,7 @@ Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
                                            THD *thd_arg, TABLE *tbl_arg,
-                                           ulong tid_arg,
+                                           ulonglong tid_arg,
                                            bool is_transactional)
   : Delete_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
@@ -7782,7 +7811,7 @@ uint8 Delete_rows_log_event::get_trg_event_map() const
   Constructor used to build an event for writing to the binary log.
  */
 Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                             ulong tid,
+                                             ulonglong tid,
                                              bool is_transactional)
 : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
                  UPDATE_ROWS_EVENT_V1)
@@ -7790,9 +7819,9 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   init(tbl_arg->rpl_write_set);
 }
 
-Update_rows_compressed_log_event::Update_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
-                                                                   ulong tid,
-                                                                   bool is_transactional)
+Update_rows_compressed_log_event::
+Update_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
+                                 ulonglong tid, bool is_transactional)
 : Update_rows_log_event(thd_arg, tbl_arg, tid, is_transactional)
 {
   m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;

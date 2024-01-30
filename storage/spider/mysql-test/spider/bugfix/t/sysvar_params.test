@@ -12,6 +12,7 @@
 # including a mix of different levels (partition vs table), see
 # spider/features.engine_defined_attributes.
 SET @old_spider_read_only_mode = @@session.spider_read_only_mode;
+set spider_same_server_link=on;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
 --echo # Cases where table params/options are not set

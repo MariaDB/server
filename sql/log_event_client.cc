@@ -1578,8 +1578,9 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
       !(td= map->create_table_def()))
   {
-    return (my_b_printf(file, "### Row event for unknown table #%lu",
-                        (ulong) m_table_id));
+    char llbuff[22];
+    return (my_b_printf(file, "### Row event for unknown table #%s",
+                        ullstr(m_table_id, llbuff)));
   }
 
   /* If the write rows event contained no values for the AI */
@@ -2479,7 +2480,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
@@ -2491,8 +2492,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       break;
     case INT_RESULT:
       char int_buf[22];
-      longlong10_to_str(uint8korr(val), int_buf, 
-                        ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10));
+      longlong10_to_str(uint8korr(val), int_buf,  is_unsigned() ? 10 : -10);
       if (my_b_printf(&cache, ":=%s%s\n", int_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2547,7 +2547,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
         people want to mysqlbinlog|mysql into another server not supporting the
         character set. But there's not much to do about this and it's unlikely.
       */
-      if (!(cs= get_charset(charset_number, MYF(0))))
+      if (!(cs= get_charset(m_charset_number, MYF(0))))
       {        /*
           Generate an unusable command (=> syntax error) is probably the best
           thing we can do here.

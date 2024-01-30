@@ -1035,4 +1035,29 @@ public:
 };
 
 
+/*
+  A value that's either a Timeval or SQL NULL
+*/
+
+class Timeval_null: protected Timeval
+{
+  bool m_is_null;
+public:
+  Timeval_null()
+   :Timeval(0, 0),
+    m_is_null(true)
+  { }
+  Timeval_null(const my_time_t sec, ulong usec)
+   :Timeval(sec, usec),
+    m_is_null(false)
+  { }
+  const Timeval & to_timeval() const
+  {
+    DBUG_ASSERT(!m_is_null);
+    return *this;
+  }
+  bool is_null() const { return m_is_null; }
+};
+
+
 #endif /* STRUCTS_INCLUDED */
