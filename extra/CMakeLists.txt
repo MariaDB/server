@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIR} ${PCRE_INCLUDES})
 
 # Default install component for the files is Server here
 SET(MYSQL_INSTALL_COMPONENT Server)
