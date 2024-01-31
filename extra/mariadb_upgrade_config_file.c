@@ -58,10 +58,10 @@ static const char *edit_mode_values[] = {"remove",
 static TYPELIB edit_mode_typelib = {array_elements(edit_mode_values),
                                     "", edit_mode_values, NULL};
 
-static const char *opt_current_version= NULL;
-static my_bool opt_update= FALSE;
-static my_bool opt_backup= FALSE;
-static my_bool opt_print= FALSE;
+static const char *opt_current_version;
+static my_bool opt_update;
+static my_bool opt_backup;
+static my_bool opt_print;
 
 
 static PSI_memory_key key_memory_upgrade_config;
