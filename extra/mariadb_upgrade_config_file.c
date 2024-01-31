@@ -232,7 +232,7 @@ static int compare_options(const void *a, const void *b)
 static my_bool mariadbd_option_exists(const char *option)
 {
    return bsearch(&option, mariadbd_valid_options,
-           sizeof mariadbd_valid_options / sizeof mariadbd_valid_options[0],
+           array_elements(mariadbd_valid_options),
            sizeof mariadbd_valid_options[0],
            compare_options) != NULL;
 }
@@ -241,7 +241,7 @@ static my_bool mariadbd_option_exists(const char *option)
 static my_bool mariadbd_valid_enum_value(const char *option, const char *value)
 {
   const char **option_ptr= bsearch(&option, mariadbd_enum_options,
-                                   sizeof mariadbd_enum_options / sizeof mariadbd_enum_options[0],
+                                   array_elements(mariadbd_enum_options),
                                    sizeof mariadbd_enum_options[0],
                                    compare_options);
   if (!option_ptr)
@@ -260,7 +260,7 @@ static my_bool mariadbd_valid_enum_value(const char *option, const char *value)
 static int mariadbd_check_set_value(const char *option, const char *value)
 {
   const char **option_ptr= bsearch(&option, mariadbd_set_options,
-                                   sizeof mariadbd_set_options / sizeof mariadbd_set_options[0],
+                                   array_elements(mariadbd_set_options),
                                    sizeof mariadbd_set_options[0],
                                    compare_options);
   TYPELIB *typelib;
