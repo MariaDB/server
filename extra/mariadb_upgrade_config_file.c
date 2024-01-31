@@ -31,6 +31,13 @@
 #include <mysqld_default_groups.h>
 #undef load_default_groups
 
+#ifndef WEXITSTATUS
+# ifdef _WIN32
+#  define WEXITSTATUS(stat_val) (stat_val)
+# else
+#  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
+# endif
+#endif
 
 struct upgrade_ctx
 {
