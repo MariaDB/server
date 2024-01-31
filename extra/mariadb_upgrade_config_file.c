@@ -55,7 +55,7 @@ static const char *edit_mode_values[] = {"remove",
                                          "inline-old-version",
                                          "last-old-version",
                                          NullS};
-static TYPELIB edit_mode_typelib = {sizeof edit_mode_values / sizeof edit_mode_values[0] - 1,
+static TYPELIB edit_mode_typelib = {array_elements(edit_mode_values),
                                     "", edit_mode_values, NULL};
 
 static const char *opt_current_version= NULL;
