@@ -1050,21 +1050,21 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
                const char *filename __attribute__((unused)))
 {
   switch (opt->id) {
-    case 'I':
-    case '?':
-      usage();
-    case 'V':
-      print_version();
-      cleanup_and_exit(0);
-    case OPT_UPDATE:
-      opt_update= TRUE;
-      break;
-    case OPT_BACKUP:
-      opt_backup= TRUE;
-      break;
-    case OPT_PRINT:
-      opt_print= TRUE;
-      break;
+  case 'I':
+  case '?':
+    usage();
+  case 'V':
+    print_version();
+    cleanup_and_exit(0);
+  case OPT_UPDATE:
+    opt_update= TRUE;
+    break;
+  case OPT_BACKUP:
+    opt_backup= TRUE;
+    break;
+  case OPT_PRINT:
+    opt_print= TRUE;
+    break;
   }
   return 0;
 }
