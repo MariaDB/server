@@ -6117,14 +6117,14 @@ vcol_attribute:
           UNIQUE_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_KEY_FLAG;
-            lex->alter_info.flags|= ALTER_ADD_INDEX;
+            lex->intercept_last_field()->flags|= UNIQUE_KEY_FLAG;
+            lex->intercept_alter_info()->flags|= ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_KEY_FLAG;
-            lex->alter_info.flags|= ALTER_ADD_INDEX;
+            lex->intercept_last_field()->flags|= UNIQUE_KEY_FLAG;
+            lex->intercept_alter_info()->flags|= ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
         | INVISIBLE_SYM

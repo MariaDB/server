@@ -82,6 +82,23 @@
 
 static const char *ha_par_ext= PAR_EXT;
 
+int index_reader(TABLE* table,
+                 Item* pushed_idx_cond,
+                 uchar* record_buf,
+                 size_t record_buf_len,
+                 IndexOperationFunc func)
+{
+    uchar* read_buf= nullptr;
+    if (pushed_idx_cond)
+        read_buf= table->record[0];
+    else
+        read_buf= record_buf;
+    int error= func(read_buf);
+    if (pushed_idx_cond)
+        memcpy(record_buf, read_buf, record_buf_len);
+    return error;
+}
+
 /****************************************************************************
                 MODULE create/delete handler object
 ****************************************************************************/
@@ -7941,10 +7958,14 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
 
     switch (m_index_scan_type) {
     case partition_index_read:
-      error= file->ha_index_read_map(rec_buf_ptr,
-                                     m_start_key.key,
-                                     m_start_key.keypart_map,
-                                     m_start_key.flag);
+        error=
+            index_reader(table, pushed_idx_cond, rec_buf_ptr, m_rec_length,
+                         [this, file] (uchar* read_buf) {
+                             return file->ha_index_read_map(read_buf,
+                                                        m_start_key.key,
+                                                        m_start_key.keypart_map,
+                                                        m_start_key.flag);
+                         });
       /* Caller has specified reverse_order */
       break;
     case partition_index_first:
@@ -12227,6 +12248,59 @@ int ha_partition::info_push(uint info_type, void *info)
   DBUG_RETURN(error);
 }
 
+static void cancel_pushed_idx_cond_impl(handler** m_file,
+                                        MY_BITMAP* read_partitions,
+                                        uint limit)
+{
+   for (uint i= bitmap_get_first_set(read_partitions);
+        i < limit;
+        i= bitmap_get_next_set(read_partitions, i))
+   {
+     m_file[i]->cancel_pushed_idx_cond();
+   }
+}
+
+Item* ha_partition::idx_cond_push(uint keyno, Item* idx_cond)
+{
+   DBUG_ASSERT(pushed_idx_cond == nullptr);
+   DBUG_ASSERT(pushed_idx_cond_keyno == MAX_KEY);
+//   assert(keyno != MAX_KEY);
+
+   for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+   {
+//     assert(m_file[0]->ht->db_type != DB_TYPE_UNKNOWN);
+     Item* res= m_file[i]->idx_cond_push(keyno, idx_cond);
+     if (!res)  // Returning nullptr indicates success.
+       continue;
+
+     // One of the partitions couldn't accept the pushed condition, or
+     // one of the partitions returned a partial pushed condition that
+     // indicates that it could handle some portion of the pushed index
+     // condition.  At this point, we require all partitions to handle
+     // the pushed condition in the same way; consequently  we need to
+     // cancel the pushed condition for the partitions that succeeded
+     // up to this point.
+     DBUG_ASSERT(i == bitmap_get_first_set(&m_part_info->read_partitions));
+     DBUG_ASSERT(res == idx_cond);
+     if (res != idx_cond)
+       m_file[i]->cancel_pushed_idx_cond();
+     cancel_pushed_idx_cond_impl(m_file, &m_part_info->read_partitions, i);
+     return idx_cond;
+   }
+   pushed_idx_cond= idx_cond;
+   pushed_idx_cond_keyno= keyno;
+   in_range_check_pushed_down = TRUE;
+   return NULL;
+}
+
+void ha_partition::cancel_pushed_idx_cond()
+{
+   cancel_pushed_idx_cond_impl(m_file, &m_part_info->read_partitions,
+                               m_tot_parts);
+   handler::cancel_pushed_idx_cond();
+}
 
 bool
 ha_partition::can_convert_nocopy(const Field &field,

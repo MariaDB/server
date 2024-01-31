@@ -3393,6 +3393,10 @@ public:
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
   Column_definition *last_field;
+  Column_definition* intercept_last_field()
+  {
+      return last_field;
+  }
   Table_function_json_table *json_table;
   Item_sum *in_sum_func;
   udf_func udf;
@@ -3538,6 +3542,10 @@ public:
   uint8 lex_options; // see OPTION_LEX_*
 
   Alter_info alter_info;
+  Alter_info* intercept_alter_info()
+  {
+      return &alter_info;
+  }
   Lex_prepared_stmt prepared_stmt;
   /*
     For CREATE TABLE statement last element of table list which is not

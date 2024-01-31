@@ -7811,6 +7811,21 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                                  (char *) thd->security_ctx->host_or_ip,
                                  0);
 
+#if 1
+          std::string sbuf = rawbuf;
+          static std::string last_query;
+          static volatile int visits= 0;
+          ++visits;
+          //static const char* subq = R"(SELECT '# check null-3 success: ' AS "",COUNT(*) = 1 AS "" FROM t1)";
+          static const char* subq = R"(SELECT '# check null-1 success: )";
+          if (sbuf.find(subq) != std::string::npos) {
+              // on this query is when we fail the null-3 check (and actually
+              // the query before (last_query) is where we perform the
+              // incorrect null-related operation
+              assert(visits > 0);
+          }
+          last_query = sbuf;
+#endif
           int error __attribute__((unused));
           error= mysql_execute_command(thd);
           MYSQL_QUERY_EXEC_DONE(error);

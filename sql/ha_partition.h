@@ -21,6 +21,8 @@
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
 
+#include <functional>
+
 struct Ordered_blob_storage
 {
   String blob;
@@ -278,6 +280,18 @@ typedef struct st_partition_part_key_multi_range_hld
   PARTITION_PART_KEY_MULTI_RANGE *partition_part_key_multi_range;
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
+
+/*
+  Index Condition Pushdown relies on invoking val_int() on the pushed index
+  condition to see if the condition applies to the current row.  For that
+  to work we need to ensure that table->record[0] is populated correctly
+  because Item instances rely on table->record[0] for item evaluation.  Doing
+  so would complicate the calling code, so instead encapsulate that behind
+  this function to juggle between buffers like m_ordered_rec_buffer, etc and
+  table->record[0] during index condition evaluation (if present).
+*/
+using IndexOperationFunc= std::function<int(uchar* read_buf)>;
+int index_reader(TABLE* table, Item* pushed_idx_cond, uchar* record_buf, IndexOperationFunc func);
 
 extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
@@ -1309,10 +1323,6 @@ public:
       The underlying storage engine might support Rowid Filtering. But
       ha_partition does not forward the needed SE API calls, so the feature
       will not be used.
-
-      Note: It's the same with IndexConditionPushdown, except for its variant
-      of IndexConditionPushdown+BatchedKeyAccess (that one works). Because of
-      that, we do not clear HA_DO_INDEX_COND_PUSHDOWN here.
     */
     return part_flags & ~HA_DO_RANGE_FILTER_PUSHDOWN;
   }
@@ -1550,6 +1560,8 @@ public:
     const COND *cond_push(const COND *cond) override;
     void cond_pop() override;
     int info_push(uint info_type, void *info) override;
+    Item *idx_cond_push(uint keyno, Item* idx_cond) override;
+    void cancel_pushed_idx_cond() override;
 
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);

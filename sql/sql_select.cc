@@ -15644,6 +15644,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       }
       delete tab->quick;
       tab->quick=0;
+      // this change fixes affected tests: parts.partition_basic_myisam parts.partition_alter1_1_2_myisam parts.partition_basic_symlink_myisam parts.partition_alter1_1_2_innodb
+      // but this change breaks: main.partition_mrr_innodb main.partition_mrr_aria main.partition_mrr_myisam main.partition_pruning
       if (!(table->covering_keys.is_set(tab->ref.key) && !table->no_keyread) &&
           (!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
