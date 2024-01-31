@@ -967,9 +967,8 @@ static int process_defaults(const char *conf_file,
 
     if (init_dynamic_string(&mariadbd_output, "", 32, 32))
       goto err;
-    if (test_mariadbd(mariadbd_name))
-      goto err;
-    if ((error= run_mariadbd(mariadbd_name, &mariadbd_output, defaults_args, defaults_args_count)))
+    if (!test_mariadbd(mariadbd_name) &&
+        (error= run_mariadbd(mariadbd_name, &mariadbd_output, defaults_args, defaults_args_count)))
     {
       fputs("error: Failed to run mariadbd with the updated files, reverting\n", stderr);
       if (error > 0)
