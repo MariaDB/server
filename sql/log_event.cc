@@ -1584,6 +1584,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
         sa_seq_no = uint8korr(pos);
         pos+= 8;
       }
+      break;
     }
     case Q_DUMMY:
     {
@@ -1924,17 +1925,16 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   /*
     If the allocated GTID event packet header is longer than the size of the
     standard BEGIN query event's, then we need to fill in everything else with
-    "dummy" values. That is, old replicas won't recognize the meaning for the DUMMY
-    value, and will skip the rest of the status vars section.
+    "dummy" values. That is, old replicas won't recognize the meaning for the
+    DUMMY value, and will skip the rest of the status vars section.
   */
   DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
   dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
   int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes);
   for (size_t i= 0; i < dummy_bytes; i++)
     q[Q_DATA_OFFSET + i]= Q_DUMMY;
-  q+= dummy_bytes;
-  q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
-  q+= Q_DATA_OFFSET + 1;
+  q[Q_DATA_OFFSET + dummy_bytes]= 0; /* Zero terminator for empty db */
+  q+= Q_DATA_OFFSET + dummy_bytes + 1;
 
   memcpy(q, "BEGIN", 5);
 
