@@ -1897,6 +1897,12 @@ static const LEX_CSTRING maturity_name[] =
   { STRING_WITH_LEN("Stable") }
 };
 
+/*
+  Type of singletons based on the type of the remote database.
+
+  All such singletons are stored in the array `spider_dbton', see
+  `spider_db_init()'.
+*/
 typedef struct st_spider_dbton
 {
   uint dbton_id;

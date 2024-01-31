@@ -5,6 +5,8 @@ CHECK_SYMBOL_EXISTS (getmntent "sys/mnttab.h" HAVE_GETMNTENT_IN_SYS_MNTAB)
 CHECK_SYMBOL_EXISTS (setmntent "mntent.h" HAVE_SETMNTENT)
 CHECK_SYMBOL_EXISTS (getmntinfo "sys/types.h;sys/mount.h" HAVE_GETMNTINFO)
 
+CHECK_INCLUDE_FILES (sys/mntent.h HAVE_SYS_MNTENT_H)
+
 IF (HAVE_GETMNTINFO)
 CHECK_CXX_SOURCE_COMPILES("
 #include <sys/types.h>

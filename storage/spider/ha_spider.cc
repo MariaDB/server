@@ -8066,7 +8066,7 @@ int ha_spider::ft_read_internal(
         }
       } else {
 #endif
-        uint dbton_id = share->use_sql_dbton_ids[roop_count];
+        uint dbton_id = share->sql_dbton_ids[roop_count];
         spider_db_handler *dbton_hdl = dbton_handler[dbton_id];
         SPIDER_CONN *conn = conns[roop_count];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
@@ -12964,7 +12964,7 @@ int ha_spider::drop_tmp_tables()
     ) {
       if (spider_bit_is_set(result_list.tmp_table_created, roop_count))
       {
-        uint dbton_id = share->use_sql_dbton_ids[roop_count];
+        uint dbton_id = share->sql_dbton_ids[roop_count];
         spider_db_handler *dbton_hdl = dbton_handler[dbton_id];
         SPIDER_CONN *conn = conns[roop_count];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);

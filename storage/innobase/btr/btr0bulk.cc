@@ -60,22 +60,15 @@ PageBulk::init()
 		alloc_mtr.start();
 		m_index->set_modified(alloc_mtr);
 
-		uint32_t n_reserved;
-		if (!fsp_reserve_free_extents(&n_reserved,
-					      m_index->table->space,
-					      1, FSP_NORMAL, &alloc_mtr)) {
-			alloc_mtr.commit();
-			m_mtr.commit();
-			return(DB_OUT_OF_FILE_SPACE);
-		}
-
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
 					   &alloc_mtr, &m_mtr);
 
-		m_index->table->space->release_free_extents(n_reserved);
-
 		alloc_mtr.commit();
+		if (!new_block) {
+			m_mtr.commit();
+			return DB_OUT_OF_FILE_SPACE;
+		}
 
 		new_page = buf_block_get_frame(new_block);
 		m_page_no = new_block->page.id().page_no();

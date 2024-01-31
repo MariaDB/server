@@ -600,6 +600,22 @@ DROP TEMPORARY TABLE t1;
 #
 # End of 10.2 tests
 #
+#
+# MDEV-31523: Using two temporary tables in OPTIMIZE TABLE lead to crash
+#
+CREATE TEMPORARY TABLE t1 (c INT) ENGINE=MyISAM;
+CREATE TEMPORARY TABLE t2 (c INT) ENGINE=MyISAM;
+optimize TABLE t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	Table is already up to date
+test.t2	optimize	status	Table is already up to date
+SHOW TABLES;
+Tables_in_test
+# in 11.2 and above here should be listed above used temporary tables
+DROP TEMPORARY TABLE t1, t2;
+#
+# End of 10.4 tests
+#
 create function f1() returns int
 begin
 drop temporary table t1, t2;
