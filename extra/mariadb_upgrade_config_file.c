@@ -199,6 +199,7 @@ static int test_mariadbd(const char *mariadbd_name)
 {
   DYNAMIC_STRING ds_tmp;
   const char *defaults_argument = "--no-defaults";
+  int err= 0;
 
   if (init_dynamic_string(&ds_tmp, "", 32, 32))
   {
@@ -212,11 +213,11 @@ static int test_mariadbd(const char *mariadbd_name)
                1))
   {
     fprintf(stderr, "Can't execute %s\n", mariadbd_name);
-    return -1;
+    err= 1;
   }
 
   dynstr_free(&ds_tmp);
-  return 0;
+  return err;
 }
 
 
