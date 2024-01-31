@@ -49,7 +49,7 @@ enum edit_mode
   EDIT_MODE_LAST_OLD_VERSION,
   EDIT_MODE_NONE,
 };
-static enum edit_mode opt_edit_mode;
+static ulong opt_edit_mode;
 static const char *edit_mode_values[] = {"remove",
                                          "comment",
                                          "inline-old-version",
