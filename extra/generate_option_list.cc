@@ -43,7 +43,7 @@ std::string escape_command(const char *command)
     case '\\':
     case '$':
       escaped_command.push_back('\\');
-      break;
+      /* falls through */
     default:
       escaped_command.push_back(*command);
     }
