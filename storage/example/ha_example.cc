@@ -380,8 +380,6 @@ int ha_example::close(void)
   @endcode
 
   See ha_tina.cc for an example of extracting all of the data as strings.
-  ha_berekly.cc has an example of how to store it intact by "packing" it
-  for ha_berkeley's own native storage type.
 
   See the note for update_row() on auto_increments and timestamps. This
   case also applies to write_row().
