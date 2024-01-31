@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <vector>
 #define PCRE2_STATIC 1 /* Important on Windows */
 #include "pcre2.h"
@@ -33,24 +34,23 @@ struct parsed
   std::map<std::string, std::vector<std::string>> sets;
 };
 
-std::string escape_command(const char *command)
+void escape_command(std::ostringstream &out, const char *command)
 {
-  std::string escaped_command= "\"";
+  out << '\"';
   while (*command)
   {
     switch (*command) {
     case '\"':
     case '\\':
     case '$':
-      escaped_command.push_back('\\');
+      out << '\\';
       /* falls through */
     default:
-      escaped_command.push_back(*command);
+      out << *command;
     }
     command++;
   }
-  escaped_command.push_back('\"');
-  return escaped_command;
+  out << '\"';
 }
 
 std::string read_output(FILE *f)
@@ -69,63 +69,64 @@ std::string read_output(FILE *f)
 std::string call_mariadbd(const char *mariadbd_path)
 {
   std::string output;
-  std::string command= escape_command(mariadbd_path) +
-                       " --no-defaults"
-                       " --plugin-maturity=unknown"
-                       " --plugin-load=\""
-                       "adt_null;"
-                       "auth_0x0100;"
-                       "auth_ed25519;"
-                       "auth_gssapi;"
-                       "auth_pam;"
-                       // "auth_pam_v1;"
-                       "auth_test_plugin;"
-                       "cracklib_password_check;"
-                       "debug_key_management;"
-                       "dialog_examples;"
-                       "disks;"
-                       "example_key_management;"
-                       "file_key_management;"
-                       "func_test;"
-                       "ha_archive;"
-                       "ha_blackhole;"
-                       "ha_connect;"
-                       "ha_federatedx;"
-                       "ha_mroonga;"
-                       "handlersocket;"
-                       // "ha_oqgraph;"
-                       "ha_rocksdb;"
-                       "ha_s3;"
-                       "hashicorp_key_management;"
-                       "ha_sphinx;"
-                       "ha_spider;"
-                       "ha_test_sql_discovery;"
-                       "libdaemon_example;"
-                       "locales;"
-                       "metadata_lock_info;"
-                       "mypluglib;"
-                       "password_reuse_check;"
-                       "provider_bzip2;"
-                       "provider_lz4;"
-                       "provider_lzma;"
-                       "qa_auth_interface;"
-                       "qa_auth_server;"
-                       "query_cache_info;"
-                       "query_response_time;"
-                       "server_audit;"
-                       "simple_password_check;"
-                       "sql_errlog;"
-                       "test_sql_service;"
-                       "test_versioning;"
-                       "type_mysql_json;"
-                       "type_mysql_timestamp;"
-                       "type_test;"
-                       "wsrep_info"
-                       "\""
-                       " --verbose"
-                       " --help";
+  std::ostringstream command;
+  escape_command(command, mariadbd_path);
+  command << " --no-defaults"
+             " --plugin-maturity=unknown"
+             " --plugin-load=\""
+             "adt_null;"
+             "auth_0x0100;"
+             "auth_ed25519;"
+             "auth_gssapi;"
+             "auth_pam;"
+             // "auth_pam_v1;"
+             "auth_test_plugin;"
+             "cracklib_password_check;"
+             "debug_key_management;"
+             "dialog_examples;"
+             "disks;"
+             "example_key_management;"
+             "file_key_management;"
+             "func_test;"
+             "ha_archive;"
+             "ha_blackhole;"
+             "ha_connect;"
+             "ha_federatedx;"
+             "ha_mroonga;"
+             "handlersocket;"
+             // "ha_oqgraph;"
+             "ha_rocksdb;"
+             "ha_s3;"
+             "hashicorp_key_management;"
+             "ha_sphinx;"
+             "ha_spider;"
+             "ha_test_sql_discovery;"
+             "libdaemon_example;"
+             "locales;"
+             "metadata_lock_info;"
+             "mypluglib;"
+             "password_reuse_check;"
+             "provider_bzip2;"
+             "provider_lz4;"
+             "provider_lzma;"
+             "qa_auth_interface;"
+             "qa_auth_server;"
+             "query_cache_info;"
+             "query_response_time;"
+             "server_audit;"
+             "simple_password_check;"
+             "sql_errlog;"
+             "test_sql_service;"
+             "test_versioning;"
+             "type_mysql_json;"
+             "type_mysql_timestamp;"
+             "type_test;"
+             "wsrep_info"
+             "\""
+             " --verbose"
+             " --help";
 
-  FILE *f= my_popen(command.c_str(), "r");
+  FILE *f= my_popen(command.str().c_str(), "r");
   if (!f)
   {
     perror("failed to read mariadbd output");
