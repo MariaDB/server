@@ -60,6 +60,12 @@ ALTER TABLE t1 DROP INDEX b;
 ALTER TABLE t1 IMPORT TABLESPACE;
 --enable_warnings
 SHOW CREATE TABLE t1;
+
+--echo # Auto increment value must be more than maximum column value
+SELECT MAX(a) FROM t1;
+SELECT auto_increment FROM information_schema.tables
+WHERE table_name like 't1';
+
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
 --replace_column 9 #
 explain SELECT a FROM t1 where b = repeat("de", 100);
@@ -142,6 +148,12 @@ ALTER TABLE t1 DROP INDEX idx1;
 ALTER TABLE t1 IMPORT TABLESPACE;
 --disable_warnings
 SHOW CREATE TABLE t1;
+
+--echo # Auto increment value must be more than maximum column value
+SELECT MAX(c1) FROM t1;
+SELECT auto_increment FROM information_schema.tables
+WHERE table_name like 't1';
+
 UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
 SELECT COUNT(*) FROM t1;
 DELETE FROM t1;
