@@ -1,0 +1,122 @@
+--source include/have_innodb.inc
+# Don't test this under valgrind, memory leaks will occur
+--source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+# Binary must be compiled with debug for crash to occur
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CALL mtr.add_suppression('Found [0-9]+ prepared XA transactions');
+
+# This test shows that in current code, some XA PREPAREd trx incorrectly
+# are left after crash recovery, even thouugh they are not (fully) binlogged.
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--connection master
+
+--echo *** Step 1: Crash in XA PREPARE with a partially binlogged event group.
+
+XA START 'a';
+INSERT INTO t1 VALUES (2, 0);
+XA END 'a';
+XA PREPARE 'a';
+
+XA COMMIT 'a';
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+XA START 'a';
+INSERT INTO t1 VALUES (3, 0);
+XA END 'a';
+
+--source include/expect_crash.inc
+SET SESSION debug_dbug="+d,crash_before_writing_xid";
+--error 2013
+XA PREPARE 'a';
+
+--source include/start_mysqld.inc
+
+--echo *** The binlog for XA PREPARE is incomplete. The trx should not be seen in XA RECOVER nor committed in engine.
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Step 2: Crash in XA PREPARE before any binlogging
+
+XA START 'b';
+INSERT INTO t1 VALUES (12, 0);
+XA END 'b';
+XA PREPARE 'b';
+
+XA COMMIT 'b';
+
+XA START 'b';
+INSERT INTO t1 VALUES (13, 0);
+XA END 'b';
+
+--source include/expect_crash.inc
+SET SESSION debug_dbug="+d,crash_before_binlog_prepare";
+--error 2013
+XA PREPARE 'b';
+
+--source include/start_mysqld.inc
+
+--echo *** The binlog for XA PREPARE was not binlogged. The trx should not be seen in XA RECOVER nor committed in engine.
+
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Step 3: Crash in XA COMMIT just after binlogging
+
+XA START 'c';
+INSERT INTO t1 VALUES (22, 0);
+XA END 'c';
+XA PREPARE 'c';
+
+--source include/expect_crash.inc
+SET SESSION debug_dbug="+d,crash_before_engine_commit";
+--error 2013
+XA COMMIT 'c';
+
+--source include/start_mysqld.inc
+
+--echo *** The XA COMMIT was binlogged, the trx should be committed in engine, not visible in XA RECOVER
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+--save_master_pos
+
+--echo *** Check slave is not broken or diverged from master
+--connection slave
+--let $slave_timeout= 10
+--source include/start_slave.inc
+--sync_with_master
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+
+
+# Put this part here at the end. It currently fails, because mysqlbinlog
+# outputs a partial XA START transaction and terminates it with (non-XA)
+# ROLLBACK, which fails with XAER_RMFAIL.
+--echo *** Step 1b: mysqlbinlog output must end with XA ROLLBACK for the partially binlogged XA transaction.
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQLTEST_VARDIR VARDIR
+--exec $MYSQL_BINLOG --start_position=$pos $MYSQLD_DATADIR/$file > $MYSQLTEST_VARDIR/tmp/partial_xa.sql
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQLTEST_VARDIR VARDIR
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/partial_xa.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/partial_xa.sql
+
+
+# Cleanup
+--source include/rpl_reconnect.inc
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

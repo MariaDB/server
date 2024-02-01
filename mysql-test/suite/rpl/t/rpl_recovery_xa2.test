@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+# Don't test this under valgrind, memory leaks will occur
+--source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+# Binary must be compiled with debug for crash to occur
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CALL mtr.add_suppression('Found [0-9]+ prepared XA transactions');
+
+# This test shows that in current code, an XA PREPAREd trx is lost during
+# binlog recovery if the event group of its XA PREPARE is in an earlier
+# binlog files not scanned during recovery.
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--connection master
+
+--echo *** Crash with binlog rotate after pending XA PREPARE.
+
+--connection server_1
+XA START 'a';
+INSERT INTO t1 VALUES (2, 0);
+XA END 'a';
+XA PREPARE 'a';
+
+--connection default
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+
+--source include/crash_mysqld.inc
+
+--echo *** The trx should be visible in XA RECOVER and not visible in engine
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+--save_master_pos
+
+--echo *** Check slave is not broken or diverged from master
+--connection slave
+--let $slave_timeout= 10
+--source include/start_slave.inc
+--sync_with_master
+XA RECOVER;
+SELECT * FROM t1 ORDER BY a;
+
+
+# Cleanup
+--source include/rpl_reconnect.inc
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

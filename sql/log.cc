@@ -1992,6 +1992,7 @@ inline bool is_preparing_xa(THD *thd)
 
 static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 {
+  DBUG_EXECUTE_IF("crash_before_binlog_prepare", DBUG_SUICIDE(););
   /* Do nothing unless the transaction is a user XA. */
   return is_preparing_xa(thd) ? binlog_commit(thd, all, FALSE) : 0;
 }
