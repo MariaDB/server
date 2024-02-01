@@ -1,8 +1,12 @@
-include/master-slave.inc
-[connection master]
+connection node_2;
+connection node_1;
 #
-# MDEV-33342 Add a replication MTR test cloning the slave with mariadb-backup
+# MDEV-33355 Add a Galera-2-node-to-MariaDB replication MTR test cloning the slave with mariadb-backup
 #
+connect master, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect slave, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+START SLAVE;
+include/wait_for_slave_to_start.inc
 connection master;
 connection slave;
 ##############################################################
@@ -104,7 +108,7 @@ STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE;
 ### Slave: Shutdown the server
-include/rpl_stop_server.inc [server_number=2]
+connection slave;
 ### Master: Run a transaction while the slave is shut down
 connection master;
 START TRANSACTION;
@@ -117,7 +121,8 @@ COMMIT;
 ### Slave: Remove the data directory
 ### Slave: Copy back the backup
 ### Slave: Restart the server
-include/rpl_start_server.inc [server_number=2]
+connection slave;
+# restart
 ### Slave: Display the restored data before START SLAVE
 connection slave;
 SELECT * FROM t1 ORDER BY a;
@@ -191,4 +196,10 @@ tr#04:stmt#02 - slave run#1
 connection master;
 DROP TABLE t1;
 connection slave;
-include/rpl_end.inc
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;
+connection master;
+set global wsrep_on=OFF;
+RESET MASTER;
+set global wsrep_on=ON;
