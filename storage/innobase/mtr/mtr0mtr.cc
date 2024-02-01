@@ -261,9 +261,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 /** Set create_lsn. */
 inline void fil_space_t::set_create_lsn(lsn_t lsn)
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch.have_wr());
   /* Concurrent log_checkpoint_low() must be impossible. */
   mysql_mutex_assert_owner(&log_sys.mutex);
   create_lsn= lsn;

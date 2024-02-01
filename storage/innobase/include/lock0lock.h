@@ -724,13 +724,8 @@ private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
-#ifdef UNIV_DEBUG
-  /** The owner of exclusive latch (0 if none); protected by latch */
-  std::atomic<pthread_t> writer{0};
-  /** Number of shared latches */
-  std::atomic<ulint> readers{0};
-#endif
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
 #ifdef SUX_LOCK_GENERIC
 protected:
   /** mutex for hash_latch::wait() */
@@ -789,71 +784,35 @@ public:
   void wr_lock()
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
-    ut_ad(!is_writer());
     latch.wr_lock();
-    ut_ad(!writer.exchange(pthread_self(),
-                           std::memory_order_relaxed));
   }
   /** Release exclusive lock_sys.latch */
-  void wr_unlock()
-  {
-    ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-          pthread_self());
-    latch.wr_unlock();
-  }
+  void wr_unlock() { latch.wr_unlock(); }
   /** Acquire shared lock_sys.latch */
   void rd_lock()
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
-    ut_ad(!is_writer());
     latch.rd_lock();
-    ut_ad(!writer.load(std::memory_order_relaxed));
-    ut_d(readers.fetch_add(1, std::memory_order_relaxed));
   }
   /** Release shared lock_sys.latch */
-  void rd_unlock()
-  {
-    ut_ad(!is_writer());
-    ut_ad(readers.fetch_sub(1, std::memory_order_relaxed));
-    latch.rd_unlock();
-  }
+  void rd_unlock() { latch.rd_unlock(); }
 #endif
   /** Try to acquire exclusive lock_sys.latch
   @return whether the latch was acquired */
-  bool wr_lock_try()
-  {
-    ut_ad(!is_writer());
-    if (!latch.wr_lock_try()) return false;
-    ut_ad(!writer.exchange(pthread_self(),
-                           std::memory_order_relaxed));
-    return true;
-  }
+  bool wr_lock_try() { return latch.wr_lock_try(); }
   /** Try to acquire shared lock_sys.latch
   @return whether the latch was acquired */
-  bool rd_lock_try()
-  {
-    ut_ad(!is_writer());
-    if (!latch.rd_lock_try()) return false;
-    ut_ad(!writer.load(std::memory_order_relaxed));
-    ut_d(readers.fetch_add(1, std::memory_order_relaxed));
-    return true;
-  }
+  bool rd_lock_try() { return latch.rd_lock_try(); }
 
   /** Assert that wr_lock() has been invoked by this thread */
-  void assert_locked() const { ut_ad(is_writer()); }
+  void assert_locked() const { ut_ad(latch.have_wr()); }
   /** Assert that wr_lock() has not been invoked by this thread */
-  void assert_unlocked() const { ut_ad(!is_writer()); }
+  void assert_unlocked() const { ut_ad(!latch.have_wr()); }
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is the lock_sys.latch writer */
-  bool is_writer() const
-  {
-# ifdef SUX_LOCK_GENERIC
-    return writer.load(std::memory_order_relaxed) == pthread_self();
-# else
-    return writer.load(std::memory_order_relaxed) == pthread_self() ||
-      (xtest() && !latch.is_locked_or_waiting());
-# endif
-  }
+  bool is_writer() const { return latch.have_wr(); }
+  /** @return whether the current thread is holding lock_sys.latch */
+  bool is_holder() const { return latch.have_any(); }
   /** Assert that a lock shard is exclusively latched (by some thread) */
   void assert_locked(const lock_t &lock) const;
   /** Assert that a table lock shard is exclusively latched by this thread */
@@ -965,14 +924,14 @@ extern lock_sys_t lock_sys;
 /** @return the index of an array element */
 inline ulint lock_sys_t::hash_table::calc_hash(ulint fold) const
 {
-  ut_ad(lock_sys.is_writer() || lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   return calc_hash(fold, n_cells);
 }
 
 /** Get a hash table cell. */
 inline hash_cell_t *lock_sys_t::hash_table::cell_get(ulint fold) const
 {
-  ut_ad(lock_sys.is_writer() || lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   return &array[calc_hash(fold)];
 }
 

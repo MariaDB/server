@@ -1317,13 +1317,7 @@ class dict_sys_t
   std::atomic<ulonglong> latch_ex_wait_start;
 
   /** the rw-latch protecting the data dictionary cache */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
-#ifdef UNIV_DEBUG
-  /** whether latch is being held in exclusive mode (by any thread) */
-  Atomic_relaxed<pthread_t> latch_ex;
-  /** number of S-latch holders */
-  Atomic_counter<uint32_t> latch_readers;
-#endif
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) IF_DBUG(srw_lock_debug,srw_lock) latch;
 public:
   /** Indexes of SYS_TABLE[] */
   enum
@@ -1491,15 +1485,12 @@ public:
   }
 
 #ifdef UNIV_DEBUG
-  /** @return whether any thread (not necessarily the current thread)
-  is holding the latch; that is, this check may return false
-  positives */
-  bool frozen() const { return latch_readers || latch_ex; }
-  /** @return whether any thread (not necessarily the current thread)
-  is holding a shared latch */
-  bool frozen_not_locked() const { return latch_readers; }
+  /** @return whether the current thread is holding the latch */
+  bool frozen() const { return latch.have_any(); }
+  /** @return whether the current thread is holding a shared latch */
+  bool frozen_not_locked() const { return latch.have_rd(); }
   /** @return whether the current thread holds the exclusive latch */
-  bool locked() const { return latch_ex == pthread_self(); }
+  bool locked() const { return latch.have_wr(); }
 #endif
 private:
   /** Acquire the exclusive latch */
@@ -1514,13 +1505,7 @@ public:
   /** Exclusively lock the dictionary cache. */
   void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
   {
-    if (latch.wr_lock_try())
-    {
-      ut_ad(!latch_readers);
-      ut_ad(!latch_ex);
-      ut_d(latch_ex= pthread_self());
-    }
-    else
+    if (!latch.wr_lock_try())
       lock_wait(SRW_LOCK_ARGS(file, line));
   }
 
@@ -1533,27 +1518,11 @@ public:
   ATTRIBUTE_NOINLINE void unfreeze();
 #else
   /** Unlock the data dictionary cache. */
-  void unlock()
-  {
-    ut_ad(latch_ex == pthread_self());
-    ut_ad(!latch_readers);
-    ut_d(latch_ex= 0);
-    latch.wr_unlock();
-  }
+  void unlock() { latch.wr_unlock(); }
   /** Acquire a shared lock on the dictionary cache. */
-  void freeze()
-  {
-    latch.rd_lock();
-    ut_ad(!latch_ex);
-    ut_d(latch_readers++);
-  }
+  void freeze() { latch.rd_lock(); }
   /** Release a shared lock on the dictionary cache. */
-  void unfreeze()
-  {
-    ut_ad(!latch_ex);
-    ut_ad(latch_readers--);
-    latch.rd_unlock();
-  }
+  void unfreeze() { latch.rd_unlock(); }
 #endif
 
   /** Estimate the used memory occupied by the data dictionary
