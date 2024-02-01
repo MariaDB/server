@@ -739,3 +739,18 @@ alter table `b` add system versioning;
 alter table `b` add column if not exists ( w bit, v serial );
 alter table `b` add column if not exists ( p bit );
 drop table `b`;
+
+--echo #
+--echo # MDEV-30528 Assertion !mbmaxlen || ... failed
+--echo # in dtype_get_at_most_n_mbchars()
+--echo #
+
+CREATE TABLE t(f TEXT) WITH SYSTEM VERSIONING CHARACTER SET utf8 ENGINE=InnoDB;
+INSERT INTO t VALUES ('foo');
+DELETE FROM t;
+--enable_info
+ALTER TABLE t ADD FULLTEXT (f);
+--disable_info
+DROP TABLE t;
+
+--echo # End of 10.4 tests

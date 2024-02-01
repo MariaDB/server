@@ -2596,6 +2596,9 @@ cannot_create_many_fulltext_index:
 		online = false;
 	}
 
+	static constexpr const char *not_implemented
+		= "Not implemented for system-versioned operations";
+
 	if (ha_alter_info->handler_flags
 		& ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
@@ -2621,6 +2624,12 @@ cannot_create_many_fulltext_index:
 						  | HA_BINARY_PACK_KEY)));
 				if (add_fulltext) {
 					goto cannot_create_many_fulltext_index;
+				}
+
+				if (altered_table->versioned()) {
+					ha_alter_info->unsupported_reason
+						= not_implemented;
+					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 				}
 
 				add_fulltext = true;
@@ -2661,10 +2670,8 @@ cannot_create_many_fulltext_index:
 
 	// FIXME: implement Online DDL for system-versioned operations
 	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
-
 		if (ha_alter_info->online) {
-			ha_alter_info->unsupported_reason =
-				"Not implemented for system-versioned operations";
+			ha_alter_info->unsupported_reason = not_implemented;
 		}
 
 		online = false;
