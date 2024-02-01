@@ -47,6 +47,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "que0que.h"
 #include "scope.h"
 #include <debug_sync.h>
+#include <mysql/service_thd_mdl.h>
 
 #include <set>
 
@@ -3933,6 +3934,8 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait)
 {
+  ut_ad(!dict_sys.frozen());
+
   mem_heap_t *heap= mem_heap_create(512);
   sel_node_t *node= sel_node_create(heap);
   que_thr_t *thr= pars_complete_graph_for_exec(node, trx, heap, nullptr);
@@ -3968,6 +3971,67 @@ run_again:
 
   return err;
 }
+
+/** Lock the child tables of a table.
+@param table    parent table
+@param trx      transaction
+@return error code */
+dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
+{
+  MDL_context *mdl_context=
+    static_cast<MDL_context*>(thd_mdl_context(trx->mysql_thd));
+  ut_ad(mdl_context);
+  struct table_mdl{dict_table_t* table; MDL_ticket *mdl;};
+  std::vector<table_mdl> children;
+  children.emplace_back(table_mdl{table, nullptr});
+
+  dberr_t err= DB_SUCCESS;
+  dict_sys.freeze(SRW_LOCK_CALL);
+
+ rescan:
+  for (auto f : table->referenced_set)
+    if (dict_table_t *child= f->foreign_table)
+    {
+      if (std::find_if(children.begin(), children.end(),
+                       [&](const table_mdl &c){ return c.table == child; }) !=
+          children.end())
+        continue; /* We already acquired MDL on this child table. */
+      MDL_ticket *mdl= nullptr;
+      child->acquire();
+      child= dict_acquire_mdl_shared<false>(child, mdl_context, &mdl,
+                                            DICT_TABLE_OP_NORMAL);
+      if (child)
+      {
+        if (!mdl)
+          child->release();
+        children.emplace_back(table_mdl{child, mdl});
+        goto rescan;
+      }
+      err= DB_LOCK_WAIT_TIMEOUT;
+      break;
+    }
+  dict_sys.unfreeze();
+
+  if (err == DB_SUCCESS)
+    for (const table_mdl &child : children)
+      if (child.mdl)
+        if ((err= lock_table_for_trx(child.table, trx, LOCK_X)) != DB_SUCCESS)
+          break;
+
+  dict_sys.freeze(SRW_LOCK_CALL);
+  for (table_mdl &child : children)
+  {
+    if (child.mdl)
+    {
+      child.table->release();
+      mdl_context->release_lock(child.mdl);
+    }
+  }
+  dict_sys.unfreeze();
+
+  return err;
+}
+
 
 /** Exclusively lock the data dictionary tables.
 @param trx  dictionary transaction
