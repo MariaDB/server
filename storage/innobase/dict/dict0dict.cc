@@ -960,9 +960,6 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
   {
     latch.wr_lock(SRW_LOCK_ARGS(file, line));
     latch_ex_wait_start.store(0, std::memory_order_relaxed);
-    ut_ad(!latch_readers);
-    ut_ad(!latch_ex);
-    ut_d(latch_ex= pthread_self());
     return;
   }
 
@@ -978,31 +975,21 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
     ib::warn() << "A long wait (" << waited
                << " seconds) was observed for dict_sys.latch";
   latch.wr_lock(SRW_LOCK_ARGS(file, line));
-  ut_ad(!latch_readers);
-  ut_ad(!latch_ex);
-  ut_d(latch_ex= pthread_self());
 }
 
 #ifdef UNIV_PFS_RWLOCK
 ATTRIBUTE_NOINLINE void dict_sys_t::unlock()
 {
-  ut_ad(latch_ex == pthread_self());
-  ut_ad(!latch_readers);
-  ut_d(latch_ex= 0);
   latch.wr_unlock();
 }
 
 ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line)
 {
   latch.rd_lock(file, line);
-  ut_ad(!latch_ex);
-  ut_d(latch_readers++);
 }
 
 ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
 {
-  ut_ad(!latch_ex);
-  ut_ad(latch_readers--);
   latch.rd_unlock();
 }
 #endif /* UNIV_PFS_RWLOCK */

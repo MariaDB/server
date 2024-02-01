@@ -173,7 +173,7 @@ void lock_sys_t::assert_locked(const dict_table_t &table) const
   ut_ad(!table.is_temporary());
   if (is_writer())
     return;
-  ut_ad(readers);
+  ut_ad(latch.have_rd());
   ut_ad(table.lock_mutex_is_owner());
 }
 
@@ -182,7 +182,7 @@ void lock_sys_t::hash_table::assert_locked(const page_id_t id) const
 {
   if (lock_sys.is_writer())
     return;
-  ut_ad(lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   ut_ad(latch(cell_get(id.fold()))->is_locked());
 }
 
@@ -191,7 +191,7 @@ void lock_sys_t::assert_locked(const hash_cell_t &cell) const
 {
   if (is_writer())
     return;
-  ut_ad(lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   ut_ad(hash_table::latch(const_cast<hash_cell_t*>(&cell))->is_locked());
 }
 #endif
@@ -426,13 +426,10 @@ void lock_sys_t::wr_lock(const char *file, unsigned line)
 {
   mysql_mutex_assert_not_owner(&wait_mutex);
   latch.wr_lock(file, line);
-  ut_ad(!writer.exchange(pthread_self(), std::memory_order_relaxed));
 }
 /** Release exclusive lock_sys.latch */
 void lock_sys_t::wr_unlock()
 {
-  ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-        pthread_self());
   latch.wr_unlock();
 }
 
@@ -441,15 +438,11 @@ void lock_sys_t::rd_lock(const char *file, unsigned line)
 {
   mysql_mutex_assert_not_owner(&wait_mutex);
   latch.rd_lock(file, line);
-  ut_ad(!writer.load(std::memory_order_relaxed));
-  ut_d(readers.fetch_add(1, std::memory_order_relaxed));
 }
 
 /** Release shared lock_sys.latch */
 void lock_sys_t::rd_unlock()
 {
-  ut_ad(!writer.load(std::memory_order_relaxed));
-  ut_ad(readers.fetch_sub(1, std::memory_order_relaxed));
   latch.rd_unlock();
 }
 #endif
