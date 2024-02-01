@@ -35,6 +35,7 @@ Created 1/8/1996 Heikki Tuuri
 #include <my_sys.h>
 #include <deque>
 
+class MDL_context;
 class MDL_ticket;
 
 /** the first table or index ID for other than hard-coded system tables */
@@ -138,6 +139,21 @@ dict_acquire_mdl_shared(dict_table_t *table,
                         THD *thd,
                         MDL_ticket **mdl,
                         dict_table_op_t table_op= DICT_TABLE_OP_NORMAL);
+
+/** Acquire MDL shared for the table name.
+@tparam trylock whether to use non-blocking operation
+@param[in,out]  table           table object
+@param[in,out]  mdl_context     MDL context
+@param[out]     mdl             MDL ticket
+@param[in]      table_op        operation to perform when opening
+@return table object after locking MDL shared
+@retval nullptr if the table is not readable, or if trylock && MDL blocked */
+template<bool trylock>
+__attribute__((nonnull, warn_unused_result))
+dict_table_t*
+dict_acquire_mdl_shared(dict_table_t *table,
+                        MDL_context *mdl_context, MDL_ticket **mdl,
+                        dict_table_op_t table_op);
 
 /** Look up a table by numeric identifier.
 @param[in]      table_id        table identifier
