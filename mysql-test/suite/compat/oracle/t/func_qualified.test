@@ -165,6 +165,7 @@ CALL p3('TRIM(1,2)');
 CALL p3('TRIM(''a'')');
 CALL p3('TRIM(BOTH '' '' FROM ''a'')');
 
+CALL p3('REGEXP_REPLACE(''test'',''t'','''')');
 
 # Deprecated compatibility XXX_ORACLE functions.
 # These functions are implemented as simple native functions

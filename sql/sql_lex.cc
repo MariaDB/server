@@ -4787,9 +4787,12 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
   {
     Query_arena_stmt on_stmt_arena(thd);
     changed_elements|= TOUCHED_SEL_COND;
+    /*
+      TODO: return after MDEV-33218 fix
     DBUG_ASSERT(
       active_arena->is_stmt_prepare_or_first_stmt_execute() ||
       active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS);
+    */
     if (group_list.first)
     {
       if (!group_list_ptrs)

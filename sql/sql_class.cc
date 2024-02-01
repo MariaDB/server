@@ -1859,14 +1859,6 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   */
 }
 
-#define SECONDS_TO_WAIT_FOR_KILL 2
-#if !defined(_WIN32) && defined(HAVE_SELECT)
-/* my_sleep() can wait for sub second times */
-#define WAIT_FOR_KILL_TRY_TIMES 20
-#else
-#define WAIT_FOR_KILL_TRY_TIMES 2
-#endif
-
 
 /**
   Awake a thread.
@@ -7003,7 +6995,8 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
 {
   DBUG_ENTER("binlog_prepare_pending_rows_event");
   /* Pre-conditions */
-  DBUG_ASSERT(table->s->table_map_id != ~0UL);
+  DBUG_ASSERT((table->s->table_map_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
+              (table->s->table_map_id & MAX_TABLE_MAP_ID) != 0);
 
   /* Fetch the type code for the RowsEventT template parameter */
   int const general_type_code= RowsEventT::TYPE_CODE;

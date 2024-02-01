@@ -4698,15 +4698,11 @@ void do_perl(struct st_command *command)
 
     /* Check for error code that indicates perl could not be started */
     int exstat= WEXITSTATUS(error);
-#ifdef _WIN32
-    if (exstat == 1)
-      /* Text must begin 'perl not found' as mtr looks for it */
-      abort_not_supported_test("perl not found in path or did not start");
-#else
+#ifndef _WIN32
     if (exstat == 127)
       abort_not_supported_test("perl not found in path");
-#endif
     else
+#endif
       handle_command_error(command, exstat, my_errno);
   }
   dynstr_free(&ds_delimiter);
