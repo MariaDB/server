@@ -1,0 +1,111 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+# This testcase currently fails on bb-10.6-MDEV-31949.
+# The problem is that XA PREPARE does not update the current binlog position
+# inside innodb (unlike XA COMMIT, which does do the required update).
+# This causes the binlog position reported by mariabackup --no-lock to be
+# behind, and a slave provisioned from this can fail with XAER_DUPID due to
+# trying to re-apply the XA PREPARE that's already included in the backup.
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+RESET MASTER;
+CREATE TABLE t1(a INT PRIMARY KEY, b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+XA START 'a';
+INSERT INTO t1 VALUES (2, 0);
+XA END 'a';
+XA PREPARE 'a';
+--save_master_pos
+
+--echo *** Doing backup...
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --no-lock > $MYSQLTEST_VARDIR/tmp/backup1.log 2>&1
+--echo *** Doing prepare...
+--exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir > $MYSQLTEST_VARDIR/tmp/backup2.log 2>&1
+
+--echo *** Provision a new slave from the backup
+--connect (server2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--let $datadir_2= `SELECT @@datadir`
+--source include/shutdown_mysqld.inc
+--rmdir $datadir_2
+--exec $XTRABACKUP --copy-back --datadir=$datadir_2 --target-dir=$basedir > $MYSQLTEST_VARDIR/tmp/backup3.log 2>&1
+--source include/start_mysqld.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo *** Configure slave position from xtrabackup_binlog_pos_innodb
+
+# The writing of the file 'xtrabackup_binlog_pos_innodb' requires commit
+# 167fe6646db96422de1508000d56ba72224b9b12, not present in current
+# bb-10.6-MDEV-31949 branch, so use a different method there.
+--let $old_branch_base= 1
+
+if (!$old_branch_base) {
+  CREATE TABLE t3 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
+  --replace_result $basedir BASEDIR
+  --disable_warnings
+  eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
+       INTO TABLE t3 FIELDS ESCAPED BY '' (file, pos);
+  --enable_warnings
+
+  # Remove leading ./ from filename (leading .\ on windows).
+  --let provision_master_file= `SELECT REGEXP_REPLACE(file, "^[.].", "") FROM t3`
+  --let provision_master_pos= `SELECT pos FROM t3`
+}
+
+if ($old_branch_base) {
+  CREATE TABLE t2 (line VARCHAR(255)) ENGINE=InnoDB;
+  --replace_result $basedir BASEDIR
+  eval LOAD DATA LOCAL INFILE "$MYSQLTEST_VARDIR/tmp/backup2.log"
+       INTO TABLE t2 FIELDS TERMINATED BY '\n' ESCAPED BY '' (line);
+  CREATE TABLE t3 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
+  INSERT INTO t3
+  SELECT REGEXP_REPLACE(line,
+                        "^.*InnoDB: Last binlog file '([^']+)', position .*$",
+                        '\\1'),
+         REGEXP_REPLACE(line,
+                        "^.*InnoDB: Last binlog file.*, position ([0-9]+).*$",
+                        '\\1')
+    FROM t2
+   WHERE line REGEXP 'InnoDB: Last binlog file .*, position';
+  DROP TABLE t2;
+  # Remove leading ./ from filename (leading .\ on windows).
+  --let provision_master_file= `SELECT REGEXP_REPLACE(file, "^[.].", "") FROM t3`
+  --let provision_master_pos= `SELECT pos FROM t3`
+}
+
+--replace_result $SERVER_MYPORT_1 PORT $provision_master_file MASTER_FILE $provision_master_pos MASTER_POS
+eval CHANGE MASTER TO
+  master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
+  master_log_file= "$provision_master_file",
+  master_log_pos= $provision_master_pos;
+START SLAVE;
+
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+XA RECOVER;
+
+--connection default
+XA COMMIT 'a';
+INSERT INTO t1 VALUES (3, 0);
+SELECT * FROM t1 ORDER BY a;
+--save_master_pos
+
+--connection server2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+XA RECOVER;
+
+# Cleanup
+
+--connection server2
+STOP SLAVE;
+RESET SLAVE ALL;
+DROP TABLE t1, t3;
+
+--connection default
+DROP TABLE t1;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/backup1.log
+--remove_file $MYSQLTEST_VARDIR/tmp/backup2.log
+--remove_file $MYSQLTEST_VARDIR/tmp/backup3.log
+rmdir $basedir;
