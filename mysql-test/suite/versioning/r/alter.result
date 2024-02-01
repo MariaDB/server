@@ -845,3 +845,15 @@ Warnings:
 Note	1060	Duplicate column name 'v'
 alter table `b` add column if not exists ( p bit );
 drop table `b`;
+#
+# MDEV-30528 Assertion !mbmaxlen || ... failed
+# in dtype_get_at_most_n_mbchars()
+#
+CREATE TABLE t(f TEXT) WITH SYSTEM VERSIONING CHARACTER SET utf8 ENGINE=InnoDB;
+INSERT INTO t VALUES ('foo');
+DELETE FROM t;
+ALTER TABLE t ADD FULLTEXT (f);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+DROP TABLE t;
+# End of 10.4 tests
