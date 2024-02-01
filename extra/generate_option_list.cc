@@ -67,6 +67,11 @@ std::string read_output(FILE *f)
   return output;
 }
 
+#if defined(__has_feature)
+#  if __has_feature(memory_sanitizer)
+     __attribute__((no_sanitize("memory"))) /* we may run with uninstrumented std::string */
+#  endif
+#endif
 std::string call_mariadbd(const char *mariadbd_path)
 {
   std::string output;
