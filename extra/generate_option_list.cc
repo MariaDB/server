@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <vector>
 #define PCRE2_STATIC 1 /* Important on Windows */
@@ -29,7 +30,7 @@
 
 struct parsed
 {
-  std::vector<std::string> options;
+  std::set<std::string> options;
   std::map<std::string, std::vector<std::string>> enums;
   std::map<std::string, std::vector<std::string>> sets;
 };
@@ -268,7 +269,7 @@ struct parsed parse_output(std::string &output)
       set_options= split_list(set_part);
     }
 
-    result.options.push_back(option);
+    result.options.insert(option);
     if (!enum_options.empty())
     {
       result.enums.emplace(option, enum_options);
