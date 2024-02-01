@@ -35,6 +35,11 @@ struct parsed
   std::map<std::string, std::vector<std::string>> sets;
 };
 
+#if defined(__has_feature)
+#  if __has_feature(memory_sanitizer)
+     __attribute__((no_sanitize("memory"))) /* we may run with uninstrumented std::string */
+#  endif
+#endif
 void escape_command(std::ostringstream &out, const char *command)
 {
   out << '\"';
