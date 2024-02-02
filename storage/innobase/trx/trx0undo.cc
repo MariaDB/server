@@ -902,15 +902,13 @@ trx_undo_truncate_start(
 	trx_undo_rec_t* last_rec;
 	mtr_t		mtr;
 
+	ut_ad(rseg->is_persistent());
+
 	if (!limit) {
 		return DB_SUCCESS;
 	}
 loop:
-	mtr_start(&mtr);
-
-	if (!rseg->is_persistent()) {
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	}
+	mtr.start();
 
 	dberr_t err;
 	const buf_block_t* undo_page;

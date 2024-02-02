@@ -33,6 +33,7 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "os0file.h"
 #include "row0mysql.h"
 #include "buf0dblwr.h"
+#include "log.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such
@@ -568,7 +569,7 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 	}
 
 	err = it->read_first_page(
-		m_ignore_read_only ?  false : srv_read_only_mode);
+		m_ignore_read_only && srv_read_only_mode);
 
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -582,47 +583,62 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 
 	/* Check the contents of the first page of the
 	first datafile. */
-	for (int retry = 0; retry < 2; ++retry) {
+	err = it->validate_first_page();
 
-		err = it->validate_first_page();
-
-		if (err != DB_SUCCESS
-		    && (retry == 1
-			|| recv_sys.dblwr.restore_first_page(
+	if (err != DB_SUCCESS) {
+		if (recv_sys.dblwr.restore_first_page(
 				it->m_space_id, it->m_filepath,
-				it->handle()))) {
-
+				it->handle())) {
 			it->close();
-
 			return(err);
 		}
+		err = it->read_first_page(
+			m_ignore_read_only && srv_read_only_mode);
 	}
 
 	/* Make sure the tablespace space ID matches the
 	space ID on the first page of the first datafile. */
-	if (space_id() != it->m_space_id) {
-
-		ib::error()
-			<< "The data file '" << it->filepath()
-			<< "' has the wrong space ID. It should be "
-			<< space_id() << ", but " << it->m_space_id
-			<< " was found";
-
+	if (err != DB_SUCCESS || space_id() != it->m_space_id) {
+		sql_print_error("InnoDB: The data file '%s'"
+				" has the wrong space ID."
+				" It should be " UINT32PF ", but " UINT32PF
+				" was found", it->filepath(),
+				space_id(), it->m_space_id);
 		it->close();
-
-		return(err);
+		return err;
 	}
 
-	if (srv_operation == SRV_OPERATION_NORMAL) {
+	if (srv_force_recovery != 6
+	    && srv_operation == SRV_OPERATION_NORMAL
+	    && !log_sys.next_checkpoint_lsn
+	    && log_sys.format == log_t::FORMAT_3_23) {
+
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
-		ut_ad(!log_sys.next_checkpoint_lsn);
 		log_sys.next_checkpoint_lsn = mach_read_from_8(
 			it->m_first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
+		if (log_sys.next_checkpoint_lsn < 8204) {
+			/* Before MDEV-14425, InnoDB had a minimum LSN
+			of 8192+12=8204. Likewise, mariadb-backup
+			--prepare would create an empty ib_logfile0
+			after applying the log. We will allow an
+			upgrade from such an empty log. */
+			sql_print_error("InnoDB: ib_logfile0 is "
+					"empty, and LSN is unknown.");
+			err = DB_CORRUPTION;
+		} else {
+			log_sys.last_checkpoint_lsn =
+				recv_sys.lsn = recv_sys.file_checkpoint =
+				log_sys.next_checkpoint_lsn;
+			log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
+			log_sys.next_checkpoint_no = 0;
+		}
+
+		log_sys.latch.wr_unlock();
 	}
 
 	it->close();
-
-	return(DB_SUCCESS);
+	return err;
 }
 
 /** Check if a file can be opened in the correct mode.
