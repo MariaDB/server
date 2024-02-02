@@ -1171,6 +1171,43 @@ d	50
 fdbl	123.456.789,12345678000000000000000000000000000000
 fdec	123.456.789,12345678900000000000000000000000000000
 #
+# MDEV-32645 CAST(AS UNSIGNED) fails with --view-protocol
+#
+SELECT
+CAST(-1e0 AS UNSIGNED),
+CAST(--2e0 AS UNSIGNED),
+CAST(---3e0 AS UNSIGNED),
+CAST(----4e0 AS UNSIGNED);
+CAST(-1e0 AS UNSIGNED)	CAST(--2e0 AS UNSIGNED)	CAST(---3e0 AS UNSIGNED)	CAST(----4e0 AS UNSIGNED)
+0	2	0	4
+Warnings:
+Note	1916	Got overflow when converting '-1' to UNSIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '-3' to UNSIGNED BIGINT. Value truncated
+EXPLAIN EXTENDED SELECT
+CAST(-1e0 AS UNSIGNED),
+CAST(--2e0 AS UNSIGNED),
+CAST(---3e0 AS UNSIGNED),
+CAST(----4e0 AS UNSIGNED);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast(-1e0 as unsigned) AS `CAST(-1e0 AS UNSIGNED)`,cast(2e0 as unsigned) AS `CAST(--2e0 AS UNSIGNED)`,cast(-3e0 as unsigned) AS `CAST(---3e0 AS UNSIGNED)`,cast(4e0 as unsigned) AS `CAST(----4e0 AS UNSIGNED)`
+CREATE VIEW v1 AS SELECT
+CAST(-1e0 AS UNSIGNED),
+CAST(--2e0 AS UNSIGNED),
+CAST(---3e0 AS UNSIGNED),
+CAST(----4e0 AS UNSIGNED);
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(-1e0 as unsigned) AS `CAST(-1e0 AS UNSIGNED)`,cast(2e0 as unsigned) AS `CAST(--2e0 AS UNSIGNED)`,cast(-3e0 as unsigned) AS `CAST(---3e0 AS UNSIGNED)`,cast(4e0 as unsigned) AS `CAST(----4e0 AS UNSIGNED)`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+CAST(-1e0 AS UNSIGNED)	CAST(--2e0 AS UNSIGNED)	CAST(---3e0 AS UNSIGNED)	CAST(----4e0 AS UNSIGNED)
+0	2	0	4
+Warnings:
+Note	1916	Got overflow when converting '-1' to UNSIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '-3' to UNSIGNED BIGINT. Value truncated
+DROP VIEW v1;
+#
 # End of 10.4 tests
 #
 #

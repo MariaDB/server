@@ -739,6 +739,8 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-adjust-secondary-key-costs=# 
+ Unused, will be removed.
  --optimizer-disk-read-cost=# 
  Cost of reading a block of IO_SIZE (4096) from a disk (in
  usec).
@@ -1211,7 +1213,7 @@ The following specify which files/extra groups are read (specified before remain
  The tracing level for semi-sync replication.
  --rpl-semi-sync-master-wait-no-slave 
  Wait until timeout when no semi-synchronous replication
- slave available (enabled by default).
+ slave is available.
  (Defaults to on; use --skip-rpl-semi-sync-master-wait-no-slave to disable.)
  --rpl-semi-sync-master-wait-point=name 
  Should transaction wait for semi-sync ack after having
@@ -1770,6 +1772,7 @@ old FALSE
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-adjust-secondary-key-costs 0
 optimizer-disk-read-cost 10.24
 optimizer-disk-read-ratio 0.02
 optimizer-extra-pruning-depth 8
