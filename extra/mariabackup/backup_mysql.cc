@@ -47,6 +47,12 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <stdlib.h>
 #include <string.h>
 #include <limits>
+#ifdef HAVE_PWD_H
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <pwd.h>
+#endif
 #include "common.h"
 #include "xtrabackup.h"
 #include "srv0srv.h"
@@ -94,11 +100,54 @@ MYSQL *mysql_connection;
 
 extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
 
+
+/*
+  get_os_user()
+  Ressemles read_user_name() from libmariadb/libmariadb/mariadb_lib.c.
+*/
+
+#if !defined(_WIN32)
+
+#if defined(HAVE_GETPWUID) && defined(NO_GETPWUID_DECL)
+struct passwd *getpwuid(uid_t);
+char* getlogin(void);
+#endif
+
+static const char *get_os_user() // Posix
+{
+  if (!geteuid())
+    return "root";
+#ifdef HAVE_GETPWUID
+  struct passwd *pw;
+  const char *str;
+  if ((pw= getpwuid(geteuid())) != NULL)
+    return pw->pw_name;
+  if ((str= getlogin()) != NULL)
+    return str;
+#endif
+  if ((str= getenv("USER")) ||
+      (str= getenv("LOGNAME")) ||
+      (str= getenv("LOGIN")))
+    return str;
+  return NULL;
+}
+
+#else
+
+static const char *get_os_user() // Windows
+{
+  return getenv("USERNAME");
+}
+
+#endif // _WIN32
+
+
 MYSQL *
 xb_mysql_connect()
 {
 	MYSQL *connection = mysql_init(NULL);
 	char mysql_port_str[std::numeric_limits<int>::digits10 + 3];
+	const char *user= opt_user ? opt_user : get_os_user();
 
 	sprintf(mysql_port_str, "%d", opt_port);
 
@@ -128,7 +177,7 @@ xb_mysql_connect()
 
 	msg("Connecting to server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
-	       opt_user ? opt_user : "not set",
+	       user ? user : "not set",
 	       opt_password ? "set" : "not set",
 	       opt_port != 0 ? mysql_port_str : "not set",
 	       opt_socket ? opt_socket : "not set");
@@ -149,7 +198,7 @@ xb_mysql_connect()
 
 	if (!mysql_real_connect(connection,
 				opt_host ? opt_host : "localhost",
-				opt_user,
+				user,
 				opt_password,
 				"" /*database*/, opt_port,
 				opt_socket, 0)) {
