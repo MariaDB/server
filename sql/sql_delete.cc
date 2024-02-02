@@ -1590,10 +1590,13 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
-  if (!(result= new (thd->mem_root) multi_delete(thd, aux_tables,
-                                                 lex->table_count_update)))
   {
-    DBUG_RETURN(TRUE);
+    Query_arena_stmt on_stmt_arena(thd);
+    if (!(result= new (thd->mem_root) multi_delete(thd, aux_tables,
+                                                  lex->table_count_update)))
+    {
+      DBUG_RETURN(TRUE);
+    }
   }
 
   table_list->delete_while_scanning= true;
@@ -1761,7 +1764,10 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
   free_join= false;
 
   if (returning)
+  {
+    Query_arena_stmt on_stmt_arena(thd);
     (void) result->prepare(returning->item_list, NULL);
+  }
 
 err:
 
@@ -1840,7 +1846,6 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
   if (result)
   {
     res= false;
-    delete result;
   }
 
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
