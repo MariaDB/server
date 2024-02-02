@@ -18452,7 +18452,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         const bool in_progress(buf_pool.get_oldest_modification(LSN_MAX) <
                                log_sys.resize_in_progress());
         if (in_progress)
-          my_cond_timedwait(&buf_pool.do_flush_list,
+          my_cond_timedwait(&buf_pool.done_flush_list,
                             &buf_pool.flush_list_mutex.m_mutex, &abstime);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!log_sys.resize_in_progress())
