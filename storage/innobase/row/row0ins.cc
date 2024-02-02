@@ -213,14 +213,14 @@ row_ins_sec_index_entry_by_modify(
 		made to the clustered index, and completed the
 		secondary index creation before we got here. In this
 		case, the change would already be there. The CREATE
-		INDEX should be waiting for a MySQL meta-data lock
-		upgrade at least until this INSERT or UPDATE
-		returns. After that point, set_committed(true)
-		would be invoked in commit_inplace_alter_table(). */
+		INDEX should be in wait_while_table_is_used() at least
+		until this INSERT or UPDATE returns. After that point,
+		set_committed(true) would be invoked in
+		commit_inplace_alter_table(). */
 		ut_a(update->n_fields == 0);
-		ut_a(!cursor->index()->is_committed());
 		ut_ad(!dict_index_is_online_ddl(cursor->index()));
-		return(DB_SUCCESS);
+		return cursor->index()->is_committed()
+			? DB_CORRUPTION : DB_SUCCESS;
 	}
 
 	if (mode == BTR_MODIFY_LEAF) {
@@ -2637,14 +2637,17 @@ row_ins_clust_index_entry_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 		ut_ad(!index->table->persistent_autoinc);
 		ut_ad(!index->is_instant());
+		ut_ad(!entry->info_bits);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		index->set_modified(mtr);
 
-		if (UNIV_UNLIKELY(entry->is_metadata())) {
+		if (UNIV_UNLIKELY(entry->info_bits != 0)) {
+			ut_ad(entry->is_metadata());
 			ut_ad(index->is_instant());
 			ut_ad(!dict_index_is_online_ddl(index));
 			ut_ad(mode == BTR_MODIFY_TREE);
+			ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		} else {
 			if (mode == BTR_MODIFY_LEAF
 			    && dict_index_is_online_ddl(index)) {
@@ -2784,11 +2787,6 @@ avoid_bulk:
 
 skip_bulk_insert:
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->is_metadata());
-		ut_ad(flags == BTR_NO_LOCKING_FLAG);
-		ut_ad(index->is_instant());
-		ut_ad(!dict_index_is_online_ddl(index));
-
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 
 		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
@@ -2892,9 +2890,20 @@ do_insert:
 			}
 		}
 
+		if (err == DB_SUCCESS && entry->info_bits) {
+			if (buf_block_t* root
+			    = btr_root_block_get(index, RW_X_LATCH, &mtr,
+						 &err)) {
+				btr_set_instant(root, *index, &mtr);
+			} else {
+				ut_ad("cannot find root page" == 0);
+			}
+		}
+
 		mtr.commit();
 
 		if (big_rec) {
+			ut_ad(err == DB_SUCCESS);
 			/* Online table rebuild could read (and
 			ignore) the incomplete record at this point.
 			If online rebuild is in progress, the

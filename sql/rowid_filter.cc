@@ -560,8 +560,11 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
     range filter and place into the filter the rowids / primary keys
     read from key tuples when doing this scan.
   @retval
-    false  on success
-    true   otherwise
+    Rowid_filter::SUCCESS          on success
+    Rowid_filter::NON_FATAL_ERROR  the error which does not require transaction
+                                   rollback
+    Rowid_filter::FATAL_ERROR      the error which does require transaction
+                                   rollback
 
   @note
     The function assumes that the quick select object to perform
@@ -574,17 +577,17 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
     purposes to facilitate a lazy building of the filter.
 */
 
-bool Range_rowid_filter::fill()
+Rowid_filter::build_return_code Range_rowid_filter::build()
 {
-  int rc= 0;
+  build_return_code rc= SUCCESS;
   handler *file= table->file;
   THD *thd= table->in_use;
   QUICK_RANGE_SELECT* quick= (QUICK_RANGE_SELECT*) select->quick;
-
   uint table_status_save= table->status;
   Item *pushed_idx_cond_save= file->pushed_idx_cond;
   uint pushed_idx_cond_keyno_save= file->pushed_idx_cond_keyno;
   bool in_range_check_pushed_down_save= file->in_range_check_pushed_down;
+  int org_keyread;
 
   table->status= 0;
   file->pushed_idx_cond= 0;
@@ -594,24 +597,44 @@ bool Range_rowid_filter::fill()
   /* We're going to just read rowids / clustered primary keys */
   table->prepare_for_position();
 
+  org_keyread= file->ha_end_active_keyread();
   file->ha_start_keyread(quick->index);
 
   if (quick->init() || quick->reset())
-    goto end;
-
-  while (!(rc= quick->get_next()))
+    rc= FATAL_ERROR;
+  else
   {
-    file->position(quick->record);
-    if (container->add(NULL, (char*) file->ref) || thd->killed)
+    for (;;)
     {
-      rc= 1;
-      break;
+      int quick_get_next_result= quick->get_next();
+      if (thd->check_killed())
+      {
+        rc= FATAL_ERROR;
+        break;
+      }
+      if (quick_get_next_result != 0)
+      {
+        rc= (quick_get_next_result == HA_ERR_END_OF_FILE ? SUCCESS
+                                                        : FATAL_ERROR);
+        /*
+          The error state has been set by file->print_error(res, MYF(0)) call
+          inside quick->get_next() call, in Mrr_simple_index_reader::get_next()
+        */
+        DBUG_ASSERT(rc == SUCCESS || thd->is_error());
+        break;
+      }
+      file->position(quick->record);
+      if (container->add(NULL, (char *) file->ref))
+      {
+        rc= NON_FATAL_ERROR;
+        break;
+      }
     }
   }
 
-end:
   quick->range_end();
   file->ha_end_keyread();
+  file->ha_restart_keyread(org_keyread);
 
   table->status= table_status_save;
   file->pushed_idx_cond= pushed_idx_cond_save;
@@ -621,11 +644,12 @@ end:
   tracker->set_container_elements_count(container->elements());
   tracker->report_container_buff_size(file->ref_length);
 
-  if (rc != HA_ERR_END_OF_FILE)
-    return 1;
+  if (rc != SUCCESS)
+    return rc;
+
   container->sort(refpos_order_cmp, (void *) file);
-  file->rowid_filter_is_active= container->elements() != 0;
-  return 0;
+  table->file->rowid_filter_is_active= true;
+  return rc;
 }
 
 

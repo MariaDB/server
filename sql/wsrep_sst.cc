@@ -172,10 +172,50 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
   return NULL;
 }
 
+/* return true if character can be a part of a filename */
+static bool filename_char(int const c)
+{
+  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
+}
+
+/* return true if character can be a part of an address string */
+static bool address_char(int const c)
+{
+  return filename_char(c) ||
+         (c == ':') || (c == '[') || (c == ']') || (c == '/');
+}
+
+static bool check_request_str(const char* const str,
+                              bool (*check) (int c),
+                              bool log_warn = true)
+{
+  for (size_t i(0); str[i] != '\0'; ++i)
+  {
+    if (!check(str[i]))
+    {
+      if (log_warn) WSREP_WARN("Illegal character in state transfer request: %i (%c).",
+                               str[i], str[i]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
   if ((! var->save_result.string_value.str) ||
       (var->save_result.string_value.length == 0 ))
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+             var->save_result.string_value.str ?
+             var->save_result.string_value.str : "NULL");
+    return 1;
+  }
+
+  /* check also that method name is alphanumeric string  */
+  if (check_request_str(var->save_result.string_value.str,
+                        filename_char, false))
   {
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
              var->save_result.string_value.str ?
@@ -299,6 +339,15 @@ void wsrep_sst_auth_init ()
 
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 {
+  if ((! var->save_result.string_value.str) ||
+      (var->save_result.string_value.length > (FN_REFLEN -1))) // safety
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+             var->save_result.string_value.str ?
+             var->save_result.string_value.str : "NULL");
+    return 1;
+  }
+
   return 0;
 }
 
@@ -684,7 +733,9 @@ static void* sst_joiner_thread (void* a)
     {
       proc.wait();
       // Read state ID (UUID:SEQNO) followed by wsrep_gtid_domain_id (if any).
+      unsigned long int domain_id= wsrep_gtid_domain_id;
       const char *pos= strchr(out, ' ');
+      WSREP_DEBUG("SST state ID tmp=%s out=%s pos=%p", tmp, out, pos);
 
       if (!pos) {
 
@@ -694,6 +745,13 @@ static void* sst_joiner_thread (void* a)
           WSREP_WARN("Did not find domain ID from SST script output '%s'. "
                      "Domain ID must be set manually to keep binlog consistent",
                      out);
+	  if (wsrep_gtid_domain_id)
+	  {
+	    WSREP_INFO("This node is configured to use wsrep_gtid_domain_id=%lu by user.",
+		       domain_id);
+	    wsrep_gtid_server.domain_id= (uint32)domain_id;
+	    wsrep_gtid_domain_id= (uint32)domain_id;
+	  }
         }
         err= sst_scan_uuid_seqno (out, &ret_uuid, &ret_seqno);
 
@@ -1721,6 +1779,8 @@ static int sst_flush_tables(THD* thd)
     char content[100];
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
              (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
+    WSREP_DEBUG("sst_flush_tables : %s:%lld %d", wsrep_cluster_state_uuid,
+                (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
     err= sst_create_file(flush_success, content);
 
     if (err)
@@ -1728,9 +1788,9 @@ static int sst_flush_tables(THD* thd)
 
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
-    char *real_name= (char*) malloc(full_len);
+    char *real_name= (char*) my_malloc(key_memory_WSREP, full_len, 0);
     sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
-    char *tmp_name= (char*) malloc(full_len + 4);
+    char *tmp_name= (char*) my_malloc(key_memory_WSREP, full_len + 4, 0);
     sprintf(tmp_name, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
@@ -1758,8 +1818,8 @@ static int sst_flush_tables(THD* thd)
                      tmp_name, real_name, err,strerror(err));
       }
     }
-    free(real_name);
-    free(tmp_name);
+    my_free(real_name);
+    my_free(tmp_name);
     if (err)
       ha_disable_internal_writes(false);
   }
@@ -2019,35 +2079,6 @@ static int sst_donate_other (const char*        method,
   return arg.err;
 }
 
-/* return true if character can be a part of a filename */
-static bool filename_char(int const c)
-{
-  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
-}
-
-/* return true if character can be a part of an address string */
-static bool address_char(int const c)
-{
-  return filename_char(c) ||
-         (c == ':') || (c == '[') || (c == ']') || (c == '/');
-}
-
-static bool check_request_str(const char* const str,
-                              bool (*check) (int c))
-{
-  for (size_t i(0); str[i] != '\0'; ++i)
-  {
-    if (!check(str[i]))
-    {
-      WSREP_WARN("Illegal character in state transfer request: %i (%c).",
-                 str[i], str[i]);
-      return true;
-    }
-  }
-
-  return false;
-}
-
 int wsrep_sst_donate(const std::string& msg,
                      const wsrep::gtid& current_gtid,
                      const bool         bypass)
@@ -2055,7 +2086,7 @@ int wsrep_sst_donate(const std::string& msg,
   const char* method= msg.data();
   size_t method_len= strlen (method);
 
-  if (check_request_str(method, filename_char))
+  if (check_request_str(method, filename_char, true))
   {
     WSREP_ERROR("Bad SST method name. SST canceled.");
     return WSREP_CB_FAILURE;
@@ -2077,7 +2108,7 @@ int wsrep_sst_donate(const std::string& msg,
     addr= data;
   }
 
-  if (check_request_str(addr, address_char))
+  if (check_request_str(addr, address_char, true))
   {
     WSREP_ERROR("Bad SST address string. SST canceled.");
     return WSREP_CB_FAILURE;

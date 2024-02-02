@@ -29,6 +29,7 @@ Created 2012-02-08 by Sunny Bains.
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "buf0flu.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -116,7 +117,6 @@ struct row_import {
 	row_import() UNIV_NOTHROW
 		:
 		m_table(NULL),
-		m_version(0),
 		m_hostname(NULL),
 		m_table_name(NULL),
 		m_autoinc(0),
@@ -195,8 +195,6 @@ struct row_import {
 
 	dict_table_t*	m_table;		/*!< Table instance */
 
-	ulint		m_version;		/*!< Version of config file */
-
 	byte*		m_hostname;		/*!< Hostname where the
 						tablespace was exported */
 	byte*		m_table_name;		/*!< Exporting instance table
@@ -239,6 +237,7 @@ struct fil_iterator_t {
 	byte*		io_buffer;		/*!< Buffer to use for IO */
 	fil_space_crypt_t *crypt_data;		/*!< Crypt data (if encrypted) */
 	byte*           crypt_io_buffer;        /*!< IO buffer when encrypted */
+	byte*           crypt_tmp_buffer;       /*!< Temporary buffer for crypt use */
 };
 
 /** Use the page cursor to iterate over records in a block. */
@@ -2072,7 +2071,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	/* If we already had an old page with matching number
 	in the buffer pool, evict it now, because
 	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
+	buf_page_get_gen(block->page.id(), get_zip_size(), RW_NO_LATCH,
 			 nullptr, BUF_PEEK_IF_IN_POOL,
 			 nullptr, nullptr);
 
@@ -2961,17 +2960,13 @@ row_import_read_meta_data(
 		return(DB_IO_ERROR);
 	}
 
-	cfg.m_version = mach_read_from_4(row);
-
 	/* Check the version number. */
-	switch (cfg.m_version) {
+	switch (mach_read_from_4(row)) {
 	case IB_EXPORT_CFG_VERSION_V1:
-
 		return(row_import_read_v1(file, thd, &cfg));
 	default:
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			"Unsupported meta-data version number (" ULINTPF "), "
-			"file ignored", cfg.m_version);
+		ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_NOT_SUPPORTED_YET,
+			    "meta-data version");
 	}
 
 	return(DB_ERROR);
@@ -2985,17 +2980,25 @@ row_import_read_meta_data(
 /* decrypt and decompress page if needed */
 static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
                                   uint32_t space_flags, span<byte> page,
-                                  uint32_t space_id, byte *page_compress_buf)
+                                  uint32_t space_id, byte *page_compress_buf,
+                                  byte *tmp_frame)
 {
   auto *data= page.data();
 
   if (space_crypt && space_crypt->should_encrypt())
   {
+    uint page_size= static_cast<uint>(page.size());
+
     if (!buf_page_verify_crypt_checksum(data, space_flags))
       return DB_CORRUPTION;
 
-    if (dberr_t err= fil_space_decrypt(space_id, space_flags, space_crypt,
-                                       data, page.size(), data))
+    dberr_t err=
+      fil_space_decrypt(space_id, space_flags, space_crypt,
+                        tmp_frame, page_size, data);
+
+    memcpy(data, tmp_frame, page_size);
+
+    if (err)
       return err;
   }
 
@@ -3115,11 +3118,16 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     return err;
 
   std::unique_ptr<byte[]> page_compress_buf(new byte[get_buf_size()]);
+  std::unique_ptr<byte[], decltype(&aligned_free)> crypt_tmp_frame(
+      static_cast<byte *>(
+          aligned_malloc(physical_size, CPU_LEVEL1_DCACHE_LINESIZE)),
+      &aligned_free);
 
   if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
                                       {page.get(), static_cast<size_t>
                                        (physical_size)},
-                                      space_id, page_compress_buf.get()))
+                                      space_id, page_compress_buf.get(),
+                                      crypt_tmp_frame.get()))
     return err;
 
   if (table->supports_instant())
@@ -3173,7 +3181,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
                                           {page.get(), static_cast<size_t>
                                            (physical_size)}, space_id,
-                                          page_compress_buf.get()))
+                                          page_compress_buf.get(),
+                                          crypt_tmp_frame.get()))
         return err;
     }
 
@@ -3255,7 +3264,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
                                           {second_page.get(),
                                            static_cast<size_t>(physical_size)},
-                                          space_id, page_compress_buf.get()))
+                                          space_id, page_compress_buf.get(),
+                                          crypt_tmp_frame.get()))
         return err;
 
       if (fil_page_get_type(second_page.get()) != FIL_PAGE_TYPE_BLOB ||
@@ -3697,8 +3707,14 @@ page_corrupted:
     if (!buf_page_verify_crypt_checksum(readptr, m_space_flags))
       goto page_corrupted;
 
-    if ((err= fil_space_decrypt(get_space_id(), m_space_flags, iter.crypt_data,
-                                readptr, size, readptr)))
+    dberr_t err= fil_space_decrypt(get_space_id(), m_space_flags,
+                                   iter.crypt_data, iter.crypt_tmp_buffer,
+                                   size, readptr);
+
+    memcpy_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(readptr, iter.crypt_tmp_buffer,
+                                               size);
+
+    if (err)
       goto func_exit;
   }
 
@@ -4155,17 +4171,21 @@ fil_tablespace_iterate(
 		iter.file_size = file_size;
 		iter.n_io_buffers = n_io_buffers;
 
+		size_t buf_size = (1 + iter.n_io_buffers) * srv_page_size;
+
 		/* Add an extra page for compressed page scratch area. */
 		iter.io_buffer = static_cast<byte*>(
-			aligned_malloc((1 + iter.n_io_buffers)
-				       << srv_page_size_shift, srv_page_size));
+			aligned_malloc(buf_size, srv_page_size));
 
-		iter.crypt_io_buffer = iter.crypt_data
-			? static_cast<byte*>(
-				aligned_malloc((1 + iter.n_io_buffers)
-					       << srv_page_size_shift,
-					       srv_page_size))
-			: NULL;
+		if (iter.crypt_data) {
+			iter.crypt_io_buffer = static_cast<byte *>(
+				aligned_malloc(buf_size, srv_page_size));
+			iter.crypt_tmp_buffer = static_cast<byte *>(
+				aligned_malloc(buf_size, CPU_LEVEL1_DCACHE_LINESIZE));
+		} else {
+			iter.crypt_io_buffer = NULL;
+			iter.crypt_tmp_buffer = NULL;
+		}
 
 		if (block->page.zip.ssize) {
 			ut_ad(iter.n_io_buffers == 1);
@@ -4180,6 +4200,7 @@ fil_tablespace_iterate(
 			fil_space_destroy_crypt_data(&iter.crypt_data);
 		}
 
+		aligned_free(iter.crypt_tmp_buffer);
 		aligned_free(iter.crypt_io_buffer);
 		aligned_free(iter.io_buffer);
 	}

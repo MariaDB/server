@@ -281,7 +281,9 @@ drop table t1;
 CREATE TABLE t1 (i INT, d1 DATE, d2 DATE NOT NULL, t TIMESTAMP, KEY(t)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES  (1,'2023-03-16','2023-03-15','2012-12-12 12:12:12');
 ALTER TABLE t1 MODIFY t FLOAT AS (i) PERSISTENT;
+--disable_ps2_protocol
 SELECT i, d1, d2 INTO OUTFILE 'load_t1' FROM t1;
+--enable_ps2_protocol
 DELETE FROM t1;
 LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
 SELECT * FROM t1 WHERE d2 < d1;
@@ -311,3 +313,32 @@ create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk
 --error ER_DUP_ENTRY
 insert into t2 (pk) select a from t1;
 drop tables t1, t2;
+
+--echo #
+--echo # MDEV-23294 Segfault or assertion upon MyISAM repair
+--echo #
+set @old_mode= @@sql_mode;
+set @old_myisam_repair_threads= @@myisam_repair_threads;
+set sql_mode='', myisam_repair_threads=2;
+create table t (a binary,b blob,c blob as (concat (a,b)),h char,index (c)) engine=innodb;
+insert into t values (0,0,default,0);
+create table ti like t;
+alter table ti engine=myisam;
+insert into ti select * from t;
+drop tables ti, t;
+
+create table t (id int,a varchar(1),b varchar(1),c varchar(1) generated always as (concat (a,b)),key(c)) engine=myisam;
+insert into t values (0,0,9687,0);
+repair table t quick;
+drop table t;
+
+create table t1 (b varchar(1024), c char(3), unique(b,c)) engine=myisam;
+insert into t1 values ('foo','baz');
+alter table t1 disable keys;
+set session myisam_repair_threads= 2;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+insert into t1 select 'qux';
+# cleanup
+drop table t1;
+set sql_mode= @old_mode;
+set myisam_repair_threads= @old_myisam_repair_threads;

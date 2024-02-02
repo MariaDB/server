@@ -37,6 +37,11 @@ public:
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *,
                           const Record_addr &, const Type_all_attributes &,
                           TABLE_SHARE *) const override;
+  bool Column_definition_fix_attributes(Column_definition *c) const override
+  {
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "MYSQL_JSON");
+    return true;
+  }
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *def,
                                               const Field *field) const override;
@@ -74,7 +79,7 @@ public:
   bool parse_mysql(String *dest, const char *data, size_t length) const;
   bool send(Protocol *protocol) { return Field::send(protocol); }
   void sql_type(String &s) const
-  { s.set_ascii(STRING_WITH_LEN("json /* MySQL 5.7 */")); }
+  { s.set_ascii(STRING_WITH_LEN("mysql_json /* JSON from MySQL 5.7 */")); }
   /* this will make ALTER TABLE to consider it different from built-in field */
   Compression_method *compression_method() const { return (Compression_method*)1; }
 };
@@ -186,13 +191,6 @@ public:
                                            const Type_handler *b)
                                            const override
   {
-    return NULL;
-  }
-
-  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-  {
-    if (type_handler_mysql_json.name().eq(name))
-      return &type_handler_mysql_json;
     return NULL;
   }
 };

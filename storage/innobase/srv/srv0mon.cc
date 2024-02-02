@@ -25,7 +25,7 @@ Database monitor counter interfaces
 Created 12/9/2009 Jimmy Yang
 *******************************************************/
 
-#include "buf0buf.h"
+#include "buf0flu.h"
 #include "dict0mem.h"
 #include "lock0lock.h"
 #include "mach0data.h"
@@ -136,7 +136,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of row locks currently being waited for"
 	 " (innodb_row_lock_current_waits)",
 	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ROW_LOCK_CURRENT_WAIT},
 
 	{"lock_row_lock_time", "lock",
@@ -647,7 +647,7 @@ static monitor_info_t	innodb_counter_info[] =
 	{"trx_rseg_history_len", "transaction",
 	 "Length of the TRX_RSEG_HISTORY list",
 	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_RSEG_HISTORY_LEN},
 
 	{"trx_undo_slots_used", "transaction", "Number of undo slots used",
@@ -695,7 +695,8 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"purge_dml_delay_usec", "purge",
 	 "Microseconds DML to be delayed due to purge lagging",
-	 MONITOR_DISPLAY_CURRENT,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_DML_PURGE_DELAY},
 
 	{"purge_stop_count", "purge",
@@ -1434,21 +1435,20 @@ srv_mon_process_existing_counter(
 	/* innodb_row_lock_time */
 	case MONITOR_OVLD_LOCK_WAIT_TIME:
 		// dirty read without lock_sys.wait_mutex
-		value = lock_sys.get_wait_time_cumulative() / 1000;
+		value = lock_sys.get_wait_time_cumulative();
 		break;
 
 	/* innodb_row_lock_time_max */
 	case MONITOR_OVLD_LOCK_MAX_WAIT_TIME:
 		// dirty read without lock_sys.wait_mutex
-		value = lock_sys.get_wait_time_max() / 1000;
+		value = lock_sys.get_wait_time_max();
 		break;
 
 	/* innodb_row_lock_time_avg */
 	case MONITOR_OVLD_LOCK_AVG_WAIT_TIME:
 		mysql_mutex_lock(&lock_sys.wait_mutex);
 		if (auto count = lock_sys.get_wait_cumulative()) {
-			value = lock_sys.get_wait_time_cumulative() / 1000
-				/ count;
+			value = lock_sys.get_wait_time_cumulative() / count;
 		} else {
 			value = 0;
 		}
@@ -1467,6 +1467,9 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_RSEG_CUR_SIZE:
 		value = srv_mon_get_rseg_size();
+		break;
+	case MONITOR_DML_PURGE_DELAY:
+		value = srv_max_purge_lag_delay;
 		break;
 	case MONITOR_NUM_UNDO_SLOT_USED:
 		value = srv_mon_get_rseg_used();

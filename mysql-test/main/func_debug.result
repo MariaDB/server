@@ -113,29 +113,29 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
 Note	1105	DBUG: [1] arg=2 handler=0 (longblob)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30');
-TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30')
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30') as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL);
-TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL)
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL) as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30');
-TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30')
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30') as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL);
-TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL)
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL) as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
@@ -351,8 +351,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (longblob)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
-SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) FROM t1;
-a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0)
+SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (date)
 Note	1105	DBUG: [1] arg=2 handler=0 (date)
@@ -360,8 +360,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (date)
 Note	1105	DBUG: [3] arg=4 handler=0 (date)
 Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) FROM t1;
-a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL)
+SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (date)
 Note	1105	DBUG: [1] arg=2 handler=0 (date)
@@ -369,8 +369,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (date)
 Note	1105	DBUG: [3] arg=4 handler=0 (date)
 Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) FROM t1;
-a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0)
+SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (date)
 Note	1105	DBUG: [1] arg=2 handler=0 (date)
@@ -378,8 +378,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (date)
 Note	1105	DBUG: [3] arg=4 handler=0 (date)
 Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) FROM t1;
-a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL)
+SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (date)
 Note	1105	DBUG: [1] arg=2 handler=0 (date)
@@ -389,8 +389,8 @@ Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME);
-SELECT a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0) FROM t1;
-a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0)
+SELECT a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
@@ -398,8 +398,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=0 (time)
 Note	1105	DBUG: [4] arg=5 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL) FROM t1;
-a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL)
+SELECT a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
@@ -407,8 +407,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=0 (time)
 Note	1105	DBUG: [4] arg=5 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0) FROM t1;
-a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0)
+SELECT a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
@@ -416,8 +416,8 @@ Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=0 (time)
 Note	1105	DBUG: [4] arg=5 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL) FROM t1;
-a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL)
+SELECT a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
@@ -427,8 +427,8 @@ Note	1105	DBUG: [4] arg=5 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME);
-SELECT a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0) FROM t1;
-a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0)
+SELECT a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
@@ -438,8 +438,8 @@ Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
 Note	1105	DBUG: [5] arg=6 handler=0 (datetime)
 Note	1105	DBUG: [6] arg=7 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL) FROM t1;
-a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL)
+SELECT a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
@@ -449,8 +449,8 @@ Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
 Note	1105	DBUG: [5] arg=6 handler=0 (datetime)
 Note	1105	DBUG: [6] arg=7 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0) FROM t1;
-a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0)
+SELECT a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
@@ -460,8 +460,8 @@ Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
 Note	1105	DBUG: [5] arg=6 handler=0 (datetime)
 Note	1105	DBUG: [6] arg=7 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL) FROM t1;
-a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL)
+SELECT a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
@@ -659,26 +659,26 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=no
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME);
-SELECT TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
-TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30')
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30') as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=no
-SELECT TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL) FROM t1;
-TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL)
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=no
-SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
-TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30')
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30') as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
 Note	1105	DBUG: types_compatible=yes bisect=no
-SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL) FROM t1;
-TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL)
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
 Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
@@ -797,38 +797,38 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' IN (1,TIME'10:20:30');
-TIME'10:20:30' IN (1,TIME'10:20:30')
+SELECT TIME'10:20:30' IN (1,TIME'10:20:30') as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIME'10:20:30' IN (1,TIME'10:20:30',NULL);
-TIME'10:20:30' IN (1,TIME'10:20:30',NULL)
+SELECT TIME'10:20:30' IN (1,TIME'10:20:30',NULL) as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
-TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
-TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
-TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
@@ -836,8 +836,8 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=3 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
-TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
@@ -845,38 +845,38 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=3 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' NOT IN (1,TIME'10:20:30');
-TIME'10:20:30' NOT IN (1,TIME'10:20:30')
+SELECT TIME'10:20:30' NOT IN (1,TIME'10:20:30') as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIME'10:20:30' NOT IN (1,TIME'10:20:30',NULL);
-TIME'10:20:30' NOT IN (1,TIME'10:20:30',NULL)
+SELECT TIME'10:20:30' NOT IN (1,TIME'10:20:30',NULL) as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: types_compatible=yes bisect=yes
-SELECT TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
-TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
-TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
-TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
@@ -884,8 +884,8 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=3 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
-TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp;
+exp
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
@@ -907,27 +907,28 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (double)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
-a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED))
+SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) as exp FROM t1;
+exp
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
+Note	1105	DBUG: found a mix of UINT and SINT
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
-a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL)
-Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
-Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
-a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED))
+SELECT a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (decimal)
 Note	1105	DBUG: [1] arg=2 handler=1 (bigint)
 Note	1105	DBUG: [2] arg=3 handler=0 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
-a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL)
+SELECT a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (decimal)
 Note	1105	DBUG: [1] arg=2 handler=1 (bigint)
@@ -945,27 +946,28 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (double)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
-a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED))
+SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) as exp FROM t1;
+exp
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
+Note	1105	DBUG: found a mix of UINT and SINT
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
-a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL)
-Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
-Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
-a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED))
+SELECT a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (decimal)
 Note	1105	DBUG: [1] arg=2 handler=1 (bigint)
 Note	1105	DBUG: [2] arg=3 handler=0 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
-a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL)
+SELECT a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (decimal)
 Note	1105	DBUG: [1] arg=2 handler=1 (bigint)
@@ -1219,60 +1221,60 @@ Note	1105	DBUG: [1] arg=2 handler=1 (time)
 Note	1105	DBUG: types_compatible=no bisect=no
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME);
-SELECT a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
-a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
-a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
-a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=3 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
-a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=3 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
-a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
-a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
-a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32')
+SELECT a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=0 (time)
 Note	1105	DBUG: [3] arg=4 handler=3 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
-SELECT a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
-a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL)
+SELECT a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) as exp FROM t1;
+exp
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
 Note	1105	DBUG: [1] arg=2 handler=0 (time)
@@ -1511,8 +1513,8 @@ DROP TABLE t1;
 #
 # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
 #
-SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
-TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp;
+exp
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
@@ -1624,7 +1626,8 @@ a	b
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
 Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
-Note	1105	DBUG: types_compatible=no bisect=no
+Note	1105	DBUG: found a mix of UINT and SINT
+Note	1105	DBUG: types_compatible=yes bisect=no
 DROP TABLE t1;
 #
 # MDEV-11554 Wrong result for CASE on a mixture of signed and unsigned expressions

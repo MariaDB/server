@@ -34,6 +34,8 @@ Created Jan 06, 2010 Vasil Dimov
 #include "log.h"
 #include "btr0btr.h"
 #include "que0que.h"
+#include "scope.h"
+#include "debug_sync.h"
 
 #include <algorithm>
 #include <map>
@@ -204,7 +206,17 @@ static const dict_table_schema_t table_stats_schema =
   {
     {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
     {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
-    {"last_update", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 4},
+    /*
+      Don't check the DATA_UNSIGNED flag in last_update.
+      It presents if the server is running in a pure MariaDB installation,
+      because MariaDB's Field_timestampf::flags has UNSIGNED_FLAG.
+      But DATA_UNSIGNED misses when the server starts on a MySQL-5.7 directory
+      (during a migration), because MySQL's Field_timestampf::flags does not
+      have UNSIGNED_FLAG.
+      This is fine not to check DATA_UNSIGNED, because Field_timestampf
+      in both MariaDB and MySQL support only non-negative time_t values.
+    */
+    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
     {"n_rows", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
     {"clustered_index_size", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
     {"sum_of_other_index_sizes", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
@@ -218,7 +230,11 @@ static const dict_table_schema_t index_stats_schema =
     {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
     {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
     {"index_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
-    {"last_update", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 4},
+    /*
+      Don't check the DATA_UNSIGNED flag in last_update.
+      See comments about last_update in table_stats_schema above.
+    */
+    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
     {"stat_name", DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
     {"stat_value", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
     {"sample_size", DATA_INT, DATA_UNSIGNED, 8},
@@ -500,15 +516,17 @@ static bool dict_stats_persistent_storage_check(bool dict_already_locked)
 		dict_sys.unlock();
 	}
 
-	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
-		ib::error() << errstr;
-		return(false);
-	} else if (ret == DB_STATS_DO_NOT_EXIST) {
+	switch (ret) {
+	case DB_SUCCESS:
+		return true;
+	default:
+		if (!opt_bootstrap) {
+			ib::error() << errstr;
+		}
+		/* fall through */
+	case DB_STATS_DO_NOT_EXIST:
 		return false;
 	}
-	/* else */
-
-	return(true);
 }
 
 /** Executes a given SQL statement using the InnoDB internal SQL parser.
@@ -729,16 +747,9 @@ dict_stats_empty_index(
 	}
 }
 
-/*********************************************************************//**
-Write all zeros (or 1 where it makes sense) into a table and its indexes'
-statistics members. The resulting stats correspond to an empty table. */
-static
-void
-dict_stats_empty_table(
-/*===================*/
-	dict_table_t*	table,	/*!< in/out: table */
+void dict_stats_empty_table(
+	dict_table_t*	table,
 	bool		empty_defrag_stats)
-				/*!< in: whether to empty defrag stats */
 {
 	/* Initialize table/index level stats is now protected by
 	table level lock_mutex.*/
@@ -3202,6 +3213,15 @@ dict_stats_save(
 	pars_info_t*	pinfo;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("dict_stats_save_exit_notify",
+	   SCOPE_EXIT([] {
+	       debug_sync_set_action(current_thd,
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
+	    });
+	);
+#endif /* ENABLED_DEBUG_SYNC */
 
 	if (high_level_read_only) {
 		return DB_READ_ONLY;

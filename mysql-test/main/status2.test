@@ -3,6 +3,7 @@
 --echo #
 --echo # Bug#24289 Status Variable "Questions" gets wrong values with Stored Routines
 --echo #
+--disable_ps2_protocol
 FLUSH STATUS;
 DELIMITER $$;
 CREATE FUNCTION testQuestion() RETURNS INTEGER
@@ -64,6 +65,7 @@ DROP TRIGGER trigg1;
 DROP FUNCTION testQuestion;
 DROP EVENT ev1;
 DROP TABLE t1,t2;
+--enable_ps2_protocol
 
 --echo #
 --echo # End of 5.5 tests

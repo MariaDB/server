@@ -30,6 +30,8 @@
 #include "sql_type_string.h"
 #include "sql_type_real.h"
 #include "compat56.h"
+#include "log_event_data_type.h"
+
 C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
@@ -55,6 +57,7 @@ class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
 class Item_bool_func2;
+class Item_bool_rowready_func2;
 class Item_func_between;
 class Item_func_in;
 class Item_func_round;
@@ -122,6 +125,40 @@ enum scalar_comparison_op
   SCALAR_CMP_GE,
   SCALAR_CMP_GT
 };
+
+
+/*
+  This enum is intentionally defined as "class" to disallow its implicit
+  cast as "bool". This is needed to avoid pre-MDEV-32203 constructs like:
+    if (field->can_optimize_range(...))
+      do_optimization();
+  to merge automatically as such - that would change the meaning
+  to the opposite. The pre-MDEV-32203 code must to be changed to:
+    if (field->can_optimize_range(...) == Data_type_compatibility::OK)
+      do_optimization();
+*/
+enum class Data_type_compatibility
+{
+  OK,
+  INCOMPATIBLE_DATA_TYPE,
+  INCOMPATIBLE_COLLATION
+};
+
+
+static inline const LEX_CSTRING
+scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
+{
+  switch (op) {
+  case SCALAR_CMP_EQ:    return LEX_CSTRING{STRING_WITH_LEN("=")};
+  case SCALAR_CMP_EQUAL: return LEX_CSTRING{STRING_WITH_LEN("<=>")};
+  case SCALAR_CMP_LT:    return LEX_CSTRING{STRING_WITH_LEN("<")};
+  case SCALAR_CMP_LE:    return LEX_CSTRING{STRING_WITH_LEN("<=")};
+  case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
+  case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">")};
+  }
+  DBUG_ASSERT(0);
+  return LEX_CSTRING{STRING_WITH_LEN("<?>")};
+}
 
 
 class Hasher
@@ -3234,10 +3271,16 @@ public:
   bool agg_item_collations(DTCollation &c, const LEX_CSTRING &name,
                            Item **items, uint nitems,
                            uint flags, int item_sep);
+  struct Single_coll_err
+  {
+    const DTCollation& coll;
+    bool first;
+  };
   bool agg_item_set_converter(const DTCollation &coll,
                               const LEX_CSTRING &name,
                               Item **args, uint nargs,
-                              uint flags, int item_sep);
+                              uint flags, int item_sep,
+                              const Single_coll_err *single_item_err= NULL);
 
   /*
     Collect arguments' character sets together.
@@ -3384,17 +3427,12 @@ public:
 class Name: private LEX_CSTRING
 {
 public:
-  Name(const char *str_arg, uint length_arg)
-  {
-    DBUG_ASSERT(length_arg < UINT_MAX32);
-    LEX_CSTRING::str= str_arg;
-    LEX_CSTRING::length= length_arg;
-  }
-  Name(const LEX_CSTRING &lcs)
-  {
-    LEX_CSTRING::str= lcs.str;
-    LEX_CSTRING::length= lcs.length;
-  }
+  constexpr Name(const char *str_arg, uint length_arg) :
+    LEX_CSTRING({str_arg, length_arg})
+  { }
+  constexpr Name(const LEX_CSTRING &lcs) :
+    LEX_CSTRING(lcs)
+  { }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return (uint) LEX_CSTRING::length; }
   const LEX_CSTRING &lex_cstring() const { return *this; }
@@ -3637,6 +3675,9 @@ public:
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
                                                       const LEX_CSTRING &name);
+  static const Type_handler *handler_by_log_event_data_type(
+                                             THD *thd,
+                                             const Log_event_data_type &type);
   static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -3654,7 +3695,6 @@ public:
   static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
-  static const Type_handler *get_handler_by_cmp_type(Item_result type);
   static const Type_collection *
     type_collection_for_aggregation(const Type_handler *h1,
                                     const Type_handler *h2);
@@ -3921,6 +3961,12 @@ public:
   virtual bool union_element_finalize(Item_type_holder* item) const
   {
     return false;
+  }
+
+  virtual Log_event_data_type user_var_log_event_data_type(uint charset_nr) const
+  {
+    return Log_event_data_type({NULL,0}/*data type name*/, result_type(),
+                               charset_nr, is_unsigned());
   }
   virtual uint Column_definition_gis_options_image(uchar *buff,
                                                    const Column_definition &def)
@@ -4222,6 +4268,8 @@ public:
   }
   virtual bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                              Item *a, Item *b) const= 0;
+  virtual bool Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const LEX_CSTRING &name,
                                                Type_handler_hybrid_field_type *,
@@ -5269,6 +5317,12 @@ public:
     return type_limits_int()->char_length();
   }
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const LEX_CSTRING &name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items,
+                                       uint nitems) const override;
   bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
     const override
   {
@@ -7396,7 +7450,6 @@ class Type_collection
 public:
   virtual ~Type_collection() = default;
   virtual bool init(Type_handler_data *) { return false; }
-  virtual const Type_handler *handler_by_name(const LEX_CSTRING &name) const= 0;
   virtual const Type_handler *aggregate_for_result(const Type_handler *h1,
                                                    const Type_handler *h2)
                                                    const= 0;
@@ -7574,8 +7627,9 @@ extern Named_type_handler<Type_handler_time>        type_handler_time;
 extern Named_type_handler<Type_handler_time2>       type_handler_time2;
 extern Named_type_handler<Type_handler_datetime>    type_handler_datetime;
 extern Named_type_handler<Type_handler_datetime2>   type_handler_datetime2;
-extern Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
-extern Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
+
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
 
 extern Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 

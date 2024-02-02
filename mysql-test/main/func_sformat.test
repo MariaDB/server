@@ -253,3 +253,24 @@ set names latin1;
 echo #;
 echo # End of 10.7 tests;
 echo #;
+
+echo #;
+echo # Start of 10.8 tests;
+echo #;
+
+echo #;
+echo # MDEV-29646 sformat('Num [{:20}]', 42) gives incorrect result in view;
+echo #;
+
+create view v1 as select sformat('Num [{:20}]', 42);
+select * from v1;
+drop view v1;
+
+create view v1 as SELECT sformat('Square root of [{:d}] is [{:.20}]', 2, sqrt(2));
+select * from v1;
+drop view v1;
+
+create table t1 (a text, b int, c text);
+insert t1 values ('[{} -> {}]', 10, '{}'), ('[{:20} <- {}]', 1, '{:30}');
+select sformat(a,b,c) from t1;
+drop table t1;

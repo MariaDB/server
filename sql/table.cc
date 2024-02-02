@@ -46,6 +46,9 @@
 #include "sql_show.h"
 #include "opt_trace.h"
 #include "sql_db.h"              // get_default_db_collation
+#ifdef WITH_WSREP
+#include "wsrep_schema.h"
+#endif
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -281,10 +284,14 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
 
 #ifdef WITH_WSREP
   if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
-      my_strcasecmp(system_charset_info, name->str, "wsrep_streaming_log") == 0)
+      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
   {
-    return TABLE_CATEGORY_INFORMATION;
+    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    {
+      return TABLE_CATEGORY_INFORMATION;
+    }
   }
 #endif /* WITH_WSREP */
   if (is_infoschema_db(db))
@@ -357,7 +364,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    share->table_category= get_table_category(& share->db, & share->table_name);
+    share->table_category= get_table_category(&share->db, &share->table_name);
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
@@ -367,14 +374,13 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
         table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
-    init_sql_alloc(PSI_INSTRUMENT_ME, &share->stats_cb.mem_root,
-                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
-
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
+    mysql_mutex_init(key_TABLE_SHARE_LOCK_statistics,
+                     &share->LOCK_statistics, MY_MUTEX_INIT_SLOW);
 
     DBUG_EXECUTE_IF("simulate_big_table_id",
                     if (last_table_id < UINT_MAX32)
@@ -475,15 +481,19 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
-  delete_stat_values_for_table_share(this);
+  if (stats_cb)
+  {
+    stats_cb->usage_count--;
+    delete stats_cb;
+  }
   delete sequence;
-  free_root(&stats_cb.mem_root, MYF(0));
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
   {
     mysql_mutex_destroy(&LOCK_share);
     mysql_mutex_destroy(&LOCK_ha_data);
+    mysql_mutex_destroy(&LOCK_statistics);
   }
   my_hash_free(&name_hash);
 
@@ -1112,19 +1122,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       return vcol &&
              vcol->expr->walk(&Item::check_field_expression_processor, 0, field);
     }
-    static bool check_constraint(Field *field, Virtual_column_info *vcol)
-    {
-      uint32 flags= field->flags;
-      /* Check constraints can refer it itself */
-      field->flags|= NO_DEFAULT_VALUE_FLAG;
-      const bool res= check(field, vcol);
-      field->flags= flags;
-      return res;
-    }
     static bool check(Field *field)
     {
       if (check(field, field->vcol_info) ||
-          check_constraint(field, field->check_constraint) ||
           check(field, field->default_value))
         return true;
       return false;
@@ -1139,6 +1139,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Field **vfield_ptr= table->vfield;
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
+  Sql_mode_save_for_frm_handling sql_mode_save(thd);
   Query_arena backup_arena;
   Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
@@ -1159,8 +1160,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  Sql_mode_instant_remove sms(thd, MODE_NO_BACKSLASH_ESCAPES |
-                              MODE_EMPTY_STRING_IS_NULL);
 
   while (pos < end)
   {
@@ -1192,7 +1191,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
             ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL;
       expr_length= uint2korr(pos+1);
       if (table->s->mysql_version > 50700 && table->s->mysql_version < 100000)
+      {
+        table->s->keep_original_mysql_version= 1;
         pos+= 4;                        // MySQL from 5.7
+      }
       else
         pos+= pos[0] == 2 ? 4 : 3;      // MariaDB from 5.2 to 10.1
     }
@@ -1339,11 +1341,16 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   /* Check that expressions aren't referring to not yet initialized fields */
   for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
     if (check_vcol_forward_refs::check(*field_ptr))
     {
       *error_reported= true;
       goto end;
     }
+    if ((*field_ptr)->check_constraint)
+        (*field_ptr)->check_constraint->expr->
+          walk(&Item::update_func_default_processor, 0, *field_ptr);
+  }
 
   table->find_constraint_correlated_indexes();
 
@@ -1707,6 +1714,33 @@ public:
 };
 
 
+/*
+  Change to use the partition storage engine
+*/
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+static bool change_to_partiton_engine(LEX_CSTRING *name,
+                                      plugin_ref *se_plugin)
+{
+  /*
+    Use partition handler
+    tmp_plugin is locked with a local lock.
+    we unlock the old value of se_plugin before
+    replacing it with a globally locked version of tmp_plugin
+  */
+  /* Check if the partitioning engine is ready */
+  if (!plugin_is_ready(name, MYSQL_STORAGE_ENGINE_PLUGIN))
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
+             "--skip-partition");
+    return 1;
+  }
+  plugin_unlock(NULL, *se_plugin);
+  *se_plugin= ha_lock_engine(NULL, partition_hton);
+  return 0;
+}
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
+
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
 
@@ -1759,6 +1793,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint vcol_screen_length;
   uchar *vcol_screen_pos;
   LEX_CUSTRING options;
+  LEX_CSTRING se_name= empty_clex_str;
   KEY first_keyinfo;
   uint len;
   uint ext_key_parts= 0;
@@ -1968,11 +2003,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (next_chunk + 2 < buff_end)
     {
       uint str_db_type_length= uint2korr(next_chunk);
-      LEX_CSTRING name;
-      name.str= (char*) next_chunk + 2;
-      name.length= str_db_type_length;
+      se_name.str= (char*) next_chunk + 2;
+      se_name.length= str_db_type_length;
 
-      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name, false);
+      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &se_name, false);
       if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin) &&
           legacy_db_type != DB_TYPE_S3)
       {
@@ -1996,28 +2030,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       else if (str_db_type_length == 9 &&
                !strncmp((char *) next_chunk + 2, "partition", 9))
       {
-        /*
-          Use partition handler
-          tmp_plugin is locked with a local lock.
-          we unlock the old value of se_plugin before
-          replacing it with a globally locked version of tmp_plugin
-        */
-        /* Check if the partitioning engine is ready */
-        if (!plugin_is_ready(&name, MYSQL_STORAGE_ENGINE_PLUGIN))
-        {
-          my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
-                   "--skip-partition");
+        if (change_to_partiton_engine(&se_name, &se_plugin))
           goto err;
-        }
-        plugin_unlock(NULL, se_plugin);
-        se_plugin= ha_lock_engine(NULL, partition_hton);
       }
 #endif
       else if (!tmp_plugin)
       {
         /* purecov: begin inspected */
-        ((char*) name.str)[name.length]=0;
-        my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), name.str);
+        ((char*) se_name.str)[se_name.length]=0;
+        my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), se_name.str);
         goto err;
         /* purecov: end */
       }
@@ -2048,6 +2069,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                           partition_info_str_len + 1)))
         {
           goto err;
+        }
+        if (plugin_data(se_plugin, handlerton*) != partition_hton &&
+            share->mysql_version >= 50600 && share->mysql_version <= 50799)
+        {
+          share->keep_original_mysql_version= 1;
+          if (change_to_partiton_engine(&se_name, &se_plugin))
+            goto err;
         }
       }
 #else
@@ -2316,6 +2344,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)
   {
+    share->keep_original_mysql_version= 1;
     /*
       MySQL 5.7 stores the null bits for not stored fields last.
       Calculate the position for them.
@@ -2593,8 +2622,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     /* Remove >32 decimals from old files */
-    if (share->mysql_version < 100200)
+    if (share->mysql_version < 100200 &&
+        (attr.pack_flag & FIELDFLAG_LONG_DECIMAL))
+    {
+      share->keep_original_mysql_version= 1;
       attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
+    }
 
     if (interval_nr && attr.charset->mbminlen > 1 &&
         !interval_unescaped[interval_nr - 1])
@@ -3542,7 +3575,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   char *sql_copy;
   handler *file;
   LEX *old_lex;
-  Query_arena *arena, backup;
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
@@ -3569,11 +3601,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   old_lex= thd->lex;
   thd->lex= &tmp_lex;
 
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
 
   /*
     THD::reset_db() does not set THD::db_charset,
@@ -3598,17 +3625,18 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (thd->lex->create_info.resolve_to_charset_collation_context(thd, ctx))
     DBUG_RETURN(true);
 
-  thd->lex->create_info.db_type= hton;
+  tmp_lex.create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;                       // For partitioning
 #endif
 
   if (tabledef_version.str)
-    thd->lex->create_info.tabledef_version= tabledef_version;
+    tmp_lex.create_info.tabledef_version= tabledef_version;
 
-  promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, db, table_name,
-                               &thd->lex->create_info, &thd->lex->alter_info,
+  tmp_lex.alter_info.db= db;
+  tmp_lex.alter_info.table_name= table_name;
+  promote_first_timestamp_column(&tmp_lex.alter_info.create_list);
+  file= mysql_create_frm_image(thd, &tmp_lex.create_info, &tmp_lex.alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
@@ -3622,11 +3650,9 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
 ret:
   my_free(const_cast<uchar*>(frm.str));
-  lex_end(thd->lex);
+  lex_end(&tmp_lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
@@ -4214,7 +4240,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->in_use= thd;
   outparam->s= share;
   outparam->db_stat= db_stat;
-  outparam->write_row_record= NULL;
   outparam->status= STATUS_NO_RECORD;
 
   if (share->incompatible_version &&
@@ -4626,6 +4651,88 @@ partititon_err:
 }
 
 
+/**
+  Free engine stats
+
+  This is only called from closefrm() when the TABLE object is destroyed
+**/
+
+void TABLE::free_engine_stats()
+{
+  bool free_stats= 0;
+  TABLE_STATISTICS_CB *stats= stats_cb;
+  mysql_mutex_lock(&s->LOCK_share);
+  free_stats= --stats->usage_count == 0;
+  mysql_mutex_unlock(&s->LOCK_share);
+  if (free_stats)
+    delete stats;
+}
+
+
+/*
+  Use engine stats from table_share if table_share has been updated
+*/
+
+void TABLE::update_engine_independent_stats()
+{
+  bool free_stats= 0;
+  TABLE_STATISTICS_CB *org_stats= stats_cb;
+  DBUG_ASSERT(stats_cb != s->stats_cb);
+
+  if (stats_cb != s->stats_cb)
+  {
+    mysql_mutex_lock(&s->LOCK_share);
+    if (org_stats)
+      free_stats= --org_stats->usage_count == 0;
+    if ((stats_cb= s->stats_cb))
+      stats_cb->usage_count++;
+    mysql_mutex_unlock(&s->LOCK_share);
+    if (free_stats)
+      delete org_stats;
+  }
+}
+
+
+/*
+  Update engine stats in table share to use new stats
+*/
+
+void
+TABLE_SHARE::update_engine_independent_stats(TABLE_STATISTICS_CB *new_stats)
+{
+  TABLE_STATISTICS_CB *free_stats= 0;
+  DBUG_ASSERT(new_stats->usage_count == 0);
+
+  mysql_mutex_lock(&LOCK_share);
+  if (stats_cb)
+  {
+    if (!--stats_cb->usage_count)
+      free_stats= stats_cb;
+  }
+  stats_cb= new_stats;
+  new_stats->usage_count++;
+  mysql_mutex_unlock(&LOCK_share);
+  if (free_stats)
+    delete free_stats;
+}
+
+
+/* Check if we have statistics for histograms */
+
+bool TABLE_SHARE::histograms_exists()
+{
+  bool res= 0;
+  if (stats_cb)
+  {
+    mysql_mutex_lock(&LOCK_share);
+    if (stats_cb)
+      res= stats_cb->histograms_exists();
+    mysql_mutex_unlock(&LOCK_share);
+  }
+  return res;
+}
+
+
 /*
   Free information allocated by openfrm
 
@@ -4664,6 +4771,12 @@ int closefrm(TABLE *table)
     table->part_info= 0;
   }
 #endif
+  if (table->stats_cb)
+  {
+    DBUG_ASSERT(table->s->tmp_table == NO_TMP_TABLE);
+    table->free_engine_stats();
+  }
+
   free_root(&table->mem_root, MYF(0));
   DBUG_RETURN(error);
 }
@@ -5443,7 +5556,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
         error= TRUE;
       }
       else if (field_def->cset.str &&
-               strcmp(field->charset()->cs_name.str, field_def->cset.str))
+               strncmp(field->charset()->cs_name.str, field_def->cset.str,
+                       field_def->cset.length))
       {
         report_error(0, "Incorrect definition of table %s.%s: "
                      "expected the type of column '%s' at position %d "
@@ -5790,6 +5904,12 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
+  /* enable and clear or disable engine query statistics */
+  if (thd->should_collect_handler_stats())
+    file->ha_handler_stats_reset();
+  else
+    file->ha_handler_stats_disable();
+
   notnull_cond= 0;
   DBUG_ASSERT(!file->keyread_enabled());
 
@@ -5954,7 +6074,7 @@ allocate:
   /* Create view fields translation table */
 
   if (!(transl=
-        (Field_translator*)(thd->stmt_arena->
+        (Field_translator*)(thd->
                             alloc(select->item_list.elements *
                                   sizeof(Field_translator)))))
   {
@@ -6711,7 +6831,7 @@ void TABLE_LIST::register_want_access(privilege_t want_access)
 */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-bool TABLE_LIST::prepare_view_security_context(THD *thd)
+bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
 {
   DBUG_ENTER("TABLE_LIST::prepare_view_security_context");
   DBUG_PRINT("enter", ("table: %s", alias.str));
@@ -6736,8 +6856,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       {
         if (thd->security_ctx->master_access & PRIV_REVEAL_MISSING_DEFINER)
         {
-          my_error(ER_NO_SUCH_USER, MYF(0), definer.user.str, definer.host.str);
-
+          my_error(ER_NO_SUCH_USER, MYF(upgrade_check ? ME_WARNING: 0),
+                   definer.user.str, definer.host.str);
         }
         else
         {
@@ -6819,11 +6939,33 @@ bool TABLE_LIST::prepare_security(THD *thd)
   TABLE_LIST *tbl;
   DBUG_ENTER("TABLE_LIST::prepare_security");
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    Check if we are running REPAIR VIEW FOR UPGRADE
+    In this case we are probably comming from mysql_upgrade and
+    should not get an error for mysql.user table we just created.
+  */
+  bool upgrade_check= (thd->lex->sql_command == SQLCOM_REPAIR &&
+                       (thd->lex->check_opt.sql_flags &
+                        (TT_FOR_UPGRADE | TT_FROM_MYSQL)) &&
+                       (thd->security_ctx->master_access &
+                        PRIV_REVEAL_MISSING_DEFINER));
   Security_context *save_security_ctx= thd->security_ctx;
 
   DBUG_ASSERT(!prelocking_placeholder);
-  if (prepare_view_security_context(thd))
-    DBUG_RETURN(TRUE);
+  if (prepare_view_security_context(thd, upgrade_check))
+  {
+    if (upgrade_check)
+    {
+      /* REPAIR needs SELECT_ACL */
+      while ((tbl= tb++))
+      {
+        tbl->grant.privilege= SELECT_ACL;
+        tbl->security_ctx= save_security_ctx;
+      }
+      DBUG_RETURN(FALSE);
+    }
+    DBUG_RETURN(TRUE);                          // Fatal
+  }
   thd->security_ctx= find_view_security_context(thd);
   opt_trace_disable_if_no_security_context_access(thd);
   while ((tbl= tb++))
@@ -6849,7 +6991,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
 #else
   while ((tbl= tb++))
     tbl->grant.privilege= ALL_KNOWN_ACL;
-#endif
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }
 
@@ -6876,7 +7018,7 @@ void TABLE_LIST::set_check_materialized()
   DBUG_ENTER("TABLE_LIST::set_check_materialized");
   SELECT_LEX_UNIT *derived= this->derived;
   if (view)
-    derived= &view->unit;
+    derived= this->derived= &view->unit;
   DBUG_ASSERT(derived);
   DBUG_ASSERT(!derived->is_excluded());
   if (!derived->first_select()->exclude_from_table_unique_test)
@@ -7477,7 +7619,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
 {
   MY_BITMAP *backup= read_set;
   DBUG_ENTER("TABLE::prepare_for_keyread");
-  if (!no_keyread)
+  if (!no_keyread && !file->keyread_enabled())
     file->ha_start_keyread(index);
   if (map != read_set || !is_clustering_key(index))
   {
@@ -7559,7 +7701,7 @@ inline void TABLE::mark_index_columns_for_read(uint index)
     always set and sometimes read.
 */
 
-void TABLE::mark_auto_increment_column()
+void TABLE::mark_auto_increment_column(bool is_insert)
 {
   DBUG_ASSERT(found_next_number_field);
   /*
@@ -7567,7 +7709,8 @@ void TABLE::mark_auto_increment_column()
     store() to check overflow of auto_increment values
   */
   bitmap_set_bit(read_set, found_next_number_field->field_index);
-  bitmap_set_bit(write_set, found_next_number_field->field_index);
+  if (is_insert)
+    bitmap_set_bit(write_set, found_next_number_field->field_index);
   if (s->next_number_keypart)
     mark_index_columns_for_read(s->next_number_index);
   file->column_bitmaps_signal();
@@ -7692,7 +7835,7 @@ void TABLE::mark_columns_needed_for_update()
   else
   {
     if (found_next_number_field)
-      mark_auto_increment_column();
+      mark_auto_increment_column(false);
   }
 
   if (file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_DELETE)
@@ -7768,7 +7911,7 @@ void TABLE::mark_columns_needed_for_insert()
     triggers->mark_fields_used(TRG_EVENT_INSERT);
   }
   if (found_next_number_field)
-    mark_auto_increment_column();
+    mark_auto_increment_column(true);
   if (default_field)
     mark_default_fields_for_write(TRUE);
   if (s->versioned)
@@ -9693,8 +9836,13 @@ void TABLE_LIST::wrap_into_nested_join(List<TABLE_LIST> &join_list)
 
 static inline bool derived_table_optimization_done(TABLE_LIST *table)
 {
-  return table->derived &&
-      (table->derived->is_excluded() ||
+  SELECT_LEX_UNIT *derived= (table->derived ?
+                             table->derived :
+                             (table->view ?
+                              &table->view->unit:
+                              NULL));
+  return derived &&
+      (derived->is_excluded() ||
        table->is_materialized_derived());
 }
 
@@ -9756,18 +9904,29 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     set_derived();
   }
 
-  if (is_view() ||
-      !derived_table_optimization_done(this))
+  if (!derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && unit->can_be_merged() &&
-        (unit->outer_select() && !unit->outer_select()->with_rownum) &&
+        /*
+          Following is special case of
+          SELECT * FROM (<limited-select>) WHERE ROWNUM() <= nnn
+        */
+        (unit->outer_select() &&
+         !(unit->outer_select()->with_rownum &&
+           unit->outer_select()->table_list.elements == 1 &&
+           (thd->lex->sql_command == SQLCOM_SELECT ||
+            !unit->outer_select()->is_query_topmost(thd)) &&
+           !is_view())) &&
+
         (!thd->lex->with_rownum ||
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&
         (is_view() ||
-         (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
-          !thd->lex->can_not_use_merged(1))) &&
+         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)) &&
+          !thd->lex->can_not_use_merged() &&
+        !((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+           thd->lex->sql_command == SQLCOM_DELETE_MULTI) && !is_view()) &&
         !is_recursive_with_table())
       set_merged_derived();
     else
@@ -10081,18 +10240,12 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   {
     { STRING_WITH_LEN("???") },
     { STRING_WITH_LEN("RESTRICT") },
+    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("CASCADE") },
     { STRING_WITH_LEN("SET NULL") },
-    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("SET DEFAULT") }
   };
   return names + opt;
-}
-
-bool fk_modifies_child(enum_fk_option opt)
-{
-  static bool can_write[]= { false, false, true, true, false, true };
-  return can_write[opt];
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
@@ -10173,7 +10326,6 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
     table->file->print_error(error, MYF(0));
   /* extra() is used to apply the bulk insert operation
   on mysql/transaction_registry table */
-  table->file->extra(HA_EXTRA_IGNORE_INSERT);
   return error;
 }
 
@@ -10470,6 +10622,12 @@ bool Vers_history_point::check_unit(THD *thd)
 {
   if (!item)
     return false;
+  if (item->real_type() == Item::FIELD_ITEM)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             item->full_name(), "FOR SYSTEM_TIME");
+    return true;
+  }
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();
@@ -10576,6 +10734,13 @@ double TABLE::OPT_RANGE::index_only_fetch_cost(TABLE *table)
   return (table->file->cost(cost.index_cost)+
           (double) rows * table->s->optimizer_costs.key_copy_cost);
 }
+
+
+/*
+  Convert range cost to ALL_READ_COST
+  Note that the returned cost does not include the WHERE cost
+  (costs.comp_cost).
+*/
 
 void TABLE::OPT_RANGE::get_costs(ALL_READ_COST *res)
 {

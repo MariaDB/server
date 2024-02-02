@@ -366,3 +366,38 @@ DROP TABLE results_alter_db;
 DROP TABLE results_create_table;
 DROP TABLE results_alter_table;
 DROP TABLE results_convert_table;
+
+--echo #
+--echo # MDEV-30003 Assertion failure upon 2nd execution of SP trying to set collation on non-existing database
+--echo #
+
+CREATE PROCEDURE p() ALTER SCHEMA db DEFAULT COLLATE = utf8_bin;
+--replace_regex /to file '.*db.opt'/to file '<dir>db.opt'/
+--error 1
+CALL p;
+--replace_regex /to file '.*db.opt'/to file '<dir>db.opt'/
+--error 1
+CALL p;
+DROP PROCEDURE p;
+
+CREATE DATABASE db1;
+CREATE PROCEDURE p() CREATE DATABASE db1 COLLATE DEFAULT;
+--error ER_DB_CREATE_EXISTS
+CALL p;
+--error ER_DB_CREATE_EXISTS
+CALL p;
+DROP DATABASE db1;
+DROP PROCEDURE p;
+
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p() CREATE TABLE t1 (a INT) COLLATE DEFAULT;
+--error ER_TABLE_EXISTS_ERROR
+CALL p;
+--error ER_TABLE_EXISTS_ERROR
+CALL p;
+DROP TABLE t1;
+DROP PROCEDURE p;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #

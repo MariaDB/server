@@ -36,6 +36,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vers_string.h"
+#include "ha_handler_stats.h"
 #include "optimizer_costs.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
@@ -47,6 +48,7 @@
 #include "sql_sequence.h"
 #include "mem_root_array.h"
 #include <utility>     // pair
+#include <my_attribute.h> /* __attribute__ */
 
 class Alter_info;
 class Virtual_column_info;
@@ -1463,9 +1465,9 @@ struct handlerton
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
 
-   void (*abort_transaction)(handlerton *hton, THD *bf_thd,
-			    THD *victim_thd, my_bool signal);
-   int (*set_checkpoint)(handlerton *hton, const XID* xid);
+   void (*abort_transaction)(handlerton *hton, THD *bf_thd, THD *victim_thd,
+                             my_bool signal) __attribute__((nonnull));
+   int (*set_checkpoint)(handlerton *hton, const XID *xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
   /**
      Check if the version of the table matches the version in the .frm
@@ -1496,7 +1498,7 @@ struct handlerton
                        const LEX_CUSTRING *version, ulonglong create_id);
 
   /* Called for all storage handlers after ddl recovery is done */
-  void (*signal_ddl_recovery_done)(handlerton *hton);
+  int (*signal_ddl_recovery_done)(handlerton *hton);
 
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
@@ -2662,12 +2664,6 @@ typedef struct st_key_create_information
   uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
-  /**
-    A flag to determine if we will check for duplicate indexes.
-    This typically means that the key information was specified
-    directly by the user (set by the parser).
-  */
-  bool check_for_duplicate_indexes;
   bool is_ignored;
 } KEY_CREATE_INFO;
 
@@ -2818,7 +2814,7 @@ public:
   double comp_cost;       /* Cost of comparing found rows with WHERE clause */
   double copy_cost;       /* Copying the data to 'record' */
   double limit_cost;      /* Total cost when restricting rows with limit */
-
+  double setup_cost;      /* MULTI_RANGE_READ_SETUP_COST or similar */
   IO_AND_CPU_COST index_cost;
   IO_AND_CPU_COST row_cost;
 
@@ -2835,8 +2831,8 @@ public:
   double total_cost() const
   {
     return ((index_cost.io + row_cost.io) * avg_io_cost+
-            index_cost.cpu + row_cost.cpu + comp_cost + copy_cost +
-            cpu_cost);
+            index_cost.cpu + row_cost.cpu + copy_cost +
+            comp_cost + cpu_cost + setup_cost);
   }
 
   /* Cost for just fetching and copying a row (no compare costs) */
@@ -2881,6 +2877,7 @@ public:
     copy_cost+=      cost->copy_cost;
     comp_cost+=      cost->comp_cost;
     cpu_cost+=       cost->cpu_cost;
+    setup_cost+=     cost->setup_cost;
   }
 
   inline void reset()
@@ -2888,6 +2885,7 @@ public:
     avg_io_cost= 0;
     comp_cost= cpu_cost= 0.0;
     copy_cost= limit_cost= 0.0;
+    setup_cost= 0.0;
     index_cost= {0,0};
     row_cost=   {0,0};
   }
@@ -3137,6 +3135,9 @@ protected:
 
   ha_rows estimation_rows_to_insert;
   handler *lookup_handler;
+  /* Statistics for the query. Updated if handler_stats.in_use is set */
+  ha_handler_stats active_handler_stats;
+  void set_handler_stats();
 public:
   handlerton *ht;               /* storage engine of this handler */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
@@ -3144,7 +3145,14 @@ public:
   uchar *dup_ref;		/* Pointer to duplicate row */
   uchar *lookup_buffer;
 
+  /* General statistics for the table like number of row, file sizes etc */
   ha_statistics stats;
+  /*
+    Collect query stats here if pointer is != NULL.
+    This is a pointer because if we do a clone of the handler, we want to
+    use the original handler for collecting statistics.
+  */
+  ha_handler_stats *handler_stats;
 
   /** MultiRangeRead-related members: */
   range_seq_t mrr_iter;    /* Iterator to traverse the range sequence */
@@ -3333,16 +3341,17 @@ private:
     For non partitioned handlers this is &TABLE_SHARE::ha_share.
   */
   Handler_share **ha_share;
+public:
+
   double optimizer_where_cost;          // Copy of THD->...optimzer_where_cost
   double optimizer_scan_setup_cost;     // Copy of THD->...optimzer_scan_...
 
-public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
     lookup_handler(this),
-    ht(ht_arg), costs(0), ref(0), lookup_buffer(NULL), end_range(NULL),
-    implicit_emptied(0),
+    ht(ht_arg), costs(0), ref(0), lookup_buffer(NULL), handler_stats(NULL),
+    end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
@@ -3483,19 +3492,38 @@ public:
   inline bool keyread_enabled() { return keyread < MAX_KEY; }
   inline int ha_start_keyread(uint idx)
   {
-    if (keyread_enabled())
-      return 0;
+    DBUG_ASSERT(!keyread_enabled());
     keyread= idx;
     return extra_opt(HA_EXTRA_KEYREAD, idx);
   }
   inline int ha_end_keyread()
   {
-    if (!keyread_enabled())
+    if (!keyread_enabled())                    /* Enably lazy usage */
       return 0;
     keyread= MAX_KEY;
     return extra(HA_EXTRA_NO_KEYREAD);
   }
 
+  /*
+    End any active keyread. Return state so that we can restore things
+    at end.
+  */
+  int ha_end_active_keyread()
+  {
+    int org_keyread;
+    if (!keyread_enabled())
+      return MAX_KEY;
+    org_keyread= keyread;
+    ha_end_keyread();
+    return org_keyread;
+  }
+  /* Restore state to before ha_end_active_keyread */
+  void ha_restart_keyread(int org_keyread)
+  {
+    DBUG_ASSERT(!keyread_enabled());
+    if (org_keyread != MAX_KEY)
+      ha_start_keyread(org_keyread);
+  }
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
@@ -3603,6 +3631,18 @@ public:
     return ((cost->index_cost.cpu + cost->row_cost.cpu + cost->copy_cost) +
             blocks * DISK_READ_COST * DISK_READ_RATIO);
   }
+  /*
+    Same as above but without capping.
+    This is only used for comparing cost with s->quick_read time, which
+    does not do any capping.
+  */
+
+ inline double cost_no_capping(ALL_READ_COST *cost)
+  {
+    double blocks= (cost->index_cost.io + cost->row_cost.io);
+    return ((cost->index_cost.cpu + cost->row_cost.cpu + cost->copy_cost) +
+            blocks * DISK_READ_COST * DISK_READ_RATIO);
+  }
 
   /*
     Calculate cost when we are going to excute the given read method
@@ -3621,7 +3661,7 @@ public:
             blocks * DISK_READ_COST * DISK_READ_RATIO);
   }
 
-  inline ulonglong row_blocks()
+  virtual ulonglong row_blocks()
   {
     return (stats.data_file_length + IO_SIZE-1) / IO_SIZE;
   }
@@ -3834,7 +3874,7 @@ public:
     - How things are tracked in trx and in add_changed_table().
     - If we can combine several statements under one commit in the binary log.
   */
-  bool has_transactions()
+  bool has_transactions() const
   {
     return ((ha_table_flags() & (HA_NO_TRANSACTIONS | HA_PERSISTENT_TABLE))
             == 0);
@@ -3845,16 +3885,25 @@ public:
     we don't have to write failed statements to the log as they can be
     rolled back.
   */
-  bool has_transactions_and_rollback()
+  bool has_transactions_and_rollback() const
   {
     return has_transactions() && has_rollback();
   }
   /*
     True if the underlaying table support transactions and rollback
   */
-  bool has_transaction_manager()
+  bool has_transaction_manager() const
   {
     return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0 && has_rollback());
+  }
+
+  /*
+    True if the underlaying table support TRANSACTIONAL table option
+  */
+  bool has_transactional_option() const
+  {
+    extern handlerton *maria_hton;
+    return partition_ht() == maria_hton || has_transaction_manager();
   }
 
   /*
@@ -3862,7 +3911,7 @@ public:
     can be killed fast.
   */
 
-  bool has_rollback()
+  bool has_rollback() const
   {
     return ((ht->flags & HTON_NO_ROLLBACK) == 0);
   }
@@ -4991,6 +5040,22 @@ public:
   {
     check_table_binlog_row_based_done= 0;
   }
+  virtual void handler_stats_updated() {}
+
+  inline void ha_handler_stats_reset()
+  {
+    handler_stats= &active_handler_stats;
+    active_handler_stats.reset();
+    active_handler_stats.active= 1;
+    handler_stats_updated();
+  }
+  inline void ha_handler_stats_disable()
+  {
+    handler_stats= 0;
+    active_handler_stats.active= 0;
+    handler_stats_updated();
+  }
+
 private:
   /* Cache result to avoid extra calls */
   inline void mark_trx_read_write()
@@ -5351,6 +5416,7 @@ public:
   }
 
   bool log_not_redoable_operation(const char *operation);
+
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);

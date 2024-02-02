@@ -1,0 +1,23 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (c1 BIGINT NOT NULL PRIMARY KEY, c2 BINARY (10), c3 DATETIME);
+SELECT get_lock ('test2', 0);
+get_lock ('test2', 0)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c1 SMALLINT NOT NULL AUTO_INCREMENT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_trx_fragment_size=10;
+SET SESSION autocommit=0;
+SELECT * FROM t1 WHERE c1 <=0 ORDER BY c1 DESC;
+c1
+INSERT INTO t1 VALUES (4),(3),(1),(2);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+CREATE TABLE t1 (pk INT PRIMARY KEY, b INT) ENGINE=SEQUENCE;
+ERROR 42S01: Table 't1' already exists
+ALTER TABLE t1 DROP COLUMN c2;
+ERROR 42000: Can't DROP COLUMN `c2`; check that it exists
+SELECT get_lock ('test', 1.5);
+get_lock ('test', 1.5)
+1
+DROP TABLE t1;

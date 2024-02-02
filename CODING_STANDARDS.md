@@ -37,13 +37,20 @@ The commit messages are typically rendered in [Markdown format](https://docs.git
 When updating your code, please make sure you perform a rebase, not a merge with the latest branch.
 Pull requests should be a simple fast-forward of the branch they are intended to land on.
 
-The correct way to rebase (if working on top of 10.3 branch):
+The correct way to rebase (if working on top of 10.11 branch):
 
 ```sh
-git fetch upstream/10.3  # This assumes upstream is github.com/MariaDB/server
-git rebase upstream/10.3
+git fetch upstream/10.11  # This assumes upstream is github.com/MariaDB/server
+git rebase upstream/10.11
 git push --force my_branch
 ```
+
+### Target branch
+
+Pull requests should be based against the correct MariaDB version.
+New features should be based against the latest MariaDB development branch, which is the current GitHub default branch: https://github.com/MariaDB/server/blob/-/VERSION
+Bug fixes should be based against the earliest maintained branch in which the bug can be reproduced.
+The earliest maintained branch is found at https://mariadb.org/about/#maintenance-policy.
 
 ## Coding Style (C / C++ files)
 
@@ -125,14 +132,52 @@ Consecutive functions should be separated with 2 empty lines in between
 ```cpp
 void my_function_1()
 {
-  <logic>  
+  <logic>
 }
 
 
 void my_function_2()
 {
-  <logic>  
+  <logic>
 }
+```
+
+#### Preprocessor directives
+
+Compiler preprocessor directives should have no indentation to them, even if in the middle of indented code.
+For example:
+
+```c
+  case SSL_TYPE_NONE:                           // SSL is not required
+    if (opt_require_secure_transport)
+    {
+      enum enum_vio_type type= vio_type(vio);
+#ifdef HAVE_OPENSSL
+      return type != VIO_TYPE_SSL &&
+#ifndef _WIN32
+             type != VIO_TYPE_SOCKET;
+#else
+             type != VIO_TYPE_NAMEDPIPE;
+#endif
+#else
+#ifndef _WIN32
+      return type != VIO_TYPE_SOCKET;
+#else
+      return type != VIO_TYPE_NAMEDPIPE;
+#endif
+#endif
+    }
+```
+
+Comments reflecting the original `#if` condition can be appended to `#else` / `#endif` to provide additional clarity. This can be useful for large code blocks between the start and end preprocessor directives or nested preprocessor directives.
+For example:
+
+```c
+#ifndef EMBEDDED_LIBRARY
+...
+#else /* ! EMBEDDED_LIBRARY */
+...
+#endif /* ! EMBEDDED_LIBRARY */
 ```
 
 ### File names

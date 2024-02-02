@@ -1,0 +1,65 @@
+--source include/have_debug.inc
+--echo #
+--echo # MDEV-31463 SIGSEGV in server_mysql_send_query | server_mysql_real_query
+--echo #
+
+# The original test in the report of MDEV-31463 is contrived and
+# nondeterministic, causing MDEV-31586. This test more directly
+# addresses the underlying issue causing MDEV-31463, namely errors
+# from queries sent to the data node not consumed when trying to set
+# lock wait timeout.
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE t1 (a INT) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE t2 (a INT) $MASTER_1_ENGINE COMMENT='table "t1", srv "s_2_1"';
+
+# Create a new thread on the spider node server, send an insert query
+# to the spider node. Shutdown the data node server when the query
+# reaches and waits at set lockwait timeout so it fails there. Check
+# the error code is correct.
+connect (master_1_another, localhost, root, , auto_test_local, $MASTER_1_MYPORT, $MASTER_1_MYSOCK);
+SET DEBUG_SYNC='spider_set_lock_wait_timeout_before_query SIGNAL ready WAIT_FOR go';
+send insert into t2 values (42);
+connection master_1;
+SET DEBUG_SYNC='now WAIT_FOR ready';
+
+connection child2_1;
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+
+connection master_1;
+SET DEBUG_SYNC='now SIGNAL go';
+connection master_1_another;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+reap;
+
+# Cleanup
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+
+connection child2_1;
+--source include/start_mysqld.inc
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log
+
+--echo #
+--echo # end test
+--echo #

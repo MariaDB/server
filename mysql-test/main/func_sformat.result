@@ -434,7 +434,7 @@ create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'04420435044
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` varchar(8) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `x` longtext CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set names latin1;
@@ -468,3 +468,26 @@ set names latin1;
 #
 # End of 10.7 tests
 #
+#
+# Start of 10.8 tests
+#
+#
+# MDEV-29646 sformat('Num [{:20}]', 42) gives incorrect result in view
+#
+create view v1 as select sformat('Num [{:20}]', 42);
+select * from v1;
+sformat('Num [{:20}]', 42)
+Num [                  42]
+drop view v1;
+create view v1 as SELECT sformat('Square root of [{:d}] is [{:.20}]', 2, sqrt(2));
+select * from v1;
+sformat('Square root of [{:d}] is [{:.20}]', 2, sqrt(2))
+Square root of [2] is [1.4142135623730951455]
+drop view v1;
+create table t1 (a text, b int, c text);
+insert t1 values ('[{} -> {}]', 10, '{}'), ('[{:20} <- {}]', 1, '{:30}');
+select sformat(a,b,c) from t1;
+sformat(a,b,c)
+[10 -> {}]
+[                   1 <- {:30}]
+drop table t1;

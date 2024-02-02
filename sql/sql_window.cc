@@ -207,27 +207,33 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   DBUG_ENTER("setup_windows");
   List_iterator<Window_spec> it(win_specs);
 
-  /* 
-    Move all unnamed specifications after the named ones.
-    We could have avoided it if we had built two separate lists for
-    named and unnamed specifications.
-  */
-  Query_arena *arena, backup;
-  arena= thd->activate_stmt_arena_if_needed(&backup);
-  uint i = 0;
-  uint elems= win_specs.elements;
-  while ((win_spec= it++) && i++ < elems)
+  if (!thd->lex->current_select->is_win_spec_list_built)
   {
-    if (win_spec->name() == NULL)
-    {
-      it.remove();
-      win_specs.push_back(win_spec);
-    }
-  }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
 
-  it.rewind();
+    /*
+      Move all unnamed specifications after the named ones.
+      We could have avoided it if we had built two separate lists for
+      named and unnamed specifications.
+    */
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    uint i = 0;
+    uint elems= win_specs.elements;
+    while ((win_spec= it++) && i++ < elems)
+    {
+      if (win_spec->name() == NULL)
+      {
+        it.remove();
+        win_specs.push_back(win_spec);
+      }
+    }
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
+    it.rewind();
+
+    thd->lex->current_select->is_win_spec_list_built= true;
+  }
 
   List_iterator_fast<Window_spec> itp(win_specs);
 
@@ -3091,7 +3097,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     spec= win_func->window_spec;
     int win_func_order_elements= spec->partition_list->elements +
                                   spec->order_list->elements;
-    if (win_func_order_elements > longest_order_elements)
+    if (win_func_order_elements >= longest_order_elements)
     {
       win_func_with_longest_order= win_func;
       longest_order_elements= win_func_order_elements;
@@ -3132,7 +3138,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     Item_field *item=
         new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
     if (item)
-      item->set_refers_to_temp_table(true);
+      item->set_refers_to_temp_table();
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;

@@ -156,7 +156,7 @@ dtype_new_read_for_order_and_null_size(
 		<< 16;
 
 	if (dtype_is_string_type(type->mtype)) {
-		type->prtype |= charset_coll << 16;
+		type->prtype |= charset_coll;
 
 		if (charset_coll == 0) {
 			/* This insert buffer record was inserted before
@@ -663,7 +663,7 @@ ATTRIBUTE_COLD static dberr_t ibuf_move_to_next(btr_cur_t *cur, mtr_t *mtr)
 
   dberr_t err;
   buf_block_t *next=
-    btr_block_get(*cur->index(), next_page_no, BTR_MODIFY_LEAF, mtr, &err);
+    btr_block_get(*cur->index(), next_page_no, RW_X_LATCH, mtr, &err);
   if (!next)
     return err;
 
@@ -673,6 +673,17 @@ ATTRIBUTE_COLD static dberr_t ibuf_move_to_next(btr_cur_t *cur, mtr_t *mtr)
 
   page_cur_set_before_first(next, &cur->page_cur);
   return page_cur_move_to_next(&cur->page_cur) ? DB_SUCCESS : DB_CORRUPTION;
+}
+
+/** @return if buffered changes exist for the page */
+ATTRIBUTE_COLD
+static bool ibuf_bitmap_buffered(const buf_block_t *bitmap, uint32_t offset)
+{
+  if (!bitmap)
+    return false;
+  offset&= uint32_t(bitmap->physical_size() - 1);
+  byte *map_byte= &bitmap->page.frame[PAGE_DATA + offset / 2];
+  return *map_byte & (byte{4} << ((offset & 1) << 4));
 }
 
 /** Apply changes to a block. */
@@ -697,19 +708,22 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
                        block->zip_size(), RW_X_LATCH, nullptr,
                        BUF_GET_POSSIBLY_FREED, mtr)
     : nullptr;
+  bool buffered= false;
 
   if (!block);
   else if (fil_page_get_type(block->page.frame) != FIL_PAGE_INDEX ||
            !page_is_leaf(block->page.frame) ||
            DB_SUCCESS == fseg_page_is_allocated(space, page_no))
     block= nullptr;
+  else
+    buffered= ibuf_bitmap_buffered(bitmap, block->page.id().page_no());
 
   do
   {
     rec_t *rec= cur->page_cur.rec;
     ulint n_fields= rec_get_n_fields_old(rec);
 
-    if (n_fields <= IBUF_REC_FIELD_USER + 1 || rec[4])
+    if (n_fields < IBUF_REC_FIELD_USER + 1 || rec[4])
       return DB_CORRUPTION;
 
     n_fields-= IBUF_REC_FIELD_USER;
@@ -764,7 +778,7 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
       the server is killed before the completion of ibuf_upgrade(). */
       btr_rec_set_deleted<true>(cur->page_cur.block, rec, mtr);
 
-      if (block)
+      if (buffered)
       {
         page_header_reset_last_insert(block, mtr);
         page_update_max_trx_id(block, buf_block_get_page_zip(block),
@@ -910,7 +924,17 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
         prev_space_id= space_id;
         space= fil_space_t::get(space_id);
         if (space)
+        {
+          /* Move to the next user tablespace. We buffer-fix the current
+          change buffer leaf page to prevent it from being evicted
+          before we have started a new mini-transaction. */
+          cur.page_cur.block->fix();
+          mtr.commit();
+          log_free_check();
+          mtr.start();
+          mtr.page_lock(cur.page_cur.block, RW_X_LATCH);
           mtr.set_named_space(space);
+        }
         spaces++;
       }
       pages++;
@@ -988,8 +1012,7 @@ dberr_t ibuf_upgrade_needed()
   mtr.start();
   mtr.x_lock_space(fil_system.sys_space);
   dberr_t err;
-  const buf_block_t *header_page=
-    buf_page_get_gen(ibuf_header, 0, RW_S_LATCH, nullptr, BUF_GET, &mtr, &err);
+  const buf_block_t *header_page= recv_sys.recover(ibuf_header, &mtr, &err);
 
   if (!header_page)
   {
@@ -1002,8 +1025,7 @@ dberr_t ibuf_upgrade_needed()
     return err;
   }
 
-  const buf_block_t *root= buf_page_get_gen(ibuf_root, 0, RW_S_LATCH, nullptr,
-                                            BUF_GET, &mtr, &err);
+  const buf_block_t *root= recv_sys.recover(ibuf_root, &mtr, &err);
   if (!root)
     goto err_exit;
 

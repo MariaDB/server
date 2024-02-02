@@ -254,7 +254,7 @@ DROP TABLE cs, cl0, cl1, tcs;
 # CHARACTER SET cs1 NOT NULL COLLATE cs2_xxx DEFAULT '' [COLLATE cs2_xxx]
 # CHARACTER SET cs1 NOT NULL                 DEFAULT ''  COLLATE cs2_xxx
 #
-
+--disable_ps2_protocol
 DELETE FROM results
 WHERE is_conflicting_charset_explicit_collate_explicit(result, cs, cl0);
 SELECT ROW_COUNT();
@@ -601,7 +601,7 @@ WHERE cs='' AND cl0=''
   AND result NOT LIKE 'ERROR%'
   AND result RLIKE cl1;
 SELECT ROW_COUNT();
-
+--enable_ps2_protocol
 
 
 --vertical_results

@@ -29,7 +29,9 @@ SET GLOBAL profiling=on;
 create user mysqltest1@localhost;
 connect (con1,localhost,mysqltest1,,);
 connection con1;
+--disable_ps2_protocol
 SELECT @a, @b;
+--enable_ps2_protocol
 --replace_column 2 #
 SHOW PROFILES;
 

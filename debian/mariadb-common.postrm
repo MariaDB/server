@@ -10,7 +10,7 @@ case "$1" in
     then
       /usr/share/mysql-common/configure-symlinks remove mariadb "/etc/mysql/mariadb.cnf"
     fi
-  ;;
+    ;;
 esac
 
 #DEBHELPER#

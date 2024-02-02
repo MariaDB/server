@@ -46,7 +46,8 @@ public:
 
   void release_high_priority_service(wsrep::high_priority_service*);
 
-  void background_rollback(wsrep::client_state&);
+  void background_rollback(wsrep::unique_lock<wsrep::mutex> &,
+                           wsrep::client_state &);
 
   void bootstrap();
   void log_message(enum wsrep::log::level, const char*);

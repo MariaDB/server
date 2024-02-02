@@ -139,6 +139,13 @@ select * from t1,t2 where t1.a=t2.a and rownum()<=2 order by t1.a,t2.a;
 a	b	a	b
 2	20	2	21
 3	30	3	31
+create view v1 as
+select * from (select * from t1 order by a desc) as t where rownum() <= 2;
+select * from v1;
+a	b
+3	30
+2	20
+drop view v1;
 #
 # Having
 #
@@ -984,3 +991,29 @@ next row is 3
 3
 next row is 5
 5
+#
+# MDEV-31073: Server crash, assertion `table != 0 &&
+# view->field_translation != 0' failure with ROWNUM and view
+#
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v AS SELECT * FROM t;
+UPDATE v SET f = 10 WHERE ROWNUM() > 42 LIMIT 1;
+DROP VIEW v;
+DROP TABLE t;
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v AS SELECT f, 3 as e FROM t;
+UPDATE v SET f = 10 WHERE e > 42 LIMIT 1;
+DROP VIEW v;
+DROP TABLE t;
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v AS SELECT f, ROWNUM() as e FROM t;
+UPDATE v SET f = 10 WHERE e > 42 LIMIT 1;
+ERROR HY000: The target table v of the UPDATE is not updatable
+DROP VIEW v;
+DROP TABLE t;
+#
+# End of 10.6 tests
+#

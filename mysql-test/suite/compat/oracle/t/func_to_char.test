@@ -224,3 +224,13 @@ select * from t2;
 drop table t1,t2;
 set @local.sql_mode=@sql_mode;
 
+--echo #
+--echo # MDEV-29152: Assertion failed ... upon TO_CHAR with wrong argument
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT TO_CHAR((VALUES('2022-12-12','2020-10-10')));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT TO_CHAR((STR_TO_DATE('2023-01-01', '%d-%m-%Y'), 'YYYY-MM-DD') );
+

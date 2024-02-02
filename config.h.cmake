@@ -30,6 +30,7 @@
 #cmakedefine HAVE_DLFCN_H 1
 #cmakedefine HAVE_EXECINFO_H 1
 #cmakedefine HAVE_FCNTL_H 1
+#cmakedefine HAVE_FCNTL_DIRECT 1
 #cmakedefine HAVE_FENV_H 1
 #cmakedefine HAVE_FLOAT_H 1
 #cmakedefine HAVE_FNMATCH_H 1
@@ -232,7 +233,6 @@
 #cmakedefine HAVE_STRTOUL 1
 #cmakedefine HAVE_STRTOULL 1
 #cmakedefine HAVE_TELL 1
-#cmakedefine HAVE_THR_SETCONCURRENCY 1
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
 #cmakedefine HAVE_TIMES 1

@@ -1,7 +1,7 @@
 Source: mariadb
 Section: database
 Priority: optional
-Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
+Maintainer: MariaDB Developers <developers@lists.mariadb.org>
 Build-Depends: bison,
                cmake,
                cracklib-runtime <!nocheck>,
@@ -30,8 +30,7 @@ Build-Depends: bison,
                liblz4-dev,
                liblzma-dev,
                liblzo2-dev,
-               libncurses5-dev (>= 5.0-6~),
-               libncurses5-dev:native (>= 5.0-6~),
+               libncurses-dev,
                libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,
@@ -82,9 +81,9 @@ Description: MariaDB database development files
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package includes development libraries and header files. To allow sources
+ This package includes development libraries and header files to allow sources
  expecting the MariaDB Connector/C to build. Sources that expect the MySQL
- Client libraries should use files from the libmariadb-dev-compat package.
+ client libraries should use files from the libmariadb-dev-compat package.
 
 Package: libmariadb-dev-compat
 Architecture: any
@@ -232,18 +231,18 @@ Breaks: libmariadb-dev (<< ${source:Version}),
 Replaces: libmariadb-dev (<< ${source:Version}),
           libmariadbclient-dev (<< ${source:Version}),
           libmysqld-dev
-Description: MariaDB embedded database, development files
+Description: MariaDB embedded database, development files package
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package includes the embedded server library development and header files.
+ This package includes the MariaDB embedded server library development and header files.
 
 Package: mysql-common
 Architecture: all
 Depends: ${misc:Depends}
-Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
+Description: MariaDB client common configuration files package (e.g. /etc/mysql/my.cnf)
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
@@ -257,7 +256,7 @@ Architecture: all
 Depends: mysql-common (>= 5.6.25),
          ${misc:Depends}
 Multi-Arch: foreign
-Description: MariaDB common configuration files
+Description: MariaDB database common files (e.g. /etc/mysql/mariadb.conf.d/)
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
@@ -566,9 +565,7 @@ Description: MariaDB database client binaries
 Package: mariadb-client-compat
 Architecture: all
 Depends: mariadb-client (>= ${source:Version})
-Multi-Arch: foreign
-Description: MySQL compatibility links to mariadb-client binaries/scripts.
-Conflicts: mariadb-client (< 11.0.0),
+Conflicts: mariadb-client (<< 11.0.0),
            mariadb-client-10.0,
            mariadb-client-10.1,
            mariadb-client-10.2,
@@ -582,7 +579,7 @@ Conflicts: mariadb-client (< 11.0.0),
            mariadb-client-5.2,
            mariadb-client-5.3,
            mariadb-client-5.5,
-           mariadb-client-core (< 11.0.0),
+           mariadb-client-core (<< 11.0.0),
            mariadb-client-core-10.0,
            mariadb-client-core-10.1,
            mariadb-client-core-10.2,
@@ -610,7 +607,7 @@ Conflicts: mariadb-client (< 11.0.0),
            mysql-client-core-5.6,
            mysql-client-core-5.7,
            mysql-client-core-8.0,
-           mariadb-server (< 11.0.0),
+           mariadb-server (<< 11.0.0),
            mariadb-server-10.0,
            mariadb-server-10.1,
            mariadb-server-10.2,
@@ -620,7 +617,7 @@ Conflicts: mariadb-client (< 11.0.0),
            mariadb-server-10.6,
            mariadb-server-10.7,
            mariadb-server-10.8,
-           mariadb-server-core (< 11.0.0),
+           mariadb-server-core (<< 11.0.0),
            mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-10.2,
@@ -637,6 +634,13 @@ Conflicts: mariadb-client (< 11.0.0),
            percona-xtradb-cluster-server-5.6,
            percona-xtradb-cluster-server-5.7,
            percona-xtradb-cluster-server
+Multi-Arch: foreign
+Description: MySQL compatibility links to mariadb-client binaries/scripts.
+ The package contains links and binaries that are needed by MySQL centric
+ tools which also works with MariaDB.
+ .
+ This package is also useful for users with strong  background in MySQL
+ maintenance, but wants to switch to MariaDB
 
 Package: mariadb-server-core
 Architecture: any
@@ -861,9 +865,7 @@ Description: MariaDB database server binaries
 Package: mariadb-server-compat
 Architecture: all
 Depends: mariadb-server (>= ${source:Version}),
-Multi-Arch: foreign
-Description: MySQL compatibility links to mariadb-server binaries/scripts.
-Conflicts: mariadb-server-core (< 11.0.0),
+Conflicts: mariadb-server-core (<< 11.0.0),
            mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-10.2,
@@ -877,7 +879,7 @@ Conflicts: mariadb-server-core (< 11.0.0),
            mariadb-server-core-5.2,
            mariadb-server-core-5.3,
            mariadb-server-core-5.5,
-           mariadb-server (< 11.0.0),
+           mariadb-server (<< 11.0.0),
            mariadb-server-10.0,
            mariadb-server-10.1,
            mariadb-server-10.2,
@@ -904,6 +906,13 @@ Conflicts: mariadb-server-core (< 11.0.0),
            percona-xtradb-cluster-server-5.6,
            percona-xtradb-cluster-server-5.7,
            percona-xtradb-cluster-server
+Multi-Arch: foreign
+Description: MySQL compatibility links to mariadb-server binaries/scripts.
+ The package contains links and binaries that are needed by MySQL centric
+ tools which also works with MariaDB.
+ .
+ This package is also useful for users with strong  background in MySQL
+ maintenance, but wants to switch to MariaDB
 
 Package: mariadb-backup
 Architecture: any
@@ -919,8 +928,8 @@ Depends: mariadb-client-core (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
- This backup tool is guaranteed to be compatible with MariaDB.
- Based on Xtrabackup, but improved to work with MariaDB.
+ Based on Xtrabackup, but improved to work with MariaDB server.
+ This backup tool is guaranteed to be compatible with MariaDB server.
  .
  Please refer to the MariaDB Knowledge Base on more information on
  how to use this tool.
@@ -947,11 +956,11 @@ Replaces: mariadb-connect-engine-10.0,
           mariadb-connect-engine-10.4,
           mariadb-server-10.0,
           mariadb-server-10.1
-Description: Connect storage engine for MariaDB
+Description: Connect storage engine for MariaDB server
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
  other interesting features.
- This package contains the Connect plugin for MariaDB.
+ This package contains the Connect plugin for MariaDB server.
 
 Package: mariadb-plugin-s3
 Architecture: any
@@ -978,10 +987,10 @@ Replaces: mariadb-rocksdb-engine-10.2,
           mariadb-rocksdb-engine-10.3,
           mariadb-rocksdb-engine-10.4
 Recommends: python3-mysqldb
-Description: RocksDB storage engine for MariaDB
+Description: RocksDB storage engine for MariaDB server
  The RocksDB storage engine is a high performance storage engine, aimed
  at maximising storage efficiency while maintaining InnoDB-like performance.
- This package contains the RocksDB plugin for MariaDB.
+ This package contains the RocksDB plugin for MariaDB server.
 
 Package: mariadb-plugin-oqgraph
 Architecture: any
@@ -1003,10 +1012,10 @@ Replaces: mariadb-oqgraph-engine-10.0,
           mariadb-oqgraph-engine-10.4,
           mariadb-server-10.0,
           mariadb-server-10.1
-Description: OQGraph storage engine for MariaDB
+Description: OQGraph storage engine for MariaDB server
  The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
- This package contains the OQGraph plugin for MariaDB.
+ This package contains the OQGraph plugin for MariaDB server.
 
 Package: mariadb-plugin-mroonga
 Architecture: any-alpha any-amd64 any-arm any-arm64 any-i386 any-ia64 any-mips64el any-mips64r6el any-mipsel any-mipsr6el any-nios2 any-powerpcel any-ppc64el any-sh3 any-sh4 any-tilegx
@@ -1023,10 +1032,10 @@ Replaces: mariadb-server-10.0,
           mariadb-server-10.2,
           mariadb-server-10.3,
           mariadb-server-10.4
-Description: Mroonga storage engine for MariaDB
+Description: Mroonga storage engine for MariaDB server
  Mroonga (formerly named Groonga Storage Engine) is a storage engine that
  provides fast CJK-ready full text searching using column store.
- This package contains the Mroonga plugin for MariaDB.
+ This package contains the Mroonga plugin for MariaDB server.
 
 Package: mariadb-plugin-spider
 Architecture: any
@@ -1043,9 +1052,9 @@ Replaces: mariadb-server-10.0,
           mariadb-server-10.2,
           mariadb-server-10.3,
           mariadb-server-10.4
-Description: Spider storage engine for MariaDB
+Description: Spider storage engine for MariaDB server
  The Spider storage engine with built-in sharding features. It supports
- partitioning and xa transactions, and allows tables of different MariaDB
+ partitioning and xa transactions, and allows tables of different MariaDB server
  instances to be handled as if they were on the same instance. It refers to one
  possible implementation of ISO/IEC 9075-9:2008 SQL/MED.
 
@@ -1100,11 +1109,11 @@ Depends: libcrack2 (>= 2.9.0),
          mariadb-server,
          ${misc:Depends},
          ${shlibs:Depends}
-Description: CrackLib Password Validation Plugin for MariaDB
+Description: CrackLib Password Validation Plugin for MariaDB server
  This password validation plugin uses cracklib to allow only
- sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+ sufficiently secure (as defined by cracklib) user passwords in MariaDB server.
  .
- Install and configure this to enforce stronger passwords for MariaDB users.
+ Install and configure this to enforce stronger passwords for MariaDB server users.
 
 Package: mariadb-plugin-hashicorp-key-management
 Architecture: any

@@ -33,7 +33,10 @@ INSERT INTO users (id) VALUES (4);
 INSERT INTO users (id) VALUES (5);
 INSERT INTO users (id) VALUES (-1),(-2),(-3),(-4);
 
+--disable_ps2_protocol
 SELECT COUNT(*) FROM users WHERE id > 3;
+--enable_ps2_protocol
+
 SHOW STATUS LIKE 'mroonga_count_skip';
 
 DROP TABLE users;

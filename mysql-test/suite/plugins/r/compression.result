@@ -5,6 +5,7 @@ call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provi
 set global innodb_compression_algorithm = bzip2;
 call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
 call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
+call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate");
 call mtr.add_suppression("Table .*t1.* is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
 create table t1 (a int, b text ) engine = innodb page_compressed = 1;
 insert t1 (a, b) values (0, repeat("abc", 100));
@@ -17,6 +18,10 @@ a	left(b, 9)	length(b)
 2	ghighighi	30000
 # restart: --disable-provider-bzip2
 select a, left(b, 9), length(b) from t1;
-ERROR HY000: Table test/t1 is compressed with bzip2, which is not currently loaded. Please load the bzip2 provider plugin to open the table
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+show warnings;
+Level	Code	Message
+Warning	4185	MariaDB tried to use the BZip2 compression, but its provider plugin is not loaded
+Error	1932	Table 'test.t1' doesn't exist in engine
 drop table t1;
 # restart

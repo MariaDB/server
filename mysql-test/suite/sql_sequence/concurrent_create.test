@@ -69,7 +69,9 @@ FLUSH TABLES;
 --disconnect con1
 
 --connection default
+--disable_ps2_protocol
 SELECT NEXTVAL(s1);
+--enable_ps2_protocol
 COMMIT;
 
 # Cleanup

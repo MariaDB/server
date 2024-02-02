@@ -665,6 +665,14 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         my_error(ER_OPERAND_COLUMNS, MYF(0), ncols);
         DBUG_RETURN(-1);
       }
+
+      uint cols_num= in_subs->left_exp()->cols();
+      for (uint i= 0; i < cols_num; i++)
+      {
+        if (select_lex->ref_pointer_array[i]->
+           check_cols(in_subs->left_exp()->element_index(i)->cols()))
+             DBUG_RETURN(-1);
+      }
     }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));
@@ -4104,6 +4112,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       */ 
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
+      double inner_fanout= 1.0;
       semijoin_strategy.add("semi_join_strategy","FirstMatch");
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
@@ -4116,14 +4125,30 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         if (join->best_positions[idx].use_join_buffer &&
             !join->best_positions[idx].firstmatch_with_join_buf)
         {
-           best_access_path(join, join->best_positions[idx].table,
-                            rem_tables, join->best_positions, idx,
-                            TRUE /* no jbuf */,
-                            record_count, join->best_positions + idx, &dummy);
+          /*
+            records_out cannot be bigger just because we remove join buffer
+          */
+          double records_out= join->best_positions[idx].records_out;
+          best_access_path(join, join->best_positions[idx].table,
+                           rem_tables, join->best_positions, idx,
+                           TRUE /* no jbuf */,
+                           record_count, join->best_positions + idx, &dummy);
+          set_if_smaller(join->best_positions[idx].records_out, records_out);
         }
+        /*
+          TODO: We should also compute the selectivity here, as well as adjust
+          the records_out according to the fraction of records removed by
+          the semi-join.
+        */
+        double rec_out= join->best_positions[idx].records_out;
+        if (join->best_positions[idx].table->emb_sj_nest)
+          inner_fanout *= rec_out;
+
         record_count *= join->best_positions[idx].records_out;
         rem_tables &= ~join->best_positions[idx].table->table->map;
       }
+      if (inner_fanout > 1.0)
+        join->best_positions[tablenr].records_out /= inner_fanout;
     }
 
     if (pos->sj_strategy == SJ_OPT_LOOSE_SCAN) 
@@ -4332,6 +4357,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   
   sjm->materialized= FALSE;
   sjm_tab->table= sjm->table;
+  sjm_tab->tab_list= emb_sj_nest;
   sjm->table->pos_in_table_list= emb_sj_nest;
  
   DBUG_RETURN(FALSE);

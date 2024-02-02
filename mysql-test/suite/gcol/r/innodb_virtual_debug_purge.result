@@ -1,7 +1,5 @@
 set default_storage_engine=innodb;
 set @old_dbug=@@global.debug_dbug;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
 CREATE TABLE `t` (
@@ -78,7 +76,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
 # enable purge
 COMMIT;
 # wait for purge to process the deleted records.
-InnoDB		0 transactions not purged
+InnoDB		1 transactions not purged
 SET DEBUG_SYNC= 'now SIGNAL purged';
 connection default;
 /* connection default */ ALTER TABLE t1 ADD COLUMN c INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=SHARED;
@@ -204,5 +202,4 @@ disconnect truncate;
 connection default;
 DROP TABLE t1, t2;
 set debug_sync=reset;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

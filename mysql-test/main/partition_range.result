@@ -1008,7 +1008,7 @@ SHOW status LIKE 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	6
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
@@ -1024,7 +1024,7 @@ SHOW status LIKE 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	6
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0

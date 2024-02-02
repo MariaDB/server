@@ -336,15 +336,29 @@ trx_sys_t::close()
 }
 
 /** @return total number of active (non-prepared) transactions */
-ulint trx_sys_t::any_active_transactions()
+size_t trx_sys_t::any_active_transactions(size_t *prepared)
 {
-  uint32_t total_trx= 0;
+  size_t total_trx= 0, prepared_trx= 0;
 
-  trx_sys.trx_list.for_each([&total_trx](const trx_t &trx) {
-    if (trx.state == TRX_STATE_COMMITTED_IN_MEMORY ||
-        (trx.state == TRX_STATE_ACTIVE && trx.id))
+  trx_sys.trx_list.for_each([&](const trx_t &trx) {
+    switch (trx.state) {
+    case TRX_STATE_NOT_STARTED:
+      break;
+    case TRX_STATE_ACTIVE:
+      if (!trx.id)
+        break;
+      /* fall through */
+    case TRX_STATE_COMMITTED_IN_MEMORY:
       total_trx++;
+      break;
+    case TRX_STATE_PREPARED:
+    case TRX_STATE_PREPARED_RECOVERED:
+      prepared_trx++;
+    }
   });
+
+  if (prepared)
+    *prepared= prepared_trx;
 
   return total_trx;
 }

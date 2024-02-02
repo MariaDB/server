@@ -120,7 +120,7 @@ public:
 		ut_ad(mtr_started == scan_mtr->is_active());
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-				log_sys.set_check_flush_or_checkpoint(););
+				log_sys.set_check_for_checkpoint(););
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec.begin();
 		     it != m_dtuple_vec.end();
@@ -128,7 +128,7 @@ public:
 			dtuple = *it;
 			ut_ad(dtuple);
 
-			if (log_sys.check_flush_or_checkpoint()) {
+			if (log_sys.check_for_checkpoint()) {
 				if (mtr_started) {
 					if (!btr_pcur_move_to_prev_on_page(pcur)) {
 						error = DB_CORRUPTION;
@@ -283,10 +283,10 @@ row_merge_insert_index_tuples(
 	ut_stage_alter_t*	stage= nullptr,
 	merge_file_t*		blob_file= nullptr);
 
-/******************************************************//**
-Encode an index record. */
+/** Encode an index record.
+@return size of the record */
 static MY_ATTRIBUTE((nonnull))
-void
+ulint
 row_merge_buf_encode(
 /*=================*/
 	byte**			b,		/*!< in/out: pointer to
@@ -317,6 +317,7 @@ row_merge_buf_encode(
 				   entry->fields, n_fields);
 
 	*b += size;
+	return size;
 }
 
 static MY_ATTRIBUTE((malloc, nonnull))
@@ -480,6 +481,13 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
       continue;
 
     ulint fixed_len= ifield->fixed_len;
+
+    /* CHAR in ROW_FORMAT=REDUNDANT is always
+    fixed-length, but in the temporary file it is
+    variable-length for variable-length character sets. */
+    if (fixed_len && !index->table->not_redundant() &&
+        col->mbminlen != col->mbmaxlen)
+      fixed_len= 0;
 
     if (fixed_len);
     else if (len < 128 || (!DATA_BIG_COL(col)))
@@ -1170,7 +1178,13 @@ dberr_t row_merge_buf_write(const row_merge_buf_t *buf,
 			}
 		}
 
-		row_merge_buf_encode(&b, index, entry, n_fields);
+		ulint rec_size= row_merge_buf_encode(
+				&b, index, entry, n_fields);
+		if (blob_file && rec_size > srv_page_size) {
+			err = DB_TOO_BIG_RECORD;
+			goto func_exit;
+		}
+
 		ut_ad(b < &block[srv_sort_buf_size]);
 
 		DBUG_LOG("ib_merge_sort",
@@ -2223,6 +2237,8 @@ end_of_index:
 					goto err_exit;
 				}
 
+				buf_page_make_young_if_needed(&block->page);
+
 				page_cur_set_before_first(block, cur);
 				if (!page_cur_move_to_next(cur)
 				    || page_cur_is_after_last(cur)) {
@@ -3041,7 +3057,7 @@ wait_again:
 		if (err == DB_SUCCESS) {
 			new_table->fts->cache->synced_doc_id = max_doc_id;
 
-		        /* Update the max value as next FTS_DOC_ID */
+			/* Update the max value as next FTS_DOC_ID */
 			if (max_doc_id >= new_table->fts->cache->next_doc_id) {
 				new_table->fts->cache->next_doc_id =
 					max_doc_id + 1;
@@ -3533,17 +3549,6 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
-	/* These thd_progress* calls will crash on sol10-64 when innodb_plugin
-	is used. MDEV-9356: innodb.innodb_bug53290 fails (crashes) on
-	sol10-64 in buildbot.
-	*/
-#ifndef __sun__
-	/* Progress report only for "normal" indexes. */
-	if (dup && !(dup->index->type & DICT_FTS)) {
-		thd_progress_init(trx->mysql_thd, 1);
-	}
-#endif /* __sun__ */
-
 	if (global_system_variables.log_warnings > 2) {
 		sql_print_information("InnoDB: Online DDL : merge-sorting"
 				      " has estimated " ULINTPF " runs",
@@ -3552,15 +3557,6 @@ row_merge_sort(
 
 	/* Merge the runs until we have one big run */
 	do {
-		/* Report progress of merge sort to MySQL for
-		show processlist progress field */
-		/* Progress report only for "normal" indexes. */
-#ifndef __sun__
-		if (dup && !(dup->index->type & DICT_FTS)) {
-			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
-		}
-#endif /* __sun__ */
-
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset, stage,
 				  crypt_block, space);
@@ -3583,13 +3579,6 @@ row_merge_sort(
 	} while (num_runs > 1);
 
 	ut_free(run_offset);
-
-	/* Progress report only for "normal" indexes. */
-#ifndef __sun__
-	if (dup && !(dup->index->type & DICT_FTS)) {
-		thd_progress_end(trx->mysql_thd);
-	}
-#endif /* __sun__ */
 
 	DBUG_RETURN(error);
 }
@@ -4422,13 +4411,14 @@ row_merge_file_create(
 	merge_file->fd = row_merge_file_create_low(path);
 	merge_file->offset = 0;
 	merge_file->n_rec = 0;
-
+#ifdef HAVE_FCNTL_DIRECT
 	if (merge_file->fd != OS_FILE_CLOSED) {
 		if (srv_disable_sort_file_cache) {
 			os_file_set_nocache(merge_file->fd,
 				"row0merge.cc", "sort");
 		}
 	}
+#endif
 	return(merge_file->fd);
 }
 
@@ -5329,6 +5319,8 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
 func_exit:
   if (err != DB_SUCCESS)
     trx->error_info= index;
+  else if (index->is_primary() && table->persistent_autoinc)
+    btr_write_autoinc(index, table->autoinc - 1);
   err= btr_bulk.finish(err);
   return err;
 }
@@ -5381,6 +5373,7 @@ bulk_rollback:
       if (t.second.get_first() < low_limit)
         low_limit= t.second.get_first();
       delete t.second.bulk_store;
+      t.second.bulk_store= nullptr;
     }
   }
   trx_savept_t bulk_save{low_limit};

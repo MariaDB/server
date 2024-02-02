@@ -22,7 +22,9 @@ start transaction;
 update t1 set f2 = 4  where f1 = 1 and f2 is null;
 
 -- echo (b) Number of rows updated:
+--disable_ps2_protocol
 select row_count();
+--enable_ps2_protocol
 
 insert into t1 values (3, 1, null);
 
@@ -40,7 +42,9 @@ SET SESSION debug_dbug="+d,bug14007649";
 update t1 set f2 = 6 where f1 = 1 and f2 is null;
 
 -- echo (a) Number of rows updated:
+--disable_ps2_protocol
 select row_count();
+--enable_ps2_protocol
 
 -- echo (a) After the update statement is executed.
 select rowid, f1, f2 from t1;

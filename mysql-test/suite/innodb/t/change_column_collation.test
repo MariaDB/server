@@ -144,4 +144,13 @@ ALTER TABLE t MODIFY COLUMN a VARCHAR(512);
 SHOW CREATE TABLE t;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-31416 ASAN errors in dict_v_col_t::detach upon
+--echo #         adding key to virtual column
+--echo #
+CREATE TABLE t (a INT) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+SET SYSTEM_VERSIONING_ALTER_HISTORY= KEEP;
+ALTER TABLE t ADD COLUMN v VARCHAR(128) GENERATED ALWAYS AS (CRC32('MariaDB'));
+ALTER TABLE t ADD INDEX (v);
+DROP TABLE t;
 --source include/wait_until_count_sessions.inc

@@ -1,3 +1,7 @@
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connect  stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1)) Engine=InnoDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -88,8 +92,6 @@ ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET debug = '+d,row_log_tmpfile_fail';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 INSERT INTO t1 select NULL,'aaa','bbb' from t480;
 INSERT INTO t1 select NULL,'aaaa','bbbb' from t480;
 SET DEBUG_SYNC= 'now SIGNAL flushed';
@@ -143,6 +145,7 @@ ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log2';
 connection con1;
 disconnect con1;
+disconnect stop_purge;
 connection default;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;

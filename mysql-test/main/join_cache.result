@@ -3839,9 +3839,9 @@ id1	num3	text1	id4	id3	dummy
 228808822	6	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	18	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	1	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
-228808822	3	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	17	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	50	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
+228808822	3	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	4	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	89	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	19	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
@@ -5715,13 +5715,13 @@ EXPLAIN
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
 a	a	b	b	c
+3	3	32	32	302
 3	3	30	30	300
 3	3	31	NULL	NULL
-3	3	32	32	302
 set join_buffer_space_limit=@save_join_buffer_space_limit;
 set join_buffer_size=@save_join_buffer_size;
 set join_cache_level=@save_join_cache_level;
@@ -6301,3 +6301,168 @@ set @@optimizer_switch=@save_optimizer_switch;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;
+#
+# MDEV-31226 Server crash or assertion failure with row size close to
+# join_buffer_size
+#
+set @org_optimizer_switch=@@optimizer_switch;
+set @org_join_buffer_size=@@join_buffer_size;
+CREATE TABLE t (f VARCHAR(16384)) ENGINE=MyISAM CHARACTER SET utf8;
+INSERT INTO t VALUES (REPEAT('a',16384)),(REPEAT('b',16384));
+SET OPTIMIZER_SWITCH = 'optimize_join_buffer_size=off';
+SET JOIN_BUFFER_SIZE = 16384;
+explain SELECT length(concat(t1.f,t2.f)) FROM t t1, t t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT length(concat(t1.f,t2.f)) FROM t t1, t t2;
+length(concat(t1.f,t2.f))
+32768
+32768
+32768
+32768
+DROP TABLE t;
+set @@optimizer_switch=@org_optimizer_switch;
+set @@join_buffer_size=@org_join_buffer_size;
+#
+# MDEV-31348 Assertion `last_key_entry >= end_pos' failed in
+# virtual bool JOIN_CACHE_HASHED::put_record()
+#
+SET JOIN_buffer_size=1;
+Warnings:
+Warning	1292	Truncated incorrect join_buffer_size value: '1'
+SET SESSION JOIN_cache_level=4;
+SET SESSION optimizer_switch='optimize_JOIN_buffer_size=OFF';
+SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
+ERROR HY001: Could not create a join buffer. Please check and adjust the value of the variables 'JOIN_BUFFER_SIZE (128)' and 'JOIN_BUFFER_SPACE_LIMIT (2097152)'
+SET JOIN_buffer_size=16384;
+SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
+#
+# MDEV-32351: Join buffer used for outer join with ON condition
+#             depending only on outer tables
+#
+CREATE TABLE t1 (b int NOT NULL, PRIMARY KEY (b)) ENGINE=MYISAM;
+INSERT INTO t1 select seq from seq_1_to_10000;
+CREATE TABLE t2 (b int NOT NULL, d varchar(255), KEY (b)) ENGINE=MYISAM ;
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+CREATE TABLE t3 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM ;
+INSERT INTO t3 select seq from seq_1_to_3000;
+CREATE TABLE t4 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM;
+INSERT INTO t4 select seq from seq_1_to_3000;
+ANALYZE TABLE t1,t2,t3,t4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+set join_cache_level=0;
+EXPLAIN SELECT COUNT(*)
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10000	Using index
+1	SIMPLE	t2	ref	b	b	4	test.t1.b	1	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.d	1	Using where; Using index
+1	SIMPLE	t4	index	NULL	PRIMARY	4	NULL	3000	Using where; Using index
+SELECT COUNT(*)
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+COUNT(*)
+12999
+set join_cache_level=default;
+EXPLAIN SELECT COUNT(*)
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10000	Using index
+1	SIMPLE	t2	ref	b	b	4	test.t1.b	1	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.d	1	Using where; Using index
+1	SIMPLE	t4	index	NULL	PRIMARY	4	NULL	3000	Using where; Using index; Using join buffer (flat, BNL join)
+SELECT COUNT(*)
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+COUNT(*)
+12999
+DROP TABLE t1,t2,t3,t4;
+CREATE TABLE t1 (b int NOT NULL, PRIMARY KEY (b));
+INSERT INTO t1 select seq from seq_1_to_10;
+CREATE TABLE t2 (b int NOT NULL, d varchar(255), KEY (b)) ;
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+CREATE TABLE t3 (c int NOT NULL, PRIMARY KEY (c)) ;
+INSERT INTO t3 select seq from seq_1_to_3;
+CREATE TABLE t4 (c int NOT NULL, PRIMARY KEY (c)) ;
+INSERT INTO t4 select seq from seq_1_to_3;
+set join_cache_level=0;
+EXPLAIN SELECT *
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10	Using index
+1	SIMPLE	t2	ref	b	b	4	test.t1.b	1	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.d	1	Using where; Using index
+1	SIMPLE	t4	index	NULL	PRIMARY	4	NULL	3	Using where; Using index
+SELECT *
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+b	b	d	c	c
+1	1	1	1	1
+1	1	1	1	2
+1	1	1	1	3
+2	2	2	2	NULL
+3	3	3	3	NULL
+4	NULL	NULL	NULL	NULL
+5	NULL	NULL	NULL	NULL
+6	NULL	NULL	NULL	NULL
+7	NULL	NULL	NULL	NULL
+8	NULL	NULL	NULL	NULL
+9	NULL	NULL	NULL	NULL
+10	NULL	NULL	NULL	NULL
+set join_cache_level=default;
+EXPLAIN SELECT *
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10	Using index
+1	SIMPLE	t2	ref	b	b	4	test.t1.b	1	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.d	1	Using where; Using index
+1	SIMPLE	t4	index	NULL	PRIMARY	4	NULL	3	Using where; Using index; Using join buffer (flat, BNL join)
+SELECT *
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b
+LEFT JOIN t3 ON t2.d = t3.c
+LEFT JOIN t4 ON t3.c=1;
+b	b	d	c	c
+1	1	1	1	1
+1	1	1	1	2
+1	1	1	1	3
+2	2	2	2	NULL
+3	3	3	3	NULL
+4	NULL	NULL	NULL	NULL
+5	NULL	NULL	NULL	NULL
+6	NULL	NULL	NULL	NULL
+7	NULL	NULL	NULL	NULL
+8	NULL	NULL	NULL	NULL
+9	NULL	NULL	NULL	NULL
+10	NULL	NULL	NULL	NULL
+DROP TABLE t1,t2,t3,t4;
+#
+# End of 10.4 tests
+#

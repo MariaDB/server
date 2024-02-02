@@ -2842,6 +2842,62 @@ VALUES ('') UNION VALUES ( _utf16 0x0020 COLLATE utf16_bin);
 # End of 10.3 tests
 #
 #
+# Start of 10.4 tests
+#
+#
+# MDEV-22856 Assertion `!str || str != Ptr' and Assertion `!str || str != Ptr || !is_alloced()' failed in String::copy
+#
+SET NAMES utf8mb3, collation_connection='utf16_general_ci';
+SET sql_buffer_result=1;
+CREATE TABLE t(c INT);
+INSERT INTO t VALUES(NULL);
+SELECT PASSWORD(c) FROM t;
+PASSWORD(c)
+
+DROP TABLE t;
+SET sql_buffer_result=DEFAULT;
+SET NAMES utf8mb3, collation_connection='utf16_general_ci';
+CREATE TABLE t1(c INT);
+INSERT INTO t1 VALUES(NULL);
+CREATE TABLE t2 AS SELECT PASSWORD(c) FROM t1;
+DROP TABLE t2, t1;
+SET NAMES utf8mb3, collation_connection='utf16_general_ci';
+CREATE TABLE t1 AS SELECT PASSWORD(CAST(NULL AS SIGNED));
+DROP TABLE t1;
+SET NAMES utf8mb3, collation_connection='utf16_bin';
+SET @@sql_buffer_result=ON;
+CREATE TABLE t (c CHAR(1));
+INSERT INTO t VALUES (1),(1),(1),(NULL);
+INSERT INTO t SELECT * FROM t;
+SELECT PASSWORD(c) FROM t;
+PASSWORD(c)
+*E6CC90B878B948C35E92B003C792C46C58C4AF40
+*E6CC90B878B948C35E92B003C792C46C58C4AF40
+*E6CC90B878B948C35E92B003C792C46C58C4AF40
+
+*E6CC90B878B948C35E92B003C792C46C58C4AF40
+*E6CC90B878B948C35E92B003C792C46C58C4AF40
+*E6CC90B878B948C35E92B003C792C46C58C4AF40
+
+DROP TABLE t;
+SET @@sql_buffer_result=DEFAULT;
+SET sql_mode='';
+SET SESSION sql_buffer_result=1;
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES ();
+INSERT IGNORE INTO t1 VALUES (NULL);
+SET NAMES utf8mb3, collation_connection='utf16_bin';
+SELECT PASSWORD(c1) FROM t1;
+PASSWORD(c1)
+
+
+DROP TABLE t1;
+SET SESSION sql_buffer_result=DEFAULT;
+SET sql_mode=DEFAULT;
+#
+# End of 10.4 tests
+#
+#
 # Start of 10.5 tests
 #
 #

@@ -596,9 +596,6 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
     inspected = "HA_EXTRA_NO_AUTOINC_LOCKING";
     break;
 #endif
-  case HA_EXTRA_IGNORE_INSERT:
-    inspected = "HA_EXTRA_IGNORE_INSERT";
-    break;
   }
   return inspected;
 }
@@ -4964,6 +4961,17 @@ int ha_mroonga::wrapper_close()
   MRN_DBUG_ENTER_METHOD();
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
+#ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
+  if (alter_key_info_buffer) {
+    my_free(alter_key_info_buffer);
+    alter_key_info_buffer = NULL;
+  }
+#else
+  if (wrap_alter_key_info) {
+    my_free(wrap_alter_key_info);
+    wrap_alter_key_info = NULL;
+  }
+#endif
 #ifdef MRN_HANDLER_HAVE_HA_CLOSE
   error = wrap_handler->ha_close();
 #else
@@ -10339,13 +10347,13 @@ int ha_mroonga::generic_store_bulk_variable_size_string(Field *field,
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
-  String value;
-  field->val_str(NULL, &value);
+  StringBuffer<MAX_FIELD_WIDTH> buffer(field->charset());
+  auto value = field->val_str(&buffer, &buffer);
   grn_obj_reinit(ctx, buf, GRN_DB_SHORT_TEXT, 0);
   DBUG_PRINT("info", ("mroonga: length=%" MRN_FORMAT_STRING_LENGTH,
-                      value.length()));
-  DBUG_PRINT("info", ("mroonga: value=%s", value.c_ptr_safe()));
-  GRN_TEXT_SET(ctx, buf, value.ptr(), value.length());
+                      value->length()));
+  DBUG_PRINT("info", ("mroonga: value=%s", value->c_ptr_safe()));
+  GRN_TEXT_SET(ctx, buf, value->ptr(), value->length());
   DBUG_RETURN(error);
 }
 
@@ -10712,9 +10720,8 @@ int ha_mroonga::generic_store_bulk_blob(Field *field, grn_obj *buf)
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
-  String buffer;
-  Field_blob *blob = (Field_blob *)field;
-  String *value = blob->val_str(0, &buffer);
+  StringBuffer<MAX_FIELD_WIDTH> buffer(field->charset());
+  auto value = field->val_str(&buffer, &buffer);
   grn_obj_reinit(ctx, buf, GRN_DB_TEXT, 0);
   GRN_TEXT_SET(ctx, buf, value->ptr(), value->length());
   DBUG_RETURN(error);
@@ -14669,10 +14676,14 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
     MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN |
     MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN |
     ALTER_DROP_COLUMN |
+    ALTER_INDEX_ORDER |
+    ALTER_INDEX_IGNORABILITY |
     ALTER_COLUMN_NAME;
+    ;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-  } else if (ha_alter_info->handler_flags & supported_flags) {
+  } else if ((ha_alter_info->handler_flags & supported_flags) ==
+              ha_alter_info->handler_flags) {
     DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
   } else {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);

@@ -311,3 +311,30 @@ insert into t1(f1) values(1) on duplicate key update f1=1;
 select @stamp2:=f2 from t1;
 select if( @stamp1 = @stamp2, "correct", "wrong");
 drop table t1;
+
+--echo #
+--echo # MDEV-31164 default current_timestamp() not working when used INSERT ON DUPLICATE KEY in some cases
+--echo #
+set timestamp=unix_timestamp('2000-10-20 0:0:0');
+create table t1 (pk integer primary key, val varchar(20) not null, ts timestamp
+  default current_timestamp on update current_timestamp);
+insert t1 (pk, val) values(1, 'val1');
+select * from t1;
+set timestamp=unix_timestamp('2000-10-20 1:0:0');
+insert t1 (pk, val) select 2, 'val3' union select 3, 'val4'
+    on duplicate key update ts=now();
+select * from t1;
+set timestamp=unix_timestamp('2000-10-20 2:0:0');
+insert t1 (pk, val) select 1, 'val1' union select 4, 'val2'
+    on duplicate key update ts=now();
+select * from t1;
+set timestamp=unix_timestamp('2000-10-20 3:0:0');
+insert t1 (pk, val) select 5, 'val1' union select 1, 'val2'
+    on duplicate key update ts=now();
+select * from t1;
+drop table t1;
+set timestamp=default;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

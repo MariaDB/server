@@ -555,6 +555,9 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
    main_mem_root(*mem_root_arg),
+#ifdef PROTECT_STATEMENT_MEMROOT
+   executed_counter(0),
+#endif
    m_parent(parent),
    m_handler(sph),
    m_flags(0),
@@ -579,7 +582,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_next_cached_sp(0),
    m_param_begin(NULL),
    m_param_end(NULL),
-   m_body_begin(NULL),
+   m_cpp_body_begin(NULL),
    m_thd_root(NULL),
    m_thd(NULL),
    m_pcont(new (&main_mem_root) sp_pcontext()),
@@ -812,6 +815,10 @@ sp_head::init(LEX *lex)
   */
   lex->trg_table_fields.empty();
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+  executed_counter= 0;
+#endif
+
   DBUG_VOID_RETURN;
 }
 
@@ -840,18 +847,18 @@ sp_head::init_psi_share()
 
 
 void
-sp_head::set_body_start(THD *thd, const char *begin_ptr)
+sp_head::set_body_start(THD *thd, const char *cpp_body_start)
 {
-  m_body_begin= begin_ptr;
-  thd->m_parser_state->m_lip.body_utf8_start(thd, begin_ptr);
+  m_cpp_body_begin= cpp_body_start;
+  if (!m_parent)
+    thd->m_parser_state->m_lip.body_utf8_start(thd, cpp_body_start);
 }
 
 
 void
-sp_head::set_stmt_end(THD *thd)
+sp_head::set_stmt_end(THD *thd, const char *cpp_body_end)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip; /* shortcut */
-  const char *end_ptr= lip->get_cpp_tok_start(); /* shortcut */
 
   /* Make the string of parameters. */
 
@@ -863,30 +870,27 @@ sp_head::set_stmt_end(THD *thd)
 
   /* Remember end pointer for further dumping of whole statement. */
 
-  thd->lex->stmt_definition_end= end_ptr;
+  thd->lex->stmt_definition_end= cpp_body_end;
 
   /* Make the string of body (in the original character set). */
 
-  m_body.length= end_ptr - m_body_begin;
-  m_body.str= thd->strmake(m_body_begin, m_body.length);
-  trim_whitespace(thd->charset(), &m_body);
+  m_body= thd->strmake_lex_cstring_trim_whitespace(
+                 Lex_cstring(m_cpp_body_begin, cpp_body_end));
 
   /* Make the string of UTF-body. */
 
-  lip->body_utf8_append(end_ptr);
+  lip->body_utf8_append(cpp_body_end);
 
-  m_body_utf8.length= lip->get_body_utf8_length();
-  m_body_utf8.str= thd->strmake(lip->get_body_utf8_str(), m_body_utf8.length);
-  trim_whitespace(thd->charset(), &m_body_utf8);
+  if (!m_parent)
+    m_body_utf8= thd->strmake_lex_cstring_trim_whitespace(lip->body_utf8());
 
   /*
     Make the string of whole stored-program-definition query (in the
     original character set).
   */
 
-  m_defstr.length= end_ptr - lip->get_cpp_buf();
-  m_defstr.str= thd->strmake(lip->get_cpp_buf(), m_defstr.length);
-  trim_whitespace(thd->charset(), &m_defstr);
+  m_defstr= thd->strmake_lex_cstring_trim_whitespace(
+                   Lex_cstring(lip->get_cpp_buf(), cpp_body_end));
 }
 
 
@@ -1458,6 +1462,11 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
     err_status= i->execute(thd, &ip);
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (!err_status)
+      i->mark_as_run();
+#endif
+
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
     MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
     thd->m_statement_psi= parent_locker;
@@ -1560,6 +1569,16 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (thd->is_error())
+    {
+      // Don't count a call ended with an error as normal run
+      executed_counter= 0;
+      main_mem_root.flags &= ~ROOT_FLAG_READ_ONLY;
+      reset_instrs_executed_counter();
+    }
+#endif
 
   } while (!err_status && likely(!thd->killed) &&
            likely(!thd->is_fatal_error) &&
@@ -1673,6 +1692,20 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
     err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
   }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  if (!err_status)
+  {
+    if (!(main_mem_root.flags & ROOT_FLAG_READ_ONLY) &&
+        has_all_instrs_executed())
+    {
+      main_mem_root.flags |= ROOT_FLAG_READ_ONLY;
+    }
+    ++executed_counter;
+    DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
+  }
+#endif
+
   m_flags&= ~IS_INVOKED;
   if (m_parent)
     m_parent->m_invoked_subroutine_count--;
@@ -3373,6 +3406,37 @@ void sp_head::add_mark_lead(uint ip, List<sp_instr> *leads)
     leads->push_front(i);
 }
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+
+int sp_head::has_all_instrs_executed()
+{
+  sp_instr *ip;
+  uint count= 0;
+
+  for (uint i= 0; i < m_instr.elements; ++i)
+  {
+    get_dynamic(&m_instr, (uchar*)&ip, i);
+    if (ip->has_been_run())
+      ++count;
+  }
+
+  return count == m_instr.elements;
+}
+
+
+void sp_head::reset_instrs_executed_counter()
+{
+  sp_instr *ip;
+
+  for (uint i= 0; i < m_instr.elements; ++i)
+  {
+    get_dynamic(&m_instr, (uchar*)&ip, i);
+    ip->mark_as_not_run();
+  }
+}
+
+#endif
+
 void
 sp_head::opt_mark()
 {
@@ -3888,7 +3952,6 @@ int
 sp_instr_set::exec_core(THD *thd, uint *nextp)
 {
   int res= get_rcontext(thd)->set_variable(thd, m_offset, &m_value);
-  delete_explain_query(thd->lex);
   *nextp = m_ip+1;
   return res;
 }
@@ -3930,7 +3993,6 @@ sp_instr_set_row_field::exec_core(THD *thd, uint *nextp)
   int res= get_rcontext(thd)->set_variable_row_field(thd, m_offset,
                                                      m_field_offset,
                                                      &m_value);
-  delete_explain_query(thd->lex);
   *nextp= m_ip + 1;
   return res;
 }
@@ -3978,7 +4040,6 @@ sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
   int res= get_rcontext(thd)->set_variable_row_field_by_name(thd, m_offset,
                                                              m_field_name,
                                                              &m_value);
-  delete_explain_query(thd->lex);
   *nextp= m_ip + 1;
   return res;
 }

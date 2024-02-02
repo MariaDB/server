@@ -80,7 +80,7 @@ static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
   "The buffer that is allocated when sorting the index when doing "
   "a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE", NULL, NULL,
-  SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, 1);
+  SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX/16, 1);
 
 static MYSQL_SYSVAR_BOOL(use_mmap, opt_myisam_use_mmap, PLUGIN_VAR_NOCMDARG,
   "Use memory mapping for reading and writing MyISAM tables", NULL, NULL, FALSE);
@@ -710,6 +710,16 @@ my_bool mi_killed_in_mariadb(MI_INFO *info)
   return (((TABLE*) (info->external_ref))->in_use->killed != 0);
 }
 
+static void init_compute_vcols(void *table)
+{
+  /*
+    To evaluate vcols we must have current_thd set.
+    This will set current_thd in all threads to the same THD, but it's
+    safe, because vcols are always evaluated under info->s->intern_lock.
+  */
+  set_current_thd(static_cast<TABLE *>(table)->in_use);
+}
+
 static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
 {
   /* This mutex is needed for parallel repair */
@@ -1022,6 +1032,7 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
   }
   DBUG_ASSERT(file->s->base.reclength < file->s->vreclength ||
               !table->s->stored_fields);
+  param->init_fix_record= init_compute_vcols;
   param->fix_record= compute_vcols;
   table->use_all_columns();
 }

@@ -35,7 +35,7 @@ case "$1" in
     then
       update-alternatives --install /etc/mysql/my.cnf my.cnf "/etc/mysql/mariadb.cnf" 500 || true
     fi
-  ;;
+    ;;
 esac
 
 #DEBHELPER#

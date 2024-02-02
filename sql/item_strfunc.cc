@@ -1373,13 +1373,13 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
 
   for (uint i=0 ; i < arg_count ; i++)
   {
-    char_length+= args[i]->max_char_length();
     if (args[i]->result_type() == STRING_RESULT &&
         Type_std_attributes::agg_item_set_converter(c, func_name_cstring(),
                                                     args+i, 1, flags, 1))
       return TRUE;
   }
 
+  char_length= MAX_BLOB_WIDTH;
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }
@@ -1407,11 +1407,24 @@ namespace fmt {
 */
 String *Item_func_sformat::val_str(String *res)
 {
+  /*
+    A union that stores a numeric format arg value.
+    fmt::detail::make_arg does not accept temporaries, so all of its numeric
+    args are temporarily stored in the fmt_args array.
+    See: https://github.com/fmtlib/fmt/issues/3596
+  */
+  union Format_arg_store {
+    longlong val_int;
+    float    val_float;
+    double   val_double;
+  };
+
   DBUG_ASSERT(fixed());
-  using                         ctx=     fmt::format_context;
-  String                       *fmt_arg= NULL;
-  String                       *parg=    NULL;
-  fmt::format_args::format_arg *vargs=   NULL;
+  using                         ctx=      fmt::format_context;
+  String                       *fmt_arg=  NULL;
+  String                       *parg=     NULL;
+  fmt::format_args::format_arg *vargs=    NULL;
+  Format_arg_store             *fmt_args= NULL;
 
   null_value= true;
   if (!(fmt_arg= args[0]->val_str(res)))
@@ -1420,25 +1433,39 @@ String *Item_func_sformat::val_str(String *res)
   if (!(vargs= new fmt::format_args::format_arg[arg_count - 1]))
     return NULL;
 
+  if (!(fmt_args= new Format_arg_store[arg_count - 1]))
+  {
+    delete [] vargs;
+    return NULL;
+  }
+
   /* Creates the array of arguments for vformat */
   for (uint carg= 1; carg < arg_count; carg++)
   {
     switch (args[carg]->result_type())
     {
     case INT_RESULT:
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_int());
+      fmt_args[carg-1].val_int= args[carg]->val_int();
+      vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_int);
       break;
     case DECIMAL_RESULT: // TODO
     case REAL_RESULT:
       if (args[carg]->field_type() == MYSQL_TYPE_FLOAT)
-        vargs[carg-1]= fmt::detail::make_arg<ctx>((float)args[carg]->val_real());
+      {
+        fmt_args[carg-1].val_float= (float)args[carg]->val_real();
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_float);
+      }
       else
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
+      {
+        fmt_args[carg-1].val_double= args[carg]->val_real();
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_double);
+      }
       break;
     case STRING_RESULT:
       if (!(parg= args[carg]->val_str(&val_arg[carg-1])))
       {
         delete [] vargs;
+        delete [] fmt_args;
         return NULL;
       }
       vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
@@ -1448,6 +1475,7 @@ String *Item_func_sformat::val_str(String *res)
     default:
       DBUG_ASSERT(0);
       delete [] vargs;
+      delete [] fmt_args;
       return NULL;
     }
   }
@@ -1471,6 +1499,7 @@ String *Item_func_sformat::val_str(String *res)
     null_value= true;
   }
   delete [] vargs;
+  delete [] fmt_args;
   return null_value ? NULL : res;
 }
 
@@ -2388,13 +2417,31 @@ bool Item_func_trim::fix_length_and_dec(THD *thd)
 
 void Item_func_trim::print(String *str, enum_query_type query_type)
 {
+  LEX_CSTRING suffix= {STRING_WITH_LEN("_oracle")};
   if (arg_count == 1)
   {
-    Item_func::print(str, query_type);
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(func_name_cstring());
+      if (schema() == &oracle_schema_ref)
+        str->append(suffix);
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type, func_name_cstring());
+    print_args_parenthesized(str, query_type);
     return;
   }
-  str->append(Item_func_trim::func_name_cstring());
-  str->append(func_name_ext());
+
+  if (query_type & QT_FOR_FRM)
+  {
+    // 10.3 downgrade compatibility for FRM
+    str->append(Item_func_trim::func_name_cstring());
+    if (schema() == &oracle_schema_ref)
+      str->append(suffix);
+  }
+  else
+    print_sql_mode_qualified_name(str, query_type, Item_func_trim::func_name_cstring());
   str->append('(');
   str->append(mode_name());
   str->append(' ');
@@ -3434,11 +3481,11 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   String name_str, *name;
   longlong pos;
 
-  if (args[0]->null_value || args[1]->null_value)
-    goto err;
-
   name= args[0]->val_str(&name_str);
   pos= args[1]->val_int();
+
+  if (args[0]->null_value || args[1]->null_value)
+    goto err;
 
   if (pos < 0 || pos > UINT_MAX32)
     goto err;
@@ -3754,8 +3801,12 @@ String *Item_func_conv::val_str(String *str)
                                                 from_base, &endptr, &err);
   }
 
+  uint dummy_errors;
   if (!(ptr= longlong2str(dec, ans, to_base)) ||
-      str->copy(ans, (uint32) (ptr - ans), default_charset()))
+      (collation.collation->state & MY_CS_NONASCII) ?
+       str->copy(ans, (uint32)  (ptr - ans), &my_charset_latin1,
+                 collation.collation, &dummy_errors) :
+       str->copy(ans, (uint32) (ptr - ans), collation.collation))
   {
     null_value= 1;
     return NULL;

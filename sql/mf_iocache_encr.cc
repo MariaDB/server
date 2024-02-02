@@ -85,7 +85,8 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
   do
   {
-    uint elength, wlength, length;
+    uint elength, wlength;
+    uint length= static_cast<uint>(info->buffer_length);
     uchar iv[MY_AES_BLOCK_SIZE]= {0};
 
     DBUG_ASSERT(pos_in_file % info->buffer_length == 0);
@@ -102,6 +103,7 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
     }
 
     elength= wlength - (uint)(ebuffer - wbuffer);
+    length= elength;
     set_iv(iv, pos_in_file, crypt_data->inbuf_counter);
 
     if (encryption_crypt(ebuffer, elength, info->buffer, &length,
@@ -181,8 +183,9 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
   do
   {
+    uint wlength;
     size_t length= MY_MIN(info->buffer_length, Count);
-    uint elength, wlength;
+    uint elength= static_cast<uint>(length);
     uchar iv[MY_AES_BLOCK_SIZE]= {0};
 
     crypt_data->inbuf_counter= crypt_data->counter;
@@ -272,4 +275,3 @@ int init_io_cache_encryption()
   _my_b_encr_write= 0;
   return 0;
 }
-

@@ -72,7 +72,11 @@ No_such_table_error_handler::handle_condition(THD *,
                                               Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
-  if (sql_errno == ER_NO_SUCH_TABLE || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE)
+  if (!first_error)
+    first_error= sql_errno;
+  if (sql_errno == ER_NO_SUCH_TABLE
+      || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE
+      || sql_errno == ER_UNKNOWN_SEQUENCES)
   {
     m_handled_errors++;
     return TRUE;
@@ -93,7 +97,6 @@ bool No_such_table_error_handler::safely_trapped_errors()
   */
   return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
 }
-
 
 /**
   This internal handler is used to trap ER_NO_SUCH_TABLE and
@@ -844,7 +847,12 @@ int close_thread_tables(THD *thd)
           !thd->stmt_arena->is_stmt_prepare())
         table->part_info->vers_check_limit(thd);
 #endif
-      table->vcol_cleanup_expr(thd);
+      /*
+        For simple locking we cleanup it here because we don't close thread
+        tables. For prelocking we close it when we do close thread tables.
+      */
+      if (thd->locked_tables_mode != LTM_PRELOCKED)
+        table->vcol_cleanup_expr(thd);
     }
 
     /* Detach MERGE children after every statement. Even under LOCK TABLES. */
@@ -866,6 +874,9 @@ int close_thread_tables(THD *thd)
     TODO: Probably even better approach is to simply associate list of
           derived tables with (sub-)statement instead of thread and destroy
           them at the end of its execution.
+
+    Note: EXPLAIN/ANALYZE depends on derived tables being freed here. See
+    sql_explain.h:ExplainDataStructureLifetime.
   */
   if (thd->derived_tables)
   {
@@ -969,11 +980,12 @@ int close_thread_tables(THD *thd)
 void close_thread_table(THD *thd, TABLE **table_ptr)
 {
   TABLE *table= *table_ptr;
+  handler *file= table->file;
   DBUG_ENTER("close_thread_table");
   DBUG_PRINT("tcache", ("table: '%s'.'%s' %p", table->s->db.str,
                         table->s->table_name.str, table));
-  DBUG_ASSERT(!table->file->keyread_enabled());
-  DBUG_ASSERT(table->file->inited == handler::NONE);
+  DBUG_ASSERT(!file->keyread_enabled());
+  DBUG_ASSERT(file->inited == handler::NONE);
 
   /*
     The metadata lock must be released after giving back
@@ -982,14 +994,25 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                              table->s->db.str,
                                              table->s->table_name.str,
-                                             MDL_SHARED));
-
+                                             MDL_SHARED) ||
+              thd->mdl_context.is_lock_warrantee(MDL_key::TABLE,
+                                                 table->s->db.str,
+                                                 table->s->table_name.str,
+                                                 MDL_SHARED));
   table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
-  table->file->update_global_table_stats();
-  table->file->update_global_index_stats();
-
+  file->update_global_table_stats();
+  file->update_global_index_stats();
+  if (unlikely(thd->variables.log_slow_verbosity &
+               LOG_SLOW_VERBOSITY_ENGINE) &&
+      likely(file->handler_stats))
+  {
+    Exec_time_tracker *tracker;
+    if ((tracker= file->get_time_tracker()))
+      file->handler_stats->engine_time+= tracker->get_cycles();
+    thd->handler_stats.add(file->handler_stats);
+  }
   /*
     This look is needed to allow THD::notify_shared_lock() to
     traverse the thd->open_tables list without having to worry that
@@ -1003,17 +1026,17 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   if (! table->needs_reopen())
   {
     /* Avoid having MERGE tables with attached children in table cache. */
-    table->file->extra(HA_EXTRA_DETACH_CHILDREN);
+    file->extra(HA_EXTRA_DETACH_CHILDREN);
     /* Free memory and reset for next loop. */
     free_field_buffers_larger_than(table, MAX_TDC_BLOB_SIZE);
-    table->file->ha_reset();
+    file->ha_reset();
   }
 
   /*
     Do this *before* entering the TABLE_SHARE::tdc.LOCK_table_share
     critical section.
   */
-  MYSQL_UNBIND_TABLE(table->file);
+  MYSQL_UNBIND_TABLE(file);
 
   tc_release_table(table);
   DBUG_VOID_RETURN;
@@ -1741,6 +1764,8 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
         }
         break;
     }
+    DBUG_ASSERT(!thd->lex->last_table() ||
+                !thd->lex->last_table()->vers_conditions.delete_history);
   }
 
   if (table_list->partition_names)
@@ -2076,15 +2101,15 @@ retry_share:
       goto err_lock;
     }
 
-    /* Open view */
-    if (mysql_make_view(thd, share, table_list, false))
-      goto err_lock;
-
     /*
       This table is a view. Validate its metadata version: in particular,
       that it was a view when the statement was prepared.
     */
     if (check_and_update_table_version(thd, table_list, share))
+      goto err_lock;
+
+    /* Open view */
+    if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
 
     /* TODO: Don't free this */
@@ -2265,6 +2290,7 @@ retry_share:
       if (thd->has_read_only_protection())
       {
         MYSQL_UNBIND_TABLE(table->file);
+        table->vcol_cleanup_expr(thd);
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
@@ -2284,6 +2310,7 @@ retry_share:
       if (result)
       {
         MYSQL_UNBIND_TABLE(table->file);
+        table->vcol_cleanup_expr(thd);
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
@@ -3617,7 +3644,8 @@ thr_lock_type read_lock_type_for_table(THD *thd,
     at THD::variables::sql_log_bin member.
   */
   bool log_on= mysql_bin_log.is_open() && thd->variables.sql_log_bin;
-  if ((log_on == FALSE) || (thd->wsrep_binlog_format() == BINLOG_FORMAT_ROW) ||
+  if ((log_on == FALSE) ||
+      (thd->wsrep_binlog_format(thd->variables.binlog_format) == BINLOG_FORMAT_ROW) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_PERFORMANCE) ||
       !(is_update_query(prelocking_ctx->sql_command) ||
@@ -4159,6 +4187,12 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (tables->open_strategy && !tables->table)
     goto end;
 
+  /* Check and update metadata version of a base table. */
+  error= check_and_update_table_version(thd, tables, tables->table->s);
+
+  if (unlikely(error))
+    goto end;
+
   error= extend_table_list(thd, tables, prelocking_strategy, has_prelocking_list);
   if (unlikely(error))
     goto end;
@@ -4166,11 +4200,6 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   /* Copy grant information from TABLE_LIST instance to TABLE one. */
   tables->table->grant= tables->grant;
 
-  /* Check and update metadata version of a base table. */
-  error= check_and_update_table_version(thd, tables, tables->table->s);
-
-  if (unlikely(error))
-    goto end;
   /*
     After opening a MERGE table add the children to the query list of
     tables, so that they are opened too.
@@ -5580,7 +5609,8 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
     goto err;
 
   /* Don't read statistics tables when opening internal tables */
-  if (!(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
+  if (!(flags & (MYSQL_OPEN_IGNORE_LOGGING_FORMAT |
+                 MYSQL_OPEN_IGNORE_ENGINE_STATS)))
     (void) read_statistics_for_tables_if_needed(thd, tables);
   
   if (derived)
@@ -7177,6 +7207,7 @@ set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
   if (!(context= new (thd->mem_root) Name_resolution_context))
     return TRUE;
   context->init();
+  context->select_lex= table_ref->select_lex;
   context->first_name_resolution_table=
     context->last_name_resolution_table= table_ref;
   item->context= context;
@@ -7995,7 +8026,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   while ((item= it++))
   {
     if (make_pre_fix)
-      pre_fix->push_back(item, thd->stmt_arena->mem_root);
+      pre_fix->push_back(item, thd->active_stmt_arena_to_use()->mem_root);
 
     if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {

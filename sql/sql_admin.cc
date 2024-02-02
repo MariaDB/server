@@ -32,6 +32,9 @@
 #include "sql_admin.h"
 #include "sql_statistics.h"
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif
 
 const LEX_CSTRING msg_status= {STRING_WITH_LEN("status")};
 const LEX_CSTRING msg_repair= { STRING_WITH_LEN("repair") };
@@ -445,6 +448,32 @@ dbug_err:
   return open_error;
 }
 
+#ifdef WITH_WSREP
+/** RAII class for temporarily disable wsrep_on in the connection. */
+class Disable_wsrep_on_guard
+{
+ public:
+  /**
+    @param thd     - pointer to the context of connection in which
+                     wsrep_on mode needs to be disabled.
+    @param disable - true if wsrep_on should be disabled
+  */
+  explicit Disable_wsrep_on_guard(THD *thd, bool disable)
+    : m_thd(thd), m_orig_wsrep_on(thd->variables.wsrep_on)
+  {
+    if (disable)
+      thd->variables.wsrep_on= false;
+  }
+
+  ~Disable_wsrep_on_guard()
+  {
+    m_thd->variables.wsrep_on= m_orig_wsrep_on;
+  }
+ private:
+  THD* m_thd;
+  bool m_orig_wsrep_on;
+};
+#endif /* WITH_WSREP */
 
 
 static void send_read_only_warning(THD *thd, const LEX_CSTRING *msg_status,
@@ -517,14 +546,24 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
-  int result_code;
-  int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
   bool is_table_modified= false;
   LEX_CUSTRING tabledef_version;
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
+
+#ifdef WITH_WSREP
+  /*
+    CACHE INDEX and LOAD INDEX INTO CACHE statements are
+    local operations. Do not replicate them with Galera
+  */
+  const bool disable_wsrep_on= (WSREP(thd) &&
+    (lex->sql_command == SQLCOM_ASSIGN_TO_KEYCACHE ||
+     lex->sql_command == SQLCOM_PRELOAD_KEYS));
+
+  Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
+#endif /* WITH_WSREP */
 
   fill_check_table_metadata_fields(thd, &field_list);
 
@@ -562,7 +601,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool collect_eis=  FALSE;
     bool open_for_modify= org_open_for_modify;
     Recreate_info recreate_info;
+    int compl_result_code, result_code;
 
+    compl_result_code= result_code= HA_ADMIN_FAILED;
     storage_engine_name[0]= 0;                  // Marker that's not used
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
@@ -582,7 +623,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                 ? MDL_SHARED_NO_READ_WRITE
                                 : lock_type >= TL_FIRST_WRITE
                                 ? MDL_SHARED_WRITE : MDL_SHARED_READ);
-
     if (thd->check_killed())
     {
       open_error= false;
@@ -879,6 +919,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
     }
 
+    /* Note: compl_result_code can be different from result_code here */
     if (compl_result_code == HA_ADMIN_OK && collect_eis)
     {
       if (result_code == HA_ERR_TABLE_READONLY)
@@ -917,15 +958,39 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
+        USED_MEM *memroot_block;
+
         if (!lex->column_list)
         {
+          /* Fields we have to read from the engine */
           bitmap_clear_all(tab->read_set);
+          /* Fields we want to have statistics for */
+          bitmap_clear_all(&tab->has_value_set);
+
           for (uint fields= 0; *field_ptr; field_ptr++, fields++)
           {
-            enum enum_field_types type= (*field_ptr)->type();
-            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+            Field *field= *field_ptr;
+            if (field->flags & LONG_UNIQUE_HASH_FIELD)
+            {
+              /*
+                No point in doing statistic for hash fields that should be
+                unique
+              */
+              continue;
+            }
+            /*
+              Note that type() always return MYSQL_TYPE_BLOB for
+              all blob types. Another function needs to be added
+              if we in the future want to distingush between blob
+              types here.
+            */
+            enum enum_field_types type= field->type();
+            if (type < MYSQL_TYPE_TINY_BLOB ||
                 type > MYSQL_TYPE_BLOB)
-              tab->field[fields]->register_field_in_read_map();
+            {
+              field->register_field_in_read_map();
+              bitmap_set_bit(&tab->has_value_set, field->field_index);
+            }
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
@@ -939,9 +1004,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           LEX_STRING *column_name;
           List_iterator_fast<LEX_STRING> it(*lex->column_list);
 
+          /* Fields we have to read from the engine */
           bitmap_clear_all(tab->read_set);
+          /* Fields we want to have statistics for */
+          bitmap_clear_all(&tab->has_value_set);
+
           while ((column_name= it++))
           {
+            Field *field;
+            enum enum_field_types type;
             if (tab->s->fieldnames.type_names == 0 ||
                 (pos= find_type(&tab->s->fieldnames, column_name->str,
                                 column_name->length, 1)) <= 0)
@@ -950,10 +1021,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
               break;
             }
             pos--;
-            enum enum_field_types type= tab->field[pos]->type();
-            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-                type > MYSQL_TYPE_BLOB)
-              tab->field[pos]->register_field_in_read_map();
+            field= tab->field[pos];
+            type= field->type();
+            if (!(field->flags & LONG_UNIQUE_HASH_FIELD) &&
+                (type < MYSQL_TYPE_TINY_BLOB ||
+                 type > MYSQL_TYPE_BLOB))
+            {
+              field->register_field_in_read_map();
+              bitmap_set_bit(&tab->has_value_set, field->field_index);
+            }
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
@@ -969,7 +1045,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           int pos;
           LEX_STRING *index_name;
           List_iterator_fast<LEX_STRING> it(*lex->index_list);
-
           tab->keys_in_use_for_query.clear_all();
           while ((index_name= it++))
           {
@@ -983,17 +1058,21 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             tab->keys_in_use_for_query.set_bit(--pos);
           }
         }
+        /* Ensure that number of records are updated */
+        tab->file->info(HA_STATUS_VARIABLE);
+        memroot_block= get_last_memroot_block(thd->mem_root);
         if (!(compl_result_code=
-              alloc_statistics_for_table(thd, table->table)) &&
+              alloc_statistics_for_table(thd, tab,
+                                         &tab->has_value_set)) &&
             !(compl_result_code=
-              collect_statistics_for_table(thd, table->table)))
-          compl_result_code= update_statistics_for_table(thd, table->table);
+              collect_statistics_for_table(thd, tab)))
+          compl_result_code= update_statistics_for_table(thd, tab);
+        free_statistics_for_table(tab);
+        free_all_new_blocks(thd->mem_root, memroot_block);
       }
       else
         compl_result_code= HA_ADMIN_FAILED;
 
-      if (table->table)
-        free_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
       else
@@ -1280,13 +1359,8 @@ send_result_message:
 
     if (table->table && !table->view)
     {
-      /*
-        Don't skip flushing if we are collecting EITS statistics.
-      */
-      const bool skip_flush=
-        (operator_func == &handler::ha_analyze) && 
-        (table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE) &&
-        !collect_eis;
+      /* Skip FLUSH TABLES if we are doing analyze */
+      const bool skip_flush= (operator_func == &handler::ha_analyze);
       if (table->table->s->tmp_table)
       {
         /*
@@ -1305,6 +1379,13 @@ send_result_message:
         */
         table->table= 0;                        // For query cache
         query_cache_invalidate3(thd, table, 0);
+      }
+      else if (collect_eis && skip_flush && compl_result_code == HA_ADMIN_OK)
+      {
+        TABLE_LIST *save_next_global= table->next_global;
+        table->next_global= 0;
+        read_statistics_for_tables(thd, table, true /* force_reload */);
+        table->next_global= save_next_global;
       }
     }
     /* Error path, a admin command failed. */

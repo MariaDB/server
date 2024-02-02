@@ -518,6 +518,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     share->kfile=kfile;
     share->this_process=(ulong) getpid();
     share->last_process= share->state.process;
+    share->base.base_key_parts= base_key_parts;
     share->base.key_parts=key_parts;
     share->base.all_key_parts=key_parts+unique_key_parts;
     if (!(share->last_version=share->state.version))

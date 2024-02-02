@@ -142,9 +142,11 @@ static const ulint OS_FILE_NORMAL = 62;
 /* @} */
 
 /** Types for file create @{ */
-static const ulint OS_DATA_FILE = 100;
-static const ulint OS_LOG_FILE = 101;
-static const ulint OS_DATA_FILE_NO_O_DIRECT = 103;
+static constexpr ulint OS_DATA_FILE = 100;
+static constexpr ulint OS_LOG_FILE = 101;
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+static constexpr ulint OS_DATA_FILE_NO_O_DIRECT = 103;
+#endif
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */
@@ -211,6 +213,10 @@ public:
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
   bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
+
+  void write_complete(int io_error) const;
+  void read_complete(int io_error) const;
+  void fake_read_complete(os_offset_t offset) const;
 
   /** If requested, free storage space associated with a section of the file.
   @param off   byte offset from the start (SEEK_SET)
@@ -369,7 +375,7 @@ os_file_create_simple_no_error_handling_func(
 	bool*		success)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#ifdef  _WIN32
+#ifndef HAVE_FCNTL_DIRECT
 #define os_file_set_nocache(fd, file_name, operation_name) do{}while(0)
 #else
 /** Tries to disable OS caching on an opened file descriptor.
@@ -1039,6 +1045,11 @@ int os_aio_init();
 /**
 Frees the asynchronous io system. */
 void os_aio_free();
+
+/** Submit a fake read request during crash recovery.
+@param type   fake read request
+@param offset additional context */
+void os_fake_read(const IORequest &type, os_offset_t offset);
 
 /** Request a read or write.
 @param type		I/O request

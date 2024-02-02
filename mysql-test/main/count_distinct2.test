@@ -48,6 +48,7 @@ select count(distinct n1), count(distinct n2) from t1;
 select count(distinct n2), n1 from t1 group by n1;
 drop table t1;
 
+--disable_ps2_protocol
 # test the conversion from tree to MyISAM
 create table t1 (n int default NULL);
 let $1=5000;
@@ -82,5 +83,6 @@ flush status;
 select count(distinct s) from t1;
 show status like 'Created_tmp_disk_tables';
 drop table t1;
+--enable_ps2_protocol
 
 # End of 4.1 tests

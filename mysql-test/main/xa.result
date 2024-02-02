@@ -545,6 +545,54 @@ formatID	gtrid_length	bqual_length	data
 drop table asd;
 disconnect con_tmp;
 connection default;
+# MDEV-30978: a read-only server should still allow the commit of
+#             read-only XA transactions
+set @sav_read_only=@@global.read_only;
+set global read_only=1;
+xa start '1';
+select 0;
+0
+0
+xa end '1';
+xa prepare '1';
+xa commit '1';
+xa start '2';
+select 0;
+0
+0
+xa end '2';
+xa prepare '2';
+xa rollback '2';
+# Read-only disconnect case
+connect  con1_ro,localhost,root,,;
+xa start '3';
+select 0;
+0
+0
+xa end '3';
+xa prepare '3';
+disconnect con1_ro;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	1	0	3
+xa commit '3';
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+connect  con2_ro,localhost,root,,;
+xa start '4';
+select 0;
+0
+0
+xa end '4';
+xa prepare '4';
+disconnect con2_ro;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	1	0	4
+xa rollback '4';
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+set @@global.read_only=@sav_read_only;
 #
 # End of 10.5 tests
 #

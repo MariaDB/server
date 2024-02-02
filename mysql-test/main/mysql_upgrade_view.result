@@ -64,7 +64,7 @@ test.v2	check	error	Upgrade required. Please do "REPAIR VIEW `v2`" or dump/reloa
 check view v3 for upgrade;
 Table	Op	Msg_type	Msg_text
 test.v3	check	error	Upgrade required. Please do "REPAIR VIEW `v3`" or dump/reload to fix it!
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -112,8 +112,9 @@ error    : Corrupt
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -219,9 +220,8 @@ test.v1                                            OK
 test.v1badcheck                                    OK
 test.v2                                            OK
 test.v3                                            OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -233,7 +233,8 @@ sys.sys_config                                     OK
 test
 test.kv                                            OK
 test.t1                                            OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 show create view v1;
 View	Create View	character_set_client	collation_connection
@@ -315,7 +316,7 @@ show create view v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
 MariaDB upgrade detected
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -364,8 +365,9 @@ error    : Corrupt
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views from mysql
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views from mysql
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -471,9 +473,8 @@ test.v1                                            OK
 test.v2                                            OK
 test.v3                                            OK
 test.v4                                            OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -485,7 +486,8 @@ sys.sys_config                                     OK
 test
 test.kv                                            OK
 test.t1                                            OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 flush tables;
 show create view v1;
@@ -542,7 +544,7 @@ rename table mysql.event to mysql.ev_bk;
 flush tables;
 The --upgrade-system-tables option was used, user tables won't be touched.
 MariaDB upgrade detected
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -591,8 +593,9 @@ error    : Corrupt
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views from mysql
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views from mysql
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -697,10 +700,10 @@ sys.x$waits_global_by_latency                      OK
 test.v1                                            OK
 test.v2                                            OK
 test.v3                                            OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names ... Skipped
-Phase 6/7: Checking and upgrading tables... Skipped
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 5/8: Fixing table and database names ... Skipped
+Phase 6/8: Checking and upgrading tables... Skipped
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 drop table mysql.event;
 rename table mysql.ev_bk to mysql.event;

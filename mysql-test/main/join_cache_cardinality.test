@@ -1,6 +1,7 @@
-# Disabled embedded as it does not support optimizer_trace
---source include/not_embedded.inc
 --source include/have_sequence.inc
+
+# Embedded doesn't have optimizer trace:
+--source include/not_embedded.inc
 
 create table t1 (a int, b int, c int);
 insert into t1 select seq,seq/2, seq/4 from seq_1_to_100;

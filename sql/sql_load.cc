@@ -255,6 +255,10 @@ public:
   */
   void skip_data_till_eof()
   {
+#ifndef EMBEDDED_LIBRARY
+    if (mysql_bin_log.is_open())
+      cache.read_function= cache.real_read_function;
+#endif
     while (GET != my_b_EOF)
       ;
   }
@@ -654,7 +658,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
         (!table->triggers ||
          !table->triggers->has_delete_triggers()))
         table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
-    if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+    if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+        !table->s->long_unique_table)
       table->file->ha_start_bulk_insert((ha_rows) 0);
     table->copy_blobs=1;
 

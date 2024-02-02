@@ -494,14 +494,18 @@ DROP TABLE IF EXISTS t2;
 CREATE TABLE t2 (fruit_id INT NOT NULL, fruit_name varchar(20)
 default NULL);
 
+--disable_ps2_protocol
 SELECT DISTINCT fruit_id, fruit_name INTO OUTFILE 
 '../../tmp/data1.tmp' FROM t1 WHERE fruit_name = 'APPLE';
+--enable_ps2_protocol
 LOAD DATA INFILE '../../tmp/data1.tmp' INTO TABLE t2;
 --error 0,1
 --remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
 
+--disable_ps2_protocol
 SELECT DISTINCT @v19:= fruit_id, @v20:= fruit_name INTO OUTFILE 
 '../../tmp/data2.tmp' FROM t1 WHERE fruit_name = 'APPLE';
+--enable_ps2_protocol
 LOAD DATA INFILE '../../tmp/data2.tmp' INTO TABLE t2;
 --remove_file $MYSQLTEST_VARDIR/tmp/data2.tmp
 
@@ -835,11 +839,24 @@ select distinct sum(distinct 1), sum(t1.d) > 5 from (t1 e join t1) group by t1.c
 select distinct sum(distinct 1), sum(t1.d) > 5, t1.c from (t1 e join t1) group by t1.c;
 
 # Force usage of remove_dup_with_compare() algorithm
+SET @sort_buffer_size_save= @@sort_buffer_size;
 set @@sort_buffer_size=1024;
 insert into t1 select -seq,-seq from seq_1_to_100;
 select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000 from (t1 e join t1) group by t1.c having t1.c > -2 ;
 select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000,t1.c from (t1 e join t1) group by t1.c having t1.c > -2;
 drop table t1;
+set @@sort_buffer_size=@sort_buffer_size_save;
+
+--echo #
+--echo # MDEV-31113 Server crashes in store_length / Type_handler_string_result::make_sort_key
+--echo # with DISTINCT and group function
+--echo #
+
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+--replace_column 2 #
+SELECT DISTINCT CONVERT(STDDEV(f), CHAR(16)) AS f1, UUID() AS f2 FROM t GROUP BY f2 WITH ROLLUP;
+DROP TABLE t;
 
 --echo # End of 10.4 tests
 
@@ -880,3 +897,36 @@ explain select * from t1 limit 0;
 explain select * from t1 limit 0 offset 10;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-28285 Unexpected result when combining DISTINCT, subselect
+--echo # and LIMIT
+--echo #
+
+create table t1 (a int primary key);
+create table t2 (a int primary key, b int not null);
+
+insert into t1 select seq from seq_1_to_10;
+insert into t2 select seq,seq from seq_1_to_10;
+
+select distinct a from t1 where t1.a=1 and t1.a in (select a from t2 where t2.b in (1,2));
+explain select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
+select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
+select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 0,1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-31743 Server crash in store_length, assertion failure in
+--echo #            Type_handler_string_result::sort_length
+--echo #
+
+create table t1 (a int, b longtext, c varchar(18));
+insert into t1 values (1, 'Aa123456', 'abc'), (2, 'Bb7897777', 'def'),
+  (3, 'Cc01287', 'xyz'), (5, 'd12345', 'efg');
+
+select distinct if(sum(a), b, 0) from t1 group by value(c) with rollup;
+drop table t1;
+
+--echo #
+--echo # end of 10.5 tests
+--echo #

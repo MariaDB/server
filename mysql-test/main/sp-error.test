@@ -8,11 +8,13 @@
 drop table if exists t1, t2;
 --enable_warnings
 
+--disable_ps2_protocol
 # Backup the mysql.proc table
 --enable_prepare_warnings
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
 --disable_prepare_warnings
+--enable_ps2_protocol
 # Make sure we don't have any procedures left.
 delete from mysql.proc;
 
@@ -422,6 +424,7 @@ unlock tables|
 # Check that in functions we don't allow to update tables which
 # are used by statements which invoke these functions.
 #
+--disable_ps2_protocol
 --disable_warnings
 drop function if exists f1|
 --enable_warnings
@@ -445,7 +448,7 @@ select * from t1|
 # Cleanup
 delete from t1 where val= 17|
 drop function f1|
-
+--enable_ps2_protocol
 
 #
 # BUG#1965
@@ -2265,7 +2268,9 @@ begin
  return 1;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select f2();
+--enable_ps2_protocol
 
 drop function f2;
 --error ER_BAD_TABLE_ERROR
@@ -3466,6 +3471,7 @@ DROP PROCEDURE p13;
 --echo # Bug#12731619: NESTED SP HANDLERS CAN TRIGGER ASSERTION
 --echo
 
+--disable_ps2_protocol
 --disable_warnings
 DROP FUNCTION IF EXISTS f1;
 DROP TABLE IF EXISTS t1;
@@ -3515,7 +3521,7 @@ SELECT * FROM t1;
 
 DROP FUNCTION f1;
 DROP TABLE t1;
-
+--enable_ps2_protocol
 
 --echo
 --echo # Check that handled SQL-conditions are properly cleared from DA.

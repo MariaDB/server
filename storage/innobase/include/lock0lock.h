@@ -755,9 +755,9 @@ private:
   /** waits and total number of lock waits; protected by wait_mutex */
   uint64_t wait_count;
   /** Cumulative wait time; protected by wait_mutex */
-  uint32_t wait_time;
+  uint64_t wait_time;
   /** Longest wait time; protected by wait_mutex */
-  uint32_t wait_time_max;
+  uint64_t wait_time_max;
 public:
   /** number of deadlocks detected; protected by wait_mutex */
   ulint deadlocks;
@@ -898,8 +898,6 @@ public:
   @retval DB_LOCK_WAIT  if the lock was canceled */
   template<bool check_victim>
   static dberr_t cancel(trx_t *trx, lock_t *lock);
-  /** Cancel a waiting lock request (if any) when killing a transaction */
-  static void cancel(trx_t *trx);
 
   /** Note that a record lock wait started */
   inline void wait_start();
@@ -916,9 +914,9 @@ public:
   ulint get_wait_cumulative() const
   { return static_cast<ulint>(wait_count / WAIT_COUNT_STEP); }
   /** Cumulative wait time; protected by wait_mutex */
-  ulint get_wait_time_cumulative() const { return wait_time; }
+  uint64_t get_wait_time_cumulative() const { return wait_time; }
   /** Longest wait time; protected by wait_mutex */
-  ulint get_wait_time_max() const { return wait_time_max; }
+  uint64_t get_wait_time_max() const { return wait_time_max; }
 
   /** Get the lock hash table for a mode */
   hash_table &hash_get(ulint mode)
@@ -955,6 +953,10 @@ public:
 
   /** Cancel possible lock waiting for a transaction */
   static void cancel_lock_wait_for_trx(trx_t *trx);
+#ifdef WITH_WSREP
+  /** Cancel lock waiting for a wsrep BF abort. */
+  static void cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx);
+#endif /* WITH_WSREP */
 };
 
 /** The lock system */

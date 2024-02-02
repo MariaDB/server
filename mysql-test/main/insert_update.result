@@ -412,3 +412,45 @@ select if( @stamp1 = @stamp2, "correct", "wrong");
 if( @stamp1 = @stamp2, "correct", "wrong")
 correct
 drop table t1;
+#
+# MDEV-31164 default current_timestamp() not working when used INSERT ON DUPLICATE KEY in some cases
+#
+set timestamp=unix_timestamp('2000-10-20 0:0:0');
+create table t1 (pk integer primary key, val varchar(20) not null, ts timestamp
+default current_timestamp on update current_timestamp);
+insert t1 (pk, val) values(1, 'val1');
+select * from t1;
+pk	val	ts
+1	val1	2000-10-20 00:00:00
+set timestamp=unix_timestamp('2000-10-20 1:0:0');
+insert t1 (pk, val) select 2, 'val3' union select 3, 'val4'
+    on duplicate key update ts=now();
+select * from t1;
+pk	val	ts
+1	val1	2000-10-20 00:00:00
+2	val3	2000-10-20 01:00:00
+3	val4	2000-10-20 01:00:00
+set timestamp=unix_timestamp('2000-10-20 2:0:0');
+insert t1 (pk, val) select 1, 'val1' union select 4, 'val2'
+    on duplicate key update ts=now();
+select * from t1;
+pk	val	ts
+1	val1	2000-10-20 02:00:00
+2	val3	2000-10-20 01:00:00
+3	val4	2000-10-20 01:00:00
+4	val2	2000-10-20 02:00:00
+set timestamp=unix_timestamp('2000-10-20 3:0:0');
+insert t1 (pk, val) select 5, 'val1' union select 1, 'val2'
+    on duplicate key update ts=now();
+select * from t1;
+pk	val	ts
+1	val1	2000-10-20 03:00:00
+2	val3	2000-10-20 01:00:00
+3	val4	2000-10-20 01:00:00
+4	val2	2000-10-20 02:00:00
+5	val1	2000-10-20 03:00:00
+drop table t1;
+set timestamp=default;
+#
+# End of 10.4 tests
+#

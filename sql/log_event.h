@@ -57,6 +57,8 @@
 
 #include "rpl_gtid.h"
 
+#include "log_event_data_type.h"
+
 /* Forward declarations */
 #ifndef MYSQL_CLIENT
 class String;
@@ -1370,7 +1372,8 @@ public:
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check);
+                                   my_bool crc_check,
+                                   my_bool print_errors= 1);
 
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
@@ -1514,7 +1517,8 @@ public:
   static Log_event* read_log_event(const uchar *buf, uint event_len,
 				   const char **error,
                                    const Format_description_log_event
-                                   *description_event, my_bool crc_check);
+                                   *description_event, my_bool crc_check,
+                                   my_bool print_errors= 1);
   /**
     Returns the human readable name of the given event type.
   */
@@ -2941,33 +2945,27 @@ private:
   @section User_var_log_event_binary_format Binary Format  
 */
 
-class User_var_log_event: public Log_event
+
+class User_var_log_event: public Log_event, public Log_event_data_type
 {
 public:
-  enum {
-    UNDEF_F= 0,
-    UNSIGNED_F= 1
-  };
   const char *name;
   size_t name_len;
   const char *val;
   size_t val_len;
-  Item_result type;
-  uint charset_number;
   bool is_null;
-  uchar flags;
 #ifdef MYSQL_SERVER
   bool deferred;
   query_id_t query_id;
   User_var_log_event(THD* thd_arg, const char *name_arg, size_t name_len_arg,
                      const char *val_arg, size_t val_len_arg,
-                     Item_result type_arg,
-		     uint charset_number_arg, uchar flags_arg,
+                     const Log_event_data_type &data_type,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),
+    Log_event_data_type(data_type),
     name(name_arg), name_len(name_len_arg), val(val_arg),
-    val_len(val_len_arg), type(type_arg), charset_number(charset_number_arg),
-    flags(flags_arg), deferred(false)
+    val_len(val_len_arg),
+    deferred(false)
     {
       is_null= !val;
       if (direct)
@@ -4739,6 +4737,51 @@ protected:
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
   bool master_had_triggers;     /* set after tables opening */
+
+  /*
+    RAII helper class to automatically handle the override/restore of thd->db
+    when applying row events, so it will be visible in SHOW PROCESSLIST.
+
+    If triggers will be invoked, their logic frees the current thread's db,
+    so we use set_db() to use a copy of the table share's database.
+
+    If not using triggers, the db is never freed, and we can reference the
+    same memory owned by the table share.
+  */
+  class Db_restore_ctx
+  {
+  private:
+    THD *thd;
+    LEX_CSTRING restore_db;
+    bool db_copied;
+
+    Db_restore_ctx(Rows_log_event *rev)
+        : thd(rev->thd), restore_db(rev->thd->db)
+    {
+      TABLE *table= rev->m_table;
+
+      if (table->triggers && rev->do_invoke_trigger())
+      {
+        thd->reset_db(&null_clex_str);
+        thd->set_db(&table->s->db);
+        db_copied= true;
+      }
+      else
+      {
+        thd->reset_db(&table->s->db);
+        db_copied= false;
+      }
+    }
+
+    ~Db_restore_ctx()
+    {
+      if (db_copied)
+        thd->set_db(&null_clex_str);
+      thd->reset_db(&restore_db);
+    }
+
+    friend class Rows_log_event;
+  };
 
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);

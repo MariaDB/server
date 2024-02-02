@@ -151,6 +151,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_on,
   wsrep_prepare_key_for_innodb,
   wsrep_thd_LOCK,
+  wsrep_thd_TRYLOCK,
   wsrep_thd_UNLOCK,
   wsrep_thd_query,
   wsrep_thd_retry_counter,
@@ -179,11 +180,11 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_OSU_method_get,
   wsrep_thd_has_ignored_error,
   wsrep_thd_set_ignored_error,
-  wsrep_thd_set_wsrep_aborter,
   wsrep_report_bf_lock_wait,
   wsrep_thd_kill_LOCK,
   wsrep_thd_kill_UNLOCK,
-  wsrep_thd_set_PA_unsafe
+  wsrep_thd_set_PA_unsafe,
+  wsrep_get_domain_id
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=
@@ -228,11 +229,6 @@ static struct json_service_st json_handler=
   json_unescape_json
 };
 
-static struct thd_mdl_service_st thd_mdl_handler=
-{
-  thd_mdl_context
-};
-
 struct sql_service_st sql_service_handler=
 {
   mysql_init,
@@ -251,7 +247,13 @@ struct sql_service_st sql_service_handler=
   mysql_fetch_lengths,
   mysql_set_character_set,
   mysql_num_fields,
-  mysql_select_db
+  mysql_select_db,
+  mysql_ssl_set
+};
+
+static struct thd_mdl_service_st thd_mdl_handler=
+{
+  thd_mdl_context
 };
 
 #define DEFINE_warning_function(name, ret) {                                \
@@ -348,8 +350,8 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
-  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
   { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
+  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
   { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
   { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },

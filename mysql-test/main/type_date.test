@@ -74,20 +74,17 @@ drop table t1;
 # Test problem with DATE_FORMAT
 #
 
-#enable after fix MDEV-27871
---disable_view_protocol
 CREATE TABLE t1(AFIELD INT);
 INSERT INTO t1 VALUES(1);
 CREATE TABLE t2(GMT  VARCHAR(32));
 INSERT INTO t2 VALUES('GMT-0800');
-SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as exp
 FROM t1, t2 GROUP BY t1.AFIELD;
 INSERT INTO t1 VALUES(1);
-SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)),
-       DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as e1,
+       DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as e2
 FROM t1,t2 GROUP BY t1.AFIELD;
 drop table t1,t2;
---enable_view_protocol
 
 #
 # Multiple SELECT DATE_FORMAT gave incorrect results (Bug #4036)
@@ -287,10 +284,7 @@ drop table t1;
 --echo #
 --echo # MDEV-4634 Crash in CONVERT_TZ
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5');
---enable_view_protocol
+SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5') as exp;
 
 --echo #
 --echo # MDEV-4804 Date comparing false result 
@@ -787,6 +781,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-29890 Update with inner join false row count result
 --echo #
+--disable_ps2_protocol
 set sql_mode='NO_ZERO_DATE';
 create table t1 (a1 bigint primary key, a2 date not null, a3 bigint not null);
 create table t2 (b1 bigint primary key);
@@ -800,7 +795,31 @@ set sql_mode='NO_ZERO_DATE';
 update t1 inner join t2 on t1.a3 = t2.b1 set t1.a2 = t1.a2 + interval 1 day;
 drop table t1, t2;
 set sql_mode=default;
+--enable_ps2_protocol
 
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col DATE, KEY(indexed_col));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (MAKEDATE(2023, i));
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

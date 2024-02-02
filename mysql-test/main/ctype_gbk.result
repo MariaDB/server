@@ -5237,6 +5237,11 @@ a	HEX(a)
 \'à\	5C27E05C
 à\'\	E05C275C
 DROP TABLE t1;
+create view v1 as select hex('à\'), hex('à\t');
+select * from v1;
+hex('à\')	hex('à\t')
+E05C	E05C74
+drop view v1;
 SET character_set_client=binary, character_set_results=binary;
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
@@ -5276,7 +5281,7 @@ HEX(a)
 E05C5B
 E05B
 DROP TABLE t1;
-# Start of ctype_E05C.inc
+# End of ctype_E05C.inc
 SET NAMES utf8, character_set_connection=gbk;
 #
 # MDEV-13118 Wrong results with LOWER and UPPER and subquery
@@ -6133,13 +6138,13 @@ DROP TABLE t1;
 # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
 #
 set sql_mode='';
-SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
-HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312))
+SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312)) as exp;
+exp
 3F41
 Warnings:
 Warning	1300	Invalid gb2312 character string: '\xA3A'
-SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
-HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8))
+SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8)) as exp;
+exp
 3F41
 Warnings:
 Warning	1300	Invalid gb2312 character string: '\xA3A'

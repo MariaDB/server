@@ -1137,7 +1137,7 @@ bool Query_log_event::write()
   if (catalog_len) // i.e. this var is inited (false for 4.0 events)
   {
     store_str_with_code_and_len(&start,
-                                catalog, catalog_len, Q_CATALOG_NZ_CODE);
+                                catalog, catalog_len, (uint) Q_CATALOG_NZ_CODE);
     /*
       In 5.0.x where x<4 masters we used to store the end zero here. This was
       a waste of one byte so we don't do it in x>=4 masters. We change code to
@@ -2894,7 +2894,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       thd_arg->transaction->all.has_created_dropped_temp_table() ||
       thd_arg->transaction->all.trans_executed_admin_cmd())
     flags2|= FL_DDL;
-  else if (is_transactional && !is_tmp_table)
+  else if (is_transactional && !is_tmp_table &&
+           !(thd_arg->transaction->all.modified_non_trans_table &&
+             thd->variables.binlog_direct_non_trans_update == 0 &&
+             !thd->is_current_stmt_binlog_format_row()))
     flags2|= FL_TRANSACTIONAL;
   if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
@@ -2946,6 +2949,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       sa_seq_no= thd->get_binlog_start_alter_seq_no();
     flags2|= FL_DDL;
   }
+
+  DBUG_ASSERT(thd_arg->lex->sql_command != SQLCOM_CREATE_SEQUENCE ||
+              (flags2 & FL_DDL) || thd_arg->in_multi_stmt_transaction_mode());
 }
 
 
@@ -3842,11 +3848,16 @@ bool XA_prepare_log_event::write()
 #if defined(HAVE_REPLICATION)
 static bool
 user_var_append_name_part(THD *thd, String *buf,
-                          const char *name, size_t name_len)
+                          const char *name, size_t name_len,
+                          const LEX_CSTRING &data_type_name)
 {
   return buf->append('@') ||
     append_identifier(thd, buf, name, name_len) ||
-    buf->append('=');
+    buf->append('=') ||
+    (data_type_name.length &&
+     (buf->append(STRING_WITH_LEN("/*")) ||
+      buf->append(data_type_name.str, data_type_name.length) ||
+      buf->append(STRING_WITH_LEN("*/"))));
 }
 
 void User_var_log_event::pack_info(Protocol* protocol)
@@ -3856,14 +3867,15 @@ void User_var_log_event::pack_info(Protocol* protocol)
     char buf_mem[FN_REFLEN+7];
     String buf(buf_mem, sizeof(buf_mem), system_charset_info);
     buf.length(0);
-    if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+    if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                  m_data_type_name) ||
         buf.append(NULL_clex_str))
       return;
     protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
     {
       double real_val;
@@ -3872,7 +3884,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       float8get(real_val, val);
       buf.length(0);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2, my_gcvt(real_val, MY_GCVT_ARG_DOUBLE,
                                    MY_GCVT_MAX_FIELD_WIDTH, buf2, NULL)))
         return;
@@ -3885,10 +3898,11 @@ void User_var_log_event::pack_info(Protocol* protocol)
       char buf_mem[FN_REFLEN + 22];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       buf.length(0);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(buf2,
                  longlong10_to_str(uint8korr(val), buf2,
-                   ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10))-buf2))
+                   (is_unsigned() ? 10 : -10))-buf2))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
       break;
@@ -3901,7 +3915,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String str(buf2, sizeof(buf2), &my_charset_bin);
       buf.length(0);
       my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
-      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                    m_data_type_name) ||
           buf.append(str))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -3917,7 +3932,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       CHARSET_INFO *cs;
       buf.length(0);
-      if (!(cs= get_charset(charset_number, MYF(0))))
+      if (!(cs= get_charset(m_charset_number, MYF(0))))
       {
         if (buf.append(STRING_WITH_LEN("???")))
           return;
@@ -3926,7 +3941,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       {
         size_t old_len;
         char *beg, *end;
-        if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
+        if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
+                                      m_data_type_name) ||
             buf.append('_') ||
             buf.append(cs->cs_name) ||
             buf.append(' '))
@@ -3974,10 +3990,10 @@ bool User_var_log_event::write()
   }    
   else
   {
-    buf1[1]= type;
-    int4store(buf1 + 2, charset_number);
+    buf1[1]= m_type;
+    int4store(buf1 + 2, m_charset_number);
 
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       float8store(buf2, *(double*) val);
       break;
@@ -4007,15 +4023,28 @@ bool User_var_log_event::write()
     buf1_length= 10;
   }
 
-  /* Length of the whole event */
-  event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len;
+  uchar data_type_name_chunk_signature= (uchar) CHUNK_DATA_TYPE_NAME;
+  uint data_type_name_chunk_signature_length= m_data_type_name.length ? 1 : 0;
+  uchar data_type_name_length_length= m_data_type_name.length ? 1 : 0;
 
+  /* Length of the whole event */
+  event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len +
+                data_type_name_chunk_signature_length +
+                data_type_name_length_length +
+                (uint) m_data_type_name.length;
+
+  uchar unsig= m_is_unsigned ? CHUNK_UNSIGNED : CHUNK_SIGNED;
+  uchar data_type_name_length= (uchar) m_data_type_name.length;
   return write_header(event_length) ||
          write_data(buf, sizeof(buf))   ||
          write_data(name, name_len)     ||
          write_data(buf1, buf1_length) ||
          write_data(pos, val_len) ||
-         write_data(&flags, unsigned_len) ||
+         write_data(&unsig, unsigned_len) ||
+         write_data(&data_type_name_chunk_signature,
+                    data_type_name_chunk_signature_length) ||
+         write_data(&data_type_name_length, data_type_name_length_length) ||
+         write_data(m_data_type_name.str, (uint) m_data_type_name.length) ||
          write_footer();
 }
 
@@ -4039,7 +4068,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     current_thd->query_id= query_id; /* recreating original time context */
   }
 
-  if (!(charset= get_charset(charset_number, MYF(MY_WME))))
+  if (!(charset= get_charset(m_charset_number, MYF(MY_WME))))
   {
     rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                 ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4058,7 +4087,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       if (val_len != 8)
       {
@@ -4122,13 +4151,10 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   if (e->fix_fields(thd, 0))
     DBUG_RETURN(1);
 
-  /*
-    A variable can just be considered as a table with
-    a single record and with a single column. Thus, like
-    a column value, it could always have IMPLICIT derivation.
-   */
-  e->update_hash((void*) val, val_len, type, charset,
-                 (flags & User_var_log_event::UNSIGNED_F));
+  const Type_handler *th= Type_handler::handler_by_log_event_data_type(thd,
+                                                                       *this);
+  e->update_hash((void*) val, val_len, th, charset);
+
   if (!is_deferred())
     free_root(thd->mem_root, 0);
   else
@@ -5029,6 +5055,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                        " (master had triggers)" : ""));
   if (table)
   {
+    Rows_log_event::Db_restore_ctx restore_ctx(this);
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions_and_rollback();
     table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
@@ -5123,7 +5150,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              ignored_error_code(actual_error) : 0);
 
 #ifdef WITH_WSREP
-        if (WSREP(thd) && wsrep_ignored_error_code(this, actual_error))
+        if (WSREP(thd) && thd->wsrep_applier &&
+            wsrep_ignored_error_code(this, actual_error))
         {
           idempotent_error= true;
           thd->wsrep_has_ignored_error= true;
@@ -6503,7 +6531,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
        indexed and it cannot have a DEFAULT value).
     */
     m_table->auto_increment_field_not_null= FALSE;
-    m_table->mark_auto_increment_column();
+    m_table->mark_auto_increment_column(true);
   }
 
   return error;
@@ -6664,7 +6692,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     DBUG_RETURN(error);
   }
 
-  if (m_curr_row == m_rows_buf && !invoke_triggers)
+  if (m_curr_row == m_rows_buf && !invoke_triggers && !table->s->long_unique_table)
   {
     /*
        This table has no triggers so we can do bulk insert.
@@ -6696,6 +6724,9 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
   DBUG_PRINT_BITSET("debug", "rpl_write_set: %s", table->rpl_write_set);
   DBUG_PRINT_BITSET("debug", "read_set:      %s", table->read_set);
+
+  if (table->s->long_unique_table)
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
 
   if (invoke_triggers &&
       unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
@@ -6806,7 +6837,14 @@ Rows_log_event::write_row(rpl_group_info *rgi,
        Now, record[1] should contain the offending row.  That
        will enable us to update it or, alternatively, delete it (so
        that we can insert the new row afterwards).
-     */
+    */
+    if (table->s->long_unique_table)
+    {
+      /* same as for REPLACE/ODKU */
+      table->move_fields(table->field, table->record[1], table->record[0]);
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
+      table->move_fields(table->field, table->record[0], table->record[1]);
+    }
 
     /*
       If row is incomplete we will use the record found to fill 
@@ -6816,6 +6854,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     {
       restore_record(table,record[1]);
       error= unpack_current_row(rgi);
+      if (table->s->long_unique_table)
+        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
     }
 
     DBUG_PRINT("debug",("preparing for update: before and after image"));
@@ -6898,8 +6938,18 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 int Rows_log_event::update_sequence()
 {
   TABLE *table= m_table;  // pointer to event's table
+  bool old_master= false;
+  int err= 0;
 
-  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO))
+  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
+      (
+#if defined(WITH_WSREP)
+       ! WSREP(thd) &&
+#endif
+       !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
+       !(old_master=
+         rpl_master_has_bug(thd->rgi_slave->rli,
+                            29621, FALSE, FALSE, FALSE, TRUE))))
   {
     /* This event come from a setval function executed on the master.
        Update the sequence next_number and round, like we do with setval()
@@ -6912,12 +6962,27 @@ int Rows_log_event::update_sequence()
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
-
+  if (old_master && !WSREP(thd) && thd->rgi_slave->is_parallel_exec)
+  {
+    DBUG_ASSERT(thd->rgi_slave->parallel_entry);
+    /*
+      With parallel replication enabled, we can't execute alongside any other
+      transaction in which we may depend, so we force retry to release
+      the server layer table lock for possible prior in binlog order
+      same table transactions.
+    */
+    if (thd->rgi_slave->parallel_entry->last_committed_sub_id <
+        thd->rgi_slave->wait_commit_sub_id)
+    {
+      err= ER_LOCK_DEADLOCK;
+      my_error(err, MYF(0));
+    }
+  }
   /*
     Update all fields in table and update the active sequence, like with
     ALTER SEQUENCE
   */
-  return table->file->ha_write_row(table->record[0]);
+  return err == 0 ? table->file->ha_write_row(table->record[0]) : err;
 }
 
 
@@ -6931,7 +6996,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table != NULL);
   const char *tmp= thd->get_proc_info();
-  LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
@@ -6939,7 +7003,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
   my_snprintf(msg, sizeof msg,
               "Write_rows_log_event::write_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
-  thd->reset_db(&m_table->s->db);
   message= msg;
   int error;
 
@@ -6961,7 +7024,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
     my_error(ER_UNKNOWN_ERROR, MYF(0));
   }
 
-  thd->reset_db(&tmp_db);
   return error;
 }
 
@@ -7564,7 +7626,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   int error;
   const char *tmp= thd->get_proc_info();
-  LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
@@ -7572,7 +7633,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
   my_snprintf(msg, sizeof msg,
               "Delete_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
-  thd->reset_db(&m_table->s->db);
   message= msg;
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   DBUG_ASSERT(m_table != NULL);
@@ -7631,7 +7691,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       error= HA_ERR_GENERIC; // in case if error is not set yet
     m_table->file->ha_index_or_rnd_end();
   }
-  thd->reset_db(&tmp_db);
   thd_proc_info(thd, tmp);
   return error;
 }
@@ -7731,7 +7790,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   const char *tmp= thd->get_proc_info();
   DBUG_ASSERT(m_table != NULL);
-  LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
@@ -7739,7 +7797,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   my_snprintf(msg, sizeof msg,
               "Update_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
-  thd->reset_db(&m_table->s->db);
   message= msg;
 
 #ifdef WSREP_PROC_INFO
@@ -7768,9 +7825,13 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if ((m_curr_row= m_curr_row_end))
       unpack_current_row(rgi, &m_cols_ai);
     thd_proc_info(thd, tmp);
-    thd->reset_db(&tmp_db);
     return error;
   }
+
+  const bool history_change= m_table->versioned() ?
+    !m_table->vers_end_field()->is_max() : false;
+  TABLE_LIST *tl= m_table->pos_in_table_list;
+  uint8 trg_event_map_save= tl->trg_event_map;
 
   /*
     This is the situation after locating BI:
@@ -7802,6 +7863,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   thd_proc_info(thd, message);
   if (unlikely((error= unpack_current_row(rgi, &m_cols_ai))))
     goto err;
+  if (m_table->s->long_unique_table)
+    m_table->update_virtual_fields(m_table->file, VCOL_UPDATE_FOR_WRITE);
 
   /*
     Now we have the right row to update.  The old row (the one we're
@@ -7837,9 +7900,17 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     goto err;
   }
 
-  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
-    m_table->vers_update_fields();
+  if (m_table->versioned())
+  {
+    if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
+      m_table->vers_update_fields();
+    if (!history_change && !m_table->vers_end_field()->is_max())
+    {
+      tl->trg_event_map|= trg2bit(TRG_EVENT_DELETE);
+    }
+  }
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
+  tl->trg_event_map= trg_event_map_save;
   if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
@@ -7857,7 +7928,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
 err:
   thd_proc_info(thd, tmp);
-  thd->reset_db(&tmp_db);
   m_table->file->ha_index_or_rnd_end();
   return error;
 }

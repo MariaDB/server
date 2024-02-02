@@ -56,7 +56,7 @@
     invoked on a running DELETE statement.
 */
 
-Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *thd)
+Explain_delete* Delete_plan::save_explain_delete_data(THD *thd, MEM_ROOT *mem_root)
 {
   Explain_query *query= thd->lex->explain;
   Explain_delete *explain= 
@@ -73,7 +73,7 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
   else
   {
     explain->deleting_all_rows= false;
-    if (Update_plan::save_explain_data_intern(mem_root, explain,
+    if (Update_plan::save_explain_data_intern(thd, mem_root, explain,
                                               thd->lex->analyze_stmt))
       return 0;
   }
@@ -84,21 +84,22 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
 
 
 Explain_update* 
-Update_plan::save_explain_update_data(MEM_ROOT *mem_root, THD *thd)
+Update_plan::save_explain_update_data(THD *thd, MEM_ROOT *mem_root)
 {
   Explain_query *query= thd->lex->explain;
   Explain_update* explain= 
     new (mem_root) Explain_update(mem_root, thd->lex->analyze_stmt);
   if (!explain)
     return 0;
-  if (save_explain_data_intern(mem_root, explain, thd->lex->analyze_stmt))
+  if (save_explain_data_intern(thd, mem_root, explain, thd->lex->analyze_stmt))
     return 0;
   query->add_upd_del_plan(explain);
   return explain;
 }
 
 
-bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
+bool Update_plan::save_explain_data_intern(THD *thd,
+                                           MEM_ROOT *mem_root,
                                            Explain_update *explain,
                                            bool is_analyze)
 {
@@ -120,8 +121,15 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     return 0;
   }
   
-  if (is_analyze)
+  if (is_analyze ||
+      (thd->variables.log_slow_verbosity &
+       LOG_SLOW_VERBOSITY_ENGINE))
+  {
     table->file->set_time_tracker(&explain->table_tracker);
+
+    if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
+      explain->handler_for_stats= table->file;
+  }
 
   select_lex->set_explain_type(TRUE);
   explain->select_type= select_lex->type;
@@ -474,7 +482,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       query_type= THD::STMT_QUERY_TYPE;
       error= -1;
       deleted= maybe_deleted;
-      if (!query_plan.save_explain_delete_data(thd->mem_root, thd))
+      if (!query_plan.save_explain_delete_data(thd, thd->mem_root))
         error= 1;
       goto cleanup;
     }
@@ -526,9 +534,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (unlikely(error))
     DBUG_RETURN(TRUE);
-  if (unlikely((select && select->check_quick(thd, safe_update, limit)) ||
-               table->stat_records() == 0 ||
-               !limit))
+  if ((select && select->check_quick(thd, safe_update, limit,
+                                     Item_func::BITMAP_ALL)) || !limit ||
+      table->stat_records() == 0)
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
@@ -604,7 +612,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto produce_explain_and_leave;
   
-  if (!(explain= query_plan.save_explain_delete_data(thd->mem_root, thd)))
+  if (!(explain= query_plan.save_explain_delete_data(thd, thd->mem_root)))
     goto got_error;
   ANALYZE_START_TRACKING(thd, &explain->command_tracker);
 
@@ -992,7 +1000,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  if (!(query_plan.save_explain_delete_data(thd->mem_root, thd)))
+  if (!(query_plan.save_explain_delete_data(thd, thd->mem_root)))
     goto got_error;
 
 send_nothing_and_leave:
@@ -1262,6 +1270,13 @@ multi_delete::initialize_tables(JOIN *join)
   {
     TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
     tables_to_delete_from|= tbl->table->map;
+
+    /*
+      Ensure that filesort re-reads the row from the engine before
+      delete is called.
+    */
+    join->map2table[tbl->table->tablenr]->keep_current_rowid= true;
+
     if (delete_while_scanning &&
         unique_table(thd, tbl, join->tables_list, 0))
     {

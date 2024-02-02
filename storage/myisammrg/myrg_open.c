@@ -432,17 +432,20 @@ int myrg_attach_children(MYRG_INFO *m_info, int handle_locking,
       first_child= FALSE;
       m_info->reclength= myisam->s->base.reclength;
       min_keys=  myisam->s->base.keys;
-      key_parts= myisam->s->base.key_parts;
+      key_parts= myisam->s->base.base_key_parts;
       if (*need_compat_check && m_info->rec_per_key_part)
       {
         my_free(m_info->rec_per_key_part);
         m_info->rec_per_key_part= NULL;
       }
-      if (!m_info->rec_per_key_part)
+      if (!m_info->rec_per_key_part || m_info->key_parts != key_parts)
       {
-        if(!(m_info->rec_per_key_part= (ulong*)
-             my_malloc(rg_key_memory_MYRG_INFO,
-                       key_parts * sizeof(long), MYF(MY_WME))))
+        m_info->key_parts= key_parts;
+        /* The +1 is because by my_realloc() don't allow zero length */
+        if (!(m_info->rec_per_key_part= (ulong*)
+              my_realloc(rg_key_memory_MYRG_INFO, m_info->rec_per_key_part,
+                         key_parts * sizeof(long) +1,
+                         MYF(MY_WME | MY_ALLOW_ZERO_PTR | MY_FREE_ON_ERROR))))
           goto err; /* purecov: inspected */
         errpos= 1;
       }
@@ -457,7 +460,8 @@ int myrg_attach_children(MYRG_INFO *m_info, int handle_locking,
     myisam->open_flag|= HA_OPEN_MERGE_TABLE;
 
     /* Check table definition match. */
-    if (m_info->reclength != myisam->s->base.reclength)
+    if (m_info->reclength != myisam->s->base.reclength ||
+        key_parts != myisam->s->base.base_key_parts)
     {
       DBUG_PRINT("error", ("definition mismatch table: '%s'  repair: %d",
                            myisam->filename,

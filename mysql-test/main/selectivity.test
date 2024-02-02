@@ -2,6 +2,7 @@
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
 --source include/default_charset.inc
+--source include/have_partition.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -1095,14 +1096,18 @@ set @save_use_stat_tables= @@use_stat_tables;
 set @@use_stat_tables='complementary';
 set @@optimizer_use_condition_selectivity=4;
 SET @cnt= 0;
+--disable_ps2_protocol
 SELECT * FROM t1 WHERE a = f1();
+--enable_ps2_protocol
 SELECT @cnt;
 
 set @@use_stat_tables='preferably';
 analyze table t1 persistent for all;
 SET @cnt := 0;
 set @@optimizer_use_condition_selectivity=4;
+--disable_ps2_protocol
 SELECT * FROM t1 WHERE a = f1();
+--enable_ps2_protocol
 SELECT @cnt;
 alter table  t1 force;
 drop table t1;
@@ -1262,7 +1267,6 @@ insert into t2 select seq,seq,seq from seq_1_to_100;
 analyze table t1,t2 persistent for all;
 
 set optimizer_switch='exists_to_in=off';
-set optimizer_use_condition_selectivity=2;
 
 let $query= SELECT * FROM t1
             WHERE
@@ -1270,14 +1274,16 @@ let $query= SELECT * FROM t1
                       WHERE A.a=t1.a AND t2.b < 20);
 
 eval $query;
-eval explain $query;
+eval set statement optimizer_use_condition_selectivity=2 for explain $query;
+eval set statement optimizer_use_condition_selectivity=4 for explain $query;
 
-EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+set @query="EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65";
+eval set statement optimizer_use_condition_selectivity=2 for explain $query;
+eval set statement optimizer_use_condition_selectivity=4 for explain $query;
 
 eval explain $query;
 
 set optimizer_switch= @save_optimizer_switch;
-set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;
 
 --echo #
@@ -1331,17 +1337,18 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
 FLUSH TABLES;
 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
-set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
-set histogram_size=@save_histogram_size;
-set use_stat_tables= @save_use_stat_tables;
 
 DROP TABLE t1;
 
 --echo # End of 10.2 tests
 
+
 #
 # Clean up
 #
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
 --source include/restore_charset.inc
 set @@global.histogram_size=@save_histogram_size;
 
@@ -1427,3 +1434,23 @@ truncate table t1;
 insert into t1 select * from t2;
 explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-31864 Assertion `d >= 0' failed in COST_ADD with join_cache_level
+--echo # > 2 and partitions
+--echo #
+
+SET join_cache_level= 3;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT);
+INSERT INTO t2 VALUES (3,4),(5,6);
+CREATE TABLE t3 (d INT, e INT) PARTITION BY RANGE COLUMNS (d) (p1 VALUES LESS THAN (1000), pn VALUES LESS THAN (MAXVALUE));
+ANALYZE TABLE t1, t2, t3 PERSISTENT FOR ALL;
+
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+
+set join_cache_level= default;
+DROP TABLE t1, t2, t3;

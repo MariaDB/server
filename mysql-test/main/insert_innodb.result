@@ -51,7 +51,7 @@ CREATE TEMPORARY TABLE v0 ( v1 TEXT ( 15 ) CHAR SET BINARY NOT NULL NOT NULL UNI
 ERROR HY000: Field 'v1' doesn't have a default value
 CREATE TEMPORARY TABLE t1 (i TEXT(15) NOT NULL DEFAULT '' UNIQUE CHECK (i)) engine=innodb
 REPLACE SELECT NULL AS a;
-ERROR HY000: Field 'DB_ROW_HASH_1' doesn't have a default value
+ERROR 23000: CONSTRAINT `t1.i` failed for `test`.`t1`
 #
 # End of 10.5 tests
 #

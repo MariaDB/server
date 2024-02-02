@@ -34,6 +34,8 @@
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 #include "filesort.h"
 
+#include "cset_narrowing.h"
+
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1U
@@ -227,7 +229,7 @@ enum sj_strategy_enum
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
+Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
@@ -368,8 +370,10 @@ typedef struct st_join_table {
 
   /* set by estimate_scan_time() */
   double        cached_scan_and_compare_time;
-  double        cached_forced_index_cost;
+  ALL_READ_COST cached_scan_and_compare_cost;
 
+  /* Used with force_index_join */
+  ALL_READ_COST cached_forced_index_cost;
   /*
     dependent is the table that must be read before the current one
     Used for example with STRAIGHT_JOIN or outer joins
@@ -441,8 +445,9 @@ typedef struct st_join_table {
   */
   bool          idx_cond_fact_out;
   bool          use_join_cache;
+  /* TRUE <=> it is prohibited to join this table using join buffer */
+  bool          no_forced_join_cache;
   uint          used_join_cache_level;
-  ulong         join_buffer_size_limit;
   JOIN_CACHE	*cache;
   /*
     Index condition for BKA access join
@@ -567,6 +572,16 @@ typedef struct st_join_table {
 
   bool preread_init_done;
 
+  /* true <=> split optimization has been applied to this materialized table */
+  bool is_split_derived;
+
+  /*
+    Bitmap of split materialized derived tables that can be filled just before
+    this join table is to be joined. All parameters of the split derived tables
+    belong to tables preceding this join table.
+  */
+  table_map split_derived_to_update;
+
   /*
     Cost info to the range filter used when joining this join table
     (Defined when the best join order has been already chosen)
@@ -577,20 +592,25 @@ typedef struct st_join_table {
   /* True if the plan requires a rowid filter and it's not built yet */
   bool need_to_build_rowid_filter;
 
-  void build_range_rowid_filter();
+  bool build_range_rowid_filter();
   void clear_range_rowid_filter();
 
   void cleanup();
   inline bool is_using_loose_index_scan()
   {
-    const SQL_SELECT *sel= filesort ? filesort->select : select;
+    const SQL_SELECT *sel= get_sql_select();
     return (sel && sel->quick &&
             (sel->quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX));
   }
   bool is_using_agg_loose_index_scan ()
   {
+    const SQL_SELECT *sel= get_sql_select();
     return (is_using_loose_index_scan() &&
-            ((QUICK_GROUP_MIN_MAX_SELECT *)select->quick)->is_agg_distinct());
+            ((QUICK_GROUP_MIN_MAX_SELECT *)sel->quick)->is_agg_distinct());
+  }
+  const SQL_SELECT *get_sql_select()
+  {
+    return filesort ? filesort->select : select;
   }
   bool is_inner_table_of_semi_join_with_first_match()
   {
@@ -730,9 +750,11 @@ typedef struct st_join_table {
 
   void partial_cleanup();
   void add_keyuses_for_splitting();
-  SplM_plan_info *choose_best_splitting(double record_count,
-                                        table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+  SplM_plan_info *choose_best_splitting(uint idx,
+                                        table_map remaining_tables,
+                                        const POSITION *join_positions,
+                                        table_map *spl_pd_boundary);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map excluded_tables,
                      bool is_const_table);
 } JOIN_TAB;
 
@@ -1040,8 +1062,20 @@ public:
   */
   KEYUSE *key;
 
+  /* Cardinality of current partial join ending with this position */
+  double partial_join_cardinality;
+
   /* Info on splitting plan used at this position */
   SplM_plan_info *spl_plan;
+
+  /*
+    If spl_plan is NULL the value of spl_pd_boundary is 0. Otherwise
+    spl_pd_boundary contains the bitmap of the table from the current
+    partial join ending at this position that starts the sub-sequence of
+    tables S from which no conditions are allowed to be used in the plan
+    spl_plan for the split table joined at this position.
+  */
+  table_map spl_pd_boundary;
 
   /* Cost info for the range filter used at this position */
   Range_rowid_filter_cost_info *range_rowid_filter_info;
@@ -1784,7 +1818,8 @@ public:
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
-  void clear();
+  void clear(table_map *cleared_tables);
+  void inline clear_sum_funcs();
   bool send_row_on_empty_set()
   {
     return (do_send_rows && implicit_grouping && !group_optimized_away &&
@@ -2000,7 +2035,14 @@ public:
   {
     enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
     Use_relaxed_field_copy urfc(to_field->table->in_use);
+
+    /* If needed, perform CharsetNarrowing for making ref access lookup keys. */
+    Utf8_narrow do_narrow(to_field, do_cset_narrowing);
+
     store_key_result result= copy_inner();
+
+    do_narrow.stop();
+
     thd->count_cuted_fields= org_count_cuted_fields;
     return result;
   }
@@ -2009,6 +2051,12 @@ public:
   Field *to_field;				// Store data here
   uchar *null_ptr;
   uchar err;
+
+  /*
+    This is set to true if we need to do Charset Narrowing when making a lookup
+    key.
+  */
+  bool do_cset_narrowing= false;
 
   virtual enum store_key_result copy_inner()=0;
 };
@@ -2029,6 +2077,7 @@ class store_key_field: public store_key
     if (to_field)
     {
       copy_field.set(to_field,from_field,0);
+      setup_charset_narrowing();
     }
   }  
 
@@ -2039,6 +2088,15 @@ class store_key_field: public store_key
   {
     copy_field.set(to_field, fld_item->field, 0);
     field_name= fld_item->full_name();
+    setup_charset_narrowing();
+  }
+
+  /* Setup CharsetNarrowing if necessary */
+  void setup_charset_narrowing()
+  {
+    do_cset_narrowing=
+      Utf8_narrow::should_do_narrowing(copy_field.to_field,
+                                            copy_field.from_field->charset());
   }
 
  protected: 
@@ -2079,7 +2137,12 @@ public:
     :store_key(thd, to_field_arg, ptr,
 	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null() ?
 	       &err : (uchar*) 0, length), item(item_arg), use_value(val)
-  {}
+  {
+    /* Setup CharsetNarrowing to be done if necessary */
+    do_cset_narrowing=
+      Utf8_narrow::should_do_narrowing(to_field,
+                                       item->collation.collation);
+  }
   store_key_item(store_key &arg, Item *new_item, bool val)
     :store_key(arg), item(new_item), use_value(val)
   {}
@@ -2467,7 +2530,7 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
 extern bool test_if_ref(Item *, 
                  Item_field *left_item,Item *right_item);
 
-inline bool optimizer_flag(THD *thd, ulonglong flag)
+inline bool optimizer_flag(const THD *thd, ulonglong flag)
 { 
   return (thd->variables.optimizer_switch & flag);
 }
@@ -2596,8 +2659,6 @@ class derived_handler;
 
 class Pushdown_derived: public Sql_alloc
 {
-private:
-  bool is_analyze;
 public:
   TABLE_LIST *derived;
   derived_handler *handler;

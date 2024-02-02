@@ -14,5 +14,5 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 MYSQL_ADD_PLUGIN(type_uuid
-                 plugin.cc sql_type_uuid.cc item_uuidfunc.cc
+                 plugin.cc item_uuidfunc.cc
                  MANDATORY RECOMPILE_FOR_EMBEDDED)

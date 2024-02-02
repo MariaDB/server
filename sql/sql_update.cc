@@ -231,6 +231,11 @@ bool TABLE::vers_check_update(List<Item> &items)
       }
     }
   }
+  /*
+    Tell TRX_ID-versioning that it does not insert history row
+    (see calc_row_difference()).
+  */
+  vers_write= false;
   return false;
 }
 
@@ -581,10 +586,9 @@ int mysql_update(THD *thd,
   set_statistics_for_table(thd, table);
 
   select= make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
-  if (unlikely(error || thd->is_error() || !limit ||
-               (select && select->check_quick(thd, safe_update, limit)) ||
-               table->stat_records() == 0))
-
+  if (error || !limit || thd->is_error() || table->stat_records() == 0 ||
+      (select && select->check_quick(thd, safe_update, limit,
+                                      Item_func::BITMAP_ALL)))
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
@@ -703,7 +707,7 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
-  if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+  if (!(explain= query_plan.save_explain_update_data(thd, query_plan.mem_root)))
     goto err;
 
   ANALYZE_START_TRACKING(thd, &explain->command_tracker);
@@ -1389,7 +1393,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  if (unlikely(!query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+  if (unlikely(!query_plan.save_explain_update_data(thd, query_plan.mem_root)))
     goto err;
 
 emit_explain_and_leave:

@@ -463,6 +463,7 @@ select * from t1;
 show create table t1;
 drop table t1;
 
+--disable_ps2_protocol
 # Ensure that row_count() value is reset after drop table.
 select 1;
 select hex(concat(row_count()));
@@ -474,6 +475,7 @@ select hex(concat(found_rows()));
 create table t1 as select concat(found_rows()) as c1;
 show create table t1;
 drop table t1;
+--enable_ps2_protocol
 
 create table t1 as select concat(uuid_short()) as c1;
 show create table t1;

@@ -228,7 +228,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	full_crc32
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	The algorithm InnoDB uses for page checksumming. Possible values are FULL_CRC32 for new files, always use CRC-32C; for old, see CRC32 below; STRICT_FULL_CRC32 for new files, always use CRC-32C; for old, see STRICT_CRC32 below; CRC32 write crc32, allow any of the other checksums to match when reading; STRICT_CRC32 write crc32, do not allow other algorithms to match when reading; INNODB write a software calculated checksum, allow any other checksums to match when reading; STRICT_INNODB write a software calculated checksum, do not allow other algorithms to match when reading; NONE write a constant magic number, do not do any checksum verification when reading; STRICT_NONE write a constant magic number, do not allow values other than that magic number when reading; Files updated when this option is set to crc32 or strict_crc32 will not be readable by MariaDB versions older than 10.0.4; new files created with full_crc32 are readable by MariaDB 10.4.3+
+VARIABLE_COMMENT	The algorithm InnoDB uses for page checksumming. Possible values are FULL_CRC32 for new files, always use CRC-32C; for old, see CRC32 below; STRICT_FULL_CRC32 for new files, always use CRC-32C; for old, see STRICT_CRC32 below; CRC32 write crc32, allow previously used algorithms to match when reading; STRICT_CRC32 write crc32, do not allow other algorithms to match when reading; New files created with full_crc32 are readable by MariaDB 10.4.3+
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1269,7 +1269,7 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	INNODB_PURGE_BATCH_SIZE
 SESSION_VALUE	NULL
-DEFAULT_VALUE	300
+DEFAULT_VALUE	1000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Number of UNDO log pages to purge in one batch from the history list.
@@ -1284,7 +1284,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	128
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Dictates rate at which UNDO records are purged. Value N means purge rollback segment(s) on every Nth iteration of purge invocation
+VARIABLE_COMMENT	Deprecated parameter with no effect
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	128
 NUMERIC_BLOCK_SIZE	0

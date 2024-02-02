@@ -154,7 +154,17 @@ sub collect_test_cases ($$$$) {
         {
 	  push (@$cases, @this_case);
 	}
-	else
+	elsif ($::opt_skip_not_found)
+        {
+          push @$cases, My::Test->new
+            (
+             name          => "$sname.$tname",
+             shortname     => $tname,
+             skip          => 1,
+             comment       => 'not found',
+            );
+        }
+        else
 	{
 	  mtr_error("Could not find '$tname' in '$sname' suite");
         }
@@ -614,7 +624,7 @@ sub make_combinations($$@)
 {
   my ($test, $test_combs, @combinations) = @_;
 
-  return ($test) if $test->{'skip'} or not @combinations;
+  return ($test) unless @combinations;
   if ($combinations[0]->{skip}) {
     $test->{skip} = 1;
     $test->{comment} = $combinations[0]->{skip} unless $test->{comment};
@@ -646,6 +656,8 @@ sub make_combinations($$@)
       last;
     }
   }
+
+  return ($test) if $test->{'skip'};
 
   my @cases;
   foreach my $comb (@combinations)
@@ -880,6 +892,12 @@ sub collect_one_test_case {
   }
   my @no_combs = grep { $test_combs{$_} == 1 } keys %test_combs;
   if (@no_combs) {
+    if ($::opt_skip_not_found) {
+      push @{$tinfo->{combinations}}, @no_combs;
+      $tinfo->{'skip'}= 1;
+      $tinfo->{'comment'}= "combination not found";
+      return $tinfo;
+    }
     mtr_error("Could not run $name with '".(
         join(',', sort @no_combs))."' combination(s)");
   }

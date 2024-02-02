@@ -67,7 +67,7 @@ Type_handler_geometry::type_handler_geom_by_type(uint type)
 
 
 const Type_handler *
-Type_collection_geometry::handler_by_name(const LEX_CSTRING &name) const
+Type_collection_geometry_handler_by_name(const LEX_CSTRING &name)
 {
   if (type_handler_point.name().eq(name))
     return &type_handler_point;
@@ -918,11 +918,14 @@ bool Field_geom::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_geom::can_optimize_range(const Item_bool_func *cond,
-                                    const Item *item,
-                                    bool is_eq_func) const
+Data_type_compatibility
+Field_geom::can_optimize_range(const Item_bool_func *cond,
+                               const Item *item,
+                               bool is_eq_func) const
 {
-  return item->cmp_type() == STRING_RESULT;
+  return item->cmp_type() == STRING_RESULT ?
+         Data_type_compatibility::OK :
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
 }
 
 

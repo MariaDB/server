@@ -1,8 +1,8 @@
 SET sql_mode=ORACLE;
 SELECT DECODE(10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE(10,10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE(10,10,'x10');
 DECODE(10,10,'x10')
 x10
@@ -28,16 +28,16 @@ EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11','def');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select decode_oracle(12,10,'x10',11,'x11','def') AS "DECODE(12,10,'x10',11,'x11','def')"
+Note	1003	select decode(12,10,'x10',11,'x11','def') AS "DECODE(12,10,'x10',11,'x11','def')"
 CREATE TABLE decode (decode int);
 DROP TABLE decode;
 #
 # MDEV-13863 sql_mode=ORACLE: DECODE does not treat two NULLs as equivalent
 #
 SELECT DECODE(10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE(10,10);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 SELECT DECODE_ORACLE(10);
 ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
 SELECT DECODE_ORACLE(10,10);
@@ -46,22 +46,22 @@ EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select decode_oracle(12,10,'x10',11,'x11') AS "DECODE(12,10,'x10',11,'x11')"
+Note	1003	select decode(12,10,'x10',11,'x11') AS "DECODE(12,10,'x10',11,'x11')"
 EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11','def');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select decode_oracle(12,10,'x10',11,'x11','def') AS "DECODE(12,10,'x10',11,'x11','def')"
+Note	1003	select decode(12,10,'x10',11,'x11','def') AS "DECODE(12,10,'x10',11,'x11','def')"
 EXPLAIN EXTENDED SELECT DECODE_ORACLE(12,10,'x10',11,'x11');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select decode_oracle(12,10,'x10',11,'x11') AS "DECODE_ORACLE(12,10,'x10',11,'x11')"
+Note	1003	select decode(12,10,'x10',11,'x11') AS "DECODE_ORACLE(12,10,'x10',11,'x11')"
 EXPLAIN EXTENDED SELECT DECODE_ORACLE(12,10,'x10',11,'x11','def');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select decode_oracle(12,10,'x10',11,'x11','def') AS "DECODE_ORACLE(12,10,'x10',11,'x11','def')"
+Note	1003	select decode(12,10,'x10',11,'x11','def') AS "DECODE_ORACLE(12,10,'x10',11,'x11','def')"
 CREATE TABLE t1 (a INT);
 CREATE VIEW v1 AS
 SELECT
@@ -72,7 +72,7 @@ DECODE_ORACLE(a,1,'x1',NULL,'xNULL','xELSE') AS d4
 FROM t1;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE VIEW "v1" AS select decode_oracle("t1"."a",1,'x1',NULL,'xNULL') AS "d1",decode_oracle("t1"."a",1,'x1',NULL,'xNULL','xELSE') AS "d2",decode_oracle("t1"."a",1,'x1',NULL,'xNULL') AS "d3",decode_oracle("t1"."a",1,'x1',NULL,'xNULL','xELSE') AS "d4" from "t1"	latin1	latin1_swedish_ci
+v1	CREATE VIEW "v1" AS select decode("t1"."a",1,'x1',NULL,'xNULL') AS "d1",decode("t1"."a",1,'x1',NULL,'xNULL','xELSE') AS "d2",decode("t1"."a",1,'x1',NULL,'xNULL') AS "d3",decode("t1"."a",1,'x1',NULL,'xNULL','xELSE') AS "d4" from "t1"	latin1	latin1_swedish_ci
 DROP VIEW v1;
 DROP TABLE t1;
 SELECT DECODE(TIME'10:20:31','10:20:31','then1','10:20:32','then2','def');

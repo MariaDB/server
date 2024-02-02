@@ -195,12 +195,10 @@ FILE *stderror_file=0;
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
-
 /*
-Dynamic_string wrapper functions. In this file use these
-wrappers, they will terminate the process if there is
-an allocation failure.
+  Dynamic_string wrapper functions. In this file use these
+  wrappers, they will terminate the process if there is
+  an allocation failure.
 */
 static void init_dynamic_string_checked(DYNAMIC_STRING *str, const char *init_str,
 			    size_t init_alloc, size_t alloc_increment);
@@ -880,9 +878,6 @@ get_one_option(const struct my_option *opt,
                const char *filename)
 {
 
-  /* Track when protocol is set via CLI to not force overrides */
-  static my_bool ignore_protocol_override = FALSE;
-
   switch (opt->id) {
   case 'p':
     if (argument == disabled_my_option)
@@ -913,13 +908,6 @@ get_one_option(const struct my_option *opt,
   case 'W':
 #ifdef _WIN32
     opt_protocol= MYSQL_PROTOCOL_PIPE;
-
-    /* Prioritize pipe if explicit via command line */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
 #endif
     break;
   case 'N':
@@ -1070,49 +1058,30 @@ get_one_option(const struct my_option *opt,
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
   case (int) OPT_DEFAULT_CHARSET:
     if (default_charset == disabled_my_option)
       default_charset= (char *)mysql_universal_client_charset;
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /*
+        Socket given on command line, switch protocol to use SOCKETSt
+        Except on Windows if 'protocol= pipe' has been provided in
+        the config file or command line.
+      */
+      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      {
+        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+      }
     }
     break;
   }
@@ -1161,19 +1130,9 @@ static int get_options(int *argc, char ***argv)
     return(ho_error);
 
   /*
-     Command line options override configured protocol
-   */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(current_host, &opt_protocol, protocol_to_force);
-  }
-
-
-  /*
-    Dumping under --system=stats with --replace or --insert-ignore is safe and will not
-    result into race condition. Otherwise dump only structure and ignore data by default
-    while dumping.
+    Dumping under --system=stats with --replace or --insert-ignore is
+    safe and will not result into race condition. Otherwise dump only
+    structure and ignore data by default while dumping.
   */
   if (!(opt_system & OPT_SYSTEM_STATS) && !(opt_ignore || opt_replace_into))
   {
@@ -1392,7 +1351,7 @@ static int get_options(int *argc, char ***argv)
     return EX_USAGE;
   }
   if (tty_password)
-    opt_password=get_tty_password(NullS);
+    opt_password=my_get_tty_password(NullS);
   return(0);
 } /* get_options */
 
@@ -1953,8 +1912,13 @@ static FILE* open_sql_file_for_table(const char* table, int flags)
 
 static void free_resources()
 {
-  if (md_result_file && md_result_file != stdout)
-    my_fclose(md_result_file, MYF(0));
+  if (md_result_file)
+  {
+    if (md_result_file != stdout)
+      my_fclose(md_result_file, MYF(0));
+    else
+      fflush(md_result_file);
+  }
   if (get_table_name_result)
     mysql_free_result(get_table_name_result);
   if (routine_res)
@@ -2888,11 +2852,7 @@ static uint dump_routines_for_db(char *db)
                     routine_type[i], routine_name);
 
         if (mysql_query_with_error_report(mysql, &routine_res, query_buff))
-        {
-          mysql_free_result(routine_list_res);
-          routine_list_res= 0;
-          DBUG_RETURN(1);
-        }
+          continue;
 
         while ((row= mysql_fetch_row(routine_res)))
         {
@@ -3398,7 +3358,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     my_snprintf(query_buff, sizeof(query_buff),
                 "select column_name, extra, generation_expression, data_type "
                 "from information_schema.columns where table_schema=database() "
-                "and table_name=%s", quote_for_equal(table, temp_buff));
+                "and table_name=%s order by ordinal_position",
+                quote_for_equal(table, temp_buff));
     if (mysql_query_with_error_report(mysql, &result, query_buff))
     {
       if (path)
@@ -3483,7 +3444,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                   "`EXTRA` AS `Extra`, "
                                   "`COLUMN_COMMENT` AS `Comment` "
                                   "FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE "
-                                  "TABLE_SCHEMA = %s AND TABLE_NAME = %s";
+                                  "TABLE_SCHEMA = %s AND TABLE_NAME = %s "
+                                  "ORDER BY ORDINAL_POSITION";
 
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));

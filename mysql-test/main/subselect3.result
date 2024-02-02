@@ -62,7 +62,7 @@ a in (select max(ie) from t1 where oref=4 group by grp)
 0
 show status like 'Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	11
+Handler_read_rnd_next	19
 select ' ^ This must show 11' Z;
 Z
  ^ This must show 11
@@ -805,9 +805,9 @@ SELECT 1 FROM t1 WHERE t1.a NOT IN (SELECT 1 FROM t1, t2 WHERE 0);
 DROP TABLE t1, t2;
 create table t1 (a int, b decimal(13, 3));
 insert into t1 values (1, 0.123);
-select a, (select max(b) from t1) into outfile "subselect.out.file.1" from t1;
+select a, (select max(b) from t1) into outfile "../../tmp/subselect.out.file.1" from t1;
 delete from t1;
-load data infile "subselect.out.file.1" into table t1;
+load data infile "../../tmp/subselect.out.file.1" into table t1;
 select * from t1;
 a	b
 1	0.123

@@ -71,6 +71,7 @@ typedef struct st_myrg_info
   ulong  cache_size;
   uint	 merge_insert_method;
   uint	 tables,options,reclength,keys;
+  uint   key_parts;
   my_bool cache_in_use;
   /* If MERGE children attached to parent. See top comment in ha_myisammrg.cc */
   my_bool children_attached;

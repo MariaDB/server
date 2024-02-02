@@ -80,6 +80,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0start.h>
 #include "trx0sys.h"
 #include <buf0dblwr.h>
+#include <buf0flu.h>
 #include "ha_innodb.h"
 
 #include <list>
@@ -126,7 +127,8 @@ int sd_notifyf() { return 0; }
 int sys_var_init();
 
 /* === xtrabackup specific options === */
-char xtrabackup_real_target_dir[FN_REFLEN] = "./xtrabackup_backupfiles/";
+#define DEFAULT_TARGET_DIR "./xtrabackup_backupfiles/"
+char xtrabackup_real_target_dir[FN_REFLEN] = DEFAULT_TARGET_DIR;
 char *xtrabackup_target_dir= xtrabackup_real_target_dir;
 static my_bool xtrabackup_version;
 static my_bool verbose;
@@ -409,6 +411,9 @@ uint opt_debug_sleep_before_unlock = 0;
 uint opt_safe_slave_backup_timeout = 0;
 
 const char *opt_history = NULL;
+
+/* Whether xtrabackup_binlog_info should be created on recovery */
+static bool recover_binlog_info;
 
 
 char mariabackup_exe[FN_REFLEN];
@@ -849,27 +854,49 @@ void mdl_lock_all()
 
 
 // Convert non-null terminated filename to space name
+// Note that in 10.6 the filename may be an undo file name
 static std::string filename_to_spacename(const void *filename, size_t len)
 {
-	// null- terminate filename
-	char *f = (char *)malloc(len + 1);
-	ut_a(f);
-	memcpy(f, filename, len);
-	f[len] = 0;
-	for (size_t i = 0; i < len; i++)
-		if (f[i] == '\\')
-			f[i] = '/';
-	char *p = strrchr(f, '.');
-	ut_a(p);
-	*p = 0;
-	char *table = strrchr(f, '/');
-	ut_a(table);
-	*table = 0;
-	char *db = strrchr(f, '/');
-	*table = '/';
-	std::string s(db ? db+1 : f);
-	free(f);
-	return s;
+  char f[FN_REFLEN];
+  char *p= 0, *table, *db;
+  DBUG_ASSERT(len < FN_REFLEN);
+
+  strmake(f, (const char*) filename, len);
+
+#ifdef _WIN32
+  for (size_t i = 0; i < len; i++)
+  {
+    if (f[i] == '\\')
+      f[i] = '/';
+  }
+#endif
+
+  /* Remove extension, if exists */
+  if (!(p= strrchr(f, '.')))
+    goto err;
+  *p= 0;
+
+  /* Find table name */
+  if (!(table= strrchr(f, '/')))
+    goto err;
+  *table = 0;
+
+  /* Find database name */
+  db= strrchr(f, '/');
+  *table = '/';
+  if (!db)
+    goto err;
+  {
+    std::string s(db+1);
+    return s;
+  }
+
+err:
+  /* Not a database/table. Return original (converted) name */
+  if (p)
+    *p= '.';                                    // Restore removed extension
+  std::string s(f);
+  return s;
 }
 
 /** Report an operation to create, delete, or rename a file during backup.
@@ -1247,22 +1274,25 @@ struct my_option xb_client_options[]= {
 
     {"compress", OPT_XTRA_COMPRESS,
      "Compress individual backup files using the "
-     "specified compression algorithm. Currently the only supported algorithm "
-     "is 'quicklz'. It is also the default algorithm, i.e. the one used when "
-     "--compress is used without an argument.",
+     "specified compression algorithm. It uses no longer maintained QuickLZ "
+     "library hence this option was deprecated with MariaDB 10.1.31 and 10.2.13.",
      (G_PTR *) &xtrabackup_compress_alg, (G_PTR *) &xtrabackup_compress_alg, 0,
      GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"compress-threads", OPT_XTRA_COMPRESS_THREADS,
      "Number of threads for parallel data compression. The default value is "
-     "1.",
+     "1. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (G_PTR *) &xtrabackup_compress_threads,
      (G_PTR *) &xtrabackup_compress_threads, 0, GET_UINT, REQUIRED_ARG, 1, 1,
      UINT_MAX, 0, 0, 0},
 
     {"compress-chunk-size", OPT_XTRA_COMPRESS_CHUNK_SIZE,
      "Size of working buffer(s) for compression threads in bytes. The default "
-     "value is 64K.",
+     "value is 64K. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (G_PTR *) &xtrabackup_compress_chunk_size,
      (G_PTR *) &xtrabackup_compress_chunk_size, 0, GET_ULL, REQUIRED_ARG,
      (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
@@ -1383,7 +1413,9 @@ struct my_option xb_client_options[]= {
 
     {"decompress", OPT_DECOMPRESS,
      "Decompresses all files with the .qp "
-     "extension in a backup previously made with the --compress option.",
+     "extension in a backup previously made with the --compress option. "
+     "This option was deprecated as it relies on the no longer "
+     "maintained QuickLZ library.",
      (uchar *) &opt_decompress, (uchar *) &opt_decompress, 0, GET_BOOL, NO_ARG,
      0, 0, 0, 0, 0, 0},
 
@@ -1677,8 +1709,11 @@ struct my_option xb_server_options[] =
    "Path to InnoDB log files.", &srv_log_group_home_dir,
    &srv_log_group_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_max_dirty_pages_pct", OPT_INNODB_MAX_DIRTY_PAGES_PCT,
-   "Percentage of dirty pages allowed in bufferpool.", (G_PTR*) &srv_max_buf_pool_modified_pct,
-   (G_PTR*) &srv_max_buf_pool_modified_pct, 0, GET_ULONG, REQUIRED_ARG, 90, 0, 100, 0, 0, 0},
+   "Percentage of dirty pages allowed in bufferpool.",
+   (G_PTR*) &srv_max_buf_pool_modified_pct,
+   (G_PTR*) &srv_max_buf_pool_modified_pct, 0, GET_DOUBLE, REQUIRED_ARG,
+   (longlong)getopt_double2ulonglong(90), (longlong)getopt_double2ulonglong(0),
+   getopt_double2ulonglong(100), 0, 0, 0},
   {"innodb_use_native_aio", OPT_INNODB_USE_NATIVE_AIO,
    "Use native AIO if supported on this platform.",
    (G_PTR*) &srv_use_native_aio,
@@ -1864,7 +1899,7 @@ static int prepare_export()
       IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
-      " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
+      " --innodb-buffer-pool-size=%llu"
       " --console --skip-log-error --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -1878,7 +1913,7 @@ static int prepare_export()
       IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
-      " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
+      " --innodb-buffer-pool-size=%llu"
       " --console --log-error= --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -2364,10 +2399,15 @@ static bool innodb_init()
   buf_flush_sync();
   recv_sys.debug_free();
   ut_ad(!os_aio_pending_reads());
-  ut_ad(!os_aio_pending_writes());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
   ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+  /* os_aio_pending_writes() may hold here if some write_io_callback()
+  did not release the slot yet.  However, the page write itself must
+  have completed, because the buf_pool.flush_list is empty. In debug
+  builds, we wait for this to happen, hoping to get a hung process if
+  this assumption does not hold. */
+  ut_d(os_aio_wait_until_no_pending_writes(false));
   log_sys.close_file();
 
   if (xtrabackup_incremental)
@@ -2421,6 +2461,7 @@ xtrabackup_read_metadata(char *filename)
 {
 	FILE	*fp;
 	my_bool	 r = TRUE;
+	int	 t;
 
 	fp = fopen(filename,"r");
 	if(!fp) {
@@ -2451,6 +2492,9 @@ xtrabackup_read_metadata(char *filename)
 	}
 	/* Optional fields */
 
+	if (fscanf(fp, "recover_binlog_info = %d\n", &t) == 1) {
+		recover_binlog_info = (t == 1);
+	}
 end:
 	fclose(fp);
 
@@ -2469,11 +2513,13 @@ xtrabackup_print_metadata(char *buf, size_t buf_len)
 		 "backup_type = %s\n"
 		 "from_lsn = " UINT64PF "\n"
 		 "to_lsn = " UINT64PF "\n"
-		 "last_lsn = " UINT64PF "\n",
+		 "last_lsn = " UINT64PF "\n"
+		 "recover_binlog_info = %d\n",
 		 metadata_type,
 		 metadata_from_lsn,
 		 metadata_to_lsn,
-		 metadata_last_lsn);
+		 metadata_last_lsn,
+		 MY_TEST(opt_binlog_info == BINLOG_INFO_LOCKLESS));
 }
 
 /***********************************************************************
@@ -3137,7 +3183,7 @@ static bool xtrabackup_copy_logfile()
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr(STORE_NO) == recv_sys_t::OK)
+      if (recv_sys.parse_mtr<false>(false) == recv_sys_t::OK)
       {
         do
         {
@@ -3147,7 +3193,7 @@ static bool xtrabackup_copy_logfile()
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr(STORE_NO)) == recv_sys_t::OK);
+        while ((r= recv_sys.parse_mtr<false>(false)) == recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -4638,7 +4684,9 @@ fail:
 		goto fail;
 	}
 
-	log_sys.create();
+	if (!log_sys.create()) {
+		goto fail;
+	}
 	/* get current checkpoint_lsn */
 	{
 		mysql_mutex_lock(&recv_sys.mutex);
@@ -5903,6 +5951,26 @@ static ibool prepare_handle_del_files(const char *datadir, const char *db, const
 	return TRUE;
 }
 
+
+/**************************************************************************
+Store the current binary log coordinates in a specified file.
+@return 'false' on error. */
+static bool
+store_binlog_info(const char *filename, const char* name, ulonglong pos)
+{
+	FILE *fp = fopen(filename, "w");
+
+	if (!fp) {
+		msg("mariabackup: failed to open '%s'\n", filename);
+		return(false);
+	}
+
+	fprintf(fp, "%s\t%llu\n", name, pos);
+	fclose(fp);
+
+	return(true);
+}
+
 /** Implement --prepare
 @return	whether the operation succeeded */
 static bool xtrabackup_prepare_func(char** argv)
@@ -6008,7 +6076,9 @@ error:
 		}
 
 		recv_sys.create();
-		log_sys.create();
+		if (!log_sys.create()) {
+			goto error;
+		}
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();
@@ -6092,6 +6162,20 @@ error:
 		msg("Last binlog file %s, position %lld",
 		    trx_sys.recovered_binlog_filename,
 		    longlong(trx_sys.recovered_binlog_offset));
+
+                /* output to xtrabackup_binlog_pos_innodb and (if
+                backup_safe_binlog_info was available on the server) to
+                xtrabackup_binlog_info. In the latter case
+                xtrabackup_binlog_pos_innodb becomes redundant and is created
+                only for compatibility. */
+                ok = store_binlog_info(
+                        "xtrabackup_binlog_pos_innodb",
+                        trx_sys.recovered_binlog_filename,
+                        trx_sys.recovered_binlog_offset)
+                        && (!recover_binlog_info || store_binlog_info(
+                                    XTRABACKUP_BINLOG_INFO,
+                                    trx_sys.recovered_binlog_filename,
+                                    trx_sys.recovered_binlog_offset));
 	}
 
 	/* Check whether the log is applied enough or not. */
@@ -6293,7 +6377,7 @@ static bool check_all_privileges()
 	}
 
 	/* KILL ... */
-	if (!opt_no_lock && (opt_kill_long_queries_timeout || opt_kill_long_query_type)) {
+	if (!opt_no_lock && opt_kill_long_queries_timeout) {
 		check_result |= check_privilege(
 			granted_privileges,
 			"CONNECTION ADMIN", "*", "*",
@@ -6314,7 +6398,7 @@ static bool check_all_privileges()
 	if (opt_galera_info || opt_slave_info
 		|| opt_safe_slave_backup) {
 		check_result |= check_privilege(granted_privileges,
-			"SLAVE MONITOR", "*", "*",
+			"REPLICA MONITOR", "*", "*",
 			PRIVILEGE_WARNING);
 	}
 
@@ -6527,9 +6611,10 @@ void handle_options(int argc, char **argv, char ***argv_server,
         server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
 
-	if (prepare && target_dir) {
+	if (prepare) {
 		snprintf(conf_file, sizeof(conf_file),
-			 "%s/backup-my.cnf", target_dir);
+			 "%s/backup-my.cnf", target_dir ? target_dir:
+			DEFAULT_TARGET_DIR);
 			if (!strncmp(argv[1], "--defaults-file=", 16)) {
 				/* Remove defaults-file*/
 				for (int i = 2; ; i++) {

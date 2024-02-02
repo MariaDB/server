@@ -29,10 +29,12 @@ INSERT into t1 values(default(a),10);
 INSERT into t1 values(default(a),default(a));
 update t1 set a=default(a), b=12 where b=2;
 select * from t1;
+--disable_ps2_protocol
 select default(a), a, b from t1;
 select * from s1;
 select * from t1 where default(a) > 0;
 select * from s1;
+--enable_ps2_protocol
 
 --echo #
 --echo # View
@@ -70,7 +72,9 @@ UNLOCK TABLES;
 
 LOCK TABLE t1 WRITE, s1 WRITE;
 insert into t1 (b) values (5),(6);
+--disable_ps2_protocol
 select default(a) from t1;
+--enable_ps2_protocol
 UNLOCK TABLES;
 
 LOCK TABLE t1 READ;

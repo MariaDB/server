@@ -20,7 +20,9 @@ create table db1.t1 (a int, b char(10) default 'default');
 #######################
 insert into db1.t1 values('1', 'abc');
 insert into db1.t1 values('2', 'abc');
+--disable_ps2_protocol
 select * from db1.t1 where a='1';
+--enable_ps2_protocol
 
 #####################################################
 # Run few queries on Performance Schema stats tables.
@@ -52,11 +54,15 @@ create table db1.t2 (a int, b char(10) default 'default',
 #######################
 insert into db1.t1 values('3', 'abc');
 insert into db1.t1 values('4', 'abc');
+--disable_ps2_protocol
 select * from db1.t1 where a='1';
+--enable_ps2_protocol
 
 insert into db1.t2 values('1', 'abc');
 insert into db1.t2 values('2', 'abc');
+--disable_ps2_protocol
 select * from db1.t2 where a='1';
+--enable_ps2_protocol
 
 #####################################################
 # Run few queries on Performance Schema stats tables.

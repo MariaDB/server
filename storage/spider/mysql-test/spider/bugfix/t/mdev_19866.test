@@ -63,6 +63,7 @@ TRUNCATE TABLE mysql.general_log;
 TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
+--disable_ps2_protocol
 SELECT * FROM tbl_a;
 SELECT * FROM tbl_a WHERE pkey = 1;
 SELECT * FROM tbl_a;
@@ -76,6 +77,7 @@ eval $CHILD2_1_SELECT_TABLES;
 --connection child2_2
 eval $CHILD2_2_SELECT_ARGUMENT1;
 eval $CHILD2_2_SELECT_TABLES;
+--enable_ps2_protocol
 
 --echo
 --echo deinit

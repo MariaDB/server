@@ -1,4 +1,3 @@
-
 --source include/not_embedded.inc
 
 if (!$SQL_ERRLOG_SO) {
@@ -66,10 +65,16 @@ DELIMITER ;|
 CALL e1();
 DROP PROCEDURE e1;
 
+CREATE TABLE t1 (a char(4));
+set sql_mode="";
+insert into t1 value("12345");
+set sql_mode=default;
+drop table t1;
+
 uninstall plugin SQL_ERROR_LOG;
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 # replace the timestamp and the hostname with constant values
---replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [^E]*/TIME HOSTNAME /
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [^EW]*/TIME HOSTNAME /
 cat_file $MYSQLD_DATADIR/sql_errors.log;
-
+remove_file $MYSQLD_DATADIR/sql_errors.log;

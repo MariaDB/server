@@ -464,6 +464,7 @@ deallocate prepare stmt;
 # Bug#6088 "FOUND_ROWS returns wrong values for prepared statements when
 # LIMIT is used"
 # 
+--disable_ps2_protocol
 create table t1 (a int);
 insert into t1 (a) values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 prepare stmt from "select sql_calc_found_rows * from t1 limit 2";
@@ -475,6 +476,7 @@ execute stmt;
 select found_rows();
 deallocate prepare stmt;
 drop table t1;
+--enable_ps2_protocol
 
 #
 # Bug#6047 "permission problem when executing mysql_stmt_execute with derived
@@ -556,13 +558,14 @@ drop table t1;
 #
 # Bug #6089: FOUND_ROWS returns wrong values when no table/view is used 
 #
-
+--disable_ps2_protocol
 prepare stmt from "SELECT SQL_CALC_FOUND_ROWS 'foo' UNION SELECT 'bar' LIMIT 0";
 execute stmt;
 SELECT FOUND_ROWS();
 execute stmt;                                                                   
 SELECT FOUND_ROWS();                                                            
 deallocate prepare stmt;
+--enable_ps2_protocol
 
 #
 # Bug#9096 "select doesn't return all matched records if prepared statements
@@ -1410,11 +1413,13 @@ DEALLOCATE PREPARE b12651;
 # Bug #14956: ROW_COUNT() returns incorrect result after EXECUTE of prepared
 # statement
 #
+--disable_ps2_protocol
 create table t1 (id int);
 prepare ins_call from "insert into t1 (id) values (1)";
 execute ins_call;
 select row_count();
 drop table t1;
+--enable_ps2_protocol
 
 #
 # BUG#16474: SP crashed MySQL
@@ -3564,8 +3569,10 @@ flush status;
 execute st;
 show status like '%Handler_read%';
 flush status;
+--disable_ps2_protocol
 select * from t1 use index() where a=3;
 show status like '%Handler_read%';
+--enable_ps2_protocol
 flush status;
 execute st;
 show status like '%Handler_read%';
@@ -3625,12 +3632,16 @@ DROP TABLE t1, t2;
 --echo # with out of range in GROUP BY
 --echo #
 CREATE TABLE t1 (a INT);
-
---error ER_DATA_OUT_OF_RANGE
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
+execute stmt;
+SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
+insert into t1 values(1),(2);
+--error ER_DATA_OUT_OF_RANGE
+execute stmt;
 --error ER_DATA_OUT_OF_RANGE
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
 
+deallocate prepare stmt;
 drop table t1;
 
 --echo # End of 5.3 tests
@@ -5224,6 +5235,18 @@ END;
 $
 
 delimiter ;$
+
+--echo #
+--echo #  MDEV-32965: Assertion `thd->active_stmt_arena_to_use()-> is_stmt_prepare_or_first_sp_execute() || thd->active_stmt_arena_to_use()-> is_conventional() || thd->active_stmt_arena_to_use()->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed
+--echo #
+CREATE TABLE t (f VARCHAR(8)) CHARACTER SET utf8;
+
+INSERT INTO t VALUES ('foo'),('bar');
+EXECUTE IMMEDIATE 'SELECT GROUP_CONCAT(@x) FROM t GROUP BY @x := f';
+
+# Cleanup
+
+DROP TABLE t;
 
 --echo #
 --echo # End of 10.4 tests

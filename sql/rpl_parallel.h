@@ -92,6 +92,10 @@ struct group_commit_orderer {
   };
   uint8 flags;
 #ifndef DBUG_OFF
+  /*
+    Flag set when the GCO has been freed and entered the free list, to catch
+    (in debug) errors in the complex lifetime of this object.
+  */
   bool gc_done;
 #endif
 };
@@ -361,13 +365,13 @@ struct rpl_parallel_entry {
   /*
    At STOP SLAVE (force_abort=true), we do not want to process all events in
    the queue (which could unnecessarily delay stop, if a lot of events happen
-   to be queued). The stop_count provides a safe point at which to stop, so
+   to be queued). The stop_sub_id provides a safe point at which to stop, so
    that everything before becomes committed and nothing after does. The value
-   corresponds to group_commit_orderer::wait_count; if wait_count is less than
-   or equal to stop_count, we execute the associated event group, else we
-   skip it (and all following) and stop.
+   corresponds to rpl_group_info::gtid_sub_id; if that is less than or equal
+   to stop_sub_id, we execute the associated event group, else we skip it (and
+   all following) and stop.
   */
-  uint64 stop_count;
+  uint64 stop_sub_id;
 
   /*
     Cyclic array recording the last rpl_thread_max worker threads that we
@@ -456,9 +460,10 @@ struct rpl_parallel {
   rpl_parallel_entry *find(uint32 domain_id, Relay_log_info *rli);
   void wait_for_done(THD *thd, Relay_log_info *rli);
   void stop_during_until();
-  bool workers_idle();
   int wait_for_workers_idle(THD *thd);
   int do_event(rpl_group_info *serial_rgi, Log_event *ev, ulonglong event_size);
+
+  static bool workers_idle(Relay_log_info *rli);
 };
 
 

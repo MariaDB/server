@@ -21,7 +21,17 @@ SET GLOBAL innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
 
+SELECT CAST(variable_value AS INTEGER) INTO @read1
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
+
 select * from t1;
+
+SELECT CAST(variable_value AS INTEGER) INTO @read2
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
+
+SELECT @read1>0, @read2>@read1;
 
 begin;
 insert into t1 values(2, 3);
@@ -143,7 +153,9 @@ connection default;
 let $status=`SHOW ENGINE INNODB STATUS`;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 select * from t2;
+--enable_ps2_protocol
 SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 select * from t2;
 SET SESSION innodb_lock_wait_timeout=1;

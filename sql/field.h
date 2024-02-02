@@ -1017,7 +1017,8 @@ public:
       field                  statistical table field
       str                    value buffer
   */
-  virtual int store_from_statistical_minmax_field(Field *field, String *str);
+  virtual int store_from_statistical_minmax_field(Field *field, String *str,
+                                                  MEM_ROOT *mem);
 
 #ifdef HAVE_MEM_CHECK
   /**
@@ -1654,6 +1655,13 @@ public:
   virtual void print_key_value(String *out, uint32 length);
   void print_key_part_value(String *out, const uchar *key, uint32 length);
   void print_key_value_binary(String *out, const uchar* key, uint32 length);
+  void raise_note_cannot_use_key_part(THD *thd, uint keynr, uint part,
+                                      const LEX_CSTRING &op,
+                                      CHARSET_INFO *op_collation,
+                                      Item *value,
+                                      const Data_type_compatibility reason)
+                                      const;
+  void raise_note_key_become_unused(THD *thd, const String &expr) const;
 protected:
   bool set_warning(unsigned int code, int cuted_increment) const
   {
@@ -1682,11 +1690,12 @@ protected:
   Copy_func *get_identical_copy_func() const;
   bool cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
                                               const Item *item) const;
-  bool can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
+  Data_type_compatibility can_optimize_scalar_range(
+                                 const RANGE_OPT_PARAM *param,
                                  const KEY_PART *key_part,
                                  const Item_bool_func *cond,
                                  scalar_comparison_op op,
-                                 const Item *value) const;
+                                 Item *value) const;
   uchar *make_key_image(MEM_ROOT *mem_root, const KEY_PART *key_part);
   SEL_ARG *get_mm_leaf_int(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                            const Item_bool_func *cond,
@@ -1828,6 +1837,16 @@ public:
     return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
+  bool vers_sys_start() const
+  {
+    return flags & VERS_ROW_START;
+  }
+
+  bool vers_sys_end() const
+  {
+    return flags & VERS_ROW_END;
+  }
+
   bool vers_update_unversioned() const
   {
     return flags & VERS_UPDATE_UNVERSIONED_FLAG;
@@ -1908,29 +1927,33 @@ public:
   {
     return const_item;
   }
-  virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
+  virtual Data_type_compatibility can_optimize_keypart_ref(
+                                        const Item_bool_func *cond,
                                         const Item *item) const;
-  virtual bool can_optimize_hash_join(const Item_bool_func *cond,
+  virtual Data_type_compatibility can_optimize_hash_join(
+                                      const Item_bool_func *cond,
                                       const Item *item) const
   {
     return can_optimize_keypart_ref(cond, item);
   }
-  virtual bool can_optimize_group_min_max(const Item_bool_func *cond,
+  virtual Data_type_compatibility can_optimize_group_min_max(
+                                          const Item_bool_func *cond,
                                           const Item *const_item) const;
   /**
     Test if Field can use range optimizer for a standard comparison operation:
       <=, <, =, <=>, >, >=
     Note, this method does not cover spatial operations.
   */
-  virtual bool can_optimize_range(const Item_bool_func *cond,
-                                  const Item *item,
-                                  bool is_eq_func) const;
+  virtual Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                                     const Item *item,
+                                                     bool is_eq_func) const;
 
   virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                                const Item_bool_func *cond,
                                scalar_comparison_op op, Item *value)= 0;
 
-  bool can_optimize_outer_join_table_elimination(const Item_bool_func *cond,
+  Data_type_compatibility can_optimize_outer_join_table_elimination(
+                                                 const Item_bool_func *cond,
                                                  const Item *item) const
   {
     // Exactly the same rules with REF access
@@ -2125,7 +2148,7 @@ public:
 	    const LEX_CSTRING *field_name_arg,
 	    const DTCollation &collation);
   decimal_digits_t decimals() const override
-  { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
+  { return is_created_from_null_item ? 0 : DECIMAL_NOT_SPECIFIED; }
   int  save_in_field(Field *to) override { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const override
   {
@@ -2216,9 +2239,11 @@ protected:
 
     return check_conversion_status(&copier, from + from_length, from_cs, count_spaces);
   }
-  bool cmp_to_string_with_same_collation(const Item_bool_func *cond,
+  Data_type_compatibility cmp_to_string_with_same_collation(
+                                         const Item_bool_func *cond,
                                          const Item *item) const;
-  bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
+  Data_type_compatibility cmp_to_string_with_stricter_collation(
+                                             const Item_bool_func *cond,
                                              const Item *item) const;
   int compress(char *to, uint to_length,
                const char *from, uint length,
@@ -2250,15 +2275,18 @@ public:
   }
   bool match_collation_to_optimize_range() const { return true; }
 
-  bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const override;
-  bool can_optimize_hash_join(const Item_bool_func *cond,
-                              const Item *item) const override;
-  bool can_optimize_group_min_max(const Item_bool_func *cond,
-                                  const Item *const_item) const override;
-  bool can_optimize_range(const Item_bool_func *cond,
-                          const Item *item,
-                          bool is_eq_func) const override;
+  Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item)
+                                                   const override;
+  Data_type_compatibility can_optimize_hash_join(const Item_bool_func *cond,
+                                                 const Item *item)
+                                                 const override;
+  Data_type_compatibility can_optimize_group_min_max(const Item_bool_func *cond,
+                                                     const Item *const_item)
+                                                     const override;
+  Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                             const Item *item,
+                                             bool is_eq_func) const override;
   bool is_packable() const override { return true; }
   uint make_packed_sort_key_part(uchar *buff,
                                  const SORT_FIELD_ATTR *sort_field)override;
@@ -2290,7 +2318,7 @@ public:
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const override
   {
-    return dec == NOT_FIXED_DEC ?
+    return dec == DECIMAL_NOT_SPECIFIED ?
                   Information_schema_numeric_attributes(field_length) :
                   Information_schema_numeric_attributes(field_length, dec);
   }
@@ -2839,26 +2867,31 @@ public:
     return get_date(ltime, fuzzydate, (ulonglong) val_int());
   }
   bool test_if_equality_guarantees_uniqueness(const Item *item) const override;
-  bool can_optimize_keypart_ref(const Item_bool_func *, const Item *)
+  Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *,
+                                                   const Item *)
     const override
   {
-    return true;
+    return Data_type_compatibility::OK;
   }
 
-  bool can_optimize_group_min_max(const Item_bool_func *, const Item *)
+  Data_type_compatibility can_optimize_group_min_max(const Item_bool_func *,
+                                                     const Item *)
     const override
   {
-    return true;
+    return Data_type_compatibility::OK;
   }
-  bool can_optimize_range(const Item_bool_func *, const Item *, bool)
+  Data_type_compatibility can_optimize_range(const Item_bool_func *,
+                                             const Item *, bool is_eq_func)
     const override
   {
-    return true;
+    return Data_type_compatibility::OK;
   }
   /* cmp_type() cannot be TIME_RESULT, because we want to compare this field against
      integers. But in all other cases we treat it as TIME_RESULT! */
 };
 
+static inline decimal_digits_t fix_dec_arg(decimal_digits_t dec_arg)
+{ return dec_arg >= FLOATING_POINT_DECIMALS ? DECIMAL_NOT_SPECIFIED : dec_arg; }
 
 class Field_float final :public Field_real {
 public:
@@ -2868,19 +2901,13 @@ public:
               decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
-                dec_arg, zero_arg, unsigned_arg)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                fix_dec_arg(dec_arg), zero_arg, unsigned_arg)
+    { }
   Field_float(uint32 len_arg, bool maybe_null_arg,
               const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    { }
   const Type_handler *type_handler() const override
   { return &type_handler_float; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_FLOAT; }
@@ -2916,28 +2943,20 @@ public:
 	       decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
-                dec_arg, zero_arg, unsigned_arg)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                fix_dec_arg(dec_arg), zero_arg, unsigned_arg)
+    { }
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    { }
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
 	       decimal_digits_t dec_arg, bool not_fixed_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
     {
       not_fixed= not_fixed_arg;
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
     }
   void init_for_tmp_table(Field *org_field, TABLE *new_table) override
   {
@@ -3016,15 +3035,17 @@ public:
   uint size_of() const override final { return sizeof *this; }
   uint32 max_display_length() const override final { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) override final {}
-  bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const override final
+  Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item)
+                                                   const override final
   {
-    return false;
+    return Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
   }
-  bool can_optimize_group_min_max(const Item_bool_func *cond,
-                                  const Item *const_item) const override final
+  Data_type_compatibility can_optimize_group_min_max(const Item_bool_func *cond,
+                                                     const Item *const_item)
+                                                     const override final
   {
-    return false;
+    return Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
   }
 };
 
@@ -3123,15 +3144,17 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
-  bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const override;
-  bool can_optimize_group_min_max(const Item_bool_func *cond,
-                                  const Item *const_item) const override;
-  bool can_optimize_range(const Item_bool_func *cond,
-                                  const Item *item,
-                                  bool is_eq_func) const override
+  Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item)
+                                                   const override;
+  Data_type_compatibility can_optimize_group_min_max(const Item_bool_func *cond,
+                                                     const Item *const_item)
+                                                     const override;
+  Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                             const Item *item,
+                                             bool is_eq_func) const override
   {
-    return true;
+    return Data_type_compatibility::OK;
   }
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
@@ -3354,7 +3377,7 @@ public:
 /**
   TIMESTAMP(0..6) - MySQL56 version
 */
-class Field_timestampf final :public Field_timestamp_with_dec {
+class Field_timestampf :public Field_timestamp_with_dec {
   void store_TIMEVAL(const timeval &tv) override;
 public:
   Field_timestampf(uchar *ptr_arg,
@@ -4487,6 +4510,8 @@ public:
   }
   bool make_empty_rec_store_default_value(THD *thd, Item *item) override;
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  int store_from_statistical_minmax_field(Field *stat_field, String *str,
+                                          MEM_ROOT *mem) override;
   using Field_str::store;
   void hash_not_null(Hasher *hasher) override;
   double val_real() override;
@@ -4736,7 +4761,8 @@ private:
 class Field_enum :public Field_str {
   static void do_field_enum(Copy_field *copy_field);
   longlong val_int(const uchar *) const;
-  bool can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+  Data_type_compatibility can_optimize_range_or_keypart_ref(
+                                         const Item_bool_func *cond,
                                          const Item *item) const;
 protected:
   uint packlength;
@@ -4829,13 +4855,15 @@ public:
   const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
                       uint param_data) override;
 
-  bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const override
+  Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item)
+                                                   const override
   {
     return can_optimize_range_or_keypart_ref(cond, item);
   }
-  bool can_optimize_group_min_max(const Item_bool_func *cond,
-                                  const Item *const_item) const override
+  Data_type_compatibility can_optimize_group_min_max(const Item_bool_func *cond,
+                                                     const Item *const_item)
+                                                     const override
   {
     /*
       Can't use GROUP_MIN_MAX optimization for ENUM and SET,
@@ -4844,11 +4872,11 @@ public:
       It would return the records with min and max enum numeric indexes.
      "Bug#45300 MAX() and ENUM type" should be fixed first.
     */
-    return false;
+    return Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
   }
-  bool can_optimize_range(const Item_bool_func *cond,
-                          const Item *item,
-                          bool is_eq_func) const override
+  Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                             const Item *item,
+                                             bool is_eq_func) const override
   {
     return can_optimize_range_or_keypart_ref(cond, item);
   }
@@ -5253,7 +5281,7 @@ class Column_definition: public Sql_alloc,
   const Type_handler *field_type() const; // Prevent using this
   Compression_method *compression_method_ptr;
 public:
-  LEX_CSTRING field_name;
+  Lex_ident   field_name;
   LEX_CSTRING comment;			// Comment for field
   enum enum_column_versioning
   {

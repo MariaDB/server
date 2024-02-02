@@ -27,8 +27,6 @@ IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 ENDIF()
 
-PROJECT(MariaDB)
-
 # Remove the following comment if you don't want to have striped binaries
 # in RPM's:
 
@@ -38,6 +36,8 @@ FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0075 CMP0069 CMP0135)
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
 ENDFOREACH()
+
+PROJECT(MariaDB)
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -194,6 +194,15 @@ ELSE()
 ENDIF()
 
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
+
+#
+#  Enable protection of statement's memory root after first SP/PS execution.
+#  Can be switched on only for debug build.
+#
+OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" OFF)
+IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND WITH_PROTECT_STATEMENT_MEMROOT)
+  ADD_DEFINITIONS(-DPROTECT_STATEMENT_MEMROOT)
+ENDIF()
 
 INCLUDE(check_compiler_flag)
 INCLUDE(check_linker_flag)

@@ -1,14 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2008, Google Inc.
 Copyright (c) 2017, 2023, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1142,7 +1135,6 @@ block_and_ahi_release_and_fail:
 	}
 
 	block->page.fix();
-	block->page.set_accessed();
 	buf_page_make_young_if_needed(&block->page);
 	static_assert(ulint{MTR_MEMO_PAGE_S_FIX} == ulint{BTR_SEARCH_LEAF},
 		      "");
@@ -2105,14 +2097,13 @@ static bool ha_validate(const hash_table_t *table,
 }
 
 /** Validates the search system for given hash table.
-@param[in]	hash_table_id	hash table to validate
-@return TRUE if ok */
-static
-ibool
-btr_search_hash_table_validate(ulint hash_table_id)
+@param thd            connection, for checking if CHECK TABLE has been killed
+@param hash_table_id  hash table to validate
+@return true if ok */
+static bool btr_search_hash_table_validate(THD *thd, ulint hash_table_id)
 {
 	ha_node_t*	node;
-	ibool		ok		= TRUE;
+	bool		ok		= true;
 	ulint		i;
 	ulint		cell_count;
 	mem_heap_t*	heap		= NULL;
@@ -2120,9 +2111,15 @@ btr_search_hash_table_validate(ulint hash_table_id)
 	rec_offs*	offsets		= offsets_;
 
 	btr_search_x_lock_all();
-	if (!btr_search_enabled) {
+	if (!btr_search_enabled || (thd && thd_kill_level(thd))) {
+func_exit:
 		btr_search_x_unlock_all();
-		return(TRUE);
+
+		if (UNIV_LIKELY_NULL(heap)) {
+			mem_heap_free(heap);
+		}
+
+		return ok;
 	}
 
 	/* How many cells to check before temporarily releasing
@@ -2149,8 +2146,8 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 			btr_search_x_lock_all();
 
-			if (!btr_search_enabled) {
-				ok = true;
+			if (!btr_search_enabled
+			    || (thd && thd_kill_level(thd))) {
 				goto func_exit;
 			}
 
@@ -2256,8 +2253,8 @@ state_ok:
 
 			btr_search_x_lock_all();
 
-			if (!btr_search_enabled) {
-				ok = true;
+			if (!btr_search_enabled
+			    || (thd && thd_kill_level(thd))) {
 				goto func_exit;
 			}
 
@@ -2278,33 +2275,23 @@ state_ok:
 		ulint end_index = ut_min(i + chunk_size - 1, cell_count - 1);
 
 		if (!ha_validate(&part.table, i, end_index)) {
-			ok = FALSE;
+			ok = false;
 		}
 	}
 
 	mysql_mutex_unlock(&buf_pool.mutex);
-func_exit:
-	btr_search_x_unlock_all();
-
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-
-	return(ok);
+	goto func_exit;
 }
 
-/** Validate the search system.
-@return true if ok. */
-bool
-btr_search_validate()
+/** Validates the search system.
+@param thd   connection, for checking if CHECK TABLE has been killed
+@return true if ok */
+bool btr_search_validate(THD *thd)
 {
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		if (!btr_search_hash_table_validate(i)) {
-			return(false);
-		}
-	}
-
-	return(true);
+  for (ulint i= 0; i < btr_ahi_parts; ++i)
+    if (!btr_search_hash_table_validate(thd, i))
+      return(false);
+  return true;
 }
 
 #ifdef UNIV_DEBUG

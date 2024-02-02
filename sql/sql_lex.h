@@ -146,6 +146,11 @@ public:
 struct Lex_ident_sys_st: public LEX_CSTRING
 {
 public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
+  static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
+  static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
+
   bool copy_ident_cli(THD *thd, const Lex_ident_cli_st *str);
   bool copy_keyword(THD *thd, const Lex_ident_cli_st *str);
   bool copy_sys(THD *thd, const LEX_CSTRING *str);
@@ -178,6 +183,10 @@ public:
   {
     LEX_CSTRING tmp= {name, length};
     set_valid_utf8(&tmp);
+  }
+  Lex_ident_sys(THD *thd, const LEX_CSTRING *str)
+  {
+    set_valid_utf8(str);
   }
   Lex_ident_sys & operator=(const Lex_ident_sys_st &name)
   {
@@ -1221,6 +1230,11 @@ public:
   List<Field_pair> grouping_tmp_fields;
   List<udf_func>     udf_list;                  /* udf function calls stack */
   List<Index_hint> *index_hints;  /* list of USE/FORCE/IGNORE INDEX */
+  /*
+    This list is used to restore the names of items
+    from item_list after each execution of the statement.
+  */
+  List<Lex_ident_sys> *orig_names_of_item_list_elems;
   List<List_item> save_many_values;
   List<Item> *save_insert_list;
 
@@ -1282,6 +1296,8 @@ public:
     and all inner subselects.
   */
   uint select_n_where_fields;
+  /* Total number of elements in group by and order by lists */
+  uint order_group_num;
   /* reserved for exists 2 in */
   uint select_n_reserved;
   /*
@@ -1388,6 +1404,7 @@ public:
     return (st_select_lex_unit*) slave; 
   }
   st_select_lex* outer_select();
+  bool is_query_topmost(THD *thd);
   st_select_lex* next_select() { return (st_select_lex*) next; }
   st_select_lex* next_select_in_list() 
   {
@@ -1435,6 +1452,9 @@ public:
                               bool straight_fl);
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
+  bool save_item_list_names(THD *thd);
+  void restore_item_list_names();
+
   ulong get_table_join_options();
   void set_lock_for_tables(thr_lock_type lock_type, bool for_update,
                            bool skip_locks);
@@ -1473,6 +1493,7 @@ public:
     init_select();
   }
   bool setup_ref_array(THD *thd, uint order_group_num);
+  uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
   void print_set_clause(THD *thd, String *str, enum_query_type query_type);
@@ -1573,7 +1594,8 @@ public:
            master_unit()->cloned_from->with_element :
            master_unit()->with_element;
   }
-  With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
+  With_element *find_table_def_in_with_clauses(TABLE_LIST *table,
+                                               st_select_lex_unit * excl_spec);
   bool check_unrestricted_recursive(bool only_standard_compliant);
   bool check_subqueries_with_recursive_references();
   void collect_grouping_fields_for_derived(THD *thd, ORDER *grouping_list);
@@ -1584,6 +1606,7 @@ public:
                                        bool no_to_clones);
   
   List<Window_spec> window_specs;
+  bool is_win_spec_list_built;
   void prepare_add_window_spec(THD *thd);
   bool add_window_def(THD *thd, LEX_CSTRING *win_name, LEX_CSTRING *win_ref,
                       SQL_I_List<ORDER> win_partition_list,
@@ -2456,6 +2479,15 @@ public:
   void reduce_digest_token(uint token_left, uint token_right);
 
 private:
+
+  enum Ident_mode
+  {
+    GENERAL_KEYWORD_OR_FUNC_LPAREN,
+    QUALIFIED_SPECIAL_FUNC_LPAREN
+  };
+
+  int scan_ident_common(THD *thd, Lex_ident_cli_st *str, Ident_mode mode);
+
   /**
     Set the echo mode.
 
@@ -2510,7 +2542,7 @@ private:
     Get the last character accepted.
     @return the last character accepted.
   */
-  unsigned char yyGetLast()
+  unsigned char yyGetLast() const
   {
     return m_ptr[-1];
   }
@@ -2518,7 +2550,7 @@ private:
   /**
     Look at the next character to parse, but do not accept it.
   */
-  unsigned char yyPeek()
+  unsigned char yyPeek() const
   {
     return m_ptr[0];
   }
@@ -2527,7 +2559,7 @@ private:
     Look ahead at some character to parse.
     @param n offset of the character to look up
   */
-  unsigned char yyPeekn(int n)
+  unsigned char yyPeekn(int n) const
   {
     return m_ptr[n];
   }
@@ -2588,7 +2620,7 @@ private:
     @param n number of characters expected
     @return true if there are less than n characters to parse
   */
-  bool eof(int n)
+  bool eof(int n) const
   {
     return ((m_ptr + n) >= m_end_of_query);
   }
@@ -2619,10 +2651,10 @@ private:
     Get the maximum length of the utf8-body buffer.
     The utf8 body can grow because of the character set conversion and escaping.
   */
-  size_t get_body_utf8_maximum_length(THD *thd);
+  size_t get_body_utf8_maximum_length(THD *thd) const;
 
   /** Get the length of the current token, in the raw buffer. */
-  uint yyLength()
+  uint yyLength() const
   {
     /*
       The assumption is that the lexical analyser is always 1 character ahead,
@@ -2647,31 +2679,31 @@ public:
     End of file indicator for the query text to parse.
     @return true if there are no more characters to parse
   */
-  bool eof()
+  bool eof() const
   {
     return (m_ptr >= m_end_of_query);
   }
 
   /** Get the raw query buffer. */
-  const char *get_buf()
+  const char *get_buf() const
   {
     return m_buf;
   }
 
   /** Get the pre-processed query buffer. */
-  const char *get_cpp_buf()
+  const char *get_cpp_buf() const
   {
     return m_cpp_buf;
   }
 
   /** Get the end of the raw query buffer. */
-  const char *get_end_of_query()
+  const char *get_end_of_query() const
   {
     return m_end_of_query;
   }
 
   /** Get the token start position, in the raw buffer. */
-  const char *get_tok_start()
+  const char *get_tok_start() const
   {
     return has_lookahead() ? m_tok_start_prev : m_tok_start;
   }
@@ -2682,25 +2714,25 @@ public:
   }
 
   /** Get the token end position, in the raw buffer. */
-  const char *get_tok_end()
+  const char *get_tok_end() const
   {
     return m_tok_end;
   }
 
   /** Get the current stream pointer, in the raw buffer. */
-  const char *get_ptr()
+  const char *get_ptr() const
   {
     return m_ptr;
   }
 
   /** Get the token start position, in the pre-processed buffer. */
-  const char *get_cpp_tok_start()
+  const char *get_cpp_tok_start() const
   {
     return has_lookahead() ? m_cpp_tok_start_prev : m_cpp_tok_start;
   }
 
   /** Get the token end position, in the pre-processed buffer. */
-  const char *get_cpp_tok_end()
+  const char *get_cpp_tok_end() const
   {
     return m_cpp_tok_end;
   }
@@ -2709,7 +2741,7 @@ public:
     Get the token end position in the pre-processed buffer,
     with trailing spaces removed.
   */
-  const char *get_cpp_tok_end_rtrim()
+  const char *get_cpp_tok_end_rtrim() const
   {
     const char *p;
     for (p= m_cpp_tok_end;
@@ -2720,7 +2752,7 @@ public:
   }
 
   /** Get the current stream pointer, in the pre-processed buffer. */
-  const char *get_cpp_ptr()
+  const char *get_cpp_ptr() const
   {
     return m_cpp_ptr;
   }
@@ -2729,7 +2761,7 @@ public:
     Get the current stream pointer, in the pre-processed buffer,
     with traling spaces removed.
   */
-  const char *get_cpp_ptr_rtrim()
+  const char *get_cpp_ptr_rtrim() const
   {
     const char *p;
     for (p= m_cpp_ptr;
@@ -2739,15 +2771,9 @@ public:
     return p;
   }
   /** Get the utf8-body string. */
-  const char *get_body_utf8_str()
+  LEX_CSTRING body_utf8() const
   {
-    return m_body_utf8;
-  }
-
-  /** Get the utf8-body length. */
-  size_t get_body_utf8_length()
-  {
-    return (size_t) (m_body_utf8_ptr - m_body_utf8);
+    return LEX_CSTRING({m_body_utf8, (size_t) (m_body_utf8_ptr - m_body_utf8)});
   }
 
   void body_utf8_start(THD *thd, const char *begin_ptr);
@@ -2781,9 +2807,9 @@ private:
 
   bool consume_comment(int remaining_recursions_permitted);
   int lex_one_token(union YYSTYPE *yylval, THD *thd);
-  int find_keyword(Lex_ident_cli_st *str, uint len, bool function);
+  int find_keyword(Lex_ident_cli_st *str, uint len, bool function) const;
+  int find_keyword_qualified_special_func(Lex_ident_cli_st *str, uint len) const;
   LEX_CSTRING get_token(uint skip, uint length);
-  int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
                         CHARSET_INFO **cs, my_lex_states *);
@@ -3013,9 +3039,9 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
+  Explain_update* save_explain_update_data(THD *thd, MEM_ROOT *mem_root);
 protected:
-  bool save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
+  bool save_explain_data_intern(THD *thd, MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
 public:
   virtual ~Update_plan() = default;
 
@@ -3050,7 +3076,7 @@ public:
     deleting_all_rows= false;
   }
 
-  Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
+  Explain_delete* save_explain_delete_data(THD *thd, MEM_ROOT *mem_root);
 };
 
 enum account_lock_type
@@ -3474,7 +3500,6 @@ public:
   TABLE_LIST *create_last_non_select_table;
   sp_head *sphead;
   sp_name *spname;
-
   sp_pcontext *spcont;
 
   st_sp_chistics sp_chistics;
@@ -3654,7 +3679,7 @@ public:
 
   bool can_be_merged();
   bool can_use_merged();
-  bool can_not_use_merged(bool no_update_or_delete);
+  bool can_not_use_merged();
   bool only_view_structure();
   bool need_correct_ident();
   uint8 get_effective_with_check(TABLE_LIST *view);
@@ -3882,8 +3907,7 @@ public:
   bool create_package_finalize(THD *thd,
                                const sp_name *name,
                                const sp_name *name2,
-                               const char *body_start,
-                               const char *body_end);
+                               const char *cpp_body_end);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
@@ -4130,12 +4154,43 @@ public:
 
   Item *create_item_query_expression(THD *thd, st_select_lex_unit *unit);
 
-  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
-  Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
-  Item *make_item_func_substr(THD *thd, Item *a, Item *b);
   Item *make_item_func_sysdate(THD *thd, uint fsp);
-  Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
-                                    Lex_ident_cli_st *name, List<Item> *args);
+
+  static const Schema *
+    find_func_schema_by_name_or_error(const Lex_ident_sys &schema_name,
+                                      const Lex_ident_sys &func_name);
+  Item *make_item_func_replace(THD *thd,
+                               const Lex_ident_cli_st &schema_name,
+                               const Lex_ident_cli_st &func_name,
+                               Item *org, Item *find, Item *replace);
+  Item *make_item_func_replace(THD *thd,
+                               const Lex_ident_cli_st &schema_name,
+                               const Lex_ident_cli_st &func_name,
+                               List<Item> *args);
+  Item *make_item_func_substr(THD *thd,
+                              const Lex_ident_cli_st &schema_name,
+                              const Lex_ident_cli_st &func_name,
+                              const Lex_substring_spec_st &spec);
+  Item *make_item_func_substr(THD *thd,
+                              const Lex_ident_cli_st &schema_name,
+                              const Lex_ident_cli_st &func_name,
+                              List<Item> *args);
+  Item *make_item_func_trim(THD *thd,
+                            const Lex_ident_cli_st &schema_name,
+                            const Lex_ident_cli_st &func_name,
+                            const Lex_trim_st &spec);
+  Item *make_item_func_trim(THD *thd,
+                            const Lex_ident_cli_st &schema_name,
+                            const Lex_ident_cli_st &func_name,
+                            List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    const Lex_ident_cli_st *db,
+                                    const Lex_ident_cli_st *name,
+                                    List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    const Lex_ident_sys &db,
+                                    const Lex_ident_sys &name,
+                                    List<Item> *args);
   Item *make_item_func_call_generic(THD *thd,
                                     Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *pkg,
@@ -4259,7 +4314,7 @@ public:
                                         const LEX_CSTRING *index,
                                         const Lex_for_loop_bounds_st &bounds);
   bool sp_for_loop_intrange_condition_test(THD *thd, const Lex_for_loop_st &loop);
-  bool sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_intrange_iterate(THD *thd, const Lex_for_loop_st &loop);
 
   /* Cursor FOR LOOP methods */
   bool sp_for_loop_cursor_declarations(THD *thd, Lex_for_loop_st *loop,
@@ -4275,7 +4330,7 @@ public:
                                              Lex_for_loop_bounds_st *bounds,
                                              sp_lex_cursor *cur);
   bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
-  bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
+  bool sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &);
 
   /* Generic FOR LOOP methods*/
 
@@ -4333,9 +4388,12 @@ public:
   */
   bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
   {
-    return loop.is_for_loop_cursor() ?
-           sp_for_loop_cursor_finalize(thd, loop) :
-           sp_for_loop_intrange_finalize(thd, loop);
+    if (loop.is_for_loop_cursor() ?
+        sp_for_loop_cursor_iterate(thd, loop) :
+        sp_for_loop_intrange_iterate(thd, loop))
+      return true;
+    // Generate a jump to the beginning of the loop
+    return sp_while_loop_finalize(thd);
   }
   bool sp_for_loop_outer_block_finalize(THD *thd, const Lex_for_loop_st &loop);
 
@@ -4833,7 +4891,8 @@ public:
   bool check_dependencies_in_with_clauses();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
-                                 TABLE_LIST **tables_last);
+                                 TABLE_LIST **tables_last,
+                                 st_select_lex_unit *excl_spec);
 
   /**
     Turn on the SELECT_DESCRIBE flag for every SELECT_LEX involved into
@@ -5159,7 +5218,12 @@ int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 
-extern void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length = 0);
+inline void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str,
+                            size_t * prefix_length = 0)
+{
+  *str= Lex_cstring(*str).trim_whitespace(cs, prefix_length);
+}
+
 
 extern bool is_lex_native_function(const LEX_CSTRING *name); 
 extern bool is_native_function(THD *thd, const LEX_CSTRING *name);

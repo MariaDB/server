@@ -250,6 +250,8 @@ int ha_sequence::write_row(const uchar *buf)
         on master and slaves
       - Check that the new row is an accurate SEQUENCE object
     */
+    /* mark a full binlog image insert to force non-parallel slave */
+    thd->transaction->stmt.mark_trans_did_ddl();
     if (table->s->tmp_table == NO_TMP_TABLE &&
         thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
                                              MDL_EXCLUSIVE,
@@ -269,13 +271,26 @@ int ha_sequence::write_row(const uchar *buf)
   }
 
 #ifdef WITH_WSREP
-  /* We need to start Galera transaction for select NEXT VALUE FOR
-  sequence if it is not yet started. Note that ALTER is handled
-  as TOI. */
-  if (WSREP_ON && WSREP(thd) &&
-      !thd->wsrep_trx().active() &&
-      wsrep_thd_is_local(thd))
-    wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+  if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    if (sequence_locked &&
+        (wsrep_thd_is_SR(thd) || wsrep_streaming_enabled(thd)))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "SEQUENCEs with streaming replication in Galera cluster");
+      DBUG_RETURN(HA_ERR_UNSUPPORTED);
+    }
+
+    /*
+       We need to start Galera transaction for select NEXT VALUE FOR
+       sequence if it is not yet started. Note that ALTER is handled
+       as TOI.
+    */
+    if (!thd->wsrep_trx().active())
+    {
+      wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+    }
+  }
 #endif
 
   if (likely(!(error= file->update_first_row(buf))))

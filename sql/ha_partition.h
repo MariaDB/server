@@ -591,10 +591,11 @@ private:
   */
   bool create_handler_file(const char *name);
   bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
-  bool read_par_file(const char *name);
+  int read_par_file(const char *name);
   handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                              bool is_clone);
+  bool re_create_par_file(const char *name);
   bool new_handlers_from_part_info(MEM_ROOT *mem_root);
   bool create_handlers(MEM_ROOT *mem_root);
   void clear_handler_file();
@@ -1405,9 +1406,8 @@ private:
   {
     ulonglong nr= (((Field_num*) field)->unsigned_flag ||
                    field->val_int() > 0) ? field->val_int() : 0;
+    update_next_auto_inc_val();
     lock_auto_increment();
-    DBUG_ASSERT(part_share->auto_inc_initialized ||
-                !can_use_for_auto_inc_init());
     /* must check when the mutex is taken */
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;
@@ -1646,8 +1646,11 @@ public:
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_field) const override;
+  void handler_stats_updated() override;
   void set_optimizer_costs(THD *thd) override;
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
+  virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  virtual ulonglong row_blocks() override;
 };
 
 #endif /* HA_PARTITION_INCLUDED */

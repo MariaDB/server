@@ -102,9 +102,12 @@ if [ -z "$BACKUP_BIN" ]; then
 fi
 
 DATA="$WSREP_SST_OPT_DATA"
+
 INFO_FILE='xtrabackup_galera_info'
+DONOR_INFO_FILE='donor_galera_info'
 IST_FILE='xtrabackup_ist'
 MAGIC_FILE="$DATA/$INFO_FILE"
+DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
@@ -439,7 +442,7 @@ get_transfer()
 get_footprint()
 {
     cd "$DATA_DIR"
-    local payload_data=$(find . \
+    local payload_data=$(find $findopt . \
         -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
         -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
         awk 'END { print $1 }')
@@ -650,14 +653,14 @@ get_stream()
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             strmcmd="'$STREAM_BIN' -x"
         else
-            strmcmd="'$STREAM_BIN' -c '$INFO_FILE'"
+            strmcmd="'$STREAM_BIN' -c '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     else
         sfmt='tar'
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             strmcmd='tar xfi -'
         else
-            strmcmd="tar cf - '$INFO_FILE'"
+            strmcmd="tar cf - '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     fi
     wsrep_log_info "Streaming with $sfmt"
@@ -679,6 +682,7 @@ cleanup_at_exit()
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Removing $MAGIC_FILE file due to signal"
         [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+        [ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE" || :
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
@@ -798,10 +802,20 @@ recv_joiner()
     local ltcmd="$tcmd"
     if [ $tmt -gt 0 ]; then
         if [ -n "$(commandex timeout)" ]; then
-            if timeout --help | grep -qw -F -- '-k'; then
+            local koption=0
+            if [ "$OS" = 'FreeBSD' ]; then
+                if timeout 2>&1 | grep -qw -F -- '-k'; then
+                    koption=1
+                fi
+            else
+                if timeout --help | grep -qw -F -- '-k'; then
+                    koption=1
+                fi
+            fi
+            if [ $koption -ne 0 ]; then
                 ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
             else
-                ltcmd="timeout -s9 $tmt $tcmd"
+                ltcmd="timeout -s 9 $tmt $tcmd"
             fi
         fi
     fi
@@ -905,6 +919,7 @@ monitor_process()
 }
 
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -rf "$DONOR_MAGIC_FILE"
 
 read_cnf
 setup_ports
@@ -1032,8 +1047,28 @@ setup_commands()
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
 
+send_magic()
+{
+    # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+    # (separated by a space).
+    echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
+    echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$DONOR_MAGIC_FILE"
+    if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+        # Let joiner know that we know its secret
+        echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+    fi
+
+    if [ $WSREP_SST_OPT_BYPASS -eq 0 -a $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+        # Tell joiner what to expect:
+        echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
+    fi
+}
+
 get_stream
 get_transfer
+
+findopt='-L'
+[ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
@@ -1086,20 +1121,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         wsrep_log_info "Streaming GTID file before SST"
-
-        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
-        # (separated by a space).
-        echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
-
-        if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
-            # Let joiner know that we know its secret
-            echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
-        fi
-
-        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
-            # Tell joiner what to expect:
-            echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
-        fi
+        send_magic
 
         ttcmd="$tcmd"
 
@@ -1189,9 +1211,8 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Bypassing the SST for IST"
         echo "continue" # now server can resume updating data
 
-        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
-        # (separated by a space).
-        echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
+        send_magic
+
         echo "1" > "$DATA/$IST_FILE"
 
         if [ -n "$scomp" ]; then
@@ -1297,7 +1318,7 @@ else # joiner
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
+    SST_PID="$DATA/wsrep_sst.pid"
 
     # give some time for previous SST to complete:
     check_round=0
@@ -1428,26 +1449,18 @@ else # joiner
 
         wsrep_log_info \
             "Cleaning the existing datadir and innodb-data/log directories"
-        if [ "$OS" = 'FreeBSD' ]; then
-            find -E ${ib_home_dir:+"$ib_home_dir"} \
-                    ${ib_undo_dir:+"$ib_undo_dir"} \
-                    ${ib_log_dir:+"$ib_log_dir"} \
-                    ${ar_log_dir:+"$ar_log_dir"} \
-                    "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                    -o -exec rm -rf {} >&2 \+
-        else
-            find ${ib_home_dir:+"$ib_home_dir"} \
-                 ${ib_undo_dir:+"$ib_undo_dir"} \
-                 ${ib_log_dir:+"$ib_log_dir"} \
-                 ${ar_log_dir:+"$ar_log_dir"} \
-                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                 -o -exec rm -rf {} >&2 \+
-        fi
+
+        find $findopt ${ib_home_dir:+"$ib_home_dir"} \
+                ${ib_undo_dir:+"$ib_undo_dir"} \
+                ${ib_log_dir:+"$ib_log_dir"} \
+                ${ar_log_dir:+"$ar_log_dir"} \
+                "$DATA" -mindepth 1 -prune -regex "$cpat" \
+                -o -exec rm -rf {} >&2 \+
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
-
         MAGIC_FILE="$DATA/$INFO_FILE"
+
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $jpid
 
@@ -1464,7 +1477,7 @@ else # joiner
             exit 2
         fi
 
-        qpfiles=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' -print -quit)
+        qpfiles=$(find $findopt "$DATA" -maxdepth 1 -type f -name '*.qp' -print -quit)
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
@@ -1480,7 +1493,7 @@ else # joiner
             if [ -n "$progress" -a "$progress" != 'none' ] && \
                pv --help | grep -qw -F -- '--line-mode'
             then
-                count=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
+                count=$(find $findopt "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
                 pvopts='-f -l -N Decompression'
                 pvformat="-F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
@@ -1492,13 +1505,13 @@ else # joiner
             # Decompress the qpress files
             wsrep_log_info "Decompression with $nproc threads"
             timeit 'Joiner-Decompression' \
-                   "find '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | \
+                   "find $findopt '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | \
                    $dcmd"
             extcode=$?
 
             if [ $extcode -eq 0 ]; then
                 wsrep_log_info "Removing qpress files after decompression"
-                find "$DATA" -type f -name '*.qp' -delete
+                find $findopt "$DATA" -type f -name '*.qp' -delete
                 if [ $? -ne 0 ]; then
                     wsrep_log_error \
                         "Something went wrong with deletion of qpress files." \
@@ -1585,9 +1598,16 @@ else # joiner
         exit 2
     fi
 
+    # use donor magic file, if present
+    # if IST was used, donor magic file was not created
     # Remove special tags from the magic file, and from the output:
-    coords=$(head -n1 "$MAGIC_FILE")
-    wsrep_log_info "Galera co-ords from recovery: $coords"
+    if [ -r "$DONOR_MAGIC_FILE" ]; then
+        coords=$(head -n1 "$DONOR_MAGIC_FILE")
+        wsrep_log_info "Galera co-ords from donor: $coords"
+    else
+        coords=$(head -n1 "$MAGIC_FILE")
+        wsrep_log_info "Galera co-ords from recovery: $coords"
+    fi
     echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"

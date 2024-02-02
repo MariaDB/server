@@ -187,7 +187,10 @@ insert t1 values (0,2000);
 select a from t1 where a=2000;  # constant.
 select a from t1 where a=1000+1000; # still a constant.
 # select a from t1 where a=(select 2000); # even this is a constant
+#Check after fix MDEV-31277
+--disable_ps2_protocol
 select a from t1 where a=(select 2000 from dual where 1); # constant, but "expensive"
+--enable_ps2_protocol
 select a from t1 where a=y2k(); # constant, but "expensive"
 select a from t1 where a=b; # not a constant
 drop table t1;
@@ -353,6 +356,20 @@ CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM 
 DESC t2;
 DROP TABLE t2,t1;
 
+--echo #
+--echo # MDEV-32244 Wrong bit encoding using COALESCE
+--echo #
+
+CREATE TABLE t1 (c1 YEAR);
+INSERT INTO t1 (c1) VALUES (0x01);
+CREATE TABLE t2 AS SELECT
+  c1,
+  COALESCE(c1, c1) AS c2,
+  COALESCE(c1, null) AS c3,
+  COALESCE(null, c1) AS c4 FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests
@@ -383,3 +400,22 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col YEAR, KEY(indexed_col));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (2023 + i);
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

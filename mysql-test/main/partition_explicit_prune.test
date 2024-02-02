@@ -10,6 +10,7 @@ WHERE VARIABLE_NAME LIKE 'HANDLER_%' AND VARIABLE_VALUE > 0;
 --echo # Bug#13559657: PARTITION SELECTION DOES NOT WORK WITH VIEWS
 --echo #
 --disable_view_protocol
+--disable_ps2_protocol
 CREATE TABLE t1 (a int)
 ENGINE = InnoDB
 PARTITION BY HASH (a) PARTITIONS 2;
@@ -85,7 +86,6 @@ SELECT * FROM v1;
 SELECT * FROM t1;
 DROP VIEW v1;
 DROP TABLE t1;
---enable_service_connection
 --echo # Original tests for WL#5217
 
 --echo # Must have InnoDB as engine to get the same statistics results.
@@ -101,7 +101,6 @@ eval $get_handler_status_counts;
 eval $get_handler_status_counts;
 --echo # OK, seems to add number of variables processed before HANDLER_WRITE
 --echo # and number of variables + 1 evaluated in the previous call in RND_NEXT
---disable_service_connection
 CREATE TABLE t1
 (a INT NOT NULL,
  b varchar (64),
@@ -624,6 +623,7 @@ eval $get_handler_status_counts;
 SELECT * FROM t3 PARTITION (pNeg);
 
 DROP TABLE t1, t2, t3;
+--enable_ps2_protocol
 --enable_view_protocol
 --echo # Test from superseeded WL# 2682
 # Partition select tests.

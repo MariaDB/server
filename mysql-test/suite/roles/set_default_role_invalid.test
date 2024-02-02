@@ -70,7 +70,6 @@ CREATE USER a;
 CREATE USER b;
 CREATE ROLE r1;
 CREATE ROLE r2;
-# Role has not been granted to user a, but the role is visible to current_user
 --error ER_INVALID_ROLE
 SET DEFAULT ROLE r1 FOR a;
 # Granting roles to user b

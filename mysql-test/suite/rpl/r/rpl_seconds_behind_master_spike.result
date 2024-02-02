@@ -6,7 +6,7 @@ CHANGE MASTER TO MASTER_USE_GTID=NO;
 include/start_slave.inc
 include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,pause_sql_thread_on_fde";
+SET @@global.debug_dbug="+d,pause_sql_thread_on_fde,negate_clock_diff_with_master";
 include/start_slave.inc
 # Future events must be logged at least 2 seconds after
 # the slave starts
@@ -37,8 +37,31 @@ SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
 SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
 # Wait for SQL thread to continue into normal execution
 SET DEBUG_SYNC='RESET';
+#
+# MDEV-29639
+# When receiving an event after the SQL Thread idles,
+# Seconds_Behind_Master should not update before it updates
+# last_master_timestamp
+connection slave;
+include/stop_slave.inc
+set @@global.debug_dbug="+d,pause_sql_thread_on_next_event";
+include/start_slave.inc
+connection master;
+insert into t1 values(2);
+include/save_master_gtid.inc
+connection slave;
+set debug_sync='now wait_for paused_on_event';
+connection master;
+# Sleeping 1s to create a visible SBM gap between events
+insert into t1 values(3);
+include/save_master_gtid.inc
+connection slave;
+set debug_sync='now wait_for paused_on_event';
+include/stop_slave.inc
+set debug_sync='RESET';
+SET @@global.debug_dbug=$save_dbug;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
 connection master;
 DROP TABLE t1;
-connection slave;
-SET @@global.debug_dbug=$save_dbug;
 include/rpl_end.inc

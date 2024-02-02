@@ -147,13 +147,16 @@ json_normalize_number(DYNAMIC_STRING *out, const char *str, size_t str_len)
 
   magnitude = (long)(j - 1);
 
-  /* skip the . */
-  if (str[i] == '.')
-    ++i;
+  if (i < str_len)
+  {
+    /* skip the . */
+    if (str[i] == '.')
+      ++i;
 
-  /* grab rest of digits before the E */
-  for (; i < str_len && str[i] != 'e' && str[i] != 'E'; ++i)
-    buf[j++] = str[i];
+    /* grab rest of digits before the E */
+    for (; i < str_len && str[i] != 'e' && str[i] != 'E'; ++i)
+      buf[j++] = str[i];
+  }
 
   /* trim trailing zeros */
   for (k = j - 1; k && buf[k] == '0'; --k, --j)
@@ -187,7 +190,7 @@ json_normalize_number(DYNAMIC_STRING *out, const char *str, size_t str_len)
 
   err|= dynstr_append_mem(out, STRING_WITH_LEN("E"));
 
-  if (str[i] == 'e' || str[i] == 'E')
+  if (i < str_len && (str[i] == 'e' || str[i] == 'E'))
   {
     char *endptr = NULL;
     /* skip the [eE] */

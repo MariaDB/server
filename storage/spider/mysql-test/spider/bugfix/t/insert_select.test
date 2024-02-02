@@ -79,7 +79,9 @@ INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FRO
 INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 5 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
 
 --connection child2_1
+--disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_ps2_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --echo

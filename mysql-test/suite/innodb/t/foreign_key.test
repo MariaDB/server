@@ -2,6 +2,8 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+SET GLOBAL innodb_stats_persistent = 0;
+
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
 --echo # DICT_CREATE_FOREIGN_CONSTR
@@ -126,6 +128,9 @@ FLUSH TABLES;
 --let $shutdown_timeout=
 disconnect incomplete;
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 INSERT INTO child SET a=0;
 --error ER_NO_REFERENCED_ROW_2
 INSERT INTO child SET a=1;
@@ -137,9 +142,6 @@ DELETE FROM parent;
 ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
-
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
@@ -237,9 +239,12 @@ DROP TABLE t3,t1;
 CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
+--error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
 ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 CHANGE COLUMN a b TIME;
+ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY t1_ibfk_1;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
@@ -434,7 +439,9 @@ end|
 delimiter ;|
 flush tables;
 flush status;
+--disable_ps2_protocol
 select foo();
+--enable_ps2_protocol
 show status like '%opened_tab%';
 drop function foo;
 drop table t2, t1;
@@ -726,13 +733,14 @@ SELECT a FROM t1 FORCE INDEX(a);
 # the "goto rollback_to_savept" in row_mysql_handle_errors() is reverted.
 SELECT * FROM t1;
 # Allow purge to continue by closing the read view.
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 
 # Wait for purge. With the fix reverted, the server would crash here.
 --source include/wait_all_purged.inc
 CHECK TABLE t1;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo #
 --echo # MDEV-17187 table doesn't exist in engine after ALTER other tables
@@ -929,7 +937,55 @@ INSERT INTO t1 VALUES (2,11,11);
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 
--- echo # End of 10.4 tests
+--echo #
+--echo # MDEV-32018 Allow the setting of Auto_increment on FK referenced columns
+--echo #
+
+CREATE TABLE t1 (
+  id int unsigned NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE t2 (
+  id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  t1_id int unsigned DEFAULT NULL,
+  CONSTRAINT FK_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id)
+);
+
+ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-31441 BLOB corruption on UPDATE of PRIMARY KEY with FOREIGN KEY
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY (pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+
+SET @blob = REPEAT('A', @@innodb_page_size / 2);
+INSERT INTO t1 SET pk=1, t=@blob;
+INSERT INTO t2 SET pk=1;
+--connection con1
+BEGIN;
+DELETE FROM t2;
+--connection default
+# The following will be blocked by a FOREIGN KEY check on pk=1 in t2.
+--send
+UPDATE t1 SET pk=12;
+--connection con1
+let $wait_condition=
+SELECT count(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE state='Updating';
+--source include/wait_condition.inc
+COMMIT;
+--disconnect con1
+--connection default
+--reap
+UPDATE t1 SET pk=1;
+SELECT pk,t=@blob FROM t1;
+DROP TABLE t2, t1;
+
+--echo # End of 10.4 tests
 
 --echo #
 --echo # MDEV-20729 Fix REFERENCES constraint in column definition
@@ -1066,12 +1122,51 @@ INSERT INTO t2 VALUES (1);
 --reap
 
 # Cleanup
---disconnect con1
 --connection default
 --disable_warnings
 DROP TABLE IF EXISTS t2, t1;
 --enable_warnings
 
+--echo #
+--echo # MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
+--echo #
+
+CREATE TABLE collections (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  collectionhash varchar(255) NOT NULL DEFAULT '0',
+  PRIMARY KEY (id),
+  UNIQUE KEY ix_collection_collectionhash (collectionhash)
+) ENGINE=InnoDB;
+CREATE TABLE binaries (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  collections_id int(11) unsigned NOT NULL DEFAULT 0,
+  binaryhash binary(16) NOT NULL DEFAULT '0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+  PRIMARY KEY (id),
+  UNIQUE KEY ix_binary_binaryhash (binaryhash),
+  CONSTRAINT FK_collections FOREIGN KEY (collections_id) REFERENCES collections (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO collections (id) VALUES (NULL);
+
+--connection con1
+INSERT INTO binaries (id,collections_id) VALUES (NULL,1);
+--send
+  REPLACE INTO collections (id) VALUES (NULL);
+
+--connection default
+--error 0,ER_LOCK_DEADLOCK,ER_NO_REFERENCED_ROW_2
+REPLACE INTO binaries (id) VALUES (NULL);
+
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE binaries, collections EXTENDED;
+
+--disconnect con1
+
+# Cleanup
+DROP TABLE binaries, collections;
+
 --echo # End of 10.6 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
 --source include/wait_until_count_sessions.inc

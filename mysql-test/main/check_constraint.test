@@ -172,7 +172,10 @@ insert t1 (b) values (1);
 insert t1 (b) values (10);
 select * from t1 where a is null;
 set sql_auto_is_null=1;
+#Enable after fix MDEV-31307
+--disable_ps2_protocol
 select * from t1 where a is null;
+--enable_ps2_protocol
 --error ER_CONSTRAINT_FAILED
 insert t1 (b) values (1);
 drop table t1;
@@ -226,6 +229,19 @@ drop table t1;
 create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
 alter table t1 force;
 show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-32586 incorrect error about cyclic reference about JSON type virtual column
+--echo #
+
+create table t1 (a int, b json as (a));
+drop table t1;
+
+create table t1 (a int, b int as (a) check (b > 0));
+insert t1 (a) values (1);
+--error ER_CONSTRAINT_FAILED
+insert t1 (a) values (-1);
 drop table t1;
 
 --echo #

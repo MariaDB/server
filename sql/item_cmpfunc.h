@@ -57,6 +57,7 @@ class Arg_comparator: public Sql_alloc
                                    //   when one of arguments is NULL.
 
   int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                   const Type_handler *compare_handler,
                    Item **a1, Item **a2);
 
   int compare_not_null_values(longlong val1, longlong val2)
@@ -95,11 +96,24 @@ public:
   bool set_cmp_func_decimal(THD *thd);
 
   inline int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
-			  Item **a1, Item **a2, bool set_null_arg)
+                          const Type_handler *compare_handler,
+                          Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
-    return set_cmp_func(thd, owner_arg, a1, a2);
+    return set_cmp_func(thd, owner_arg, compare_handler, a1, a2);
   }
+  int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                   Item **a1, Item **a2, bool set_null_arg)
+  {
+    Item *tmp_args[2]= { *a1, *a2 };
+    Type_handler_hybrid_field_type tmp;
+    if (tmp.aggregate_for_comparison(owner_arg->func_name_cstring(),
+                                     tmp_args, 2, false))
+      return 1;
+    return set_cmp_func(thd, owner_arg, tmp.type_handler(),
+                        a1, a2, set_null_arg);
+  }
+
   inline int compare() { return (this->*func)(); }
 
   int compare_string();		 // compare args[0] & args[1]
@@ -215,6 +229,7 @@ protected:
   virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                                KEY_PART *key_part,
                                Item_func::Functype type, Item *value);
+  void raise_note_if_key_become_unused(THD *thd, const Item_args &old_args);
 public:
   Item_bool_func(THD *thd): Item_int_func(thd) {}
   Item_bool_func(THD *thd, Item *a): Item_int_func(thd, a) {}
@@ -374,8 +389,7 @@ class Item_in_optimizer: public Item_bool_func
 protected:
   Item_cache *cache;
   Item *expr_cache;
-  bool save_cache;
-  /* 
+  /*
     Stores the value of "NULL IN (SELECT ...)" for uncorrelated subqueries:
       UNKNOWN - "NULL in (SELECT ...)" has not yet been evaluated
       FALSE   - result is FALSE
@@ -385,7 +399,7 @@ protected:
 public:
   Item_in_optimizer(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
-    save_cache(0), result_for_null_param(UNKNOWN)
+    result_for_null_param(UNKNOWN)
   {
     with_flags|= item_with_t::SUBQUERY;
   }
@@ -402,7 +416,6 @@ public:
     return name;
   }
   Item_cache **get_cache() { return &cache; }
-  void keep_top_level_cache();
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
   bool is_expensive_processor(void *arg) override;
@@ -415,6 +428,7 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
   bool invisible_mode();
+  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   void reset_cache() { cache= NULL; }
   void print(String *str, enum_query_type query_type) override;
   void restore_first_argument();
@@ -562,9 +576,17 @@ public:
     return this;
   }
   bool fix_length_and_dec(THD *thd) override;
+  bool fix_length_and_dec_generic(THD *thd,
+                                  const Type_handler *compare_handler)
+  {
+    DBUG_ASSERT(args == tmp_arg);
+    return cmp.set_cmp_func(thd, this, compare_handler,
+                            tmp_arg, tmp_arg + 1, true/*set_null*/);
+  }
   int set_cmp_func(THD *thd)
   {
-    return cmp.set_cmp_func(thd, this, tmp_arg, tmp_arg + 1, true);
+    DBUG_ASSERT(args == tmp_arg);
+    return cmp.set_cmp_func(thd, this, tmp_arg, tmp_arg + 1, true/*set_null*/);
   }
   CHARSET_INFO *compare_collation() const override
   { return cmp.compare_collation(); }
@@ -1456,7 +1478,14 @@ public:
      size(element_length), compare(cmp_func), collation(cmp_coll),
      count(elements), used_count(elements) {}
   virtual ~in_vector() = default;
-  virtual void set(uint pos,Item *item)=0;
+  /*
+    Store an Item value at the given position.
+    @returns false - the Item was not NULL, and the conversion from the
+                     Item data type to the cmp_item data type went without
+                     errors
+    @returns true  - the Item was NULL, or data type conversion returned NULL
+  */
+  virtual bool set(uint pos, Item *item)=0;
   virtual uchar *get_value(Item *item)=0;
   void sort()
   {
@@ -1511,7 +1540,7 @@ class in_string :public in_vector
 public:
   in_string(THD *thd, uint elements, qsort2_cmp cmp_func, CHARSET_INFO *cs);
   ~in_string();
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   Item* create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override
@@ -1539,7 +1568,7 @@ protected:
   } tmp;
 public:
   in_longlong(THD *thd, uint elements);
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   Item* create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override
@@ -1560,11 +1589,11 @@ class in_timestamp :public in_vector
   Timestamp_or_zero_datetime tmp;
 public:
   in_timestamp(THD *thd, uint elements);
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   Item* create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override;
-  const Type_handler *type_handler() const override
+  const Type_handler *type_handler() const  override
   { return &type_handler_timestamp2; }
 };
 
@@ -1596,7 +1625,7 @@ public:
   in_datetime(THD *thd, uint elements)
    :in_temporal(thd, elements)
   {}
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   const Type_handler *type_handler() const override
   { return &type_handler_datetime2; }
@@ -1609,7 +1638,7 @@ public:
   in_time(THD *thd, uint elements)
    :in_temporal(thd, elements)
   {}
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   const Type_handler *type_handler() const override
   { return &type_handler_time2; }
@@ -1621,7 +1650,7 @@ class in_double :public in_vector
   double tmp;
 public:
   in_double(THD *thd, uint elements);
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   Item *create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override
@@ -1638,7 +1667,7 @@ class in_decimal :public in_vector
   my_decimal val;
 public:
   in_decimal(THD *thd, uint elements);
-  void set(uint pos, Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   Item *create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override
@@ -1672,10 +1701,14 @@ public:
   // for optimized IN with row
   virtual int compare(cmp_item *item)= 0;
   virtual cmp_item *make_same(THD *thd)= 0;
-  virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
-  {
-    store_value(item);
-  }
+  /*
+    Store a scalar or a ROW value into "this".
+    @returns false - the value (or every component in case of ROW) was
+                     not NULL and the data type conversion went without errors.
+    @returns true  - the value (or some of its components) was NULL, or the
+                     data type conversion of a not-NULL value returned NULL.
+  */
+  virtual bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)=0;
 };
 
 /// cmp_item which stores a scalar (i.e. non-ROW).
@@ -1683,6 +1716,11 @@ class cmp_item_scalar : public cmp_item
 {
 protected:
   bool m_null_value;                            ///< If stored value is NULL
+  bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *item) override
+  {
+    store_value(item);
+    return m_null_value;
+  }
 };
 
 class cmp_item_string : public cmp_item_scalar
@@ -2424,9 +2462,10 @@ public:
   Item_func_decode_oracle(THD *thd, List<Item> &list)
    :Item_func_case_simple(thd, list)
   { }
+  const Schema *schema() const override { return &oracle_schema_ref; }
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("decode_oracle") };
+    static LEX_CSTRING name= {STRING_WITH_LEN("decode") };
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
@@ -2639,18 +2678,18 @@ class cmp_item_row :public cmp_item
 public:
   cmp_item_row(): comparators(0), n(0) {}
   ~cmp_item_row();
-  void store_value(Item *item);
+  void store_value(Item *item) override;
   bool prepare_comparators(THD *, const LEX_CSTRING &funcname,
                            const Item_args *args, uint level);
-  int cmp(Item *arg);
-  int cmp_not_null(const Value *val)
+  int cmp(Item *arg) override;
+  int cmp_not_null(const Value *val) override
   {
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *arg);
-  cmp_item *make_same(THD *thd);
-  void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
+  int compare(cmp_item *arg) override;
+  cmp_item *make_same(THD *thd) override;
+  bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *) override;
   friend class Item_func_in;
   cmp_item *get_comparator(uint i) { return comparators[i]; }
 };
@@ -2662,7 +2701,7 @@ class in_row :public in_vector
 public:
   in_row(THD *thd, uint elements, Item *);
   ~in_row();
-  void set(uint pos,Item *item) override;
+  bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
   friend class Item_func_in;
   const Type_handler *type_handler() const override { return &type_handler_row; }
@@ -2949,7 +2988,11 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     max_length= 1;
-    return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+    Item_args old_predicant(args[0]);
+    if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+      return true;
+    raise_note_if_key_become_unused(current_thd, old_predicant);
+    return false;
   }
   void cleanup() override;
 
@@ -3001,7 +3044,7 @@ public:
     m_pcre(NULL), m_pcre_match_data(NULL),
     m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
-    m_library_charset(&my_charset_utf8mb3_general_ci)
+    m_library_charset(&my_charset_utf8mb4_general_ci)
   {}
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags);

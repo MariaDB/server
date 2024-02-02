@@ -1,0 +1,87 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+create table t1 (a int) engine=innodb STATS_PERSISTENT=0;
+create table t2 (a int) engine=innodb STATS_PERSISTENT=0;
+
+BEGIN; # trx1
+# register rw-transaction in trx_sys.rw_trx_hash
+insert into t1 values(1);
+
+--connect (con_1, localhost, root,,)
+SET DEBUG_SYNC="before_trx_hash_find_element_mutex_enter SIGNAL before_mutex_enter WAIT_FOR cont1";
+SET DEBUG_SYNC="after_trx_hash_find_element_mutex_enter SIGNAL after_mutex_enter WAIT_FOR cont2";
+
+# trx2 is converting implicit lock of trx1 to explicit one, it's invoking
+# ▾ l_search
+#   ▾ lf_hash_search_using_hash_value
+#     ▾ lf_hash_search
+#       ▾ rw_trx_hash_t::find
+#         ▾ trx_sys_t::find
+#           ▾ lock_rec_convert_impl_to_expl
+# rw_trx_hash_t::find returns lf_hash element, pin 2 is pinned,
+# but element->mutex has not been acquired yet, what allows trx1 element to be
+# removed from trx_sys.rw_trx_hash at one hand, and at the other hand, the
+# content of the element is still valid as it's pinned.
+#
+# trx2
+--send SELECT * FROM t1 WHERE a = 1 FOR UPDATE
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR before_mutex_enter";
+--disable_query_log
+SET @saved_dbug = @@debug_dbug;
+
+# Usually pinbox purgatory is purged either when the number of elements in
+# purgatory is greater then some limit(see lf_pinbox_free()), or when thread
+# invokes  rw_trx_hash_t::put_pins() explicitly. For this test the first
+# variant was choosen. The following option makes lf_pinbox_free() to purge
+# pinbox purgatory on each call, ignoring pins->purgatory_count.
+SET DEBUG_DBUG='+d,unconditional_pinbox_free';
+--enable_query_log
+
+# trx1 is committed and removed from trx_sys.rw_trx_hash. It can be done as
+# trx2 has not been acquired element->mutex yet.
+COMMIT;
+--disable_query_log
+SET DEBUG_DBUG = @saved_dbug;
+--enable_query_log
+
+# Let trx2 to acquire element->mutex and unpin pin 2
+SET DEBUG_SYNC="now SIGNAL cont1";
+SET DEBUG_SYNC="now WAIT_FOR after_mutex_enter";
+
+--disable_query_log
+SET @saved_dbug = @@debug_dbug;
+SET DEBUG_DBUG='+d,unconditional_pinbox_free';
+--enable_query_log
+# trx3 commits and invokes lf_pinbox_free(), which purges pin 2 of trx2 and
+# places its pointer on trx_sys.rw_trx_hash.hash.alloc.top.
+insert into t2 values(1);
+--disable_query_log
+SET DEBUG_DBUG = @saved_dbug;
+--enable_query_log
+
+BEGIN; # trx4
+# trx_sys.rw_trx_hash.hash.alloc.top points to "freed" trx2 lf_hash element,
+# lf_alloc_new() gets the pointer from trx_sys.rw_trx_hash.hash.alloc.top,
+# so the memory for lf_hash element will be reused for trx4 if MDEV-31185 is
+# not fixed
+INSERT INTO t2 VALUES(2);
+
+# let trx2 to invoke DBUG_ASSERT(trx_id == trx->id) and crash if MDEV-31185
+# is not fixed
+SET DEBUG_SYNC="now SIGNAL cont2";
+
+--connection con_1
+# trx 2 assertion failure if MDEV-31185 is not fixed
+--reap
+--disconnect con_1
+--connection default
+DROP TABLE t1;
+DROP TABLE t2;
+
+SET DEBUG_SYNC="reset";
+
+--source include/wait_until_count_sessions.inc

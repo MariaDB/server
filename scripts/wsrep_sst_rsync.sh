@@ -149,10 +149,12 @@ check_pid_and_port()
     check_pid "$pid_file" && [ $CHECK_PID -eq $pid ]
 }
 
-STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
-STUNNEL_PID="$WSREP_SST_OPT_DATA/stunnel.pid"
+DATA="$WSREP_SST_OPT_DATA"
 
-MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
+STUNNEL_CONF="$DATA/stunnel.conf"
+STUNNEL_PID="$DATA/stunnel.pid"
+
+MAGIC_FILE="$DATA/rsync_sst_complete"
 
 get_binlog
 
@@ -163,7 +165,6 @@ fi
 
 OLD_PWD="$(pwd)"
 
-DATA="$WSREP_SST_OPT_DATA"
 if [ -n "$DATA" -a "$DATA" != '.' ]; then
     [ ! -d "$DATA" ] && mkdir -p "$DATA"
     cd "$DATA"
@@ -347,7 +348,7 @@ fi
 readonly SECRET_TAG='secret'
 readonly BYPASS_TAG='bypass'
 
-SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
+SST_PID="$DATA/wsrep_sst.pid"
 
 # give some time for previous SST to complete:
 check_round=0
@@ -379,8 +380,8 @@ done
 
 MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
 
-RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
-RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
+RSYNC_PID="$DATA/$MODULE.pid"
+RSYNC_CONF="$DATA/$MODULE.conf"
 
 # give some time for rsync from the previous SST to complete:
 check_round=0
@@ -422,8 +423,8 @@ EOF
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
 
-        FLUSHED="$WSREP_SST_OPT_DATA/tables_flushed"
-        ERROR="$WSREP_SST_OPT_DATA/sst_error"
+        FLUSHED="$DATA/tables_flushed"
+        ERROR="$DATA/sst_error"
 
         [ -f "$FLUSHED" ] && rm -f "$FLUSHED"
         [ -f "$ERROR" ]   && rm -f "$ERROR"
@@ -564,6 +565,7 @@ FILTER="-f '- /lost+found'
         -f '- /.Trashes'
         -f '- /.pid'
         -f '- /.conf'
+        -f '- /.snapshot/'
         -f '+ /wsrep_sst_binlog.tar'
         -f '- $ib_home_dir/ib_lru_dump'
         -f '- $ib_home_dir/ibdata*'
@@ -579,7 +581,7 @@ FILTER="-f '- /lost+found'
         eval rsync ${STUNNEL:+"--rsh='$STUNNEL'"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT $FILTER "'$WSREP_SST_OPT_DATA/'" \
+              $WHOLE_FILE_OPT $FILTER "'$DATA/'" \
               "'rsync://$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
@@ -672,8 +674,12 @@ FILTER="-f '- /lost+found'
 
         cd "$DATA"
 
-        find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
-             -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
+        findopt='-L'
+        [ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
+
+        find $findopt . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
+             -not -name '.zfs' -not -name .snapshot -print0 \
+             | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials --ignore-times \
              --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \
@@ -683,7 +689,7 @@ FILTER="-f '- /lost+found'
              -f '- $ib_log_dir/ib_logfile[0-9]*' \
              -f '- $ar_log_dir/aria_log_control' \
              -f '- $ar_log_dir/aria_log.*' \
-             "$WSREP_SST_OPT_DATA/{}/" \
+             "$DATA/{}/" \
              "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
@@ -765,7 +771,7 @@ read only = no
 timeout = 300
 $SILENT
 [$MODULE]
-    path = $WSREP_SST_OPT_DATA
+    path = $DATA
     exclude = .zfs
 [$MODULE-log_dir]
     path = $ib_log_dir

@@ -1,0 +1,40 @@
+#
+# Tests that should be in join_cache but cannot be run with ASAN
+
+--source include/have_64bit.inc
+# Disable asan it asan builds crashes when trying to allocate too much memory
+--source include/not_asan.inc
+--source include/not_msan.inc
+# Valgrind is useful here, but very slow as lots of memory is allocated
+--source include/no_valgrind_without_big.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-28217 Incorrect Join Execution When Controlling Join Buffer Size
+--echo #
+
+# This test tries to allocate a too big bufffer, for which ASAN gives an error
+
+CREATE TABLE t1 (i int PRIMARY KEY)engine=innodb;
+INSERT INTO t1 VALUES (1332945389);
+CREATE TABLE t2 (i int PRIMARY KEY)engine=innodb;
+INSERT INTO t2 VALUES (1180244875), (1951338178);
+--replace_regex /[0-9][0-9]+/X/
+SET SESSION join_buffer_size= 5250229460064350213;
+SET SESSION join_cache_level = 4;
+SET optimizer_switch='optimize_join_buffer_size=on';
+SELECT t2.i FROM t2  LEFT  JOIN t1 ON t1.i = t2.i  WHERE t1.i;
+SET optimizer_switch='optimize_join_buffer_size=off';
+--replace_regex /[0-9][0-9]+/X/
+--error ER_OUTOFMEMORY
+SELECT t1.i,t2.i FROM t2  LEFT  JOIN t1 ON t1.i = t2.i  WHERE t1.i;
+SET SESSION join_buffer_size= 10000000;
+SELECT t1.i,t2.i FROM t2  LEFT  JOIN t1 ON t1.i = t2.i  WHERE t1.i;
+SET SESSION optimizer_switch= default;
+SET SESSION join_buffer_size= default;
+SET SESSION join_cache_level= default;
+drop table t1,t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

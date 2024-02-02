@@ -315,6 +315,10 @@ SELECT * FROM mysql.column_stats;
 --sorted_result
 SELECT * FROM mysql.index_stats;
 
+# Add 'x' back that was deleted above
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(x) INDEXES();
+SELECT * FROM mysql.column_stats where column_name="x";
+
 ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
 SHOW CREATE TABLE t1;
 --sorted_result
@@ -329,6 +333,7 @@ SELECT * FROM mysql.column_stats;
 SELECT * FROM mysql.index_stats;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_ps2_protocol
 eval
 SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
@@ -338,6 +343,7 @@ eval
 SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
   FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
+--enable_ps2_protocol
 
 ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
 SHOW CREATE TABLE t1;
@@ -355,7 +361,7 @@ SELECT * FROM mysql.index_stats;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval
-LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats' IGNORE
   INTO TABLE mysql.column_stats
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -503,14 +509,17 @@ SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 
+SELECT * FROM mysql.column_stats where column_name="b";
 ALTER TABLE t2 CHANGE COLUMN b b varchar(30);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+SELECT * FROM mysql.column_stats where column_name="b";
 
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 
 ALTER TABLE t2 CHANGE COLUMN b b varchar(32);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+SELECT * FROM mysql.column_stats where column_name="b";
 
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;

@@ -127,8 +127,9 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 void btr_search_update_hash_on_delete(btr_cur_t *cursor);
 
 /** Validates the search system.
+@param thd   connection, for checking if CHECK TABLE has been killed
 @return true if ok */
-bool btr_search_validate();
+bool btr_search_validate(THD *thd);
 
 /** Lock all search latches in exclusive mode. */
 static inline void btr_search_x_lock_all();

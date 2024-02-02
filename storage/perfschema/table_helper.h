@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -659,7 +659,7 @@ public:
 private:
   void make_row(const CHARSET_INFO *cs, const char* str, size_t length);
 
-  char m_str[1024];
+  char m_str[2048];
   uint m_length;
   const CHARSET_INFO *m_charset;
 };

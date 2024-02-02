@@ -309,8 +309,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -325,8 +325,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -341,8 +341,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -357,8 +357,8 @@ pk	i
 0	10
 2	30
 3	40
-SELECT (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk) from t1;
-(NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk)
+SELECT (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk) as exp from t1;
+exp
 1
 NULL
 1
@@ -1367,8 +1367,8 @@ GROUP BY SQ1_t1.f4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using temporary
-3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using join buffer (flat, BNL join)
+3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
+3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
 WHERE f4 <= ALL
@@ -1756,7 +1756,7 @@ CREATE TABLE t3 ( f1 int NOT NULL , f2 int) ;
 INSERT INTO t3 VALUES (0,0), (0,0);
 EXPLAIN SELECT STRAIGHT_JOIN (
 SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-);
+) as exp;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
@@ -1764,10 +1764,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 SELECT STRAIGHT_JOIN (
 SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-);
-(
-SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
-)
+) as exp;
+exp
 NULL
 drop table t1, t2, t3;
 #                                                                                                                                                     
@@ -1891,6 +1889,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	SUBQUERY2_t1	index	NULL	col_int_key	5	NULL	2	Using index
 2	SUBQUERY	SUBQUERY2_t2	ALL	col_varchar_key	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
+Warnings:
+Note	1105	Cannot use key `col_varchar_key` part[0] for lookup: `test`.`t1`.`col_varchar_key` of type `varchar` < "0" of type `bigint`
 SELECT col_int_key
 FROM t2
 WHERE (SELECT SUBQUERY2_t1.col_int_key
@@ -1916,6 +1916,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	SUBQUERY2_t1	index	NULL	col_int_key	5	NULL	2	Using index
 2	SUBQUERY	SUBQUERY2_t2	ALL	col_varchar_key	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+Warnings:
+Note	1105	Cannot use key `col_varchar_key` part[0] for lookup: `test`.`t1`.`col_varchar_key` of type `varchar` < "0" of type `bigint`
 SELECT col_int_key
 FROM t2
 WHERE (SELECT SUBQUERY2_t1.col_int_key
@@ -2655,8 +2657,8 @@ SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='subquery_cache=off';
 CREATE TABLE t1 (a INT,b INT);
 INSERT INTO t1 VALUES (0,0),(0,0);
-SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
-(SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b))
+SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) as exp FROM t1 AS t1o;
+exp
 0
 SET @@optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1;
@@ -2766,7 +2768,7 @@ from t2 join t1 on
 ('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 10. The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
@@ -2817,17 +2819,8 @@ WHERE t1_outer.id <> id
 FROM
 t1 AS t1_outer
 GROUP BY f
-);
-1 IN (
-SELECT
-(SELECT COUNT(id)
-FROM t1
-WHERE t1_outer.id <> id
-) AS f
-FROM
-t1 AS t1_outer
-GROUP BY f
-)
+) as exp;
+exp
 1
 SELECT
 1 IN (
@@ -2839,17 +2832,8 @@ WHERE t1_outer.id <> id
 FROM
 t1 AS t1_outer
 GROUP BY 1
-);
-1 IN (
-SELECT
-(SELECT COUNT(id)
-FROM t1
-WHERE t1_outer.id <> id
-) AS f
-FROM
-t1 AS t1_outer
-GROUP BY 1
-)
+) as exp;
+exp
 1
 DROP TABLE t1;
 #
@@ -2944,6 +2928,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -2971,6 +2956,7 @@ ANALYZE
                       "cost": "REPLACED",
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
                       "filtered": 100,
                       "r_filtered": 50,
                       "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
@@ -2996,6 +2982,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -3235,4 +3222,134 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	100	
 drop table t0, t1, t2;
+#
+# MDEV-32320: Server crashes at TABLE::add_tmp_key
+#
+select
+( ( 'x' , 1.000000 ) , 1 )
+IN
+(SELECT
+'x' , 'x'
+ WHERE ( 'x' )
+UNION
+SELECT 1 , 'x'
+ HAVING 1 != 1
+) as T;
+ERROR 21000: Operand should contain 2 column(s)
+SELECT
+EXISTS (
+WITH x ( x ) AS ( SELECT 1 )
+SELECT NULL
+WHERE ( 1 , 1 ) =
+(SELECT
+1 , ( ( x , 1.000000 ) , 1 )
+IN
+(SELECT 'x' , 'x' WHERE ( ( 'x' ) )
+UNION
+SELECT 1 , x HAVING 1 != 1
+)
+FROM x
+)
+);
+ERROR 21000: Operand should contain 2 column(s)
+#
+# MDEV-29362: Constant subquery used as left part of IN subquery
+#
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (15), (1), (2);
+CREATE TABLE t2 (b int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (15), (1);
+CREATE TABLE t3 (c int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (15), (1);
+SET optimizer_switch='condition_pushdown_from_having=off';
+SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+a
+2
+SELECT a FROM t1 GROUP BY a
+HAVING a IN ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  );
+a
+1
+SET optimizer_switch='condition_pushdown_from_having=on';
+SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+a
+2
+SELECT a FROM t1 GROUP BY a
+HAVING a IN ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  );
+a
+1
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.012403489,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 3,
+          "cost": 0.010504815,
+          "filtered": 100,
+          "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "cost": 0.01034841,
+          "having_condition": "trigcond(t3.c is null)",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.01034841,
+                "filtered": 100,
+                "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.01034841,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.01034841,
+                "filtered": 100,
+                "attached_condition": "t2.b = 1"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+PREPARE stmt FROM "SELECT a FROM t1 GROUP BY a
+HAVING a = ( (SELECT b FROM t2 where b=1) IN (SELECT c FROM t3)  ) + 1";
+EXECUTE stmt;
+a
+2
+EXECUTE stmt;
+a
+2
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1,t2,t3;
 # End of 10.4 tests

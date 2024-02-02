@@ -838,7 +838,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
       DBUG_RETURN(LOG_READ_MEM);
     memcpy(newpkt, packet->ptr(), ev_offset);
 
-    uint dstlen;
+    uint dstlen= (uint) sz - ev_offset - 4;
     uchar *src= (uchar*)packet->ptr() + ev_offset;
     uchar *dst= (uchar*)newpkt + ev_offset;
     memcpy(src + EVENT_LEN_OFFSET, src, 4);
@@ -882,7 +882,8 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 
 Log_event* Log_event::read_log_event(IO_CACHE* file,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check)
+                                     my_bool crc_check,
+                                     my_bool print_errors)
 {
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,Format_description_log_event*...)");
   DBUG_ASSERT(fdle != 0);
@@ -921,8 +922,12 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
       goto err;
   }
 
+  /*
+    print_errors is false to prevent redundant error messages cluttering up the
+    log, as it will be printed below (if _our_ print_errors is true)
+  */
   if ((res= read_log_event((uchar*) event.ptr(), event.length(),
-                           &error, fdle, crc_check)))
+                           &error, fdle, crc_check, false)))
     res->register_temp_buf((uchar*) event.release(), true);
 
 err:
@@ -933,13 +938,7 @@ err:
     if (force_opt)
       DBUG_RETURN(new Unknown_log_event());
 #endif
-    if (event.length() >= LOG_EVENT_MINIMAL_HEADER_LEN)
-      sql_print_error("Error in Log_event::read_log_event(): '%s',"
-                      " data_len: %lu, event_type: %u", error,
-                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
-                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
-    else
-      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
+
     /*
       The SQL slave thread will check if file->error<0 to know
       if there was an I/O error. Even if there is no "low-level" I/O errors
@@ -949,6 +948,19 @@ err:
       only corrupt the slave's databases. So stop.
     */
     file->error= -1;
+
+#ifndef MYSQL_CLIENT
+    if (!print_errors)
+      DBUG_RETURN(res);
+#endif
+
+    if (event.length() >= LOG_EVENT_MINIMAL_HEADER_LEN)
+      sql_print_error("Error in Log_event::read_log_event(): '%s',"
+                      " data_len: %lu, event_type: %u", error,
+                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
+                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
+    else
+      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
   }
   DBUG_RETURN(res);
 }
@@ -962,7 +974,8 @@ err:
 Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check)
+                                     my_bool crc_check,
+                                     my_bool print_errors)
 {
   Log_event* ev;
   enum enum_binlog_checksum_alg alg;
@@ -1030,7 +1043,8 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       DBUG_RETURN(NULL);
 #else
     *error= ER_THD_OR_DEFAULT(current_thd, ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
-    sql_print_error("%s", *error);
+    if (print_errors)
+      sql_print_error("%s", *error);
     DBUG_RETURN(NULL);
 #endif
   }
@@ -2690,6 +2704,41 @@ XA_prepare_log_event(const uchar *buf,
   User_var_log_event methods
 **************************************************************************/
 
+bool Log_event_data_type::unpack_optional_attributes(const char *pos,
+                                                     const char *end)
+
+{
+  for ( ; pos < end; )
+  {
+    switch (*pos) {
+    case CHUNK_SIGNED:
+      m_is_unsigned= false;
+      pos++;
+      continue;
+    case CHUNK_UNSIGNED:
+      m_is_unsigned= true;
+      pos++;
+      continue;
+    case CHUNK_DATA_TYPE_NAME:
+      {
+        pos++;
+        if (pos >= end)
+          return true;
+        uint length= (uchar) *pos++;
+        if (pos + length > end)
+          return true;
+        m_data_type_name= {pos, length};
+        pos+= length;
+        continue;
+      }
+    default:
+      break; // Unknown chunk
+    }
+  }
+  return false;
+}
+
+
 User_var_log_event::
 User_var_log_event(const uchar *buf, uint event_len,
                    const Format_description_log_event* description_event)
@@ -2699,7 +2748,8 @@ User_var_log_event(const uchar *buf, uint event_len,
 #endif
 {
   bool error= false;
-  const uchar *buf_start= buf, *buf_end= buf + event_len;
+  const uchar *const buf_start= buf;
+  const char *buf_end= reinterpret_cast<const char*>(buf) + event_len;
 
   /* The Post-Header is empty. The Variable Data part begins immediately. */
   buf+= description_event->common_header_len +
@@ -2727,11 +2777,8 @@ User_var_log_event(const uchar *buf, uint event_len,
 
   buf+= UV_NAME_LEN_SIZE + name_len;
   is_null= (bool) *buf;
-  flags= User_var_log_event::UNDEF_F;    // defaults to UNDEF_F
   if (is_null)
   {
-    type= STRING_RESULT;
-    charset_number= my_charset_bin.number;
     val_len= 0;
     val= 0;  
   }
@@ -2746,8 +2793,8 @@ User_var_log_event(const uchar *buf, uint event_len,
       goto err;
     }
 
-    type= (Item_result) buf[UV_VAL_IS_NULL];
-    charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
+    m_type= (Item_result) buf[UV_VAL_IS_NULL];
+    m_charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
     val_len= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
                        UV_CHARSET_NUMBER_SIZE);
 
@@ -2760,19 +2807,13 @@ User_var_log_event(const uchar *buf, uint event_len,
       the flags value.
 
       Old events will not have this extra byte, thence,
-      we keep the flags set to UNDEF_F.
+      we keep m_is_unsigned==false.
     */
-    size_t bytes_read= (val + val_len) - (char*) buf_start;
-    if (bytes_read > event_len)
+    const char *pos= val + val_len;
+    if (pos > buf_end || unpack_optional_attributes(pos, buf_end))
     {
       error= true;
       goto err;
-    }
-    if ((data_written - bytes_read) > 0)
-    {
-      flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
-                    UV_CHARSET_NUMBER_SIZE + UV_VAL_LEN_SIZE +
-                    val_len);
     }
   }
 

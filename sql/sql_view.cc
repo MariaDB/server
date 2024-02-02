@@ -297,7 +297,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     for (tbl= sl->get_table_list(); tbl; tbl= tbl->next_local)
     {
       if (!tbl->with && tbl->select_lex)
-        tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
+      tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl,
+                                                                 NULL);
       /*
         Ensure that we have some privileges on this table, more strict check
         will be done on column level after preparation,
@@ -1003,9 +1004,10 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   is_query.length(0);
   backup_file_name[0]= 0;
   {
-    Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
+    Sql_mode_save_for_frm_handling sql_mode_save(thd);
 
-    lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
+    lex->unit.print(&view_query, enum_query_type(QT_FOR_FRM |
+                                                 QT_VIEW_INTERNAL |
                                                  QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                                  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
     lex->unit.print(&is_query, enum_query_type(QT_TO_SYSTEM_CHARSET |
@@ -1491,35 +1493,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     lex_start(thd);
     lex->stmt_lex= old_lex;
 
-    sql_mode_t saved_mode= thd->variables.sql_mode;
-    /* switch off modes which can prevent normal parsing of VIEW
-      - MODE_REAL_AS_FLOAT            affect only CREATE TABLE parsing
-      + MODE_PIPES_AS_CONCAT          affect expression parsing
-      + MODE_ANSI_QUOTES              affect expression parsing
-      + MODE_IGNORE_SPACE             affect expression parsing
-      - MODE_IGNORE_BAD_TABLE_OPTIONS affect only CREATE/ALTER TABLE parsing
-      * MODE_ONLY_FULL_GROUP_BY       affect execution
-      * MODE_NO_UNSIGNED_SUBTRACTION  affect execution
-      - MODE_NO_DIR_IN_CREATE         affect table creation only
-      - MODE_POSTGRESQL               compounded from other modes
-      - MODE_ORACLE                   affects Item creation (e.g for CONCAT)
-      - MODE_MSSQL                    compounded from other modes
-      - MODE_DB2                      compounded from other modes
-      - MODE_MAXDB                    affect only CREATE TABLE parsing
-      - MODE_NO_KEY_OPTIONS           affect only SHOW
-      - MODE_NO_TABLE_OPTIONS         affect only SHOW
-      - MODE_NO_FIELD_OPTIONS         affect only SHOW
-      - MODE_MYSQL323                 affect only SHOW
-      - MODE_MYSQL40                  affect only SHOW
-      - MODE_ANSI                     compounded from other modes
-                                      (+ transaction mode)
-      ? MODE_NO_AUTO_VALUE_ON_ZERO    affect UPDATEs
-      + MODE_NO_BACKSLASH_ESCAPES     affect expression parsing
-    */
-    thd->variables.sql_mode&= ~(MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
-                                MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES |
-                                MODE_ORACLE);
-
+    Sql_mode_save_for_frm_handling sql_mode_save(thd);
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
@@ -1531,8 +1505,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if ((old_lex->sql_command == SQLCOM_SHOW_FIELDS) ||
         (old_lex->sql_command == SQLCOM_SHOW_CREATE))
         lex->sql_command= old_lex->sql_command;
-
-    thd->variables.sql_mode= saved_mode;
 
     if (dbchanged && mysql_change_db(thd, &old_db, TRUE))
       goto err;
@@ -1755,7 +1727,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         objects of the view.
       */
       if (!(table->view_sctx= (Security_context *)
-            thd->stmt_arena->calloc(sizeof(Security_context))))
+            thd->active_stmt_arena_to_use()->calloc(sizeof(Security_context))))
         goto err;
       security_ctx= table->view_sctx;
     }
@@ -1808,7 +1780,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if (view_is_mergeable &&
         (table->select_lex->master_unit() != &old_lex->unit ||
          old_lex->can_use_merged()) &&
-        !old_lex->can_not_use_merged(0))
+        !old_lex->can_not_use_merged())
     {
       /* lex should contain at least one table */
       DBUG_ASSERT(view_main_select_tables != 0);
@@ -1841,8 +1813,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       if (!table->select_lex->master_unit()->is_unit_op() &&
           table->select_lex->order_list.elements == 0)
+      {
         table->select_lex->order_list.
           push_back(&lex->first_select_lex()->order_list);
+        lex->first_select_lex()->order_list.empty();
+      }
       else
       {
         if (old_lex->sql_command == SQLCOM_SELECT &&
@@ -2298,7 +2273,7 @@ int view_repair(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt)
   bool swap_alg= (check_opt->sql_flags & TT_FROM_MYSQL);
   bool wrong_checksum= view_checksum(thd, view) != HA_ADMIN_OK;
   int ret;
-  if (wrong_checksum || swap_alg || (!view->mariadb_version))
+  if (wrong_checksum || !view->mariadb_version)
   {
     ret= mariadb_fix_view(thd, view, wrong_checksum, swap_alg);
     DBUG_RETURN(ret);

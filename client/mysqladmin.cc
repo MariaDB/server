@@ -17,7 +17,7 @@
 
 /* maintenance of mysql databases */
 
-#define VER "9.1"
+#define VER "10.0"
 #include "client_priv.h"
 #include <signal.h>
 #include <my_pthread.h>				/* because of signal()	*/
@@ -40,12 +40,12 @@ char ex_var_names[MAX_MYSQL_VAR+100][FN_REFLEN];
 ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
-               opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
+               opt_compress= 0, opt_local= 0, opt_relative= 0,
                opt_vertical= 0, tty_password= 0, opt_nobeep,
-               opt_shutdown_wait_for_slaves= 0;
+               opt_shutdown_wait_for_slaves= 0, opt_not_used;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
-static uint opt_count_iterations= 0, my_end_arg;
+static uint opt_count_iterations= 0, my_end_arg, opt_verbose= 0;
 static ulong opt_connect_timeout, opt_shutdown_timeout;
 static char * unix_port=0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -53,8 +53,6 @@ static bool sql_log_bin_off= false;
 
 static uint opt_protocol=0;
 static myf error_flags; /* flags to pass to my_printf_error, like ME_BELL */
-
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
 
 /*
   When using extended-status relatively, ex_val_max_len is the estimated
@@ -206,8 +204,10 @@ static struct my_option my_long_options[] =
   {"user", 'u', "User for login if not current user.", &user,
    &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"verbose", 'v', "Write more information.", &opt_verbose,
-   &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"verbose", 'v', "Write more information."
+  "Using it will print more information for 'processlist."
+  "Using it 2 times will print even more information for 'processlist'.",
+   &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"vertical", 'E',
@@ -243,12 +243,9 @@ static const char *load_default_groups[]=
   0 };
 
 my_bool
-get_one_option(const struct my_option *opt, const char *argument, const char *filename)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename)
 {
-
-  /* Track when protocol is set via CLI to not force overrides */
-  static my_bool ignore_protocol_override = FALSE;
-
   switch(opt->id) {
   case 'c':
     opt_count_iterations= 1;
@@ -280,13 +277,6 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
   case 'W':
 #ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
-
-    /* Prioritize pipe if explicit via command line */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
 #endif
     break;
   case '#':
@@ -310,6 +300,11 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
   case 'I':					/* Info */
     usage();
     exit(0);
+  case 'v':                                     /* --verbose   */
+    opt_verbose++;
+    if (argument == disabled_my_option)
+      opt_verbose= 0;
+    break;
   case OPT_CHARSETS_DIR:
 #if MYSQL_VERSION_ID > 32300
     charsets_dir = argument;
@@ -322,45 +317,26 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /*
+        Socket given on command line, switch protocol to use SOCKETSt
+        Except on Windows if 'protocol= pipe' has been provided in
+        the config file or command line.
+      */
+      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      {
+        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+      }
     }
     break;
   }
@@ -388,13 +364,6 @@ int main(int argc,char *argv[])
   temp_argv= mask_password(argc, &argv);
   temp_argc= argc;
 
-  /* Command line options override configured protocol */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(host, &opt_protocol, protocol_to_force);
-  }
-
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -407,7 +376,7 @@ int main(int argc,char *argv[])
   }
   commands = temp_argv;
   if (tty_password)
-    opt_password = get_tty_password(NullS);
+    opt_password = my_get_tty_password(NullS);
 
   (void) signal(SIGINT,endprog);			/* Here if abort */
   (void) signal(SIGTERM,endprog);		/* Here if abort */
@@ -500,6 +469,7 @@ int main(int argc,char *argv[])
 	if (error > 0)
 	  break;
 
+        error= -error; /* don't exit with negative error codes */
         /*
           Command was well-formed, but failed on the server. Might succeed
           on retry (if conditions on server change etc.), but needs --force
@@ -865,10 +835,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     {
       MYSQL_RES *result;
       MYSQL_ROW row;
+      const char *query;
 
-      if (mysql_query(mysql, (opt_verbose ? "show full processlist" :
-			      "show processlist")) ||
-	  !(result = mysql_store_result(mysql)))
+      if (!opt_verbose)
+        query= "show processlist";
+      else if (opt_verbose == 1)
+        query= "show full processlist";
+      else
+        query= "select * from information_schema.processlist where id != connection_id()";
+
+      if (mysql_query(mysql, query) ||
+          !(result = mysql_store_result(mysql)))
       {
 	my_printf_error(0, "process list failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1138,8 +1115,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       else if (argc == 1)
       {
         /* prompt for password */
-        typed_password= get_tty_password("New password: ");
-        verified= get_tty_password("Confirm new password: ");
+        typed_password= my_get_tty_password("New password: ");
+        verified= my_get_tty_password("Confirm new password: ");
         if (strcmp(typed_password, verified) != 0)
         {
           my_printf_error(0,"Passwords don't match",MYF(ME_BELL));
@@ -1214,24 +1191,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       else
       if (mysql_query(mysql,buff))
       {
-	if (mysql_errno(mysql)!=1290)
-	{
-	  my_printf_error(0,"unable to change password; error: '%s'",
-			  error_flags, mysql_error(mysql));
-	}
-	else
-	{
-	  /*
-	    We don't try to execute 'update mysql.user set..'
-	    because we can't perfectly find out the host
-	   */
-	  my_printf_error(0,"\n"
-			  "You cannot use 'password' command as mariadbd runs\n"
-			  " with grant tables disabled (was started with"
-			  " --skip-grant-tables).\n"
-			  "Use: \"mysqladmin flush-privileges password '*'\""
-			  " instead", error_flags);
-	}
+        my_printf_error(0,"unable to change password; error: '%s'",
+                        error_flags, mysql_error(mysql));
         ret = -1;
       }
 password_done:

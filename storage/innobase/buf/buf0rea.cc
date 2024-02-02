@@ -42,6 +42,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "log.h"
+#include "mariadb_stats.h"
 
 TRANSACTIONAL_TARGET
 bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
@@ -221,7 +222,10 @@ buf_read_page_low(
 {
 	buf_page_t*	bpage;
 
-	ut_ad(!buf_dblwr.is_inside(page_id));
+	if (buf_dblwr.is_inside(page_id)) {
+		space->release();
+		return DB_PAGE_CORRUPTED;
+	}
 
 	bpage = buf_page_init_for_read(page_id, zip_size, chain, block);
 
@@ -231,9 +235,12 @@ buf_read_page_low(
 	}
 
 	ut_ad(bpage->in_file());
+	ulonglong mariadb_timer= 0;
 
 	if (sync) {
 		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+		if (mariadb_stats_active())
+		  mariadb_timer= mariadb_measure();
 	}
 
 	DBUG_LOG("ib_buf",
@@ -246,7 +253,8 @@ buf_read_page_low(
 	auto fio = space->io(IORequest(sync
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
-			     page_id.page_no() * len, len, dst, bpage);
+			     os_offset_t{page_id.page_no()} * len, len,
+			     dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
@@ -258,6 +266,8 @@ buf_read_page_low(
 		if (fio.err == DB_FAIL) {
 			fio.err = DB_PAGE_CORRUPTED;
 		}
+		if (mariadb_timer)
+		  mariadb_increment_pages_read_time(mariadb_timer);
 	}
 
 	return fio.err;
@@ -293,7 +303,8 @@ wants to access
 TRANSACTIONAL_TARGET
 ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size)
 {
-  if (!srv_random_read_ahead)
+  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
+    /* Disable the read-ahead for temporary tablespace */
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
@@ -499,8 +510,9 @@ latches!
 TRANSACTIONAL_TARGET
 ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
 {
-  /* check if readahead is disabled */
-  if (!srv_read_ahead_threshold)
+  /* check if readahead is disabled.
+  Disable the read ahead logic for temporary tablespace */
+  if (!srv_read_ahead_threshold || page_id.space() >= SRV_TMP_SPACE_ID)
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
@@ -517,7 +529,7 @@ ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
 
   /* We will check that almost all pages in the area have been accessed
   in the desired order. */
-  const bool descending= page_id == low;
+  const bool descending= page_id != low;
 
   if (!descending && page_id != high_1)
     /* This is not a border page of the area */
@@ -542,14 +554,19 @@ fail:
                                uint32_t{buf_pool.read_ahead_area});
   page_id_t new_low= low, new_high_1= high_1;
   unsigned prev_accessed= 0;
-  for (page_id_t i= low; i != high_1; ++i)
+  for (page_id_t i= low; i <= high_1; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    transactional_shared_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+    /* It does not make sense to use transactional_lock_guard here,
+    because we would have many complex conditions inside the memory
+    transaction. */
+    hash_lock.lock_shared();
+
     const buf_page_t* bpage= buf_pool.page_hash.get(i, chain);
     if (!bpage)
     {
+      hash_lock.unlock_shared();
       if (i == page_id)
         goto fail;
 failed:
@@ -557,6 +574,7 @@ failed:
         continue;
       goto fail;
     }
+    const unsigned accessed= bpage->is_accessed();
     if (i == page_id)
     {
       /* Read the natural predecessor and successor page addresses from
@@ -567,15 +585,31 @@ failed:
       const byte *f= bpage->frame ? bpage->frame : bpage->zip.data;
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
+      hash_lock.unlock_shared();
+      /* The underlying file page of this buffer pool page could actually
+      be marked as freed, or a read of the page into the buffer pool might
+      be in progress. We may read uninitialized data here.
+      Suppress warnings of comparing uninitialized values. */
+      MEM_MAKE_DEFINED(&prev, sizeof prev);
+      MEM_MAKE_DEFINED(&next, sizeof next);
       if (prev == FIL_NULL || next == FIL_NULL)
         goto fail;
       page_id_t id= page_id;
-      if (descending && next - 1 == page_id.page_no())
-        id.set_page_no(prev);
-      else if (!descending && prev + 1 == page_id.page_no())
-        id.set_page_no(next);
+      if (descending)
+      {
+        if (id == high_1)
+          ++id;
+        else if (next - 1 != page_id.page_no())
+          goto fail;
+        else
+          id.set_page_no(prev);
+      }
       else
-        goto fail; /* Successor or predecessor not in the right order */
+      {
+        if (prev + 1 != page_id.page_no())
+          goto fail;
+        id.set_page_no(next);
+      }
 
       new_low= id - (id.page_no() % buf_read_ahead_area);
       new_high_1= new_low + (buf_read_ahead_area - 1);
@@ -587,8 +621,9 @@ failed:
         /* The area is not whole */
         goto fail;
     }
+    else
+      hash_lock.unlock_shared();
 
-    const unsigned accessed= bpage->is_accessed();
     if (!accessed)
       goto failed;
     /* Note that buf_page_t::is_accessed() returns the time of the
@@ -619,7 +654,7 @@ failed:
   }
 
   count= 0;
-  for (; new_low != new_high_1; ++new_low)
+  for (; new_low <= new_high_1; ++new_low)
   {
     if (space->is_stopping())
       break;
@@ -654,69 +689,45 @@ failed:
   return count;
 }
 
-/** @return whether a page has been freed */
-inline bool fil_space_t::is_freed(uint32_t page)
+/** Schedule a page for recovery.
+@param space    tablespace
+@param page_id  page identifier
+@param recs     log records
+@param init_lsn page initialization, or 0 if the page needs to be read */
+void buf_read_recover(fil_space_t *space, const page_id_t page_id,
+                      page_recv_t &recs, lsn_t init_lsn)
 {
-  std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-  return freed_ranges.contains(page);
-}
+  ut_ad(space->id == page_id.space());
+  space->reacquire();
+  const ulint zip_size= space->zip_size() | 1;
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
+  buf_block_t *block= buf_LRU_get_free_block(have_no_mutex);
 
-/** Issues read requests for pages which recovery wants to read in.
-@param space_id	tablespace identifier
-@param page_nos	page numbers to read, in ascending order */
-void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos)
-{
-	fil_space_t* space = fil_space_t::get(space_id);
+  if (init_lsn)
+  {
+    if (buf_page_t *bpage=
+        buf_page_init_for_read(page_id, zip_size, chain, block))
+    {
+      ut_ad(bpage->in_file());
+      os_fake_read(IORequest{bpage, (buf_tmp_buffer_t*) &recs,
+                             UT_LIST_GET_FIRST(space->chain),
+                             IORequest::READ_ASYNC}, init_lsn);
+      return;
+    }
+  }
+  else if (dberr_t err=
+           buf_read_page_low(page_id, zip_size, chain, space, block))
+  {
+    if (err != DB_SUCCESS_LOCKED_REC)
+      sql_print_error("InnoDB: Recovery failed to read page "
+                      UINT32PF " from %s",
+                      page_id.page_no(), space->chain.start->name);
+  }
+  else
+  {
+    ut_ad(!block);
+    return;
+  }
 
-	if (!space) {
-		/* The tablespace is missing or unreadable: do nothing */
-		return;
-	}
-
-	const ulint zip_size = space->zip_size() | 1;
-	buf_block_t* block = buf_LRU_get_free_block(have_no_mutex);
-
-	for (ulint i = 0; i < page_nos.size(); i++) {
-
-		/* Ignore if the page already present in freed ranges. */
-		if (space->is_freed(page_nos[i])) {
-			continue;
-		}
-
-		const page_id_t	cur_page_id(space_id, page_nos[i]);
-
-		ulint limit = 0;
-		for (ulint j = 0; j < buf_pool.n_chunks; j++) {
-			limit += buf_pool.chunks[j].size / 2;
-		}
-
-		if (os_aio_pending_reads() >= limit) {
-			os_aio_wait_until_no_pending_reads(false);
-		}
-
-		buf_pool_t::hash_chain& chain =
-			buf_pool.page_hash.cell_get(cur_page_id.fold());
-		space->reacquire();
-		switch (buf_read_page_low(cur_page_id, zip_size, chain, space,
-					  block)) {
-		case DB_SUCCESS:
-			ut_ad(!block);
-			block = buf_LRU_get_free_block(have_no_mutex);
-			break;
-		case DB_SUCCESS_LOCKED_REC:
-			break;
-		default:
-			sql_print_error("InnoDB: Recovery failed to read page "
-					UINT32PF " from %s",
-					cur_page_id.page_no(),
-					space->chain.start->name);
-		}
-		ut_ad(block);
-	}
-
-	DBUG_PRINT("ib_buf", ("recovery read (%zu pages) for %s",
-			      page_nos.size(), space->chain.start->name));
-	space->release();
-
-	buf_read_release(block);
+  buf_LRU_block_free_non_file_page(block);
 }

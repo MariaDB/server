@@ -1935,6 +1935,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
         MYSQL_QUERY_DONE(thd->is_error());
       }
 
+      thd->lex->restore_set_statement_var();
+
 #if defined(ENABLED_PROFILING)
       thd->profiling.finish_current_query();
       thd->profiling.start_new_query("continuing");
@@ -2433,7 +2435,7 @@ resume:
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   thd->set_examined_row_count(0);                   // For processlist
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
 
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
@@ -2447,6 +2449,8 @@ resume:
   */
   thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  DBUG_EXECUTE_IF("print_allocated_thread_memory",
+                  SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id()););
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -2925,6 +2929,16 @@ retry:
         if (result)
           goto err;
       }
+
+#ifdef WITH_WSREP
+      if (WSREP(thd) && table->table->s->table_type == TABLE_TYPE_SEQUENCE)
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "LOCK TABLE on SEQUENCES in Galera cluster");
+        goto err;
+      }
+#endif
+
     }
     /*
        Check privileges of view tables here, after views were opened.
@@ -5161,9 +5175,55 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       my_ok(thd);
     break;
   case SQLCOM_BACKUP_LOCK:
-    if (check_global_access(thd, RELOAD_ACL))
-      goto error;
-    /* first table is set for lock. For unlock the list is empty */
+    if (check_global_access(thd, RELOAD_ACL, true))
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        In case there is no global privilege, check DB privilege for LOCK TABLES.
+      */
+      if (first_table) // BACKUP LOCK
+      {
+        if (check_single_table_access(thd, LOCK_TABLES_ACL, first_table, true))
+        {
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+      else // BACKUP UNLOCK
+      {
+        /*
+          We test mdl_backup_lock here because, if a user could obtain a lock
+          it would be silly to error and say `you can't BACKUP UNLOCK`
+          (because its obvious you did a `BACKUP LOCK`).
+          As `BACKUP UNLOCK` doesn't have a database reference,
+          there's no way we can check if the `BACKUP LOCK` privilege is missing.
+          Testing `thd->db` would involve faking a `TABLE_LIST` structure,
+          which because of the depth of inspection
+          in `check_single_table_access` makes the faking likely to cause crashes,
+          or unintended effects. The outcome of this is,
+          if a user does an `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
+          there may be a` ER_SPECIFIC_ACCESS_DENIED` error even though
+          user has the privilege.
+          Its a bit different to what happens if the user has RELOAD_ACL,
+          where the error is silently ignored.
+        */
+        if (!thd->mdl_backup_lock)
+        {
+
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+#endif
+    }
+    /*
+      There is reload privilege, first table is set for lock.
+      For unlock the list is empty
+    */
     if (first_table)
       res= backup_lock(thd, first_table);
     else
@@ -6116,7 +6176,7 @@ finish:
       thd->release_transactional_locks();
     }
   }
-  else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
+  else if (! thd->in_sub_stmt && ! thd->in_active_multi_stmt_transaction())
   {
     /*
       - If inside a multi-statement transaction,
@@ -6226,8 +6286,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         result->remove_offset_limit();
         if (lex->explain_json)
         {
-          lex->explain->print_explain_json(result, lex->analyze_stmt,
-                                           false /* is_show_cmd */);
+          lex->explain->print_explain_json(result, lex->analyze_stmt);
         }
         else
         {
@@ -6337,9 +6396,11 @@ execute_show_status(THD *thd, TABLE_LIST *all_tables)
   memcpy(&thd->status_var, &old_status_var,
          offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
+  thd->initial_status_var= NULL;
   return res;
 #ifdef WITH_WSREP
 wsrep_error_label: /* see WSREP_SYNC_WAIT() macro above */
+  thd->initial_status_var= NULL;
   return true;
 #endif /* WITH_WSREP */
 }
@@ -7034,6 +7095,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      FALSE, FALSE))
           return TRUE; /* Access denied */
 
+    thd->col_access= dst_table->grant.privilege; // for sql_show.cc
     /*
       Check_grant will grant access if there is any column privileges on
       all of the tables thanks to the fourth parameter (bool show_table).
@@ -7863,7 +7925,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
       {
 #ifdef ENABLED_DEBUG_SYNC
-	DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
+        DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
                     {
                       const char act[]=
                         "now "
@@ -7914,6 +7976,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     thd->wsrep_retry_query      = NULL;
     thd->wsrep_retry_query_len  = 0;
     thd->wsrep_retry_command    = COM_CONNECT;
+    thd->proc_info= 0;
   }
   return false;
 }
@@ -9224,23 +9287,20 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
         thd->security_ctx->user_matches(tmp->security_ctx))
 #endif /* WITH_WSREP */
     {
+      {
 #ifdef WITH_WSREP
-      DEBUG_SYNC(thd, "before_awake_no_mutex");
-      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
-      {
-        /* victim is in hit list already, bail out */
-	WSREP_DEBUG("victim %lld has wsrep aborter: %lu, skipping awake()",
-		    id, tmp->wsrep_aborter);
-        error= 0;
-      }
-      else
+        if (WSREP(tmp))
+        {
+          error = wsrep_kill_thd(thd, tmp, kill_signal);
+        }
+        else
+        {
 #endif /* WITH_WSREP */
-      {
-        WSREP_DEBUG("kill_one_thread victim: %lld wsrep_aborter %lu"
-                    " by signal %d",
-                    id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
         error= 0;
+#ifdef WITH_WSREP
+        }
+#endif /* WITH_WSREP */
       }
     }
     else
@@ -9363,18 +9423,6 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
   uint error;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    WSREP_DEBUG("sql_kill called");
-    if (thd->wsrep_applier)
-    {
-      WSREP_DEBUG("KILL in applying, bailing out here");
-      return;
-    }
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  }
-#endif /* WITH_WSREP */
   if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
@@ -9384,11 +9432,6 @@ void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
-#ifdef WITH_WSREP
-  return;
- wsrep_error_label:
-  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
-#endif /* WITH_WSREP */
 }
 
 
@@ -9397,18 +9440,6 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    WSREP_DEBUG("sql_kill_user called");
-    if (thd->wsrep_applier)
-    {
-      WSREP_DEBUG("KILL in applying, bailing out here");
-      return;
-    }
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  }
-#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:
@@ -9424,11 +9455,6 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
   default:
     my_error(error, MYF(0));
   }
-#ifdef WITH_WSREP
-  return;
- wsrep_error_label:
-  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
-#endif /* WITH_WSREP */
 }
 
 
@@ -10407,6 +10433,15 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
                            ? ORAparse(thd) : MYSQLparse(thd);
+
+  if (mysql_parse_status)
+    /*
+      Restore the original LEX if it was replaced when parsing
+      a stored procedure. We must ensure that a parsing error
+      does not leave any side effects in the THD.
+    */
+    LEX::cleanup_lex_after_parse_error(thd);
+
   DBUG_ASSERT(opt_bootstrap || mysql_parse_status ||
               thd->lex->select_stack_top == 0);
   thd->lex->current_select= thd->lex->first_select_lex();

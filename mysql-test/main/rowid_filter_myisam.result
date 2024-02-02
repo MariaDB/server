@@ -358,6 +358,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 49.20000076,
           "r_filtered": 100,
           "index_condition": "t1.nm like '500%'",
@@ -414,6 +415,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 49.20000076,
           "r_filtered": 100,
           "index_condition": "t1.nm like '500%'",
@@ -509,6 +511,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 1.149999976,
           "r_filtered": 100,
           "attached_condition": "t1.nm like '75%'"
@@ -612,6 +615,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 8.630000114,
           "r_filtered": 0,
           "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
@@ -668,6 +672,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 8.529999733,
           "r_filtered": 100,
           "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
@@ -681,3 +686,17 @@ drop table t0;
 set optimizer_switch='rowid_filter=default';
 drop table name, flag2;
 drop table t1;
+#
+# MDEV-30944 Range_rowid_filter::fill() leaves file->keyread at MAX_KEY
+#
+CREATE TABLE t1 ( a varchar(30) , i int , id int, UNIQUE KEY id (id), KEY (i ,id ,a), KEY (a(1),i)) engine=myisam;
+INSERT INTO t1 VALUES('fej',NULL,1),('jeyw',8,2),(NULL,181,3),('wrkovd',9,4),('',NULL,5),('ko',NULL,6),('vdgzyxkop',217,7),('',7,8),('zy',0,9),('yxkopv',8,10),('kopv',1,11),('opv',4,12),('vc',9,13),('ri',1,14),('tkcn',1,15),('cnm',6,16),('m',0,17),('d',9,18),('e',28,19),(NULL,0,20);
+explain SELECT i, MAX( id ) FROM t1 WHERE ( a IS NULL OR a IN ('o','h') ) AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) GROUP BY i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	id,a	i	43	NULL	20	Using where; Using index
+SELECT i, MAX( id ) FROM t1 WHERE ( a IS NULL OR a IN ('o','h') ) AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) GROUP BY i;
+i	MAX( id )
+drop table t1;
+#
+# End of 11.0 tests
+#

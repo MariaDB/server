@@ -416,7 +416,7 @@ static int read_strn(json_engine_t *j)
     return 1;
 
   j->state= j->stack[j->stack_p];
-  j->value_len= (int)(j->s.c_str - j->value) - 1;
+  j->value_len= (int)(j->s.c_str - j->value) - j->s.c_next_len;
   return 0;
 }
 
@@ -1093,7 +1093,7 @@ static int json_path_transitions[N_PATH_STATES][N_PATH_CLASSES]=
 /* AS */  { JE_EOS, JE_SYN, JE_SYN, JE_SYN, PS_T, PS_PT, JE_SYN, PS_NEG,
             PS_Z, PS_INT, PS_LAST, PS_AS, JE_SYN, JE_SYN, JE_SYN,
             JE_NOT_JSON_CHR, JE_BAD_CHR},
-/* KEY */ { JE_EOS, PS_KNM, PS_KWD, JE_SYN, PS_KNM, PS_KNM, JE_SYN, JE_SYN,
+/* KEY */ { JE_EOS, PS_KNM, PS_KWD, JE_SYN, PS_KNM, PS_KNM, JE_SYN, PS_KNM,
             PS_KNM, PS_KNM, PS_KNM, PS_KNM, PS_KNM, JE_SYN, PS_KEYX, PS_KNM,
             JE_NOT_JSON_CHR, JE_BAD_CHR},
 /* KNM */ { PS_KOK, PS_KNM, PS_AST, PS_EAR, PS_KNM, PS_KNM, PS_EKY, PS_KNM,
@@ -1324,7 +1324,7 @@ int json_skip_key(json_engine_t *j)
 }
 
 
-#define SKIPPED_STEP_MARK ((int) ~0)
+#define SKIPPED_STEP_MARK INT_MAX32
 
 /*
   Current step of the patch matches the JSON construction.

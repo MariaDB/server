@@ -1,7 +1,7 @@
+--source include/not_windows.inc #unix shell escaping used for mysqlbinlog
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
---source include/not_windows.inc #unix shell escaping used for mysqlbinlog
 
 # MDEV-382: multiple SQL injections in replication code.
 

@@ -379,6 +379,7 @@ drop view v1;
 # CREATE TEMPORARY SEQUENCE
 #
 
+--disable_ps2_protocol
 CREATE TEMPORARY SEQUENCE t1;
 select next value for t1;
 drop temporary table t1;
@@ -411,6 +412,7 @@ select previous value for t1;
 drop temporary sequence t1;
 select previous value for t1;
 drop sequence t1;
+--enable_ps2_protocol
 
 #
 # Check that we can't create anything with the sequence engine
@@ -552,4 +554,14 @@ CREATE SEQUENCE seq1 START WITH 2;
 CREATE TRIGGER s1 BEFORE UPDATE ON seq1 FOR EACH ROW SET @a= 5;
 DROP SEQUENCE seq1;
 
+--echo #
+--echo # MDEV-29771: Server crashes in check_sequence_fields upon
+--echo # CREATE TABLE .. SEQUENCE=1 AS SELECT ..
+--echo #
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+create table s sequence=1 as select 1;
+
+--echo #
 --echo # End of 10.4 test
+--echo #

@@ -2578,7 +2578,6 @@ ER_TABLE_NOT_LOCKED
         swe "Tabell '%-.192s' är inte låst med LOCK TABLES"
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
 ER_UNUSED_17
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ის ვერასდროს უნდა დაგენახათ"
         spa "Nunca debería vd de ver esto"
@@ -4459,7 +4458,6 @@ ER_NEW_ABORTING_CONNECTION 08S01
         swe "Avbröt länken för tråd %lld till db '%-.192s', användare '%-.48s', host '%-.64s' (%-.64s)"
         ukr "Перервано з'єднання %lld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s' (%-.64s)"
 ER_UNUSED_10
-        chi "你应当永远看不到这个"
         eng "You should never see it"
         geo "ეს ვერასდროს უნდა დაინახოთ"
         spa "Nunca lo debería vd de ver"
@@ -7391,12 +7389,10 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         geo "დრო/თარიღის გამოსახულება მითითებული არაა"
         spa "No se ha suministrado expresión datetime"
 ER_UNUSED_2
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას წესით ვერ უნდა ხედავდეთ"
         spa "No lo debería vd de ver nunca"
 ER_UNUSED_3
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას წესით ვერასდროს უნდა ხედავდეთ"
         spa "No lo debería vd  de ver nunca"
@@ -7451,7 +7447,6 @@ ER_CANT_LOCK_LOG_TABLE
         geo "ჟურნალის ცხრილის დაბლოკვა შეუძლებელია"
         spa "No puede usar bloqueos con tablas de historial (log)"
 ER_UNUSED_4
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას ვერ უნდა ხედავდეთ"
         spa "Nunca debería vd de ver esto"
@@ -7474,7 +7469,6 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT
         geo "შენახულიფუნქციის და ტრიგერის შიგნიდან ბინარული ჟურნალის ფორმატის შეცვლა შეუძლებელია"
         spa "No puedo cambiar el formato de historial (log) binario dentro de funciones almacenadas o disparadores"
 ER_UNUSED_13
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "მას ვერ უნდა ხედავდეთ"
         spa "Nunca debería vd de ver esto"
@@ -7780,7 +7774,6 @@ ER_CANT_CREATE_SROUTINE
         geo "შენახული ქვეპროგრამის %`s შექმნის შეცდომა. შეამოწმეთ გაფრთხილებები"
         spa "No puedo crear rutina alnacenada %`s. Revise los avisos"
 ER_UNUSED_11
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას ვერ უნდა ხედავდეთ"
         spa "Nunca debería vd de ver esto"
@@ -7876,7 +7869,6 @@ ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
         geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%u წამი) აჭარბებს"
         spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%u segundos)"
 ER_UNUSED_14
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას ვერ უნდა ხედავდეთ"
         spa "Nunca debería vd de ver esto"
@@ -8429,13 +8421,11 @@ ER_BINLOG_UNSAFE_UPDATE_IGNORE
         spa "UPDATE IGNORE no es seguro porque el orden en el que las filas son actualizadas determina qué filas (si hay alguna) son ignoradas. Este orden no puede ser predicho y puede diferir entre maestro (master) y esclavo"
 
 ER_UNUSED_15
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას ვერასდროს უნდა ხედავდეთ"
         spa "Nunca debería vd de ver esto"
 
 ER_UNUSED_16
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ამას ვერასდროს უნდა ხედავდეთ"
         spa "Nunca debería vd de ver esto"
@@ -8576,7 +8566,6 @@ ER_ROW_DOES_NOT_MATCH_GIVEN_PARTITION_SET
         swe "Hittade en rad som inte passar i någon given partition"
 
 ER_UNUSED_5
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 
@@ -8878,7 +8867,6 @@ ER_SLAVE_SILENT_RETRY_TRANSACTION
         spa "El esclavo debe de reintentar silenciosamente la transacción en curso"
 
 ER_UNUSED_22
-        chi "你永远不应该看到它"
         eng "You should never see it"
         geo "ეს არასდროს უნდა დაინახოთ"
         spa "Nunca debería vd de ver esto"
@@ -9299,13 +9287,13 @@ ER_LAST_MYSQL_ERROR_MESSAGE
 start-error-number 1900
 
 ER_UNUSED_18
-        eng ""
+        eng "You should never see it"
 ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
         chi "函数或表达式'%s'不能用于%s的%`s"
         eng "Function or expression '%s' cannot be used in the %s clause of %`s"
         spa "La Función o expresión '%s' no se puede usar en la cláusula %s de %`s"
 ER_UNUSED_19
-        eng ""
+        eng "You should never see it"
 ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN
         chi "主键无法在生成的列上定义"
         eng "Primary key cannot be defined upon a generated column"
@@ -9327,9 +9315,9 @@ ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
         eng "This is not yet supported for generated columns"
         spa "Esto no está aún soportado para columnas generadas"
 ER_UNUSED_20
-        eng ""
+        eng "You should never see it"
 ER_UNUSED_21
-        eng ""
+        eng "You should never see it"
 ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
         chi "%s存储引擎不支持生成的列"
         eng "%s storage engine does not support generated columns"
@@ -9346,15 +9334,12 @@ ER_BAD_OPTION_VALUE
         hindi "गलत मान '%-.64T' विकल्प '%-.64s' के लिए"
         spa "Valor incorrecto '%-.64T' para opción '%-.64s'"
 ER_UNUSED_6
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 ER_UNUSED_7
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 ER_UNUSED_8
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 ER_DATA_OVERFLOW 22003
@@ -9409,7 +9394,6 @@ ER_CONNECTION_KILLED 70100
         hindi "कनेक्शन को समाप्त कर दिया गया है"
         spa "La conexión fue matada"
 ER_UNUSED_12
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
@@ -9420,10 +9404,8 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION
         chi "无法修改存储函数或触发器内的@@session.skip_replication"
         eng "Cannot modify @@session.skip_replication inside a stored function or trigger"
         spa "No puedo modificar @@session.skip_replication dentro de una función almacenada o disparador"
-ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
-        chi "查询执行被中断。查询检查至少%llu行，超过限制行（%llu）。查询结果可能是不完整的"
-        eng "Query execution was interrupted. The query examined at least %llu rows, which exceeds LIMIT ROWS EXAMINED (%llu). The query result may be incomplete"
-        spa "Se ha interrumpido la ejecución de la consulta (query). La consulta (query) examinó al menos %llu filas, lo cual excede LIMIT ROWS EXAMINED (%llu). El resultado de la consulta (query) puede estar incompleto"
+ER_QUERY_RESULT_INCOMPLETE
+        eng "Query execution was interrupted. The query exceeded %s %llu. The query result may be incomplete"
 ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
         chi "表'%-.192s.%-.192s'在引擎中不存在"
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
@@ -9609,7 +9591,6 @@ ER_SET_STATEMENT_NOT_SUPPORTED 42000
         eng "The system variable %.200s cannot be set in SET STATEMENT." 
         spa "La variable del sistema %.200s no se puede poner en SET STATEMENT." 
 ER_UNUSED_9
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 ER_USER_CREATE_EXISTS
@@ -9792,10 +9773,8 @@ ER_WARN_ONLY_MASTER_LOG_FILE_NO_POS
         eng "CHANGE MASTER TO with a MASTER_LOG_FILE clause but no MASTER_LOG_POS clause may not be safe. The old position value may not be valid for the new binary log file."
         spa "CHANGE MASTER TO mediante una cláusula MASTER_LOG_FILE pero sin existir cláusula MASTER_LOG_POS puede no ser seguro. El valor viejo de la posición puede no ser válido para el nuevo fichero/archivo binario de historial (log)."
 
-ER_QUERY_TIMEOUT 
-        chi "查询执行中断，超过了最大语句执行时间"
-        eng "Query execution was interrupted, maximum statement execution time exceeded"
-        spa "Se ha interrumpido la ejecución de la consulta (query), se ha excedido el tiempo máximo de ejecución de sentencia"
+ER_UNUSED_1
+        eng "You should never see it"
 
 ER_NON_RO_SELECT_DISABLE_TIMER
         chi "SELECT不是只读语句，禁用计时器"
@@ -10469,7 +10448,6 @@ ER_VERS_ENGINE_UNSUPPORTED
         spa "No se soporta versionado de sistema de transacción precisa para %`s"
 
 ER_UNUSED_23
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 
@@ -10494,7 +10472,6 @@ ER_VERS_DROP_PARTITION_INTERVAL
         spa "Sólo se pueden eliminar viejas particiones al rotar mediante INTERVAL"
 
 ER_UNUSED_25
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 
@@ -10589,7 +10566,6 @@ ER_VERS_ALREADY_VERSIONED
         spa "La tabla %`s ya es versionada del sistema"
 
 ER_UNUSED_24
-        chi "你永远不应该看到它"
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
 

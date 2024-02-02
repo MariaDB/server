@@ -55,7 +55,39 @@ protected:
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
   void print_cast_temporal(String *str, enum_query_type query_type);
+
+  void print_schema_qualified_name(String *to,
+                                   const LEX_CSTRING &schema_name,
+                                   const LEX_CSTRING &function_name) const
+  {
+    // e.g. oracle_schema.func()
+    to->append(schema_name);
+    to->append('.');
+    to->append(function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to,
+                                     enum_query_type query_type,
+                                     const LEX_CSTRING &function_name) const
+  {
+    const Schema *func_schema= schema();
+    if (!func_schema || func_schema == Schema::find_implied(current_thd))
+      to->append(function_name);
+    else
+      print_schema_qualified_name(to, func_schema->name(), function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to, enum_query_type query_type)
+                                                                       const
+  {
+    return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
+  }
+
 public:
+
+  // Print an error message for a builtin-schema qualified function call
+  static void wrong_param_count_error(const LEX_CSTRING &schema_name,
+                                      const LEX_CSTRING &func_name);
 
   table_map not_null_tables_cache;
 
@@ -79,6 +111,38 @@ public:
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
                 };
+
+  /*
+    A function bitmap. Useful when some operation needs to be applied only
+    to certain functions. For now we only need to distinguish some
+    comparison predicates.
+  */
+  enum Bitmap : ulonglong
+  {
+    BITMAP_NONE= 0,
+    BITMAP_EQ=         1ULL << EQ_FUNC,
+    BITMAP_EQUAL=      1ULL << EQUAL_FUNC,
+    BITMAP_NE=         1ULL << NE_FUNC,
+    BITMAP_LT=         1ULL << LT_FUNC,
+    BITMAP_LE=         1ULL << LE_FUNC,
+    BITMAP_GE=         1ULL << GE_FUNC,
+    BITMAP_GT=         1ULL << GT_FUNC,
+    BITMAP_LIKE=       1ULL << LIKE_FUNC,
+    BITMAP_BETWEEN=    1ULL << BETWEEN,
+    BITMAP_IN=         1ULL << IN_FUNC,
+    BITMAP_MULT_EQUAL= 1ULL << MULT_EQUAL_FUNC,
+    BITMAP_OTHER=      1ULL << 63,
+    BITMAP_ALL=        0xFFFFFFFFFFFFFFFFULL,
+    BITMAP_ANY_EQUALITY= BITMAP_EQ | BITMAP_EQUAL | BITMAP_MULT_EQUAL,
+    BITMAP_EXCEPT_ANY_EQUALITY= BITMAP_ALL & ~BITMAP_ANY_EQUALITY,
+  };
+
+  ulonglong bitmap_bit() const
+  {
+    Functype type= functype();
+    return 1ULL << (type > 63 ? 63 : type);
+  }
+
   static scalar_comparison_op functype_to_scalar_comparison_op(Functype type)
   {
     switch (type) {
@@ -170,9 +234,15 @@ public:
                       List<Item> &fields, uint flags) override;
   void print(String *str, enum_query_type query_type) override;
   void print_op(String *str, enum_query_type query_type);
-  void print_args(String *str, uint from, enum_query_type query_type);
+  void print_args(String *str, uint from, enum_query_type query_type) const;
+  void print_args_parenthesized(String *str, enum_query_type query_type) const
+  {
+    str->append('(');
+    print_args(str, 0, query_type);
+    str->append(')');
+  }
   bool is_null() override
-  { 
+  {
     update_null_value();
     return null_value; 
   }
@@ -243,12 +313,23 @@ public:
   */
   inline longlong check_integer_overflow(longlong value, bool val_unsigned)
   {
-    if ((unsigned_flag && !val_unsigned && value < 0) ||
-        (!unsigned_flag && val_unsigned &&
-         (ulonglong) value > (ulonglong) LONGLONG_MAX))
-      return raise_integer_overflow();
-    return value;
+    return check_integer_overflow(Longlong_hybrid(value, val_unsigned));
   }
+
+  // Check if the value is compatible with Item::unsigned_flag.
+  inline longlong check_integer_overflow(const Longlong_hybrid &sval)
+  {
+    Longlong_null res= sval.val_int(unsigned_flag);
+    return res.is_null() ? raise_integer_overflow() : res.value();
+  }
+
+  // Check if the value is compatible with Item::unsigned_flag.
+  longlong check_integer_overflow(const ULonglong_hybrid &uval)
+  {
+    Longlong_null res= uval.val_int(unsigned_flag);
+    return res.is_null() ? raise_integer_overflow() : res.value();
+  }
+
   /**
      Throw an error if the error code of a DECIMAL operation is E_DEC_OVERFLOW.
   */
@@ -373,19 +454,10 @@ public:
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      args[i]->no_rows_in_result();
+      args[i]->restore_to_before_no_rows_in_result();
     }
   }
   void convert_const_compared_to_int_field(THD *thd);
-  /**
-    Prepare arguments and setup a comparator.
-    Used in Item_func_xxx with two arguments and a comparator,
-    e.g. Item_bool_func2 and Item_func_nullif.
-    args[0] or args[1] can be modified:
-    - converted to character set and collation of the operation
-    - or replaced to an Item_int_with_ref
-  */
-  bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
   Item_func *get_item_func() override { return this; }
   bool is_simplified_cond_processor(void *arg) override
   { return const_item() && !val_int(); }
@@ -2005,11 +2077,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
-  bool native_op(THD *thd, Native *to) override
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+  bool native_op(THD *thd, Native *to) override;
 };
 
 
@@ -2074,11 +2142,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
-  bool native_op(THD *thd, Native *to) override
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+  bool native_op(THD *thd, Native *to) override;
   String *str_op(String *str) override
   {
     DBUG_ASSERT(0);
@@ -3383,8 +3447,8 @@ public:
   String *str_result(String *str) override;
   my_decimal *val_decimal_result(my_decimal *) override;
   bool is_null_result() override;
-  bool update_hash(void *ptr, size_t length, enum Item_result type,
-                   CHARSET_INFO *cs, bool unsigned_arg);
+  bool update_hash(void *ptr, size_t length, const Type_handler *th,
+                   CHARSET_INFO *cs);
   bool send(Protocol *protocol, st_value *buffer) override;
   void make_send_field(THD *thd, Send_field *tmp_field) override;
   bool check(bool use_result_field);
@@ -4231,7 +4295,6 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
 extern bool volatile  mqh_used;
 
 bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-                 Item_result type, CHARSET_INFO *cs,
-                 bool unsigned_arg);
+                 const Type_handler *th, CHARSET_INFO *cs);
 
 #endif /* ITEM_FUNC_INCLUDED */

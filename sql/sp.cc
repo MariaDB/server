@@ -122,12 +122,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("db") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("type") },
@@ -137,7 +137,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("specific_name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("language") },
@@ -178,7 +178,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("definer") },
     { STRING_WITH_LEN("varchar(") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("created") },
@@ -208,22 +208,22 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("character_set_client") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
     { STRING_WITH_LEN("char(") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
     { STRING_WITH_LEN("char(") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
@@ -2731,7 +2731,13 @@ sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
   for (uint i=0 ; i < src->records ; i++)
   {
     Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
-    (void)sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
+                  is_stmt_prepare_or_first_stmt_execute() ||
+                thd->active_stmt_arena_to_use()->
+                  is_conventional() ||
+                thd->active_stmt_arena_to_use()->state ==
+                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
+    (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
                               belong_to_view);
   }
@@ -2757,7 +2763,7 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   TABLE_LIST *belong_to_view)
 {
   for (Sroutine_hash_entry *rt= src->first; rt; rt= rt->next)
-    (void)sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+    (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
                               belong_to_view);
 }
@@ -3053,7 +3059,9 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   sp_cache **spc= get_cache(thd);
   sp_name sp_name_obj(&db, &name, true); // This can change "name"
   *free_sp_head= 0;
-  if ((sp= sp_cache_lookup(spc, &sp_name_obj)))
+  sp= sp_cache_lookup(spc, &sp_name_obj);
+
+  if (sp && !(sp->sp_cache_version() < sp_cache_version()))
   {
     return sp;
   }

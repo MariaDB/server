@@ -524,6 +524,8 @@ where a1 in (select substring(b1,1,512) from t2_512 where b1 > '0');
 # group_concat with a blob argument - depends on
 # the variable group_concat_max_len, and
 # convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#Check after fix MDEV-31276
+--disable_ps2_protocol
 explain extended select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
@@ -541,6 +543,7 @@ where a1 in (select group_concat(b1) from t2_512 group by b2);
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
+--enable_ps2_protocol
 
 drop table t1_512, t2_512, t3_512;
 
@@ -606,6 +609,8 @@ where a1 in (select substring(b1,1,1024) from t2_1024 where b1 > '0');
 # group_concat with a blob argument - depends on
 # the variable group_concat_max_len, and
 # convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#Check after fix MDEV-31276
+--disable_ps2_protocol
 explain extended select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
@@ -623,6 +628,7 @@ where a1 in (select group_concat(b1) from t2_1024 group by b2);
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
+--enable_ps2_protocol
 
 drop table t1_1024, t2_1024, t3_1024;
 
@@ -688,6 +694,8 @@ where a1 in (select substring(b1,1,1025) from t2_1025 where b1 > '0');
 # group_concat with a blob argument - depends on
 # the variable group_concat_max_len, and
 # convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#Check after fix MDEV-31276
+--disable_ps2_protocol
 explain extended select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
@@ -705,6 +713,7 @@ where a1 in (select group_concat(b1) from t2_1025 group by b2);
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
+--enable_ps2_protocol
 
 drop table t1_1025, t2_1025, t3_1025;
 
@@ -2418,3 +2427,48 @@ WHERE alias1.i1 IN (
 );
 DROP TABLE t1;
 
+--echo #
+--echo #     MDEV-31983 jointable materialization subquery optimization ignoring errors, then failing ASSERT.
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c DATETIME, d INT, KEY(c));
+INSERT INTO t3 VALUES ('2012-11-11',5),('2012-12-12',6);
+
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1, t2 SET t1.a = 26 WHERE t2.b IN (SELECT MIN(d) FROM t3 WHERE c >= '2012-01');
+
+# Cleanup
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # a followup fix:
+--echo # MDEV-32682: Assertion `range->rows >= s->found_records' failed in best_access_path
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b VARCHAR(10), pk INT, PRIMARY KEY (pk)) ENGINE=MyISAM;
+
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL; 
+SELECT STRAIGHT_JOIN t2.* FROM t1 JOIN t2 WHERE t2.b IS NULL AND t2.pk > 1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-32612 Assertion `tab->select->quick' failed in test_if_skip_sort_order
+--echo #
+
+CREATE TABLE t1 (l_orderkey int, l_linenumber int, l_quantity double, 
+  PRIMARY KEY (l_orderkey,l_linenumber), KEY (l_orderkey),
+  KEY (l_orderkey,l_quantity)) engine=MyISAM;
+INSERT INTO t1 VALUES (290,1,35),(290,2,2);
+SELECT * FROM t1 
+WHERE l_quantity = 31
+AND (l_quantity = 50 OR l_orderkey = 41)
+ORDER BY l_orderkey, l_linenumber;
+DROP TABLE t1;
+
+--echo # end of 10.6 tests

@@ -134,12 +134,9 @@ drop table t1;
 --echo #
 --echo # MDEV-4634 Crash in CONVERT_TZ
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
-SELECT CONVERT_TZ(GREATEST(TIME('00:00:00'),TIME('00:00:00')),'+00:00','+7:5');
+SELECT CONVERT_TZ(GREATEST(TIME('00:00:00'),TIME('00:00:00')),'+00:00','+7:5') as exp;
 SET timestamp=DEFAULT;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-4652 Wrong result for CONCAT(GREATEST(TIME('00:00:01'),TIME('00:00:00')))
@@ -854,10 +851,7 @@ DROP TABLE t1;
 --echo #
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:00');
 SELECT TIME'10:20:30' IN (102030,TIME'10:20:31');
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
---enable_view_protocol
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp;
 CREATE TABLE t1 (a TIME);
 INSERT INTO t1 VALUES ('10:20:30'),('10:20:31'),('10:20:32');
 SELECT a FROM t1 WHERE a IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') ORDER BY a;
@@ -1586,5 +1580,58 @@ SET TIMESTAMP=DEFAULT;
 
 
 --echo #
+--echo # MDEV-23838 Possibly wrong result or Assertion `0' failed in Item_func_round::native_op
+--echo #
+
+CREATE TABLE t1 (a TIME, b INT);
+INSERT INTO t1 VALUES ('07:26:24',NULL),('23:55:04',NULL);
+SELECT MAX(ROUND(a, 0)) FROM t1 GROUP BY 1 << b;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME(6), b INT);
+INSERT INTO t1 VALUES ('07:26:24.12',NULL),('23:55:04.34',NULL);
+SELECT MAX(ROUND(a, 2)) FROM t1 GROUP BY 1 << b;
+DROP TABLE t1;
+
+SET sql_mode='';
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES (0),(0);
+SELECT MAX(ROUND (a,a)) FROM t1 GROUP BY a;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+CREATE TABLE t1 (a TIME, b INT);
+INSERT INTO t1 VALUES ('07:26:24',1),('23:55:04',1);
+SELECT MIN(CEILING(a)), MAX(CEILING(a)) FROM t1 GROUP BY b;
+SELECT MIN(FLOOR(a)), MAX(FLOOR(a)) FROM t1 GROUP BY b;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME(6), b INT);
+INSERT INTO t1 VALUES ('00:00:00.5',1),('00:01:00.5',1);
+INSERT INTO t1 VALUES ('-00:00:00.5',2),('-00:01:00.5',2);
+SELECT MIN(CEILING(a)), MAX(CEILING(a)) FROM t1 GROUP BY b;
+SELECT MIN(FLOOR(a)), MAX(FLOOR(a)) FROM t1 GROUP BY b;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col TIME, KEY(indexed_col));
+DELIMITER $$;
+FOR i IN 1..15
+DO
+  INSERT INTO t1 VALUES (MAKETIME(0,0,i));
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

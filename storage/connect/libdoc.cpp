@@ -600,7 +600,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
     if (trace(1))
       htrc("Calling xmlPathInit\n");
 
-    xmlXPathInit();
+    xmlInitParser();
 
     if (trace(1))
       htrc("Calling xmlXPathNewContext Docp=%p\n", Docp);

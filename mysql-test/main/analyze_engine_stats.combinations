@@ -1,0 +1,5 @@
+[slow_query_log_on]
+slow_query_log=ON
+
+[slow_query_log_off]
+slow_query_log=OFF

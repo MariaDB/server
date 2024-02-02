@@ -45,7 +45,7 @@ public:
     , m_server_status(thd->server_status)
   {
     m_thd->variables.option_bits&= ~OPTION_BEGIN;
-    m_thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+    m_thd->server_status&= ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     m_thd->wsrep_cs().enter_toi_mode(ws_meta);
   }
   ~Wsrep_non_trans_mode()
@@ -510,6 +510,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
       m_thd->wait_for_prior_commit();
     }
 
+    WSREP_DEBUG("checkpointing dummy write set %lld", ws_meta.seqno().get());
     wsrep_set_SE_checkpoint(ws_meta.gtid(), wsrep_gtid_server.gtid());
 
     if (!WSREP_EMULATE_BINLOG(m_thd))
@@ -568,6 +569,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   THD* thd= m_thd;
 
   thd->variables.option_bits |= OPTION_BEGIN;
+  thd->variables.option_bits |= OPTION_GTID_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
@@ -599,6 +601,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }
   thd_proc_info(thd, "wsrep applied write set");
+
+  thd->variables.option_bits &= ~OPTION_GTID_BEGIN;
   DBUG_RETURN(ret);
 }
 

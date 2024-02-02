@@ -1060,10 +1060,8 @@ row_upd_replace_vcol(
 	bool	is_undo_log = true;
 
 	/* We will read those unchanged (but indexed) virtual columns in */
-	if (ptr != NULL) {
-		const byte*	end_ptr;
-
-		end_ptr = ptr + mach_read_from_2(ptr);
+	if (ptr) {
+		const byte* const end_ptr = ptr + mach_read_from_2(ptr);
 		ptr += 2;
 
 		while (ptr != end_ptr) {
@@ -1189,7 +1187,7 @@ row_upd_replace(
 		*ext = NULL;
 	}
 
-	row_upd_replace_vcol(row, table, update, true, NULL, NULL);
+	row_upd_replace_vcol(row, table, update, true, nullptr, nullptr);
 }
 
 /***********************************************************//**
@@ -2137,6 +2135,25 @@ row_upd_clust_rec_by_insert_inherit_func(
 	return(inherit);
 }
 
+/** Mark 'disowned' BLOBs as 'owned' and 'inherited' again,
+after resuming from a lock wait.
+@param entry  clustered index entry */
+static ATTRIBUTE_COLD void row_upd_reown_inherited_fields(dtuple_t *entry)
+{
+  for (ulint i= 0; i < entry->n_fields; i++)
+  {
+    const dfield_t *dfield= dtuple_get_nth_field(entry, i);
+    if (dfield_is_ext(dfield))
+    {
+      byte *blob_len= static_cast<byte*>(dfield->data) +
+        dfield->len - (BTR_EXTERN_FIELD_REF_SIZE - BTR_EXTERN_LEN);
+      ut_ad(*blob_len & BTR_EXTERN_OWNER_FLAG);
+      *blob_len= byte((*blob_len & ~BTR_EXTERN_OWNER_FLAG) |
+        BTR_EXTERN_INHERITED_FLAG);
+    }
+  }
+}
+
 /***********************************************************//**
 Marks the clustered index record deleted and inserts the updated version
 of the record to the index. This function should be used when the ordering
@@ -2215,12 +2232,16 @@ row_upd_clust_rec_by_insert(
 			/* If the clustered index record is already delete
 			marked, then we are here after a DB_LOCK_WAIT.
 			Skip delete marking clustered index and disowning
-			its blobs. */
+			its blobs. Mark the BLOBs in the index entry
+			(which we copied from the already "disowned" rec)
+			as "owned", like it was on the previous call of
+			row_upd_clust_rec_by_insert(). */
 			ut_ad(row_get_rec_trx_id(rec, index, offsets)
 			      == trx->id);
 			ut_ad(!trx_undo_roll_ptr_is_insert(
 			              row_get_rec_roll_ptr(rec, index,
 							   offsets)));
+			row_upd_reown_inherited_fields(entry);
 			goto check_fk;
 		}
 
@@ -2906,9 +2927,8 @@ error_handling:
 void thd_get_query_start_data(THD *thd, char *buf);
 
 /** Appends row_start or row_end field to update vector and sets a
-CURRENT_TIMESTAMP/trx->id value to it.
-Supposed to be called only by make_versioned_update() and
-make_versioned_delete().
+CURRENT_TIMESTAMP/trx->id value to it. Called by vers_make_update() and
+vers_make_delete().
 @param[in]	trx	transaction
 @param[in]	vers_sys_idx	table->row_start or table->row_end */
 void upd_node_t::vers_update_fields(const trx_t *trx, ulint idx)

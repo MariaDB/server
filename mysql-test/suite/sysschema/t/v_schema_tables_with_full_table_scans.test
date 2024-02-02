@@ -48,9 +48,11 @@ CALL sys.ps_truncate_all_tables(false);
 
 # Following returns 28 rows, but should full scan as j has no index
 # Using RAND() to force no query caching, so ignore results, they are not important
+--disable_ps2_protocol
 --disable_result_log
 SELECT i, j, RAND() FROM test.t WHERE j = 12;
 --enable_result_log
+--enable_ps2_protocol
 
 # Ensure the base performance schema data is aggregated first
 --let $wait_condition= SELECT COUNT_STAR = 768 FROM performance_schema.table_io_waits_summary_by_index_usage WHERE object_schema = 'test' AND object_name = 't' AND index_name IS NULL
@@ -62,9 +64,11 @@ SELECT object_schema, object_name, rows_full_scanned FROM sys.schema_tables_with
 SELECT object_schema, object_name, rows_full_scanned FROM sys.x$schema_tables_with_full_table_scans;
 
 # Scan again
+--disable_ps2_protocol
 --disable_result_log
 SELECT i, j, RAND() FROM test.t WHERE j = 12;
 --enable_result_log
+--enable_ps2_protocol
 
 # Again ensure the base performance schema data is aggregated first
 --let $wait_condition= SELECT COUNT_STAR = 1536 FROM performance_schema.table_io_waits_summary_by_index_usage WHERE object_schema = 'test' AND object_name = 't' AND index_name IS NULL

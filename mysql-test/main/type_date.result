@@ -70,15 +70,15 @@ CREATE TABLE t1(AFIELD INT);
 INSERT INTO t1 VALUES(1);
 CREATE TABLE t2(GMT  VARCHAR(32));
 INSERT INTO t2 VALUES('GMT-0800');
-SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as exp
 FROM t1, t2 GROUP BY t1.AFIELD;
-DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+exp
 Wed, 06 March 2002 10:11:12 GMT-0800
 INSERT INTO t1 VALUES(1);
-SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)),
-DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as e1,
+DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as e2
 FROM t1,t2 GROUP BY t1.AFIELD;
-DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))	DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+e1	e2
 Wed, 06 March 2002 10:11:12 GMT-0800	Wed, 06 March 2002 10:11:12 GMT-0800
 drop table t1,t2;
 CREATE TABLE t1 (f1 time default NULL, f2 time default NULL);
@@ -306,8 +306,8 @@ drop table t1;
 #
 # MDEV-4634 Crash in CONVERT_TZ
 #
-SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5');
-CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5')
+SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5') as exp;
+exp
 NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '2022-00-00'
@@ -1164,3 +1164,125 @@ set sql_mode=default;
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col DATE, KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (MAKEDATE(2023, i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+2023-01-01
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '10:20:30'
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '\x00'
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '0'
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01	20230101
+2023-01-02	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01	20230101
+2023-01-02	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01	2023-01-01
+2023-01-02	2023-01-02
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01	2023-01-01 00:00:00
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01	2023-01-01 00:00:00
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+Warning	1292	Incorrect datetime value: '1'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

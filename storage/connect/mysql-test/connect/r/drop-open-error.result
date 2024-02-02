@@ -3,7 +3,7 @@ create table tcon engine=connect table_type=mysql CONNECTION='mysql://root@local
 ERROR HY000: Too long value for 'SRCDEF'
 drop table mdev9949;
 Warnings:
-Warning	1017	Can't find file: './test/mdev9949.dos' (errno: 2 "No such file or directory")
+Warning	1017	Can't find file: 'MYSQLD_DATADIR/test/mdev9949.dos' (errno: 2 "No such file or directory")
 drop table t1;
 select @@secure_file_priv 'must be NULL';
 must be NULL

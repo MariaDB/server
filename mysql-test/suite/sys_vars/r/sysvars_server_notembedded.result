@@ -226,8 +226,8 @@ VARIABLE_NAME	ARIA_SORT_BUFFER_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.
-NUMERIC_MIN_VALUE	4096
-NUMERIC_MAX_VALUE	9223372036854775807
+NUMERIC_MIN_VALUE	16376
+NUMERIC_MAX_VALUE	1152921504606846975
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -1845,11 +1845,21 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_FILTER
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
+VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	LOG_SLOW_MAX_WARNINGS
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Max numbers of warnings printed to slow query log per statement
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_MIN_EXAMINED_ROW_LIMIT
@@ -1919,13 +1929,13 @@ VARIABLE_COMMENT	Verbosity level for the slow log
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	innodb,query_plan,explain
+ENUM_VALUE_LIST	innodb,query_plan,explain,engine,warnings,full
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_WARNINGS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Log some not critical warnings to the general log file.Value can be between 0 and 11. Higher values mean more verbosity
+VARIABLE_COMMENT	Log some non critical warnings to the error log.Value can be between 0 and 11. Higher values mean more verbosity
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -2347,7 +2357,7 @@ VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE
 NUMERIC_MIN_VALUE	4096
-NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_MAX_VALUE	1152921504606846975
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -2422,6 +2432,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	NOTE_VERBOSITY
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	Verbosity level for note-warnings given to the user. See also @@sql_notes.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	basic,unusable_keys,explain
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OLD
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
@@ -2449,7 +2469,7 @@ VARIABLE_COMMENT	Used to emulate old behavior from earlier MariaDB or MySQL vers
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM
+ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM,NO_NULL_COLLATION_IDS
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OLD_PASSWORDS
@@ -2552,12 +2572,22 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARGS
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	The maximum number of SEL_ARG objects created when optimizing a range. If more objects would be needed, the range will not be used by the optimizer.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARG_WEIGHT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The maximum weight of the SEL_ARG graph. Set to 0 for no limit
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -2659,7 +2689,7 @@ VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,cset_narrowing,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_TRACE
@@ -4175,7 +4205,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SQL_NOTES
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, the default, warning_count is incremented each time a Note warning is encountered. If set to 0, Note warnings are not recorded. mysqldump has outputs to set this variable to 0 so that no unnecessary increments occur when data is reloaded.
+VARIABLE_COMMENT	If set to 1, the default, warning_count is incremented each time a Note warning is encountered. If set to 0, Note warnings are not recorded. mysqldump has outputs to set this variable to 0 so that no unnecessary increments occur when data is reloaded. See also note_verbosity, which allows one to define with notes are sent.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

@@ -132,6 +132,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #include "wsrep_mysqld.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "sql_audit.h"    // mysql_audit_release
 #include "xa.h"           // xa_recover_get_fields
 #include "sql_audit.h"    // mysql_audit_release
 
@@ -177,6 +178,16 @@ public:
   Server_side_cursor *cursor;
   uchar *packet;
   uchar *packet_end;
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    The following data member is wholly for debugging purpose.
+    It can be used for possible crash analysis to determine how many times
+    the stored routine was executed before the mem_root marked ROOT_FLAG_READ_ONLY
+    was requested for a memory chunk. Additionally, a value of this data
+    member is output to the log with DBUG_PRINT.
+  */
+  ulong executed_counter;
+#endif
   uint param_count;
   uint last_errno;
   uint flags;
@@ -254,7 +265,6 @@ private:
 
 
 class Ed_connection;
-
 
 /******************************************************************************
   Implementation
@@ -4058,6 +4068,7 @@ static bool execute_server_code(THD *thd,
                                 const char *sql_text, size_t sql_len)
 {
   PSI_statement_locker *parent_locker;
+  Reprepare_observer *reprepare_observer;
   bool error;
   query_id_t save_query_id= thd->query_id;
   query_id_t next_id= next_query_id();
@@ -4082,27 +4093,32 @@ static bool execute_server_code(THD *thd,
 
   parent_locker= thd->m_statement_psi;
   thd->m_statement_psi= NULL;
+  reprepare_observer= thd->m_reprepare_observer;
+  thd->m_reprepare_observer= NULL;
   error= mysql_execute_command(thd);
   thd->m_statement_psi= parent_locker;
+  thd->m_reprepare_observer= reprepare_observer;
 
   /* report error issued during command execution */
   if (likely(error == 0) && thd->spcont == NULL)
-    general_log_write(thd, COM_QUERY,
-                      thd->query(), thd->query_length());
+    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
 
 end:
   thd->lex->restore_set_statement_var();
   thd->query_id= save_query_id;
   delete_explain_query(thd->lex);
+
   lex_end(thd->lex);
 
   return error;
 }
 
+
 bool Execute_sql_statement::execute_server_code(THD *thd)
 {
   return ::execute_server_code(thd, m_sql_text.str, m_sql_text.length);
 }
+
 
 /***************************************************************************
  Prepared_statement
@@ -4119,6 +4135,9 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   cursor(0),
   packet(0),
   packet_end(0),
+#ifdef PROTECT_STATEMENT_MEMROOT
+  executed_counter(0),
+#endif
   param_count(0),
   last_errno(0),
   flags((uint) IS_IN_USE),
@@ -4193,8 +4212,13 @@ void Prepared_statement::setup_set_params()
 Prepared_statement::~Prepared_statement()
 {
   DBUG_ENTER("Prepared_statement::~Prepared_statement");
+#ifdef PROTECT_STATEMENT_MEMROOT
+  DBUG_PRINT("enter",("stmt: %p  cursor: %p executed_counter: %lu",
+                      this, cursor, executed_counter));
+#else
   DBUG_PRINT("enter",("stmt: %p  cursor: %p",
                       this, cursor));
+#endif
 
   MYSQL_DESTROY_PS(m_prepared_stmt);
 
@@ -4387,6 +4411,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     DBUG_RETURN(true);
   }
   lex->set_trg_event_type_for_tables();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  executed_counter= 0;
+#endif
 
   /*
     While doing context analysis of the query (in check_prepared_statement)
@@ -4659,9 +4687,31 @@ reexecute:
     error= reprepare();
 
     if (likely(!error))                         /* Success */
+    {
+#ifdef PROTECT_STATEMENT_MEMROOT
+      // There was reprepare so the counter of runs should be reset
+      executed_counter= 0;
+      mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
+#endif
       goto reexecute;
+    }
   }
   reset_stmt_params(this);
+#ifdef PROTECT_STATEMENT_MEMROOT
+  if (!error)
+  {
+    mem_root->flags |= ROOT_FLAG_READ_ONLY;
+    ++executed_counter;
+
+    DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
+  }
+  else
+  {
+    // Error on call shouldn't be counted as a normal run
+    executed_counter= 0;
+    mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
+  }
+#endif
 
   return error;
 }
@@ -6037,7 +6087,8 @@ bool Protocol_local::send_result_set_metadata(List<Item> *list, uint flags)
 
   for (uint pos= 0 ; (item= it++); pos++)
   {
-    if (store_item_metadata(thd, item, pos))
+    Send_field sf(thd, item);
+    if (store_field_metadata(thd, sf, item->charset_for_protocol(), pos))
       goto err;
   }
 
@@ -6429,10 +6480,9 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
+    new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
     new_thd->set_binlog_bit();
-    new_thd->client_capabilities= client_flag;
-
     /*
       TOSO: decide if we should turn the auditing off
       for such threads.
@@ -6463,4 +6513,3 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
 }
-

@@ -625,9 +625,21 @@ public:
                       sizeof(trx_id_t)));
     if (element)
     {
+      /* rw_trx_hash_t::erase() sets element->trx to nullptr under
+      element->mutex protection before removing the element from hash table.
+      If the element was removed before the mutex acquisition, element->trx
+      will be equal to nullptr. */
+      DEBUG_SYNC_C("before_trx_hash_find_element_mutex_enter");
       element->mutex.wr_lock();
+      /* element_trx can't point to reused object now. If transaction was
+      deregistered before element->mutex acquisition, element->trx is nullptr.
+      It can't be deregistered while element->mutex is held. */
+      trx_t *element_trx = element->trx;
       lf_hash_search_unpin(pins);
-      if ((trx= element->trx)) {
+      /* The *element can be reused now, as element->trx value is stored
+      locally in element_trx. */
+      DEBUG_SYNC_C("after_trx_hash_find_element_mutex_enter");
+      if ((trx= element_trx)) {
         DBUG_ASSERT(trx_id == trx->id);
         ut_d(validate_element(trx));
         if (do_ref_count)
@@ -640,12 +652,19 @@ public:
             trx->mutex is released, and it will have to be rechecked
             by the caller after reacquiring the mutex.
           */
+          /* trx_t::commit_in_memory() sets the state to
+          TRX_STATE_COMMITTED_IN_MEMORY before deregistering the transaction.
+          It also waits for any implicit-to-explicit lock conversions to cease
+          after deregistering. */
           if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
             trx= nullptr;
           else
             trx->reference();
         }
       }
+      /* element's lifetime is equal to the hash lifetime, that's why
+      element->mutex is valid here despite the element is unpinned. In the
+      worst case some thread will wait for element->mutex releasing. */
       element->mutex.wr_unlock();
     }
     if (!caller_trx)
@@ -883,8 +902,8 @@ public:
   uint64_t recovered_binlog_offset;
   /** Latest recovered binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
-  /** FIL_PAGE_LSN of the page with the latest recovered binlog metadata */
-  lsn_t recovered_binlog_lsn;
+  /** Set when latest position is from pre-version 10.3.5 TRX_SYS. */
+  bool recovered_binlog_is_legacy_pos;
 
 
   /**
@@ -1055,7 +1074,7 @@ public:
   void close();
 
   /** @return total number of active (non-prepared) transactions */
-  ulint any_active_transactions();
+  size_t any_active_transactions(size_t *prepared= nullptr);
 
 
   /**
@@ -1171,6 +1190,11 @@ public:
 
     return count;
   }
+
+  /** Disable further allocation of transactions in a rollback segment
+  that are subject to innodb_undo_log_truncate=ON
+  @param space   undo tablespace that will be truncated */
+  inline void undo_truncate_start(fil_space_t &space);
 
   /** Set the undo log empty value */
   void set_undo_non_empty(bool val)

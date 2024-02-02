@@ -49,20 +49,6 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 }
 
 
-bool Native_func_registry_array::append_to_hash(HASH *hash) const
-{
-  DBUG_ENTER("Native_func_registry_array::append_to_hash");
-  for (size_t i= 0; i < count(); i++)
-  {
-    const Native_func_registry &func= element(i);
-    DBUG_ASSERT(func.builder != NULL);
-    if (my_hash_insert(hash, (uchar*) &func))
-      DBUG_RETURN(true);
-  }
-  DBUG_RETURN(false);
-}
-
-
 #ifdef HAVE_SPATIAL
 extern Native_func_registry_array native_func_registry_array_geom;
 #endif
@@ -417,13 +403,45 @@ class Create_func_decode_oracle : public Create_native_func
 {
 public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+                              List<Item> *item_list)
+  {
+    if (unlikely(!item_list || item_list->elements < 3))
+    {
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+      return NULL;
+    }
+    return new (thd->mem_root) Item_func_decode_oracle(thd, *item_list);
+  }
 
   static Create_func_decode_oracle s_singleton;
 
 protected:
   Create_func_decode_oracle() = default;
   virtual ~Create_func_decode_oracle() = default;
+};
+
+
+class Create_func_decode : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list)
+  {
+    if (unlikely(!item_list || item_list->elements != 2))
+    {
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+      return NULL;
+    }
+    Item_args args(thd, *item_list);
+    return new (thd->mem_root) Item_func_decode(thd, args.arguments()[0],
+                                                     args.arguments()[1]);
+  }
+
+  static Create_func_decode s_singleton;
+
+protected:
+  Create_func_decode() {}
+  virtual ~Create_func_decode() {}
 };
 
 
@@ -1546,9 +1564,7 @@ public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
-    return thd->variables.sql_mode & MODE_ORACLE ?
-           create_native_oracle(thd, name, item_list) :
-           create_native_std(thd, name, item_list);
+    return create_native_std(thd, name, item_list);
   }
   static Create_func_lpad s_singleton;
 
@@ -1967,9 +1983,7 @@ public:
   virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
-    return thd->variables.sql_mode & MODE_ORACLE ?
-           create_native_oracle(thd, name, item_list) :
-           create_native_std(thd, name, item_list);
+    return create_native_std(thd, name, item_list);
   }
   static Create_func_rpad s_singleton;
 
@@ -3095,9 +3109,7 @@ Create_func_concat::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return thd->variables.sql_mode & MODE_ORACLE ?
-    new (thd->mem_root) Item_func_concat_operator_oracle(thd, *item_list) :
-    new (thd->mem_root) Item_func_concat(thd, *item_list);
+  return new (thd->mem_root) Item_func_concat(thd, *item_list);
 }
 
 Create_func_concat_operator_oracle
@@ -3129,20 +3141,9 @@ Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
   return new (thd->mem_root) Item_func_decode_histogram(thd, arg1, arg2);
 }
 
-Create_func_decode_oracle Create_func_decode_oracle::s_singleton;
+Create_func_decode Create_func_decode::s_singleton;
 
-Item*
-Create_func_decode_oracle::create_native(THD *thd, const LEX_CSTRING *name,
-                                         List<Item> *item_list)
-{
-  uint arg_count= item_list ? item_list->elements : 0;
-  if (unlikely(arg_count < 3))
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    return NULL;
-  }
-  return new (thd->mem_root) Item_func_decode_oracle(thd, *item_list);
-}
+Create_func_decode_oracle Create_func_decode_oracle::s_singleton;
 
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
 
@@ -3701,13 +3702,6 @@ Create_func_get_lock Create_func_get_lock::s_singleton;
 Item*
 Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GET_LOCK in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_get_lock(thd, arg1, arg2);
@@ -4449,10 +4443,7 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-  if (thd->variables.sql_mode & MODE_ORACLE)
-    return new (thd->mem_root) Item_func_char_length(thd, arg1);
-  else
-    return new (thd->mem_root) Item_func_octet_length(thd, arg1);
+  return new (thd->mem_root) Item_func_octet_length(thd, arg1);
 }
 
 Create_func_octet_length Create_func_octet_length::s_singleton;
@@ -4670,7 +4661,7 @@ Create_func_ltrim Create_func_ltrim::s_singleton;
 Item*
 Create_func_ltrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return Lex_trim(TRIM_LEADING, arg1).make_item_func_trim(thd);
+  return Lex_trim(TRIM_LEADING, arg1).make_item_func_trim_std(thd);
 }
 
 
@@ -5042,13 +5033,6 @@ Create_func_release_all_locks Create_func_release_all_locks::s_singleton;
 Item*
 Create_func_release_all_locks::create_builder(THD *thd)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_ALL_LOCKS in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_all_locks(thd);
@@ -5060,13 +5044,6 @@ Create_func_release_lock Create_func_release_lock::s_singleton;
 Item*
 Create_func_release_lock::create_1_arg(THD *thd, Item *arg1)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_LOCK in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_lock(thd, arg1);
@@ -5199,7 +5176,7 @@ Create_func_rtrim Create_func_rtrim::s_singleton;
 Item*
 Create_func_rtrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return Lex_trim(TRIM_TRAILING, arg1).make_item_func_trim(thd);
+  return Lex_trim(TRIM_TRAILING, arg1).make_item_func_trim_std(thd);
 }
 
 
@@ -5729,7 +5706,7 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
   - keep 1 line per entry, it makes grep | sort easier
 */
 
-Native_func_registry func_array[] =
+const Native_func_registry func_array[] =
 {
   { { STRING_WITH_LEN("ABS") }, BUILDER(Create_func_abs)},
   { { STRING_WITH_LEN("ACOS") }, BUILDER(Create_func_acos)},
@@ -5770,6 +5747,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
   { { STRING_WITH_LEN("DAYOFWEEK") }, BUILDER(Create_func_dayofweek)},
   { { STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
+  { { STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},
@@ -5936,7 +5914,25 @@ Native_func_registry func_array[] =
 Native_func_registry_array
   native_func_registry_array(func_array, array_elements(func_array));
 
-static HASH native_functions_hash;
+const Native_func_registry func_array_oracle_overrides[] =
+{
+  { { STRING_WITH_LEN("CONCAT") },  BUILDER(Create_func_concat_operator_oracle)},
+  { { STRING_WITH_LEN("DECODE") },  BUILDER(Create_func_decode_oracle)},
+  { { STRING_WITH_LEN("LENGTH") },  BUILDER(Create_func_char_length)},
+  { { STRING_WITH_LEN("LPAD") },    BUILDER(Create_func_lpad_oracle)},
+  { { STRING_WITH_LEN("LTRIM") },   BUILDER(Create_func_ltrim_oracle)},
+  { { STRING_WITH_LEN("RPAD") },    BUILDER(Create_func_rpad_oracle)},
+  { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)},
+  { {0, 0}, NULL}
+};
+
+Native_func_registry_array
+  oracle_func_registry_array(func_array_oracle_overrides,
+                             array_elements(func_array_oracle_overrides));
+
+Native_functions_hash native_functions_hash;
+Native_functions_hash native_functions_hash_oracle;
+
 
 /*
   Load the hash table for native functions.
@@ -5944,74 +5940,57 @@ static HASH native_functions_hash;
   startup only (before going multi-threaded)
 */
 
-int item_create_init()
+bool Native_functions_hash::init(size_t count)
 {
-  DBUG_ENTER("item_create_init");
-  size_t count= native_func_registry_array.count();
-#ifdef HAVE_SPATIAL
-  count+= native_func_registry_array_geom.count();
-#endif
-  if (my_hash_init(key_memory_native_functions, & native_functions_hash,
+  DBUG_ENTER("Native_functions_hash::init");
+
+  if (my_hash_init(key_memory_native_functions, this,
                    system_charset_info, (ulong) count, 0, 0, (my_hash_get_key)
                    get_native_fct_hash_key, NULL, MYF(0)))
-    DBUG_RETURN(1);
+    DBUG_RETURN(true);
 
-  if (native_func_registry_array.append_to_hash(&native_functions_hash))
-    DBUG_RETURN(1);
+  DBUG_RETURN(false);
+}
 
-#ifdef HAVE_SPATIAL
-  if (native_func_registry_array_geom.append_to_hash(&native_functions_hash))
-    DBUG_RETURN(1);
-#endif
 
-#ifdef DBUG_TRACE
-  for (uint i=0 ; i < native_functions_hash.records ; i++)
+bool Native_functions_hash::append(const Native_func_registry array[],
+                                   size_t count)
+{
+  DBUG_ENTER("Native_functions_hash::append");
+
+  for (size_t i= 0; i < count; i++)
   {
-    Native_func_registry *func;
-    func= (Native_func_registry*) my_hash_element(& native_functions_hash, i);
+    if (my_hash_insert(this, (uchar*) &array[i]))
+      DBUG_RETURN(true);
+  }
+
+#if ! defined (DBUG_OFF) && defined (DBUG_TRACE)
+  for (uint i=0 ; i < records ; i++)
+  {
+    const Native_func_registry *func=
+      (Native_func_registry*) my_hash_element(this, i);
     DBUG_PRINT("info", ("native function: %s  length: %u",
                         func->name.str, (uint) func->name.length));
   }
 #endif
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(false);
 }
 
 
-/*
-  This function is used (dangerously) by plugin/versioning/versioning.cc
-  TODO: MDEV-20842 Wrap SQL functions defined in
-        plugin/versioning/versioning.cc into MariaDB_FUNCTION_PLUGIN
-*/
-int item_create_append(Native_func_registry array[])
+bool Native_functions_hash::remove(const Native_func_registry array[],
+                                   size_t count)
 {
-  Native_func_registry *func;
+  DBUG_ENTER("Native_functions_hash::remove");
 
-  DBUG_ENTER("item_create_append");
-
-  for (func= array; func->builder != NULL; func++)
+  for (size_t i= 0; i < count; i++)
   {
-    if (my_hash_insert(& native_functions_hash, (uchar*) func))
-      DBUG_RETURN(1);
+    if (my_hash_delete(this, (uchar*) &array[i]))
+      DBUG_RETURN(true);
   }
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(false);
 }
 
-int item_create_remove(Native_func_registry array[])
-{
-  Native_func_registry *func;
-
-  DBUG_ENTER("item_create_remove");
-
-  for (func= array; func->builder != NULL; func++)
-  {
-    if (my_hash_delete(& native_functions_hash, (uchar*) func))
-      DBUG_RETURN(1);
-  }
-
-  DBUG_RETURN(0);
-}
 
 /*
   Empty the hash table for native functions.
@@ -6019,10 +5998,10 @@ int item_create_remove(Native_func_registry array[])
   shutdown only (after thread requests have been executed).
 */
 
-void item_create_cleanup()
+void Native_functions_hash::cleanup()
 {
-  DBUG_ENTER("item_create_cleanup");
-  my_hash_free(& native_functions_hash);
+  DBUG_ENTER("Native_functions_hash::cleanup");
+  my_hash_free(this);
   DBUG_VOID_RETURN;
 }
 
@@ -6045,24 +6024,69 @@ function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
 
 
 Create_func *
-find_native_function_builder(THD *thd, const LEX_CSTRING *name)
+Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
 {
   Native_func_registry *func;
   Create_func *builder= NULL;
 
   /* Thread safe */
-  func= (Native_func_registry*) my_hash_search(&native_functions_hash,
-                                               (uchar*) name->str,
-                                               name->length);
+  func= (Native_func_registry*) my_hash_search(this,
+                                               (uchar*) name.str,
+                                               name.length);
 
   if (func && (builder= func->builder))
     return builder;
 
-  if ((builder= function_plugin_find_native_function_builder(thd, *name)))
+  if ((builder= function_plugin_find_native_function_builder(thd, name)))
     return builder;
 
   return NULL;
 }
+
+
+int item_create_init()
+{
+  size_t count= native_func_registry_array.count();
+#ifdef HAVE_SPATIAL
+  count+= native_func_registry_array_geom.count();
+#endif
+
+  if (native_functions_hash.init(count) ||
+      native_functions_hash.append(native_func_registry_array.elements(),
+                                   native_func_registry_array.count()))
+    return true;
+
+#ifdef HAVE_SPATIAL
+  if (native_functions_hash.append(native_func_registry_array_geom.elements(),
+                                   native_func_registry_array_geom.count()))
+    return true;
+#endif
+
+  count+= oracle_func_registry_array.count();
+
+  if (native_functions_hash_oracle.init(count) ||
+      native_functions_hash_oracle.append(native_func_registry_array.elements(),
+                                          native_func_registry_array.count()))
+    return true;
+
+#ifdef HAVE_SPATIAL
+  if (native_functions_hash_oracle.append(native_func_registry_array_geom.elements(),
+                                          native_func_registry_array_geom.count()))
+    return true;
+#endif
+
+  return 
+    native_functions_hash_oracle.replace(oracle_func_registry_array.elements(),
+                                         oracle_func_registry_array.count());
+}
+
+
+void item_create_cleanup()
+{
+  native_functions_hash.cleanup();
+  native_functions_hash_oracle.cleanup();
+}
+
 
 Create_qfunc *
 find_qualified_function_builder(THD *thd)

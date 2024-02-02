@@ -20,6 +20,9 @@
 # Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 use strict;
+use warnings;
+use utf8;
+use feature ':5.16';
 use warnings FATAL => 'all';
 
 our $VERSION = '1.11.4';
@@ -265,7 +268,7 @@ sub get_dbh {
             $dbh->do($sql);
             MKDEBUG && _d('Enabling charset for STDOUT');
             if ( $charset eq 'utf8' ) {
-               binmode(STDOUT, ':utf8')
+               binmode(STDOUT, ':encoding(UTF-8)')
                   or die "Can't binmode(STDOUT, ':utf8'): $OS_ERROR";
             }
             else {
@@ -612,6 +615,9 @@ sub ts_to_string {
 
 sub parse_innodb_timestamp {
    my $text = shift;
+   if ( ! defined $text ) {
+        return (0, 0, 0, 0, 0, 0);
+   }
    my ( $y, $m, $d, $h, $i, $s )
       = $text =~ m/^(\d\d)(\d\d)(\d\d) +(\d+):(\d+):(\d+)$/;
    die("Can't get timestamp from $text\n") unless $y;
@@ -803,7 +809,8 @@ sub parse_fk_transaction_error {
 # TODO: write some tests for this
 sub parse_innodb_record_dump {
    my ( $dump, $complete, $debug ) = @_;
-   return undef unless $dump;
+   # Use bare return as recommend in page 199 of PBP
+   return unless $dump;
 
    my $result = {};
 
@@ -6769,6 +6776,9 @@ sub set_precision {
    my ( $num, $precision ) = @_;
    $num = 0 unless defined $num;
    $precision = $config{num_digits}->{val} if !defined $precision;
+   if ( $num eq "" ) {
+       $num = int(0);
+   }
    sprintf("%.${precision}f", $num);
 }
 
@@ -6777,6 +6787,9 @@ sub set_precision {
 sub percent {
    my ( $num ) = @_;
    $num = 0 unless defined $num;
+   if ( $num eq "" ) {
+       $num = int(0);
+   }
    my $digits = $config{num_digits}->{val};
    return sprintf("%.${digits}f", $num * 100)
       . ($config{show_percent}->{val} ? '%' : '');
@@ -6841,7 +6854,7 @@ sub make_color_func {
       push @criteria,
          "( defined \$set->{$spec->{col}} && \$set->{$spec->{col}} $spec->{op} $val ) { return '$spec->{color}'; }";
    }
-   return undef unless @criteria;
+   return unless @criteria;
    my $sub = eval 'sub { my ( $set ) = @_; if ' . join(" elsif ", @criteria) . '}';
    die if $EVAL_ERROR;
    return $sub;
@@ -7521,10 +7534,10 @@ sub choose_connections {
 sub do_stmt {
    my ( $cxn, $stmt_name, @args ) = @_;
 
-   return undef if $file;
+   return if $file;
 
    # Test if the cxn should not even be tried
-   return undef if $dbhs{$cxn}
+   return if $dbhs{$cxn}
       && $dbhs{$cxn}->{failed}
       && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} );
 
@@ -7596,10 +7609,10 @@ sub handle_cxn_error {
 sub do_query {
    my ( $cxn, $query ) = @_;
 
-   return undef if $file;
+   return if $file;
 
    # Test if the cxn should not even be tried
-   return undef if $dbhs{$cxn}
+   return if $dbhs{$cxn}
       && $dbhs{$cxn}->{failed}
       && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} );
 
@@ -7781,7 +7794,7 @@ sub compile_select_stmt {
 sub compile_filter {
    my ( $text ) = @_;
    my ( $sub, $err );
-   eval "\$sub = sub { my \$set = shift; $text }";
+   eval { $sub = sub { my $set = shift; $text } };
    if ( $EVAL_ERROR ) {
       $EVAL_ERROR =~ s/at \(eval.*$//;
       $sub = sub { return $EVAL_ERROR };
@@ -8013,7 +8026,7 @@ sub load_config_plugins {
 
    # First, find a list of all plugins that exist on disk, and get information about them.
    my $dir = $config{plugin_dir}->{val};
-   foreach my $p_file ( <$dir/*.pm> ) {
+   foreach my $p_file (glob($dir."/*.pm")) {
       my ($package, $desc);
       eval {
          open my $p_in, "<", $p_file or die $OS_ERROR;
@@ -9192,7 +9205,7 @@ sub switch_var_set {
 # edit_stmt_sleep_times {{{3
 sub edit_stmt_sleep_times {
    $clear_screen_sub->();
-   my $stmt = prompt_list('Specify a statement', '', sub { return sort keys %stmt_maker_for });
+   my $stmt = prompt_list('Specify a statement', '', sub { my @tmparray = sort keys %stmt_maker_for; return @tmparray });
    return unless $stmt && exists $stmt_maker_for{$stmt};
    $clear_screen_sub->();
    my $curr_val = $stmt_sleep_time_for{$stmt} || 0;
@@ -9843,7 +9856,7 @@ sub get_slave_status {
 sub is_func {
    my ( $word ) = @_;
    return defined(&$word)
-      || eval "my \$x= sub { $word  }; 1"
+      || eval { my $x = sub { $word  }; 1 }
       || $EVAL_ERROR !~ m/^Bareword/;
 }
 

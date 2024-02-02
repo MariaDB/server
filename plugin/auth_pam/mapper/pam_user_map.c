@@ -216,7 +216,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     }
     from= s;
     skip(isalnum(*s) || (*s == '_') || (*s == '.') || (*s == '-') ||
-         (*s == '$') || (*s == '\\') || (*s == '/'));
+         (*s == '$') || (*s == '\\') || (*s == '/') || (*s == '@'));
     end_from= s;
     skip(isspace(*s));
     if (end_from == from || *s++ != ':') goto syntax_error;

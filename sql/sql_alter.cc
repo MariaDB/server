@@ -18,6 +18,7 @@
 #include "sql_parse.h"                       // check_access
 #include "sql_table.h"                       // mysql_alter_table,
                                              // mysql_exchange_partition
+#include "sql_statistics.h"                  // delete_statistics_for_column
 #include "sql_alter.h"
 #include "rpl_mi.h"
 #include "slave.h"
@@ -34,6 +35,7 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   check_constraint_list(rhs.check_constraint_list, mem_root),
   flags(rhs.flags), partition_flags(rhs.partition_flags),
   keys_onoff(rhs.keys_onoff),
+  original_table(0),
   partition_names(rhs.partition_names, mem_root),
   num_parts(rhs.num_parts),
   requested_algorithm(rhs.requested_algorithm),
@@ -256,6 +258,123 @@ Alter_info::algorithm(const THD *thd) const
 }
 
 
+uint Alter_info::check_vcol_field(Item_field *item) const
+{
+  /*
+    vcol->flags are modified in-place, so we'll need to reset them
+    if ALTER fails for any reason
+  */
+  if (item->field && !item->field->table->needs_reopen())
+    item->field->table->mark_table_for_reopen();
+
+  if (!item->field &&
+      ((item->db_name.length && !db.streq(item->db_name)) ||
+       (item->table_name.length && !table_name.streq(item->table_name))))
+  {
+    char *ptr= (char*)current_thd->alloc(item->db_name.length +
+                                         item->table_name.length +
+                                         item->field_name.length + 3);
+    strxmov(ptr, safe_str(item->db_name.str), item->db_name.length ? "." : "",
+            item->table_name.str, ".", item->field_name.str, NullS);
+    item->field_name.str= ptr;
+    return VCOL_IMPOSSIBLE;
+  }
+  for (Key &k: key_list)
+  {
+    if (k.type != Key::FOREIGN_KEY)
+      continue;
+    Foreign_key *fk= (Foreign_key*) &k;
+    if (fk->update_opt < FK_OPTION_CASCADE &&
+        fk->delete_opt < FK_OPTION_SET_NULL)
+      continue;
+    for (Key_part_spec& kp: fk->columns)
+    {
+      if (item->field_name.streq(kp.field_name))
+        return VCOL_NON_DETERMINISTIC;
+    }
+  }
+  for (Create_field &cf: create_list)
+  {
+    if (item->field_name.streq(cf.field_name))
+      return cf.vcol_info ? cf.vcol_info->flags : 0;
+  }
+  return 0;
+}
+
+
+bool Alter_info::collect_renamed_fields(THD *thd)
+{
+  List_iterator_fast<Create_field> new_field_it;
+  Create_field *new_field;
+  DBUG_ENTER("Alter_info::collect_renamed_fields");
+
+  new_field_it.init(create_list);
+  while ((new_field= new_field_it++))
+  {
+    Field *field= new_field->field;
+
+    if (new_field->field &&
+        cmp(&field->field_name, &new_field->field_name))
+    {
+      field->flags|= FIELD_IS_RENAMED;
+      if (add_stat_rename_field(field,
+                                &new_field->field_name,
+                                thd->mem_root))
+        DBUG_RETURN(true);
+
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Delete duplicate index found during mysql_prepare_create_table()
+
+  Notes:
+    - In case of temporary generated foreign keys, the key_name may not
+      be set!  These keys are ignored.
+*/
+
+bool Alter_info::add_stat_drop_index(THD *thd, const LEX_CSTRING *key_name)
+{
+  if (original_table && key_name->length)       // If from alter table
+  {
+    KEY *key_info= original_table->key_info;
+    for (uint i= 0; i < original_table->s->keys; i++, key_info++)
+    {
+      if (key_info->name.length &&
+          !lex_string_cmp(system_charset_info, &key_info->name,
+                          key_name))
+        return add_stat_drop_index(key_info, false, thd->mem_root);
+    }
+  }
+  return false;
+}
+
+
+void Alter_info::apply_statistics_deletes_renames(THD *thd, TABLE *table)
+{
+  List_iterator<Field>                     it_drop_field(drop_stat_fields);
+  List_iterator<RENAME_COLUMN_STAT_PARAMS> it_rename_field(rename_stat_fields);
+  List_iterator<DROP_INDEX_STAT_PARAMS>    it_drop_index(drop_stat_indexes);
+  List_iterator<RENAME_INDEX_STAT_PARAMS>  it_rename_index(rename_stat_indexes);
+
+  while (Field *field= it_drop_field++)
+    delete_statistics_for_column(thd, table, field);
+
+  if (!rename_stat_fields.is_empty())
+    (void) rename_columns_in_stat_table(thd, table, &rename_stat_fields);
+
+  while (DROP_INDEX_STAT_PARAMS *key= it_drop_index++)
+    (void) delete_statistics_for_index(thd, table, key->key,
+                                       key->ext_prefixes_only);
+
+  if (!rename_stat_indexes.is_empty())
+    (void) rename_indexes_in_stat_table(thd, table, &rename_stat_indexes);
+}
+
+
 Alter_table_ctx::Alter_table_ctx()
   : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str)
@@ -449,6 +568,14 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+  if ((alter_info.partition_flags & ALTER_PARTITION_CONVERT_IN))
+  {
+    TABLE_LIST *tl= first_table->next_local;
+    tl->grant.privilege= first_table->grant.privilege;
+    tl->grant.m_internal= first_table->grant.m_internal;
+  }
+
+
   /* If it is a merge table, check privileges for merge children. */
   if (create_info.merge_list)
   {
@@ -494,25 +621,12 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   if (check_grant(thd, priv_needed, first_table, FALSE, UINT_MAX, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
-    wsrep::key_array keys;
-    wsrep_append_fk_parent_table(thd, first_table, &keys);
-
-    WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
-                                   : first_table->db.str,
-                                   lex->name.str ? lex->name.str
-                                   : first_table->table_name.str,
-                                   first_table, &alter_info, &keys,
-                                   used_engine ? &create_info : nullptr)
-    {
-      WSREP_WARN("ALTER TABLE isolation failure");
-      DBUG_RETURN(TRUE);
-    }
-
     /*
       It makes sense to set auto_increment_* to defaults in TOI operations.
       Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
@@ -525,6 +639,22 @@ bool Sql_cmd_alter_table::execute(THD *thd)
       thd->variables.auto_increment_offset = 1;
       thd->variables.auto_increment_increment = 1;
     }
+
+    wsrep::key_array keys;
+    if (!wsrep_append_fk_parent_table(thd, first_table, &keys))
+    {
+      WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
+                                     : first_table->db.str,
+                                     lex->name.str ? lex->name.str
+                                     : first_table->table_name.str,
+                                     first_table, &alter_info, &keys,
+                                     used_engine ? &create_info : nullptr)
+      {
+        WSREP_WARN("ALTER TABLE isolation failure");
+        DBUG_RETURN(TRUE);
+      }
+    }
+    DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
   }
 #endif
 

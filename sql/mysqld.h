@@ -341,6 +341,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_rpl_group_info_sleep_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
+  key_TABLE_SHARE_LOCK_statistics,
   key_LOCK_start_thread,
   key_LOCK_error_messages,
   key_PARTITION_LOCK_auto_inc;
@@ -543,6 +544,7 @@ extern PSI_memory_key key_memory_get_all_tables;
 extern PSI_memory_key key_memory_fill_schema_schemata;
 extern PSI_memory_key key_memory_native_functions;
 extern PSI_memory_key key_memory_JSON;
+extern PSI_memory_key key_memory_WSREP;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.
@@ -852,8 +854,9 @@ enum options_mysqld
   OPT_WSREP_SYNC_WAIT,
 #endif /* WITH_WSREP */
   OPT_MYSQL_COMPATIBILITY,
-  OPT_TLS_VERSION,
+  OPT_TLS_VERSION, OPT_SECURE_AUTH,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
+  OPT_SEQURE_FILE_PRIV,
   OPT_which_is_always_the_last
 };
 #endif
@@ -893,6 +896,11 @@ enum enum_query_type
   /// good for parsing
   QT_PARSABLE= (1 << 8),
 
+  // If an expression is constant, print the expression, not the value
+  // it evaluates to. Should be used for error messages, so that they
+  // don't reveal values.
+  QT_NO_DATA_EXPANSION= (1 << 9),
+
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
                         QT_ITEM_IDENT_SKIP_DB_NAMES |
@@ -913,16 +921,12 @@ enum enum_query_type
   QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET|
                         QT_SHOW_SELECT_NUMBER,
 
-  // If an expression is constant, print the expression, not the value
-  // it evaluates to. Should be used for error messages, so that they
-  // don't reveal values.
-  QT_NO_DATA_EXPANSION= (1 << 9),
   // Remove wrappers added for TVC when creating or showing view
   QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12),
 
-  // The temporary tables used by the query might be freed by the time
-  // this print() call is made.
-  QT_DONT_ACCESS_TMP_TABLES= (1 << 13)
+  /// Print for FRM file. Focus on parse-back.
+  /// e.g. VIEW expressions and virtual column expressions
+  QT_FOR_FRM= (1 << 13)
 };
 
 

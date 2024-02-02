@@ -71,8 +71,7 @@ struct buf_pool_info_t
 	ulint	flush_list_len;		/*!< Length of buf_pool.flush_list */
 	ulint	n_pend_unzip;		/*!< buf_pool.n_pend_unzip, pages
 					pending decompress */
-	ulint	n_pend_reads;		/*!< buf_pool.n_pend_reads, pages
-					pending read */
+	ulint	n_pend_reads;		/*!< os_aio_pending_reads() */
 	ulint	n_pending_flush_lru;	/*!< Pages pending flush in LRU */
 	ulint	n_pending_flush_list;	/*!< Pages pending flush in FLUSH
 					LIST */
@@ -202,34 +201,12 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err = NULL)
-	MY_ATTRIBUTE((nonnull(6)));
-
-/** This is the low level function used to get access to a database page.
-@param[in]	page_id			page id
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
-@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-or BUF_PEEK_IF_IN_POOL
-@param[in,out]	mtr			mini-transaction, or NULL if a
-					block with page_id is to be evicted
-@param[out]	err			DB_SUCCESS or error code
-@return pointer to the block or NULL */
-buf_block_t*
-buf_page_get_low(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			rw_latch,
-	buf_block_t*		guess,
-	ulint			mode,
-	mtr_t*			mtr,
-	dberr_t*		err);
+	dberr_t*		err = nullptr);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED => LRU
-(the other is buf_page_get_low()).
+(the other is buf_page_get_gen()).
 @param[in,out]	space		space object
 @param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
@@ -251,8 +228,6 @@ buf_block_t*
 buf_page_create_deferred(uint32_t space_id, ulint zip_size, mtr_t *mtr,
                          buf_block_t *free_block);
 
-/** Move a block to the start of the LRU list. */
-void buf_page_make_young(buf_page_t *bpage);
 /** Mark the page status as FREED for the given tablespace and page number.
 @param[in,out]	space	tablespace
 @param[in]	page	page number
@@ -273,15 +248,6 @@ there is danger of dropping from the buffer pool.
 @param[in]	bpage		buffer pool page
 @return true if bpage should be made younger */
 inline bool buf_page_peek_if_too_old(const buf_page_t *bpage);
-
-/** Move a page to the start of the buffer pool LRU list if it is too old.
-@param[in,out]	bpage		buffer pool page */
-inline void buf_page_make_young_if_needed(buf_page_t *bpage)
-{
-	if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage))) {
-		buf_page_make_young(bpage);
-	}
-}
 
 /********************************************************************//**
 Increments the modify clock of a frame by 1. The caller must (1) own the
@@ -642,12 +608,9 @@ public:
     access_time= 0;
   }
 
-  void set_os_unused()
+  void set_os_unused() const
   {
     MEM_NOACCESS(frame, srv_page_size);
-#ifdef MADV_FREE
-    madvise(frame, srv_page_size, MADV_FREE);
-#endif
   }
 
   void set_os_used() const
@@ -746,8 +709,10 @@ public:
   dberr_t read_complete(const fil_node_t &node);
 
   /** Note that a block is no longer dirty, while not removing
-  it from buf_pool.flush_list */
-  inline void write_complete(bool temporary);
+  it from buf_pool.flush_list
+  @param temporary   whether the page belongs to the temporary tablespace
+  @param error       whether an error may have occurred while writing */
+  inline void write_complete(bool temporary, bool error);
 
   /** Write a flushable page to a file or free a freeable block.
   @param evict       whether to evict the page on write completion
@@ -1259,6 +1224,11 @@ public:
   /** Resize from srv_buf_pool_old_size to srv_buf_pool_size. */
   inline void resize();
 
+#ifdef __linux__
+  /** Collect garbage (release pages from the LRU list) */
+  inline void garbage_collect();
+#endif
+
   /** @return whether resize() is in progress */
   bool resize_in_progress() const
   {
@@ -1397,10 +1367,8 @@ public:
         n_chunks_new / 4 * chunks->size;
   }
 
-  /** @return whether the buffer pool has run out */
-  TPOOL_SUPPRESS_TSAN
-  bool ran_out() const
-  { return UNIV_UNLIKELY(!try_LRU_scan || !UT_LIST_GET_LEN(free)); }
+  /** @return whether the buffer pool is running low */
+  bool need_LRU_eviction() const;
 
   /** @return whether the buffer pool is shrinking */
   inline bool is_shrinking() const
@@ -1657,6 +1625,10 @@ public:
   /** Decrement the number of pending LRU flush */
   inline void n_flush_dec();
 
+  /** Decrement the number of pending LRU flush
+  while holding flush_list_mutex */
+  inline void n_flush_dec_holding_mutex();
+
   /** @return whether flush_list flushing is active */
   bool flush_list_active() const
   {
@@ -1681,6 +1653,15 @@ public:
     mysql_mutex_assert_owner(&flush_list_mutex);
     return page_cleaner_status & PAGE_CLEANER_IDLE;
   }
+
+  /** @return whether the page cleaner may be initiating writes */
+  bool page_cleaner_active() const
+  {
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    static_assert(PAGE_CLEANER_IDLE == 1, "efficiency");
+    return page_cleaner_status > PAGE_CLEANER_IDLE;
+  }
+
   /** Wake up the page cleaner if needed.
   @param for_LRU  whether to wake up for LRU eviction */
   void page_cleaner_wakeup(bool for_LRU= false);
@@ -1713,6 +1694,9 @@ public:
   Set whenever the free list grows, along with a broadcast of done_free.
   Protected by buf_pool.mutex. */
   Atomic_relaxed<bool> try_LRU_scan;
+  /** Whether we have warned to be running out of buffer pool */
+  std::atomic_flag LRU_warned;
+
 	/* @} */
 
 	/** @name LRU replacement algorithm fields */
@@ -1772,7 +1756,8 @@ public:
 #endif
 
   /** Reserve a buffer. */
-  buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
+  buf_tmp_buffer_t *io_buf_reserve(bool wait_for_reads)
+  { return io_buf.reserve(wait_for_reads); }
 
   /** Remove a block from flush_list.
   @param bpage   buffer pool page */
@@ -1807,7 +1792,7 @@ private:
     void close();
 
     /** Reserve a buffer */
-    buf_tmp_buffer_t *reserve();
+    buf_tmp_buffer_t *reserve(bool wait_for_reads);
   } io_buf;
 
   /** whether resize() is in the critical path */

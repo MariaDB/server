@@ -24,7 +24,9 @@ rmdir $ddir;
 # MDEV-23052
 # 1. mysql_install_db works on existing, empty directory
 mkdir $ddir;
-exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R > /dev/null;
+disable_result_log;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R --verbose-bootstrap;
+enable_result_log;
 rmdir $ddir;
 
 # 2. mysql_install_db rejects existing, non-empty directory, and does not
@@ -46,7 +48,7 @@ rmdir $ddir;
 
 # MDEV-28471 - mysql_install_db.exe fails with --innodb-page-size=64K
 --disable_result_log
-exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R --innodb-page-size=64K --verbose
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R --innodb-page-size=64K --verbose;
 --enable_result_log
 rmdir $ddir;
 

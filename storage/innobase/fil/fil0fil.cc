@@ -96,11 +96,9 @@ bool fil_space_t::try_to_close(bool print_info)
     if (!node->is_open())
       continue;
 
-    /* Other thread is trying to do fil_delete_tablespace()
-    concurrently for the same tablespace. So ignore this
-    tablespace and try to close the other one */
     const auto n= space.set_closing();
     if (n & STOPPING)
+      /* Let fil_space_t::drop() in another thread handle this. */
       continue;
     if (n & (PENDING | NEEDS_FSYNC))
     {
@@ -334,6 +332,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	return node;
 }
 
+__attribute__((warn_unused_result, nonnull))
 /** Open a tablespace file.
 @param node  data file
 @return whether the file was successfully opened */
@@ -342,8 +341,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
   ut_ad(!node->is_open());
   ut_ad(node->space->is_closing());
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ulint type;
   static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096, "compatibility");
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+  ulint type;
   switch (FSP_FLAGS_GET_ZIP_SSIZE(node->space->flags)) {
   case 1:
   case 2:
@@ -352,6 +352,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
   default:
     type= OS_DATA_FILE;
   }
+#else
+  constexpr auto type= OS_DATA_FILE;
+#endif
 
   for (;;)
   {
@@ -362,8 +365,20 @@ static bool fil_node_open_file_low(fil_node_t *node)
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
                                  OS_FILE_AIO, type,
                                  srv_read_only_mode, &success);
-    if (success)
+
+    if (success && node->is_open())
+    {
+#ifndef _WIN32
+      if (!node->space->id && !srv_read_only_mode && my_disable_locking &&
+          os_file_lock(node->handle, node->name))
+      {
+        os_file_close(node->handle);
+        node->handle= OS_FILE_CLOSED;
+        return false;
+      }
+#endif
       break;
+    }
 
     /* The following call prints an error message */
     if (os_file_get_last_error(true) == EMFILE + 100 &&
@@ -447,7 +462,9 @@ static bool fil_node_open_file(fil_node_t *node)
     }
   }
 
-  return fil_node_open_file_low(node);
+  /* The node can be opened beween releasing and acquiring fil_system.mutex
+  in the above code */
+  return node->is_open() || fil_node_open_file_low(node);
 }
 
 /** Close the file handle. */
@@ -495,7 +512,7 @@ void fil_space_t::flush_low()
                                             std::memory_order_relaxed))
   {
     ut_ad(n & PENDING);
-    if (n & STOPPING)
+    if (n & STOPPING_WRITES)
       return;
     if (n & NEEDS_FSYNC)
       break;
@@ -551,7 +568,7 @@ fil_space_extend_must_retry(
 	ut_ad(UT_LIST_GET_LAST(space->chain) == node);
 	ut_ad(size >= FIL_IBD_FILE_INITIAL_SIZE);
 	ut_ad(node->space == space);
-	ut_ad(space->referenced() || space->is_being_truncated);
+	ut_ad(space->referenced());
 
 	*success = space->size >= size;
 
@@ -640,8 +657,7 @@ fil_space_extend_must_retry(
 	default:
 		ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 		      || space->purpose == FIL_TYPE_IMPORT);
-		if (space->purpose == FIL_TYPE_TABLESPACE
-		    && !space->is_being_truncated) {
+		if (space->purpose == FIL_TYPE_TABLESPACE) {
 			goto do_flush;
 		}
 		break;
@@ -726,12 +742,10 @@ bool fil_space_extend(fil_space_t *space, uint32_t size)
   bool success= false;
   const bool acquired= space->acquire();
   mysql_mutex_lock(&fil_system.mutex);
-  if (acquired || space->is_being_truncated)
-  {
+  if (acquired)
     while (fil_space_extend_must_retry(space, UT_LIST_GET_LAST(space->chain),
                                        size, &success))
       mysql_mutex_lock(&fil_system.mutex);
-  }
   mysql_mutex_unlock(&fil_system.mutex);
   if (acquired)
     space->release();
@@ -1632,7 +1646,7 @@ static void fil_name_write(uint32_t space_id, const char *name,
   mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
-fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
+fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
 {
   ut_a(!is_system_tablespace(id));
   mysql_mutex_lock(&fil_system.mutex);
@@ -1646,7 +1660,6 @@ fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
 
   if (space->pending() & STOPPING)
   {
-being_deleted:
     /* A thread executing DDL and another thread executing purge may
     be executing fil_delete_tablespace() concurrently for the same
     tablespace. Wait for the other thread to complete the operation. */
@@ -1665,34 +1678,83 @@ being_deleted:
       mysql_mutex_lock(&fil_system.mutex);
     }
   }
-  else
-  {
-    if (space->crypt_data)
-    {
-      space->reacquire();
-      mysql_mutex_unlock(&fil_system.mutex);
-      fil_space_crypt_close_tablespace(space);
-      mysql_mutex_lock(&fil_system.mutex);
-      space->release();
-    }
-    if (space->set_stopping_check())
-      goto being_deleted;
-  }
 
+  /* We must be the first one to set either STOPPING flag on the .ibd file,
+  because the flags are only being set here, within a critical section of
+  fil_system.mutex. */
+  unsigned pending;
+  ut_d(pending=)
+    space->n_pending.fetch_add(STOPPING_READS + 1, std::memory_order_relaxed);
+  ut_ad(!(pending & STOPPING));
   mysql_mutex_unlock(&fil_system.mutex);
 
-  for (ulint count= 0;; count++)
+  if (space->crypt_data)
+    fil_space_crypt_close_tablespace(space);
+
+  if (space->purpose == FIL_TYPE_TABLESPACE)
   {
-    const unsigned pending= space->referenced();
-    if (!pending)
-      return space;
-    /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
-    if ((count & 511) == 128)
-      sql_print_warning("InnoDB: Trying to delete tablespace '%s' "
-                        "but there are %u pending operations",
-                        space->chain.start->name, id);
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    if (id >= srv_undo_space_id_start &&
+        id < srv_undo_space_id_start + srv_undo_tablespaces_open)
+    {
+      os_file_delete(innodb_data_file_key, space->chain.start->name);
+      goto deleted;
+    }
+
+    /* Before deleting the file, persistently write a log record. */
+    mtr_t mtr;
+    mtr.start();
+    mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
+    mtr.commit_file(*space, nullptr);
+
+    if (FSP_FLAGS_HAS_DATA_DIR(space->flags))
+      RemoteDatafile::delete_link_file(space->name());
+
+    os_file_delete(innodb_data_file_key, space->chain.start->name);
   }
+  else
+    ut_ad(space->purpose == FIL_TYPE_IMPORT);
+
+  if (char *cfg_name= fil_make_filepath(space->chain.start->name,
+                                        fil_space_t::name_type{}, CFG, false))
+  {
+    os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
+    ut_free(cfg_name);
+  }
+
+ deleted:
+  mysql_mutex_lock(&fil_system.mutex);
+  ut_ad(space == fil_space_get_by_id(id));
+  pending=
+    space->n_pending.fetch_add(STOPPING_WRITES - 1, std::memory_order_relaxed);
+  ut_ad((pending & STOPPING) == STOPPING_READS);
+  ut_ad(pending & PENDING);
+  pending&= PENDING;
+  if (--pending)
+  {
+    for (ulint count= 0;; count++)
+    {
+      ut_ad(space == fil_space_get_by_id(id));
+      pending= space->n_pending.load(std::memory_order_relaxed) & PENDING;
+      if (!pending)
+        break;
+      mysql_mutex_unlock(&fil_system.mutex);
+      /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
+      if ((count & 511) == 128)
+        sql_print_warning("InnoDB: Trying to delete tablespace '%s' "
+                          "but there are %u pending operations",
+                          space->chain.start->name, pending);
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      mysql_mutex_lock(&fil_system.mutex);
+    }
+  }
+
+  pfs_os_file_t handle= fil_system.detach(space, true);
+  mysql_mutex_unlock(&fil_system.mutex);
+  if (detached_handle)
+    *detached_handle = handle;
+  else
+    os_file_close(handle);
+  return space;
 }
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
@@ -1701,37 +1763,29 @@ Free all pages used by the tablespace. */
 void fil_close_tablespace(uint32_t id)
 {
 	ut_ad(!is_system_tablespace(id));
-	fil_space_t* space = fil_space_t::check_pending_operations(id);
+	fil_space_t* space = fil_space_t::drop(id, nullptr);
 	if (!space) {
 		return;
 	}
 
 	space->x_lock();
+	ut_ad(space->is_stopping());
 
 	/* Invalidate in the buffer pool all pages belonging to the
-	tablespace. Since we have invoked space->set_stopping(), readahead
+	tablespace. Since space->is_stopping() holds, readahead
 	can no longer read more pages of this tablespace to buf_pool.
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. */
 	while (buf_flush_list_space(space));
-	ut_ad(space->is_stopping());
 
-	/* If it is a delete then also delete any generated files, otherwise
-	when we drop the database the remove directory will fail. */
-
-	if (char* cfg_name = fil_make_filepath(space->chain.start->name,
-					       fil_space_t::name_type{},
-					       CFG, false)) {
-		os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
-		ut_free(cfg_name);
+	space->x_unlock();
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	if (space->max_lsn != 0) {
+		ut_d(space->max_lsn = 0);
+		fil_system.named_spaces.remove(*space);
 	}
-
-	/* If the free is successful, the wrlock will be released before
-	the space memory data structure is freed. */
-
-	if (!fil_space_free(id, true)) {
-		space->x_unlock();
-	}
+	log_sys.latch.wr_unlock();
+	fil_space_free_low(space);
 }
 
 /** Delete a tablespace and associated .ibd file.
@@ -1742,16 +1796,8 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
 {
   ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
-  if (fil_space_t *space= fil_space_t::check_pending_operations(id))
-  {
-    /* Before deleting the file(s), persistently write a log record. */
-    mtr_t mtr;
-    mtr.start();
-    mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
-    mtr.commit_file(*space, nullptr, &handle);
+  if (fil_space_t *space= fil_space_t::drop(id, &handle))
     fil_space_free_low(space);
-  }
-
   return handle;
 }
 
@@ -1971,9 +2017,10 @@ fil_ibd_create(
 	mtr.flag_wr_unlock();
 	log_write_up_to(lsn, true);
 
-	ulint type;
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
 		      "compatibility");
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+	ulint type;
 	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 	case 1:
 	case 2:
@@ -1982,6 +2029,9 @@ fil_ibd_create(
 	default:
 		type = OS_DATA_FILE;
 	}
+#else
+	constexpr auto type = OS_DATA_FILE;
+#endif
 
 	file = os_file_create(
 		innodb_data_file_key, path,
@@ -2066,8 +2116,8 @@ err_exit:
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode, true)) {
 		fil_node_t* node = space->add(path, file, size, false, true);
-		mysql_mutex_unlock(&fil_system.mutex);
 		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
+		mysql_mutex_unlock(&fil_system.mutex);
 		mtr.start();
 		mtr.set_named_space(space);
 		ut_a(fsp_header_init(space, size, &mtr) == DB_SUCCESS);
@@ -2252,8 +2302,6 @@ func_exit:
 			goto corrupted;
 		}
 
-		os_file_get_last_error(operation_not_for_export,
-				       !operation_not_for_export);
 		if (!operation_not_for_export) {
 			goto corrupted;
 		}
@@ -2482,6 +2530,17 @@ fil_ibd_discover(
 	/* A datafile was not discovered for the filename given. */
 	return(false);
 }
+
+bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
+{
+  if (crypt_data->is_key_found())
+    return true;
+  sql_print_error("InnoDB: Encryption key is not found for %s", f_name);
+  crypt_data->~fil_space_crypt_t();
+  ut_free(crypt_data);
+  return false;
+}
+
 /** Open an ibd tablespace and add it to the InnoDB data structures.
 This is similar to fil_ibd_open() except that it is used while processing
 the REDO log, so the data dictionary is not available and very little
@@ -2505,21 +2564,15 @@ fil_ibd_load(uint32_t space_id, const char *filename, fil_space_t *&space)
 	mysql_mutex_unlock(&fil_system.mutex);
 
 	if (space) {
-		/* Compare the filename we are trying to open with the
-		filename from the first node of the tablespace we opened
-		previously. Fail if it is different. */
-		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
-		if (0 != strcmp(innobase_basename(filename),
-				innobase_basename(node->name))) {
-			ib::info()
-				<< "Ignoring data file '" << filename
-				<< "' with space ID " << space->id
-				<< ". Another data file called " << node->name
-				<< " exists with the same space ID.";
-			space = NULL;
-			return(FIL_LOAD_ID_CHANGED);
-		}
-		return(FIL_LOAD_OK);
+		sql_print_information("InnoDB: Ignoring data file '%s'"
+				      " with space ID " ULINTPF
+				      ". Another data file called %s"
+				      " exists"
+				      " with the same space ID.",
+				      filename, space->id,
+				      UT_LIST_GET_FIRST(space->chain)->name);
+		space = NULL;
+		return FIL_LOAD_ID_CHANGED;
 	}
 
 	if (srv_operation == SRV_OPERATION_RESTORE) {
@@ -2627,9 +2680,7 @@ tablespace_check:
 					    first_page)
 		: NULL;
 
-	if (crypt_data && !crypt_data->is_key_found()) {
-		crypt_data->~fil_space_crypt_t();
-		ut_free(crypt_data);
+	if (crypt_data && !fil_crypt_check(crypt_data, filename)) {
 		return FIL_LOAD_INVALID;
 	}
 
@@ -2888,49 +2939,58 @@ func_exit:
 
 #include <tpool.h>
 
-/** Callback for AIO completion */
-void fil_aio_callback(const IORequest &request)
+void IORequest::write_complete(int io_error) const
 {
   ut_ad(fil_validate_skip());
-  ut_ad(request.node);
+  ut_ad(node);
+  ut_ad(is_write());
+  node->complete_write();
 
-  if (!request.bpage)
+  if (!bpage)
   {
     ut_ad(!srv_read_only_mode);
-    if (request.type == IORequest::DBLWR_BATCH)
-      buf_dblwr.flush_buffered_writes_completed(request);
+    if (type == IORequest::DBLWR_BATCH)
+      buf_dblwr.flush_buffered_writes_completed(*this);
     else
-      ut_ad(request.type == IORequest::WRITE_ASYNC);
-write_completed:
-    request.node->complete_write();
-  }
-  else if (request.is_write())
-  {
-    buf_page_write_complete(request);
-    goto write_completed;
+      ut_ad(type == IORequest::WRITE_ASYNC);
   }
   else
+    buf_page_write_complete(*this, io_error);
+
+  node->space->release();
+}
+
+void IORequest::read_complete(int io_error) const
+{
+  ut_ad(fil_validate_skip());
+  ut_ad(node);
+  ut_ad(is_read());
+  ut_ad(bpage);
+
+  const page_id_t id(bpage->id());
+
+  if (UNIV_UNLIKELY(io_error != 0))
   {
-    ut_ad(request.is_read());
-
-    const page_id_t id(request.bpage->id());
-
-    if (dberr_t err= request.bpage->read_complete(*request.node))
+    sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
+                    io_error, id.page_no(), node->name);
+    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
+  corrupted:
+    if (recv_recovery_is_on() && !srv_force_recovery)
     {
-      if (recv_recovery_is_on() && !srv_force_recovery)
-      {
-        mysql_mutex_lock(&recv_sys.mutex);
-        recv_sys.set_corrupt_fs();
-        mysql_mutex_unlock(&recv_sys.mutex);
-      }
-
-      if (err != DB_FAIL)
-        ib::error() << "Failed to read page " << id.page_no()
-                    << " from file '" << request.node->name << "': " << err;
+      mysql_mutex_lock(&recv_sys.mutex);
+      recv_sys.set_corrupt_fs();
+      mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
+  else if (dberr_t err= bpage->read_complete(*node))
+  {
+    if (err != DB_FAIL)
+      ib::error() << "Failed to read page " << id.page_no()
+                  << " from file '" << node->name << "': " << err;
+    goto corrupted;
+  }
 
-  request.node->space->release();
+  node->space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type
@@ -3065,11 +3125,9 @@ fil_space_validate_for_mtr_commit(
 	ut_ad(!is_predefined_tablespace(space->id));
 
 	/* We are serving mtr_commit(). While there is an active
-	mini-transaction, we should have !space->stop_new_ops. This is
+	mini-transaction, we should have !space->is_stopping(). This is
 	guaranteed by meta-data locks or transactional locks. */
-	ut_ad(!space->is_stopping()
-	      || space->is_being_truncated /* fil_truncate_prepare() */
-	      || space->referenced());
+	ut_ad(!space->is_stopping() || space->referenced());
 }
 #endif /* UNIV_DEBUG */
 
@@ -3118,7 +3176,7 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */
-lsn_t fil_names_clear(lsn_t lsn)
+ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 

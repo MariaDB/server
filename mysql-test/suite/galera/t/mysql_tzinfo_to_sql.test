@@ -9,6 +9,7 @@
 --echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
 --echo #
 
+--exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
 --exec mkdir $MYSQLTEST_VARDIR/zoneinfo
 --exec ln -s $MYSQLTEST_VARDIR/zoneinfo $MYSQLTEST_VARDIR/zoneinfo/posix
 --copy_file std_data/zoneinfo/GMT $MYSQLTEST_VARDIR/zoneinfo/GMT

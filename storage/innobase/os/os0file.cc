@@ -1130,7 +1130,7 @@ os_file_create_func(
 	);
 
 	int		create_flag = O_RDONLY | O_CLOEXEC;
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	const char*	mode_str = "OPEN";
 #endif
 
@@ -1148,12 +1148,12 @@ os_file_create_func(
 		   || create_mode == OS_FILE_OPEN_RETRY) {
 		create_flag = O_RDWR | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_CREATE) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 		mode_str = "CREATE";
 #endif
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_OVERWRITE) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 		mode_str = "OVERWRITE";
 #endif
 		create_flag = O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC;
@@ -1165,19 +1165,19 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	ut_a(type == OS_LOG_FILE
-	     || type == OS_DATA_FILE
-	     || type == OS_DATA_FILE_NO_O_DIRECT);
-
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
 	create_flag |= O_CLOEXEC;
 
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
+	ut_a(type == OS_LOG_FILE
+	     || type == OS_DATA_FILE
+	     || type == OS_DATA_FILE_NO_O_DIRECT);
 	int direct_flag = type == OS_DATA_FILE && create_mode != OS_FILE_CREATE
 		&& !fil_system.is_buffered()
 		? O_DIRECT : 0;
 #else
+	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
 	constexpr int direct_flag = 0;
 #endif
 
@@ -1194,7 +1194,7 @@ os_file_create_func(
 		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 			if (direct_flag && errno == EINVAL) {
 				direct_flag = 0;
 				continue;
@@ -1224,7 +1224,7 @@ os_file_create_func(
 		}
 	}
 
-#if (defined __sun__ && defined DIRECTIO_ON) || defined O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	if (type == OS_DATA_FILE && create_mode == OS_FILE_CREATE
 	    && !fil_system.is_buffered()) {
 # ifdef __linux__
@@ -3012,30 +3012,15 @@ os_file_handle_error_cond_exit(
 	return(false);
 }
 
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 /** Tries to disable OS caching on an opened file descriptor.
 @param[in]	fd		file descriptor to alter
 @param[in]	file_name	file name, used in the diagnostic message
 @param[in]	name		"open" or "create"; used in the diagnostic
 				message */
 void
-os_file_set_nocache(
-	int	fd		MY_ATTRIBUTE((unused)),
-	const char*	file_name	MY_ATTRIBUTE((unused)),
-	const char*	operation_name	MY_ATTRIBUTE((unused)))
+os_file_set_nocache(int fd, const char *file_name, const char *operation_name)
 {
-	/* some versions of Solaris may not have DIRECTIO_ON */
-#if defined(__sun__) && defined(DIRECTIO_ON)
-	if (directio(fd, DIRECTIO_ON) == -1) {
-		int	errno_save = errno;
-
-		ib::error()
-			<< "Failed to set DIRECTIO_ON on file "
-			<< file_name << "; " << operation_name << ": "
-			<< strerror(errno_save) << ","
-			" continuing anyway.";
-	}
-#elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
 		int		errno_save = errno;
 		static bool	warning_message_printed = false;
@@ -3054,10 +3039,8 @@ os_file_set_nocache(
 				<< ", continuing anyway.";
 		}
 	}
-#endif /* defined(__sun__) && defined(DIRECTIO_ON) */
 }
-
-#endif /* _WIN32 */
+#endif /* HAVE_FCNTL_DIRECT */
 
 /** Check if the file system supports sparse files.
 @param fh	file handle
@@ -3397,35 +3380,43 @@ os_file_get_status(
 	return(ret);
 }
 
-
-extern void fil_aio_callback(const IORequest &request);
-
-static void io_callback(tpool::aiocb *cb)
+static void fake_io_callback(void *c)
 {
+  tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
+  ut_ad(read_slots->contains(cb));
+  static_cast<const IORequest*>(static_cast<const void*>(cb->m_userdata))->
+    fake_read_complete(cb->m_offset);
+  read_slots->release(cb);
+}
+
+static void read_io_callback(void *c)
+{
+  tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
+  ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_PREAD);
+  ut_ad(read_slots->contains(cb));
   const IORequest &request= *static_cast<const IORequest*>
     (static_cast<const void*>(cb->m_userdata));
-  if (cb->m_err != DB_SUCCESS)
-  {
-    ib::fatal() << "IO Error: " << cb->m_err << " during " <<
-      (request.is_async() ? "async " : "sync ") <<
-      (request.is_LRU() ? "lru " : "") <<
-      (cb->m_opcode == tpool::aio_opcode::AIO_PREAD ? "read" : "write") <<
-      " of " << cb->m_len << " bytes, for file " << cb->m_fh << ", returned " <<
-      cb->m_ret_len;
-  }
-  /* Return cb back to cache*/
-  if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
-  {
-    ut_ad(read_slots->contains(cb));
-    fil_aio_callback(request);
-    read_slots->release(cb);
-  }
-  else
-  {
-    ut_ad(write_slots->contains(cb));
-    fil_aio_callback(request);
-    write_slots->release(cb);
-  }
+  request.read_complete(cb->m_err);
+  read_slots->release(cb);
+}
+
+static void write_io_callback(void *c)
+{
+  tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
+  ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_PWRITE);
+  ut_ad(write_slots->contains(cb));
+  const IORequest &request= *static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata));
+
+  if (UNIV_UNLIKELY(cb->m_err != 0))
+    ib::info () << "IO Error: " << cb->m_err
+                << " during write of "
+                << cb->m_len << " bytes, for file "
+                << request.node->name << "(" << cb->m_fh << "), returned "
+                << cb->m_ret_len;
+
+  request.write_complete(cb->m_err);
+  write_slots->release(cb);
 }
 
 #ifdef LINUX_NATIVE_AIO
@@ -3728,6 +3719,28 @@ void os_aio_wait_until_no_pending_reads(bool declare)
     tpool::tpool_wait_end();
 }
 
+/** Submit a fake read request during crash recovery.
+@param type  fake read request
+@param offset additional context */
+void os_fake_read(const IORequest &type, os_offset_t offset)
+{
+  tpool::aiocb *cb= read_slots->acquire();
+
+  cb->m_group= read_slots->get_task_group();
+  cb->m_fh= type.node->handle.m_file;
+  cb->m_buffer= nullptr;
+  cb->m_len= 0;
+  cb->m_offset= offset;
+  cb->m_opcode= tpool::aio_opcode::AIO_PREAD;
+  new (cb->m_userdata) IORequest{type};
+  cb->m_internal_task.m_func= fake_io_callback;
+  cb->m_internal_task.m_arg= cb;
+  cb->m_internal_task.m_group= cb->m_group;
+
+  srv_thread_pool->submit_task(&cb->m_internal_task);
+}
+
+
 /** Request a read or write.
 @param type		I/O request
 @param buf		buffer
@@ -3773,23 +3786,32 @@ func_exit:
 		return err;
 	}
 
+	io_slots* slots;
+	tpool::callback_func callback;
+	tpool::aio_opcode opcode;
+
 	if (type.is_read()) {
 		++os_n_file_reads;
+		slots = read_slots;
+		callback = read_io_callback;
+		opcode = tpool::aio_opcode::AIO_PREAD;
 	} else {
 		++os_n_file_writes;
+		slots = write_slots;
+		callback = write_io_callback;
+		opcode = tpool::aio_opcode::AIO_PWRITE;
 	}
 
 	compile_time_assert(sizeof(IORequest) <= tpool::MAX_AIO_USERDATA_LEN);
-	io_slots* slots= type.is_read() ? read_slots : write_slots;
 	tpool::aiocb* cb = slots->acquire();
 
 	cb->m_buffer = buf;
-	cb->m_callback = (tpool::callback_func)io_callback;
+	cb->m_callback = callback;
 	cb->m_group = slots->get_task_group();
 	cb->m_fh = type.node->handle.m_file;
 	cb->m_len = (int)n;
 	cb->m_offset = offset;
-	cb->m_opcode = type.is_read() ? tpool::aio_opcode::AIO_PREAD : tpool::aio_opcode::AIO_PWRITE;
+	cb->m_opcode = opcode;
 	new (cb->m_userdata) IORequest{type};
 
 	if (srv_thread_pool->submit_io(cb)) {
@@ -3797,6 +3819,7 @@ func_exit:
 		os_file_handle_error(type.node->name, type.is_read()
 				     ? "aio read" : "aio write");
 		err = DB_IO_ERROR;
+		type.node->space->release();
 	}
 
 	goto func_exit;
@@ -3997,36 +4020,40 @@ static bool is_volume_on_ssd(const char *volume_mount_point)
 }
 
 #include <unordered_map>
-static bool is_file_on_ssd(char *file_path)
+static bool is_path_on_ssd(char *file_path)
 {
-  /* Cache of volume_path => volume_info, protected by rwlock.*/
-  static std::unordered_map<std::string, bool> cache;
-  static SRWLOCK lock= SRWLOCK_INIT;
-
   /* Preset result, in case something fails, e.g we're on network drive.*/
   char volume_path[MAX_PATH];
   if (!GetVolumePathName(file_path, volume_path, array_elements(volume_path)))
     return false;
+  return is_volume_on_ssd(volume_path);
+}
 
-  /* Try cached volume info first.*/
-  std::string volume_path_str(volume_path);
+static bool is_file_on_ssd(HANDLE handle, char *file_path)
+{
+  ULONGLONG volume_serial_number;
+  FILE_ID_INFO info;
+  if(!GetFileInformationByHandleEx(handle, FileIdInfo, &info, sizeof(info)))
+    return false;
+  volume_serial_number= info.VolumeSerialNumber;
+
+  static std::unordered_map<ULONGLONG, bool> cache;
+  static SRWLOCK lock= SRWLOCK_INIT;
   bool found;
   bool result;
   AcquireSRWLockShared(&lock);
-  auto e= cache.find(volume_path_str);
+  auto e= cache.find(volume_serial_number);
   if ((found= e != cache.end()))
     result= e->second;
   ReleaseSRWLockShared(&lock);
-
-  if (found)
-    return result;
-
-  result= is_volume_on_ssd(volume_path);
-
-  /* Update cache */
-  AcquireSRWLockExclusive(&lock);
-  cache[volume_path_str]= result;
-  ReleaseSRWLockExclusive(&lock);
+  if (!found)
+  {
+    result= is_path_on_ssd(file_path);
+    /* Update cache */
+    AcquireSRWLockExclusive(&lock);
+    cache[volume_serial_number]= result;
+    ReleaseSRWLockExclusive(&lock);
+  }
   return result;
 }
 
@@ -4052,7 +4079,7 @@ void fil_node_t::find_metadata(os_file_t file
     punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
 
 #ifdef _WIN32
-  on_ssd= is_file_on_ssd(name);
+  on_ssd= is_file_on_ssd(file, name);
   FILE_STORAGE_INFO info;
   if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
     block_size= info.PhysicalBytesPerSectorForAtomicity;
@@ -4120,7 +4147,6 @@ bool fil_node_t::read_page0()
         != DB_SUCCESS)
     {
       sql_print_error("InnoDB: Unable to read first page of file %s", name);
-corrupted:
       aligned_free(page);
       return false;
     }
@@ -4137,25 +4163,35 @@ corrupted:
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
-      if (cflags == UINT32_MAX)
+      if (cflags != UINT32_MAX)
       {
-invalid:
-        ib::error() << "Expected tablespace flags "
-          << ib::hex(space->flags)
-          << " but found " << ib::hex(flags)
-          << " in the file " << name;
-        goto corrupted;
+        uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
+        uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
+
+        if (fil_space_t::is_flags_equal(cf, sf) ||
+            fil_space_t::is_flags_equal(sf, cf))
+        {
+          flags= cflags;
+          goto flags_ok;
+        }
       }
 
-      uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
-      uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
-
-      if (!fil_space_t::is_flags_equal(cf, sf) &&
-          !fil_space_t::is_flags_equal(sf, cf))
-        goto invalid;
-      flags= cflags;
+      aligned_free(page);
+      goto invalid;
     }
 
+    if (!fil_space_t::is_flags_equal((flags & ~FSP_FLAGS_MEM_MASK),
+                                     (space->flags & ~FSP_FLAGS_MEM_MASK)) &&
+        !fil_space_t::is_flags_equal((space->flags & ~FSP_FLAGS_MEM_MASK),
+                                     (flags & ~FSP_FLAGS_MEM_MASK)))
+    {
+invalid:
+      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+                      " in the file %s", space->flags, flags, name);
+      return false;
+    }
+
+  flags_ok:
     ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
     /* Try to read crypt_data from page 0 if it is not yet read. */

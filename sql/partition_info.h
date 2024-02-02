@@ -78,11 +78,16 @@ struct Vers_part_info : public Sql_alloc
     }
     return false;
   }
-  struct {
+  struct interval_t {
     my_time_t start;
     INTERVAL step;
     enum interval_type type;
     bool is_set() const { return type < INTERVAL_LAST; }
+    bool operator==(const interval_t &rhs) const
+    {
+      /* TODO: equivalent intervals like 1 hour and 60 mins should be considered equal */
+      return start == rhs.start && type == rhs.type && !memcmp(&step, &rhs.step, sizeof(INTERVAL));
+    }
   } interval;
   ulonglong limit;
   bool auto_hist;

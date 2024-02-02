@@ -39,6 +39,8 @@ select * from s1;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 select * from s1;
+--disable_ps2_protocol
 select next value for s1;
+--enable_ps2_protocol
 select * from s1;
 drop sequence s1;

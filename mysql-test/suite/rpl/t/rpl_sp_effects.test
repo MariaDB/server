@@ -91,7 +91,9 @@ SELECT * FROM t1 ORDER BY a;
 
 create table t2(a int);
 insert into t2 values (10),(11);
+--disable_ps2_protocol
 SELECT a,f1(a) FROM t2 ORDER BY a;
+--enable_ps2_protocol
 
 # This shouldn't put separate 'call f1(3)' into binlog:
 insert into t2 select f1(3);
@@ -110,7 +112,9 @@ delete from t2;
 delete from t1;
 insert into t2 values(1),(2);
 create view v1 as select f1(a) as f from t2;
+--disable_ps2_protocol
 select * from v1 order by f;
+--enable_ps2_protocol
 SELECT 'master:',a FROM t1 ORDER BY a;
 
 sync_slave_with_master;
@@ -192,7 +196,9 @@ delimiter ;//
 set @x=10;
 set @y=20;
 set @z=100;
+--disable_ps2_protocol
 select f1();
+--enable_ps2_protocol
 
 set @x=30;
 call p1();
@@ -238,10 +244,12 @@ DELIMITER ;//
 
 call   sp_bug26199(b'1110');
 call   sp_bug26199('\0');
+--disable_ps2_protocol
 select sf_bug26199(b'1111111');
 SET STATEMENT sql_mode = '' FOR
 select sf_bug26199(b'101111111');
 select sf_bug26199('\'');
+--enable_ps2_protocol
 select hex(b) from t2;
 
 sync_slave_with_master;

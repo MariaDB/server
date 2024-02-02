@@ -251,7 +251,78 @@ insert into t2 values (1,repeat("a",1000)),(2,repeat("a",1000)),(3,repeat("b",10
 SELECT GROUP_CONCAT(t1.language_id SEPARATOR ',') AS `translation_resources`, `d`.`serialized_c` FROM t2 AS `d` LEFT JOIN t1 ON `d`.`voter_id` = t1.`voter_id` GROUP BY `d`.`voter_id` ORDER BY 10-d.voter_id+RAND()*0;
 drop table t1,t2;
 
+
+--echo #
+--echo # MDEV-30143: Segfault on select query using index for group-by and filesort
+--echo #
+CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+('Albania','AXA'),('Australia','AUS'),('American Samoa','AMSA'),('Bahamas','BS');
+
+CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES
+('BERM','African Methodist Episcopal'),('AUS','Anglican'),('BERM','Anglican'),('BS','Anglican'),('BS','Baptist'),('BS','Methodist');
+-- disable_result_log
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
+-- enable_result_log
+
+let query=
+SELECT t1.a
+FROM (SELECT a FROM t2 GROUP BY a ORDER BY COUNT(DISTINCT b) LIMIT 1) dt
+JOIN t1 ON dt.a=t1.b;
+--replace_column 9 #
+eval EXPLAIN $query;
+eval $query;
+
+DROP TABLES t1, t2;
+
+--echo #
+--echo # MDEV-15656: Assertion `is_last_prefix <= 0' failed in
+--echo #             QUICK_GROUP_MIN_MAX_SELECT::get_next
+--echo #
+SET @lru_depth.save= @@innodb_lru_scan_depth;
+SET GLOBAL innodb_lru_scan_depth= 1024;
+
+CREATE TABLE t1 (
+  pk_part1 INT AUTO_INCREMENT,
+  a VARCHAR(4),
+  row_start timestamp(6) default current_timestamp,
+  PRIMARY KEY (pk_part1, row_start)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (a) VALUES
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo');
+
+--connect (con1,localhost,root,,test)
+
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+--let $run= 20
+--disable_result_log
+while ($run)
+{
+  --send
+    SELECT DISTINCT pk_part1 FROM t1;
+  --connection default
+  INSERT INTO t1 (pk_part1) VALUES (NULL);
+  --connection con1
+  --reap
+  --dec $run
+}
+--enable_result_log
+
+--disconnect con1
+--connection default
+DROP TABLE t1;
+SET GLOBAL innodb_lru_scan_depth= @lru_depth.save;
+
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;
-

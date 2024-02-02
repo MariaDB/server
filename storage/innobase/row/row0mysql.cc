@@ -31,6 +31,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <spatial.h>
 
 #include "row0mysql.h"
+#include "buf0flu.h"
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "dict0crea.h"
@@ -66,17 +67,23 @@ Created 9/17/2000 Heikki Tuuri
 #include <thread>
 
 
-/*******************************************************************//**
-Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static
-void
-row_mysql_delay_if_needed(void)
-/*===========================*/
+/** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
+static void row_mysql_delay_if_needed()
 {
-	if (srv_dml_needed_delay) {
-		std::this_thread::sleep_for(
-			std::chrono::microseconds(srv_dml_needed_delay));
-	}
+  const auto delay= srv_dml_needed_delay;
+  if (UNIV_UNLIKELY(delay != 0))
+  {
+    /* Adjust for purge_coordinator_state::refresh() */
+    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    const lsn_t last= log_sys.last_checkpoint_lsn,
+      max_age= log_sys.max_checkpoint_age;
+    log_sys.latch.rd_unlock();
+    const lsn_t lsn= log_sys.get_lsn();
+    if ((lsn - last) / 4 >= max_age / 5)
+      buf_flush_ahead(last + max_age / 5, false);
+    purge_sys.wake_if_not_active();
+    std::this_thread::sleep_for(std::chrono::microseconds(delay));
+  }
 }
 
 /*******************************************************************//**
@@ -1662,12 +1669,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
-	if (prebuilt->versioned_write) {
-		if (node->is_delete == VERSIONED_DELETE) {
-                  node->vers_make_delete(trx);
-                } else if (node->update->affects_versioned()) {
-                  node->vers_make_update(trx);
-                }
+	if (prebuilt->versioned_write && node->is_delete == VERSIONED_DELETE) {
+		node->vers_make_delete(trx);
 	}
 
 	for (;;) {

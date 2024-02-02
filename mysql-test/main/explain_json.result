@@ -1309,6 +1309,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "using_index_for_group_by": true
@@ -1375,7 +1376,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
 explain select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	147	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	147	NULL	17	Using where; Using index for group-by
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1438,11 +1439,11 @@ EXPLAIN
           "table_name": "t1",
           "access_type": "range",
           "possible_keys": ["idx_t1_0", "idx_t1_1", "idx_t1_2"],
-          "key": "idx_t1_1",
+          "key": "idx_t1_2",
           "key_length": "147",
           "used_key_parts": ["a1", "a2", "b"],
           "loops": 1,
-          "rows": 1,
+          "rows": 17,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t1.b = 'a' and t1.a1 >= '' and t1.a2 >= 'b'",
@@ -1718,6 +1719,7 @@ ANALYZE
           "r_loops": 0,
           "rows": 0,
           "r_rows": null,
+          "r_engine_stats": REPLACED,
           "filtered": 0,
           "r_filtered": null,
           "impossible_on_condition": true
@@ -1734,6 +1736,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -1810,6 +1813,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -1830,6 +1834,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
@@ -1912,6 +1917,7 @@ ANALYZE
             "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
             "filtered": 100,
             "r_filtered": 100,
             "attached_condition": "t1.a is not null"
@@ -1933,6 +1939,7 @@ ANALYZE
             "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
             "filtered": 100,
             "r_filtered": 100,
             "using_index": true,
@@ -2030,6 +2037,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "t3.a is not null"
@@ -2052,6 +2060,7 @@ ANALYZE
             "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
             "filtered": 100,
             "r_filtered": 100,
             "index_condition_bka": "t4.b + 1 <= t3.b + 1"

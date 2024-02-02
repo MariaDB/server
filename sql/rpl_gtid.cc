@@ -29,6 +29,10 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h" // wsrep_thd_is_local
+#include "wsrep_trans_observer.h" // wsrep_start_trx_if_not_started
+#endif
 
 const LEX_CSTRING rpl_gtid_slave_state_table_name=
   { STRING_WITH_LEN("gtid_slave_pos") };
@@ -46,9 +50,7 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
     there will not be an attempt to delete the corresponding table row before
     it is even committed.
   */
-  mysql_mutex_lock(&LOCK_slave_state);
   err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no, hton, rgi);
-  mysql_mutex_unlock(&LOCK_slave_state);
   if (err)
   {
     sql_print_warning("Slave: Out of memory during slave state maintenance. "
@@ -294,10 +296,23 @@ int
 rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
                         uint64 seq_no, void *hton, rpl_group_info *rgi)
 {
+  int res;
+  mysql_mutex_lock(&LOCK_slave_state);
+  res= update_nolock(domain_id, server_id, sub_id, seq_no, hton, rgi);
+  mysql_mutex_unlock(&LOCK_slave_state);
+  return res;
+}
+
+
+int
+rpl_slave_state::update_nolock(uint32 domain_id, uint32 server_id, uint64 sub_id,
+                               uint64 seq_no, void *hton, rpl_group_info *rgi)
+{
   element *elem= NULL;
   list_element *list_elem= NULL;
 
   DBUG_ASSERT(hton || !loaded);
+  mysql_mutex_assert_owner(&LOCK_slave_state);
   if (!(elem= get_element(domain_id)))
     return 1;
 
@@ -311,7 +326,6 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
       of all pending MASTER_GTID_WAIT(), so we do not slow down the
       replication SQL thread.
     */
-    mysql_mutex_assert_owner(&LOCK_slave_state);
     elem->gtid_waiter= NULL;
     mysql_cond_broadcast(&elem->COND_wait_gtid);
   }
@@ -701,10 +715,19 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
 #ifdef WITH_WSREP
   /*
-    Updates in slave state table should not be appended to galera transaction
-    writeset.
+    We should replicate local gtid_slave_pos updates to other nodes.
+    In applier we should not append them to galera writeset.
   */
-  thd->wsrep_ignore_table= true;
+  if (WSREP_ON_ && wsrep_thd_is_local(thd))
+  {
+    thd->wsrep_ignore_table= false;
+    table->file->row_logging= 1; // replication requires binary logging
+    wsrep_start_trx_if_not_started(thd);
+  }
+  else
+  {
+    thd->wsrep_ignore_table= true;
+  }
 #endif
 
   if (!in_transaction)
@@ -881,9 +904,20 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
 
 #ifdef WITH_WSREP
   /*
-    Updates in slave state table should not be appended to galera transaction
-    writeset.
+    We should replicate local gtid_slave_pos updates to other nodes.
+    In applier we should not append them to galera writeset.
   */
+  if (WSREP_ON_ && wsrep_thd_is_local(thd) &&
+      thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    if (thd->wsrep_trx().active() == false)
+    {
+      if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+        thd->set_query_id(next_query_id());
+      wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+    }
+    thd->wsrep_ignore_table= false;
+  }
   thd->wsrep_ignore_table= true;
 #endif
 
@@ -1392,6 +1426,7 @@ rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
 {
   const char *end= state_from_master + len;
 
+  mysql_mutex_assert_not_owner(&LOCK_slave_state);
   if (reset)
   {
     if (truncate_state_table(thd))
@@ -2209,18 +2244,16 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
   /*
     For each domain_id from ids
-      when no such domain in binlog state
-        warn && continue
-      For each domain.server's last gtid
-        when not locate the last gtid in glev.list
-          error out binlog state can't change
-        otherwise continue
+      If the domain is already absent from the binlog state
+        Warn && continue
+      If any GTID with that domain in binlog state is missing from glev.list
+        Error out binlog state can't change
   */
   for (ulong i= 0; i < ids->elements; i++)
   {
     rpl_binlog_state::element *elem= NULL;
     uint32 *ptr_domain_id;
-    bool not_match;
+    bool all_found;
 
     ptr_domain_id= (uint32*) dynamic_array_ptr(ids, i);
     elem= (rpl_binlog_state::element *)
@@ -2235,14 +2268,18 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
       continue;
     }
 
-    for (not_match= true, k= 0; k < elem->hash.records; k++)
+    all_found= true;
+    for (k= 0; k < elem->hash.records && all_found; k++)
     {
       rpl_gtid *d_gtid= (rpl_gtid *)my_hash_element(&elem->hash, k);
-      for (ulong l= 0; l < glev->count && not_match; l++)
-        not_match= !(*d_gtid == glev->list[l]);
+      bool match_found= false;
+      for (ulong l= 0; l < glev->count && !match_found; l++)
+        match_found= match_found || (*d_gtid == glev->list[l]);
+      if (!match_found)
+        all_found= false;
     }
 
-    if (not_match)
+    if (!all_found)
     {
       sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
               "being deleted. Make sure to first purge those files",

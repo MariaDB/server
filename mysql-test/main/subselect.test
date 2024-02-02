@@ -1176,19 +1176,24 @@ DROP TABLE t1;
 # Bug#2198 SELECT INTO OUTFILE (with Sub-Select) Problem
 #
 
+--disable_service_connection
+--disable_ps2_protocol
 create table t1 (a int, b decimal(13, 3));
 insert into t1 values (1, 0.123);
 let $outfile_abs= $MYSQLTEST_VARDIR/tmp/subselect.out.file.1;
 let $outfile_rel= ../../tmp/subselect.out.file.1;
+--disable_warnings
 --error 0,1
 --remove_file $outfile_abs
+--enable_warnings
 eval select a, (select max(b) from t1) into outfile "$outfile_rel" from t1;
 delete from t1;
 eval load data infile "$outfile_rel" into table t1;
 --remove_file $outfile_abs
 select * from t1;
 drop table t1;
-
+--enable_ps2_protocol
+--enable_service_connection
 
 #
 # Bug#2479 dependant subquery with limit crash
@@ -5856,6 +5861,7 @@ SELECT
      WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 
+--disable_ps2_protocol
 flush status;
 
 SELECT
@@ -5883,6 +5889,7 @@ FROM t2 alias1, t1 alias2, t1 alias3;
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
+--enable_ps2_protocol
 
 drop table t1, t2, t3;
 
@@ -5928,8 +5935,10 @@ set global userstat=on;
 flush table_statistics;
 flush index_statistics;
 
+--disable_ps2_protocol
 SELECT MIN(b) FROM ( SELECT * FROM t1, t2, t3 WHERE d = b ) AS alias1 
 WHERE SLEEP(0.1) OR c < 'p' OR b = ( SELECT MIN(b) FROM t2 );
+--enable_ps2_protocol
 
 --echo # The following shows that t2 was indeed scanned with a full scan.
 show table_statistics;
@@ -5998,24 +6007,28 @@ drop table t1;
 --echo #
 --echo # MDEV-7565: Server crash with Signal 6 (part 2)
 --echo #
+
+create table t1 (id int not null primary key);
 Select 
-  (Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
-    Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+  (Select Sum(`TestCase`.Revenue) From t1 E
+    Where TestCase.TemplateID not in (Select 1 from t1 where 2=2)
   ) As `ControlRev`
 From 
 (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
 Group By  TestCase.Revenue, TestCase.TemplateID;
+drop table t1;
 
 --echo #
 --echo # MDEV-7445:Server crash with Signal 6
 --echo #
 
+create table t1 (id int not null primary key);
 --delimiter |
 CREATE PROCEDURE procedure2()
 BEGIN
   Select 
-    (Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
-      Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+    (Select Sum(`TestCase`.Revenue) From t1 E           
+      Where TestCase.TemplateID not in (Select 1 from t1 where 2=2)
      ) As `ControlRev`
   From 
   (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
@@ -6027,6 +6040,7 @@ call procedure2();
 call procedure2();
 
 drop procedure procedure2;
+drop table t1;
 
 
 --echo #
@@ -6349,5 +6363,76 @@ SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
 SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
 
 --echo #
+--echo # MDEV-29070 SIGSEGV in my_decimal::operator= and Assertion `0' failed
+--echo # in Item_type_holder::val_decimal on SELECT
+--echo #
+
+CREATE TABLE t1(a INT UNIQUE);
+INSERT INTO t1(a) VALUES (1);
+
+SELECT a FROM t1 WHERE (SELECT a, a UNION SELECT 1, a FROM t1) IN (SELECT 1, 1);
+
+SELECT a FROM t1 WHERE (SELECT a, a UNION SELECT 1, a FROM t1) IN (SELECT a, a);
+
+UPDATE t1 SET a = 0
+  WHERE (SELECT a, a WHERE a < 0 INTERSECT
+         SELECT +1 / +1, a FROM t1 WHERE a > -0+1) IN (SELECT a, a);
+
+SELECT a FROM t1 WHERE (SELECT a, a WHERE a < 0 INTERSECT
+                        SELECT + 1 / + 1, a FROM t1
+  WHERE a > -0 + 1) IN (SELECT a, a);
+
+CREATE TABLE x (x INT);
+INSERT INTO x (x) VALUES (1);
+UPDATE x SET x = 1 WHERE x = 1;
+INSERT INTO x (x) VALUES (1), (1);
+let $q= WITH RECURSIVE x (x) AS (
+  SELECT 1 INTERSECT
+  SELECT -(SELECT 1.000000 AS x
+           UNION
+           SELECT 1.000000 ORDER BY NOT x < 'x',
+                                    -(SELECT 1 + x/1.000000 IN (1, 1) FROM x
+                                    WHERE x ORDER BY 1 - x) DESC LIMIT 1 OFFSET 1
+           ) + 1 FROM x
+  )
+  SELECT DISTINCT x, 1, NULL, 1.000000
+  FROM x
+  WHERE (SELECT (SELECT x WHERE x IN (SELECT x FROM x))) >
+        (SELECT (SELECT x ORDER BY x = x OR (x = 1 AND x = 1) DESC))
+        ORDER BY x ASC, x DESC, x;
+
+--error ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+eval $q;
+
+DROP TABLE t1, x;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #
+
+
+
+--echo #
+--echo # MDEV-32656: ASAN errors in base_list_iterator::next /
+--echo # setup_table_map upon 2nd execution of PS
+--echo # (10.6 part)
+--echo #
+
+CREATE TABLE t1 (id BIGINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+
+CREATE TABLE t3 (b INT);
+INSERT INTO t3 VALUES (3),(4);
+
+insert into t2 select (('e','e') IN (SELECT v1.id, v1.id FROM v1 JOIN t3));
+
+drop view v1;
+drop table t1, t2, t3;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

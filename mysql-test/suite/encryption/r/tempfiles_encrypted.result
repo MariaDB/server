@@ -3899,6 +3899,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -4539,6 +4540,19 @@ LEAD(c) OVER (ORDER BY c)
 NULL
 DROP FUNCTION f;
 DROP TABLE t;
+#
+# MDEV-31296: Crash in Item_func::fix_fields when prepared statement
+#             with subqueries and window function is executed with
+#             sql_mode = ONLY_FULL_GROUP_BY
+#
+CREATE TABLE t1 ( a INT, i INT) ;
+CREATE TABLE t2 ( a INT);
+INSERT INTO t2 VALUES (4000);
+SET SESSION sql_mode = "ONLY_FULL_GROUP_BY";
+EXECUTE IMMEDIATE "SELECT SUM(i) OVER (ORDER BY i) FROM t1 NATURAL JOIN t2";
+SUM(i) OVER (ORDER BY i)
+# Clean up
+DROP TABLE t1, t2;
 #
 # End of 10.6 tests
 #

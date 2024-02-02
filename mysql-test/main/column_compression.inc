@@ -8,6 +8,8 @@ eval CREATE TABLE t1(a $typec);
 ALTER TABLE t1 ADD KEY(a(10));
 SHOW CREATE TABLE t1;
 
+--disable_ps2_protocol
+
 --echo # Make sure column was actually compressed
 INSERT INTO t1 VALUES(REPEAT('a', 1000));
 SELECT LEFT(a, 10), LENGTH(a) FROM t1;
@@ -68,7 +70,8 @@ TRUNCATE TABLE t1;
 SET column_compression_zlib_level= 1;
 INSERT INTO t1 VALUES(REPEAT('ab', 1000));
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
-SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+# This is is using < as DATA_LENGTH produces different results on s390x-ubuntu-2004
+SELECT DATA_LENGTH < 100 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 TRUNCATE TABLE t1;
 
 SET column_compression_zlib_level= 9;
@@ -93,6 +96,8 @@ SELECT * FROM t1 ORDER BY a;
 --echo # Coverage for val_real() and val_int()
 SELECT a+1 FROM t1 ORDER BY 1;
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+
+--enable_ps2_protocol
 
 DROP TABLE t1;
 

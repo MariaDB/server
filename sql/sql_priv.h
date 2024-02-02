@@ -194,7 +194,7 @@
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
 
-/* @@optimizer_switch flags. These must be in sync with optimizer_switch_typelib */
+/* @@optimizer_switch flags. These must be in sync with optimizer_switch_names */
 #define OPTIMIZER_SWITCH_INDEX_MERGE               (1ULL << 0)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_UNION         (1ULL << 1)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION    (1ULL << 2)
@@ -239,6 +239,7 @@
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
 #define OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN       (1ULL << 35)
 #define OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY     (1ULL << 36)
+#define OPTIMIZER_SWITCH_CSET_NARROWING            (1ULL << 37)
 
 #define OPTIMIZER_SWITCH_DEFAULT (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                   OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
