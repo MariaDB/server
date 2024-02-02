@@ -2962,18 +2962,21 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
       lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_UPDATE_IGNORE);
   }
 
-  if (!(result= new (thd->mem_root) multi_update(thd, table_list,
-                                                 &select_lex->leaf_tables,
-                                                 &select_lex->item_list,
-                                                 &lex->value_list,
-                                                 lex->duplicates,
-                                                 lex->ignore)))
   {
-    DBUG_RETURN(TRUE);
-  }
+    Query_arena_stmt on_stmt_arena(thd);
+    if (!(result= new (thd->mem_root) multi_update(thd, table_list,
+                                                  &select_lex->leaf_tables,
+                                                  &select_lex->item_list,
+                                                  &lex->value_list,
+                                                  lex->duplicates,
+                                                  lex->ignore)))
+    {
+      DBUG_RETURN(TRUE);
+    }
 
-  if (((multi_update *)result)->init(thd))
-    DBUG_RETURN(TRUE);
+    if (((multi_update *)result)->init(thd))
+      DBUG_RETURN(TRUE);
+  }
 
   if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
                    table_list, select_lex->leaf_tables, false, false))
@@ -3094,7 +3097,6 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   if (result)
   {
     res= false;
-    delete result;
   }
 
   return res;
