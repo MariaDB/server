@@ -3887,3 +3887,14 @@ i1
 2
 1
 DROP TABLE t1,t2,t3;
+#
+# MDEV-32424 Crash in query GROUP BY...HAVING
+#
+CREATE TABLE t1 (col VARCHAR(1));
+INSERT INTO t1 (col) VALUES ('x'), (NULL), ('x'), (NULL);
+SELECT * FROM t1 GROUP BY col HAVING col = (SELECT * FROM t1) AND col IN (1 , col);
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

@@ -8886,6 +8886,11 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
   {
     int fl= cond->excl_dep_on_grouping_fields(this) && !cond->is_expensive() ?
       FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
+    if (fl == FULL_EXTRACTION_FL)
+    {
+      if (cond->walk(&Item::is_subquery_processor, 0, 0))
+        fl= NO_EXTRACTION_FL;
+    }
     cond->set_extraction_flag(fl);
   }
 }

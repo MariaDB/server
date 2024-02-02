@@ -860,3 +860,17 @@ SELECT t3.i1 FROM t3
                                     GROUP BY i1 HAVING t.i1 < 3));
 
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-32424 Crash in query GROUP BY...HAVING
+--echo #
+
+CREATE TABLE t1 (col VARCHAR(1));
+INSERT INTO t1 (col) VALUES ('x'), (NULL), ('x'), (NULL);
+--error 1242
+SELECT * FROM t1 GROUP BY col HAVING col = (SELECT * FROM t1) AND col IN (1 , col);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
