@@ -25,6 +25,7 @@
 #include <my_getopt.h>
 #include <my_default.h>
 #include <mysql_version.h>
+#include <stdarg.h>
 #include <welcome_copyright_notice.h>
 
 #define load_default_groups mysqld_groups
@@ -385,32 +386,137 @@ static char *remove_end_comment(char *ptr)
   return ptr;
 }
 
+struct generated
+{
+  /* the memory root for allocating line strings */
+  MEM_ROOT alloc;
+  /* array of strings for the main content */
+  DYNAMIC_ARRAY main;
+  /* array of strings for options that should be added to the current version
+   * section */
+  DYNAMIC_ARRAY old_version;
+};
 
-/**
-  Write the given line to f as specified by opt_edit_mode, or to stdout if f is
-  NULL. Returns a nonnegative value on success and EOF on failure.
-*/
-static int write_output_line(MYSQL_FILE *f, const char *line, my_bool is_valid)
+static void generated_init(struct generated *generated)
+{
+  init_alloc_root(key_memory_upgrade_config, &generated->alloc, 512, 0, MYF(0));
+  init_dynamic_array2(key_memory_upgrade_config,
+                      &generated->main,
+                      sizeof(char *),
+                      NULL,
+                      0,
+                      0,
+                      MYF(0));
+  init_dynamic_array2(key_memory_upgrade_config,
+                      &generated->old_version,
+                      sizeof(char *),
+                      NULL,
+                      0,
+                      0,
+                      MYF(0));
+}
+
+static void generated_write(MYSQL_FILE *f, struct generated *generated)
 {
   FILE *target_file= f ? f->m_file : stdout;
+  size_t i;
+  for (i= 0; i < generated->main.elements; i++)
+  {
+    char *element= *(char **) dynamic_array_ptr(&generated->main, i);
+    fputs(element, target_file);
+  }
+  if (generated->old_version.elements > 0)
+  {
+    fprintf(target_file, "\n[%s]\n", opt_current_version);
+    for (i= 0; i < generated->old_version.elements; i++)
+    {
+      char *element= *(char **)dynamic_array_ptr(&generated->old_version, i);
+      fputs(element, target_file);
+    }
+  }
+}
+
+static void generated_free(struct generated *generated)
+{
+  free_root(&generated->alloc, MYF(0));
+  delete_dynamic(&generated->main);
+  delete_dynamic(&generated->old_version);
+}
+
+static char *print_alloc(MEM_ROOT *alloc, const char *format, va_list args)
+{
+  int length;
+  char *p= NULL;
+  va_list args2;
+  va_copy(args2, args);
+
+  length= vsnprintf(p, 0, format, args) + 1;
+  p= alloc_root(alloc, length);
+  if (!p)
+    return NULL;
+  vsnprintf(p, length, format, args2);
+  va_end(args2);
+  return p;
+}
+
+static my_bool vadd_line(MEM_ROOT *alloc, DYNAMIC_ARRAY *array,
+                        const char *format, va_list args)
+{
+  char *p;
+  p= print_alloc(alloc, format, args);
+  if (!p)
+    return TRUE;
+  return insert_dynamic(array, &p);
+}
+
+static my_bool add_line(MEM_ROOT *alloc, DYNAMIC_ARRAY *array,
+                        const char *format, ...)
+{
+  va_list args;
+  my_bool res;
+  va_start(args, format);
+  res= vadd_line(alloc, array, format, args);
+  va_end(args);
+  return res;
+}
+
+static my_bool add_main_line(struct generated *generated, const char *format,
+                             ...)
+{
+  va_list args;
+  my_bool res;
+  va_start(args, format);
+  res= vadd_line(&generated->alloc, &generated->main, format, args);
+  va_end(args);
+  return res;
+}
+
+/**
+  Write the given line to generated as specified by opt_edit_mode. Returns false
+  on success and true on failure.
+*/
+static my_bool generated_add_line(struct generated *generated, const char *line,
+                                  my_bool is_valid)
+{
   switch (opt_edit_mode) {
   case EDIT_MODE_REMOVE:
+    return is_valid ? add_main_line(generated, "%s", line) : FALSE;
   case EDIT_MODE_LAST_OLD_VERSION:
-    return is_valid ? fputs(line, target_file) : 0;
+    return add_line(&generated->alloc,
+                    is_valid ? &generated->main : &generated->old_version,
+                    "%s", line);
   case EDIT_MODE_COMMENT:
-    if (!is_valid && fputc('#', target_file) == EOF)
-      return EOF;
-    return fputs(line, target_file);
+    return add_main_line(generated, is_valid ? "%s" : "#%s", line);
   case EDIT_MODE_INLINE_OLD_VERSION:
-    if (!is_valid && fprintf(target_file, "\n[%s]\n", opt_current_version) < 0)
-      return EOF;
-    if (fputs(line, target_file) == EOF)
-      return EOF;
-    return is_valid ? 0 : fputs("\n[mysqld]\n", target_file);
+    if (!is_valid && add_main_line(generated, "\n[%s]\n", opt_current_version))
+      return TRUE;
+    if (add_main_line(generated, "%s", line))
+      return TRUE;
+    return is_valid ? FALSE : add_main_line(generated, "\n[mysqld]\n");
   case EDIT_MODE_NONE:
-    return opt_print ? fputs(line, target_file) : 0;
+    return opt_print ? add_main_line(generated, "%s", line) : 0;
   }
-  return 0;
+  return TRUE;
 }
 
 
@@ -433,7 +539,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   size_t i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
-  DYNAMIC_ARRAY invalid_lines;
+  struct generated generated;
 
   if (safe_strlen(dir) + strlen(config_file) >= FN_REFLEN-3)
     return 0;					/* Ignore wrong paths */
@@ -497,18 +603,9 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     }
   }
 
+  generated_init(&generated);
   if (opt_print || (opt_edit_mode != EDIT_MODE_NONE && !opt_update))
     fprintf(stdout, "### File %s:\n", name);
-  if (opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
-  {
-    init_dynamic_array2(key_memory_upgrade_config,
-                        &invalid_lines,
-                        sizeof(char *),
-                        NULL,
-                        0,
-                        0,
-                        MYF(0));
-  }
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
     my_bool line_valid= TRUE;
@@ -521,14 +618,14 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
 
     if (*ptr == '#' || *ptr == ';' || !*ptr)
     {
-      write_output_line(tmp_fp, buff, line_valid);
+      generated_add_line(&generated, buff, line_valid);
       continue;
     }
 
     /* Configuration File Directives */
     if (*ptr == '!')
     {
-      write_output_line(tmp_fp, buff, line_valid);
+      generated_add_line(&generated, buff, line_valid);
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1;
@@ -598,7 +695,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
 
     if (*ptr == '[')				/* Group name */
     {
-      write_output_line(tmp_fp, buff, line_valid);
+      generated_add_line(&generated, buff, line_valid);
       if (!(end=(char *) strchr(++ptr,']')))
       {
 	fprintf(stderr,
@@ -625,7 +722,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     case PARSE:
       break;
     case SKIP:
-      write_output_line(tmp_fp, buff, line_valid);
+      generated_add_line(&generated, buff, line_valid);
       continue;
     }
 
@@ -750,32 +847,11 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
         }
       }
     }
-    if (!line_valid && opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
-    {
-      char *line= my_strdup(key_memory_upgrade_config, buff, MYF(0));
-      if (!line || insert_dynamic(&invalid_lines, &line))
-        goto err;
-      continue;
-    }
-    write_output_line(tmp_fp, buff, line_valid);
+    generated_add_line(&generated, buff, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
-  if (opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
-  {
-    if (invalid_lines.elements > 0)
-    {
-      FILE *target_file= tmp_fp ? tmp_fp->m_file : stdout;
-      size_t i;
-      fprintf(target_file, "\n[%s]\n", opt_current_version);
-      for (i= 0; i < invalid_lines.elements; i++)
-      {
-        char *element = *(char **)dynamic_array_ptr(&invalid_lines, i);
-        fputs(element, target_file);
-        my_free(element);
-      }
-    }
-    delete_dynamic(&invalid_lines);
-  }
+  generated_write(tmp_fp, &generated);
+  generated_free(&generated);
   if (tmp_fp)
   {
     mysql_file_fclose(tmp_fp, MYF(0));
@@ -815,6 +891,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   mysql_file_fclose(fp, MYF(0));
   if (tmp_fp)
     mysql_file_fclose(tmp_fp, MYF(0));
+  generated_free(&generated);
   return -1;					/* Fatal error */
 }
 
