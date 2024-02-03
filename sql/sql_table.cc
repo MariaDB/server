@@ -11364,6 +11364,15 @@ do_continue:;
       new_table->mark_columns_needed_for_insert();
       mysql_bin_log.write_table_map(thd, new_table, 1);
     }
+
+    /*
+      if ORDER BY: sorting
+      always: copying, building indexes.
+      if online: reading up the binlog (second binlog is being written)
+                 reading up the second binlog under exclusive lock
+    */
+    thd_progress_init(thd, MY_TEST(order) + 2 + 2 * MY_TEST(online));
+    
     if (copy_data_between_tables(thd, table, new_table,
                                  ignore,
                                  order_num, order, &copied, &deleted,
@@ -11531,6 +11540,8 @@ do_continue:;
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;                  /* Safety */
+
+  thd_progress_end(thd);
 
   DBUG_PRINT("info", ("is_table_renamed: %d  engine_changed: %d",
                       alter_ctx.is_table_renamed(), engine_changed));
@@ -11761,6 +11772,8 @@ err_new_table_cleanup:
   DBUG_PRINT("error", ("err_new_table_cleanup"));
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
+  thd_progress_end(thd);
+
   /*
     No default value was provided for a DATE/DATETIME field, the
     current sql_mode doesn't allow the '0000-00-00' value and
@@ -11890,7 +11903,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
   IO_CACHE *log_file= log->flip();
 
-  thd_progress_report(thd, 0, my_b_write_tell(log_file));
+  thd_progress_report(thd, 1, MY_MAX(1, my_b_write_tell(log_file)));
 
   Has_default_error_handler hdeh;
   thd->push_internal_handler(&hdeh);
@@ -11956,14 +11969,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
-
-  /*
-    if ORDER BY: sorting
-    always: copying, building indexes.
-    if online: reading up the binlog (second binlog is being written)
-               reading up the second binlog under exclusive lock
-  */
-  thd_progress_init(thd, MY_TEST(order) + 2 + 2 * MY_TEST(online));
 
   if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);
@@ -12431,7 +12436,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (error < 0 && !from->s->tmp_table &&
       to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
     error= 1;
-  thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
 }
 
