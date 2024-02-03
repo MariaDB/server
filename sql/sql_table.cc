@@ -11835,6 +11835,7 @@ end_temporary:
 
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
+  thd_progress_end(thd);
   *recreate_info= Recreate_info(copied, deleted);
   thd->my_ok_with_recreate_info(*recreate_info,
                                 (ulong) thd->get_stmt_da()->
