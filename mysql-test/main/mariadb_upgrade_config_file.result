@@ -7,7 +7,7 @@ Testing --edit=comment
 #invalid=true
 #alter_algorithm=invalid
 #plugin_load_add=audit_log
-Testing --edit=old-version
+Testing --edit=inline-old-version
 [mysqld]
 
 [mysql-5.7]
