@@ -2300,10 +2300,7 @@ static int read_and_execute(bool interactive)
         the readline/libedit library.
       */
       if (line)
-      {
         free(line);
-        glob_buffer.length(0);
-      }
       line= readline(prompt);
 #ifdef USE_LIBEDIT_INTERFACE
       /*

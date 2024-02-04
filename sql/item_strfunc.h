@@ -504,7 +504,6 @@ public:
     Item_str_func(thd, org, find, replace) {}
   String *val_str(String *to) override { return val_str_internal(to, false); };
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str_internal(String *str, String *empty_string_for_null);
   const Schema *schema() const override { return &mariadb_schema; }
   void print(String *str, enum_query_type query_type) override
   {
