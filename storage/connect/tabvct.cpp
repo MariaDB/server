@@ -71,11 +71,6 @@
 #include "tabvct.h"
 #include "valblk.h"
 
-#if defined(UNIX)
-//add dummy strerror   (NGC)
-char *strerror(int num);
-#endif   // UNIX
-
 /***********************************************************************/
 /*  External function.                                                 */
 /***********************************************************************/

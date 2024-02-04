@@ -6222,7 +6222,7 @@ int ha_spider::ft_read_internal(
           DBUG_RETURN(check_error_mode_eof(error_num));
         }
       } else {
-        uint dbton_id = share->use_sql_dbton_ids[roop_count];
+        uint dbton_id = share->sql_dbton_ids[roop_count];
         spider_db_handler *dbton_hdl = dbton_handler[dbton_id];
         SPIDER_CONN *conn = conns[roop_count];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
@@ -8506,7 +8506,10 @@ int ha_spider::create(
     if (
       thd->lex->create_info.or_replace() &&
       (error_num = spider_delete_tables(
-        table_tables, tmp_share.table_name, &dummy))
+        table_tables, tmp_share.table_name, &dummy)) &&
+      /* In this context, no key found in mysql.spider_tables means
+      the Spider table does not exist */
+      error_num != HA_ERR_KEY_NOT_FOUND
     ) {
       goto error;
     }
@@ -8913,6 +8916,10 @@ int ha_spider::delete_table(
       (error_num = spider_delete_tables(
         table_tables, name, &old_link_count))
     ) {
+      /* In this context, no key found in mysql.spider_tables means
+      the Spider table does not exist */
+      if (error_num == HA_ERR_KEY_NOT_FOUND)
+        error_num= HA_ERR_NO_SUCH_TABLE;
       goto error;
     }
     spider_sys_close_table(current_thd, &open_tables_backup);
@@ -9731,7 +9738,7 @@ int ha_spider::drop_tmp_tables()
     ) {
       if (spider_bit_is_set(result_list.tmp_table_created, roop_count))
       {
-        uint dbton_id = share->use_sql_dbton_ids[roop_count];
+        uint dbton_id = share->sql_dbton_ids[roop_count];
         spider_db_handler *dbton_hdl = dbton_handler[dbton_id];
         SPIDER_CONN *conn = conns[roop_count];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);

@@ -1,4 +1,4 @@
-INCLUDE (CheckCXXSourceCompiles)
+INCLUDE (CheckCXXSourceRuns)
 INCLUDE (ExternalProject)
 
 SET(WITH_LIBFMT "auto" CACHE STRING
@@ -27,17 +27,15 @@ ENDMACRO()
 MACRO (CHECK_LIBFMT)
   IF(WITH_LIBFMT STREQUAL "system" OR WITH_LIBFMT STREQUAL "auto")
     SET(CMAKE_REQUIRED_INCLUDES ${LIBFMT_INCLUDE_DIR})
-    CHECK_CXX_SOURCE_COMPILES(
+    CHECK_CXX_SOURCE_RUNS(
     "#define FMT_STATIC_THOUSANDS_SEPARATOR ','
      #define FMT_HEADER_ONLY 1
      #include <fmt/format-inl.h>
-     #include <iostream>
      int main() {
-       int answer= 42;
+       int answer= 4321;
        fmt::format_args::format_arg arg=
          fmt::detail::make_arg<fmt::format_context>(answer);
-         std::cout << fmt::vformat(\"The answer is {}.\",
-                                   fmt::format_args(&arg, 1));
+       return fmt::vformat(\"{:L}\", fmt::format_args(&arg, 1)).compare(\"4,321\");
      }" HAVE_SYSTEM_LIBFMT)
     SET(CMAKE_REQUIRED_INCLUDES)
   ENDIF()

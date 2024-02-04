@@ -376,6 +376,12 @@ class Master_info : public Slave_reporting_capability
        it must be ignored similarly to the replicate-same-server-id rule.
  */
   bool do_accept_own_server_id= false;
+  /*
+    Set to 1 when semi_sync is enabled. Set to 0 if there is any transmit
+    problems to the slave, in which case any furter semi-sync reply is
+    ignored
+  */
+  bool semi_sync_reply_enabled;
   List <start_alter_info> start_alter_list;
   MEM_ROOT mem_root;
   /*

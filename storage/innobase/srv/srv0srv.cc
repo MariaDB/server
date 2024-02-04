@@ -1418,7 +1418,8 @@ inline void purge_coordinator_state::do_purge()
     ulint n_pages_handled= trx_purge(n_threads, history_size);
     if (!trx_sys.history_exists())
       goto no_history;
-    if (purge_sys.truncate.current || srv_shutdown_state != SRV_SHUTDOWN_NONE)
+    if (purge_sys.truncating_tablespace() ||
+        srv_shutdown_state != SRV_SHUTDOWN_NONE)
     {
       purge_truncation_task.wait();
       trx_purge_truncate_history();

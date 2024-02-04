@@ -2088,9 +2088,11 @@ SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'cursor()
 SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE database()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database()
-SELECT * from t1 where f2=f1' at line 1
+SELECT 1;
+CALL database();
+1
+1
+DROP PROCEDURE database;
 CREATE PROCEDURE databases()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'databases()
@@ -2350,6 +2352,12 @@ CREATE PROCEDURE join()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'join()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE json_table()
+SELECT 1;
+CALL json_table();
+1
+1
+DROP PROCEDURE json_table;
 CREATE PROCEDURE key()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key()
@@ -2470,6 +2478,12 @@ CREATE PROCEDURE natural()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'natural()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE nested()
+SELECT 1;
+CALL nested();
+1
+1
+DROP PROCEDURE nested;
 CREATE PROCEDURE not()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'not()
@@ -2509,6 +2523,12 @@ CREATE PROCEDURE order()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'order()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE ordinality()
+SELECT 1;
+CALL ordinality;
+1
+1
+DROP PROCEDURE ordinality;
 CREATE PROCEDURE out()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'out()
@@ -2521,6 +2541,12 @@ CREATE PROCEDURE outfile()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'outfile()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE path()
+SELECT 1;
+CALL path();
+1
+1
+DROP PROCEDURE path;
 CREATE PROCEDURE precision()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'precision()
@@ -2602,9 +2628,11 @@ SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'rlike()
 SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE schema()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema()
-SELECT * from t1 where f2=f1' at line 1
+SELECT 1;
+CALL schema();
+1
+1
+DROP PROCEDURE schema;
 CREATE PROCEDURE schemas()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schemas()
@@ -4204,9 +4232,6 @@ CREATE PROCEDURE sp1()
 database:BEGIN
 SELECT @x;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 databases:BEGIN
@@ -4737,6 +4762,11 @@ SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
+json_table:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
 key:BEGIN
 SELECT @x;
 END//
@@ -4977,6 +5007,11 @@ SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
+nested:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
 not:BEGIN
 SELECT @x;
 END//
@@ -5057,6 +5092,11 @@ SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
+ordinality:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
 out:BEGIN
 SELECT @x;
 END//
@@ -5080,6 +5120,11 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
+CREATE PROCEDURE sp1()
+path:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1()
 precision:BEGIN
 SELECT @x;
@@ -5253,9 +5298,6 @@ CREATE PROCEDURE sp1()
 schema:BEGIN
 SELECT @x;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 schemas:BEGIN
@@ -7811,8 +7853,6 @@ CREATE PROCEDURE sp1()
 BEGIN
 declare database char;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -8278,6 +8318,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
+declare json_table char;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
+BEGIN
 declare key char;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key char;
@@ -8488,6 +8533,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
+declare nested char;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
+BEGIN
 declare not char;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'not char;
@@ -8556,6 +8606,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
+declare ordinality char;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
+BEGIN
 declare out char;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'out char;
@@ -8575,6 +8630,11 @@ END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'outfile char;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
+CREATE PROCEDURE sp1()
+BEGIN
+declare path char;
+END//
+DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1()
 BEGIN
 declare precision char;
@@ -8745,11 +8805,7 @@ CREATE PROCEDURE sp1()
 BEGIN
 declare schema char;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1()
 BEGIN
 declare schemas char;
@@ -9704,11 +9760,7 @@ BEGIN
 declare database condition for sqlstate '02000';
 declare exit handler for database set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database condition for sqlstate '02000';
-declare exit handler for database se...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
 declare databases condition for sqlstate '02000';
@@ -10372,6 +10424,12 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare json_table condition for sqlstate '02000';
+declare exit handler for json_table set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1( )
+BEGIN
 declare key condition for sqlstate '02000';
 declare exit handler for key set @var2 = 1;
 END//
@@ -10672,6 +10730,12 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare nested condition for sqlstate '02000';
+declare exit handler for nested set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1( )
+BEGIN
 declare not condition for sqlstate '02000';
 declare exit handler for not set @var2 = 1;
 END//
@@ -10768,6 +10832,12 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare ordinality condition for sqlstate '02000';
+declare exit handler for ordinality set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1( )
+BEGIN
 declare out condition for sqlstate '02000';
 declare exit handler for out set @var2 = 1;
 END//
@@ -10796,6 +10866,12 @@ declare exit handler for outfile set ...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
+CREATE PROCEDURE sp1( )
+BEGIN
+declare path condition for sqlstate '02000';
+declare exit handler for path set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
 declare precision condition for sqlstate '02000';
@@ -11021,11 +11097,7 @@ BEGIN
 declare schema condition for sqlstate '02000';
 declare exit handler for schema set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema condition for sqlstate '02000';
-declare exit handler for schema set @v...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
 declare schemas condition for sqlstate '02000';
@@ -11974,8 +12046,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare database handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -12571,6 +12642,11 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare json_table handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
+CREATE PROCEDURE sp1( )
+BEGIN
 declare key handler for sqlstate '02000' set @var2 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key handler for sqlstate '02000' set @var2 = 1;
@@ -12841,6 +12917,11 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare nested handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
+CREATE PROCEDURE sp1( )
+BEGIN
 declare not handler for sqlstate '02000' set @var2 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'not handler for sqlstate '02000' set @var2 = 1;
@@ -12930,6 +13011,11 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare ordinality handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
+CREATE PROCEDURE sp1( )
+BEGIN
 declare out handler for sqlstate '02000' set @var2 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'out handler for sqlstate '02000' set @var2 = 1;
@@ -12955,6 +13041,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
+CREATE PROCEDURE sp1( )
+BEGIN
+declare path handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
 CREATE PROCEDURE sp1( )
 BEGIN
 declare precision handler for sqlstate '02000' set @var2 = 1;
@@ -13164,8 +13255,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare schema handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
