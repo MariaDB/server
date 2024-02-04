@@ -14,16 +14,43 @@ Testing --edit=inline-old-version
 invalid=true
 
 [mysqld]
+
+[mariadbd]
 key_buffer_size=20M
 
 [mysql-5.7]
 alter_algorithm=invalid
+
+[mysqld]
+
+[mysqld]
+
+[mysql-5.7]
+key_buffer_size=20M
 
 [mysqld]
 Testing --edit=last-old-version
 [mysqld]
+
+[mariadbd]
 key_buffer_size=20M
 
 [mysql-5.7]
 invalid=true
+key_buffer_size=20M
 alter_algorithm=invalid
+Testing mariadbd section additions
+[mariadbd]
+join_buffer_size=5K
+key_buffer_size=20M
+
+[mysqld]
+
+[mysql-5.7]
+invalid1=true
+invalid2=true
+key_buffer_size=20M
+alter_algorithm=invalid
+Testing key_buffer_size in mariadbd section
+[mariadbd]
+key_buffer_size=20M
