@@ -61,7 +61,7 @@
 #include "mysqld_error.h"
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
-
+#include "connection_pool.h"
 /* Exit codes */
 
 #define EX_USAGE 1
@@ -150,7 +150,7 @@ static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
                select_field_names_inited= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static double opt_max_statement_time= 0.0;
-static MYSQL mysql_connection,*mysql=0;
+static MYSQL *mysql=0;
 static DYNAMIC_STRING insert_pat, select_field_names, select_field_names_for_header;
 static char  *opt_password=0,*current_user=0,
              *current_host=0,*path=0,*fields_terminated=0,
@@ -194,7 +194,7 @@ FILE *stderror_file=0;
 
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
-
+static uint opt_parallel= 0;
 /*
   Dynamic_string wrapper functions. In this file use these
   wrappers, they will terminate the process if there is
@@ -245,6 +245,8 @@ TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
 static HASH ignore_table, ignore_data;
 
 static HASH ignore_database;
+
+static async_pool::connection_pool connection_pool;
 
 static struct my_option my_long_options[] =
 {
@@ -526,6 +528,8 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's solicited on the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"parallel", 'j', "Number of dump table jobs executed in parallel (only with --tab option)",
+   &opt_parallel, &opt_parallel, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -777,7 +781,7 @@ static void write_header(FILE *sql_file, const char *db_name)
                   "-- ------------------------------------------------------\n"
                  );
     print_comment(sql_file, 0, "-- Server version\t%s\n",
-                  mysql_get_server_info(&mysql_connection));
+                  mysql_get_server_info(mysql));
 
     if (!opt_logging)
       fprintf(sql_file,
@@ -1451,6 +1455,7 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
 static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
                                          const char *query)
 {
+  DBUG_ASSERT(mysql_con);
   if (mysql_query(mysql_con, query) ||
       (res && !((*res)= mysql_store_result(mysql_con))))
   {
@@ -1919,6 +1924,13 @@ static void free_resources()
     else
       fflush(md_result_file);
   }
+  if (first_error && mysql)
+  {
+    connection_pool.for_each_connection(
+        [](MYSQL *c) { mysql_kill(mysql,c->thread_id);});
+  }
+  connection_pool.close();
+
   if (get_table_name_result)
     mysql_free_result(get_table_name_result);
   if (routine_res)
@@ -1959,7 +1971,7 @@ static void maybe_exit(int error)
   if (ignore_errors)
     return;
   ignore_errors= 1; /* don't want to recurse, if something fails below */
-  if (opt_slave_data)
+  if (opt_slave_data && mysql)
     do_start_slave_sql(mysql);
   free_resources();
   exit(error);
@@ -1970,49 +1982,49 @@ static void maybe_exit(int error)
   db_connect -- connects to the host and selects DB.
 */
 
-static int connect_to_db(char *host, char *user,char *passwd)
+static MYSQL* connect_to_db(char *host, char *user,char *passwd)
 {
   char buff[20+FN_REFLEN];
   my_bool reconnect;
   DBUG_ENTER("connect_to_db");
 
   verbose_msg("-- Connecting to %s...\n", host ? host : "localhost");
-  mysql_init(&mysql_connection);
+  MYSQL* con = mysql_init(NULL);
   if (opt_compress)
-    mysql_options(&mysql_connection,MYSQL_OPT_COMPRESS,NullS);
+    mysql_options(con,MYSQL_OPT_COMPRESS,NullS);
 #ifdef HAVE_OPENSSL
   if (opt_use_ssl)
   {
-    mysql_ssl_set(&mysql_connection, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
+    mysql_ssl_set(con, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
                   opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(&mysql_connection, MARIADB_OPT_TLS_VERSION, opt_tls_version);
+    mysql_options(con, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(con, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(con, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
-  mysql_options(&mysql_connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+  mysql_options(con,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
 #endif
   if (opt_protocol)
-    mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-  mysql_options(&mysql_connection, MYSQL_SET_CHARSET_NAME, default_charset);
+    mysql_options(con,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
+  mysql_options(con, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(&mysql_connection, MYSQL_PLUGIN_DIR, opt_plugin_dir);
+    mysql_options(con, MYSQL_PLUGIN_DIR, opt_plugin_dir);
 
   if (opt_default_auth && *opt_default_auth)
-    mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
+    mysql_options(con, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
-  mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
+  mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqldump");
-  mysql= &mysql_connection;          /* So we can mysql_close() it properly */
-  if (!mysql_real_connect(&mysql_connection,host,user,passwd,
+  if (!mysql_real_connect(con,host,user,passwd,
                           NULL,opt_mysql_port,opt_mysql_unix_port, 0))
   {
-    DB_error(&mysql_connection, "when trying to connect");
-    DBUG_RETURN(1);
+    DB_error(con, "when trying to connect");
+    goto err;
   }
-  if ((mysql_get_server_version(&mysql_connection) < 40100) ||
+
+  if ((mysql_get_server_version(con) < 40100) ||
       (opt_compatible_mode & 3))
   {
     /* Don't dump SET NAMES with a pre-4.1 server (bug#7997).  */
@@ -2026,22 +2038,38 @@ static int connect_to_db(char *host, char *user,char *passwd)
     cannot reconnect.
   */
   reconnect= 0;
-  mysql_options(&mysql_connection, MYSQL_OPT_RECONNECT, &reconnect);
+  mysql_options(con, MYSQL_OPT_RECONNECT, &reconnect);
   my_snprintf(buff, sizeof(buff), "/*!40100 SET @@SQL_MODE='%s' */",
               compatible_mode_normal_str);
-  if (mysql_query_with_error_report(mysql, 0, buff))
-    DBUG_RETURN(1);
+  if (mysql_query_with_error_report(con, 0, buff))
+    goto err;
   /*
     set time_zone to UTC to allow dumping date types between servers with
     different time zone settings
   */
   if (opt_tz_utc)
   {
-    my_snprintf(buff, sizeof(buff), "/*!40103 SET TIME_ZONE='+00:00' */");
-    if (mysql_query_with_error_report(mysql, 0, buff))
-      DBUG_RETURN(1);
+    if (mysql_query_with_error_report(con, 0,
+                                    "/*!40103 SET TIME_ZONE='+00:00' */"))
+      goto err;
   }
-  DBUG_RETURN(0);
+
+  /* Set MAX_STATEMENT_TIME to 0 unless set in client */
+  my_snprintf(buff, sizeof(buff), "/*!100100 SET @@MAX_STATEMENT_TIME=%f */",
+              opt_max_statement_time);
+  if (mysql_query_with_error_report(con, 0, buff))
+    goto err;
+
+  /* Set server side timeout between client commands to server compiled-in default */
+  if(mysql_query_with_error_report(con,0, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */"))
+    goto err;
+
+  DBUG_RETURN(con);
+
+err:
+  if (con)
+    mysql_close(con);
+  DBUG_RETURN(NULL);
 } /* connect_to_db */
 
 
@@ -2063,7 +2091,7 @@ static void unescape(FILE *file,char *pos, size_t length)
   if (!(tmp=(char*) my_malloc(PSI_NOT_INSTRUMENTED, length*2+1, MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate memory");
 
-  mysql_real_escape_string(&mysql_connection, tmp, pos, (ulong)length);
+  mysql_real_escape_string(mysql, tmp, pos, (ulong)length);
   fputc('\'', file);
   fputs(tmp, file);
   fputc('\'', file);
@@ -4044,6 +4072,21 @@ static void vers_append_system_time(DYNAMIC_STRING* query_string)
   }
 }
 
+/**
+  Completion handler for async queries in the pool.
+  Dies in case query produced an error.
+
+  @param mysql    The connection that executed the query.
+  @param query    The query that was executed.
+  @param success  Whether the query was successful.
+*/
+static void send_query_completion_func(MYSQL* mysql, const char* query,
+    bool success, void*)
+{
+  if (!success)
+    maybe_die(EX_MYSQLERR, "Couldn't execute async query '%s' (%s)", query,
+      mysql_error(mysql));
+}
 
 /*
 
@@ -4199,6 +4242,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       dynstr_append_checked(&query_string, select_field_names.str);
     }
     dynstr_append_checked(&query_string, " FROM ");
+    char quoted_db_buf[NAME_LEN * 2 + 3];
+    char *qdatabase= quote_name(db, quoted_db_buf, opt_quoted);
+    dynstr_append_checked(&query_string, qdatabase);
+    dynstr_append_checked(&query_string, ".");
     dynstr_append_checked(&query_string, result_table);
 
     if (versioned)
@@ -4222,8 +4269,16 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       my_free(order_by);
       order_by= 0;
     }
-
-    if (mysql_real_query(mysql, query_string.str, (ulong)query_string.length))
+    if (opt_parallel)
+    {
+      if (connection_pool.execute_async(query_string.str,send_query_completion_func,nullptr,true))
+      {
+        dynstr_free(&query_string);
+        DB_error(mysql, "when executing send_query 'SELECT INTO OUTFILE'");
+        DBUG_VOID_RETURN;
+      }
+    }
+    else if (mysql_real_query(mysql, query_string.str, (ulong)query_string.length))
     {
       dynstr_free(&query_string);
       DB_error(mysql, "when executing 'SELECT INTO OUTFILE'");
@@ -4403,7 +4458,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                 {
                   dynstr_append_checked(&extended_row,"'");
                   extended_row.length +=
-                  mysql_real_escape_string(&mysql_connection,
+                  mysql_real_escape_string(mysql,
                                            &extended_row.str[extended_row.length],
                                            row[i],length);
                   extended_row.str[extended_row.length]='\0';
@@ -6761,7 +6816,7 @@ static char *primary_key_fields(const char *table_name)
   {
     char *end;
     /* result (terminating \0 is already in result_length) */
-    result= my_malloc(PSI_NOT_INSTRUMENTED, result_length + 10, MYF(MY_WME));
+    result= (char *)my_malloc(PSI_NOT_INSTRUMENTED, result_length + 10, MYF(MY_WME));
     if (!result)
     {
       fprintf(stderr, "Error: Not enough memory to store ORDER BY clause\n");
@@ -7065,10 +7120,30 @@ static void dynstr_realloc_checked(DYNAMIC_STRING *str, ulong additional_size)
     die(EX_MYSQLERR, DYNAMIC_STR_ERROR_MSG);
 }
 
+#define MAX_POOL_CONNECTIONS 256
+static void init_connection_pool(uint n_connections)
+{
+  MYSQL *conn[MAX_POOL_CONNECTIONS];
+
+  if (n_connections > array_elements(conn))
+    die(EX_USAGE, "Too many connections");
+
+  for (uint i= 0; i < n_connections; i++)
+  {
+    MYSQL *c= connect_to_db(current_host, current_user, opt_password);
+    if (!c)
+    {
+      for (uint j= 0; j < i; j++)
+        mysql_close(conn[j]);
+      die(EX_MYSQLERR, "Error during connection to DB");
+    }
+    conn[i]= c;
+  }
+  connection_pool.init(conn, n_connections);
+}
 
 int main(int argc, char **argv)
 {
-  char query[48];
   char bin_log_name[FN_REFLEN];
   int exit_code;
   int consistent_binlog_pos= 0;
@@ -7102,20 +7177,24 @@ int main(int argc, char **argv)
     }
   }
 
-  if (connect_to_db(current_host, current_user, opt_password))
+  mysql= connect_to_db(current_host, current_user, opt_password);
+  if (!mysql)
   {
     free_resources();
     exit(EX_MYSQLERR);
   }
   if (!path)
+  {
     write_header(md_result_file, *argv);
-
-  /* Set MAX_STATEMENT_TIME to 0 unless set in client */
-  my_snprintf(query, sizeof(query), "/*!100100 SET @@MAX_STATEMENT_TIME=%f */", opt_max_statement_time);
-  mysql_query(mysql, query);
-
-  /* Set server side timeout between client commands to server compiled-in default */
-  mysql_query(mysql, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */");
+    if (opt_parallel)
+    {
+      verbose_msg("-- Warning: ignoring --parallel setting, it currently only "
+                  "works together with --tab\n");
+      opt_parallel= 0;
+    }
+  }
+  else if (opt_parallel)
+    init_connection_pool(opt_parallel);
 
   /* Check if the server support multi source */
   if (mysql_get_server_version(mysql) >= 100000)
@@ -7168,8 +7247,15 @@ int main(int argc, char **argv)
       goto err;
   }
 
-  if (opt_single_transaction && start_transaction(mysql))
-    goto err;
+  if (opt_single_transaction)
+  {
+    if (start_transaction(mysql))
+      goto err;
+    connection_pool.for_each_connection([](MYSQL *c) {
+      if (start_transaction(c))
+        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %u", mysql->thread_id);
+    });
+  }
 
   /* Add 'STOP SLAVE to beginning of dump */
   if (opt_slave_apply && add_stop_slave())
@@ -7261,6 +7347,9 @@ int main(int argc, char **argv)
   /* everything successful, purge the old logs files */
   if (opt_delete_master_logs && purge_bin_logs_to(mysql, bin_log_name))
     goto err;
+
+  /* wait for outstanding asynchronous queries */
+  connection_pool.wait_all();
 
   /*
     No reason to explicitly COMMIT the transaction, neither to explicitly

@@ -5531,7 +5531,6 @@ proc
 one
 DROP DATABASE bug25717383;
 mariadb-dump: Got error: 2005: "Unknown server host 'unknownhost'" when trying to connect
-mariadb-dump: Couldn't execute 'SHOW SLAVE STATUS': Server has gone away (2006)
 Usage: mariadb-dump [OPTIONS] database [tables]
 OR     mariadb-dump [OPTIONS] --databases DB1 [DB2 DB3...]
 OR     mariadb-dump [OPTIONS] --all-databases
@@ -6659,3 +6658,12 @@ drop table t1;
 # End of 10.4 tests
 #
 mariadb-dump: --xml can't be used with --tab.
+select @@max_connections into @save_max_connections;
+set global max_connections=10;
+mariadb-dump: Got error: 1040: "Too many connections" when trying to connect
+set global max_connections=300;
+mariadb-dump: Too many connections
+set global max_connections=@save_max_connections;
+#
+# End of 11.4 tests
+#

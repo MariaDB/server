@@ -134,9 +134,6 @@
 #endif
 
 #include <my_service_manager.h>
-#ifdef __linux__
-#include <sys/eventfd.h>
-#endif
 
 #include <source_revision.h>
 
@@ -1396,6 +1393,8 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
+
+/** wakeup listening(main) thread by writing to this descriptor */
 static int termination_event_fd= -1;
 
 
@@ -1658,66 +1657,21 @@ static my_bool warn_threads_active_after_phase_2(THD *thd, void *)
 
 static void break_connect_loop()
 {
-#ifdef EXTRA_DEBUG
-  int count=0;
-#endif
-
   abort_loop= 1;
 
 #if defined(_WIN32)
   mysqld_win_initiate_shutdown();
 #else
-  /* Avoid waiting for ourselves when thread-handling=no-threads. */
-  if (pthread_equal(pthread_self(), select_thread))
-    return;
-  DBUG_PRINT("quit", ("waiting for select thread: %lu",
-                      (ulong)select_thread));
-
   mysql_mutex_lock(&LOCK_start_thread);
-  while (select_thread_in_use)
-  {
-    struct timespec abstime;
-    int UNINIT_VAR(error);
-    DBUG_PRINT("info",("Waiting for select thread"));
-
-    {
-      /*
-        Cannot call shutdown on systemd socket activated descriptors
-        as their clone in the pid 1 is reused.
-      */
-      int lowest_fd, shutdowns= 0;
-      lowest_fd= sd_listen_fds(0) + SD_LISTEN_FDS_START;
-      for(size_t i= 0; i < listen_sockets.size(); i++)
-      {
-        int fd= mysql_socket_getfd(listen_sockets.at(i));
-        if (fd >= lowest_fd)
-        {
-          shutdowns++;
-          mysql_socket_shutdown(listen_sockets.at(i), SHUT_RDWR);
-        }
-      }
-      if (!shutdowns && termination_event_fd >=0)
-      {
-        uint64_t u= 1;
-        if (write(termination_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
-          sql_print_error("Couldn't send event to terminate listen loop");
-      }
-    }
-    set_timespec(abstime, 2);
-    for (uint tmp=0 ; tmp < 10 && select_thread_in_use; tmp++)
-    {
-      error= mysql_cond_timedwait(&COND_start_thread, &LOCK_start_thread,
-                                  &abstime);
-      if (error != EINTR)
-        break;
-    }
-#ifdef EXTRA_DEBUG
-    if (error != 0 && error != ETIMEDOUT && !count++)
-      sql_print_error("Got error %d from mysql_cond_timedwait", error);
-#endif
-  }
   if (termination_event_fd >= 0)
-    close(termination_event_fd);
+  {
+    uint64_t u= 1;
+    if(write(termination_event_fd, &u, sizeof(uint64_t)) < 0)
+    {
+      sql_print_error("Couldn't send event to terminate listen loop");
+      abort();
+    }
+  }
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* _WIN32 */
 }
@@ -1963,11 +1917,6 @@ extern "C" void unireg_abort(int exit_code)
 static void mysqld_exit(int exit_code)
 {
   DBUG_ENTER("mysqld_exit");
-  /*
-    Important note: we wait for the signal thread to end,
-    but if a kill -15 signal was sent, the signal thread did
-    spawn the kill_server_thread thread, which is running concurrently.
-  */
   rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
   wait_for_signal_thread_to_end();
@@ -2124,17 +2073,17 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
-  uint i;
+#ifndef _WIN32
   /*
     Wait up to 10 seconds for signal thread to die. We use this mainly to
     avoid getting warnings that my_thread_end has not been called
   */
-  for (i= 0 ; i < 100 && signal_thread_in_use; i++)
+  for (uint i= 0 ; i < 100 && signal_thread_in_use; i++)
   {
-    if (pthread_kill(signal_thread, MYSQL_KILL_SIGNAL) == ESRCH)
-      break;
-    my_sleep(100);				// Give it time to die
+    kill(getpid(), MYSQL_KILL_SIGNAL);
+    my_sleep(100);  // Give it time to die
   }
+#endif
 }
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -2676,9 +2625,6 @@ static void use_systemd_activated_sockets()
     listen_sockets.push(sock);
   }
   systemd_sock_activation= 1;
-  termination_event_fd= eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
-  if (termination_event_fd == -1)
-    sql_print_warning("eventfd failed %d", errno);
   free(names);
 
   DBUG_VOID_RETURN;
@@ -3222,7 +3168,7 @@ static void start_signal_handler(void)
                                            signal_hand, 0))))
   {
     sql_print_error("Can't create interrupt-thread (error %d, errno: %d)",
-		    error,errno);
+      error,errno);
     exit(1);
   }
   mysql_cond_wait(&COND_start_thread, &LOCK_start_thread);
@@ -3232,22 +3178,9 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
-
-#if defined(USE_ONE_SIGNAL_HAND)
-pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
-{
-  my_thread_init();				// Initialize new thread
-  break_connect_loop();
-  my_thread_end();
-  pthread_exit(0);
-  return 0;
-}
-#endif
-
-
 /** This threads handles all signals */
 /* ARGSUSED */
-pthread_handler_t signal_hand(void *arg __attribute__((unused)))
+pthread_handler_t signal_hand(void *)
 {
   sigset_t set;
   int sig;
@@ -3291,20 +3224,17 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int error;
     int origin;
 
+    if (abort_loop)
+      break;
+
     while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
-    if (cleanup_done)
-    {
-      DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      my_thread_end();
-      DBUG_LEAVE;                               // Must match DBUG_ENTER()
-      signal_thread_in_use= 0;
-      pthread_exit(0);				// Safety
-      return 0;                                 // Avoid compiler warnings
-    }
+
+    if (abort_loop)
+      break;
+
     switch (sig) {
     case SIGTERM:
     case SIGQUIT:
-    case SIGKILL:
 #ifdef EXTRA_DEBUG
       sql_print_information("Got signal %d to shutdown server",sig);
 #endif
@@ -3312,31 +3242,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
-      if (!abort_loop)
-      {
-        /* Delete the instrumentation for the signal thread */
-        PSI_CALL_delete_current_thread();
-#ifdef USE_ONE_SIGNAL_HAND
-	pthread_t tmp;
-        if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
-                                                 &tmp, &connection_attrib,
-                                                 kill_server_thread,
-                                                 (void*) &sig))))
-          sql_print_error("Can't create thread to kill server (errno= %d)",
-                          error);
-#else
-        my_sigset(sig, SIG_IGN);
-        break_connect_loop(); 
-#endif
-      }
+
+      break_connect_loop();
+      DBUG_ASSERT(abort_loop);
       break;
     case SIGHUP:
 #if defined(SI_KERNEL)
-      if (!abort_loop && origin != SI_KERNEL)
+      if (origin != SI_KERNEL)
 #elif defined(SI_USER)
-      if (!abort_loop && origin <= SI_USER)
-#else
-      if (!abort_loop)
+      if (origin <= SI_USER)
 #endif
       {
         int not_used;
@@ -3363,6 +3277,11 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       break;					/* purecov: tested */
     }
   }
+  DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
+  my_thread_end();
+  DBUG_LEAVE; // Must match DBUG_ENTER()
+  signal_thread_in_use= 0;
+  pthread_exit(0); // Safety
   return(0);					/* purecov: deadcode */
 }
 
@@ -6285,16 +6204,11 @@ void handle_connections_sockets()
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
-#ifdef HAVE_POLL
   // for ip_sock, unix_sock and extra_ip_sock
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
-#else
-  fd_set readFDs,clientFDs;
-#endif
 
   DBUG_ENTER("handle_connections_sockets");
 
-#ifdef HAVE_POLL
   for (size_t i= 0; i < listen_sockets.size(); i++)
   {
     struct pollfd local_fds;
@@ -6304,27 +6218,25 @@ void handle_connections_sockets()
     fds.push(local_fds);
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
-#else
-  FD_ZERO(&clientFDs);
-  for (size_t i= 0; i < listen_sockets.size(); i++)
+  int termination_fds[2];
+  if (pipe(termination_fds))
   {
-    int fd= mysql_socket_getfd(listen_sockets.at(i));
-    FD_SET(fd, &clientFDs);
-    set_non_blocking_if_supported(listen_sockets.at(i));
+    sql_print_error("pipe() failed %d", errno);
+    DBUG_VOID_RETURN;
   }
+#ifdef FD_CLOEXEC
+  for (int fd : termination_fds)
+    (void)fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-  if (termination_event_fd >= 0)
-  {
-#ifdef HAVE_POLL
-    struct pollfd event_fd;
-    event_fd.fd= termination_event_fd;
-    event_fd.events= POLLIN;
-    fds.push(event_fd);
-#else
-    FD_SET(termination_event_fd, &clientFDs);
-#endif
-    /* no need to read this fd, abrt_loop is set before it gets a chance */
-  }
+
+  mysql_mutex_lock(&LOCK_start_thread);
+  termination_event_fd= termination_fds[1];
+  mysql_mutex_unlock(&LOCK_start_thread);
+
+  struct pollfd event_fd;
+  event_fd.fd= termination_fds[0];
+  event_fd.events= POLLIN;
+  fds.push(event_fd);
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
@@ -6332,12 +6244,7 @@ void handle_connections_sockets()
   DBUG_PRINT("general",("Waiting for connections."));
   while (!abort_loop)
   {
-#ifdef HAVE_POLL
     retval= poll(fds.get_pos(0), fds.size(), -1);
-#else
-    readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
-#endif
 
     if (retval < 0)
     {
@@ -6359,7 +6266,6 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
-#ifdef HAVE_POLL
     for (size_t i= 0; i < fds.size(); ++i)
     {
       if (fds.at(i).revents & POLLIN)
@@ -6368,16 +6274,6 @@ void handle_connections_sockets()
         break;
       }
     }
-#else  // HAVE_POLL
-    for (size_t i=0; i < listen_sockets.size(); i++)
-    {
-      if (FD_ISSET(mysql_socket_getfd(listen_sockets.at(i)), &readFDs))
-      {
-        sock= listen_sockets.at(i);
-        break;
-      }
-    }
-#endif // HAVE_POLL
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
@@ -6405,6 +6301,12 @@ void handle_connections_sockets()
       }
     }
   }
+  mysql_mutex_lock(&LOCK_start_thread);
+  for(int fd : termination_fds)
+    close(fd);
+  termination_event_fd= -1;
+  mysql_mutex_unlock(&LOCK_start_thread);
+
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
   DBUG_VOID_RETURN;
