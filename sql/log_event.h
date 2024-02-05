@@ -324,6 +324,16 @@ class String;
 
 #define Q_HRNOW 128
 #define Q_XID   129
+
+/*
+  When sending transactions to old slaves that don't support GTID events, the
+  GTID event is over-written (in-place, i.e. within the same allocated memory)
+  to be a BEGIN query event. If the header length of the original GTID event
+  exceeds the standard length of the Query event header, Q_DUMMY bytes pad the
+  status var section of the Query header so the structure of the Query event
+  is valid. Old slaves will see the first Q_DUMMY byte, not recognize it, and
+  skip reading the rest of the status var section.
+*/
 #define Q_DUMMY 255
 
 #define Q_GTID_FLAGS3 130
