@@ -1,3 +1,6 @@
+#
+# Start of 11.4 tests
+#
 CREATE DATABASE db1;
 CREATE USER u1@localhost IDENTIFIED BY '';
 GRANT SELECT ON db1.* TO u1@localhost;
@@ -307,3 +310,13 @@ SESSION_USER()	CURRENT_USER()	msg
 root@localhost	root@localhost	p1.p1
 DROP PACKAGE p1;
 DROP USER xxx@localhost;
+#
+# MDEV-33386 Wrong error message on `GRANT .. ON PACKAGE no_such_package ..`
+#
+GRANT EXECUTE ON PACKAGE no_such_package TO PUBLIC;
+ERROR 42000: PACKAGE no_such_package does not exist
+GRANT EXECUTE ON PACKAGE BODY no_such_package TO PUBLIC;
+ERROR 42000: PACKAGE BODY no_such_package does not exist
+#
+# End of 11.4 tests
+#

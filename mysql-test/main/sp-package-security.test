@@ -1,6 +1,10 @@
 --source include/not_embedded.inc
 --source include/default_charset.inc
 
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
 CREATE DATABASE db1;
 CREATE USER u1@localhost IDENTIFIED BY '';
 GRANT SELECT ON db1.* TO u1@localhost;
@@ -320,3 +324,17 @@ DELIMITER ;$$
 CALL p1.p1;
 DROP PACKAGE p1;
 DROP USER xxx@localhost;
+
+
+--echo #
+--echo # MDEV-33386 Wrong error message on `GRANT .. ON PACKAGE no_such_package ..`
+--echo #
+
+--error ER_SP_DOES_NOT_EXIST
+GRANT EXECUTE ON PACKAGE no_such_package TO PUBLIC;
+--error ER_SP_DOES_NOT_EXIST
+GRANT EXECUTE ON PACKAGE BODY no_such_package TO PUBLIC;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
