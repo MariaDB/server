@@ -81,3 +81,13 @@ EOF
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+key_buffer_size=20M
+EOF
+--echo Testing --no-myisam-files
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --no-myisam-files
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf

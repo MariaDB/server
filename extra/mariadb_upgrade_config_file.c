@@ -70,6 +70,7 @@ static const char *opt_current_version;
 static my_bool opt_update;
 static my_bool opt_backup;
 static my_bool opt_print;
+static my_bool opt_no_myisam_files;
 
 
 static PSI_memory_key key_memory_upgrade_config;
@@ -956,7 +957,22 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       {
         file_valid= FALSE;
         generated_add_line(&generated, buff, LINE_TYPE_OPTION, FALSE);
-        add_line(&generated.alloc, &generated.mariadbd_additions, "%s", buff);
+        if (opt_no_myisam_files)
+        {
+          add_line(&generated.alloc, &generated.mariadbd_additions,
+                   "key_buffer_size=64K\n");
+          add_line(&generated.alloc, &generated.mariadbd_additions,
+                   "aria-pagecache-buffer-size=");
+          add_line(&generated.alloc, &generated.mariadbd_additions,
+                   option_value_start);
+          add_line(&generated.alloc, &generated.mariadbd_additions, "\n");
+        }
+        else
+        {
+          add_line(&generated.alloc, &generated.mariadbd_additions, "%s", buff);
+          add_line(&generated.alloc, &generated.mariadbd_additions,
+                   "#key-buffer-size=64K\n");
+        }
         continue;
       }
     }
@@ -1194,6 +1210,7 @@ enum upgrade_config_options
   OPT_CURRENT_VERSION,
   OPT_EDIT,
   OPT_PRINT,
+  OPT_NO_MYISAM_FILES,
 };
 
 static struct my_option my_long_options[] =
@@ -1217,6 +1234,9 @@ static struct my_option my_long_options[] =
    &opt_edit_mode, &opt_edit_mode, &edit_mode_typelib, GET_ENUM,
    REQUIRED_ARG, EDIT_MODE_NONE, 0, 0, 0, 0, 0},
   {"print", OPT_PRINT, "Print upgraded files to stdout.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"no-myisam-files", OPT_NO_MYISAM_FILES,
+   "Don't try to support MyISAM.",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -1261,6 +1281,9 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
     break;
   case OPT_PRINT:
     opt_print= TRUE;
+    break;
+  case OPT_NO_MYISAM_FILES:
+    opt_no_myisam_files= TRUE;
     break;
   }
   return 0;

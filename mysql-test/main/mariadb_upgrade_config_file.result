@@ -12,6 +12,7 @@ invalid=true
 
 [mariadbd]
 key_buffer_size=20M
+#key-buffer-size=64K
 
 [mysql-5.7]
 alter_algorithm=invalid
@@ -20,6 +21,7 @@ key_buffer_size=20M
 Testing --edit=last-old-version
 [mariadbd]
 key_buffer_size=20M
+#key-buffer-size=64K
 
 [mysql-5.7]
 invalid=true
@@ -29,6 +31,7 @@ Testing mariadbd section additions
 [mariadbd]
 join_buffer_size=5K
 key_buffer_size=20M
+#key-buffer-size=64K
 
 [mysql-5.7]
 invalid1=true
@@ -37,4 +40,11 @@ key_buffer_size=20M
 alter_algorithm=invalid
 Testing key_buffer_size in mariadbd section
 [mariadbd]
+key_buffer_size=20M
+Testing --no-myisam-files
+[mariadbd]
+key_buffer_size=64K
+aria-pagecache-buffer-size=20M
+
+[mysql-5.7]
 key_buffer_size=20M
