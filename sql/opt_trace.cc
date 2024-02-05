@@ -31,12 +31,6 @@ const char I_S_table_name[]= "OPTIMIZER_TRACE";
 /**
    Whether a list of tables contains information_schema.OPTIMIZER_TRACE.
    @param  tbl  list of tables
-
-   Can we do better than this here??
-   @note this does not catch that a stored routine or view accesses
-   the OPTIMIZER_TRACE table. So using a stored routine or view to read
-   OPTIMIZER_TRACE will overwrite OPTIMIZER_TRACE as it runs and provide
-   uninteresting info.
 */
 bool list_has_optimizer_trace_table(const TABLE_LIST *tbl)
 {
@@ -448,12 +442,22 @@ void Opt_trace_context::start(THD *thd, TABLE_LIST *tbl,
   current_trace= new Opt_trace_stmt(this);
   max_mem_size= max_mem_size_arg;
   set_allowed_mem_size(remaining_mem_size());
+  tables_list= tbl;
 }
 
 void Opt_trace_context::end()
 {
-  if (current_trace)
+  /*
+    The second call to list_has_optimizer_trace_table() here yiels more accurate
+    results compared to the first one in the Opt_trace_start constructor.
+    At this point, references resolved, enabling us to determine whether
+    the traced query includes a view created from `I_S.OPTIMIZER_TRACE`.
+    If so, the current trace is discarded and the previous one remains.
+  */
+  if (current_trace && !list_has_optimizer_trace_table(tables_list))
     traces.push(current_trace);
+  else
+    delete current_trace;
 
   if (!traces.elements())
     return;
@@ -464,6 +468,7 @@ void Opt_trace_context::end()
     traces.del(0);
   }
   current_trace= NULL;
+  tables_list= NULL;
 }
 
 Opt_trace_start::Opt_trace_start(THD *thd, TABLE_LIST *tbl,
@@ -481,7 +486,7 @@ Opt_trace_start::Opt_trace_start(THD *thd, TABLE_LIST *tbl,
   traceable= FALSE;
   if (unlikely(var & Opt_trace_context::FLAG_ENABLED) &&
       sql_command_can_be_traced(sql_command) &&
-      !list_has_optimizer_trace_table(tbl) &&
+      !list_has_optimizer_trace_table(tbl) && // OLEGS: comment
       !sets_var_optimizer_trace(sql_command, set_vars) &&
       !thd->system_thread &&
       !ctx->disable_tracing_if_required())

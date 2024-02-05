@@ -71,6 +71,7 @@ private:
   {
     return *(traces.front());
   }
+  const TABLE_LIST *tables_list;
 
 public:
 

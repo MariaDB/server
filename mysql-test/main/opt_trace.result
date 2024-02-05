@@ -9041,5 +9041,342 @@ JS
 drop table t1,t2,t3,t10,t11;
 set optimizer_trace=DEFAULT;
 #
+# MDEV-32034: Second SELECT from view created from
+#             INFORMATION_SCHEMA.OPTIMIZER_TRACE gives NULL
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED SELECT * from t1 WHERE a BETWEEN 1 AND 5 AND b <= 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	0.22	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 1 and 5 and `test`.`t1`.`b` <= 5
+# Standard way of accessing the optimizer trace:
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+FROM information_schema.optimizer_trace;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+CREATE VIEW v1 AS
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+FROM information_schema.optimizer_trace;
+# Check that the trace accessed via a view is the same as before:
+SELECT * FROM v1;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+# Make sure trace is not overwritten with the previous SELECT:
+SELECT * FROM v1;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+# A view containing I_S.OPTIMIZER_TRACE involved, no trace overwrite:
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 10 AND 50 AND b > 10
+AND EXISTS (SELECT * FROM v1 WHERE JS IS NOT NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	optimizer_trace	ALL	NULL	NULL	NULL	NULL	NULL	Using where
+# Check the trace is not overwritten:
+SELECT * FROM v1;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+# Overwrite the trace:
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 10 and 50 and b > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	38.72	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 10 and 50 and `test`.`t1`.`b` > 5
+SELECT * FROM v1;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["10 <= a <= 50"],
+            "selectivity_from_histogram": 0.4062
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["5 < b"],
+            "selectivity_from_histogram": 0.9531
+        }
+    ]
+]
+# Prepared statement
+PREPARE stmt FROM
+"SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+  FROM information_schema.optimizer_trace";
+EXECUTE stmt;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["10 <= a <= 50"],
+            "selectivity_from_histogram": 0.4062
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["5 < b"],
+            "selectivity_from_histogram": 0.9531
+        }
+    ]
+]
+EXECUTE stmt;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["10 <= a <= 50"],
+            "selectivity_from_histogram": 0.4062
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["5 < b"],
+            "selectivity_from_histogram": 0.9531
+        }
+    ]
+]
+DEALLOCATE PREPARE stmt;
+# Prepared statement with view
+PREPARE stmt FROM "SELECT * FROM v1";
+EXECUTE stmt;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["10 <= a <= 50"],
+            "selectivity_from_histogram": 0.4062
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["5 < b"],
+            "selectivity_from_histogram": 0.9531
+        }
+    ]
+]
+EXECUTE stmt;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["10 <= a <= 50"],
+            "selectivity_from_histogram": 0.4062
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["5 < b"],
+            "selectivity_from_histogram": 0.9531
+        }
+    ]
+]
+# Overwrite the trace:
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	0.22	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 1 and 5 and `test`.`t1`.`b` <= 5
+EXECUTE stmt;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+DEALLOCATE PREPARE stmt;
+# Stored procedure
+CREATE PROCEDURE sp1()
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+FROM information_schema.optimizer_trace;
+CALL sp1;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+CALL sp1;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+# Stored procedure with view
+CREATE PROCEDURE sp2() SELECT * FROM v1;
+CALL sp2;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+CALL sp2;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["1 <= a <= 5"],
+            "selectivity_from_histogram": 0.0469
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["NULL < b <= 5"],
+            "selectivity_from_histogram": 0.0469
+        }
+    ]
+]
+# Overwrite the trace:
+EXPLAIN EXTENDED SELECT * from t1 WHERE a BETWEEN 5 AND 15 AND b > 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	9.91	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 5 and 15 and `test`.`t1`.`b` > 10
+CALL sp2;
+JS
+[
+    [
+        {
+            "column_name": "a",
+            "ranges": 
+            ["5 <= a <= 15"],
+            "selectivity_from_histogram": 0.1094
+        },
+        {
+            "column_name": "b",
+            "ranges": 
+            ["10 < b"],
+            "selectivity_from_histogram": 0.9062
+        }
+    ]
+]
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE sp1;
+DROP PROCEDURE sp2;
+set optimizer_trace=DEFAULT;
+#
 # End of 10.4 tests
 #

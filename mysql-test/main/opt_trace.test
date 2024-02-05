@@ -765,15 +765,6 @@ select * from
                from t10 left join t11 on t11.col1=t10.col1
                group by grp_id) T on T.grp_id=t1.b;
 
-# Enable after fix MDEV-31408
-# On the first creation of the view from information_schema.optimizer_trace
-# everything is fine, but on the second creation of the view is
-# from information_schema.optimizer_trace the result of select
-# from this view is already returned NULL.
-# That's why view-protocol is disabled here
-
---disable_view_protocol
-
 select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS
 from information_schema.optimizer_trace;
 
@@ -786,8 +777,78 @@ select
   ) as JS
 from information_schema.optimizer_trace;
 
---enable_view_protocol
 drop table t1,t2,t3,t10,t11;
+set optimizer_trace=DEFAULT;
+
+--echo #
+--echo # MDEV-32034: Second SELECT from view created from
+--echo #             INFORMATION_SCHEMA.OPTIMIZER_TRACE gives NULL
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a BETWEEN 1 AND 5 AND b <= 5;
+--echo # Standard way of accessing the optimizer trace:
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+  FROM information_schema.optimizer_trace;
+
+CREATE VIEW v1 AS
+  SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+  FROM information_schema.optimizer_trace;
+
+--echo # Check that the trace accessed via a view is the same as before:
+SELECT * FROM v1;
+--echo # Make sure trace is not overwritten with the previous SELECT:
+SELECT * FROM v1;
+--echo # A view containing I_S.OPTIMIZER_TRACE involved, no trace overwrite:
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 10 AND 50 AND b > 10
+                         AND EXISTS (SELECT * FROM v1 WHERE JS IS NOT NULL);
+--echo # Check the trace is not overwritten:
+SELECT * FROM v1;
+
+--echo # Overwrite the trace:
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 10 and 50 and b > 5;
+
+SELECT * FROM v1;
+
+--echo # Prepared statement
+PREPARE stmt FROM
+  "SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+  FROM information_schema.optimizer_trace";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Prepared statement with view
+PREPARE stmt FROM "SELECT * FROM v1";
+EXECUTE stmt;
+EXECUTE stmt;
+--echo # Overwrite the trace:
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Stored procedure
+CREATE PROCEDURE sp1()
+  SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS
+  FROM information_schema.optimizer_trace;
+CALL sp1;
+CALL sp1;
+
+--echo # Stored procedure with view
+CREATE PROCEDURE sp2() SELECT * FROM v1;
+CALL sp2;
+CALL sp2;
+--echo # Overwrite the trace:
+EXPLAIN EXTENDED SELECT * from t1 WHERE a BETWEEN 5 AND 15 AND b > 10;
+CALL sp2;
+
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE sp1;
+DROP PROCEDURE sp2;
 set optimizer_trace=DEFAULT;
 
 --echo #
