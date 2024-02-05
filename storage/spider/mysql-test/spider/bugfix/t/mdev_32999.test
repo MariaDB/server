@@ -6,6 +6,7 @@
 --source ../../t/test_init.inc
 --enable_result_log
 --enable_query_log
+set spider_same_server_link=on;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 --error 12702
