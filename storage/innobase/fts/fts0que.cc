@@ -398,7 +398,7 @@ fts_freq_doc_id_cmp(
 	const fts_doc_freq_t*	fq1 = (const fts_doc_freq_t*) p1;
 	const fts_doc_freq_t*	fq2 = (const fts_doc_freq_t*) p2;
 
-	return((int) (fq1->doc_id - fq2->doc_id));
+	return(fts_doc_id_cmp(&fq1->doc_id, &fq2->doc_id));
 }
 
 #if 0
@@ -3655,6 +3655,11 @@ fts_query_prepare_result(
 	const ib_rbt_node_t*	node;
 	bool			result_is_null = false;
 
+#ifdef UNIV_DEBUG
+	extern void fts_rbt_test(void);
+	DBUG_EXECUTE_IF("fts_instrument_test_rbt", fts_rbt_test(););
+#endif /* UNIV_DEBUG */
+
 	DBUG_ENTER("fts_query_prepare_result");
 
 	if (result == NULL) {
@@ -4610,3 +4615,44 @@ fts_proximity_get_positions(
 
 	return(qualified_pos->n_pos != 0);
 }
+
+#ifdef UNIV_DEBUG
+/* Doc id array for test
+ *   1675241735 rbt search fails first
+ *     3839877411 after it's inserted */
+const doc_id_t doc_ids[] = {
+    103571,     104018,     106821,     108647,     109352,     109379,
+    110325,     122868,     210682130,  231275441,  234172769,  366236849,
+    526467159,  1675241735, 1675243405, 1947751899, 1949940363, 2033691953,
+    2148227299, 2256289791, 2294223591, 2367501260, 2792700091, 2792701220,
+    2817121627, 2820680352, 2821165664, 3253312130, 3404918378, 3532599429,
+    3538712078, 3539373037, 3546479309, 3566641838, 3580209634, 3580871267,
+    3693930556, 3693932734, 3693932983, 3781949558, 3839877411, 3930968983};
+
+/* Test rbt search with fts comparison function. */
+void fts_rbt_test(void) {
+	ib_rbt_t *doc_id_rbt = rbt_create(sizeof(doc_id_t), fts_doc_id_cmp);
+	int size = sizeof(doc_ids) / sizeof(doc_id_t);
+
+	/* First insert all doc ids into rbtree. */
+	for (int i = 0; i < size; i++) {
+		ib_rbt_bound_t parent;
+		doc_id_t doc_id = doc_ids[i];
+
+		if (rbt_search(doc_id_rbt, &parent, &doc_id) != 0) {
+			rbt_add_node(doc_id_rbt, &parent, &doc_id);
+		}
+
+		/* The other way is:  rbt_insert(doc_ids, &doc_id, &doc_id); */
+	}
+
+	/* Then check whether all doc ids can be found in rbtree. */
+	for (int i = 0; i < size; i++) {
+		ib_rbt_bound_t parent;
+		doc_id_t doc_id = doc_ids[i];
+		ut_ad(rbt_search(doc_id_rbt, &parent, &doc_id) == 0);
+	}
+
+	rbt_free(doc_id_rbt);
+}
+#endif /* UNIV_DEBUG */
