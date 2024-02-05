@@ -399,8 +399,13 @@ struct generated
   DYNAMIC_ARRAY mariadbd_additions;
   /* one past the last index of the original mariadbd section in the main array */
   int mariadbd_group_end;
-  /* whether we are in the mariadbd group or not when running generated_add_line */
-  my_bool in_mariadbd_group;
+  /* the current group from which options are read */
+  const char *input_group;
+  /* The current group in the generated output. This may be different from
+   * input_group if lines are moved between groups. */
+  char *output_group;
+  /* whether last main line is empty or not */
+  my_bool prev_empty;
 };
 
 static void generated_init(struct generated *generated)
@@ -428,7 +433,10 @@ static void generated_init(struct generated *generated)
                       0,
                       MYF(0));
   generated->mariadbd_group_end= -1;
-  generated->in_mariadbd_group= FALSE;
+  generated->input_group= NULL;
+  generated->output_group= NULL;
+  /* don't add extra newlines to the beginning */
+  generated->prev_empty= TRUE;
 }
 
 static void generated_write(MYSQL_FILE *f, struct generated *generated)
@@ -462,7 +470,9 @@ static void generated_write(MYSQL_FILE *f, struct generated *generated)
     }
     if (generated->mariadbd_additions.elements > 0)
     {
-      fputs("\n[mariadbd]\n", target_file);
+      if (!generated->prev_empty)
+        fputc('\n', target_file);
+      fputs("[mariadbd]\n", target_file);
       for (i= 0; i < generated->mariadbd_additions.elements; i++)
       {
         char *element= *(char **) dynamic_array_ptr(&generated->mariadbd_additions, i);
@@ -472,7 +482,9 @@ static void generated_write(MYSQL_FILE *f, struct generated *generated)
   }
   if (generated->old_version.elements > 0)
   {
-    fprintf(target_file, "\n[%s]\n", opt_current_version);
+    if (generated->mariadbd_group_end < 0 || !generated->prev_empty)
+      fputc('\n', target_file);
+    fprintf(target_file, "[%s]\n", opt_current_version);
     for (i= 0; i < generated->old_version.elements; i++)
     {
       char *element= *(char **)dynamic_array_ptr(&generated->old_version, i);
@@ -487,6 +499,7 @@ static void generated_free(struct generated *generated)
   delete_dynamic(&generated->main);
   delete_dynamic(&generated->old_version);
   delete_dynamic(&generated->mariadbd_additions);
+  my_free(generated->output_group);
 }
 
 static char *print_alloc(MEM_ROOT *alloc, const char *format, va_list args)
@@ -526,16 +539,42 @@ static my_bool add_line(MEM_ROOT *alloc, DYNAMIC_ARRAY *array,
   return res;
 }
 
-static my_bool add_main_line(struct generated *generated, my_bool is_option,
+enum line_type
+{
+  LINE_TYPE_EMPTY,
+  LINE_TYPE_OPTION,
+  LINE_TYPE_OTHER,
+};
+
+static my_bool add_main_line(struct generated *generated, enum line_type type,
                              const char *format, ...)
 {
   va_list args;
   my_bool res;
+  if (type != LINE_TYPE_EMPTY &&
+      (!generated->output_group ||
+       strcmp(generated->input_group, generated->output_group)))
+  {
+    char *group_dupe;
+    if (add_line(&generated->alloc, &generated->main,
+                 generated->prev_empty ? "[%s]\n" : "\n[%s]\n",
+                 generated->input_group))
+      return TRUE;
+    group_dupe=
+        my_strdup(key_memory_upgrade_config, generated->input_group, MYF(0));
+    if (!group_dupe)
+      return TRUE;
+    my_free(generated->output_group);
+    generated->output_group= group_dupe;
+  }
   va_start(args, format);
   res= vadd_line(&generated->alloc, &generated->main, format, args);
   va_end(args);
-  if (!res && is_option && generated->in_mariadbd_group)
+  if (!res && type == LINE_TYPE_OPTION &&
+      !strcmp(generated->input_group, "mariadbd"))
     generated->mariadbd_group_end= generated->main.elements;
+  if (!res)
+    generated->prev_empty= type == LINE_TYPE_EMPTY;
   return res;
 }
 
@@ -544,26 +583,32 @@ static my_bool add_main_line(struct generated *generated, my_bool is_option,
   on success and true on failure.
 */
 static my_bool generated_add_line(struct generated *generated, const char *line,
-                                  my_bool is_option, my_bool is_valid)
+                                  enum line_type type, my_bool is_valid)
 {
   switch (opt_edit_mode) {
   case EDIT_MODE_REMOVE:
-    return is_valid ? add_main_line(generated, is_option, "%s", line) : FALSE;
+    return is_valid ? add_main_line(generated, type, "%s", line) : FALSE;
   case EDIT_MODE_LAST_OLD_VERSION:
-    return is_valid ? add_main_line(generated, is_option, "%s", line) :
-                      add_line(&generated->alloc,
-                               &generated->old_version,
-                               "%s", line);
+    return is_valid || type == LINE_TYPE_EMPTY
+               ? add_main_line(generated, type, "%s", line)
+               : add_line(&generated->alloc, &generated->old_version, "%s",
+                          line);
   case EDIT_MODE_COMMENT:
-    return add_main_line(generated, is_option, is_valid ? "%s" : "#%s", line);
-  case EDIT_MODE_INLINE_OLD_VERSION:
-    if (!is_valid && add_main_line(generated, FALSE, "\n[%s]\n", opt_current_version))
-      return TRUE;
-    if (add_main_line(generated, is_valid && is_option, "%s", line))
-      return TRUE;
-    return is_valid ? FALSE : add_main_line(generated, FALSE, "\n[mysqld]\n");
+    return add_main_line(generated, type, is_valid ? "%s" : "#%s", line);
+  case EDIT_MODE_INLINE_OLD_VERSION: {
+    const char *old_input_group= generated->input_group;
+    my_bool res= TRUE;
+    if (!is_valid)
+      generated->input_group= opt_current_version;
+    if (add_main_line(generated, is_valid ? type : LINE_TYPE_OTHER, "%s", line))
+      goto out;
+    res= FALSE;
+out:
+    generated->input_group= old_input_group;
+    return res;
+  }
   case EDIT_MODE_NONE:
-    return opt_print ? add_main_line(generated, is_option, "%s", line) : 0;
+    return opt_print ? add_main_line(generated, type, "%s", line) : 0;
   }
   return TRUE;
 }
@@ -667,14 +712,15 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
 
     if (*ptr == '#' || *ptr == ';' || !*ptr)
     {
-      generated_add_line(&generated, buff, FALSE, line_valid);
+      generated_add_line(&generated, buff,
+                         *ptr ? LINE_TYPE_OTHER : LINE_TYPE_EMPTY, line_valid);
       continue;
     }
 
     /* Configuration File Directives */
     if (*ptr == '!')
     {
-      generated_add_line(&generated, buff, FALSE, line_valid);
+      generated_add_line(&generated, buff, LINE_TYPE_OTHER, line_valid);
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1;
@@ -744,7 +790,6 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
 
     if (*ptr == '[')				/* Group name */
     {
-      generated_add_line(&generated, buff, FALSE, line_valid);
       if (!(end=(char *) strchr(++ptr,']')))
       {
 	fprintf(stderr,
@@ -759,14 +804,14 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr), sizeof(curr_gr)-1));
       found_group= find_type(curr_gr, ctx->group, FIND_TYPE_NO_PREFIX)
                    ? PARSE : SKIP;
+      generated.input_group= curr_gr;
       if (found_group == PARSE && !strcmp(curr_gr, "mariadbd"))
       {
-        generated.in_mariadbd_group= TRUE;
-        generated.mariadbd_group_end= generated.main.elements;
-      }
-      else
-      {
-        generated.in_mariadbd_group= FALSE;
+        /**
+          Force the mariadbd group to be emitted to allow potentially adding new
+          lines to it.
+         */
+        generated_add_line(&generated, "", LINE_TYPE_OPTION, TRUE);
       }
       continue;
     }
@@ -780,7 +825,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     case PARSE:
       break;
     case SKIP:
-      generated_add_line(&generated, buff, FALSE, line_valid);
+      generated_add_line(&generated, buff, LINE_TYPE_OPTION, line_valid);
       continue;
     }
 
@@ -904,18 +949,18 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
           }
         }
       }
-      else if (!generated.in_mariadbd_group &&
+      else if (strcmp(curr_gr, "mariadbd") &&
                (opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION ||
                 opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
                && !strcmp(option, "key_buffer_size"))
       {
         file_valid= FALSE;
-        generated_add_line(&generated, buff, TRUE, FALSE);
+        generated_add_line(&generated, buff, LINE_TYPE_OPTION, FALSE);
         add_line(&generated.alloc, &generated.mariadbd_additions, "%s", buff);
         continue;
       }
     }
-    generated_add_line(&generated, buff, TRUE, line_valid);
+    generated_add_line(&generated, buff, LINE_TYPE_OPTION, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
   generated_write(tmp_fp, &generated);
