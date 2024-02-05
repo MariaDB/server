@@ -3335,7 +3335,15 @@ public:
     When zero the event does not contain that information.
   */
   uint8 extra_engines;
-  my_thread_id thread_id;
+  /*
+    The thread_id of the replication worker that is applying the transaction
+  */
+  my_thread_id rpl_thread_id;
+  /*
+    The thread_id of the connection where the transaction originated, i.e. that
+    of the original master server.
+  */
+  my_thread_id origin_thread_id;
 
   /* Flags2. */
 
@@ -3381,7 +3389,10 @@ public:
   static const uchar FL_START_ALTER_E1= 2;
   static const uchar FL_COMMIT_ALTER_E1= 4;
   static const uchar FL_ROLLBACK_ALTER_E1= 8;
-  static const uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
+  /* thread_id from original master connection */
+  static const uchar FL_ORIGIN_THREAD_ID= 16;
+  /* thread_id of slave applier */
+  static const uchar FL_RPL_THREAD_ID= 32;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

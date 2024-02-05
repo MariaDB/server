@@ -2396,7 +2396,7 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
-    flags_extra(0), extra_engines(0), thread_id(0)
+    flags_extra(0), extra_engines(0), rpl_thread_id(0), origin_thread_id(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
@@ -2457,13 +2457,26 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
       buf+= 8;
     }
 
-    if (flags_extra & FL_EXTRA_THREAD_ID &&
+    if (flags_extra & FL_ORIGIN_THREAD_ID &&
         static_cast<uint>(buf - buf_0) <= event_len + 8)
     {
-      thread_id= uint8korr(buf);
+      origin_thread_id= uint8korr(buf);
       buf+= 8;
 
-      DBUG_ASSERT(thread_id > 0);
+      DBUG_ASSERT(origin_thread_id > 0);
+    }
+
+    /*
+      Discard the applier thread id from our immediate master's binlog, it has
+      no meaning for us
+    */
+    if (flags_extra & FL_RPL_THREAD_ID &&
+        static_cast<uint>(buf - buf_0) <= event_len + 8)
+    {
+      rpl_thread_id= uint8korr(buf);
+      buf+= 8;
+
+      DBUG_ASSERT(origin_thread_id > 0);
     }
   }
   /*

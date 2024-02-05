@@ -3836,10 +3836,16 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (flags_extra & FL_ROLLBACK_ALTER_E1)
       if (my_b_printf(&cache, " ROLLBACK ALTER id= %lu", sa_seq_no))
         goto err;
-    if (flags_extra & FL_EXTRA_THREAD_ID)
+    if (flags_extra & FL_ORIGIN_THREAD_ID)
     {
-      longlong10_to_str(thread_id, buf2, 10);
-      if (my_b_printf(&cache, " thread_id=%s", buf2))
+      longlong10_to_str(origin_thread_id, buf2, 10);
+      if (my_b_printf(&cache, " origin_thread_id=%s", buf2))
+        goto err;
+    }
+    if (flags_extra & FL_RPL_THREAD_ID)
+    {
+      longlong10_to_str(rpl_thread_id, buf2, 10);
+      if (my_b_printf(&cache, " rpl_thread_id=%s", buf2))
         goto err;
     }
     if (my_b_printf(&cache, "\n"))

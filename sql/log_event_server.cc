@@ -2813,7 +2813,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0),
-    thread_id(thd_arg->variables.pseudo_thread_id)
+    rpl_thread_id(thd_arg->thread_id),
+    origin_thread_id(thd_arg->variables.pseudo_thread_id)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -2837,8 +2838,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
-  if (thread_id > 0)
-    flags_extra|= FL_EXTRA_THREAD_ID;
+  if (origin_thread_id > 0)
+    flags_extra|= FL_ORIGIN_THREAD_ID;
+  if (rpl_thread_id > 0 && thd_arg->slave_thread)
+    flags_extra|= FL_RPL_THREAD_ID;
 
   XID_STATE &xid_state= thd->transaction->xid_state;
   if (is_transactional)
@@ -2932,7 +2935,8 @@ Gtid_log_event::write(Log_event_writer *writer)
   uchar buf[GTID_HEADER_LEN + 2 + sizeof(XID)
             + 1 /* flags_extra: */
             + 4 /* Extra Engines */
-            + 8 /* FL_EXTRA_THREAD_ID */];
+            + 8 /* FL_ORIGIN_THREAD_ID */
+            + 8 /* FL_APPLIER_THREAD_ID */];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -2973,9 +2977,15 @@ Gtid_log_event::write(Log_event_writer *writer)
     write_len+= 8;
   }
 
-  if (flags_extra & FL_EXTRA_THREAD_ID)
+  if (flags_extra & FL_ORIGIN_THREAD_ID)
   {
-    int8store(buf + write_len, thread_id);
+    int8store(buf + write_len, origin_thread_id);
+    write_len+= 8;
+  }
+
+  if (flags_extra & FL_RPL_THREAD_ID)
+  {
+    int8store(buf + write_len, rpl_thread_id);
     write_len+= 8;
   }
 
@@ -3069,7 +3079,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
-  thd->variables.pseudo_thread_id= this->thread_id;
+  thd->variables.pseudo_thread_id= this->origin_thread_id;
   rgi->gtid_ev_flags2= flags2;
 
   rgi->gtid_ev_flags_extra= flags_extra;

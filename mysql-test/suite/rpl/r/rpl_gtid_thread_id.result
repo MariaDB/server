@@ -11,6 +11,7 @@ connection master;
 # MYSQL_BINLOG local > primary_outfile
 include/assert_grep.inc [Ensure only 3 GTID events exist (Primary)]
 include/assert_grep.inc [Ensure each GTID event has the thread id (Primary)]
+include/assert_grep.inc [GTID event binlogged at source should not write the applier thread id (Primary)]
 #
 # GTID event's thread_id should use psuedo_thread_id
 connection master;
@@ -23,8 +24,10 @@ include/assert_grep.inc [GTID event's thread_id should use pseudo_thread_id]
 connection slave;
 # MYSQL_BINLOG local > replica_outfile
 include/assert_grep.inc [Ensure the same number of GTID events on the replica as the primary]
-include/assert_grep.inc [Ensure GTID events logged with primary's thread id maintain that value]
+include/assert_grep.inc [Ensure each GTID event replicated on the slave logs both the origin and applier thread_id]
+include/assert_grep.inc [Ensure GTID events logged with primary thread id maintain that value]
 include/assert_grep.inc [Ensure GTID event logged with pseudo_thread_id on primary maintains that value]
+include/assert_grep.inc [Ensure GTID events replicated on the serial slave log the SQL thread id]
 #
 # Test the parallel replica
 connection slave;

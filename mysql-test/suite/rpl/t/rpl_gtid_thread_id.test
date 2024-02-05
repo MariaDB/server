@@ -33,7 +33,12 @@ optimize table t1;
 --source include/assert_grep.inc
 
 --let $assert_text= Ensure each GTID event has the thread id (Primary)
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*origin_thread_id=$primary_thread_id
+--source include/assert_grep.inc
+
+--let $assert_count= 0
+--let $assert_text= GTID event binlogged at source should not write the applier thread id (Primary)
+--let $assert_select=rpl_thread_id
 --source include/assert_grep.inc
 
 --echo #
@@ -47,7 +52,7 @@ insert into t1 values(2);
 
 --let $assert_count= 1
 --let $assert_text= GTID event's thread_id should use pseudo_thread_id
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=99999\$
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*origin_thread_id=99999
 --source include/assert_grep.inc
 
 --disable_query_log
@@ -58,6 +63,7 @@ insert into t1 values(2);
 --echo #
 --echo # Test the serial replica
 --connection slave
+--let $sql_thread_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Slave_SQL'`
 --let replica_thread_id=`select connection_id()`
 --let datadir= `select @@datadir`
 --let filename= query_get_value(SHOW MASTER STATUS, File, 1)
@@ -72,14 +78,24 @@ insert into t1 values(2);
 --let $assert_file= $replica_outfile
 --source include/assert_grep.inc
 
+--let $assert_text= Ensure each GTID event replicated on the slave logs both the origin and rpl thread_id
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*origin_thread_id=[0-9]+.*rpl_thread_id=[0-9]+
+--source include/assert_grep.inc
+
 --let $assert_count= 3
---let $assert_text= Ensure GTID events logged with primary's thread id maintain that value
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--let $assert_text= Ensure GTID events logged with primary thread id maintain that value
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*origin_thread_id=$primary_thread_id
 --source include/assert_grep.inc
 
 --let $assert_count= 1
 --let $assert_text= Ensure GTID event logged with pseudo_thread_id on primary maintains that value
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=99999\$
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*origin_thread_id=99999
+--source include/assert_grep.inc
+
+--let $assert_count= 4
+--let $assert_text= Ensure GTID events replicated on the serial slave log the SQL thread id
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*rpl_thread_id=$sql_thread_id
+--let $assert_file= $replica_outfile
 --source include/assert_grep.inc
 
 
@@ -108,8 +124,12 @@ insert into t1 values(4);
 
 --let $assert_count= 5
 --let $assert_text= Ensure GTID the new events are logged on the replica with the thread_id of the master primary thread id
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*origin_thread_id=$primary_thread_id
 --source include/assert_grep.inc
+
+--let $assert_count= 2
+--let $assert_text= Ensure only the new GTID events have the rpl_thread_id of the worker thread
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*rpl_thread_id=$worker_thread_id\$
 
 --source include/stop_slave.inc
 --eval SET @@GLOBAL.slave_parallel_threads=$old_parallel_threads
