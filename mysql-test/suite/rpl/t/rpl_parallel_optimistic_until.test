@@ -430,9 +430,7 @@ START SLAVE IO_THREAD;
 --let $pos_until= 3130
 --let $file_rl= slave-relay-bin.000018
 
-# Todo: change to compute the explicit postion as it may may further change
-#       with events evolution.
---let $pos_gtid = 2993
+--let $pos_gtid = 2987
 --let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_gtid LIMIT 1, Info, 1)
 
 if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
@@ -440,8 +438,7 @@ if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
   --echo *** Unexpected offset. Refine it to point to the correct GTID!
   --die
 }
-# Todo: ditto
---let $pos_event = 3129
+--let $pos_event = 3120
 --let $type= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_event LIMIT 1, Event_type, 1)
 if (`SELECT "$type" != "Delete_rows_v1"`)
 {
