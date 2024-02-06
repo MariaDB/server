@@ -3168,7 +3168,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       }
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
-             granted_thd->mdl_context.has_explicit_locks())
+            /* System transactions with explicit locks are BACKUP. */
+            (granted_thd->system_thread != NON_SYSTEM_THREAD &&
+             granted_thd->mdl_context.has_explicit_locks()))
     {
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
