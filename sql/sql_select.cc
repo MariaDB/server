@@ -27145,8 +27145,22 @@ static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr)
 }
 
 
+/*
+  @brief
+    Setup aggregate functions.
+
+  @param func_ptr       Array of pointers to aggregate functions
+  @param need_distinct  FALSE means that the table access method already
+                        guarantees that arguments of all aggregate functions
+                        will be unique. (This is the case for Loose Scan)
+                        TRUE - Otherwise.
+  @return
+     false  Ok
+     true   Error
+*/
+
 bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
-                                    bool need_distinct)
+                                   bool need_distinct)
 {
   Item_sum *func;
   DBUG_ENTER("prepare_sum_aggregators");
@@ -27156,24 +27170,46 @@ bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
     if (need_distinct_aggregator && table_count - const_tables == 1)
     {
       /*
-        Check if we can optimize aggregation and avoid de-duplication
-        of values. If there is:
-        - only one table involved in the join
-        - some arguments of the aggregate function are fields
-          (not functions or subqueries)
-        - there is a unique index on those fields,
-        then the values retrieved are guaranteed to be unique, so there's
-        no need to do the de-duplication, and we can employ SIMPLE_AGGREGATOR
+        We are doing setup for an aggregate with DISTINCT, like
+
+          SELECT agg_func(DISTINCT col1, col2 ...) FROM ...
+
+        In general case, agg_func will need to use Aggregator_distinct to
+        remove duplicates from its arguments.
+        We won't have to remove duplicates if we know the arguments are already
+        unique. This is true when
+        1. the join operation has only one non-const table (checked above)
+        2. the argument list covers a PRIMARY or a UNIQUE index.
+
+        Example: here the values of t1.pk are unique:
+
+          SELECT agg_func(DISTINCT t1.pk, ...) FROM t1
+
+        and so the whole argument of agg_func is unique.
       */
       List<Item> arg_fields;
       for (uint i= 0; i < func->argument_count(); i++)
+      {
         if (func->arguments()[i]->type() == Item::FIELD_ITEM)
           arg_fields.push_back(func->arguments()[i]);
+      }
 
-      // Handle the case SELECT AGGR_FN(DISTINCT a) FROM t1 GROUP BY b, c;
+      /*
+        If the query has a GROUP BY, then it's sufficient that a unique
+        key is covered by a concatenation of {argument_list, group_by_list}.
+
+        Example: Suppose t1 has PRIMARY KEY(pk1, pk2). Then:
+
+          SELECT agg_func(DISTINCT t1.pk1, ...) FROM t1 GROUP BY t1.pk2
+
+        Each GROUP BY group will have t1.pk2 fixed. Then, the values of t1.pk1
+        will be unique, and no de-duplication will be needed.
+      */
       for (ORDER *group= group_list; group ; group= group->next)
+      {
         if ((*group->item)->type() == Item::FIELD_ITEM)
           arg_fields.push_back(*group->item);
+      }
 
       if (list_contains_unique_index(join_tab[const_tables].table,
                                      find_field_in_item_list,
