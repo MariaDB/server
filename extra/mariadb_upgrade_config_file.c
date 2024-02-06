@@ -387,7 +387,7 @@ static char *remove_end_comment(char *ptr)
   return ptr;
 }
 
-struct generated
+struct generator
 {
   /* the memory root for allocating line strings */
   MEM_ROOT alloc;
@@ -409,98 +409,98 @@ struct generated
   my_bool prev_empty;
 };
 
-static void generated_init(struct generated *generated)
+static void generator_init(struct generator *generator)
 {
-  init_alloc_root(key_memory_upgrade_config, &generated->alloc, 512, 0, MYF(0));
+  init_alloc_root(key_memory_upgrade_config, &generator->alloc, 512, 0, MYF(0));
   init_dynamic_array2(key_memory_upgrade_config,
-                      &generated->main,
+                      &generator->main,
                       sizeof(char *),
                       NULL,
                       0,
                       0,
                       MYF(0));
   init_dynamic_array2(key_memory_upgrade_config,
-                      &generated->old_version,
+                      &generator->old_version,
                       sizeof(char *),
                       NULL,
                       0,
                       0,
                       MYF(0));
   init_dynamic_array2(key_memory_upgrade_config,
-                      &generated->mariadbd_additions,
+                      &generator->mariadbd_additions,
                       sizeof(char *),
                       NULL,
                       0,
                       0,
                       MYF(0));
-  generated->mariadbd_group_end= -1;
-  generated->input_group= NULL;
-  generated->output_group= NULL;
+  generator->mariadbd_group_end= -1;
+  generator->input_group= NULL;
+  generator->output_group= NULL;
   /* don't add extra newlines to the beginning */
-  generated->prev_empty= TRUE;
+  generator->prev_empty= TRUE;
 }
 
-static void generated_write(MYSQL_FILE *f, struct generated *generated)
+static void generator_write(MYSQL_FILE *f, struct generator *generator)
 {
   FILE *target_file= f ? f->m_file : stdout;
   size_t i;
-  if (generated->mariadbd_group_end >= 0)
+  if (generator->mariadbd_group_end >= 0)
   {
-    for (i= 0; i < (size_t)generated->mariadbd_group_end; i++)
+    for (i= 0; i < (size_t)generator->mariadbd_group_end; i++)
     {
-      char *element= *(char **) dynamic_array_ptr(&generated->main, i);
+      char *element= *(char **) dynamic_array_ptr(&generator->main, i);
       fputs(element, target_file);
     }
-    for (i= 0; i < generated->mariadbd_additions.elements; i++)
+    for (i= 0; i < generator->mariadbd_additions.elements; i++)
     {
-      char *element= *(char **) dynamic_array_ptr(&generated->mariadbd_additions, i);
+      char *element= *(char **) dynamic_array_ptr(&generator->mariadbd_additions, i);
       fputs(element, target_file);
     }
-    for (i= (size_t)generated->mariadbd_group_end; i < generated->main.elements; i++)
+    for (i= (size_t)generator->mariadbd_group_end; i < generator->main.elements; i++)
     {
-      char *element= *(char **) dynamic_array_ptr(&generated->main, i);
+      char *element= *(char **) dynamic_array_ptr(&generator->main, i);
       fputs(element, target_file);
     }
   }
   else
   {
-    for (i= 0; i < generated->main.elements; i++)
+    for (i= 0; i < generator->main.elements; i++)
     {
-      char *element= *(char **) dynamic_array_ptr(&generated->main, i);
+      char *element= *(char **) dynamic_array_ptr(&generator->main, i);
       fputs(element, target_file);
     }
-    if (generated->mariadbd_additions.elements > 0)
+    if (generator->mariadbd_additions.elements > 0)
     {
-      if (!generated->prev_empty)
+      if (!generator->prev_empty)
         fputc('\n', target_file);
       fputs("[mariadbd]\n", target_file);
-      for (i= 0; i < generated->mariadbd_additions.elements; i++)
+      for (i= 0; i < generator->mariadbd_additions.elements; i++)
       {
-        char *element= *(char **) dynamic_array_ptr(&generated->mariadbd_additions, i);
+        char *element= *(char **) dynamic_array_ptr(&generator->mariadbd_additions, i);
         fputs(element, target_file);
       }
     }
   }
-  if (generated->old_version.elements > 0)
+  if (generator->old_version.elements > 0)
   {
-    if (generated->mariadbd_group_end < 0 || !generated->prev_empty)
+    if (generator->mariadbd_group_end < 0 || !generator->prev_empty)
       fputc('\n', target_file);
     fprintf(target_file, "[%s]\n", opt_current_version);
-    for (i= 0; i < generated->old_version.elements; i++)
+    for (i= 0; i < generator->old_version.elements; i++)
     {
-      char *element= *(char **)dynamic_array_ptr(&generated->old_version, i);
+      char *element= *(char **)dynamic_array_ptr(&generator->old_version, i);
       fputs(element, target_file);
     }
   }
 }
 
-static void generated_free(struct generated *generated)
+static void generator_free(struct generator *generator)
 {
-  free_root(&generated->alloc, MYF(0));
-  delete_dynamic(&generated->main);
-  delete_dynamic(&generated->old_version);
-  delete_dynamic(&generated->mariadbd_additions);
-  my_free(generated->output_group);
+  free_root(&generator->alloc, MYF(0));
+  delete_dynamic(&generator->main);
+  delete_dynamic(&generator->old_version);
+  delete_dynamic(&generator->mariadbd_additions);
+  my_free(generator->output_group);
 }
 
 static char *print_alloc(MEM_ROOT *alloc, const char *format, va_list args)
@@ -547,69 +547,69 @@ enum line_type
   LINE_TYPE_OTHER,
 };
 
-static my_bool add_main_line(struct generated *generated, enum line_type type,
+static my_bool add_main_line(struct generator *generator, enum line_type type,
                              const char *format, ...)
 {
   va_list args;
   my_bool res;
   if (type != LINE_TYPE_EMPTY &&
-      (!generated->output_group ||
-       strcmp(generated->input_group, generated->output_group)))
+      (!generator->output_group ||
+       strcmp(generator->input_group, generator->output_group)))
   {
     char *group_dupe;
-    if (add_line(&generated->alloc, &generated->main,
-                 generated->prev_empty ? "[%s]\n" : "\n[%s]\n",
-                 generated->input_group))
+    if (add_line(&generator->alloc, &generator->main,
+                 generator->prev_empty ? "[%s]\n" : "\n[%s]\n",
+                 generator->input_group))
       return TRUE;
     group_dupe=
-        my_strdup(key_memory_upgrade_config, generated->input_group, MYF(0));
+        my_strdup(key_memory_upgrade_config, generator->input_group, MYF(0));
     if (!group_dupe)
       return TRUE;
-    my_free(generated->output_group);
-    generated->output_group= group_dupe;
+    my_free(generator->output_group);
+    generator->output_group= group_dupe;
   }
   va_start(args, format);
-  res= vadd_line(&generated->alloc, &generated->main, format, args);
+  res= vadd_line(&generator->alloc, &generator->main, format, args);
   va_end(args);
   if (!res && type == LINE_TYPE_OPTION &&
-      !strcmp(generated->input_group, "mariadbd"))
-    generated->mariadbd_group_end= generated->main.elements;
+      !strcmp(generator->input_group, "mariadbd"))
+    generator->mariadbd_group_end= generator->main.elements;
   if (!res)
-    generated->prev_empty= type == LINE_TYPE_EMPTY;
+    generator->prev_empty= type == LINE_TYPE_EMPTY;
   return res;
 }
 
 /**
-  Write the given line to generated as specified by opt_edit_mode. Returns false
-  on success and true on failure.
+  Write the given line to generator output as specified by opt_edit_mode.
+  Returns false on success and true on failure.
 */
-static my_bool generated_add_line(struct generated *generated, const char *line,
+static my_bool generator_add_line(struct generator *generator, const char *line,
                                   enum line_type type, my_bool is_valid)
 {
   switch (opt_edit_mode) {
   case EDIT_MODE_REMOVE:
-    return is_valid ? add_main_line(generated, type, "%s", line) : FALSE;
+    return is_valid ? add_main_line(generator, type, "%s", line) : FALSE;
   case EDIT_MODE_LAST_OLD_VERSION:
     return is_valid || type == LINE_TYPE_EMPTY
-               ? add_main_line(generated, type, "%s", line)
-               : add_line(&generated->alloc, &generated->old_version, "%s",
+               ? add_main_line(generator, type, "%s", line)
+               : add_line(&generator->alloc, &generator->old_version, "%s",
                           line);
   case EDIT_MODE_COMMENT:
-    return add_main_line(generated, type, is_valid ? "%s" : "#%s", line);
+    return add_main_line(generator, type, is_valid ? "%s" : "#%s", line);
   case EDIT_MODE_INLINE_OLD_VERSION: {
-    const char *old_input_group= generated->input_group;
+    const char *old_input_group= generator->input_group;
     my_bool res= TRUE;
     if (!is_valid)
-      generated->input_group= opt_current_version;
-    if (add_main_line(generated, is_valid ? type : LINE_TYPE_OTHER, "%s", line))
+      generator->input_group= opt_current_version;
+    if (add_main_line(generator, is_valid ? type : LINE_TYPE_OTHER, "%s", line))
       goto out;
     res= FALSE;
 out:
-    generated->input_group= old_input_group;
+    generator->input_group= old_input_group;
     return res;
   }
   case EDIT_MODE_NONE:
-    return opt_print ? add_main_line(generated, type, "%s", line) : 0;
+    return opt_print ? add_main_line(generator, type, "%s", line) : 0;
   }
   return TRUE;
 }
@@ -634,7 +634,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   size_t i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
-  struct generated generated;
+  struct generator generator;
 
   if (safe_strlen(dir) + strlen(config_file) >= FN_REFLEN-3)
     return 0;					/* Ignore wrong paths */
@@ -698,7 +698,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     }
   }
 
-  generated_init(&generated);
+  generator_init(&generator);
   if (opt_print || (opt_edit_mode != EDIT_MODE_NONE && !opt_update))
     fprintf(stdout, "### File %s:\n", name);
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
@@ -713,7 +713,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
 
     if (*ptr == '#' || *ptr == ';' || !*ptr)
     {
-      generated_add_line(&generated, buff,
+      generator_add_line(&generator, buff,
                          *ptr ? LINE_TYPE_OTHER : LINE_TYPE_EMPTY, line_valid);
       continue;
     }
@@ -721,7 +721,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     /* Configuration File Directives */
     if (*ptr == '!')
     {
-      generated_add_line(&generated, buff, LINE_TYPE_OTHER, line_valid);
+      generator_add_line(&generator, buff, LINE_TYPE_OTHER, line_valid);
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1;
@@ -805,14 +805,14 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr), sizeof(curr_gr)-1));
       found_group= find_type(curr_gr, ctx->group, FIND_TYPE_NO_PREFIX)
                    ? PARSE : SKIP;
-      generated.input_group= curr_gr;
+      generator.input_group= curr_gr;
       if (found_group == PARSE && !strcmp(curr_gr, "mariadbd"))
       {
         /**
           Force the mariadbd group to be emitted to allow potentially adding new
           lines to it.
          */
-        generated_add_line(&generated, "", LINE_TYPE_OPTION, TRUE);
+        generator_add_line(&generator, "", LINE_TYPE_OPTION, TRUE);
       }
       continue;
     }
@@ -826,7 +826,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     case PARSE:
       break;
     case SKIP:
-      generated_add_line(&generated, buff, LINE_TYPE_OPTION, line_valid);
+      generator_add_line(&generator, buff, LINE_TYPE_OPTION, line_valid);
       continue;
     }
 
@@ -956,31 +956,31 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
                && !strcmp(option, "key_buffer_size"))
       {
         file_valid= FALSE;
-        generated_add_line(&generated, buff, LINE_TYPE_OPTION, FALSE);
+        generator_add_line(&generator, buff, LINE_TYPE_OPTION, FALSE);
         if (opt_no_myisam_files)
         {
-          add_line(&generated.alloc, &generated.mariadbd_additions,
+          add_line(&generator.alloc, &generator.mariadbd_additions,
                    "key_buffer_size=64K\n");
-          add_line(&generated.alloc, &generated.mariadbd_additions,
+          add_line(&generator.alloc, &generator.mariadbd_additions,
                    "aria_pagecache_buffer_size=");
-          add_line(&generated.alloc, &generated.mariadbd_additions,
+          add_line(&generator.alloc, &generator.mariadbd_additions,
                    option_value_start);
-          add_line(&generated.alloc, &generated.mariadbd_additions, "\n");
+          add_line(&generator.alloc, &generator.mariadbd_additions, "\n");
         }
         else
         {
-          add_line(&generated.alloc, &generated.mariadbd_additions, "%s", buff);
-          add_line(&generated.alloc, &generated.mariadbd_additions,
+          add_line(&generator.alloc, &generator.mariadbd_additions, "%s", buff);
+          add_line(&generator.alloc, &generator.mariadbd_additions,
                    "#key-buffer-size=64K\n");
         }
         continue;
       }
     }
-    generated_add_line(&generated, buff, LINE_TYPE_OPTION, line_valid);
+    generator_add_line(&generator, buff, LINE_TYPE_OPTION, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
-  generated_write(tmp_fp, &generated);
-  generated_free(&generated);
+  generator_write(tmp_fp, &generator);
+  generator_free(&generator);
   if (tmp_fp)
   {
     mysql_file_fclose(tmp_fp, MYF(0));
@@ -1020,7 +1020,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   mysql_file_fclose(fp, MYF(0));
   if (tmp_fp)
     mysql_file_fclose(tmp_fp, MYF(0));
-  generated_free(&generated);
+  generator_free(&generator);
   return -1;					/* Fatal error */
 }
 
