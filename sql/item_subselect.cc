@@ -6659,9 +6659,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     if (merge_keys[i]->sort_keys())
       return TRUE;
 
-  if (init_queue(&pq, merge_keys_count, 0, FALSE,
-                 subselect_rowid_merge_engine::cmp_keys_by_cur_rownum, NULL,
-                 0, 0))
+  if (pq.init(merge_keys_count, 0, false,
+              subselect_rowid_merge_engine::cmp_keys_by_cur_rownum))
     return TRUE;
 
   item->get_IN_subquery()->get_materialization_tracker()->
@@ -6678,7 +6677,6 @@ subselect_rowid_merge_engine::~subselect_rowid_merge_engine()
     my_free(row_num_to_rowid);
     for (uint i= 0; i < merge_keys_count; i++)
       delete merge_keys[i];
-    delete_queue(&pq);
     if (tmp_table->file->inited == handler::RND)
       tmp_table->file->ha_rnd_end();
   }
@@ -6720,11 +6718,11 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 */
 
 int
-subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *arg,
-                                                     uchar *k1, uchar *k2)
+subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *, Ordered_key *k1,
+                                                     Ordered_key *k2)
 {
-  rownum_t r1= ((Ordered_key*) k1)->current();
-  rownum_t r2= ((Ordered_key*) k2)->current();
+  rownum_t r1= k1->current();
+  rownum_t r2= k2->current();
 
   return (r1 < r2) ? -1 : (r1 > r2) ? 1 : 0;
 }
@@ -6835,7 +6833,7 @@ bool subselect_rowid_merge_engine::partial_match()
   /* If there is a non-NULL key, it must be the first key in the keys array. */
   DBUG_ASSERT(!non_null_key || (non_null_key && merge_keys[0] == non_null_key));
   /* The prioryty queue for keys must be empty. */
-  DBUG_ASSERT(!pq.elements);
+  DBUG_ASSERT(pq.is_empty());
 
   /* All data accesses during execution are via handler::ha_rnd_pos() */
   if (unlikely(tmp_table->file->ha_rnd_init_with_error(0)))
@@ -6862,7 +6860,7 @@ bool subselect_rowid_merge_engine::partial_match()
   }
 
   if (non_null_key)
-    queue_insert(&pq, (uchar *) non_null_key);
+    pq.push(non_null_key);
   /*
     Do not add the non_null_key, since it was already processed above.
   */
@@ -6876,7 +6874,7 @@ bool subselect_rowid_merge_engine::partial_match()
       bitmap_set_bit(&matching_outer_cols, merge_keys[i]->get_keyid());
     }
     else if (merge_keys[i]->lookup())
-      queue_insert(&pq, (uchar *) merge_keys[i]);
+      pq.push(merge_keys[i]);
   }
 
   /*
@@ -6896,7 +6894,7 @@ bool subselect_rowid_merge_engine::partial_match()
     there is a subquery row with NULLs in all unmatched columns,
     then there is a partial match, otherwise the result is FALSE.
   */
-  if (count_nulls_in_search_key && !pq.elements)
+  if (count_nulls_in_search_key && pq.is_empty())
   {
     DBUG_ASSERT(!non_null_key);
     /*
@@ -6915,11 +6913,11 @@ bool subselect_rowid_merge_engine::partial_match()
     non-null key doesn't have a match.
   */
   if (!count_nulls_in_search_key &&
-      (!pq.elements ||
-       (pq.elements == 1 && non_null_key &&
+      (pq.is_empty() ||
+       (pq.elements() == 1 && non_null_key &&
         max_null_in_any_row < merge_keys_count-1)))
   {
-    if (!pq.elements)
+    if (pq.is_empty())
     {
       DBUG_ASSERT(!non_null_key);
       /*
@@ -6932,16 +6930,16 @@ bool subselect_rowid_merge_engine::partial_match()
     goto end;
   }
 
-  DBUG_ASSERT(pq.elements);
+  DBUG_ASSERT(!pq.is_empty());
 
-  min_key= (Ordered_key*) queue_remove_top(&pq);
+  min_key= pq.pop();
   min_row_num= min_key->current();
   bitmap_set_bit(&matching_keys, min_key->get_keyid());
   bitmap_union(&matching_keys, &matching_outer_cols);
   if (min_key->next_same())
-    queue_insert(&pq, (uchar *) min_key);
+    pq.push(min_key);
 
-  if (pq.elements == 0)
+  if (pq.is_empty())
   {
     /*
       Check the only matching row of the only key min_key for NULL matches
@@ -6953,7 +6951,7 @@ bool subselect_rowid_merge_engine::partial_match()
 
   while (TRUE)
   {
-    cur_key= (Ordered_key*) queue_remove_top(&pq);
+    cur_key= pq.pop();
     cur_row_num= cur_key->current();
 
     if (cur_row_num == min_row_num)
@@ -6978,9 +6976,9 @@ bool subselect_rowid_merge_engine::partial_match()
     }
 
     if (cur_key->next_same())
-      queue_insert(&pq, (uchar *) cur_key);
+      pq.push(cur_key);
 
-    if (pq.elements == 0)
+    if (pq.is_empty())
     {
       /* Check the last row of the last column in PQ for NULL matches. */
       res= test_null_row(min_row_num);
@@ -6994,7 +6992,7 @@ bool subselect_rowid_merge_engine::partial_match()
 end:
   if (!has_covering_null_columns)
     bitmap_clear_all(&matching_keys);
-  queue_remove_all(&pq);
+  pq.clear();
   tmp_table->file->ha_rnd_end();
   return res;
 }
