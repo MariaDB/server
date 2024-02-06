@@ -38,7 +38,9 @@ insert into t3 select * from t1;
 insert into t4 select * from t1;
 commit;
 
+let $no_checkpoint_flush= 1;
 --source ../../suite/innodb/include/no_checkpoint_start.inc
+
 #
 # We test redo log page read at recv_read_page using
 # keys that are not in std_data/keys.txt. If checkpoint

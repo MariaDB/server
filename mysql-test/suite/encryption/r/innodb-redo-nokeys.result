@@ -17,6 +17,15 @@ insert into t2 select * from t1;
 insert into t3 select * from t1;
 insert into t4 select * from t1;
 commit;
+
+# Flush all dirty pages from buffer pool
+SET @no_checkpoint_save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @no_checkpoint_save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct= @no_checkpoint_save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm= @no_checkpoint_save_pct_lwm;
+
 CREATE TABLE t5 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 begin;

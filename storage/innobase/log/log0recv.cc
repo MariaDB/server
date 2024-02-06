@@ -3538,6 +3538,15 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		return(DB_ERROR);
 	}
 
+	/* If we fail to open a tablespace while looking for FILE_CHECKPOINT, we
+	set the corruption flag. Specifically, if encryption key is missing, we
+	would not be able to open an encrypted tablespace and the flag could be
+	set. */
+	if (recv_sys.found_corrupt_fs) {
+		mysql_mutex_unlock(&log_sys.mutex);
+		return DB_ERROR;
+	}
+
 	if (recv_sys.mlog_checkpoint_lsn == 0) {
 		lsn_t scan_lsn = log_sys.log.scanned_lsn;
 		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
