@@ -121,3 +121,13 @@ EOF
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+innodb_data_file_path=/var/mysql/test
+EOF
+--echo Testing path copying
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf

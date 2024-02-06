@@ -952,6 +952,16 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
           }
         }
       }
+      else if (!strcmp(curr_gr, "mysqld") &&
+               (opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION ||
+                opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION) &&
+               strstr(option_value_start, "/mysql/"))
+      {
+        file_valid= FALSE;
+        generator_add_line(&generator, buff, LINE_TYPE_OPTION, FALSE);
+        add_line(&generator.alloc, &generator.mariadbd_additions, "%s", buff);
+        continue;
+      }
       else if (strcmp(curr_gr, "mariadbd") &&
                (opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION ||
                 opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)

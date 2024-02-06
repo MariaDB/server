@@ -65,3 +65,9 @@ skip_slave_start
 
 [mysql-5.7]
 key_buffer_size=20M
+Testing path copying
+[mariadbd]
+innodb_data_file_path=/var/mysql/test
+
+[mysql-5.7]
+innodb_data_file_path=/var/mysql/test
