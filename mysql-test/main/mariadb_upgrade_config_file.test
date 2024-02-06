@@ -91,3 +91,23 @@ EOF
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+default_week_format=1
+EOF
+--echo Testing --add-skip-start-slave
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --add-skip-slave-start
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mariadbd]
+skip_slave_start
+EOF
+--echo Testing --add-skip-slave-start with skip_start_slave already present
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --add-skip-slave-start
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf

@@ -48,3 +48,12 @@ aria_pagecache_buffer_size=20M
 
 [mysql-5.7]
 key_buffer_size=20M
+Testing --add-skip-start-slave
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+skip_slave_start
+Testing --add-skip-slave-start with skip_start_slave already present
+[mariadbd]
+skip_slave_start

@@ -71,6 +71,7 @@ static my_bool opt_update;
 static my_bool opt_backup;
 static my_bool opt_print;
 static my_bool opt_no_myisam_files;
+static my_bool opt_add_skip_slave_start;
 
 
 static PSI_memory_key key_memory_upgrade_config;
@@ -631,6 +632,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   my_bool file_valid= TRUE;
   uint line=0;
   enum { NONE, PARSE, SKIP } found_group= NONE;
+  my_bool skip_slave_start_present= FALSE;
   size_t i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
@@ -976,9 +978,19 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
         continue;
       }
     }
+    else if (!strcmp(option, "skip_slave_start"))
+    {
+      skip_slave_start_present= TRUE;
+    }
     generator_add_line(&generator, buff, LINE_TYPE_OPTION, line_valid);
   }
   mysql_file_fclose(fp, MYF(0));
+  if (opt_add_skip_slave_start && !skip_slave_start_present)
+  {
+    file_valid= FALSE;
+    add_line(&generator.alloc, &generator.mariadbd_additions,
+             "skip_slave_start\n");
+  }
   generator_write(tmp_fp, &generator);
   generator_free(&generator);
   if (tmp_fp)
@@ -1211,6 +1223,7 @@ enum upgrade_config_options
   OPT_EDIT,
   OPT_PRINT,
   OPT_NO_MYISAM_FILES,
+  OPT_ADD_SKIP_SLAVE_START,
 };
 
 static struct my_option my_long_options[] =
@@ -1237,6 +1250,9 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {"no-myisam-files", OPT_NO_MYISAM_FILES,
    "Don't try to support MyISAM.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"add-skip-slave-start", OPT_ADD_SKIP_SLAVE_START,
+   "Add skip_slave_start to the mariadbd section if not present.",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -1284,6 +1300,9 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
     break;
   case OPT_NO_MYISAM_FILES:
     opt_no_myisam_files= TRUE;
+    break;
+  case OPT_ADD_SKIP_SLAVE_START:
+    opt_add_skip_slave_start= TRUE;
     break;
   }
   return 0;
