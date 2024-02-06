@@ -31,37 +31,78 @@
 #include "sql_base.h"
 #include "sql_test.h"                           // TEST_filesort
 #include "opt_range.h"                          // SQL_SELECT
-#include "bounded_queue.h"
 #include "filesort_utils.h"
 #include "sql_select.h"
 #include "debug_sync.h"
+#include "sql_queue.h"
 
-	/* functions defined in this file */
+static uint make_sortkey(Sort_param *, uchar *, uchar *, bool);
 
-static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
-                                     uchar *buf);
-static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
-                             SORT_INFO *fs_info,
-                             IO_CACHE *buffer_file,
-                             IO_CACHE *tempfile,
-                             Bounded_queue<uchar, uchar> *pq,
-                             ha_rows *found_rows);
-static bool write_keys(Sort_param *param, SORT_INFO *fs_info,
-                      uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
-static uint make_sortkey(Sort_param *, uchar *, uchar *,
-                         bool using_packed_sortkeys= false);
+class Bounded_queue
+{
+public:
+
+  int init(ha_rows max_elements, size_t cmplen, Sort_param *sort_param,
+           uchar **sort_keys);
+  void push(uchar *element);
+  size_t num_elements() const { return m_queue.elements(); }
+  bool is_initialized() const { return m_queue.is_inited(); }
+
+private:
+  uchar                     **m_sort_keys;
+  size_t                      m_compare_length;
+  Sort_param                 *m_sort_param;
+  Queue<uchar*,uchar*,size_t> m_queue;
+};
+
+
+int Bounded_queue::init(ha_rows max_elements, size_t cmplen,
+                        Sort_param *sort_param, uchar **sort_keys)
+{
+  DBUG_ASSERT(sort_keys != NULL);
+
+  m_sort_keys=      sort_keys;
+  m_compare_length= cmplen;
+  m_sort_param=     sort_param;
+  // init_queue() takes an uint, and also does (max_elements + 1)
+  if (max_elements >= UINT_MAX - 1)
+    return 1;
+  // We allocate space for one extra element, for replace when queue is full.
+  return m_queue.init((uint)max_elements + 1, 0, true,
+                      (decltype(m_queue)::Queue_compare)get_ptr_compare(cmplen),
+                      &m_compare_length);
+}
+
+
+void Bounded_queue::push(uchar *element)
+{
+  DBUG_ASSERT(is_initialized());
+  if (m_queue.is_full())
+  {
+    // Replace top element with new key, and re-order the queue.
+    uchar **pq_top= m_queue.top();
+    make_sortkey(m_sort_param, *pq_top, element, 0);
+    m_queue.propagate_top();
+  } else {
+    // Insert new key into the queue.
+    make_sortkey(m_sort_param, m_sort_keys[m_queue.elements()], element, 0);
+    m_queue.push(&m_sort_keys[m_queue.elements()]);
+  }
+}
+
+static uchar *read_buffpek_from_file(IO_CACHE *, uint, uchar *);
+static ha_rows find_all_keys(THD *, Sort_param *, SQL_SELECT *, SORT_INFO *,
+                             IO_CACHE *, IO_CACHE *, Bounded_queue *,
+                             ha_rows *);
+static bool write_keys(Sort_param *, SORT_INFO *, uint, IO_CACHE *, IO_CACHE *);
 static uint make_sortkey(Sort_param *param, uchar *to);
 static uint make_packed_sortkey(Sort_param *param, uchar *to);
 
 static void register_used_fields(Sort_param *param);
-static bool save_index(Sort_param *param, uint count,
-                       SORT_INFO *table_sort);
+static bool save_index(Sort_param *, uint, SORT_INFO *);
 static uint suffix_length(ulong string_length);
-static uint sortlength(THD *thd, Sort_keys *sortorder,
-                       bool *allow_packing_for_sortkeys);
-static Addon_fields *get_addon_fields(TABLE *table, uint sortlength,
-                                      uint *addon_length,
-                                      uint *m_packable_length);
+static uint sortlength(THD *, Sort_keys *, bool *);
+static Addon_fields *get_addon_fields(TABLE *, uint, uint *, uint *);
 
 static void store_key_part_length(uint32 num, uchar *to, uint bytes)
 {
@@ -219,7 +260,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   IO_CACHE tempfile, buffpek_pointers, *outfile; 
   Sort_param param;
   bool allow_packing_for_sortkeys;
-  Bounded_queue<uchar, uchar> pq;
+  Bounded_queue pq;
   SQL_SELECT *const select= filesort->select;
   Sort_costs costs;
   ha_rows limit_rows= filesort->limit;
@@ -337,11 +378,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       point in doing lazy initialization).
     */
     sort->init_record_pointers();
-    if (pq.init(param.limit_rows,
-                true,                           // max_at_top
-                NULL,                           // compare_function
-                compare_length,
-                &make_sortkey, &param, sort->get_sort_keys()))
+    if (pq.init(param.limit_rows, compare_length, &param, sort->get_sort_keys()))
     {
       /*
        If we fail to init pq, we have to give up:
@@ -883,10 +920,8 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
 */
 
 static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
-                             SORT_INFO *fs_info,
-                             IO_CACHE *buffpek_pointers,
-                             IO_CACHE *tempfile,
-                             Bounded_queue<uchar, uchar> *pq,
+                             SORT_INFO *fs_info, IO_CACHE *buffpek_pointers,
+                             IO_CACHE *tempfile, Bounded_queue *pq,
                              ha_rows *found_rows)
 {
   int error, quick_select;
