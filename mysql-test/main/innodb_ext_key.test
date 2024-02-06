@@ -5,6 +5,8 @@
 --source include/innodb_prefix_index_cluster_optimization.inc
 --source include/no_valgrind_without_big.inc
 
+--source include/innodb_stable_estimates.inc
+
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;

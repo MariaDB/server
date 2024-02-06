@@ -496,6 +496,23 @@ use federated;
 SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
 WHERE id=2) dt2) dt;
 id	name
+PREPARE stmt FROM "
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
+  WHERE id=3) dt2) dt;
+";
+EXECUTE stmt;
+id	name
+3	xxx
+EXECUTE stmt;
+id	name
+3	xxx
+DEALLOCATE PREPARE stmt;
+EXPLAIN
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
+WHERE id=3) dt2) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	5	Using where
+4	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 connection slave;
 CREATE TABLE federated.t10 (a INT,b INT);
 CREATE TABLE federated.t11 (a INT, b INT);
@@ -516,6 +533,54 @@ WHERE id=2) dt2) dt
 a	b	a	b	id	name
 1	1	NULL	NULL	NULL	NULL
 2	2	NULL	NULL	NULL	NULL
+#
+# MDEV-31361: Second execution of PS for query with derived table
+#
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+CREATE TABLE federated.t1 (
+id int(20) NOT NULL,
+name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+INSERT INTO federated.t1 VALUES
+(3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+CREATE TABLE federated.t1 (
+id int(20) NOT NULL,
+name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+use federated;
+SELECT * FROM
+(SELECT * FROM
+(SELECT * FROM
+(SELECT * FROM t1 where id>3) dt3
+WHERE id>3) dt2
+) dt;
+id	name
+7	yyy
+4	xxx
+5	yyy
+PREPARE stmt FROM "SELECT * FROM
+(SELECT * FROM
+(SELECT * FROM
+(SELECT * FROM t1 where id>3) dt3
+WHERE id>3) dt2
+) dt";
+EXECUTE stmt;
+id	name
+7	yyy
+4	xxx
+5	yyy
+EXECUTE stmt;
+id	name
+7	yyy
+4	xxx
+5	yyy
+DEALLOCATE PREPARE stmt;
 set global federated_pushdown=0;
 connection master;
 DROP TABLE IF EXISTS federated.t1;

@@ -4718,13 +4718,16 @@ row_import_for_mysql(
 	table->flags2 &= ~DICT_TF2_DISCARDED & ((1U << DICT_TF2_BITS) - 1);
 
 	/* Set autoinc value read from .cfg file, if one was specified.
-	Otherwise, keep the PAGE_ROOT_AUTO_INC as is. */
+	Otherwise, read the PAGE_ROOT_AUTO_INC and set it to table autoinc. */
 	if (autoinc) {
 		ib::info() << table->name << " autoinc value set to "
 			<< autoinc;
 
 		table->autoinc = autoinc--;
 		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
+	} else if (table->persistent_autoinc) {
+		autoinc = btr_read_autoinc(dict_table_get_first_index(table));
+		table->autoinc = ++autoinc;
 	}
 
 	return(row_import_cleanup(prebuilt, trx, err));
