@@ -3865,6 +3865,10 @@ release_and_exit:
 		goto release_and_exit;
 	}
 
+#ifdef ENABLED_DEBUG_SYNC
+	DEBUG_SYNC(thd, "dict_stats_mdl_acquired");
+#endif /* ENABLED_DEBUG_SYNC */
+
 	trx = trx_create();
 
 	trx_start_internal_read_only(trx);
