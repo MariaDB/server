@@ -25,7 +25,7 @@ CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_S
 start slave;
 Warnings:
 Note	1254	Slave is already running
-*** Test mysqldump --dump-slave GTID functionality.
+*** Test mysqldump --dump-slave GTID/non-gtid functionality.
 connection master;
 SET gtid_seq_no = 1000;
 CREATE TABLE t1 (a INT PRIMARY KEY);
@@ -35,36 +35,142 @@ connection slave;
 CREATE TABLE t2 (a INT PRIMARY KEY);
 DROP TABLE t2;
 
-1. --dump-slave=1
+1. --dump-slave=1 --gtid
 
 SET GLOBAL gtid_slave_pos='0-1-1001';
 CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 
-2. --dump-slave=2
+1a. --dump-slave=1
+
+-- SET GLOBAL gtid_slave_pos='0-1-1001';
+CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+
+2. --dump-slave=2 --gtid
 
 -- SET GLOBAL gtid_slave_pos='0-1-1001';
 -- CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
-*** Test mysqldump --master-data GTID functionality.
 
-1. --master-data=1
+2. --dump-slave=2
+
+-- SET GLOBAL gtid_slave_pos='0-1-1001';
+-- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+*** Test mysqldump --master-data GTID/non-gtid functionality.
+
+1. --master-data=1 --gtid
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
 
-2. --master-data=2
+1a. --master-data=1
+
+CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+-- SET GLOBAL gtid_slave_pos='0-2-1003';
+
+2. --master-data=2 --gtid
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 -- CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 -- SET GLOBAL gtid_slave_pos='0-2-1003';
 
-3. --master-data --single-transaction
+2a. --master-data=2
+
+-- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+-- SET GLOBAL gtid_slave_pos='0-2-1003';
+
+3. --master-data --single-transaction --gtid
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
+
+3a. --master-data --single-transaction
+
+CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+-- SET GLOBAL gtid_slave_pos='0-2-1003';
+
+4. --master-data=2 --dump-slave=2 --single-transaction --gtid (MDEV-4827)
+
+-- MariaDB dump--
+-- Host: localhost    Database: test
+-- ------------------------------------------------------
+-- Server version
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Gtid position to start replication from
+--
+
+-- SET GLOBAL gtid_slave_pos='0-1-1001';
+-- CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
+
+--
+-- Position to start replication or point-in-time recovery from (the master of this slave)
+--
+
+-- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed
+
+4a. --master-data=2 --dump-slave=2 --single-transaction (MDEV-4827)
+
+-- MariaDB dump--
+-- Host: localhost    Database: test
+-- ------------------------------------------------------
+-- Server version
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Gtid position to start replication from
+--
+
+-- SET GLOBAL gtid_slave_pos='0-1-1001';
+
+--
+-- Position to start replication or point-in-time recovery from (the master of this slave)
+--
+
+-- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed
 connection master;
 CREATE TABLE t (
 id int
