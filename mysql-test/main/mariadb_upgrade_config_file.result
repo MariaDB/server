@@ -44,7 +44,7 @@ key_buffer_size=20M
 Testing --no-myisam-files
 [mariadbd]
 key_buffer_size=64K
-aria-pagecache-buffer-size=20M
+aria_pagecache_buffer_size=20M
 
 [mysql-5.7]
 key_buffer_size=20M

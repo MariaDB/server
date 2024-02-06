@@ -962,7 +962,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
           add_line(&generated.alloc, &generated.mariadbd_additions,
                    "key_buffer_size=64K\n");
           add_line(&generated.alloc, &generated.mariadbd_additions,
-                   "aria-pagecache-buffer-size=");
+                   "aria_pagecache_buffer_size=");
           add_line(&generated.alloc, &generated.mariadbd_additions,
                    option_value_start);
           add_line(&generated.alloc, &generated.mariadbd_additions, "\n");
