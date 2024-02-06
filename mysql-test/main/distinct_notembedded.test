@@ -89,7 +89,14 @@ eval $trace;
 SELECT COUNT(DISTINCT b) FROM t3 GROUP BY a+b;
 eval $trace;
 
+--echo # Test merged view
+CREATE VIEW v1 AS SELECT * FROM t1;
+--echo # Optimization is applied
+SELECT COUNT(DISTINCT a, b) FROM v1;
+eval $trace;
+
 DROP TABLE t1, t2, t3;
+DROP VIEW v1;
 SET optimizer_trace = @save_optimizer_trace;
 --echo #
 --echo # end of 10.6 tests

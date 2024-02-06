@@ -27190,7 +27190,7 @@ bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
       List<Item> arg_fields;
       for (uint i= 0; i < func->argument_count(); i++)
       {
-        if (func->arguments()[i]->type() == Item::FIELD_ITEM)
+        if (func->arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
           arg_fields.push_back(func->arguments()[i]);
       }
 
@@ -27207,7 +27207,7 @@ bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
       */
       for (ORDER *group= group_list; group ; group= group->next)
       {
-        if ((*group->item)->type() == Item::FIELD_ITEM)
+        if ((*group->item)->real_item()->type() == Item::FIELD_ITEM)
           arg_fields.push_back(*group->item);
       }
 
@@ -27219,7 +27219,7 @@ bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
     Json_writer_object trace_wrapper(thd);
     Json_writer_object trace_aggr(thd, "prepare_sum_aggregators");
     trace_aggr.add("function", func);
-    trace_aggr.add("type of aggregator",
+    trace_aggr.add("aggregator_type",
                    need_distinct_aggregator ? "distinct" : "simple");
     if (func->set_aggregator(thd,
                              need_distinct_aggregator ?

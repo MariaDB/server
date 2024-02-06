@@ -15,7 +15,7 @@ JS
 [
     {
         "function": "count(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT AVG(DISTINCT a), SUM(DISTINCT b) FROM t1;
@@ -27,11 +27,11 @@ JS
 [
     {
         "function": "avg(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     },
     {
         "function": "sum(distinct t1.b)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 # Only `a` is unique but it's enough to eliminate DISTINCT:
@@ -44,7 +44,7 @@ JS
 [
     {
         "function": "count(distinct t1.b,t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT COUNT(DISTINCT a, a + b) FROM t1;
@@ -56,7 +56,7 @@ JS
 [
     {
         "function": "count(distinct t1.a,t1.a + t1.b)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT SUM(DISTINCT a), AVG(DISTINCT a), COUNT(DISTINCT a) FROM t1 WHERE a > 1;
@@ -68,15 +68,15 @@ JS
 [
     {
         "function": "sum(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     },
     {
         "function": "avg(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     },
     {
         "function": "count(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 # Optimization is not applied 'cause function argument is not a field
@@ -90,7 +90,7 @@ JS
 [
     {
         "function": "sum(distinct t1.a + t1.b)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 SELECT COUNT(DISTINCT b) FROM t1;
@@ -102,7 +102,7 @@ JS
 [
     {
         "function": "count(distinct t1.b)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 SELECT AVG(DISTINCT b / a) FROM t1;
@@ -114,7 +114,7 @@ JS
 [
     {
         "function": "avg(distinct t1.b / t1.a)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 EXPLAIN SELECT COUNT(DISTINCT (SELECT a)) FROM t1;
@@ -127,7 +127,7 @@ JS
 [
     {
         "function": "count(distinct (/* select#2 */ select t1.a))",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 CREATE TABLE t2 (a INT);
@@ -142,7 +142,7 @@ JS
 [
     {
         "function": "count(distinct t1.a)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 SELECT AVG(DISTINCT t1.a) FROM t1, t2;
@@ -154,7 +154,7 @@ JS
 [
     {
         "function": "avg(distinct t1.a)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 # Const tables, optimization is applied
@@ -167,7 +167,7 @@ JS
 [
     {
         "function": "count(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT AVG(DISTINCT t1.a) FROM (SELECT 1 AS a) AS t2, t1, (SELECT 2 AS a) AS t3;
@@ -179,7 +179,7 @@ JS
 [
     {
         "function": "avg(distinct t1.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT COUNT(DISTINCT a) FROM t1, (SELECT 1 UNION SELECT 2) AS t2;
@@ -191,7 +191,7 @@ JS
 [
     {
         "function": "count(distinct t1.a)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 # Unique index on two columns
@@ -208,7 +208,7 @@ JS
 [
     {
         "function": "count(distinct t3.a,t3.b)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT COUNT(DISTINCT b, a) FROM t3;
@@ -220,7 +220,7 @@ JS
 [
     {
         "function": "count(distinct t3.b,t3.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 SELECT COUNT(DISTINCT b, a) FROM t3 WHERE a < 3;
@@ -232,7 +232,7 @@ JS
 [
     {
         "function": "count(distinct t3.b,t3.a)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     }
 ]
 # Optimization is applied to one of the functions:
@@ -247,15 +247,15 @@ JS
 [
     {
         "function": "count(distinct t3.b)",
-        "type of aggregator": "simple"
+        "aggregator_type": "simple"
     },
     {
         "function": "sum(distinct t3.a)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     },
     {
         "function": "sum(distinct t3.a + t3.b)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
     }
 ]
 # Can't apply optimization 'cause GROUP BY argument is not a field:
@@ -271,10 +271,26 @@ JS
 [
     {
         "function": "count(distinct t3.b)",
-        "type of aggregator": "distinct"
+        "aggregator_type": "distinct"
+    }
+]
+# Test merged view
+CREATE VIEW v1 AS SELECT * FROM t1;
+# Optimization is applied
+SELECT COUNT(DISTINCT a, b) FROM v1;
+COUNT(DISTINCT a, b)
+3
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.prepare_sum_aggregators')) AS JS
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    {
+        "function": "count(distinct t1.a,t1.b)",
+        "aggregator_type": "simple"
     }
 ]
 DROP TABLE t1, t2, t3;
+DROP VIEW v1;
 SET optimizer_trace = @save_optimizer_trace;
 #
 # end of 10.6 tests
