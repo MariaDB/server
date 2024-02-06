@@ -1,6 +1,9 @@
 connection node_2;
 connection node_1;
 connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
 CREATE TABLE t1 (pk INT PRIMARY KEY, node INT) ENGINE=innodb;
 INSERT INTO t1 VALUES (1, 1);
 connection node_2;
@@ -89,3 +92,7 @@ connection node_2;
 call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
 connection node_3;
 call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+disconnect node_1a;
+disconnect node_3;
+disconnect node_2;
+disconnect node_1;

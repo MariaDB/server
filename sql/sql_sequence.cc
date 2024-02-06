@@ -27,6 +27,9 @@
 #include "sql_acl.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+bool wsrep_check_sequence(THD* thd,
+                          const sequence_definition *seq,
+                          const bool used_engine);
 #endif
 
 struct Field_definition
@@ -945,7 +948,8 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 #ifdef WITH_WSREP
   if (WSREP(thd) && wsrep_thd_is_local(thd))
   {
-    if (wsrep_check_sequence(thd, new_seq))
+    const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+    if (wsrep_check_sequence(thd, new_seq, used_engine))
       DBUG_RETURN(TRUE);
 
     if (wsrep_to_isolation_begin(thd, first_table->db.str,

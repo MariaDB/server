@@ -1940,8 +1940,11 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-  (void) wsrep_before_rollback(thd, all);
+  // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
+  if (thd->wsrep_consistency_check != CONSISTENCY_CHECK_RUNNING)
+    (void) wsrep_before_rollback(thd, all);
 #endif /* WITH_WSREP */
+
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -1977,8 +1980,12 @@ int ha_rollback_trans(THD *thd, bool all)
                 thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
-  (void) wsrep_after_rollback(thd, all);
+
+  // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
+  if (thd->wsrep_consistency_check != CONSISTENCY_CHECK_RUNNING)
+    (void) wsrep_after_rollback(thd, all);
 #endif /* WITH_WSREP */
+
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
   {
