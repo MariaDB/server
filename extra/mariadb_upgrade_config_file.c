@@ -1224,6 +1224,7 @@ enum upgrade_config_options
   OPT_PRINT,
   OPT_NO_MYISAM_FILES,
   OPT_ADD_SKIP_SLAVE_START,
+  OPT_FIX_ALL,
 };
 
 static struct my_option my_long_options[] =
@@ -1253,6 +1254,9 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {"add-skip-slave-start", OPT_ADD_SKIP_SLAVE_START,
    "Add skip_slave_start to the mariadbd section if not present.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"fix-all", OPT_FIX_ALL,
+   "Enable --no-myisam-files and --add-skip-slave-start.",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -1302,6 +1306,10 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
     opt_no_myisam_files= TRUE;
     break;
   case OPT_ADD_SKIP_SLAVE_START:
+    opt_add_skip_slave_start= TRUE;
+    break;
+  case OPT_FIX_ALL:
+    opt_no_myisam_files= TRUE;
     opt_add_skip_slave_start= TRUE;
     break;
   }

@@ -57,3 +57,11 @@ skip_slave_start
 Testing --add-skip-slave-start with skip_start_slave already present
 [mariadbd]
 skip_slave_start
+Testing --fix-all
+[mariadbd]
+key_buffer_size=64K
+aria_pagecache_buffer_size=20M
+skip_slave_start
+
+[mysql-5.7]
+key_buffer_size=20M
