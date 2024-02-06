@@ -503,6 +503,7 @@ public:
 class Sys_var_charptr: public sys_var
 {
   const size_t max_length= 2000;
+  bool in_place_update;
 public:
   Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
@@ -511,19 +512,35 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0,
+          bool in_place_update=false)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
               getopt.arg_type, SHOW_CHAR_PTR, (intptr)def_val,
               lock, binlog_status_arg, on_check_func, on_update_func,
-              substitute)
+              substitute),
+              in_place_update(in_place_update)
   {
     /*
      use GET_STR_ALLOC - if ALLOCATED it must be *always* allocated,
      otherwise (GET_STR) you'll never know whether to free it or not.
      (think of an exit because of an error right after my_getopt)
     */
+    /*
+      if (in_place_update)
+        flags|= ALLOCATED;
+     */
     option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
-    global_var(const char*)= def_val;
+    /*
+      if (in_place_update)
+      {
+        if ((global_var(char*)=
+              (char*) my_malloc(key_memory_Sys_var_charptr_value, max_length, MYF(MY_WME)))
+            != 0)
+        strmake(global_var(char*), def_val, strlen(def_val));
+      }
+      else
+     */
+      global_var(const char*)= def_val;
     SYSVAR_ASSERT(size == sizeof(char *));
   }
   void cleanup() override
@@ -593,10 +610,20 @@ public:
   }
   bool session_update(THD *thd, set_var *var) override
   {
-    char *new_val= update_prepare(var, MYF(MY_WME | MY_THREAD_SPECIFIC));
-    my_free(session_var(thd, char*));
-    session_var(thd, char*)= new_val;
-    return (new_val == 0 && var->save_result.string_value.str != 0);
+    if (in_place_update)
+    {
+      LEX_CSTRING *tmp= &session_var(thd, LEX_CSTRING);
+      tmp->length= var->save_result.string_value.length;
+      /* Store as \0 terminated string (just to be safe) */
+      strmake((char*) tmp->str, var->save_result.string_value.str, tmp->length);
+      return false;
+    } else
+    {
+      char *new_val= update_prepare(var, MYF(MY_WME | MY_THREAD_SPECIFIC));
+      my_free(session_var(thd, char*));
+      session_var(thd, char*)= new_val;
+      return (new_val == 0 && var->save_result.string_value.str != 0);
+    }
   }
   void global_update_finish(char *new_val)
   {
@@ -879,10 +906,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0,
+          bool in_place_update=false)
     : Sys_var_charptr(name_arg, comment, flag_args, off, sizeof(char*),
               getopt, def_val, lock, binlog_status_arg,
-              on_check_func, on_update_func, substitute)
+              on_check_func, on_update_func, substitute, in_place_update)
   {
     global_var(LEX_CSTRING).length= strlen(def_val);
     SYSVAR_ASSERT(size == sizeof(LEX_CSTRING));

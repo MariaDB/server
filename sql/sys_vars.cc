@@ -1350,7 +1350,8 @@ static Sys_var_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
        SESSION_ONLY(default_master_connection), NO_CMD_LINE, DEFAULT(""),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_master_connection));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_master_connection),
+       ON_UPDATE(0), 0, true);
 #endif
 
 static Sys_var_charptr_fscs Sys_init_file(

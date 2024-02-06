@@ -3306,11 +3306,13 @@ void plugin_thdvar_init(THD *thd)
   intern_plugin_unlock(NULL, old_enforced_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
 
-  thd->variables.default_master_connection.str=
-    my_strndup(key_memory_Sys_var_charptr_value,
-               global_system_variables.default_master_connection.str,
-               global_system_variables.default_master_connection.length,
-               MYF(MY_WME | MY_THREAD_SPECIFIC));
+  if ((thd->variables.default_master_connection.str=
+        (char*) my_malloc(key_memory_Sys_var_charptr_value, 2000,
+                          MYF(MY_WME | MY_THREAD_SPECIFIC)))
+      != 0)
+    ::strmake((char*) thd->variables.default_master_connection.str,
+              global_system_variables.default_master_connection.str,
+              global_system_variables.default_master_connection.length);
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.init(thd);
   thd->variables.redirect_url=
