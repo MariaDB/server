@@ -289,6 +289,31 @@ JS
         "aggregator_type": "simple"
     }
 ]
+# GROUP_CONCAT implements non-standard distinct aggregator
+SELECT GROUP_CONCAT(b) FROM t1;
+GROUP_CONCAT(b)
+1,1,1
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.prepare_sum_aggregators')) AS JS
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    {
+        "function": "group_concat(t1.b separator ',')",
+        "aggregator_type": "simple"
+    }
+]
+SELECT GROUP_CONCAT(DISTINCT b) FROM t1;
+GROUP_CONCAT(DISTINCT b)
+1
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.prepare_sum_aggregators')) AS JS
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    {
+        "function": "group_concat(distinct t1.b separator ',')",
+        "aggregator_type": "distinct"
+    }
+]
 DROP TABLE t1, t2, t3;
 DROP VIEW v1;
 SET optimizer_trace = @save_optimizer_trace;

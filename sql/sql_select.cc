@@ -27220,7 +27220,9 @@ bool JOIN::prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
     Json_writer_object trace_aggr(thd, "prepare_sum_aggregators");
     trace_aggr.add("function", func);
     trace_aggr.add("aggregator_type",
-                   need_distinct_aggregator ? "distinct" : "simple");
+                   (need_distinct_aggregator ||
+                    func->uses_non_standard_aggregator_for_distinct()) ?
+                      "distinct" : "simple");
     if (func->set_aggregator(thd,
                              need_distinct_aggregator ?
                              Aggregator::DISTINCT_AGGREGATOR :

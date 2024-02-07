@@ -95,6 +95,13 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 SELECT COUNT(DISTINCT a, b) FROM v1;
 eval $trace;
 
+--echo # GROUP_CONCAT implements non-standard distinct aggregator
+SELECT GROUP_CONCAT(b) FROM t1;
+eval $trace;
+
+SELECT GROUP_CONCAT(DISTINCT b) FROM t1;
+eval $trace;
+
 DROP TABLE t1, t2, t3;
 DROP VIEW v1;
 SET optimizer_trace = @save_optimizer_trace;
