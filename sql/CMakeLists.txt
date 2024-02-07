@@ -445,6 +445,9 @@ ADD_CUSTOM_TARGET(dist
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+ADD_DEPENDENCIES(dist gen_lex_token)
+ADD_DEPENDENCIES(dist GenServerSource)
+
 ADD_CUSTOM_TARGET(distclean
   COMMAND ${CMAKE_COMMAND} -E echo  WARNING: distclean target is not functional
   COMMAND ${CMAKE_COMMAND} -E echo  Use 'git clean -Xdf' instead
