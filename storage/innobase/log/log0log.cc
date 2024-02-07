@@ -515,7 +515,9 @@ void log_t::file::write(os_offset_t offset, span<byte> buf)
 {
   srv_stats.os_log_pending_writes.inc();
   if (const dberr_t err= fd.write(offset, buf))
-    ib::fatal() << "write(" << fd.get_path() << ") returned " << err;
+    ib::fatal() << "write(" << fd.get_path() << ") returned " << err
+                << ". Operating system error number "
+                << IF_WIN(GetLastError(), errno) << ".";
   srv_stats.os_log_pending_writes.dec();
   srv_stats.os_log_written.add(buf.size());
   srv_stats.log_writes.inc();

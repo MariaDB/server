@@ -1233,7 +1233,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     /* Execute the query that specifies the derived table by a foreign engine */
     res= derived->pushdown_derived->execute();
     unit->executed= true;
+    if (res)
       DBUG_RETURN(res);
+    goto after_exec;
   }
 
   if (unit->executed && !derived_is_recursive &&
@@ -1294,6 +1296,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived_result, unit, first_select);
   }
 
+ after_exec:
   if (!res && !derived_is_recursive)
   {
     if (derived_result->flush())

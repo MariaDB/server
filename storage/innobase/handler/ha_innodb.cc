@@ -17590,6 +17590,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	mtr_t		mtr;
 	uint		space_id = *static_cast<const uint*>(save);
+	srv_fil_make_page_dirty_debug= space_id;
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_space_t*	space = fil_space_t::get(space_id);
 
@@ -18326,13 +18327,15 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
     return;
   const uint s= srv_fil_make_page_dirty_debug;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  if (s)
-    buf_flush_sync();
-  else
+  if (s == 0 || srv_is_undo_tablespace(s))
   {
-    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+    fil_space_t *space= fil_system.sys_space;
+    if (s) { space= fil_space_get(s); }
+    while (buf_flush_list_space(space, nullptr));
     os_aio_wait_until_no_pending_writes(true);
   }
+  else
+    buf_flush_sync();
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
