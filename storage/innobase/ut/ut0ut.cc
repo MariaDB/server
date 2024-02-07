@@ -258,47 +258,6 @@ ut_print_name(
 	}
 }
 
-/** Format a table name, quoted as an SQL identifier.
-If the name contains a slash '/', the result will contain two
-identifiers separated by a period (.), as in SQL
-database_name.table_name.
-@see table_name_t
-@param[in]	name		table or index name
-@param[out]	formatted	formatted result, will be NUL-terminated
-@param[in]	formatted_size	size of the buffer in bytes
-@return pointer to 'formatted' */
-char*
-ut_format_name(
-	const char*	name,
-	char*		formatted,
-	ulint		formatted_size)
-{
-	switch (formatted_size) {
-	case 1:
-		formatted[0] = '\0';
-		/* FALL-THROUGH */
-	case 0:
-		return(formatted);
-	}
-
-	char*	end;
-
-	end = innobase_convert_name(formatted, formatted_size,
-				    name, strlen(name), NULL);
-
-	/* If the space in 'formatted' was completely used, then sacrifice
-	the last character in order to write '\0' at the end. */
-	if ((ulint) (end - formatted) == formatted_size) {
-		end--;
-	}
-
-	ut_a((ulint) (end - formatted) < formatted_size);
-
-	*end = '\0';
-
-	return(formatted);
-}
-
 /**********************************************************************//**
 Catenate files. */
 void

@@ -5413,67 +5413,6 @@ test_normalize_table_name_low()
 		}
 	}
 }
-
-/*********************************************************************
-Test ut_format_name(). */
-static
-void
-test_ut_format_name()
-/*=================*/
-{
-	char		buf[NAME_LEN * 3];
-
-	struct {
-		const char*	name;
-		ulint		buf_size;
-		const char*	expected;
-	} test_data[] = {
-		{"test/t1",	sizeof(buf),	"`test`.`t1`"},
-		{"test/t1",	12,		"`test`.`t1`"},
-		{"test/t1",	11,		"`test`.`t1"},
-		{"test/t1",	10,		"`test`.`t"},
-		{"test/t1",	9,		"`test`.`"},
-		{"test/t1",	8,		"`test`."},
-		{"test/t1",	7,		"`test`"},
-		{"test/t1",	6,		"`test"},
-		{"test/t1",	5,		"`tes"},
-		{"test/t1",	4,		"`te"},
-		{"test/t1",	3,		"`t"},
-		{"test/t1",	2,		"`"},
-		{"test/t1",	1,		""},
-		{"test/t1",	0,		"BUF_NOT_CHANGED"},
-		{"table",	sizeof(buf),	"`table`"},
-		{"ta'le",	sizeof(buf),	"`ta'le`"},
-		{"ta\"le",	sizeof(buf),	"`ta\"le`"},
-		{"ta`le",	sizeof(buf),	"`ta``le`"},
-	};
-
-	for (size_t i = 0; i < UT_ARR_SIZE(test_data); i++) {
-
-		memcpy(buf, "BUF_NOT_CHANGED", strlen("BUF_NOT_CHANGED") + 1);
-
-		char*	ret;
-
-		ret = ut_format_name(test_data[i].name,
-				     buf,
-				     test_data[i].buf_size);
-
-		ut_a(ret == buf);
-
-		if (strcmp(buf, test_data[i].expected) == 0) {
-			ib::info() << "ut_format_name(" << test_data[i].name
-				<< ", buf, " << test_data[i].buf_size << "),"
-				" expected " << test_data[i].expected
-				<< ", OK";
-		} else {
-			ib::error() << "ut_format_name(" << test_data[i].name
-				<< ", buf, " << test_data[i].buf_size << "),"
-				" expected " << test_data[i].expected
-				<< ", ERROR: got " << buf;
-			ut_error;
-		}
-	}
-}
 #endif /* !DBUG_OFF */
 
 /** Match index columns between MySQL and InnoDB.
@@ -13470,7 +13409,6 @@ int ha_innobase::delete_table(const char *name)
 
   DBUG_EXECUTE_IF("test_normalize_table_name_low",
                   test_normalize_table_name_low(););
-  DBUG_EXECUTE_IF("test_ut_format_name", test_ut_format_name(););
 
   trx_t *parent_trx= check_trx_exists(thd);
   dict_table_t *table;
