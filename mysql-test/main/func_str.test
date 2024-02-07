@@ -2457,3 +2457,25 @@ select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33392 Server crashes when using RANDOM_BYTES function and GROUP BY clause on a column with a negative value
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a VARCHAR(255)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9494),(9495),(9496),(9497),(9498),(9499),(9500),(9501),(9502),(9503);
+SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+CREATE TABLE t2 AS SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

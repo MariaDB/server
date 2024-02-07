@@ -2428,7 +2428,12 @@ static bool innodb_init()
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
                                       OS_FILE_CREATE, OS_FILE_NORMAL,
-                                      OS_DATA_FILE_NO_O_DIRECT, false, &ret);
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+                                      OS_DATA_FILE_NO_O_DIRECT,
+#else
+                                      OS_DATA_FILE,
+#endif
+				      false, &ret);
   if (!ret)
   {
   invalid_log:
