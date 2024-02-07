@@ -5460,3 +5460,37 @@ Warning	1292	Truncated incorrect BINARY(2) value: '...random bytes...'
 #
 # End of 10.10 tests
 #
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-33392 Server crashes when using RANDOM_BYTES function and GROUP BY clause on a column with a negative value
+#
+SET sql_mode='';
+CREATE TABLE t1 (a VARCHAR(255)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9494),(9495),(9496),(9497),(9498),(9499),(9500),(9501),(9502),(9503);
+SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+f1	f2
+NULL	9494
+NULL	9495
+NULL	9496
+NULL	9497
+NULL	9498
+NULL	9499
+NULL	9500
+NULL	9501
+NULL	9502
+NULL	9503
+CREATE TABLE t2 AS SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` binary(0) DEFAULT NULL,
+  `f2` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# End of 10.11 tests
+#
