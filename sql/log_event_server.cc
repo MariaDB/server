@@ -5228,6 +5228,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     } // row processing loop
     while (error == 0 && (m_curr_row != m_rows_end));
 
+    thd->inc_examined_row_count(m_row_count);
+
     /*
       Restore the sql_mode after the rows event is processed.
     */

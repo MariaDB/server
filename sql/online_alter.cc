@@ -152,6 +152,7 @@ int online_alter_log_row(TABLE* table, const uchar *before_record,
   if (!table->online_alter_cache)
   {
     table->online_alter_cache= get_cache_data(thd, table);
+    DBUG_ASSERT(table->online_alter_cache->cache_log.type == WRITE_CACHE);
     trans_register_ha(thd, false, online_alter_hton, 0);
     if (thd->in_multi_stmt_transaction_mode())
       trans_register_ha(thd, true, online_alter_hton, 0);
@@ -181,23 +182,19 @@ int online_alter_log_row(TABLE* table, const uchar *before_record,
 }
 
 
-static void
-cleanup_cache_list(ilist<online_alter_cache_data> &list, bool ending_trans)
+static void cleanup_cache_list(ilist<online_alter_cache_data> &list)
 {
-  if (ending_trans)
+  auto it= list.begin();
+  while (it != list.end())
   {
-    auto it= list.begin();
-    while (it != list.end())
-    {
-      auto &cache= *it++;
-      cache.sink_log->release();
-      cache.reset();
-      cache.cleanup_sv();
-      delete &cache;
-    }
-    list.clear();
-    DBUG_ASSERT(list.empty());
+    auto &cache= *it++;
+    cache.sink_log->release();
+    cache.reset();
+    cache.cleanup_sv();
+    delete &cache;
   }
+  list.clear();
+  DBUG_ASSERT(list.empty());
 }
 
 
@@ -237,6 +234,8 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
         mysql_mutex_lock(binlog->get_log_lock());
         error= binlog->write_cache_raw(thd, &cache.cache_log);
         mysql_mutex_unlock(binlog->get_log_lock());
+        if (!is_ending_transaction)
+          cache.reset();
       }
     }
     else if (!commit) // rollback
@@ -255,12 +254,12 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
     {
       my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG),
                binlog->get_name(), errno);
-      cleanup_cache_list(cache_list, is_ending_transaction);
-      DBUG_RETURN(error);
+      break;
     }
   }
 
-  cleanup_cache_list(cache_list, is_ending_transaction);
+  if (is_ending_transaction)
+    cleanup_cache_list(cache_list);
 
   DBUG_RETURN(error);
 }

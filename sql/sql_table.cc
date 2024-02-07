@@ -11364,6 +11364,15 @@ do_continue:;
       new_table->mark_columns_needed_for_insert();
       mysql_bin_log.write_table_map(thd, new_table, 1);
     }
+
+    /*
+      if ORDER BY: sorting
+      always: copying, building indexes.
+      if online: reading up the binlog (second binlog is being written)
+                 reading up the second binlog under exclusive lock
+    */
+    thd_progress_init(thd, MY_TEST(order) + 2 + 2 * MY_TEST(online));
+    
     if (copy_data_between_tables(thd, table, new_table,
                                  ignore,
                                  order_num, order, &copied, &deleted,
@@ -11531,6 +11540,8 @@ do_continue:;
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;                  /* Safety */
+
+  thd_progress_end(thd);
 
   DBUG_PRINT("info", ("is_table_renamed: %d  engine_changed: %d",
                       alter_ctx.is_table_renamed(), engine_changed));
@@ -11761,6 +11772,8 @@ err_new_table_cleanup:
   DBUG_PRINT("error", ("err_new_table_cleanup"));
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
+  thd_progress_end(thd);
+
   /*
     No default value was provided for a DATE/DATETIME field, the
     current sql_mode doesn't allow the '0000-00-00' value and
@@ -11890,7 +11903,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
   IO_CACHE *log_file= log->flip();
 
-  thd_progress_report(thd, 0, my_b_write_tell(log_file));
+  thd_progress_report(thd, 1, MY_MAX(1, my_b_write_tell(log_file)));
 
   Has_default_error_handler hdeh;
   thd->push_internal_handler(&hdeh);
@@ -11956,14 +11969,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
-
-  /*
-    if ORDER BY: sorting
-    always: copying, building indexes.
-    if online: reading up the binlog (second binlog is being written)
-               reading up the second binlog under exclusive lock
-  */
-  thd_progress_init(thd, MY_TEST(order) + 2 + 2 * MY_TEST(online));
 
   if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);
@@ -12130,6 +12135,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
     if (online)
     {
+      DBUG_ASSERT(from->s->online_alter_binlog == NULL);
       from->s->online_alter_binlog= new Cache_flip_event_log();
       if (!from->s->online_alter_binlog)
         goto err;
@@ -12353,7 +12359,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     DEBUG_SYNC(thd, "alter_table_online_before_lock");
 
     int lock_error=
-        thd->mdl_context.upgrade_shared_lock(from->mdl_ticket, MDL_EXCLUSIVE,
+        thd->mdl_context.upgrade_shared_lock(from->mdl_ticket, MDL_SHARED_NO_WRITE,
                                      (double)thd->variables.lock_wait_timeout);
     if (!error)
       error= lock_error;
@@ -12363,28 +12369,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       thd_progress_next_stage(thd);
       error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
     }
-    if (error)
-      from->s->tdc->flush_unused(1); // to free the binlog
     to->pos_in_table_list= NULL; // Safety
     DBUG_ASSERT(thd->lex->sql_command == saved_sql_command);
     thd->lex->sql_command= saved_sql_command; // Just in case
-  }
-  else if (online) // error was on copy stage
-  {
-    /*
-       We can't free the resources properly now, as we can still be in
-       non-exclusive state. So this s->online_alter_binlog will be used
-       until all transactions will release it.
-       Once the transaction commits, it can release online_alter_binlog
-       by decreasing ref_count.
-
-       online_alter_binlog->ref_count can be reached 0 only once.
-       Proof:
-       If share exists, we'll always have ref_count >= 1.
-       Once it reaches destroy(), nobody can acquire it again,
-       therefore, only release() is possible at this moment.
-    */
-    from->s->tdc->flush_unused(1); // to free the binlog
   }
 #endif
 
@@ -12400,6 +12387,26 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
+  
+  if (unlikely(error) && online)
+  {
+    /*
+       We can't free the resources properly now, as we can still be in
+       non-exclusive state. So this s->online_alter_binlog will be used
+       until all transactions will release it.
+       Once the transaction commits, it can release online_alter_binlog
+       by decreasing ref_count.
+
+       online_alter_binlog->ref_count can be reached 0 only once.
+       Proof:
+       If share exists, we'll always have ref_count >= 1.
+       Once it reaches destroy(), nobody can acquire it again,
+       therefore, only release() is possible at this moment.
+       
+       Also, this will release the binlog.
+    */
+    from->s->tdc->flush_unused(1);
+  }
 
  err:
   if (bulk_insert_started)
@@ -12429,7 +12436,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (error < 0 && !from->s->tmp_table &&
       to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
     error= 1;
-  thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
 }
 

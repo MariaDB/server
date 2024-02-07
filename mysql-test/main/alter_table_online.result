@@ -238,3 +238,33 @@ ERROR 0A000: LOCK=NONE is not supported. Reason: Function or expression 'NEXTVAL
 drop table t2;
 drop table t1;
 drop sequence s;
+#
+# MDEV-33348 ALTER TABLE lock waiting stages are indistinguishable
+#
+connect  con2, localhost, root,,;
+create or replace table t1 (a int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+insert t1 values (5);
+connection con2;
+begin;
+select * from t1;
+a
+5
+connection default;
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+select stage, state, info from information_schema.processlist where id = @con;
+stage	4
+state	Waiting for table metadata lock
+info	alter table t1 add b int NULL, algorithm= copy, lock= none
+rollback;
+connection default;
+drop table t1;
+disconnect con2;
+#
+# End of 11.2 tests
+#
