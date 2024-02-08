@@ -54,9 +54,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
+#include <mysql/service_print_check_msg.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
+
+extern my_bool opt_readonly;
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -117,6 +120,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "row0ext.h"
 
 #include <limits>
+#include <myisamchk.h>                          // TT_FOR_UPGRADE
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -5620,14 +5624,10 @@ func_exit:
 	return ret;
 }
 
-/********************************************************************//**
-Get the upper limit of the MySQL integral and floating-point type.
-@return maximum allowed value for the field */
-UNIV_INTERN
-ulonglong
-innobase_get_int_col_max_value(
-/*===========================*/
-	const Field*	field)	/*!< in: MySQL field */
+/** Get the maximum integer value of a numeric column.
+@param field   column definition
+@return maximum allowed integer value */
+ulonglong innobase_get_int_col_max_value(const Field *field)
 {
 	ulonglong	max_value = 0;
 
@@ -5691,46 +5691,45 @@ ha_innobase::open().
 
 @param[in,out]	table	persistent table
 @param[in]	field	the AUTO_INCREMENT column */
-static
-void
-initialize_auto_increment(dict_table_t* table, const Field* field)
+static void initialize_auto_increment(dict_table_t *table, const Field& field,
+                                      const TABLE_SHARE &s)
 {
-	ut_ad(!table->is_temporary());
+  ut_ad(!table->is_temporary());
+  const unsigned col_no= innodb_col_no(&field);
+  table->autoinc_mutex.lock();
+  table->persistent_autoinc=
+    uint16_t(dict_table_get_nth_col_pos(table, col_no, nullptr) + 1) &
+    dict_index_t::MAX_N_FIELDS;
+  if (table->autoinc)
+    /* Already initialized. Our caller checked
+    table->persistent_autoinc without
+    autoinc_mutex protection, and there might be multiple
+    ha_innobase::open() executing concurrently. */;
+  else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN)
+    /* If innodb_force_recovery is set so high that writes
+       are disabled we force the AUTOINC counter to 0
+       value effectively disabling writes to the table.
+       Secondly, we avoid reading the table in case the read
+       results in failure due to a corrupted table/index.
 
-	const unsigned	col_no = innodb_col_no(field);
+       We will not return an error to the client, so that the
+       tables can be dumped with minimal hassle.  If an error
+       were returned in this case, the first attempt to read
+       the table would fail and subsequent SELECTs would succeed. */;
+  else if (table->persistent_autoinc)
+  {
+    uint64_t max_value= innobase_get_int_col_max_value(&field);
+    table->autoinc=
+      innobase_next_autoinc(btr_read_autoinc_with_fallback(table, col_no,
+                                                           s.mysql_version,
+                                                           max_value),
+                            1 /* need */,
+                            1 /* auto_increment_increment */,
+                            0 /* auto_increment_offset */,
+                            max_value);
+  }
 
-	table->autoinc_mutex.lock();
-
-	table->persistent_autoinc = static_cast<uint16_t>(
-		dict_table_get_nth_col_pos(table, col_no, NULL) + 1)
-		& dict_index_t::MAX_N_FIELDS;
-
-	if (table->autoinc) {
-		/* Already initialized. Our caller checked
-		table->persistent_autoinc without
-		autoinc_mutex protection, and there might be multiple
-		ha_innobase::open() executing concurrently. */
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
-		/* If the recovery level is set so high that writes
-		are disabled we force the AUTOINC counter to 0
-		value effectively disabling writes to the table.
-		Secondly, we avoid reading the table in case the read
-		results in failure due to a corrupted table/index.
-
-		We will not return an error to the client, so that the
-		tables can be dumped with minimal hassle.  If an error
-		were returned in this case, the first attempt to read
-		the table would fail and subsequent SELECTs would succeed. */
-	} else if (table->persistent_autoinc) {
-		table->autoinc = innobase_next_autoinc(
-			btr_read_autoinc_with_fallback(table, col_no),
-			1 /* need */,
-			1 /* auto_increment_increment */,
-			0 /* auto_increment_offset */,
-			innobase_get_int_col_max_value(field));
-	}
-
-	table->autoinc_mutex.unlock();
+  table->autoinc_mutex.unlock();
 }
 
 /** Open an InnoDB table
@@ -5966,7 +5965,7 @@ ha_innobase::open(const char* name, int, uint)
 	    || m_prebuilt->table->persistent_autoinc
 	    || !m_prebuilt->table->is_readable()) {
 	} else if (const Field* ai = table->found_next_number_field) {
-		initialize_auto_increment(m_prebuilt->table, ai);
+		initialize_auto_increment(m_prebuilt->table, *ai, *table->s);
 	}
 
 	/* Set plugin parser for fulltext index */
@@ -14822,11 +14821,33 @@ ha_innobase::check(
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
 	dberr_t		ret;
+        uint handler_flags= check_opt->handler_flags;
 
 	DBUG_ENTER("ha_innobase::check");
 	DBUG_ASSERT(thd == ha_thd());
 	ut_a(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
 	ut_a(m_prebuilt->trx == thd_to_trx(thd));
+
+	if (handler_flags || check_for_upgrade(check_opt)) {
+		/* The file was already checked and fixed as part of open */
+		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
+				"check", "note",
+				(opt_readonly || high_level_read_only
+				 || !(check_opt->sql_flags & TT_FOR_UPGRADE))
+				? "Auto_increment will be"
+				" checked on each open until"
+				" CHECK TABLE FOR UPGRADE is executed"
+				: "Auto_increment checked and"
+				" .frm file version updated", 1);
+		if (handler_flags && (check_opt->sql_flags & TT_FOR_UPGRADE)) {
+			/*
+			  No other issues found (as handler_flags was only
+			  set if there as not other problems with the table
+			  than auto_increment).
+			*/
+			DBUG_RETURN(HA_ADMIN_OK);
+		}
+	}
 
 	if (m_prebuilt->mysql_template == NULL) {
 		/* Build the template; we will use a dummy template
@@ -15051,6 +15072,35 @@ ha_innobase::check(
 	m_prebuilt->trx->op_info = "";
 
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
+}
+
+/**
+Check if we there is a problem with the InnoDB table.
+@param check_opt     check options
+@retval HA_ADMIN_OK           if Table is ok
+@retval HA_ADMIN_NEEDS_ALTER  User should run ALTER TABLE FOR UPGRADE
+@retval HA_ADMIN_NEEDS_CHECK  User should run CHECK TABLE FOR UPGRADE
+@retval HA_ADMIN_FAILED       if InnoDB is in read-only mode */
+int ha_innobase::check_for_upgrade(HA_CHECK_OPT *check_opt)
+{
+  /*
+    Check if there is a possibility that the auto increment value
+    stored in PAGE_ROOT_AUTO_INC could be corrupt.
+  */
+  if (table->s->mysql_version >= 100210);
+  else if (const Field *auto_increment= table->found_next_number_field)
+  {
+    uint col_no= innodb_col_no(auto_increment);
+    const dict_col_t *autoinc_col=
+      dict_table_get_nth_col(m_prebuilt->table, col_no);
+    if (m_prebuilt->table->get_index(*autoinc_col))
+    {
+      check_opt->handler_flags= 1;
+      return (high_level_read_only && !opt_readonly)
+        ? HA_ADMIN_FAILED : HA_ADMIN_NEEDS_CHECK;
+    }
+  }
+  return HA_ADMIN_OK;
 }
 
 /*******************************************************************//**

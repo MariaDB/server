@@ -45,6 +45,7 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
+#include "mysql/service_print_check_msg.h"
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -427,10 +428,8 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
                                 const char *fmt, va_list args)
 {
   THD *thd= (THD *) param->thd;
-  Protocol *protocol= thd->protocol;
-  size_t length, msg_length;
+  size_t msg_length __attribute__((unused));
   char msgbuf[MYSQL_ERRMSG_SIZE];
-  char name[NAME_LEN * 2 + 2];
 
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     return;
@@ -459,27 +458,10 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
       _ma_check_print(param, msg_type, msgbuf);
     return;
   }
-  length= (uint) (strxmov(name, param->db_name, ".", param->table_name,
-                          NullS) - name);
-  /*
-    TODO: switch from protocol to push_warning here. The main reason we didn't
-    it yet is parallel repair, which threads have no THD object accessible via
-    current_thd.
-
-    Also we likely need to lock mutex here (in both cases with protocol and
-    push_warning).
-  */
-  protocol->prepare_for_resend();
-  protocol->store(name, (uint)length, system_charset_info);
-  protocol->store(param->op_name, system_charset_info);
-  protocol->store(msg_type, system_charset_info);
-  protocol->store(msgbuf, (uint)msg_length, system_charset_info);
-  if (protocol->write())
-    sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
-                    param->db_name, param->table_name, msgbuf);
-  else if (thd->variables.log_warnings > 2)
+  print_check_msg(thd, param->db_name, param->table_name,
+                  param->op_name, msg_type, msgbuf, 0);
+  if (thd->variables.log_warnings > 2)
     _ma_check_print(param, msg_type, msgbuf);
-
   return;
 }
 

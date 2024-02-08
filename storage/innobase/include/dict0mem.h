@@ -2366,6 +2366,9 @@ public:
 
   /** @return number of unique columns in FTS_DOC_ID index */
   unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+
+  /** @return the index for that starts with a specific column */
+  dict_index_t *get_index(const dict_col_t &col) const;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

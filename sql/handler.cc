@@ -4669,7 +4669,7 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   if (unlikely((error= check(thd, check_opt))))
     return error;
   /* Skip updating frm version if not main handler. */
-  if (table->file != this)
+  if (table->file != this || opt_readonly)
     return error;
   return update_frm_version(table);
 }
@@ -4718,7 +4718,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
   DBUG_ASSERT(result == HA_ADMIN_NOT_IMPLEMENTED ||
               ha_table_flags() & HA_CAN_REPAIR);
 
-  if (result == HA_ADMIN_OK)
+  if (result == HA_ADMIN_OK && !opt_readonly)
     result= update_frm_version(table);
   return result;
 }
@@ -5659,7 +5659,7 @@ err:
 
 void st_ha_check_opt::init()
 {
-  flags= sql_flags= 0;
+  flags= sql_flags= handler_flags= 0;
   start_time= my_time(0);
 }
 

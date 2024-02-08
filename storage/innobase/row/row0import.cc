@@ -48,6 +48,8 @@ Created 2012-02-08 by Sunny Bains.
 #include "snappy-c.h"
 #endif
 #include "log.h"
+#include "table.h"
+#include "ha_innodb.h"
 
 #include "scope.h"
 
@@ -4333,6 +4335,37 @@ fil_tablespace_iterate(
 	return(err);
 }
 
+static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
+                               uint64_t autoinc)
+{
+  if (!table->persistent_autoinc)
+  {
+    ut_ad(!autoinc);
+    return;
+  }
+
+  if (autoinc)
+  {
+    btr_write_autoinc(dict_table_get_first_index(table), autoinc - 1);
+  autoinc_set:
+    table->autoinc= autoinc;
+    sql_print_information("InnoDB: %`.*s.%`s autoinc value set to " UINT64PF,
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(), autoinc);
+  }
+  else if (TABLE *t= prebuilt->m_mysql_table)
+  {
+    if (const Field *ai= t->found_next_number_field)
+    {
+      autoinc= 1 +
+        btr_read_autoinc_with_fallback(table, innodb_col_no(ai),
+                                       t->s->mysql_version,
+                                       innobase_get_int_col_max_value(ai));
+      goto autoinc_set;
+    }
+  }
+}
+
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
 of the table in the data dictionary.
@@ -4719,16 +4752,7 @@ row_import_for_mysql(
 
 	/* Set autoinc value read from .cfg file, if one was specified.
 	Otherwise, read the PAGE_ROOT_AUTO_INC and set it to table autoinc. */
-	if (autoinc) {
-		ib::info() << table->name << " autoinc value set to "
-			<< autoinc;
-
-		table->autoinc = autoinc--;
-		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
-	} else if (table->persistent_autoinc) {
-		autoinc = btr_read_autoinc(dict_table_get_first_index(table));
-		table->autoinc = ++autoinc;
-	}
+	row_import_autoinc(table, prebuilt, autoinc);
 
 	return(row_import_cleanup(prebuilt, trx, err));
 }

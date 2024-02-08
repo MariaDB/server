@@ -1179,15 +1179,6 @@ private:
 	ha_innobase_inplace_ctx& operator=(const ha_innobase_inplace_ctx&);
 };
 
-/********************************************************************//**
-Get the upper limit of the MySQL integral and floating-point type.
-@return maximum allowed value for the field */
-UNIV_INTERN
-ulonglong
-innobase_get_int_col_max_value(
-/*===========================*/
-	const Field*	field);	/*!< in: MySQL field */
-
 /* Report an InnoDB error to the client by invoking my_error(). */
 static ATTRIBUTE_COLD __attribute__((nonnull))
 void
@@ -9736,13 +9727,7 @@ commit_set_autoinc(
 			const dict_col_t*	autoinc_col
 				= dict_table_get_nth_col(ctx->old_table,
 							 innodb_col_no(ai));
-			dict_index_t*		index
-				= dict_table_get_first_index(ctx->old_table);
-			while (index != NULL
-			       && index->fields[0].col != autoinc_col) {
-				index = dict_table_get_next_index(index);
-			}
-
+			auto index = ctx->old_table->get_index(*autoinc_col);
 			ut_ad(index);
 
 			ib_uint64_t	max_in_table = index

@@ -18,6 +18,7 @@
 #include <service_versions.h>
 #include <mysql/service_wsrep.h>
 #include <mysql/service_thd_mdl.h>
+#include <mysql/service_print_check_msg.h>
 
 struct st_service_ref {
   const char *name;
@@ -217,6 +218,11 @@ static struct my_print_error_service_st my_print_error_handler=
   my_printv_error
 };
 
+static struct print_check_msg_service_st print_check_msg_handler=
+{
+  print_check_msg
+};
+
 struct json_service_st json_handler=
 {
   json_type,
@@ -264,6 +270,7 @@ static struct st_service_ref list_of_services[]=
   { "my_crypt_service",            VERSION_my_crypt,            &crypt_handler},
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "my_print_error_service",      VERSION_my_print_error,      &my_print_error_handler},
+  { "print_check_msg_service",     VERSION_print_check_msg,     &print_check_msg_handler},
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "my_sha2_service",             VERSION_my_sha2,             &my_sha2_handler},
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
