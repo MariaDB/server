@@ -45,3 +45,4 @@
 #define VERSION_json                    0x0100
 #define VERSION_sql_service             0x0100
 #define VERSION_thd_mdl                 0x0100
+#define VERSION_print_check_msg         0x0100
