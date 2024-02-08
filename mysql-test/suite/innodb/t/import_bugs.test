@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 call mtr.add_suppression("Index for table 'imp_t1' is corrupt; try to repair it");
 
@@ -17,3 +18,21 @@ ALTER TABLE imp_t1 IMPORT TABLESPACE;
 DROP TABLE imp_t1, t1;
 
 SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;
+
+--echo #
+--echo # MDEV-33400 Adaptive hash index corruption after DISCARD TABLESPACE
+--echo #
+
+SET @save_adaptive=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=ON;
+
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t SELECT * FROM seq_1_to_131;
+ALTER TABLE t ADD hid INT DEFAULT 2;
+INSERT INTO t VALUES (251,1);
+ALTER TABLE t DISCARD TABLESPACE;
+CHECK TABLE mysql.innodb_table_stats;
+DROP TABLE t;
+SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;
+
+--echo # End of 10.4 tests
