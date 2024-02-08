@@ -12,7 +12,7 @@ default_regex_flags=invalid
 EOF
 
 --echo Testing --edit=remove
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --edit=remove
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --edit=remove --skip-suggestions
 --exec head -2 $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp2.cnf
 
@@ -25,7 +25,7 @@ alter_algorithm=invalid
 plugin_load_add=audit_log
 EOF
 --echo Testing --edit=comment
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --edit=comment
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --edit=comment --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -40,7 +40,7 @@ alter_algorithm=invalid
 key_buffer_size=20M
 EOF
 --echo Testing --edit=inline-old-version
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=inline-old-version
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=inline-old-version --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -51,7 +51,7 @@ key_buffer_size=20M
 alter_algorithm=invalid
 EOF
 --echo Testing --edit=last-old-version
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -67,7 +67,7 @@ key_buffer_size=20M
 alter_algorithm=invalid
 EOF
 --echo Testing mariadbd section additions
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -77,7 +77,7 @@ EOF
 key_buffer_size=20M
 EOF
 --echo Testing key_buffer_size in mariadbd section
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -87,7 +87,7 @@ EOF
 key_buffer_size=20M
 EOF
 --echo Testing --no-myisam-files
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --no-myisam-files
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --no-myisam-files --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -97,7 +97,7 @@ EOF
 default_week_format=1
 EOF
 --echo Testing --add-skip-start-slave
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --add-skip-slave-start
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --add-skip-slave-start --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -107,7 +107,7 @@ EOF
 skip_slave_start
 EOF
 --echo Testing --add-skip-slave-start with skip_start_slave already present
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --add-skip-slave-start
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --add-skip-slave-start --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -117,7 +117,7 @@ EOF
 key_buffer_size=20M
 EOF
 --echo Testing --fix-all
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --fix-all
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --fix-all --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -127,7 +127,7 @@ EOF
 innodb_data_file_path=/var/mysql/test
 EOF
 --echo Testing path copying
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --skip-suggestions
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
@@ -137,7 +137,7 @@ EOF
 innodb_data_file_path=/var/mysql/test
 EOF
 --echo Testing path conversion
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb --skip-suggestions
 
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
@@ -148,7 +148,7 @@ EOF
 log_bin=/var/mysql/test
 EOF
 --echo Testing path conversion not affecting logs by default
---exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb --skip-suggestions
 
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
@@ -159,6 +159,33 @@ EOF
 log_bin=/var/mysql/test
 EOF
 --echo Testing --convert-mysql-paths-to-mariadb=all modifying log paths
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb=all --skip-suggestions
+
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+default_week_format=1
+EOF
+--echo Testing printing suggestions
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb=all
+
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+# Suggested options to improve MariaDB performance
+# thread_handling=pool_of_threads # For setups with a lot of concurrent queries
+# slave-parallel-threads=8 # For slaves with a lot of replicated queries
+EOF
+--echo Testing suggestions not getting added if already present
 --exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb=all
 
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf

@@ -89,3 +89,19 @@ log_bin=/var/mariadb/test
 
 [mysql-5.7]
 log_bin=/var/mysql/test
+Testing printing suggestions
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+# Suggested options to improve MariaDB performance
+# thread_handling=pool_of_threads # For setups with a lot of concurrent queries
+# slave-parallel-threads=8 # For slaves with a lot of replicated queries
+Testing suggestions not getting added if already present
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+# Suggested options to improve MariaDB performance
+# thread_handling=pool_of_threads # For setups with a lot of concurrent queries
+# slave-parallel-threads=8 # For slaves with a lot of replicated queries

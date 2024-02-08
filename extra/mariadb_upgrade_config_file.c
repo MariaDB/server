@@ -83,6 +83,7 @@ static my_bool opt_backup;
 static my_bool opt_print;
 static my_bool opt_no_myisam_files;
 static my_bool opt_add_skip_slave_start;
+static my_bool opt_suggestions;
 
 
 static PSI_memory_key key_memory_upgrade_config;
@@ -644,6 +645,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
   uint line=0;
   enum { NONE, PARSE, SKIP } found_group= NONE;
   my_bool skip_slave_start_present= FALSE;
+  my_bool has_suggestions= FALSE;
   size_t i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
@@ -724,6 +726,8 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     for (ptr= buff; my_isspace(&my_charset_latin1, *ptr); ptr++)
     {}
 
+    if (*ptr == '#' && strstr(ptr, "Suggested options to improve MariaDB"))
+      has_suggestions= TRUE;
     if (*ptr == '#' || *ptr == ';' || !*ptr)
     {
       generator_add_line(&generator, buff,
@@ -1028,6 +1032,16 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
     add_line(&generator.alloc, &generator.mariadbd_additions,
              "skip_slave_start\n");
   }
+  if (opt_suggestions && !recursion_level && !has_suggestions)
+  {
+    file_valid= FALSE;
+    add_line(&generator.alloc, &generator.mariadbd_additions,
+             "# Suggested options to improve MariaDB performance\n"
+             "# thread_handling=pool_of_threads # For setups with a lot of "
+             "concurrent queries\n"
+             "# slave-parallel-threads=8 # For slaves with a lot of "
+             "replicated queries\n");
+  }
   generator_write(tmp_fp, &generator);
   generator_free(&generator);
   if (tmp_fp)
@@ -1263,6 +1277,7 @@ enum upgrade_config_options
   OPT_ADD_SKIP_SLAVE_START,
   OPT_FIX_ALL,
   OPT_CONVERT_MYSQL_PATHS_TO_MARIADB,
+  OPT_SUGGESTIONS,
 };
 
 static struct my_option my_long_options[] =
@@ -1301,6 +1316,9 @@ static struct my_option my_long_options[] =
    &opt_convert_paths_mode, &opt_convert_paths_mode,
    &convert_paths_mode_typelib, GET_ENUM,
    OPT_ARG, CONVERT_PATHS_MODE_NONE, 0, 0, 0, 0, 0},
+  {"suggestions", OPT_SUGGESTIONS, "Add suggestions to the [mariadbd] group.",
+   &opt_suggestions, &opt_suggestions, 0,
+   GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
