@@ -1289,12 +1289,11 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         if (keypart->key_part_flag & HA_PART_KEY_SEG)
         {
           int length= keypart->length/keypart->field->charset()->mbmaxlen;
+          Field *kpf= table->field[keypart->field->field_index];
           list_item= new (mem_root) Item_func_left(thd,
-                       new (mem_root) Item_field(thd, keypart->field),
+                       new (mem_root) Item_field(thd, kpf),
                        new (mem_root) Item_int(thd, length));
           list_item->fix_fields(thd, NULL);
-          keypart->field->vcol_info=
-            table->field[keypart->field->field_index]->vcol_info;
         }
         else
           list_item= new (mem_root) Item_field(thd, keypart->field);
@@ -9134,10 +9133,9 @@ int TABLE::update_default_fields(bool ignore_errors)
 int TABLE::update_generated_fields()
 {
   int res= 0;
-  if (found_next_number_field)
+  if (next_number_field)
   {
-    next_number_field= found_next_number_field;
-    res= found_next_number_field->set_default();
+    res= next_number_field->set_default();
     if (likely(!res))
       res= file->update_auto_increment();
     next_number_field= NULL;
@@ -9152,6 +9150,18 @@ int TABLE::update_generated_fields()
   return res;
 }
 
+void TABLE::period_prepare_autoinc()
+{
+  if (!found_next_number_field)
+    return;
+  /* Don't generate a new value if the autoinc index is WITHOUT OVERLAPS */
+  DBUG_ASSERT(s->next_number_index != (uint)-1);
+  if (key_info[s->next_number_index].without_overlaps)
+    return;
+
+  next_number_field= found_next_number_field;
+}
+
 int TABLE::period_make_insert(Item *src, Field *dst)
 {
   THD *thd= in_use;
@@ -9161,7 +9171,10 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   int res= src->save_in_field(dst, true);
 
   if (likely(!res))
+  {
+    period_prepare_autoinc();
     res= update_generated_fields();
+  }
 
   if (likely(!res) && triggers)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,

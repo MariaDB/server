@@ -5413,67 +5413,6 @@ test_normalize_table_name_low()
 		}
 	}
 }
-
-/*********************************************************************
-Test ut_format_name(). */
-static
-void
-test_ut_format_name()
-/*=================*/
-{
-	char		buf[NAME_LEN * 3];
-
-	struct {
-		const char*	name;
-		ulint		buf_size;
-		const char*	expected;
-	} test_data[] = {
-		{"test/t1",	sizeof(buf),	"`test`.`t1`"},
-		{"test/t1",	12,		"`test`.`t1`"},
-		{"test/t1",	11,		"`test`.`t1"},
-		{"test/t1",	10,		"`test`.`t"},
-		{"test/t1",	9,		"`test`.`"},
-		{"test/t1",	8,		"`test`."},
-		{"test/t1",	7,		"`test`"},
-		{"test/t1",	6,		"`test"},
-		{"test/t1",	5,		"`tes"},
-		{"test/t1",	4,		"`te"},
-		{"test/t1",	3,		"`t"},
-		{"test/t1",	2,		"`"},
-		{"test/t1",	1,		""},
-		{"test/t1",	0,		"BUF_NOT_CHANGED"},
-		{"table",	sizeof(buf),	"`table`"},
-		{"ta'le",	sizeof(buf),	"`ta'le`"},
-		{"ta\"le",	sizeof(buf),	"`ta\"le`"},
-		{"ta`le",	sizeof(buf),	"`ta``le`"},
-	};
-
-	for (size_t i = 0; i < UT_ARR_SIZE(test_data); i++) {
-
-		memcpy(buf, "BUF_NOT_CHANGED", strlen("BUF_NOT_CHANGED") + 1);
-
-		char*	ret;
-
-		ret = ut_format_name(test_data[i].name,
-				     buf,
-				     test_data[i].buf_size);
-
-		ut_a(ret == buf);
-
-		if (strcmp(buf, test_data[i].expected) == 0) {
-			ib::info() << "ut_format_name(" << test_data[i].name
-				<< ", buf, " << test_data[i].buf_size << "),"
-				" expected " << test_data[i].expected
-				<< ", OK";
-		} else {
-			ib::error() << "ut_format_name(" << test_data[i].name
-				<< ", buf, " << test_data[i].buf_size << "),"
-				" expected " << test_data[i].expected
-				<< ", ERROR: got " << buf;
-			ut_error;
-		}
-	}
-}
 #endif /* !DBUG_OFF */
 
 /** Match index columns between MySQL and InnoDB.
@@ -13513,7 +13452,6 @@ int ha_innobase::delete_table(const char *name)
 
   DBUG_EXECUTE_IF("test_normalize_table_name_low",
                   test_normalize_table_name_low(););
-  DBUG_EXECUTE_IF("test_ut_format_name", test_ut_format_name(););
 
   const enum_sql_command sqlcom= enum_sql_command(thd_sql_command(thd));
   trx_t *parent_trx= check_trx_exists(thd);
@@ -17610,6 +17548,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	mtr_t		mtr;
 	uint		space_id = *static_cast<const uint*>(save);
+	srv_fil_make_page_dirty_debug= space_id;
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_space_t*	space = fil_space_t::get(space_id);
 
@@ -18346,13 +18285,15 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
     return;
   const uint s= srv_fil_make_page_dirty_debug;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  if (s)
-    buf_flush_sync();
-  else
+  if (s == 0 || srv_is_undo_tablespace(s))
   {
-    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+    fil_space_t *space= fil_system.sys_space;
+    if (s) { space= fil_space_get(s); }
+    while (buf_flush_list_space(space, nullptr));
     os_aio_wait_until_no_pending_writes(true);
   }
+  else
+    buf_flush_sync();
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

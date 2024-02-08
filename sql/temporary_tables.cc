@@ -1579,6 +1579,11 @@ void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
        {
          /* Note: removing current list element doesn't invalidate iterator. */
          share->all_tmp_tables.remove(table);
+         /*
+           At least one instance should be left (guaratead by calling this
+           function for table which is opened and the table is under processing)
+         */
+         DBUG_ASSERT(share->all_tmp_tables.front());
          free_temporary_table(table);
        }
      }
