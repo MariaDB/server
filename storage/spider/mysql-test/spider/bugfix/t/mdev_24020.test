@@ -38,7 +38,9 @@ eval CREATE TABLE tbl_a (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a VALUES(10000, "  abcd   ");
+--enable_ps_protocol
 INSERT INTO tbl_a VALUES(10001, "  abcd   ");
 INSERT INTO tbl_a VALUES(10002, "  abcd   ");
 INSERT INTO tbl_a VALUES(10003, "[[[abcd][[");

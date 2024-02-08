@@ -45,7 +45,7 @@
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
-
+#include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
 #include "tztime.h"                             // struct Time_zone
 #include "log_event.h"                          // Rotate_log_event,
@@ -62,7 +62,6 @@ Master_info_index *master_info_index;
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
-#include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
 #include "semisync_slave.h"
@@ -3200,6 +3199,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     mysql_mutex_lock(&mi->err_lock);
     /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
+
+    DBUG_EXECUTE_IF("hold_sss_with_err_lock", {
+      DBUG_ASSERT(!debug_sync_set_action(
+          thd, STRING_WITH_LEN("now SIGNAL sss_got_err_lock "
+                               "WAIT_FOR sss_continue")));
+      DBUG_SET("-d,hold_sss_with_err_lock");
+    });
+
     protocol->store_string_or_null(mi->host, &my_charset_bin);
     protocol->store_string_or_null(mi->user, &my_charset_bin);
     protocol->store((uint32) mi->port);
@@ -3279,7 +3286,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
           while the slave is processing ignored events, such as those skipped
           due to slave_skip_counter.
         */
-        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle &&
+            !rpl_parallel::workers_idle(&mi->rli))
           idle= false;
       }
       if (idle)
@@ -4402,8 +4410,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
-          rli->sql_thread_caught_up= false;
         }
+        rli->sql_thread_caught_up= false;
       }
 
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
@@ -4930,7 +4938,13 @@ connected:
       goto err;
     goto connected;
   }
-  DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
+  DBUG_EXECUTE_IF("fail_com_register_slave",
+                  {
+                    mi->report(ERROR_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
+                    ER(ER_SLAVE_MASTER_COM_FAILURE), "COM_REGISTER_SLAVE",
+                    "Debug Induced Error");
+                    goto err;
+                  });
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
   thd->set_command(COM_SLAVE_IO);
@@ -5510,19 +5524,25 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   else
     rli->gtid_skip_flag = GTID_SKIP_NOT;
+  mysql_mutex_lock(&rli->data_lock);
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
-                         1 /*need data lock*/, &errmsg,
+                         0 /*need data lock*/, &errmsg,
                          1 /*look for a description_event*/))
   { 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                 "Error initializing relay log position: %s", errmsg);
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
   }
   rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+  {
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
+  }
+  mysql_mutex_unlock(&rli->data_lock);
 
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);
@@ -7153,28 +7173,23 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   if (opt_slave_compressed_protocol)
     client_flag|= CLIENT_COMPRESS;                /* We will use compression */
 
-  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                (char*) &my_true);
+  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, &slave_net_timeout);
+  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, &slave_net_timeout);
+  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
 
 #ifdef HAVE_OPENSSL
   if (mi->ssl)
   {
-    mysql_ssl_set(mysql,
-                  mi->ssl_key[0]?mi->ssl_key:0,
-                  mi->ssl_cert[0]?mi->ssl_cert:0,
-                  mi->ssl_ca[0]?mi->ssl_ca:0,
-                  mi->ssl_capath[0]?mi->ssl_capath:0,
-                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL,
-                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH,
-                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
+    mysql_ssl_set(mysql, mi->ssl_key, mi->ssl_cert, mi->ssl_ca, mi->ssl_capath,
+                  mi->ssl_cipher);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->ssl_crl);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->ssl_crlpath);
     mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                   &mi->ssl_verify_server_cert);
   }
+  else
 #endif
+    mysql->options.use_ssl= 0;
 
   /*
     If server's default charset is not supported (like utf16, utf32) as client
@@ -7194,7 +7209,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   }
 
   /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
+  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, charsets_dir);
 
   /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
@@ -7287,80 +7302,6 @@ static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,
 }
 
 
-#ifdef NOT_USED
-MYSQL *rpl_connect_master(MYSQL *mysql)
-{
-  Master_info *mi= my_pthread_getspecific_ptr(Master_info*, RPL_MASTER_INFO);
-  bool allocated= false;
-  my_bool my_true= 1;
-  THD *thd;
-
-  if (!mi)
-  {
-    sql_print_error("'rpl_connect_master' must be called in slave I/O thread context.");
-    return NULL;
-  }
-  thd= mi->io_thd;
-  if (!mysql)
-  {
-    if(!(mysql= mysql_init(NULL)))
-    {
-      sql_print_error("rpl_connect_master: failed in mysql_init()");
-      return NULL;
-    }
-    allocated= true;
-  }
-
-  /*
-    XXX: copied from connect_to_master, this function should not
-    change the slave status, so we cannot use connect_to_master
-    directly
-    
-    TODO: make this part a seperate function to eliminate duplication
-  */
-  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                (char*) &my_true);
-
-#ifdef HAVE_OPENSSL
-  if (mi->ssl)
-  {
-    mysql_ssl_set(mysql,
-                  mi->ssl_key[0]?mi->ssl_key:0,
-                  mi->ssl_cert[0]?mi->ssl_cert:0,
-                  mi->ssl_ca[0]?mi->ssl_ca:0,
-                  mi->ssl_capath[0]?mi->ssl_capath:0,
-                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
-    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->ssl_verify_server_cert);
-  }
-#endif
-
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
-                default_charset_info->cs_name.str);
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
-
-  if (mi->user == NULL
-      || mi->user[0] == 0
-      || io_slave_killed( mi)
-      || !mysql_real_connect(mysql, mi->host, mi->user, mi->password, 0,
-                             mi->port, 0, 0))
-  {
-    if (!io_slave_killed( mi))
-      sql_print_error("rpl_connect_master: error connecting to master: %s (server_error: %d)",
-                      mysql_error(mysql), mysql_errno(mysql));
-    
-    if (allocated)
-      mysql_close(mysql);                       // this will free the object
-    return NULL;
-  }
-  return mysql;
-}
-#endif
-
-
 /*
   Called when we notice that the current "hot" log got rotated under our feet.
 */
@@ -7372,8 +7313,8 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
   DBUG_ASSERT(rli->cur_log_fd == -1);
 
   IO_CACHE *cur_log = rli->cur_log=&rli->cache_buf;
-  if ((rli->cur_log_fd=open_binlog(cur_log,rli->event_relay_log_name,
-                                   errmsg)) <0)
+  rli->cur_log_fd= open_binlog(cur_log,rli->event_relay_log_name, errmsg);
+  if (rli->cur_log_fd <0)
     DBUG_RETURN(0);
   /*
     We want to start exactly where we was before:

@@ -74,7 +74,6 @@ usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
 usr/share/man/man1/wsrep_sst_rsync_wan.1
-usr/share/mariadb/errmsg-utf8.txt
 usr/share/mariadb/mini-benchmark
 usr/share/mariadb/wsrep.cnf
 usr/share/mariadb/wsrep_notify

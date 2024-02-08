@@ -41,7 +41,9 @@ eval CREATE TABLE tbl_a (
     PRIMARY KEY (pkey)
 ) $MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'',''),(1,'',''),(2,'',''),(3,'',''),(4,'',''),(5,'',''),(6,'',''),(7,'',''),(8,'',''),(9,'','');
+--enable_ps_protocol
 FLUSH TABLES;
 
 --echo
@@ -52,7 +54,9 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 SET NAMES cp932;
+--disable_ps_protocol
 INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (10,'','íÜçë');
+--enable_ps_protocol
 INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'','') ON DUPLICATE KEY UPDATE txt_cp932 = 'íÜçë';
 UPDATE tbl_a SET txt_cp932 = 'íÜçë' WHERE pkey = 2;
 SET NAMES utf8;

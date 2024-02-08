@@ -23,6 +23,8 @@ GRANT CONNECTION ADMIN ON *.* TO user1@localhost;
 connect user1,localhost,user1,,;
 connection user1;
 SET GLOBAL secure_auth=1;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SET secure_auth=1;
 ERROR HY000: Variable 'secure_auth' is a GLOBAL variable and should be set with SET GLOBAL
 SET SESSION secure_auth=1;
@@ -31,3 +33,5 @@ disconnect user1;
 connection default;
 DROP USER user1@localhost;
 SET @@global.secure_auth=@global;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release

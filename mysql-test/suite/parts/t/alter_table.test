@@ -323,6 +323,9 @@ drop database db;
 --echo #
 --echo # MDEV-22164 without validation for exchange partition/convert in
 --echo #
+call mtr.add_suppression('was altered WITHOUT');
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted;
 
 create table validation(x int);
 drop table validation;
@@ -331,8 +334,7 @@ create table t (a int primary key);
 
 create table tp (a int primary key) partition by range (a) (
   partition p0 values less than (100),
-  # Cunning syntax (same as above)
-  p1 values less (300));
+  p1 values less than (300));
 
 insert into t values (1), (99);
 insert into tp values (2), (200);
@@ -356,6 +358,7 @@ alter table tp exchange partition p1 with table t;
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
 alter table tp exchange partition p1 with table t with validation;
 alter table tp exchange partition p1 with table t without validation;
+source include/search_pattern_in_file.inc;
 select * from t order by a;
 select * from tp partition (p1) order by a;
 alter table tp check partition p0;
@@ -375,10 +378,12 @@ alter table tp exchange partition p1 with table t without validation;
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
 call validation;
 call without_validation;
+source include/search_pattern_in_file.inc;
 call validation;
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
 call validation;
 call without_validation;
+source include/search_pattern_in_file.inc;
 select * from t order by a;
 select * from tp partition (p1) order by a;
 call validation;
@@ -393,10 +398,12 @@ prepare without_validation from "alter table tp exchange partition p1 with table
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
 execute validation;
 execute without_validation;
+source include/search_pattern_in_file.inc;
 execute validation;
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
 execute validation;
 execute without_validation;
+source include/search_pattern_in_file.inc;
 select * from t order by a;
 select * from tp partition (p1) order by a;
 execute validation;
@@ -407,10 +414,11 @@ drop prepare without_validation;
 
 # CONVERT IN
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
-alter table tp convert table t to partition p2 values less (maxvalue);
+alter table tp convert table t to partition p2 values less than (maxvalue);
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
-alter table tp convert table t to partition p2 values less (maxvalue) with validation;
-alter table tp convert table t to partition p2 values less (maxvalue) without validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) with validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) without validation;
+source include/search_pattern_in_file.inc;
 select * from tp partition (p0) order by a;
 select * from tp partition (p1) order by a;
 select * from tp partition (p2) order by a;
@@ -426,6 +434,7 @@ insert tp values (1), (2), (3), (4);
 --error ER_ROW_DOES_NOT_MATCH_PARTITION
 alter table tp exchange partition p0 with table t;
 alter table tp exchange partition p0 with table t without validation;
+source include/search_pattern_in_file.inc;
 select * from t;
 alter table tp exchange partition p0 with table t;
 drop table tp;
@@ -442,6 +451,7 @@ insert tp values (12), (2), (3), (4);
 --error ER_NO_PARTITION_FOR_GIVEN_VALUE
 alter table tp exchange partition p0 with table t;
 alter table tp exchange partition p0 with table t without validation;
+source include/search_pattern_in_file.inc;
 select * from t;
 alter table tp exchange partition p0 with table t;
 

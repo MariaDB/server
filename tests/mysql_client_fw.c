@@ -252,6 +252,8 @@ static void print_st_error(MYSQL_STMT *stmt, const char *msg)
 static MYSQL *mysql_client_init(MYSQL* con)
 {
   MYSQL* res = mysql_init(con);
+  my_bool no= 0;
+  mysql_options(res, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &no);
   if (res && non_blocking_api_enabled)
     mysql_options(res, MYSQL_OPT_NONBLOCK, 0);
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -1227,6 +1229,8 @@ static struct my_option client_test_long_options[] =
   {"socket", 'S', "Socket file to use for connection",
    &opt_unix_socket, &opt_unix_socket, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ssl-verify-server-cert", 0, "for compatibility only, the value is ignored",
+    0, 0, 0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"testcase", 'c',
    "May disable some code when runs as mysql-test-run testcase.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1429,6 +1433,14 @@ int main(int argc, char **argv)
       tests_to_run[i]= strdup(argv[i]);
     tests_to_run[i]= NULL;
   }
+
+#ifdef _WIN32
+  /* must be the same in C/C and embedded, 1208 on 64bit, 968 on 32bit */
+  compile_time_assert(sizeof(MYSQL) == 60*sizeof(void*)+728);
+#else
+  /* must be the same in C/C and embedded, 1272 on 64bit, 964 on 32bit */
+  compile_time_assert(sizeof(MYSQL) == 77*sizeof(void*)+656);
+#endif
 
   if (mysql_server_init(embedded_server_arg_count,
                         embedded_server_args,

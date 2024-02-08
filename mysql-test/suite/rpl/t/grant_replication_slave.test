@@ -33,7 +33,7 @@ drop database mysqltest1;
 sync_slave_with_master;
 stop slave;
 change master to master_user='root';
-start slave;
+source include/start_slave.inc;
 
 source include/rpl_end.inc;
 drop user rpl@localhost;

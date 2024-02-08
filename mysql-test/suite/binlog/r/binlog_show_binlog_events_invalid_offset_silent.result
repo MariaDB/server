@@ -1,0 +1,21 @@
+#
+# Initialize test data
+set @save_master_verify_checksum = @@global.master_verify_checksum;
+set @@global.master_verify_checksum = 1;
+create table t1 (a int);
+insert into t1 values (1);
+insert into t1 values (2);
+SHOW BINLOG EVENTS FROM invalid_pos;
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
+include/assert_grep.inc [Ensure the client error is not in the server log]
+SHOW BINLOG EVENTS FROM 500;
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
+include/assert_grep.inc [Ensure the client error is not in the server log]
+SHOW BINLOG EVENTS FROM 498;
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
+include/assert_grep.inc [Ensure the client error is not in the server log]
+include/assert_grep.inc [Ensure there is not a specific checksum failure error]
+#
+# Cleanup
+set @@global.master_verify_checksum = @save_master_verify_checksum;
+drop table t1;

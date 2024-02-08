@@ -648,7 +648,7 @@ CREATE TABLE child (id GEOMETRY, parent_id GEOMETRY,
 ) ENGINE=INNODB;
 
 --echo #check partition table support
---error 1178
+--error ER_BLOB_FIELD_IN_PART_FUNC_ERROR
 CREATE TABLE emp2(
     id GEOMETRY NOT NULL,
     store_name VARCHAR(30),

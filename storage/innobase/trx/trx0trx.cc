@@ -582,15 +582,16 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
                                  undo.top_page_no), 0, RW_S_LATCH, nullptr,
                        BUF_GET, &mtr, &err))
   {
+    buf_page_make_young_if_needed(&block->page);
     buf_block_t *undo_block= block;
     const trx_undo_rec_t *undo_rec= block->page.frame + undo.top_offset;
 
     do
     {
-      ulint type;
+      byte type;
+      byte cmpl_info;
       undo_no_t undo_no;
       table_id_t table_id;
-      ulint cmpl_info;
       bool updated_extern;
 
       if (undo_block != block)
@@ -980,7 +981,13 @@ void trx_t::commit_empty(mtr_t *mtr)
   trx_undo_t *&undo= rsegs.m_redo.undo;
 
   ut_ad(undo->state == TRX_UNDO_ACTIVE || undo->state == TRX_UNDO_PREPARED);
-  ut_ad(undo->size == 1);
+
+  if (UNIV_UNLIKELY(undo->size != 1))
+  {
+    sql_print_error("InnoDB: Undo log for transaction " TRX_ID_FMT
+                    " is corrupted (" UINT32PF "!=1)", id, undo->size);
+    ut_ad("corrupted undo log" == 0);
+  }
 
   if (buf_block_t *u=
       buf_page_get(page_id_t(rseg->space->id, undo->hdr_page_no), 0,
@@ -1504,6 +1511,7 @@ void trx_t::commit_cleanup()
 
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
+  *detailed_error= '\0';
   mod_tables.clear();
 
   check_foreigns= true;

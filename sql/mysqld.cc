@@ -83,6 +83,7 @@
 #include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
+#include "gtid_index.h"
 
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -133,9 +134,6 @@
 #endif
 
 #include <my_service_manager.h>
-#ifdef __linux__
-#include <sys/eventfd.h>
-#endif
 
 #include <source_revision.h>
 
@@ -443,6 +441,9 @@ my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
 ulong binlog_row_metadata;
+my_bool opt_binlog_gtid_index= TRUE;
+uint opt_binlog_gtid_index_page_size= 4096;
+uint opt_binlog_gtid_index_span_min= 65536;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
@@ -491,6 +492,7 @@ ulong malloc_calls;
 ulong specialflag=0;
 ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
+ulong binlog_gtid_index_hit= 0, binlog_gtid_index_miss= 0;
 ulong max_connections, max_connect_errors;
 uint max_password_errors;
 ulong extra_max_connections;
@@ -896,7 +898,7 @@ PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
 PSI_file_key key_file_query_log, key_file_slow_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
-PSI_file_key key_file_binlog_state;
+PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -921,6 +923,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
+  key_gtid_index_lock,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_master_info_start_alter_lock,
@@ -1007,6 +1010,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
+  { &key_gtid_index_lock, "Gtid_index_writer::gtid_index_mutex", 0},
   { &key_master_info_data_lock, "Master_info::data_lock", 0},
   { &key_master_info_start_stop_lock, "Master_info::start_stop_lock", 0},
   { &key_master_info_run_lock, "Master_info::run_lock", 0},
@@ -1389,6 +1393,8 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
+
+/** wakeup listening(main) thread by writing to this descriptor */
 static int termination_event_fd= -1;
 
 
@@ -1472,7 +1478,7 @@ Query_cache query_cache;
 #endif
 
 
-my_bool opt_use_ssl  = 0;
+my_bool opt_use_ssl  = 1;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
   *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
   *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
@@ -1651,66 +1657,21 @@ static my_bool warn_threads_active_after_phase_2(THD *thd, void *)
 
 static void break_connect_loop()
 {
-#ifdef EXTRA_DEBUG
-  int count=0;
-#endif
-
   abort_loop= 1;
 
 #if defined(_WIN32)
   mysqld_win_initiate_shutdown();
 #else
-  /* Avoid waiting for ourselves when thread-handling=no-threads. */
-  if (pthread_equal(pthread_self(), select_thread))
-    return;
-  DBUG_PRINT("quit", ("waiting for select thread: %lu",
-                      (ulong)select_thread));
-
   mysql_mutex_lock(&LOCK_start_thread);
-  while (select_thread_in_use)
-  {
-    struct timespec abstime;
-    int UNINIT_VAR(error);
-    DBUG_PRINT("info",("Waiting for select thread"));
-
-    {
-      /*
-        Cannot call shutdown on systemd socket activated descriptors
-        as their clone in the pid 1 is reused.
-      */
-      int lowest_fd, shutdowns= 0;
-      lowest_fd= sd_listen_fds(0) + SD_LISTEN_FDS_START;
-      for(size_t i= 0; i < listen_sockets.size(); i++)
-      {
-        int fd= mysql_socket_getfd(listen_sockets.at(i));
-        if (fd >= lowest_fd)
-        {
-          shutdowns++;
-          mysql_socket_shutdown(listen_sockets.at(i), SHUT_RDWR);
-        }
-      }
-      if (!shutdowns && termination_event_fd >=0)
-      {
-        uint64_t u= 1;
-        if (write(termination_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
-          sql_print_error("Couldn't send event to terminate listen loop");
-      }
-    }
-    set_timespec(abstime, 2);
-    for (uint tmp=0 ; tmp < 10 && select_thread_in_use; tmp++)
-    {
-      error= mysql_cond_timedwait(&COND_start_thread, &LOCK_start_thread,
-                                  &abstime);
-      if (error != EINTR)
-        break;
-    }
-#ifdef EXTRA_DEBUG
-    if (error != 0 && error != ETIMEDOUT && !count++)
-      sql_print_error("Got error %d from mysql_cond_timedwait", error);
-#endif
-  }
   if (termination_event_fd >= 0)
-    close(termination_event_fd);
+  {
+    uint64_t u= 1;
+    if(write(termination_event_fd, &u, sizeof(uint64_t)) < 0)
+    {
+      sql_print_error("Couldn't send event to terminate listen loop");
+      abort();
+    }
+  }
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* _WIN32 */
 }
@@ -1956,11 +1917,6 @@ extern "C" void unireg_abort(int exit_code)
 static void mysqld_exit(int exit_code)
 {
   DBUG_ENTER("mysqld_exit");
-  /*
-    Important note: we wait for the signal thread to end,
-    but if a kill -15 signal was sent, the signal thread did
-    spawn the kill_server_thread thread, which is running concurrently.
-  */
   rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
   wait_for_signal_thread_to_end();
@@ -2011,6 +1967,7 @@ static void clean_up(bool print_message)
 
   injector::free_instance();
   mysql_bin_log.cleanup();
+  Gtid_index_writer::gtid_index_cleanup();
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -2116,17 +2073,17 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
-  uint i;
+#ifndef _WIN32
   /*
     Wait up to 10 seconds for signal thread to die. We use this mainly to
     avoid getting warnings that my_thread_end has not been called
   */
-  for (i= 0 ; i < 100 && signal_thread_in_use; i++)
+  for (uint i= 0 ; i < 100 && signal_thread_in_use; i++)
   {
-    if (pthread_kill(signal_thread, MYSQL_KILL_SIGNAL) == ESRCH)
-      break;
-    my_sleep(100);				// Give it time to die
+    kill(getpid(), MYSQL_KILL_SIGNAL);
+    my_sleep(100);  // Give it time to die
   }
+#endif
 }
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -2668,9 +2625,6 @@ static void use_systemd_activated_sockets()
     listen_sockets.push(sock);
   }
   systemd_sock_activation= 1;
-  termination_event_fd= eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
-  if (termination_event_fd == -1)
-    sql_print_warning("eventfd failed %d", errno);
   free(names);
 
   DBUG_VOID_RETURN;
@@ -3214,7 +3168,7 @@ static void start_signal_handler(void)
                                            signal_hand, 0))))
   {
     sql_print_error("Can't create interrupt-thread (error %d, errno: %d)",
-		    error,errno);
+      error,errno);
     exit(1);
   }
   mysql_cond_wait(&COND_start_thread, &LOCK_start_thread);
@@ -3224,22 +3178,9 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
-
-#if defined(USE_ONE_SIGNAL_HAND)
-pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
-{
-  my_thread_init();				// Initialize new thread
-  break_connect_loop();
-  my_thread_end();
-  pthread_exit(0);
-  return 0;
-}
-#endif
-
-
 /** This threads handles all signals */
 /* ARGSUSED */
-pthread_handler_t signal_hand(void *arg __attribute__((unused)))
+pthread_handler_t signal_hand(void *)
 {
   sigset_t set;
   int sig;
@@ -3283,20 +3224,17 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int error;
     int origin;
 
+    if (abort_loop)
+      break;
+
     while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
-    if (cleanup_done)
-    {
-      DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      my_thread_end();
-      DBUG_LEAVE;                               // Must match DBUG_ENTER()
-      signal_thread_in_use= 0;
-      pthread_exit(0);				// Safety
-      return 0;                                 // Avoid compiler warnings
-    }
+
+    if (abort_loop)
+      break;
+
     switch (sig) {
     case SIGTERM:
     case SIGQUIT:
-    case SIGKILL:
 #ifdef EXTRA_DEBUG
       sql_print_information("Got signal %d to shutdown server",sig);
 #endif
@@ -3304,31 +3242,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
-      if (!abort_loop)
-      {
-        /* Delete the instrumentation for the signal thread */
-        PSI_CALL_delete_current_thread();
-#ifdef USE_ONE_SIGNAL_HAND
-	pthread_t tmp;
-        if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
-                                                 &tmp, &connection_attrib,
-                                                 kill_server_thread,
-                                                 (void*) &sig))))
-          sql_print_error("Can't create thread to kill server (errno= %d)",
-                          error);
-#else
-        my_sigset(sig, SIG_IGN);
-        break_connect_loop(); 
-#endif
-      }
+
+      break_connect_loop();
+      DBUG_ASSERT(abort_loop);
       break;
     case SIGHUP:
 #if defined(SI_KERNEL)
-      if (!abort_loop && origin != SI_KERNEL)
+      if (origin != SI_KERNEL)
 #elif defined(SI_USER)
-      if (!abort_loop && origin <= SI_USER)
-#else
-      if (!abort_loop)
+      if (origin <= SI_USER)
 #endif
       {
         int not_used;
@@ -3355,6 +3277,11 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       break;					/* purecov: tested */
     }
   }
+  DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
+  my_thread_end();
+  DBUG_LEAVE; // Must match DBUG_ENTER()
+  signal_thread_in_use= 0;
+  pthread_exit(0); // Safety
   return(0);					/* purecov: deadcode */
 }
 
@@ -3962,6 +3889,7 @@ static int init_common_variables()
     inited before MY_INIT(). So we do it here.
   */
   mysql_bin_log.init_pthread_objects();
+  Gtid_index_writer::gtid_index_init();
 
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
@@ -4590,6 +4518,7 @@ struct SSL_ACCEPTOR_STATS
   long verify_depth;
   long zero;
   const char *session_cache_mode;
+  uchar fprint[256/8];
 
   SSL_ACCEPTOR_STATS():
     accept(),accept_good(),cache_size(),verify_mode(),verify_depth(),zero(),
@@ -4599,7 +4528,8 @@ struct SSL_ACCEPTOR_STATS
 
   void init()
   {
-    DBUG_ASSERT(ssl_acceptor_fd !=0 && ssl_acceptor_fd->ssl_context != 0);
+    DBUG_ASSERT(ssl_acceptor_fd !=0);
+    DBUG_ASSERT(ssl_acceptor_fd->ssl_context != 0);
     SSL_CTX *ctx= ssl_acceptor_fd->ssl_context;
     accept= 0;
     accept_good= 0;
@@ -4623,6 +4553,9 @@ struct SSL_ACCEPTOR_STATS
     default:
       session_cache_mode= "Unknown"; break;
     }
+    X509 *cert= SSL_CTX_get0_certificate(ctx);
+    uint fplen= sizeof(fprint);
+    X509_digest(cert, EVP_sha256(), fprint, &fplen);
   }
 };
 
@@ -4632,6 +4565,11 @@ void ssl_acceptor_stats_update(int sslaccept_ret)
   statistic_increment(ssl_acceptor_stats.accept, &LOCK_status);
   if (!sslaccept_ret)
     statistic_increment(ssl_acceptor_stats.accept_good,&LOCK_status);
+}
+
+LEX_CUSTRING ssl_acceptor_fingerprint()
+{
+  return { ssl_acceptor_stats.fprint, sizeof(ssl_acceptor_stats.fprint) };
 }
 
 static void init_ssl()
@@ -5322,7 +5260,6 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-change-buffering"),
 
       /* removed in 11.3 */
-      MARIADB_REMOVED_OPTION("debug"),
       MARIADB_REMOVED_OPTION("date-format"),
       MARIADB_REMOVED_OPTION("datetime-format"),
       MARIADB_REMOVED_OPTION("time-format"),
@@ -6262,16 +6199,11 @@ void handle_connections_sockets()
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
-#ifdef HAVE_POLL
   // for ip_sock, unix_sock and extra_ip_sock
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
-#else
-  fd_set readFDs,clientFDs;
-#endif
 
   DBUG_ENTER("handle_connections_sockets");
 
-#ifdef HAVE_POLL
   for (size_t i= 0; i < listen_sockets.size(); i++)
   {
     struct pollfd local_fds;
@@ -6281,27 +6213,25 @@ void handle_connections_sockets()
     fds.push(local_fds);
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
-#else
-  FD_ZERO(&clientFDs);
-  for (size_t i= 0; i < listen_sockets.size(); i++)
+  int termination_fds[2];
+  if (pipe(termination_fds))
   {
-    int fd= mysql_socket_getfd(listen_sockets.at(i));
-    FD_SET(fd, &clientFDs);
-    set_non_blocking_if_supported(listen_sockets.at(i));
+    sql_print_error("pipe() failed %d", errno);
+    DBUG_VOID_RETURN;
   }
+#ifdef FD_CLOEXEC
+  for (int fd : termination_fds)
+    (void)fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-  if (termination_event_fd >= 0)
-  {
-#ifdef HAVE_POLL
-    struct pollfd event_fd;
-    event_fd.fd= termination_event_fd;
-    event_fd.events= POLLIN;
-    fds.push(event_fd);
-#else
-    FD_SET(termination_event_fd, &clientFDs);
-#endif
-    /* no need to read this fd, abrt_loop is set before it gets a chance */
-  }
+
+  mysql_mutex_lock(&LOCK_start_thread);
+  termination_event_fd= termination_fds[1];
+  mysql_mutex_unlock(&LOCK_start_thread);
+
+  struct pollfd event_fd;
+  event_fd.fd= termination_fds[0];
+  event_fd.events= POLLIN;
+  fds.push(event_fd);
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
@@ -6309,12 +6239,7 @@ void handle_connections_sockets()
   DBUG_PRINT("general",("Waiting for connections."));
   while (!abort_loop)
   {
-#ifdef HAVE_POLL
     retval= poll(fds.get_pos(0), fds.size(), -1);
-#else
-    readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
-#endif
 
     if (retval < 0)
     {
@@ -6336,7 +6261,6 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
-#ifdef HAVE_POLL
     for (size_t i= 0; i < fds.size(); ++i)
     {
       if (fds.at(i).revents & POLLIN)
@@ -6345,16 +6269,6 @@ void handle_connections_sockets()
         break;
       }
     }
-#else  // HAVE_POLL
-    for (size_t i=0; i < listen_sockets.size(); i++)
-    {
-      if (FD_ISSET(mysql_socket_getfd(listen_sockets.at(i)), &readFDs))
-      {
-        sock= listen_sockets.at(i);
-        break;
-      }
-    }
-#endif // HAVE_POLL
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
@@ -6382,6 +6296,12 @@ void handle_connections_sockets()
       }
     }
   }
+  mysql_mutex_lock(&LOCK_start_thread);
+  for(int fd : termination_fds)
+    close(fd);
+  termination_event_fd= -1;
+  mysql_mutex_unlock(&LOCK_start_thread);
+
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
   DBUG_VOID_RETURN;
@@ -6794,7 +6714,7 @@ struct my_option my_long_options[]=
 #ifdef HAVE_OPENSSL
   {"ssl", 0,
    "Enable SSL for connection (automatically enabled if an ssl option is used).",
-   &opt_use_ssl, &opt_use_ssl, 0, GET_BOOL, OPT_ARG, 0, 0, 0,
+   &opt_use_ssl, &opt_use_ssl, 0, GET_BOOL, OPT_ARG, 1, 0, 0,
    0, 0, 0},
 #endif
 #ifdef _WIN32
@@ -7397,6 +7317,8 @@ SHOW_VAR status_vars[]= {
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Binlog_cache_disk_use",    (char*) &binlog_cache_disk_use,  SHOW_LONG},
   {"Binlog_cache_use",         (char*) &binlog_cache_use,       SHOW_LONG},
+  {"Binlog_gtid_index_hit",    (char*) &binlog_gtid_index_hit, SHOW_LONG},
+  {"Binlog_gtid_index_miss",   (char*) &binlog_gtid_index_miss, SHOW_LONG},
   {"Binlog_stmt_cache_disk_use",(char*) &binlog_stmt_cache_disk_use,  SHOW_LONG},
   {"Binlog_stmt_cache_use",    (char*) &binlog_stmt_cache_use,       SHOW_LONG},
   {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
@@ -7822,6 +7744,7 @@ static int mysql_init_variables(void)
   delayed_insert_errors= thread_created= 0;
   specialflag= 0;
   binlog_cache_use=  binlog_cache_disk_use= 0;
+  binlog_gtid_index_hit= binlog_gtid_index_miss= 0;
   max_used_connections= slow_launch_threads = 0;
   max_used_connections_time= 0;
   mysqld_user= mysqld_chroot= opt_init_file= opt_bin_logname = 0;
@@ -8106,6 +8029,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
+  case OPT_SECURE_AUTH:
+    warn_deprecated<1006>("--secure-auth");
+    break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
     break;
@@ -8265,6 +8191,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     break;
   case OPT_BOOTSTRAP:
     opt_noacl=opt_bootstrap=1;
+    opt_use_ssl= 0;
 #ifdef _WIN32
     {
       /*
@@ -9217,7 +9144,8 @@ static PSI_file_info all_server_files[]=
   { &key_file_trg, "trigger_name", 0},
   { &key_file_trn, "trigger", 0},
   { &key_file_init, "init", 0},
-  { &key_file_binlog_state, "binlog_state", 0}
+  { &key_file_binlog_state, "binlog_state", 0},
+  { &key_file_gtid_index, "gtid_index", 0}
 };
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -9411,6 +9339,7 @@ PSI_memory_key key_memory_acl_cache;
 PSI_memory_key key_memory_acl_mem;
 PSI_memory_key key_memory_acl_memex;
 PSI_memory_key key_memory_binlog_cache_mngr;
+PSI_memory_key key_memory_binlog_gtid_index;
 PSI_memory_key key_memory_binlog_pos;
 PSI_memory_key key_memory_binlog_recover_exec;
 PSI_memory_key key_memory_binlog_statement_buffer;
@@ -9650,6 +9579,7 @@ static PSI_memory_info all_server_memory[]=
 //  { &key_memory_Slave_job_group_group_relay_log_name, "Slave_job_group::group_relay_log_name", 0},
   { &key_memory_Relay_log_info_group_relay_log_name, "Relay_log_info::group_relay_log_name", 0},
   { &key_memory_binlog_cache_mngr, "binlog_cache_mngr", 0},
+  { &key_memory_binlog_gtid_index, "binlog_gtid_index", 0},
   { &key_memory_Row_data_memory_memory, "Row_data_memory::memory", 0},
 //  { &key_memory_Gtid_set_to_string, "Gtid_set::to_string", 0},
 //  { &key_memory_Gtid_state_to_string, "Gtid_state::to_string", 0},

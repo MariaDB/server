@@ -42,7 +42,8 @@
 static uint pack_keys(uchar *,uint, KEY *, ulong, uint);
 static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *,
                         ulong, handler *);
-static bool pack_vcols(String *, List<Create_field> &, List<Virtual_column_info> *);
+static bool pack_vcols(THD *thd, String *,
+                       List<Create_field> &, List<Virtual_column_info> *);
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar **, List<Create_field> &, HA_CREATE_INFO*,
                         ulong);
@@ -291,10 +292,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     create_info->null_bits++;
   data_offset= (create_info->null_bits + 7) / 8;
 
-  sql_mode_t save_sql_mode= thd->variables.sql_mode;
-  thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
-  error= pack_vcols(&vcols, create_fields, create_info->check_constraint_list);
-  thd->variables.sql_mode= save_sql_mode;
+  error= pack_vcols(thd, &vcols,
+                    create_fields, create_info->check_constraint_list);
 
   if (unlikely(error))
     DBUG_RETURN(frm);
@@ -792,9 +791,10 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
 }
 
 
-static bool pack_vcols(String *buf, List<Create_field> &create_fields,
-                             List<Virtual_column_info> *check_constraint_list)
+static bool pack_vcols(THD *thd, String *buf, List<Create_field> &create_fields,
+                       List<Virtual_column_info> *check_constraint_list)
 {
+  Sql_mode_save_for_frm_handling sql_mode_save(thd);
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
 
@@ -922,7 +922,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
           hex_length= length * 2;
           tmpint->type_lengths[pos]= (uint) hex_length;
           tmpint->type_names[pos]= dst= (char*) thd->alloc(hex_length + 1);
-          octet2hex(dst, src, length);
+          octet2hex(dst, (uchar*)src, length);
         }
       }
 

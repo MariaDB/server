@@ -1051,8 +1051,13 @@ static Sys_var_charptr_fscs Sys_datadir(
        CMD_LINE(REQUIRED_ARG, 'h'), DEFAULT(mysql_real_data_home));
 
 #ifndef DBUG_OFF
+static Sys_var_dbug Sys_dbug(
+       "debug", "Built-in DBUG debugger", sys_var::SESSION,
+       CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
 static Sys_var_dbug Sys_debug_dbug(
-       "debug_dbug", "Built-in DBUG debugger", sys_var::SESSION,
+       "debug_dbug", "Built-in DBUG debugger. Alias for --debug", sys_var::SESSION,
        CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
 #endif
@@ -1551,7 +1556,7 @@ static Sys_var_bit Sys_log_slow_slave_statements(
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
-       "Log some not critical warnings to the general log file."
+       "Log some non critical warnings to the error log."
        "Value can be between 0 and 11. Higher values mean more verbosity",
        SESSION_VAR(log_warnings),
        CMD_LINE(OPT_ARG, 'W'),
@@ -2880,8 +2885,9 @@ export const char *optimizer_switch_names[]=
   "condition_pushdown_from_having",
   "not_null_range_scan",
   "hash_join_cardinality",
+  "cset_narrowing",
   "sargable_casefold",
-  "default", 
+  "default",
   NullS
 };
 static bool check_legal_optimizer_switch(sys_var *self, THD *thd,
@@ -3328,8 +3334,9 @@ Sys_secure_auth(
        "secure_auth",
        "Disallow authentication for accounts that have old (pre-4.1) "
        "passwords",
-       GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG),
-       DEFAULT(TRUE));
+       GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG, OPT_SECURE_AUTH),
+       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(1006, ""));
 
 static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var)
 {
@@ -3880,6 +3887,7 @@ static const char *old_mode_names[]=
   "UTF8_IS_UTF8MB3",
   "IGNORE_INDEX_ONLY_FOR_JOIN",         // deprecated since 11.3
   "COMPAT_5_1_CHECKSUM",                // deprecated since 11.3
+  "NO_NULL_COLLATION_IDS",              // deprecated since 11.3
   "LOCK_ALTER_TABLE_COPY",              // deprecated since 11.3
   0
 };
@@ -4669,7 +4677,9 @@ static Sys_var_bit Sys_sql_notes(
        "See also note_verbosity, which allows one to define with notes are "
        "sent.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SQL_NOTES,
-       DEFAULT(TRUE));
+       DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(1103, "'@@note_verbosity'"));
 
 static Sys_var_bit Sys_auto_is_null(
        "sql_auto_is_null", "If set to 1, the query SELECT * FROM table_name WHERE "
@@ -5692,7 +5702,7 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
+get_master_info_ulonglong_value(THD *thd) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5700,7 +5710,7 @@ get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
   if ((mi= get_master_info(&thd->variables.default_master_connection,
                            Sql_condition::WARN_LEVEL_WARN)))
   {
-    res= *((ulonglong*) (((uchar*) mi) + master_info_offset));
+    res= (mi->*mi_accessor_func)();
     mi->release();
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -5770,7 +5780,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
        "sql_slave_skip_counter", "Skip the next N events from the master log",
        SESSION_VAR(slave_skip_counter), NO_CMD_LINE,
-       MASTER_INFO_VAR(rli.slave_skip_counter),
+       &Master_info::get_slave_skip_counter,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        ON_UPDATE(update_slave_skip_counter));
 
@@ -5786,7 +5796,7 @@ static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
        "relay log will be rotated automatically when the size exceeds this "
        "value.  If 0 at startup, it's set to max_binlog_size",
        SESSION_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
-       MASTER_INFO_VAR(rli.max_relay_log_size),
+       &Master_info::get_max_relay_log_size,
        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
        ON_UPDATE(update_max_relay_log_size));
 
@@ -6834,6 +6844,36 @@ Sys_binlog_row_metadata(
        binlog_row_metadata_names, DEFAULT(Table_map_log_event::BINLOG_ROW_METADATA_NO_LOG),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
        ON_UPDATE(NULL));
+
+
+static Sys_var_on_access_global<Sys_var_mybool,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX>
+Sys_binlog_gtid_index(
+       "binlog_gtid_index",
+       "Enable the creation of a GTID index for every binlog file, and the use "
+       "of such index for speeding up GTID lookup in the binlog.",
+       GLOBAL_VAR(opt_binlog_gtid_index), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE));
+
+
+static Sys_var_on_access_global<Sys_var_uint,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_PAGE_SIZE>
+Sys_binlog_gtid_index_page_size(
+       "binlog_gtid_index_page_size",
+       "Page size to use for the binlog GTID index.",
+       GLOBAL_VAR(opt_binlog_gtid_index_page_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(64, 1<<24), DEFAULT(4096), BLOCK_SIZE(1));
+
+
+static Sys_var_on_access_global<Sys_var_uint,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_SPAN_MIN>
+Sys_binlog_gtid_index_span_min(
+       "binlog_gtid_index_span_min",
+       "Control sparseness of the binlog GTID index. If set to N, at most one "
+       "index record will be added for every N bytes of binlog file written, "
+       "to reduce the size of the index. Normally does not need tuning.",
+       GLOBAL_VAR(opt_binlog_gtid_index_span_min), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 1024*1024L*1024L), DEFAULT(65536), BLOCK_SIZE(1));
 
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)

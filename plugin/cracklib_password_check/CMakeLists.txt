@@ -1,3 +1,9 @@
+
+IF(PLUGIN_CRACKLIB_PASSWORD_CHECK STREQUAL "NO")
+  ADD_FEATURE_INFO(CRACKLIB_PASSWORD_CHECK "OFF" "CrackLib Password Validation Plugin")
+  RETURN()
+ENDIF()
+
 INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckLibraryExists)
 

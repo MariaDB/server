@@ -1404,14 +1404,15 @@ public:
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check,
+                                   my_bool crc_check, my_bool print_errors,
                                    size_t max_allowed_packet);
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check)
+                                   my_bool crc_check, my_bool print_errors= 1)
   {
-    return read_log_event(file, description_event, crc_check, get_max_packet());
+    return read_log_event(file, description_event, crc_check, print_errors,
+                          get_max_packet());
   }
 
   /**
@@ -1557,7 +1558,8 @@ public:
   static Log_event* read_log_event(const uchar *buf, uint event_len,
 				   const char **error,
                                    const Format_description_log_event
-                                   *description_event, my_bool crc_check);
+                                   *description_event, my_bool crc_check,
+                                   my_bool print_errors= 1);
   /**
     Returns the human readable name of the given event type.
   */
@@ -3741,7 +3743,7 @@ public:
   bool is_valid() const { return 1; }
 };
 #endif
-char *str_to_hex(char *to, const char *from, size_t len);
+char *str_to_hex(char *to, const uchar *from, size_t len);
 
 /**
   @class Annotate_rows_log_event
@@ -4618,6 +4620,12 @@ public:
 #endif
 
 #ifdef MYSQL_CLIENT
+  struct Field_info
+  {
+    const uchar *pos; // Point to a field in before or after image
+    size_t length;    // Length of the field.
+  };
+
   /* not for direct call, each derived has its own ::print() */
   virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
   void change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
@@ -4626,12 +4634,11 @@ public:
   size_t print_verbose_one_row(IO_CACHE *file, table_def *td,
                                PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
-                               const uchar *ptr, const uchar *prefix,
-                               const my_bool no_fill_output= 0); // if no_fill_output=1, then print result is unnecessary
+                               const uchar *ptr, const uchar *prefix);
   size_t calc_row_event_length(table_def *td,
-                               PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
-                               const uchar *value);
+                               const uchar *value,
+                               Field_info *fields);
   void count_row_events(PRINT_EVENT_INFO *print_event_info);
 
 #endif

@@ -1,0 +1,179 @@
+#
+# MDEV-27576 Use DESC indexes for MIN/MAX optimization
+#
+create or replace table t1 (a int, key(a desc)) engine=innodb;
+insert into t1 select seq * 2 from seq_1_to_100 order by rand(1);
+explain select max(a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1;
+max(a)
+200
+explain select min(a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1;
+min(a)
+2
+explain select max(a) from t1 where a < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1 where a < 100;
+max(a)
+98
+explain select min(a) from t1 where a > 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a > 100;
+min(a)
+102
+explain select max(a) from t1 where a <= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1 where a <= 100;
+max(a)
+100
+explain select min(a) from t1 where a >= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a >= 100;
+min(a)
+100
+explain select max(a) from t1 where a <= 99;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1 where a <= 99;
+max(a)
+98
+explain select min(a) from t1 where a >= 99;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a >= 99;
+min(a)
+100
+explain select max(a) from t1 where a > 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1 where a > 100;
+max(a)
+200
+explain select max(a) from t1 where a > 1000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
+select max(a) from t1 where a > 1000;
+max(a)
+NULL
+explain select min(a) from t1 where a < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a < 100;
+min(a)
+2
+explain select min(a) from t1 where a < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
+select min(a) from t1 where a < 0;
+min(a)
+NULL
+explain select max(a) from t1 where a >= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1 where a >= 100;
+max(a)
+200
+explain select max(a) from t1 where a >= 1000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
+select max(a) from t1 where a >= 1000;
+max(a)
+NULL
+explain select min(a) from t1 where a <= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a <= 100;
+min(a)
+2
+explain select min(a) from t1 where a <= 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
+select min(a) from t1 where a <= 0;
+min(a)
+NULL
+explain select max(a) from t1 where a >= 99;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1 where a >= 99;
+max(a)
+200
+explain select min(a) from t1 where a <= 99;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a <= 99;
+min(a)
+2
+explain select max(200 - a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	100	Using index
+select max(200 - a) from t1;
+max(200 - a)
+198
+explain select min(200 - a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	100	Using index
+select min(200 - a) from t1;
+min(200 - a)
+0
+create or replace table t1 (a int, b int, key(a desc, b asc)) engine=innodb;
+insert into t1 select seq * 2, seq * 2 from seq_1_to_100 order by rand(1);
+explain select max(a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(a) from t1;
+max(a)
+200
+explain select min(a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1;
+min(a)
+2
+create or replace table t1 (a int, b int, key(a asc), key (b desc)) engine=innodb;
+insert into t1 select seq * 2, seq * 2 from seq_1_to_100 order by rand(1);
+explain select max(b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(b) from t1;
+max(b)
+200
+explain select min(b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(b) from t1;
+min(b)
+2
+create or replace table t1 (a int, b int, key (b desc)) engine=innodb;
+insert into t1 select seq * 2, seq * 2 from seq_1_to_100 order by rand(1);
+explain select max(b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select max(b) from t1;
+max(b)
+200
+explain select min(b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(b) from t1;
+min(b)
+2
+CREATE OR REPLACE TABLE t1 (a FLOAT, KEY (a DESC));
+INSERT INTO t1 VALUES (0.1234),(0.6789);
+explain SELECT MAX(a) FROM t1 WHERE a <= 0.6789;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+SELECT MAX(a) FROM t1 WHERE a <= 0.6789;
+MAX(a)
+0.6789
+drop table t1;
+#
+# end of test 11.4
+#

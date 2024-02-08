@@ -945,7 +945,8 @@ public:
                     already has received some signal or closed
                     signal slot.
   */
-  void init(MDL_context_owner *arg) { m_owner= arg; }
+  void init(MDL_context_owner *arg) { m_owner= arg; reset(); }
+  void reset() { m_deadlock_overweight= 0; }
 
   void set_needs_thr_lock_abort(bool needs_thr_lock_abort)
   {
@@ -1054,7 +1055,7 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
   LF_PINS *m_pins;
-  uint m_deadlock_overweight= 0;
+  uint m_deadlock_overweight;
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
@@ -1102,6 +1103,26 @@ private:
 
   /* metadata_lock_info plugin */
   friend int i_s_metadata_lock_info_fill_row(MDL_ticket*, void*);
+#ifndef DBUG_OFF
+public:
+  /**
+    This is for the case when the thread opening the table does not acquire
+    the lock itself, but utilizes a lock guarantee from another MDL context.
+
+    For example, in InnoDB, MDL is acquired by the purge_coordinator_task,
+    but the table may be opened and used in a purge_worker_task.
+    The coordinator thread holds the lock for the duration of worker's purge
+    job, or longer, possibly reusing shared MDL for different workers and jobs.
+  */
+  MDL_context *lock_warrant= NULL;
+
+  inline bool is_lock_warrantee(MDL_key::enum_mdl_namespace ns,
+                                const char *db, const char *name,
+                                enum_mdl_type mdl_type) const
+  {
+    return lock_warrant && lock_warrant->is_lock_owner(ns, db, name, mdl_type);
+  }
+#endif
 };
 
 

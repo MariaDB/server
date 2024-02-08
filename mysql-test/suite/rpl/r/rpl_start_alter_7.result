@@ -10,6 +10,10 @@ Warnings:
 Note	1255	Slave already has been stopped
 set global binlog_alter_two_phase=true;
 connection server_3;
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression("The table mysql.gtid_slave_pos was removed. This change will not take full effect until all SQL threads have been restarted");
+SET STATEMENT sql_log_bin=0 FOR
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET GLOBAL slave_parallel_threads=8;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;

@@ -35,8 +35,8 @@
   result is normally a pointer to this NUL character, but if the radix
   is dud the result will be NullS and nothing will be changed.
 
-  If radix is -2..-36, val is taken to be SIGNED.
-  If radix is  2.. 36, val is taken to be UNSIGNED.
+  If radix is -2..-62, val is taken to be SIGNED.
+  If radix is  2.. 62, val is taken to be UNSIGNED.
   That is, val is signed if and only if radix is.  You will normally
   use radix -10 only through itoa and ltoa, for radix 2, 8, or 16
   unsigned is what you generally want.
@@ -63,12 +63,17 @@ char *ll2str(longlong val,char *dst,int radix, int upcase)
   char buffer[65];
   register char *p;
   long long_val;
-  const char *dig_vec= upcase ? _dig_vec_upper : _dig_vec_lower;
+  const char *dig_vec;
   ulonglong uval= (ulonglong) val;
+
+  if (radix < -36 || radix > 36)
+    dig_vec= _dig_vec_base62;
+  else
+    dig_vec= upcase ? _dig_vec_upper : _dig_vec_lower;
 
   if (radix < 0)
   {
-    if (radix < -36 || radix > -2) return (char*) 0;
+    if (radix < -62 || radix > -2) return (char*) 0;
     if (val < 0) {
       *dst++ = '-';
       /* Avoid integer overflow in (-val) for LONGLONG_MIN (BUG#31799). */
@@ -78,7 +83,7 @@ char *ll2str(longlong val,char *dst,int radix, int upcase)
   }
   else
   {
-    if (radix > 36 || radix < 2) return (char*) 0;
+    if (radix > 62 || radix < 2) return (char*) 0;
   }
   if (uval == 0)
   {

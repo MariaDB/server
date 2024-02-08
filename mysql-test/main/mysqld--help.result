@@ -98,6 +98,17 @@ The following specify which files/extra groups are read (specified before remain
  involve user-defined functions (i.e. UDFs) or the UUID()
  function; for those, row-based binary logging is
  automatically used.
+ --binlog-gtid-index Enable the creation of a GTID index for every binlog
+ file, and the use of such index for speeding up GTID
+ lookup in the binlog.
+ (Defaults to on; use --skip-binlog-gtid-index to disable.)
+ --binlog-gtid-index-page-size=# 
+ Page size to use for the binlog GTID index.
+ --binlog-gtid-index-span-min=# 
+ Control sparseness of the binlog GTID index. If set to N,
+ at most one index record will be added for every N bytes
+ of binlog file written, to reduce the size of the index.
+ Normally does not need tuning.
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -577,9 +588,8 @@ The following specify which files/extra groups are read (specified before remain
  when binary log is disabled).
  --log-tc-size=#     Size of transaction coordinator log.
  -W, --log-warnings[=#] 
- Log some not critical warnings to the general log
- file.Value can be between 0 and 11. Higher values mean
- more verbosity
+ Log some non critical warnings to the error log.Value can
+ be between 0 and 11. Higher values mean more verbosity
  --long-query-time=# Alias for log_slow_query_time. Log all queries that have
  taken more than long_query_time seconds to execute to the
  slow query log file. The argument will be treated as a
@@ -729,7 +739,7 @@ The following specify which files/extra groups are read (specified before remain
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
- LOCK_ALTER_TABLE_COPY
+ NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY
  Use 'ALL' to set all combinations.
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
@@ -827,7 +837,7 @@ The following specify which files/extra groups are read (specified before remain
  condition_pushdown_for_derived, split_materialized, 
  condition_pushdown_for_subquery, rowid_filter, 
  condition_pushdown_from_having, not_null_range_scan, 
- hash_join_cardinality, sargable_casefold
+ hash_join_cardinality, cset_narrowing, sargable_casefold
  --optimizer-trace=name 
  Controls tracing of the Optimizer:
  optimizer_trace=option=val[,option=val...], where option
@@ -1598,6 +1608,9 @@ binlog-direct-non-transactional-updates FALSE
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
+binlog-gtid-index TRUE
+binlog-gtid-index-page-size 4096
+binlog-gtid-index-span-min 65536
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
@@ -1792,7 +1805,7 @@ optimizer-rowid-copy-cost 0.002653
 optimizer-scan-setup-cost 10
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,sargable_casefold=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=off,sargable_casefold=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4

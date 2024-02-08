@@ -50,11 +50,17 @@ c DATETIME DEFAULT '1999-10-10 10:10:10',
 KEY idx0(a),
 KEY idx1(b)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_b (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_c (
 a INT AUTO_INCREMENT,
 b CHAR(1) DEFAULT 'c',
@@ -63,11 +69,17 @@ KEY idx0(a),
 KEY idx1(b),
 KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_d (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02');
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03');
 insert into tbl_c values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04');

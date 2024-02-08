@@ -74,6 +74,7 @@ extern "C" {
 #endif
 
 /* Declared in int2str() */
+extern const char _dig_vec_base62[];
 extern const char _dig_vec_upper[];
 extern const char _dig_vec_lower[];
 

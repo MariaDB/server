@@ -36,6 +36,10 @@ template<uint V> static inline void check_deprecated_version(void)
   );
 }
 
+/*
+  V is the 2-component 4-digit version where something was deprecated.
+  For example, if deprecated in 11.2: warn_deprecated<1102>(thd, "something")
+*/
 template<uint V> static inline void warn_deprecated(THD *thd,
                                       const char *what, const char *to= NULL)
 {
@@ -45,6 +49,16 @@ template<uint V> static inline void warn_deprecated(THD *thd,
                          ? ER_WARN_DEPRECATED_SYNTAX
                          : ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
                       what, to);
+}
+
+template<uint V> static inline void warn_deprecated(const char *what,
+                                                    const char *to= NULL)
+{
+  check_deprecated_version<V>();
+  sql_print_warning(to && *to
+                    ? "'%s' is deprecated and will be removed in a future release. Please use %s instead"
+                    : "'%s' is deprecated and will be removed in a future release",
+                    what, to);
 }
 
 /* Prevent direct usage of the error that bypasses the template */

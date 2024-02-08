@@ -2317,12 +2317,16 @@ innodb_instant_alter_column_allowed_reason:
 		}
 	}
 
+	bool need_rebuild = false;
+
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
-		if (alter_options_need_rebuild(ha_alter_info, table)) {
+		if ((srv_file_per_table && !m_prebuilt->table->space_id)
+		    || alter_options_need_rebuild(ha_alter_info, table)) {
 			reason_rebuild = my_get_err_msg(
 				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
 			ha_alter_info->unsupported_reason = reason_rebuild;
+			need_rebuild= true;
 			break;
 		}
 		/* fall through */
@@ -2434,7 +2438,7 @@ innodb_instant_alter_column_allowed_reason:
 
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE) or without rebuild. */
-	bool online = true, need_rebuild = false;
+	bool online = true;
 	const uint fulltext_indexes = innobase_fulltext_exist(altered_table);
 
 	/* Fix the key parts. */
@@ -4338,7 +4342,8 @@ static void unlock_and_close_files(const std::vector<pfs_os_file_t> &deleted,
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
-  log_write_up_to(trx->commit_lsn, true);
+  if (trx->commit_lsn)
+    log_write_up_to(trx->commit_lsn, true);
 }
 
 /** Commit a DDL transaction and unlink any deleted files. */
@@ -4681,11 +4686,13 @@ innobase_build_col_map(
 				col_map[old_i - num_old_v] = i;
 				if (!old_table->versioned()
 				    || !altered_table->versioned()) {
-				} else if (old_i == old_table->vers_start) {
-					new_table->vers_start = (i + num_v)
+				} else if (old_i - num_old_v == old_table->vers_start) {
+					ut_ad(field->vers_sys_start());
+					new_table->vers_start = i
 						& dict_index_t::MAX_N_FIELDS;
-				} else if (old_i == old_table->vers_end) {
-					new_table->vers_end = (i + num_v)
+				} else if (old_i - num_old_v == old_table->vers_end) {
+					ut_ad(field->vers_sys_end());
+					new_table->vers_end = i
 						& dict_index_t::MAX_N_FIELDS;
 				}
 				goto found_col;
@@ -6217,24 +6224,20 @@ empty_table:
 	/* Convert the table to the instant ALTER TABLE format. */
 	mtr.commit();
 	mtr.start();
-	index->set_modified(mtr);
-	if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr,
+	if (buf_block_t* root = btr_root_block_get(index, RW_S_LATCH, &mtr,
 						   &err)) {
 		if (fil_page_get_type(root->page.frame) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT("wrong page type" == 0);
 			err = DB_CORRUPTION;
 			goto func_exit;
 		}
-
-		btr_set_instant(root, *index, &mtr);
-		mtr.commit();
-		mtr.start();
-		index->set_modified(mtr);
-		err = row_ins_clust_index_entry_low(
-			BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
-			index->n_uniq, entry, 0, thr);
 	}
+	mtr.commit();
+	mtr.start();
 
+	err = row_ins_clust_index_entry_low(
+		BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
+		index->n_uniq, entry, 0, thr);
 	goto func_exit;
 }
 
@@ -7760,40 +7763,37 @@ bool check_col_is_in_fk_indexes(
 {
   char *fk_id= nullptr;
 
-  for (dict_foreign_set::iterator it= table->foreign_set.begin();
-       it!= table->foreign_set.end();)
+  for (const auto &f : table->foreign_set)
   {
-    if (std::find(drop_fk.begin(), drop_fk.end(), (*it))
-        != drop_fk.end())
-      goto next_item;
-    for (ulint i= 0; i < (*it)->n_fields; i++)
-      if ((*it)->foreign_index->fields[i].col == col)
+    if (!f->foreign_index ||
+        std::find(drop_fk.begin(), drop_fk.end(), f) != drop_fk.end())
+      continue;
+    for (ulint i= 0; i < f->n_fields; i++)
+      if (f->foreign_index->fields[i].col == col)
       {
-	fk_id= (*it)->id;
-	goto err_exit;
+        fk_id= f->id;
+        goto err_exit;
       }
-next_item:
-    it++;
   }
 
   for (const auto &a : add_fk)
   {
+    if (!a->foreign_index) continue;
     for (ulint i= 0; i < a->n_fields; i++)
     {
       if (a->foreign_index->fields[i].col == col)
       {
         fk_id= a->id;
-	goto err_exit;
+        goto err_exit;
       }
     }
   }
 
   for (const auto &f : table->referenced_set)
   {
+    if (!f->referenced_index) continue;
     for (ulint i= 0; i < f->n_fields; i++)
     {
-      if (!f->referenced_index)
-        continue;
       if (f->referenced_index->fields[i].col == col)
       {
         my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0),
@@ -8414,8 +8414,17 @@ err_exit:
 	if (ha_alter_info->handler_flags
 			& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) {
 
-		for (uint i= 0; i < table->s->fields; i++) {
+		for (uint i= 0, n_v_col= 0; i < table->s->fields;
+		     i++) {
 			Field* field = table->field[i];
+
+			/* Altering the virtual column is not
+			supported for inplace alter algorithm */
+			if (field->vcol_info) {
+				n_v_col++;
+				continue;
+			}
+
 			for (const Create_field& new_field :
 				ha_alter_info->alter_info->create_list) {
 				if (new_field.field == field) {
@@ -8430,7 +8439,7 @@ err_exit:
 field_changed:
 			const char* col_name= field->field_name.str;
 			dict_col_t *col= dict_table_get_nth_col(
-				m_prebuilt->table, i);
+				m_prebuilt->table, i - n_v_col);
 			if (check_col_is_in_fk_indexes(
 				m_prebuilt->table, col, col_name,
 				span<const dict_foreign_t*>(
@@ -11225,16 +11234,7 @@ ha_innobase::commit_inplace_alter_table(
 			fts_optimize_remove_table(ctx->old_table);
 		}
 
-		dict_sys.freeze(SRW_LOCK_CALL);
-		for (auto f : ctx->old_table->referenced_set) {
-			if (dict_table_t* child = f->foreign_table) {
-				error = lock_table_for_trx(child, trx, LOCK_X);
-				if (error != DB_SUCCESS) {
-					break;
-				}
-			}
-		}
-		dict_sys.unfreeze();
+		error = lock_table_children(ctx->old_table, trx);
 
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);
@@ -11671,7 +11671,6 @@ foreign_fail:
 		}
 
 		unlock_and_close_files(deleted, trx);
-		log_write_up_to(trx->commit_lsn, true);
 		DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 				DBUG_SUICIDE(););
 		trx->free();
@@ -11728,7 +11727,6 @@ foreign_fail:
 	}
 
 	unlock_and_close_files(deleted, trx);
-	log_write_up_to(trx->commit_lsn, true);
 	DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 			DBUG_SUICIDE(););
 	trx->free();

@@ -2451,6 +2451,86 @@ set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
 
 drop table t1,t2,t3,t4;
 
+--echo #
+--echo # MDEV-32324: Server crashes inside filesort at my_decimal::to_binary
+--echo #
+SELECT 1.000000 two UNION SELECT 1 ORDER BY ( SELECT two LIMIT 1 OFFSET 1 ) ;
+
+--echo # MDEV-32475: test_if_skip_sort_order() should catch the join types
+--echo #             JT_EQ_REF, JT_CONST and JT_SYSTEM and skip sort order for these
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq+1 FROM seq_1_to_100;
+INSERT INTO t2 VALUES (0, 1),(1, 2);
+
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL;
+
+--echo # Table t1 must use eq_ref, not index below:
+EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-29681 Server crashes when optimizing SQL with ORDER BY
+--echo #
+CREATE TABLE t1 (b INT);
+CREATE TABLE t2 (a INT, c INT);
+
+--echo # First test empty tables
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a+1;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=2;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3)
+  ORDER BY a+1, a-b DESC, c<>a;
+
+--echo # Insert some data
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3),(4,4);
+
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=b, a-10 DESC, b+a, c+a+a+b;
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=2;
+
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3)
+  ORDER BY a=b, a-10, b+a, c+a+a+b;
+
+--echo # When there is no LIMIT clause the derived table must be merged
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b) ORDER BY a+16, b+a, c<>b;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b) ORDER BY a+16 DESC, b+a, c<>b;
+
+--echo # Test UNIONs:
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT * FROM t1 JOIN t2 ON a!=b
+                  LIMIT 3)
+                  ORDER BY a+16, b+a, c<>b;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT * FROM t1 JOIN t2 ON a!=b
+                  LIMIT 3)
+                  ORDER BY a+16, b+a, c<>b;
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  LIMIT 3)
+                  ORDER BY b-a-c;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  LIMIT 3)
+                  ORDER BY b-a-c;
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  ORDER BY a LIMIT 3)
+                  ORDER BY b-a-c LIMIT 1;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  ORDER BY a LIMIT 3)
+                  ORDER BY b-a-c LIMIT 1;
+DROP TABLE t1, t2;
+
 --echo # End of 10.4 tests
 
 --echo #

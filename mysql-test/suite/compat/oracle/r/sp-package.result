@@ -3148,7 +3148,24 @@ collation_connection	latin1_swedish_ci
 DROP VIEW v_test;
 SET sql_mode=DEFAULT;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
-ERROR 42000: FUNCTION test1.f_test does not exist
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
 SET sql_mode=ORACLE;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
 SELECT * FROM v_test;

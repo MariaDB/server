@@ -38,6 +38,11 @@ pkey int NOT NULL,
 val int NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey,val) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
 SELECT pkey,val INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' FROM tbl_a ORDER BY pkey;
 TRUNCATE tbl_a;

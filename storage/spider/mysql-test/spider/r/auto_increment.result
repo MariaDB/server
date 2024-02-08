@@ -43,6 +43,8 @@ col_b VARCHAR(20) DEFAULT 'defg',
 col_c INT NOT NULL DEFAULT 100,
 PRIMARY KEY(col_a)
 ) MASTER_1_ENGINE MASTER_1_AUTO_INCREMENT_2_1 MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (
@@ -62,6 +64,8 @@ tbl_a	CREATE TABLE `tbl_a` (
   PRIMARY KEY (`col_a`)
 ) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 ALTER TABLE tbl_a MODIFY col_c MEDIUMINT NOT NULL DEFAULT 100;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (
@@ -99,6 +103,8 @@ tbl_a	CREATE TABLE `tbl_a` (
   PRIMARY KEY (`col_a`)
 ) ENGINE=SPIDER AUTO_INCREMENT=3 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 MASTER_1_AUTO_INCREMENT1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (
@@ -118,6 +124,8 @@ tbl_a	CREATE TABLE `tbl_a` (
   PRIMARY KEY (`col_a`)
 ) ENGINE=SPIDER AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 MASTER_1_AUTO_INCREMENT2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (

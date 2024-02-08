@@ -12270,3 +12270,5 @@ ER_JSON_INVALID_VALUE_FOR_KEYWORD
 ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         eng "%s keyword is not supported"
         sw "%s neno kuu halitumiki"
+ER_JSON_NO_VARIABLE_SCHEMA
+        eng "Variable schema is not supported."

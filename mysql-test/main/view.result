@@ -4437,12 +4437,14 @@ SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 # t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
@@ -4463,12 +4465,14 @@ SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 DROP VIEW v1;
 DROP TABLE t1;

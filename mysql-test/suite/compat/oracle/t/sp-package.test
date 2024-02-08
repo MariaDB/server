@@ -2854,13 +2854,18 @@ END test1;
 $$
 DELIMITER ;$$
 
-
+#
+# A VIEW created with sql_mode=ORACLE, calling a package routine
+#
 SET sql_mode=ORACLE;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
 SELECT * FROM v_test;
 --vertical_results
 SHOW CREATE VIEW v_test;
 --horizontal_results
+#
+# It also works with sql_mode=DEFALT
+#
 SET sql_mode=DEFAULT;
 SELECT * FROM v_test;
 --vertical_results
@@ -2868,10 +2873,24 @@ SHOW CREATE VIEW v_test;
 --horizontal_results
 DROP VIEW v_test;
 
-
+#
+# A VIEW created with sql_mode=DEFAULT, calling a package routine
+#
 SET sql_mode=DEFAULT;
---error ER_SP_DOES_NOT_EXIST
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+#
+# It also works with sql_mode=ORACLE
+#
+--horizontal_results
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+DROP VIEW v_test;
 
 
 SET sql_mode=ORACLE;

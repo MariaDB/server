@@ -2291,7 +2291,7 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
     if (! sp_object_found)
     {
-      my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "FUNCTION or PROCEDURE",
+      my_error(ER_SP_DOES_NOT_EXIST, MYF(0), type_lex_cstring().str,
                routine->table_name.str);
       DBUG_RETURN(TRUE);
     }
@@ -2628,7 +2628,7 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
                                        const Sp_handler **pkg_routine_handler,
                                        Database_qualified_name *pkgname) const
 {
-  if (!thd->db.length || !(thd->variables.sql_mode & MODE_ORACLE))
+  if (!thd->db.length)
     return false;
 
   return name->m_explicit_name ?
@@ -2753,7 +2753,13 @@ sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
   for (uint i=0 ; i < src->records ; i++)
   {
     Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
-    (void)sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
+                  is_stmt_prepare_or_first_stmt_execute() ||
+                thd->active_stmt_arena_to_use()->
+                  is_conventional() ||
+                thd->active_stmt_arena_to_use()->state ==
+                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
+    (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
                               belong_to_view);
   }
@@ -2779,7 +2785,7 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   TABLE_LIST *belong_to_view)
 {
   for (Sroutine_hash_entry *rt= src->first; rt; rt= rt->next)
-    (void)sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+    (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
                               belong_to_view);
 }

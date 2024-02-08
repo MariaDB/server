@@ -138,6 +138,12 @@ PrivateTmp=false
 TimeoutStartSec=900
 TimeoutStopSec=900
 
+# Set the maximium number of tasks (threads) to 99% of what the system can
+# handle as set by the kernel, reserve the 1% for a remote ssh connection,
+# some monitoring, or that backup cron job. Without the directive this would
+# be 15% (see DefaultTasksMax in systemd man pages).
+TasksMax=99%
+
 ##
 ## Options previously available to be set via [mysqld_safe]
 ## that now needs to be set by systemd config files as mysqld_safe

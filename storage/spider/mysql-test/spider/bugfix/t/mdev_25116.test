@@ -27,7 +27,9 @@ eval CREATE TABLE tbl_a (
 set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
 set spider_direct_aggregate=1;
 SHOW STATUS LIKE 'Spider_direct_aggregate';
+--disable_ps_protocol
 SELECT IF(COUNT(id > 0),'Y','N') FROM tbl_a;
+--enable_ps_protocol
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 set spider_direct_aggregate=@old_spider_direct_aggregate;
 --enable_ps2_protocol

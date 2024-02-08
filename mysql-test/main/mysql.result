@@ -634,9 +634,32 @@ drop table t1;
 # MDEV-15538 '-N' Produce html output wrong
 #
 <TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
-WARNING: option '--enable-cleartext-plugin' is obsolete.
+WARNING: option --enable-cleartext-plugin is obsolete.
 1
 1
 #
 # MDEV-30327 Client crashes in print_last_query_cost
 #
+#
+# show whether server cert was verified
+#
+create user ser@localhost identified by "ass";
+MYSQL --disable-ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is UNKNOWN
+
+
+MYSQL --ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is OK
+
+
+drop user ser@localhost;
+#
+# MDEV-32473 --disable-ssl doesn't disable it
+#
+MYSQL --ssl-verify-server-cert --disable-ssl -e "\s"
+
+SSL:			Not in use
+
+

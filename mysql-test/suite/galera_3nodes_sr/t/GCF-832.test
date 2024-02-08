@@ -26,7 +26,7 @@ SET SESSION wsrep_trx_fragment_size=1;
 START TRANSACTION;
 
 INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
---error 2013
+--error 2013,2026
 COMMIT;
 
 --source include/start_mysqld.inc

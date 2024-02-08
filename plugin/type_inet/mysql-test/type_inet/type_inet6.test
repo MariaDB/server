@@ -1676,6 +1676,32 @@ SELECT * FROM t1 WHERE a IN ('','::1');
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-32879 Server crash in my_decimal::operator= or unexpected ER_DUP_ENTRY upon comparison with INET6 and similar types
+--echo #
+
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, GROUP_CONCAT(c) FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, COUNT(c) FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f FROM t1 ORDER BY f;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT 1.00 + (b = a) AS f FROM t1 ORDER BY f;
+SELECT 1.00 + (b BETWEEN a AND '') AS f FROM t1 ORDER BY f;
+SELECT 1.00 + (b IN (a,'')) AS f FROM t1 ORDER BY f;
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 --echo #
 

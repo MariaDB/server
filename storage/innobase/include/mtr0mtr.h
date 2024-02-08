@@ -89,20 +89,15 @@ struct mtr_t {
   { auto s= m_memo.size(); rollback_to_savepoint(s - 1, s); }
 
   /** Commit a mini-transaction that is shrinking a tablespace.
-  @param space   tablespace that is being shrunk */
-  ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
+  @param space   tablespace that is being shrunk
+  @param size    new size in pages */
+  ATTRIBUTE_COLD void commit_shrink(fil_space_t &space, uint32_t size);
 
   /** Commit a mini-transaction that is deleting or renaming a file.
   @param space           tablespace that is being renamed or deleted
   @param name            new file name (nullptr=the file will be deleted)
-  @param detached_handle if detached_handle != nullptr and if space is detached
-                         during the function execution the file handle if its
-                         node will be set to OS_FILE_CLOSED, and the previous
-                         value of the file handle will be assigned to the
-                         address, pointed by detached_handle.
   @return whether the operation succeeded */
-  ATTRIBUTE_COLD bool commit_file(fil_space_t &space, const char *name,
-      pfs_os_file_t *detached_handle= nullptr);
+  ATTRIBUTE_COLD bool commit_file(fil_space_t &space, const char *name);
 
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
@@ -111,7 +106,7 @@ struct mtr_t {
   This is to be used at log_checkpoint().
   @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
   @return current LSN */
-  lsn_t commit_files(lsn_t checkpoint_lsn= 0);
+  ATTRIBUTE_COLD lsn_t commit_files(lsn_t checkpoint_lsn= 0);
 
   /** @return mini-transaction savepoint (current size of m_memo) */
   ulint get_savepoint() const

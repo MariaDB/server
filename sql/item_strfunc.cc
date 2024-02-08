@@ -2580,13 +2580,31 @@ bool Item_func_trim::fix_length_and_dec(THD *thd)
 
 void Item_func_trim::print(String *str, enum_query_type query_type)
 {
+  LEX_CSTRING suffix= {STRING_WITH_LEN("_oracle")};
   if (arg_count == 1)
   {
-    Item_func::print(str, query_type);
+    if (query_type & QT_FOR_FRM)
+    {
+      // 10.3 downgrade compatibility for FRM
+      str->append(func_name_cstring());
+      if (schema() == &oracle_schema_ref)
+        str->append(suffix);
+    }
+    else
+      print_sql_mode_qualified_name(str, query_type, func_name_cstring());
+    print_args_parenthesized(str, query_type);
     return;
   }
-  str->append(Item_func_trim::func_name_cstring());
-  str->append(func_name_ext());
+
+  if (query_type & QT_FOR_FRM)
+  {
+    // 10.3 downgrade compatibility for FRM
+    str->append(Item_func_trim::func_name_cstring());
+    if (schema() == &oracle_schema_ref)
+      str->append(suffix);
+  }
+  else
+    print_sql_mode_qualified_name(str, query_type, Item_func_trim::func_name_cstring());
   str->append('(');
   str->append(mode_name());
   str->append(' ');
@@ -3626,11 +3644,11 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   String name_str, *name;
   longlong pos;
 
-  if (args[0]->null_value || args[1]->null_value)
-    goto err;
-
   name= args[0]->val_str(&name_str);
   pos= args[1]->val_int();
+
+  if (args[0]->null_value || args[1]->null_value)
+    goto err;
 
   if (pos < 0 || pos > UINT_MAX32)
     goto err;
@@ -3918,8 +3936,8 @@ String *Item_func_conv::val_str(String *str)
   // Note that abs(INT_MIN) is undefined.
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
       from_base == INT_MIN || to_base == INT_MIN ||
-      abs(to_base) > 36 || abs(to_base) < 2 ||
-      abs(from_base) > 36 || abs(from_base) < 2 || !(res->length()))
+      abs(to_base) > 62 || abs(to_base) < 2 ||
+      abs(from_base) > 62 || abs(from_base) < 2 || !(res->length()))
   {
     null_value= 1;
     return NULL;

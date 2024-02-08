@@ -55,10 +55,14 @@ DEFAULT current_timestamp() ON UPDATE current_timestamp(),
 PRIMARY KEY(col_a),
 UNIQUE INDEX i_ts (col_ts)
 ) MASTER_1_ENGINE MASTER_1_AUTO_INCREMENT_2_1 MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_f (
 col_d DATE,
 col_t TIME
 ) ENGINE=Spider COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (

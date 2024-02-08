@@ -23,7 +23,9 @@ eval create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "my
 
 insert into td values (11), (42);
 
+--disable_ps_protocol
 select max(a) from ts;
+--enable_ps_protocol
 
 drop table td, ts;
 
@@ -34,7 +36,9 @@ eval create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "my
 
 insert into td values (11), (42);
 
+--disable_ps_protocol
 select max(a) from ts;
+--enable_ps_protocol
 
 select min(a) from ts;
 

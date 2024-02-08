@@ -36,7 +36,7 @@ static Wsrep_thd_queue* wsrep_rollback_queue= 0;
 static Atomic_counter<uint64_t> wsrep_bf_aborts_counter;
 
 
-int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, void *, system_status_var *,
                           enum enum_var_type scope)
 {
   wsrep_local_bf_aborts= wsrep_bf_aborts_counter;
@@ -487,6 +487,7 @@ void wsrep_backup_kill_for_commit(THD *thd)
       thd->wsrep_trx().state() != wsrep::transaction::s_must_replay)
   {
     thd->wsrep_abort_by_kill= thd->killed;
+    my_free(thd->wsrep_abort_by_kill_err);
     thd->wsrep_abort_by_kill_err= thd->killed_err;
     thd->killed= NOT_KILLED;
     thd->killed_err= 0;
@@ -499,6 +500,7 @@ void wsrep_restore_kill_after_commit(THD *thd)
   DBUG_ASSERT(WSREP(thd));
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   thd->killed= thd->wsrep_abort_by_kill;
+  my_free(thd->killed_err);
   thd->killed_err= thd->wsrep_abort_by_kill_err;
   thd->wsrep_abort_by_kill= NOT_KILLED;
   thd->wsrep_abort_by_kill_err= 0;

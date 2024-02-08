@@ -51,6 +51,7 @@ ENDIF()
 SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc 
            libmysql.c ../sql-common/errmsg.c
            ../sql-common/client.c
+           ../sql/cset_narrowing.cc
            ../sql-common/my_user.c ../sql-common/pack.c
            ../sql-common/client_plugin.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
@@ -125,7 +126,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h
            ../sql/my_json_writer.cc ../sql/my_json_writer.h
-	   ../sql/rpl_gtid.cc
+	   ../sql/rpl_gtid.cc ../sql/gtid_index.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc

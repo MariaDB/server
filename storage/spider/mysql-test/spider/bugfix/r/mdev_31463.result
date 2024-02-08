@@ -15,6 +15,8 @@ connection master_1;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 CREATE TABLE t2 (a INT) ENGINE=Spider COMMENT='table "t1", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connect  master_1_another, localhost, root, , auto_test_local, $MASTER_1_MYPORT, $MASTER_1_MYSOCK;
 SET DEBUG_SYNC='spider_set_lock_wait_timeout_before_query SIGNAL ready WAIT_FOR go';
 insert into t2 values (42);

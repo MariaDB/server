@@ -794,6 +794,14 @@ void buf_page_make_young(buf_page_t *bpage)
   mysql_mutex_unlock(&buf_pool.mutex);
 }
 
+bool buf_page_make_young_if_needed(buf_page_t *bpage)
+{
+  const bool not_first{bpage->set_accessed()};
+  if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage)))
+    buf_page_make_young(bpage);
+  return not_first;
+}
+
 /** Try to free a block. If bpage is a descriptor of a compressed-only
 ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
 The caller must hold buf_pool.mutex.
@@ -815,7 +823,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 
 	/* We must hold an exclusive hash_lock to prevent
 	bpage->can_relocate() from changing due to a concurrent
-	execution of buf_page_get_low(). */
+	execution of buf_page_get_gen(). */
 	buf_pool_t::hash_chain& chain= buf_pool.page_hash.cell_get(id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 	/* We cannot use transactional_lock_guard here,

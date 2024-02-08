@@ -16,6 +16,9 @@ use auto_test_remote;
 create table ta_r (id int primary key);
 connection master_1;
 create table spd (id int primary key) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into spd values (1),(2),(1);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 get diagnostics condition 1 @n = row_number;

@@ -470,3 +470,11 @@ SELECT REGEXP_INSTR('a_kollision', 'o([lm])\\1');
 #
 SELECT a FROM (SELECT "aa" a) t WHERE a REGEXP '[0-9]';
 --enable_service_connection
+
+--echo #
+--echo # MDEV-11777 REGEXP_REPLACE converts utf8mb4 supplementary characters to '?'
+--echo #
+select hex(regexp_replace(cast(x'F09F9881' as char character set 'utf8mb4'), _utf8mb4'a', _utf8mb4'b')) as Text;
+--echo #
+--echo # End of 10.6 tests
+--echo #
