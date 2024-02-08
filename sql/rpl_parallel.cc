@@ -895,8 +895,7 @@ do_retry:
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate that we get deadlock killed at this exact point. */
-      rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-      thd->set_killed(KILL_CONNECTION);
+      slave_background_kill_request(thd);
   });
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
@@ -2877,23 +2876,12 @@ rpl_parallel::stop_during_until()
 
 
 bool
-rpl_parallel::workers_idle()
+rpl_parallel::workers_idle(Relay_log_info *rli)
 {
-  struct rpl_parallel_entry *e;
-  uint32 i, max_i;
-
-  max_i= domain_hash.records;
-  for (i= 0; i < max_i; ++i)
-  {
-    bool active;
-    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
-    mysql_mutex_lock(&e->LOCK_parallel_entry);
-    active= e->current_sub_id > e->last_committed_sub_id;
-    mysql_mutex_unlock(&e->LOCK_parallel_entry);
-    if (active)
-      break;
-  }
-  return (i == max_i);
+  mysql_mutex_assert_owner(&rli->data_lock);
+  return !rli->last_inuse_relaylog ||
+    rli->last_inuse_relaylog->queued_count ==
+    rli->last_inuse_relaylog->dequeued_count;
 }
 
 

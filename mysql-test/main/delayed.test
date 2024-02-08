@@ -21,9 +21,6 @@ select @@global.default_storage_engine in
 ("memory","myisam","archive","blackhole") as `TRUE`;
 enable_query_log;
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (a char(10), tmsp timestamp);
 insert into t1 set a = 1;
 insert delayed into t1 set a = 2;
@@ -276,9 +273,6 @@ DROP TABLE t1;
 #
 # Bug#27358 INSERT DELAYED does not honour SQL_MODE of the client
 #
---disable_warnings
-DROP TABLE IF EXISTS t1,t2;
---enable_warnings
 SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';
 CREATE TABLE `t1` (
   `id` int(11) PRIMARY KEY auto_increment,
@@ -315,9 +309,6 @@ set @old_delayed_updates = @@global.low_priority_updates;
 set global low_priority_updates = 1;
 select @@global.low_priority_updates;
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (a int, b int);
 insert into t1 values (1,1);
 lock table t1 read;
@@ -351,10 +342,6 @@ set global low_priority_updates = @old_delayed_updates;
 --echo # Bug #47682 strange behaviour of INSERT DELAYED
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
 CREATE TABLE t1 (f1 integer);
 CREATE TABLE t2 (f1 integer);
 
@@ -378,11 +365,6 @@ DROP TABLE t1, t2;
 --echo # Bug #47274 assert in open_table on CREATE TABLE <already existing>
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
---enable_warnings
-
 CREATE TABLE t1 ( f1 INTEGER AUTO_INCREMENT, PRIMARY KEY (f1));
 
 --echo # The following CREATE TABLEs before gave an assert.
@@ -404,9 +386,7 @@ INSERT DELAYED t1 VALUES (7);
 --error ER_TABLE_EXISTS_ERROR
 CREATE TABLE t1 LIKE t2;
 
-DROP TABLE t2;
-DROP TABLE t1;
-
+DROP TABLE t2, t1;
 
 # The following test is disabled as it fails randomly
 if (0)
@@ -419,10 +399,6 @@ if (0)
 --echo # INSERT DELAYED doesn't work under LOCK TABLES with this protocol.
 --disable_ps_protocol
 --disable_view_protocol
-
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
 
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
@@ -577,9 +553,6 @@ DROP TABLE t1, t2, t3;
 --disable_view_protocol
 connect (con1,localhost,root,,);
 connection default;
---disable_warnings
-drop table if exists t1, t2, tm;
---enable_warnings
 create table t1(a int);
 create table t2(a int);
 create table tm(a int) engine=merge union=(t1, t2);

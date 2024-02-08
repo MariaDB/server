@@ -1,0 +1,53 @@
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+#
+# Show the costs for rowid filter
+#
+
+create table t1 (
+  pk int primary key auto_increment,
+  nm varchar(32),
+  fl1 tinyint default 0,
+  fl2 tinyint default 0,
+  index idx1(nm, fl1),
+  index idx2(fl2)
+) engine=myisam;
+
+create table name (
+  pk int primary key auto_increment,
+  nm bigint
+) engine=myisam;
+
+create table flag2 (
+  pk int primary key auto_increment,
+  fl2 tinyint
+) engine=myisam;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+--disable_ps_protocol
+set optimizer_trace="enabled=on";
+set optimizer_switch='rowid_filter=on';
+set statement optimizer_adjust_secondary_key_costs=0 for
+explain select * from t1  where nm like '500%' AND fl2 = 0;
+set @trace=(select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@trace, '$**.considered_access_paths'));
+
+--echo
+--echo The following trace should have a different rowid_filter_key cost
+--echo
+set statement optimizer_adjust_secondary_key_costs=2 for
+explain select * from t1  where nm like '500%' AND fl2 = 0;
+set @trace=(select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@trace, '$**.considered_access_paths'));
+
+--enable_ps_protocol
+
+drop table t1, name, flag2;

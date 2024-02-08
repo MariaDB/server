@@ -2122,7 +2122,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     {
       ulong pos;
       ushort flags;
-      uint32 slave_server_id;
 
       status_var_increment(thd->status_var.com_other);
 
@@ -2133,10 +2132,26 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       /* TODO: The following has to be changed to an 8 byte integer */
       pos = uint4korr(packet);
       flags = uint2korr(packet + 4);
-      thd->variables.server_id=0; /* avoid suicide */
-      if ((slave_server_id= uint4korr(packet+6))) // mysqlbinlog.server_id==0
-	kill_zombie_dump_threads(slave_server_id);
-      thd->variables.server_id = slave_server_id;
+      if ((thd->variables.server_id= uint4korr(packet+6)))
+      {
+        bool got_error;
+
+        got_error= kill_zombie_dump_threads(thd,
+                                            thd->variables.server_id);
+        if (got_error || thd->killed)
+        {
+          if (!thd->killed)
+            my_printf_error(ER_MASTER_FATAL_ERROR_READING_BINLOG,
+                            "Could not start dump thread for slave: %u as "
+                            "it has already a running dump thread",
+                            MYF(0), (uint) thd->variables.server_id);
+          else if (! thd->get_stmt_da()->is_set())
+            thd->send_kill_message();
+          error= TRUE;
+          thd->unregister_slave(); // todo: can be extraneous
+          break;
+        }
+      }
 
       const char *name= packet + 10;
       size_t nlen= strlen(name);
@@ -2144,6 +2159,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
       if (nlen < FN_REFLEN)
         mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
+      if (thd->killed && ! thd->get_stmt_da()->is_set())
+        thd->send_kill_message();
       thd->unregister_slave(); // todo: can be extraneous
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;
@@ -2433,7 +2450,7 @@ resume:
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   thd->set_examined_row_count(0);                   // For processlist
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
 
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
@@ -2447,6 +2464,8 @@ resume:
   */
   thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  DBUG_EXECUTE_IF("print_allocated_thread_memory",
+                  SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id()););
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -4924,9 +4943,55 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       my_ok(thd);
     break;
   case SQLCOM_BACKUP_LOCK:
-    if (check_global_access(thd, RELOAD_ACL))
-      goto error;
-    /* first table is set for lock. For unlock the list is empty */
+    if (check_global_access(thd, RELOAD_ACL, true))
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        In case there is no global privilege, check DB privilege for LOCK TABLES.
+      */
+      if (first_table) // BACKUP LOCK
+      {
+        if (check_single_table_access(thd, LOCK_TABLES_ACL, first_table, true))
+        {
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+      else // BACKUP UNLOCK
+      {
+        /*
+          We test mdl_backup_lock here because, if a user could obtain a lock
+          it would be silly to error and say `you can't BACKUP UNLOCK`
+          (because its obvious you did a `BACKUP LOCK`).
+          As `BACKUP UNLOCK` doesn't have a database reference,
+          there's no way we can check if the `BACKUP LOCK` privilege is missing.
+          Testing `thd->db` would involve faking a `TABLE_LIST` structure,
+          which because of the depth of inspection
+          in `check_single_table_access` makes the faking likely to cause crashes,
+          or unintended effects. The outcome of this is,
+          if a user does an `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
+          there may be a` ER_SPECIFIC_ACCESS_DENIED` error even though
+          user has the privilege.
+          Its a bit different to what happens if the user has RELOAD_ACL,
+          where the error is silently ignored.
+        */
+        if (!thd->mdl_backup_lock)
+        {
+
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+#endif
+    }
+    /*
+      There is reload privilege, first table is set for lock.
+      For unlock the list is empty
+    */
     if (first_table)
       res= backup_lock(thd, first_table);
     else
@@ -5879,7 +5944,7 @@ finish:
       thd->release_transactional_locks();
     }
   }
-  else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
+  else if (! thd->in_sub_stmt && ! thd->in_active_multi_stmt_transaction())
   {
     /*
       - If inside a multi-statement transaction,
@@ -6798,6 +6863,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      FALSE, FALSE))
           return TRUE; /* Access denied */
 
+    thd->col_access= dst_table->grant.privilege; // for sql_show.cc
     /*
       Check_grant will grant access if there is any column privileges on
       all of the tables thanks to the fourth parameter (bool show_table).
@@ -7682,6 +7748,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     thd->wsrep_retry_query      = NULL;
     thd->wsrep_retry_query_len  = 0;
     thd->wsrep_retry_command    = COM_CONNECT;
+    thd->proc_info= 0;
   }
   return false;
 }
@@ -9034,11 +9101,13 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
 struct kill_threads_callback_arg
 {
-  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg):
-    thd(thd_arg), user(user_arg) {}
+  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg,
+                            killed_state kill_signal_arg):
+    thd(thd_arg), user(user_arg), kill_signal(kill_signal_arg), counter(0) {}
   THD *thd;
   LEX_USER *user;
-  List<THD> threads_to_kill;
+  killed_state kill_signal;
+  uint counter;
 };
 
 
@@ -9061,11 +9130,12 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
       {
         return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
       }
-      if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
-      {
-        mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
-        mysql_mutex_lock(&thd->LOCK_thd_data);
-      }
+      arg->counter++;
+      mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      thd->awake_no_mutex(arg->kill_signal);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
     }
   }
   return 0;
@@ -9075,42 +9145,17 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
 static uint kill_threads_for_user(THD *thd, LEX_USER *user,
                                   killed_state kill_signal, ha_rows *rows)
 {
-  kill_threads_callback_arg arg(thd, user);
+  kill_threads_callback_arg arg(thd, user, kill_signal);
   DBUG_ENTER("kill_threads_for_user");
-
-  *rows= 0;
-
-  if (unlikely(thd->is_fatal_error))        // If we run out of memory
-    DBUG_RETURN(ER_OUT_OF_RESOURCES);
-
   DBUG_PRINT("enter", ("user: %s  signal: %u", user->user.str,
                        (uint) kill_signal));
+
+  *rows= 0;
 
   if (server_threads.iterate(kill_threads_callback, &arg))
     DBUG_RETURN(ER_KILL_DENIED_ERROR);
 
-  if (!arg.threads_to_kill.is_empty())
-  {
-    List_iterator_fast<THD> it2(arg.threads_to_kill);
-    THD *next_ptr;
-    THD *ptr= it2++;
-    do
-    {
-      ptr->awake_no_mutex(kill_signal);
-      /*
-        Careful here: The list nodes are allocated on the memroots of the
-        THDs to be awakened.
-        But those THDs may be terminated and deleted as soon as we release
-        LOCK_thd_kill, which will make the list nodes invalid.
-        Since the operation "it++" dereferences the "next" pointer of the
-        previous list node, we need to do this while holding LOCK_thd_kill.
-      */
-      next_ptr= it2++;
-      mysql_mutex_unlock(&ptr->LOCK_thd_kill);
-      mysql_mutex_unlock(&ptr->LOCK_thd_data);
-      (*rows)++;
-    } while ((ptr= next_ptr));
-  }
+  *rows= arg.counter;
   DBUG_RETURN(0);
 }
 

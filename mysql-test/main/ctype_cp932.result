@@ -888,7 +888,7 @@ ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '.a=1 SELECT 1');
 ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('SET STATEMENT a.',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid cp932 character string: '\x81\xAD'
+ERROR HY000: Invalid cp932 character string: '\x81'
 #
 # SET SESSION (bad|good.bad|bad.good)=1
 #
@@ -897,7 +897,7 @@ ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '.a=1 SELECT 1');
 ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('SET SESSION a.',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid cp932 character string: '\x81\xAD'
+ERROR HY000: Invalid cp932 character string: '\x81'
 #
 # SET (bad|good.bad|bad.good)=1
 #
@@ -906,7 +906,7 @@ ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('SET ', @seq, '.a=1');
 ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('SET a.', @seq, '=1');
-ERROR HY000: Invalid cp932 character string: '\x81\xAD'
+ERROR HY000: Invalid cp932 character string: '\x81'
 #
 # Oracle SP call: BEGIN (bad|good.bad|bad.good)(params); END
 #
@@ -916,7 +916,7 @@ ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '.a(1); END;');
 ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('BEGIN a.',@seq, '(1); END;');
-ERROR HY000: Invalid cp932 character string: '\x81\xAD'
+ERROR HY000: Invalid cp932 character string: '\x81'
 #
 # Oracle assignment: (bad|good.bad|bad.good):= value
 #
@@ -925,7 +925,7 @@ ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT(@seq, '.a:=1');
 ERROR HY000: Invalid cp932 character string: '\x81\xAD'
 EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
-ERROR HY000: Invalid cp932 character string: '\x81\xAD'
+ERROR HY000: Invalid cp932 character string: '\x81'
 SET sql_mode=DEFAULT;
 #
 # End of 10.5 tests

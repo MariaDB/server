@@ -1,0 +1,23 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t ENGINE=InnoDB WITH SYSTEM VERSIONING AS SELECT 1 AS i;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `i` int(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+SELECT * from t;
+i
+1
+DROP TABLE IF EXISTS t;
+COMMIT;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+Killing server ...
+Starting server ...
+connection node_2;
+call mtr.add_suppression("WSREP: Event .*Write_rows_v1 apply failed:.*");
+call mtr.add_suppression("SREP: Failed to apply write set: gtid:.*");

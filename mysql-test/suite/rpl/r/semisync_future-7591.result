@@ -13,7 +13,7 @@ connection master;
 insert into t1 values (1);
 reset master;
 connection slave;
-include/stop_slave.inc
+include/stop_slave_sql.inc
 include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'

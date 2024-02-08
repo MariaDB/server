@@ -33,6 +33,26 @@ SET SESSION wsrep_sync_wait=0;
 call p1(1000);
 connection node_1;
 checking error log for 'BF lock wait long' message for 10 times every 10 seconds ...
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
+include/assert_grep.inc [BF lock wait long]
 connection node_1_p1;
 connection node_1_p2;
 connection node_2_p1;

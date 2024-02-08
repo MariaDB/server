@@ -2,9 +2,6 @@
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
 
-set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
-set global innodb_purge_rseg_truncate_frequency= 1;
-
 call mtr.add_suppression("need more HISTORY partitions");
 
 create table t (a int);
@@ -198,7 +195,7 @@ drop table t1;
 --echo # MDEV-25004 Missing row in FTS_DOC_ID_INDEX during DELETE HISTORY
 --echo #
 create table t1 (a integer, c0 varchar(255), fulltext key (c0))
-with system versioning engine innodb;
+with system versioning engine innodb stats_persistent=0;
 set system_versioning_alter_history= keep;
 alter table t1 drop system versioning;
 alter table t1 add system versioning;
@@ -209,13 +206,11 @@ delete history from t1;
 drop table t1;
 
 create table t1 (id int primary key, ftx varchar(255))
-with system versioning engine innodb;
+with system versioning engine innodb stats_persistent=0;
 insert into t1 values (1, 'c');
 delete from t1;
 alter table t1 add fulltext key(ftx);
 drop table t1;
-
-set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
 
 --echo #
 --echo # MDEV-28201 Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON

@@ -511,7 +511,7 @@ done
 
 if test -n "$user"
 then
-  if test -z "$srcdir" -a "$in_rpm" -eq 0
+  if test -z "$srcdir" -a "$in_rpm" -eq 0 -a -d "$pamtooldir/auth_pam_tool_dir"
   then
     chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool" && \
     chmod 04755 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
@@ -701,7 +701,7 @@ then
   then
     echo
     echo "You can start the MariaDB daemon with:"
-    echo "cd '$basedir' ; $bindir/mariadb-safe --datadir='$ldata'"
+    echo "cd '$basedir' ; $bindir/mariadbd-safe --datadir='$ldata'"
     echo
     echo "You can test the MariaDB daemon with mariadb-test-run.pl"
     echo "cd '$basedir/@INSTALL_MYSQLTESTDIR@' ; perl mariadb-test-run.pl"

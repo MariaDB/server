@@ -71,13 +71,17 @@ push @::global_suppressions,
 sub which($) { return `sh -c "command -v $_[0]"` }
 
 sub skip_combinations {
-  my %skip = ();
+  my @combinations;
+
   $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
             unless which("lsof") || which("sockstat") || which("ss");
   $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
             unless which("stunnel");
   $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
             unless which("qpress");
+  $skip{'../encryption/include/have_file_key_management_plugin.combinations'} = [ 'ctr' ]
+    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
+       and $1 ge "1.0.1";
   %skip;
 }
 

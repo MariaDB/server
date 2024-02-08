@@ -1385,7 +1385,7 @@ EXPLAIN DELETE   FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
 Warnings:
-Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` <= "18" of type `int`
 FLUSH STATUS;
 FLUSH TABLES;
@@ -1393,7 +1393,7 @@ EXPLAIN EXTENDED DELETE   FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 Warnings:
-Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` <= "18" of type `int`
 Note	1003	delete  from `test`.`t1` using dual where `test`.`t1`.`i` > 10 and `test`.`t1`.`i` <= 18 order by `test`.`t1`.`i` limit 5
 # Status of EXPLAIN EXTENDED query
@@ -1405,9 +1405,72 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	i	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 Warnings:
-Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` <= "18" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` <= "18" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`i` AS `i` from `test`.`t1` where `test`.`t1`.`i` > 10 and `test`.`t1`.`i` <= 18 order by `test`.`t1`.`i` limit 5
+# Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
+Variable_name	Value
+Handler_read_key	4
+# Status of "equivalent" SELECT query execution:
+Variable_name	Value
+Handler_read_key	4
+Handler_read_rnd_next	27
+Sort_priority_queue_sorts	1
+Sort_rows	5
+Sort_scan	1
+# Status of testing query execution:
+Variable_name	Value
+Handler_delete	5
+Handler_read_key	4
+Handler_read_rnd	5
+Handler_read_rnd_next	27
+Sort_rows	8
+Sort_scan	1
+
+DROP TABLE t1;
+#30a
+#
+# MDEV-32957 Unusable key notes report wrong predicates for > and >=
+#
+CREATE TABLE t1(a INT, i CHAR(2), INDEX(i(1)));
+INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
+(20),(21),(22),(23),(24),(25),(26),(27),(28),(29),
+(30),(31),(32),(33),(34),(35);
+#
+# query:  DELETE   FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5
+# select: SELECT * FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5
+#
+EXPLAIN DELETE   FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "18" of type `int`
+FLUSH STATUS;
+FLUSH TABLES;
+EXPLAIN EXTENDED DELETE   FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "18" of type `int`
+Note	1003	delete  from `test`.`t1` using dual where `test`.`t1`.`i` >= 10 and `test`.`t1`.`i` < 18 order by `test`.`t1`.`i` limit 5
+# Status of EXPLAIN EXTENDED query
+Variable_name	Value
+Handler_read_key	4
+FLUSH STATUS;
+FLUSH TABLES;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE i >= 10 AND i < 18 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	i	NULL	NULL	NULL	26	100.00	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "18" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "18" of type `int`
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`i` AS `i` from `test`.`t1` where `test`.`t1`.`i` >= 10 and `test`.`t1`.`i` < 18 order by `test`.`t1`.`i` limit 5
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
 Variable_name	Value
 Handler_read_key	4
@@ -1892,7 +1955,7 @@ EXPLAIN UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
 Warnings:
-Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` <= "18" of type `int`
 FLUSH STATUS;
 FLUSH TABLES;
@@ -1900,7 +1963,7 @@ EXPLAIN EXTENDED UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 Warnings:
-Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` <= "18" of type `int`
 Note	1003	update `test`.`t2` set `test`.`t2`.`a` = 10 where `test`.`t2`.`i` > 10 and `test`.`t2`.`i` <= 18 order by `test`.`t2`.`i` limit 5
 # Status of EXPLAIN EXTENDED query
@@ -1912,7 +1975,9 @@ EXPLAIN EXTENDED SELECT * FROM t2     WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	i	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 Warnings:
-Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` > "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` <= "18" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` > "10" of type `int`
 Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t2`.`i` of type `char` <= "18" of type `int`
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`i` AS `i` from `test`.`t2` where `test`.`t2`.`i` > 10 and `test`.`t2`.`i` <= 18 order by `test`.`t2`.`i` limit 5
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution

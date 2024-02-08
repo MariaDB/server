@@ -7964,8 +7964,8 @@ hex(weight_string(cast(_latin1 0xDF6368 as char),25, 4,0xC0))
 #
 # Bug#33077 weight of supplementary characters is not 0xfffd
 #
-select hex(weight_string(_utf8mb4 0xF0908080 /* U+10000 */ collate utf8mb4_unicode_ci));
-hex(weight_string(_utf8mb4 0xF0908080 /* U+10000 */ collate utf8mb4_unicode_ci))
+select hex(weight_string(_utf8mb4 0xF0908080 /* U+10000 */ collate utf8mb4_unicode_ci)) as exp;
+exp
 FFFD
 #
 # Bug#53064 garbled data when using utf8_german2_ci collation

@@ -257,3 +257,13 @@ Warning	1264	Out of range value for column 'a' at row 2
 DROP TABLE t1;
 SET @@time_zone=DEFAULT;
 SET TIMESTAMP=DEFAULT;
+#
+# MDEV-31608 - Connector/NET fails to connect since 10.10
+#
+select count(*) > 0 from information_schema.collations where id IS NULL;
+count(*) > 0
+1
+SET old_mode=no_null_collation_ids;
+select count(*) > 0 from information_schema.collations where id IS NULL;
+count(*) > 0
+0

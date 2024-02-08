@@ -212,10 +212,11 @@ ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index)
 @param[in]	mode	latch mode
 @param[in,out]	mtr	mini-transaction
 @param[out]	err	error code
+@param[out]	first	set if this is a first-time access to the page
 @return block */
 buf_block_t *btr_block_get(const dict_index_t &index,
                            uint32_t page, rw_lock_type_t mode,
-                           mtr_t *mtr, dberr_t *err)
+                           mtr_t *mtr, dberr_t *err, bool *first)
 {
   ut_ad(mode != RW_NO_LATCH);
   dberr_t local_err;
@@ -238,6 +239,8 @@ buf_block_t *btr_block_get(const dict_index_t &index,
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
     }
+    else if (!buf_page_make_young_if_needed(&block->page) && first)
+      *first= true;
   }
   else if (*err == DB_DECRYPTION_FAILED)
     btr_decryption_failed(index);
@@ -297,6 +300,8 @@ btr_root_block_get(
       *err= DB_CORRUPTION;
       block= nullptr;
     }
+    else
+      buf_page_make_young_if_needed(&block->page);
   }
   else if (*err == DB_DECRYPTION_FAILED)
     btr_decryption_failed(*index);
@@ -787,7 +792,8 @@ static rec_offs *btr_page_get_parent(rec_offs *offsets, mem_heap_t *heap,
 /************************************************************//**
 Returns the upper level node pointer to a page. It is assumed that mtr holds
 an x-latch on the tree.
-@return rec_get_offsets() of the node pointer record */
+@return rec_get_offsets() of the node pointer record
+@retval nullptr on corruption */
 static
 rec_offs*
 btr_page_get_father_block(
@@ -1112,9 +1118,9 @@ void btr_drop_temporary_table(const dict_table_t &table)
   for (const dict_index_t *index= table.indexes.start; index;
        index= dict_table_get_next_index(index))
   {
-    if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page}, 0,
-                                             RW_X_LATCH, nullptr, BUF_GET, &mtr,
-                                             nullptr))
+    if (buf_block_t *block= buf_page_get_gen({SRV_TMP_SPACE_ID, index->page},
+                                             0, RW_X_LATCH, nullptr, BUF_GET,
+                                             &mtr, nullptr))
     {
       btr_free_but_not_root(block, MTR_LOG_NO_REDO);
       mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -1220,6 +1226,7 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
   if (buf_block_t *root= buf_page_get(page_id_t(space->id, index->page),
 				      space->zip_size(), RW_SX_LATCH, &mtr))
   {
+    buf_page_make_young_if_needed(&root->page);
     mtr.set_named_space(space);
     page_set_autoinc(root, autoinc, &mtr, reset);
   }
@@ -2373,6 +2380,11 @@ btr_attach_half_pages(
 		offsets = btr_page_get_father_block(nullptr, heap, mtr,
 						    &cursor);
 
+		if (UNIV_UNLIKELY(!offsets)) {
+			mem_heap_free(heap);
+			return DB_CORRUPTION;
+		}
+
 		/* Replace the address of the old child node (= page) with the
 		address of the new lower half */
 
@@ -3240,6 +3252,14 @@ btr_lift_page_up(
 			offsets = btr_page_get_father_block(offsets, heap,
 							    mtr, &cursor);
 		}
+
+		if (UNIV_UNLIKELY(!offsets)) {
+parent_corrupted:
+			mem_heap_free(heap);
+			*err = DB_CORRUPTION;
+			return nullptr;
+		}
+
 		father_block = btr_cur_get_block(&cursor);
 		father_page_zip = buf_block_get_page_zip(father_block);
 
@@ -3263,6 +3283,10 @@ btr_lift_page_up(
 								    heap,
 								    mtr,
 								    &cursor);
+			}
+
+			if (UNIV_UNLIKELY(!offsets)) {
+				goto parent_corrupted;
 			}
 
 			blocks[n_blocks++] = b = btr_cur_get_block(&cursor);
@@ -3475,6 +3499,10 @@ btr_compress(
 get_offsets:
 		offsets = btr_page_get_father_block(
 			NULL, heap, mtr, &father_cursor);
+	}
+
+	if (UNIV_UNLIKELY(!offsets)) {
+		goto corrupted;
 	}
 
 	if (adjust) {

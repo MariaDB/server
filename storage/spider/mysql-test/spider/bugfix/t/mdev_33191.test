@@ -1,0 +1,11 @@
+INSTALL SONAME 'ha_spider';
+set spider_same_server_link=on;
+CREATE TABLE t2(c INT);
+--let $SOCKET=`SELECT @@global.socket`
+evalp CREATE TABLE t1(c INT) ENGINE=Spider COMMENT='socket "$SOCKET", user "root", table "t2 t3"';
+ALTER TABLE t1 ENGINE=Spider;
+--error ER_NO_SUCH_TABLE
+TRUNCATE TABLE t1;
+drop table t1, t2;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

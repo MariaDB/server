@@ -1,7 +1,6 @@
 SET GLOBAL innodb_fast_shutdown=0;
 # restart: --innodb_undo_tablespaces=2
 SET GLOBAL innodb_undo_log_truncate = 0;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
@@ -35,7 +34,6 @@ connection con2;
 commit;
 disconnect con2;
 connection default;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
 # restart

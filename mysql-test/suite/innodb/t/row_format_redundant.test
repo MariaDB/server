@@ -72,7 +72,7 @@ TRUNCATE TABLE t2;
 --error ER_OPEN_AS_READONLY
 TRUNCATE TABLE t3;
 
---let $restart_parameters= $d
+--let $restart_parameters= $d --skip-innodb-fast-shutdown
 --source include/restart_mysqld.inc
 
 TRUNCATE TABLE t1;

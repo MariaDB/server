@@ -1,0 +1,11 @@
+#
+# MDEV-33031 Assertion failure upon reading from performance schema with binlog enabled
+#
+connect foo,localhost,root;
+select variable_name, variable_value from performance_schema.status_by_thread
+where variable_name like '%spider_direct_aggregate%';
+variable_name	variable_value
+Spider_direct_aggregate	0
+Spider_direct_aggregate	0
+disconnect foo;
+connection default;

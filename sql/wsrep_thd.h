@@ -82,7 +82,7 @@ private:
   mysql_cond_t     COND_wsrep_thd_queue;
 };
 
-int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, void *, system_status_var *,
                           enum enum_var_type scope);
 bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();

@@ -1,5 +1,3 @@
-#remove this include after fix MDEV-27871
---source include/no_view_protocol.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;
@@ -248,16 +246,16 @@ drop table t1;
 #
 # Bug#41627 Illegal mix of collations in LEAST / GREATEST / CASE
 #
-select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci);
+select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as f1;
 create table t1
 select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as f1;
 show create table t1;
 drop table t1;
 
 select case _latin1'a' when _latin2'b' then 1 when _latin5'c' collate
-latin5_turkish_ci then 2 else 3 end;
+latin5_turkish_ci then 2 else 3 end as exp;
 
-select concat(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci);
+select concat(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as exp;
 
 
 --echo #

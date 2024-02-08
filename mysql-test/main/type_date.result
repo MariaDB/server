@@ -70,15 +70,15 @@ CREATE TABLE t1(AFIELD INT);
 INSERT INTO t1 VALUES(1);
 CREATE TABLE t2(GMT  VARCHAR(32));
 INSERT INTO t2 VALUES('GMT-0800');
-SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as exp
 FROM t1, t2 GROUP BY t1.AFIELD;
-DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+exp
 Wed, 06 March 2002 10:11:12 GMT-0800
 INSERT INTO t1 VALUES(1);
-SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)),
-DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as e1,
+DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)) as e2
 FROM t1,t2 GROUP BY t1.AFIELD;
-DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))	DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+e1	e2
 Wed, 06 March 2002 10:11:12 GMT-0800	Wed, 06 March 2002 10:11:12 GMT-0800
 drop table t1,t2;
 CREATE TABLE t1 (f1 time default NULL, f2 time default NULL);
@@ -306,8 +306,8 @@ drop table t1;
 #
 # MDEV-4634 Crash in CONVERT_TZ
 #
-SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5');
-CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5')
+SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5') as exp;
+exp
 NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '2022-00-00'

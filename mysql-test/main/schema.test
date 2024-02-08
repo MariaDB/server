@@ -8,10 +8,6 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
---disable_warnings
-drop database if exists mysqltest1;
---enable_warnings
-
 create schema foo;
 show create schema foo;
 show schemas;
@@ -22,10 +18,6 @@ drop schema foo;
 --echo # Bug #48940 MDL deadlocks against mysql_rm_db
 --echo #
 
---disable_warnings
-DROP SCHEMA IF EXISTS schema1;
---enable_warnings
-
 connect(con2, localhost, root);
 
 connection default;
@@ -33,7 +25,7 @@ connection default;
 CREATE SCHEMA schema1;
 CREATE TABLE schema1.t1 (a INT);
 
-SET autocommit= FALSE;
+START TRANSACTION;
 INSERT INTO schema1.t1 VALUES (1);
 
 connection con2;
@@ -48,7 +40,7 @@ let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
 # Listing the error twice to prevent result diffences based on filename.
 --error 1,1
 ALTER SCHEMA schema1 DEFAULT CHARACTER SET utf8;
-SET autocommit= TRUE;
+COMMIT;
 
 connection con2;
 --reap
@@ -60,10 +52,6 @@ disconnect con2;
 --echo #
 --echo # Bug #49988 MDL deadlocks with mysql_create_db, reload_acl_and_cache
 --echo #
-
---disable_warnings
-DROP SCHEMA IF EXISTS schema1;
---enable_warnings
 
 connect (con2, localhost, root);
 
@@ -133,11 +121,6 @@ disconnect con2;
 --echo # Tests for increased CREATE/ALTER/DROP DATABASE concurrency with
 --echo # database name locks.
 --echo # 
-
---disable_warnings
-DROP DATABASE IF EXISTS db1;
-DROP DATABASE IF EXISTS db2;
---enable_warnings
 
 connect (con2, localhost, root);
 connect (con3, localhost, root);

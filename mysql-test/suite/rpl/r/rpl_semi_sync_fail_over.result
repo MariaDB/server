@@ -5,6 +5,7 @@ include/stop_slave.inc
 connection server_1;
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
+set @@global.rpl_semi_sync_master_enabled = 1;
 connection server_2;
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
@@ -14,7 +15,6 @@ CHANGE MASTER TO master_use_gtid= slave_pos;
 include/start_slave.inc
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
-set @@global.rpl_semi_sync_master_enabled = 1;
 set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 INSERT INTO t1 VALUES (1, 'dummy1');

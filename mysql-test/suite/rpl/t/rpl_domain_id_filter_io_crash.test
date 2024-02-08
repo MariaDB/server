@@ -149,8 +149,7 @@ connection slave;
 SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
-
---source include/stop_slave.inc
+--source include/stop_slave_sql.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
 --echo DO_DOMAIN_IDS (BEFORE)     : $do_domain_ids_before
@@ -218,7 +217,7 @@ SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
 
---source include/stop_slave.inc
+--source include/stop_slave_sql.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
 --echo DO_DOMAIN_IDS (BEFORE)     : $do_domain_ids_before
@@ -286,7 +285,7 @@ SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
 
---source include/stop_slave.inc
+--source include/stop_slave_sql.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
 --echo DO_DOMAIN_IDS (BEFORE)     : $do_domain_ids_before
@@ -354,7 +353,7 @@ SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
 
---source include/stop_slave.inc
+--source include/stop_slave_sql.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
 --echo DO_DOMAIN_IDS (BEFORE)     : $do_domain_ids_before

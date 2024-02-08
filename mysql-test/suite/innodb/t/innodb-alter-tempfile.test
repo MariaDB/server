@@ -65,8 +65,11 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 disconnect con1;
---replace_column 7 #
+# This may occasionally display records for a corrupted index(f2).
+# The original bug was about a crash during the execution of SHOW KEYS.
+--disable_result_log
 SHOW KEYS FROM t1;
+--enable_result_log
 DROP TABLE t1;
 remove_files_wildcard $datadir/test #sql-*.frm;
 

@@ -1,0 +1,57 @@
+#
+# MDEV-32938: ALTER command is replicated and successfully applied while being BF-aborted locally.
+#
+# Why it happend:
+# - ALTER went to prepare FK-referenced tables as TOI keys
+# - to do this, it would open the main table with SHARED_HIGH_PRIO MDL lock which disregarded any
+#   other locks (including X-lock) waiting in the queue in case someone was already holding a
+#   compatible lock type (like any DML operation)
+# - if there was other TOI operation on the same table, it would go through BF-abort cycle to grab
+#   the lock for itself
+# - since the initial ALTER had not reached TOI yet, it would loose to real TOI operation and got
+#   BF-aborted with its THD marked as killed
+# - then, ALTER would enter TOI and get replicated with no checks that it has already been aborted
+# - after entering TOI mode, it would later find it'd been killed, and complete with an error
+# - at the same time, the command would successfully apply on every other node except the initiator.
+#
+# Fixed by checking killed state on THD before entering TOI.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1
+
+call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+
+CREATE TABLE t1(c1 INT PRIMARY KEY, c2 INT) ENGINE=InnoDB;
+
+# Run ALTER DROP COLUMN and hang before closing tables on adding FK keys and before entering TOI.
+# Wait until it gets BF-aborted.
+SET DEBUG_SYNC = 'wsrep_append_fk_toi_keys_before_close_tables SIGNAL may_alter WAIT_FOR bf_abort';
+--send
+  ALTER TABLE t1 DROP COLUMN c2;
+
+--connection node_1
+# Run ALTER ADD COLUMN and BF-abort the previous ALTER DROP COLUMN.
+SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
+ALTER TABLE t1 ADD COLUMN c3 INT;
+
+--connection con1
+# ALTER DROP COLUMN gets BF aborted.
+--error ER_QUERY_INTERRUPTED
+--reap
+
+INSERT INTO t1 (c1, c2, c3) VALUES (1, 0, 0);
+
+--connection node_2
+# ALTER DROP COLUMN must not be replicated.
+INSERT INTO t1 (c1, c2, c3) VALUES (2, 0, 0);
+
+# Cleanup.
+--connection node_1
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+--disconnect con1
+--source include/galera_end.inc

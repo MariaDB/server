@@ -25,6 +25,7 @@
 # adding a 'SHOW WARNINGS' after the statement.
 
 set sql_mode='';
+set sql_safe_updates='OFF';
 set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 set alter_algorithm='DEFAULT';
@@ -229,6 +230,11 @@ UPDATE user
   SET plugin='unix_socket' WHERE plugin='auth_socket';
 DELETE FROM plugin
   WHERE name='auth_socket';
+# Delete plugins that are now inbuilt but might not have been before (MDEV-32043)
+DELETE plugin
+  FROM information_schema.PLUGINS is_p
+  JOIN plugin ON plugin.name = is_p.PLUGIN_NAME
+  WHERE is_p.PLUGIN_LIBRARY IS NULL;
 
 ALTER TABLE user
   MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',

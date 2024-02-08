@@ -1,3 +1,5 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 FLUSH TABLES;
 # Treating compact format as dynamic format after import stmt
 CREATE TABLE t1
@@ -200,3 +202,4 @@ a
 3
 DROP TABLE t1;
 SET GLOBAL innodb_compression_algorithm=@save_algo;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

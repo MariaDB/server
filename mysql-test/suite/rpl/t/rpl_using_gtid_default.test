@@ -271,7 +271,10 @@ eval set global gtid_slave_pos="$old_slave_pos";
 --echo # not master_use_gtid=no should warn the user that Using_Gtid is being
 --echo # changed to No.
 --echo #
+--connection master
+--source include/save_master_pos.inc
 --connection slave
+--source include/sync_io_with_master.inc
 --let $io_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
 --let $io_log_file= query_get_value('SHOW SLAVE STATUS', Master_Log_File, 1)
 --source include/stop_slave.inc

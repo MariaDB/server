@@ -740,6 +740,55 @@ SELECT * FROM federated.t1 UNION SELECT * FROM t3 ORDER BY a;
 SELECT * FROM federated.t1 UNION SELECT * FROM t3 ORDER BY 2;
 
 
+--echo #
+--echo # MDEV-32382 FederatedX error on pushdown of statement having CTE
+--echo #
+
+--echo # Single SELECT with CTE
+let $query= WITH cte AS (SELECT * FROM federated.t1)
+            SELECT * FROM cte;
+eval $query;
+eval explain extended $query;
+
+--echo # Pushdown of a UNION having CTE's
+let $query= WITH cte AS (SELECT * FROM federated.t1),
+  cte2 AS (SELECT * FROM federated.t2)
+  SELECT * FROM cte
+  UNION
+  SELECT * FROM cte2;
+--sorted_result
+eval $query;
+eval explain extended $query;
+
+# CREATE TABLE t3 (a int);
+# INSERT INTO t3 VALUES (101),(102),(103);
+
+--echo # Partial pushdown is not allowed for unions with CTE's, however a CTE
+--echo # may be pushed down a derived table
+let $query= WITH cte AS (SELECT * FROM federated.t1)
+  SELECT * FROM cte
+  UNION ALL
+  SELECT * FROM t3;
+--sorted_result
+eval $query;
+eval explain extended $query;
+
+let $query= WITH cte AS (SELECT * FROM federated.t1 UNION SELECT * FROM t3)
+  SELECT * FROM cte;
+--sorted_result
+eval $query;
+eval explain extended $query;
+
+--echo # Two CTE's where one CTE refers to another
+let $query= WITH cte AS (SELECT * FROM federated.t1),
+                 cte2 AS (SELECT * FROM t3
+                          WHERE t3.a NOT IN (SELECT * FROM cte))
+            SELECT * FROM cte JOIN cte2;
+--sorted_result
+eval $query;
+eval explain extended $query;
+
+
 # Cleanup
 connection master;
 DROP TABLES federated.t1, federated.t2, t3, t4, t5, t6, federated.t11,

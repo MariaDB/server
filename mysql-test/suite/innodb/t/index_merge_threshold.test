@@ -13,8 +13,8 @@
 --source include/have_innodb_16k.inc
 --source include/have_partition.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 
 # Check index merge threshold by create index on all datatypes
 
@@ -189,4 +189,5 @@ CREATE INDEX index1 ON tab1(b(750)) COMMENT 'MERGE_THRESHOLD=45';
 --source suite/innodb/include/innodb_merge_threshold_secondary.inc
 
 DROP TABLE tab1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

@@ -120,7 +120,6 @@ Filename::tab#.ibd
 #::#		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
 #::#		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
 #::#		|		Freshly allocated page		|	-
-#::#		|		Freshly allocated page		|	-
 # Variables used by page type dump for ibdata1
 
 Variables (--variable-name=value)
@@ -153,7 +152,6 @@ Filename::tab#.ibd
 #::#		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
 #::#		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
 #::#		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::#		|		Freshly allocated page		|	-
 #::#		|		Freshly allocated page		|	-
 [6]: check the valid lower bound values for option
 # allow-mismatches,page,start-page,end-page

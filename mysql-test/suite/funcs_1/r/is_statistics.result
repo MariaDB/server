@@ -263,8 +263,6 @@ ORDER BY table_schema,table_name,index_name,seq_in_index,column_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
 def	db_datadict	t1	1	db_datadict	f2_ind	1	f2	NULL	0	NULL	NULL	YES	HASH			NO
 def	db_datadict	t1	0	db_datadict	PRIMARY	1	f1	NULL	0	NULL	NULL		HASH			NO
-def	db_datadict_2	t3	1	db_datadict_2	f2f1_ind	1	f2	NULL	NULL	NULL	NULL	YES	HASH			NO
-def	db_datadict_2	t3	1	db_datadict_2	f2f1_ind	2	f1	NULL	0	NULL	NULL		HASH			NO
 def	db_datadict_2	t3	0	db_datadict_2	f5	1	f5	NULL	0	NULL	NULL	YES	HASH			NO
 def	db_datadict_2	t3	0	db_datadict_2	PRIMARY	1	f1	NULL	0	NULL	NULL		HASH			NO
 SHOW GRANTS FOR 'testuser1'@'localhost';
@@ -298,8 +296,6 @@ SELECT * FROM information_schema.statistics
 WHERE table_schema LIKE 'db_datadict%'
 ORDER BY table_schema,table_name,index_name,seq_in_index,column_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
-def	db_datadict_2	t3	1	db_datadict_2	f2f1_ind	1	f2	NULL	NULL	NULL	NULL	YES	HASH			NO
-def	db_datadict_2	t3	1	db_datadict_2	f2f1_ind	2	f1	NULL	0	NULL	NULL		HASH			NO
 def	db_datadict_2	t3	0	db_datadict_2	f5	1	f5	NULL	0	NULL	NULL	YES	HASH			NO
 def	db_datadict_2	t3	0	db_datadict_2	PRIMARY	1	f1	NULL	0	NULL	NULL		HASH			NO
 SHOW GRANTS FOR 'testuser1'@'localhost';

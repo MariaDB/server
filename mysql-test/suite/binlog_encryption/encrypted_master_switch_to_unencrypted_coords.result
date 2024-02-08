@@ -68,7 +68,7 @@ include/wait_for_slave_io_error.inc [errno=1236]
 SHOW TABLES;
 Tables_in_test
 table1_no_encryption
-include/stop_slave.inc
+include/stop_slave_sql.inc
 include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'

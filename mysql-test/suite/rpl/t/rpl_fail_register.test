@@ -3,7 +3,7 @@ source include/have_binlog_format_mixed.inc;
 source include/master-slave.inc;
 
 connection slave;
-
+CALL mtr.add_suppression("Slave I/O: Master command COM_REGISTER_SLAVE failed: Debug Induced Error");
 set @old_dbug=@@global.debug_dbug;
 set global debug_dbug='d,fail_com_register_slave';
 
@@ -11,8 +11,11 @@ stop slave;
 reset slave;
 source include/wait_for_slave_to_stop.inc;
 start slave;
-stop slave;
-source include/wait_for_slave_to_stop.inc;
+# Debug point will raise IO thread error ER_SLAVE_MASTER_COM_FAILURE
+# so we will wait for that and manually stop the SQL thread
+--let $slave_io_errno= 1597
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_sql.inc
 set global debug_dbug=@old_dbug;
 
 connection master;

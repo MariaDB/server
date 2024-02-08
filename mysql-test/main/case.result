@@ -1,67 +1,67 @@
 drop table if exists t1, t2;
-select CASE "b" when "a" then 1 when "b" then 2 END;
-CASE "b" when "a" then 1 when "b" then 2 END
+select CASE "b" when "a" then 1 when "b" then 2 END as exp;
+exp
 2
-select CASE "c" when "a" then 1 when "b" then 2 END;
-CASE "c" when "a" then 1 when "b" then 2 END
+select CASE "c" when "a" then 1 when "b" then 2 END as exp;
+exp
 NULL
-select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END;
-CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END
+select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END as exp;
+exp
 3
-select CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END;
-CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END
+select CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END as exp;
+exp
 ok
-select CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END;
-CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END
+select CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END as exp;
+exp
 ok
-select CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end;
-CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end
+select CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end as exp;
+exp
 a
-select CASE when 1=0 then "true" else "false" END;
-CASE when 1=0 then "true" else "false" END
+select CASE when 1=0 then "true" else "false" END as exp;
+exp
 false
-select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
-CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END
+select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END as exp;
+exp
 one
-explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
+explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END as exp;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select case 1 when 1 then 'one' when 2 then 'two' else 'more' end AS `CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END`
-select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END;
-CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END
+Note	1003	select case 1 when 1 then 'one' when 2 then 'two' else 'more' end AS `exp`
+select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END as exp;
+exp
 two
-select (CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0;
-(CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0
+select (CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0 as exp;
+exp
 2
-select (CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0;
-(CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0
+select (CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0 as exp;
+exp
 2.00
-select case 1/0 when "a" then "true" else "false" END;
-case 1/0 when "a" then "true" else "false" END
+select case 1/0 when "a" then "true" else "false" END as exp;
+exp
 false
 Warnings:
 Warning	1365	Division by 0
-select case 1/0 when "a" then "true" END;
-case 1/0 when "a" then "true" END
+select case 1/0 when "a" then "true" END as exp;
+exp
 NULL
 Warnings:
 Warning	1365	Division by 0
-select (case 1/0 when "a" then "true" END) | 0;
-(case 1/0 when "a" then "true" END) | 0
+select (case 1/0 when "a" then "true" END) | 0 as exp;
+exp
 NULL
 Warnings:
 Warning	1365	Division by 0
-select (case 1/0 when "a" then "true" END) + 0.0;
-(case 1/0 when "a" then "true" END) + 0.0
+select (case 1/0 when "a" then "true" END) + 0.0 as exp;
+exp
 NULL
 Warnings:
 Warning	1365	Division by 0
-select case when 1>0 then "TRUE" else "FALSE" END;
-case when 1>0 then "TRUE" else "FALSE" END
+select case when 1>0 then "TRUE" else "FALSE" END as exp;
+exp
 TRUE
-select case when 1<0 then "TRUE" else "FALSE" END;
-case when 1<0 then "TRUE" else "FALSE" END
+select case when 1<0 then "TRUE" else "FALSE" END as exp;
+exp
 FALSE
 create table t1 (a int);
 insert into t1 values(1),(2),(3),(4);
@@ -133,12 +133,12 @@ WHEN _latin1'a' COLLATE latin1_swedish_ci THEN 2
 END;
 ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_danish_ci,EXPLICIT), (latin1_swedish_ci,EXPLICIT) for operation 'case'
 SELECT 
-CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END,
-CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END,
-CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END,
-CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END
+CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END as e1,
+CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END as e2,
+CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END as e3,
+CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END as e4
 ;
-CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END	CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END	CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END	CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END
+e1	e2	e3	e4
 1	2	1	2
 CREATE TABLE t1 SELECT COALESCE(_latin1'a',_latin2'a');
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'coalesce'
@@ -403,8 +403,8 @@ DROP TABLE t1;
 #
 # End of 10.1 test
 #
-select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end;
-case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end
+select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end as exp;
+exp
 ok
 Warnings:
 Warning	1292	Truncated incorrect time value: 'foo'
@@ -434,8 +434,8 @@ Warning	1292	Truncated incorrect time value: 'foo'
 Warning	1292	Truncated incorrect time value: 'foo'
 Warning	1292	Truncated incorrect time value: 'foo'
 drop table t1;
-select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end;
-case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end
+select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end as exp;
+exp
 ok
 #
 # End of 10.2 test

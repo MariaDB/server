@@ -1,0 +1,12 @@
+# restart: --plugin-load-add=ha_spider
+#
+# MDEV-32532 Assertion failure in ddl_log_increment_phase_no_lock upon
+# partition operations with spider plugin loaded
+#
+CREATE TABLE t1 (a INT) PARTITION BY HASH (a) PARTITIONS 2;
+ALTER TABLE t1 REBUILD PARTITION p0;
+drop table t1;
+#
+# End of 10.10
+#
+uninstall plugin spider;

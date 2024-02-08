@@ -178,9 +178,9 @@ EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
 # Testing erroneous and diallowed prepare source
 #
 EXECUTE IMMEDIATE _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat_operator_oracle'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
 PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat_operator_oracle'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
 EXECUTE IMMEDIATE (SELECT 'SELECT 1');
 ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 PREPARE stmt FROM (SELECT 'SELECT 1');

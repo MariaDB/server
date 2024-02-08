@@ -41,7 +41,10 @@ static constexpr page_id_t hdr_page_id{DICT_HDR_SPACE, DICT_HDR_PAGE_NO};
 static buf_block_t *dict_hdr_get(mtr_t *mtr)
 {
   /* We assume that the DICT_HDR page is always readable and available. */
-  return buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH, nullptr, BUF_GET, mtr);
+  buf_block_t *b=
+    buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH, nullptr, BUF_GET, mtr);
+  buf_page_make_young_if_needed(&b->page);
+  return b;
 }
 
 /**********************************************************************//**
@@ -218,8 +221,7 @@ dberr_t dict_boot()
 	dict_sys.create();
 
 	dberr_t err;
-	const buf_block_t *d = buf_page_get_gen(hdr_page_id, 0, RW_S_LATCH,
-						nullptr, BUF_GET, &mtr, &err);
+	const buf_block_t *d = recv_sys.recover(hdr_page_id, &mtr ,&err);
 	if (!d) {
 		mtr.commit();
 		return err;
@@ -393,19 +395,6 @@ dberr_t dict_boot()
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	mtr.commit();
-
-	if (err == DB_SUCCESS) {
-		/* Load definitions of other indexes on system tables */
-
-		dict_load_sys_table(dict_sys.sys_tables);
-		dict_load_sys_table(dict_sys.sys_columns);
-		dict_load_sys_table(dict_sys.sys_indexes);
-		dict_load_sys_table(dict_sys.sys_fields);
-		dict_sys.unlock();
-		dict_sys.load_sys_tables();
-	} else {
-		dict_sys.unlock();
-	}
-
+	dict_sys.unlock();
 	return err;
 }

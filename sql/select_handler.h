@@ -20,6 +20,12 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 
+enum class select_pushdown_type {
+  SINGLE_SELECT,
+  PART_OF_UNIT,
+  WHOLE_UNIT
+};
+
 /**
   @class select_handler
 
@@ -50,7 +56,7 @@ class select_handler
   virtual bool prepare();
 
   /*
-    Select_handler processes one of
+    Select_handler processes these cases:
     - single SELECT
     - whole unit (multiple SELECTs combined with UNION/EXCEPT/INTERSECT)
     - single SELECT that is part of a unit (partial pushdown)
@@ -60,7 +66,7 @@ class select_handler
     in the case of partial pushdown both select_lex and lex_unit
       are initialized
   */
-  SELECT_LEX *select_lex;      // Single select to be executed
+  SELECT_LEX *select_lex;      // Single select/part of a unit to be executed
   SELECT_LEX_UNIT *lex_unit;   // Unit to be executed
 
   /*
@@ -98,6 +104,8 @@ protected:
   bool send_eof();
 
   TABLE *create_tmp_table(THD *thd);
+
+  select_pushdown_type get_pushdown_type();
 
   THD *thd;
   handlerton *ht;

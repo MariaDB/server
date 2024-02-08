@@ -1130,7 +1130,7 @@ os_file_create_func(
 	);
 
 	int		create_flag = O_RDONLY | O_CLOEXEC;
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	const char*	mode_str = "OPEN";
 #endif
 
@@ -1148,12 +1148,12 @@ os_file_create_func(
 		   || create_mode == OS_FILE_OPEN_RETRY) {
 		create_flag = O_RDWR | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_CREATE) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 		mode_str = "CREATE";
 #endif
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_OVERWRITE) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 		mode_str = "OVERWRITE";
 #endif
 		create_flag = O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC;
@@ -1165,19 +1165,19 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	ut_a(type == OS_LOG_FILE
-	     || type == OS_DATA_FILE
-	     || type == OS_DATA_FILE_NO_O_DIRECT);
-
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
 	create_flag |= O_CLOEXEC;
 
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
+	ut_a(type == OS_LOG_FILE
+	     || type == OS_DATA_FILE
+	     || type == OS_DATA_FILE_NO_O_DIRECT);
 	int direct_flag = type == OS_DATA_FILE && create_mode != OS_FILE_CREATE
 		&& !fil_system.is_buffered()
 		? O_DIRECT : 0;
 #else
+	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
 	constexpr int direct_flag = 0;
 #endif
 
@@ -1194,7 +1194,7 @@ os_file_create_func(
 		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
-#ifdef O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 			if (direct_flag && errno == EINVAL) {
 				direct_flag = 0;
 				continue;
@@ -1224,7 +1224,7 @@ os_file_create_func(
 		}
 	}
 
-#if (defined __sun__ && defined DIRECTIO_ON) || defined O_DIRECT
+#ifdef HAVE_FCNTL_DIRECT
 	if (type == OS_DATA_FILE && create_mode == OS_FILE_CREATE
 	    && !fil_system.is_buffered()) {
 # ifdef __linux__
@@ -3012,30 +3012,15 @@ os_file_handle_error_cond_exit(
 	return(false);
 }
 
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 /** Tries to disable OS caching on an opened file descriptor.
 @param[in]	fd		file descriptor to alter
 @param[in]	file_name	file name, used in the diagnostic message
 @param[in]	name		"open" or "create"; used in the diagnostic
 				message */
 void
-os_file_set_nocache(
-	int	fd		MY_ATTRIBUTE((unused)),
-	const char*	file_name	MY_ATTRIBUTE((unused)),
-	const char*	operation_name	MY_ATTRIBUTE((unused)))
+os_file_set_nocache(int fd, const char *file_name, const char *operation_name)
 {
-	/* some versions of Solaris may not have DIRECTIO_ON */
-#if defined(__sun__) && defined(DIRECTIO_ON)
-	if (directio(fd, DIRECTIO_ON) == -1) {
-		int	errno_save = errno;
-
-		ib::error()
-			<< "Failed to set DIRECTIO_ON on file "
-			<< file_name << "; " << operation_name << ": "
-			<< strerror(errno_save) << ","
-			" continuing anyway.";
-	}
-#elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
 		int		errno_save = errno;
 		static bool	warning_message_printed = false;
@@ -3054,10 +3039,8 @@ os_file_set_nocache(
 				<< ", continuing anyway.";
 		}
 	}
-#endif /* defined(__sun__) && defined(DIRECTIO_ON) */
 }
-
-#endif /* _WIN32 */
+#endif /* HAVE_FCNTL_DIRECT */
 
 /** Check if the file system supports sparse files.
 @param fh	file handle
@@ -3147,8 +3130,18 @@ fallback:
 				return true;
 			}
 			current_size &= ~4095ULL;
+#  ifdef __linux__
+			if (!fallocate(file, 0, current_size,
+				       size - current_size)) {
+				err = 0;
+				break;
+			}
+
+			err = errno;
+#  else
 			err = posix_fallocate(file, current_size,
 					      size - current_size);
+#  endif
 		}
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
@@ -3427,7 +3420,7 @@ static void write_io_callback(void *c)
 
   if (UNIV_UNLIKELY(cb->m_err != 0))
     ib::info () << "IO Error: " << cb->m_err
-                << "during write of "
+                << " during write of "
                 << cb->m_len << " bytes, for file "
                 << request.node->name << "(" << cb->m_fh << "), returned "
                 << cb->m_ret_len;
@@ -4164,7 +4157,6 @@ bool fil_node_t::read_page0()
         != DB_SUCCESS)
     {
       sql_print_error("InnoDB: Unable to read first page of file %s", name);
-corrupted:
       aligned_free(page);
       return false;
     }
@@ -4181,25 +4173,35 @@ corrupted:
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
-      if (cflags == UINT32_MAX)
+      if (cflags != UINT32_MAX)
       {
-invalid:
-        ib::error() << "Expected tablespace flags "
-          << ib::hex(space->flags)
-          << " but found " << ib::hex(flags)
-          << " in the file " << name;
-        goto corrupted;
+        uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
+        uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
+
+        if (fil_space_t::is_flags_equal(cf, sf) ||
+            fil_space_t::is_flags_equal(sf, cf))
+        {
+          flags= cflags;
+          goto flags_ok;
+        }
       }
 
-      uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
-      uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
-
-      if (!fil_space_t::is_flags_equal(cf, sf) &&
-          !fil_space_t::is_flags_equal(sf, cf))
-        goto invalid;
-      flags= cflags;
+      aligned_free(page);
+      goto invalid;
     }
 
+    if (!fil_space_t::is_flags_equal((flags & ~FSP_FLAGS_MEM_MASK),
+                                     (space->flags & ~FSP_FLAGS_MEM_MASK)) &&
+        !fil_space_t::is_flags_equal((space->flags & ~FSP_FLAGS_MEM_MASK),
+                                     (flags & ~FSP_FLAGS_MEM_MASK)))
+    {
+invalid:
+      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+                      " in the file %s", space->flags, flags, name);
+      return false;
+    }
+
+  flags_ok:
     ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
     /* Try to read crypt_data from page 0 if it is not yet read. */

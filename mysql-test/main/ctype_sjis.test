@@ -209,9 +209,6 @@ DROP TABLE t1;
 --echo # WL#3664 WEIGHT_STRING
 --echo #
 
-# enable view-protocol after fix MDEV-27871
---disable_view_protocol
-
 set names sjis;
 --source include/weight_string.inc
 --source include/weight_string_l1.inc
@@ -222,8 +219,6 @@ set collation_connection=sjis_bin;
 --source include/weight_string.inc
 --source include/weight_string_l1.inc
 --source include/weight_string_8140.inc
-
---enable_view_protocol
 
 --echo #
 --echo # End of 5.6 tests

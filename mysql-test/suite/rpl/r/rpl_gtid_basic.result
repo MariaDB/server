@@ -188,6 +188,13 @@ BINLOG_GTID_POS('master-bin.000001',18446744073709551616)
 NULL
 Warnings:
 Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
+SET sql_log_bin= 0;
+CREATE TABLE t1 AS SELECT MASTER_POS_WAIT(@binlog_file, 4, 0);
+SELECT BINLOG_GTID_POS(@binlog_file, 4);
+BINLOG_GTID_POS(@binlog_file, 4)
+NULL
+DROP TABLE t1;
+SET sql_log_bin= 1;
 *** Some tests of @@GLOBAL.gtid_binlog_state ***
 connection server_2;
 include/sync_with_master_gtid.inc

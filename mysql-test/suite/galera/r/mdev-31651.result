@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not read field.*");
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not execute Write_rows_v1 event on table.*");
+CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT PRIMARY KEY, b INT, KEY(b)) engine=innodb;
+BINLOG 'AMqaOw8BAAAAdAAAAHgAAAAAAAQANS42LjM0LTc5LjEtZGVidWctbG9nAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAAAAAAEzgNAAgAEgAEBAQEEgAAXAAEGggAAAAICAgCAAAACgoKGRkAAYVx w2w=';
+BINLOG 'wlZOTxMBAAAAKgAAADwCAAAAACkAAAAAAAEABHRlc3QAAnQxAAIDAwAC wlZOTxcBAAAAJgAAAGICAAAAACkAAAAAAAEAAv/8AgAAAAgAAAA=';
+ERROR HY000: Got error 171 "The event was corrupt, leading to illegal data being read" from storage engine InnoDB
+SELECT * FROM t1;
+a	b
+DROP TABLE t1;

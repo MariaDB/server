@@ -270,5 +270,42 @@ select * from mysql.index_stats where table_name= "t1";
 drop table t1;
 
 --echo #
+--echo # Crash inis_eits_usable()
+--echo #
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+
+CREATE TABLE t2 (b int) ENGINE=MyISAM;
+
+INSERT INTO t1 (a) VALUES (4), (6);
+INSERT INTO t2 (b) VALUES (0), (8);
+
+set @save_join_cache_level=@@join_cache_level;
+set @save_optimizer_switch=@@optimizer_switch;
+SET join_cache_level=3;
+SET optimizer_switch='join_cache_hashed=on';
+SET optimizer_switch='join_cache_bka=on';
+set optimizer_switch='hash_join_cardinality=on';
+
+EXPLAIN
+SELECT * FROM t1, t2 WHERE b=a;
+SELECT * FROM t1, t2 WHERE b=a;
+DROP TABLE t1,t2;
+
+set @@optimizer_switch=@save_optimizer_switch;
+set @@join_cache_level=@save_join_cache_level;
+
+--echo #
+--echo # MDEV-32531 MSAN / Valgrind errors in Item_func_like::get_mm_leaf with
+--echo #            temporal field
+--echo #
+
+CREATE TABLE t1 (f DATE);
+INSERT INTO t1 VALUES ('1978-08-27'),('1906-04-30');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT * FROM t1 WHERE f LIKE '2023%';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

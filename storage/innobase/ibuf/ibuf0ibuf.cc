@@ -1012,8 +1012,7 @@ dberr_t ibuf_upgrade_needed()
   mtr.start();
   mtr.x_lock_space(fil_system.sys_space);
   dberr_t err;
-  const buf_block_t *header_page=
-    buf_page_get_gen(ibuf_header, 0, RW_S_LATCH, nullptr, BUF_GET, &mtr, &err);
+  const buf_block_t *header_page= recv_sys.recover(ibuf_header, &mtr, &err);
 
   if (!header_page)
   {
@@ -1026,8 +1025,7 @@ dberr_t ibuf_upgrade_needed()
     return err;
   }
 
-  const buf_block_t *root= buf_page_get_gen(ibuf_root, 0, RW_S_LATCH, nullptr,
-                                            BUF_GET, &mtr, &err);
+  const buf_block_t *root= recv_sys.recover(ibuf_root, &mtr, &err);
   if (!root)
     goto err_exit;
 

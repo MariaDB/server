@@ -675,6 +675,26 @@ FLOOR(a)	int(4) unsigned	YES		NULL
 CEILING(a)	int(4) unsigned	YES		NULL	
 DROP TABLE t2,t1;
 #
+# MDEV-32244 Wrong bit encoding using COALESCE
+#
+CREATE TABLE t1 (c1 YEAR);
+INSERT INTO t1 (c1) VALUES (0x01);
+CREATE TABLE t2 AS SELECT
+c1,
+COALESCE(c1, c1) AS c2,
+COALESCE(c1, null) AS c3,
+COALESCE(null, c1) AS c4 FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` year(4) DEFAULT NULL,
+  `c2` year(4) DEFAULT NULL,
+  `c3` year(4) DEFAULT NULL,
+  `c4` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
 #

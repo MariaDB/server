@@ -100,7 +100,7 @@ void *test_apc_service_thread(void *ptr)
     //apc_target.enable();
     for (int i = 0; i < 10 && !service_should_exit; i++)
     {
-      apc_target.process_apc_requests();
+      apc_target.process_apc_requests(true);
       my_sleep(int_rand(30));
     }
   }

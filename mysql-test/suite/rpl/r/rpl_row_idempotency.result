@@ -89,7 +89,7 @@ b
 3
 *** slave must stop (Trying to delete a referenced foreing key)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1451]
 Last_SQL_Error
 1451
 select * from ti1 order by b /* must be (1),(2),(3) - not deleted */;
@@ -114,7 +114,7 @@ connection master;
 insert into ti2 set a=3, b=3 /* offending write event */;
 *** slave must stop (Trying to insert an invalid foreign key)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1452]
 Last_SQL_Error
 1452
 select * from ti2 order by b /* must be (2,2) */;
@@ -139,9 +139,9 @@ a	b
 insert into ti1 set b=1;
 connection master;
 insert into ti1 set b=1 /* offending write event */;
-*** slave must stop (Trying to insert a dupliacte key)
+*** slave must stop (Trying to insert a duplicate key)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1062]
 Last_SQL_Error
 1062
 set foreign_key_checks= 0;
@@ -164,7 +164,7 @@ connection master;
 DELETE FROM t1 WHERE a = -2;
 *** slave must stop (Key was not found)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 Last_SQL_Error
 1032
 set global slave_exec_mode='IDEMPOTENT';
@@ -176,7 +176,7 @@ connection master;
 DELETE FROM t2 WHERE a = -2;
 *** slave must stop (Key was not found)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 Last_SQL_Error
 1032
 set global slave_exec_mode='IDEMPOTENT';
@@ -190,7 +190,7 @@ connection master;
 UPDATE t1 SET a = 1 WHERE a = -1;
 *** slave must stop (Key was not found)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 Last_SQL_Error
 1032
 set global slave_exec_mode='IDEMPOTENT';
@@ -202,7 +202,7 @@ connection master;
 UPDATE t2 SET a = 1 WHERE a = -1;
 *** slave must stop (Key was not found)
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 Last_SQL_Error
 1032
 set global slave_exec_mode='IDEMPOTENT';

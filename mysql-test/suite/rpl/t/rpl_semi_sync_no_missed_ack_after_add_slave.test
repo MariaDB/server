@@ -1,0 +1,122 @@
+#
+#   This test ensures that a primary will listen for ACKs by newly added
+# semi-sync connections connections, after a pre-existing connection is already
+# established. MDEV-32960 reported that the newly added slave's ACK can be
+# ignored if listen_on_sockets() does not timeout before
+# rpl_semi_sync_master_timeout, and if the existing semi-sync connections fail
+# to send ACKs, semi-sync is switched off.
+#
+#   This test ensures this in a two-replica setup with a semi-sync timeout of
+# 500ms, and delaying the ACK reply of the first-established replica by 800ms
+# to force a timeout, and allowing the second replica to immediately ACK.
+#
+# References:
+#   MDEV-32960: Semi-sync ACKed Transaction can Timeout and Switch Off
+#               Semi-sync with Multiple Replicas
+#
+--source include/have_debug.inc
+# binlog_format independent
+--source include/have_binlog_format_statement.inc
+
+--let $rpl_topology= 1->2,1->3
+--source include/rpl_init.inc
+
+
+--connection server_1
+set @old_enabled= @@global.rpl_semi_sync_master_enabled;
+set @old_timeout= @@global.rpl_semi_sync_master_timeout;
+set global rpl_semi_sync_master_enabled= 1;
+set global rpl_semi_sync_master_timeout= 500;
+
+--connection server_2
+--source include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @old_dbug= @@global.debug_dbug;
+set global rpl_semi_sync_slave_enabled= 1;
+set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set global rpl_semi_sync_slave_enabled= 1;
+--source include/start_slave.inc
+
+--echo # Ensure primary recognizes both replicas are semi-sync
+--connection server_1
+--let $status_var_value= 2
+--let $status_var= rpl_semi_sync_master_clients
+--source include/wait_for_status_var.inc
+
+--let $master_ss_status= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_status', Value, 1)
+if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
+{
+  SHOW STATUS LIKE 'rpl_semi_sync_master_status';
+  --die rpl_semi_sync_master_status should be ON to start
+}
+
+--connection server_1
+--let $init_master_yes_tx= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_yes_tx', Value, 1)
+create table t1 (a int);
+
+--connection server_2
+--echo # Verifying server_2 did not send ACK
+--let $slave1_sent_ack= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack', Value, 1)
+if (`SELECT $slave1_sent_ack`)
+{
+  SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack';
+  --die server_2 should not have sent semi-sync ACK to primary
+}
+
+--connection server_3
+--echo # Verifying server_3 did send ACK
+--let $slave2_sent_ack= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack', Value, 1)
+if (`SELECT NOT $slave2_sent_ack`)
+{
+  SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack';
+  --die server_3 should have sent semi-sync ACK to primary
+}
+
+--connection server_1
+--echo # Verifying master's semi-sync status is still ON (This failed pre-MDEV-32960 fixes)
+let $master_ss_status= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_status', Value, 1);
+if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
+{
+  SHOW STATUS LIKE 'rpl_semi_sync_master_status';
+  --die rpl_semi_sync_master_status should not have switched off after server_3 ACKed transaction
+}
+
+--echo # Verifying rpl_semi_sync_master_yes_tx incremented
+--let $cur_master_yes_tx= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_yes_tx', Value, 1)
+if (`SELECT $cur_master_yes_tx != ($init_master_yes_tx + 1)`)
+{
+  --echo # Initial yes_tx: $init_master_yes_tx
+  --echo # Current yes_tx: $cur_master_yes_tx
+  --die rpl_semi_sync_master_yes_tx should have been incremented by primary
+}
+
+
+--echo #
+--echo # Cleanup
+
+--connection server_2
+set global rpl_semi_sync_slave_enabled= @old_enabled;
+set global debug_dbug= @old_dbug;
+--source include/stop_slave.inc
+
+--connection server_3
+set global rpl_semi_sync_slave_enabled= @old_enabled;
+--source include/stop_slave.inc
+
+--connection server_1
+set global rpl_semi_sync_master_enabled= @old_enabled;
+set global rpl_semi_sync_master_timeout= @old_timeout;
+drop table t1;
+
+--connection server_2
+--source include/start_slave.inc
+--connection server_3
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_no_missed_ack_after_add_slave.test

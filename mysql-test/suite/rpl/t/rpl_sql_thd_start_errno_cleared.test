@@ -76,6 +76,10 @@ if ($last_error)
 
 set debug_sync= "now signal sql_thread_continue";
 
+--echo # Wait for debug_sync signal to have been received before issuing RESET
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "debug sync point%";
+source include/wait_condition.inc;
+
 set @@global.debug_dbug= @saved_dbug;
 set debug_sync= "RESET";
 

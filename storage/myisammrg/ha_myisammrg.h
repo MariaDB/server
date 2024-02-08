@@ -34,7 +34,7 @@ class Mrg_child_def: public Sql_alloc
 {
   /* Remembered MERGE child def version.  See top comment in ha_myisammrg.cc */
   enum_table_ref_type m_child_table_ref_type;
-  ulong m_child_def_version;
+  ulonglong m_child_def_version;
 public:
   LEX_STRING db;
   LEX_STRING name;
@@ -44,12 +44,12 @@ public:
   {
     return m_child_table_ref_type;
   }
-  inline ulong get_child_def_version()
+  inline ulonglong get_child_def_version()
   {
     return m_child_def_version;
   }
   inline void set_child_def_version(enum_table_ref_type child_table_ref_type,
-                                    ulong version)
+                                    ulonglong version)
   {
     m_child_table_ref_type= child_table_ref_type;
     m_child_def_version= version;

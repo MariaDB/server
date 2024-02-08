@@ -313,3 +313,32 @@ create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk
 --error ER_DUP_ENTRY
 insert into t2 (pk) select a from t1;
 drop tables t1, t2;
+
+--echo #
+--echo # MDEV-23294 Segfault or assertion upon MyISAM repair
+--echo #
+set @old_mode= @@sql_mode;
+set @old_myisam_repair_threads= @@myisam_repair_threads;
+set sql_mode='', myisam_repair_threads=2;
+create table t (a binary,b blob,c blob as (concat (a,b)),h char,index (c)) engine=innodb;
+insert into t values (0,0,default,0);
+create table ti like t;
+alter table ti engine=myisam;
+insert into ti select * from t;
+drop tables ti, t;
+
+create table t (id int,a varchar(1),b varchar(1),c varchar(1) generated always as (concat (a,b)),key(c)) engine=myisam;
+insert into t values (0,0,9687,0);
+repair table t quick;
+drop table t;
+
+create table t1 (b varchar(1024), c char(3), unique(b,c)) engine=myisam;
+insert into t1 values ('foo','baz');
+alter table t1 disable keys;
+set session myisam_repair_threads= 2;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+insert into t1 select 'qux';
+# cleanup
+drop table t1;
+set sql_mode= @old_mode;
+set myisam_repair_threads= @old_myisam_repair_threads;

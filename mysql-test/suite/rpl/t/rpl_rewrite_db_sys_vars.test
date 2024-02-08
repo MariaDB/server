@@ -108,6 +108,7 @@ select * from my_table;
 --source include/save_master_gtid.inc
 
 connection slave;
+--let $rpl_only_running_threads=1
 --source include/stop_slave.inc
 --source include/reset_slave.inc
 --source include/start_slave.inc

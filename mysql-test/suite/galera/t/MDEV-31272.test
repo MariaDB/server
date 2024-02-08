@@ -1,0 +1,58 @@
+#
+# MDEV-31272: Statement rollback causes empty writeset replication
+#
+
+--source include/galera_cluster.inc
+
+#
+# Case 1: Multi statement transaction
+#
+--connection node_1
+CREATE TABLE t1 (f1 int primary key, f2 int);
+INSERT INTO t1 VALUES (1,0);
+
+--let $replicated_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_replicated'`
+
+BEGIN;
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (2,4),(1,1);
+COMMIT;
+
+--let $replicated_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_replicated'`
+
+--disable_query_log
+--eval SELECT $replicated_new - $replicated_old AS 'Writesets replicated (expect 0)';
+--enable_query_log
+
+--connection node_1
+SELECT * FROM t1;
+--connection node_2
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 2: autocommit statement
+#
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER);
+INSERT INTO t1 VALUES (1,0);
+
+--let $replicated_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_replicated'`
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (2,4), (1,1);
+
+--let $replicated_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_replicated'`
+
+--disable_query_log
+--eval SELECT $replicated_new - $replicated_old AS 'Writesets replicated (expect 0)';
+--enable_query_log
+
+--connection node_1
+SELECT * FROM t1;
+--connection node_2
+SELECT * FROM t1;
+
+DROP TABLE t1;

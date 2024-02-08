@@ -13,11 +13,13 @@ set current_num = current_num + 1;
 end while;
 end//
 commit;
-set autocommit=0;
-call innodb_insert_proc(10000);
+begin;
+set statement unique_checks=0, foreign_key_checks=0 for
+call innodb_insert_proc(100);
 commit;
-set autocommit=1;
+DROP PROCEDURE innodb_insert_proc;
 # Wait max 10 min for key encryption threads to encrypt all spaces
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
 # tablespaces should be now encrypted
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
@@ -25,15 +27,16 @@ NOT FOUND /foobar/ in t1.ibd
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
-# restart
 db.opt
+t1.cfg
 t1.frm
 t1.ibd
+t2.cfg
 t2.frm
 t2.ibd
+t3.cfg
 t3.frm
 t3.ibd
-FLUSH TABLES t1, t2, t3 FOR EXPORT;
 backup: t1
 backup: t2
 backup: t3
@@ -55,17 +58,18 @@ restore: t1 .ibd and .cfg files
 restore: t2 .ibd and .cfg files
 restore: t3 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-SELECT COUNT(1) FROM t1;
-COUNT(1)
-10000
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100
 ALTER TABLE t2 IMPORT TABLESPACE;
-SELECT COUNT(1) FROM t2;
-COUNT(1)
-10000
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+100
 ALTER TABLE t3 IMPORT TABLESPACE;
-SELECT COUNT(1) FROM t3;
-COUNT(1)
-10000
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+100
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
 # tablespaces should remain encrypted after import
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
@@ -73,8 +77,8 @@ NOT FOUND /foobar/ in t1.ibd
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
-# restart
-ALTER TABLE t1 ENGINE InnoDB;
+UNLOCK TABLES;
+ALTER TABLE t1 FORCE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -82,7 +86,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes
-ALTER TABLE t2 ENGINE InnoDB;
+ALTER TABLE t2 FORCE;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -90,7 +94,7 @@ t2	CREATE TABLE `t2` (
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-ALTER TABLE t3 ENGINE InnoDB;
+ALTER TABLE t3 FORCE;
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -98,30 +102,17 @@ t3	CREATE TABLE `t3` (
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `encrypted`=yes
-# Restarting server
-# restart
-# Done restarting server
 # Verify that tables are still usable
-SELECT COUNT(1) FROM t1;
-COUNT(1)
-10000
-SELECT COUNT(1) FROM t2;
-COUNT(1)
-10000
-SELECT COUNT(1) FROM t3;
-COUNT(1)
-10000
-# Tablespaces should be encrypted after restart
+CHECK TABLE t1, t2, t3 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
-NOT FOUND /barfoo/ in t3.ibd
-# restart
-# Wait max 10 min for key encryption threads to encrypt all spaces
-# Success!
-# Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
-# restart: --innodb_encrypt_tables=0 --innodb_encryption_threads=0
-DROP PROCEDURE innodb_insert_proc;
+UNLOCK TABLES;
 DROP TABLE t1, t2, t3;

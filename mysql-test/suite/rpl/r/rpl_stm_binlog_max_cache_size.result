@@ -197,7 +197,7 @@ SET GLOBAL max_binlog_cache_size= ORIGINAL_VALUE;
 SET GLOBAL binlog_cache_size= ORIGINAL_VALUE;
 SET GLOBAL max_binlog_stmt_cache_size= ORIGINAL_VALUE;
 SET GLOBAL binlog_stmt_cache_size= ORIGINAL_VALUE;
-include/stop_slave.inc
+include/stop_slave_io.inc
 include/start_slave.inc
 connection master;
 connection slave;

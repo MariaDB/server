@@ -1,3 +1,4 @@
+SET GLOBAL innodb_stats_persistent = 0;
 #
 # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
 # DICT_CREATE_FOREIGN_CONSTR
@@ -154,6 +155,8 @@ INSERT INTO parent SET a=0;
 FLUSH TABLES;
 # restart
 disconnect incomplete;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 INSERT INTO child SET a=0;
 INSERT INTO child SET a=1;
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
@@ -165,8 +168,6 @@ ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fail
 ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
@@ -724,13 +725,14 @@ pk	a	b
 13	0	1
 14	0	1
 15	1	0
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 InnoDB		0 transactions not purged
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 #
 # MDEV-17187 table doesn't exist in engine after ALTER other tables
 # with CONSTRAINTs
@@ -889,6 +891,42 @@ DROP INDEX fx ON t1;
 INSERT INTO t1 VALUES (2,11,11);
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
+#
+# MDEV-32018 Allow the setting of Auto_increment on FK referenced columns
+#
+CREATE TABLE t1 (
+id int unsigned NOT NULL PRIMARY KEY
+);
+CREATE TABLE t2 (
+id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+t1_id int unsigned DEFAULT NULL,
+CONSTRAINT FK_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id)
+);
+ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
+DROP TABLE t1,t2;
+#
+# MDEV-31441 BLOB corruption on UPDATE of PRIMARY KEY with FOREIGN KEY
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY (pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+SET @blob = REPEAT('A', @@innodb_page_size / 2);
+INSERT INTO t1 SET pk=1, t=@blob;
+INSERT INTO t2 SET pk=1;
+connection con1;
+BEGIN;
+DELETE FROM t2;
+connection default;
+UPDATE t1 SET pk=12;
+connection con1;
+COMMIT;
+disconnect con1;
+connection default;
+UPDATE t1 SET pk=1;
+SELECT pk,t=@blob FROM t1;
+pk	t=@blob
+1	1
+DROP TABLE t2, t1;
 # End of 10.4 tests
 #
 # MDEV-20729 Fix REFERENCES constraint in column definition
@@ -1034,8 +1072,6 @@ DROP TABLE IF EXISTS t2, t1;
 #
 # MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
 #
-SET @freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE collections (
 id int(11) unsigned NOT NULL AUTO_INCREMENT,
 collectionhash varchar(255) NOT NULL DEFAULT '0',
@@ -1061,7 +1097,7 @@ CHECK TABLE binaries, collections EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.binaries	check	status	OK
 test.collections	check	status	OK
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
 disconnect con1;
 DROP TABLE binaries, collections;
 # End of 10.6 tests
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

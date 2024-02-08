@@ -58,7 +58,7 @@ void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf)
 void pfs_free(PFS_builtin_memory_class *, size_t, void *ptr)
 {
   if (ptr != NULL)
-    free(ptr);
+    aligned_free(ptr);
 }
 
 void *pfs_malloc_array(PFS_builtin_memory_class *klass, size_t n, size_t size, myf flags)

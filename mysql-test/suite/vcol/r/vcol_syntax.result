@@ -238,3 +238,13 @@ Warning	1292	Incorrect datetime value: '1' for column `test`.`t`.`c2` at row 1
 Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
 drop trigger tr;
 drop table t;
+#
+# MDEV-29932 Invalid expr in cleanup_session_expr() upon INSERT DELAYED
+#
+create table t (f timestamp default from_unixtime(1), g timestamp as (from_unixtime(2)));
+insert delayed into t values ();
+flush table t;
+select unix_timestamp(f), unix_timestamp(g) from t;
+unix_timestamp(f)	unix_timestamp(g)
+1	2
+drop table t;

@@ -710,6 +710,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_ignore_table(false),
    wsrep_aborter(0),
    wsrep_delayed_BF_abort(false),
+   wsrep_ctas(false),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
@@ -726,7 +727,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_wfc()
 #endif /*WITH_WSREP */
 {
-  ulong tmp;
   bzero(&variables, sizeof(variables));
 
   /*
@@ -878,14 +878,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   tablespace_op=FALSE;
 
-  /*
-    Initialize the random generator. We call my_rnd() without a lock as
-    it's not really critical if two threads modifies the structure at the
-    same time.  We ensure that we have an unique number foreach thread
-    by adding the address of the stack.
-  */
-  tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
-  my_rnd_init(&rand, tmp + (ulong)((size_t) &rand), tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   lock_info.mysql_thd= (void *)this;
 
@@ -1228,6 +1220,7 @@ const Type_handler *THD::type_handler_for_datetime() const
 void THD::init()
 {
   DBUG_ENTER("thd::init");
+  mdl_context.reset();
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
@@ -1244,7 +1237,9 @@ void THD::init()
 
   user_time.val= start_time= start_time_sec_part= 0;
 
-  server_status= SERVER_STATUS_AUTOCOMMIT;
+  server_status= 0;
+  if (variables.option_bits & OPTION_AUTOCOMMIT)
+    server_status|= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
   if (variables.sql_mode & MODE_ANSI_QUOTES)
@@ -1309,6 +1304,17 @@ void THD::init()
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
   last_global_update_time= current_connect_time= time(NULL);
+
+  /*
+    Initialize the random generator. We call my_rnd() without a lock as
+    it's not really critical if two threads modify the structure at the
+    same time.  We ensure that we have a unique number for each thread
+    by adding the address of this THD.
+  */
+  ulong tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
+  my_rnd_init(&rand, tmp + (ulong)(intptr) this,
+                     (ulong)(my_timer_cycles() + global_query_id));
+
 #ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
 #endif //EMBEDDED_LIBRARY
@@ -1601,6 +1607,10 @@ void THD::free_connection()
     vio_delete(net.vio);
   net.vio= nullptr;
   net_end(&net);
+  delete(rgi_fake);
+  rgi_fake= NULL;
+  delete(rli_fake);
+  rli_fake= NULL;
 #endif
  if (!cleanup_done)
    cleanup();
@@ -1639,6 +1649,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  proc_info= "login";                           // Same as in THD::THD()
   transaction->on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
@@ -1651,6 +1662,7 @@ void THD::reset_for_reuse()
   wsrep_cs().reset_error();
   wsrep_aborter= 0;
   wsrep_abort_by_kill= NOT_KILLED;
+  my_free(wsrep_abort_by_kill_err);
   wsrep_abort_by_kill_err= 0;
 #ifndef DBUG_OFF
   wsrep_killed_state= 0;
@@ -1693,6 +1705,8 @@ THD::~THD()
 
 #ifdef WITH_WSREP
   mysql_cond_destroy(&COND_wsrep_thd);
+  my_free(wsrep_abort_by_kill_err);
+  wsrep_abort_by_kill_err= 0;
 #endif
   mdl_context.destroy();
 
@@ -1705,17 +1719,6 @@ THD::~THD()
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
-  if (rgi_fake)
-  {
-    delete rgi_fake;
-    rgi_fake= NULL;
-  }
-  if (rli_fake)
-  {
-    delete rli_fake;
-    rli_fake= NULL;
-  }
-  
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
   my_free(semisync_info);
@@ -1723,6 +1726,7 @@ THD::~THD()
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
   my_free(m_token_array);
+  my_free(killed_err);
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
@@ -1853,14 +1857,6 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
     the calling functions.  See execute_show_status().
   */
 }
-
-#define SECONDS_TO_WAIT_FOR_KILL 2
-#if !defined(_WIN32) && defined(HAVE_SELECT)
-/* my_sleep() can wait for sub second times */
-#define WAIT_FOR_KILL_TRY_TIMES 20
-#else
-#define WAIT_FOR_KILL_TRY_TIMES 2
-#endif
 
 
 /**
@@ -2139,7 +2135,11 @@ void THD::reset_killed()
     mysql_mutex_assert_not_owner(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_kill);
     killed= NOT_KILLED;
-    killed_err= 0;
+    if (unlikely(killed_err))
+    {
+      my_free(killed_err);
+      killed_err= 0;
+    }
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
@@ -2150,6 +2150,7 @@ void THD::reset_killed()
       mysql_mutex_assert_not_owner(&LOCK_thd_kill);
       mysql_mutex_lock(&LOCK_thd_kill);
       wsrep_abort_by_kill= NOT_KILLED;
+      my_free(wsrep_abort_by_kill_err);
       wsrep_abort_by_kill_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
@@ -4704,7 +4705,7 @@ extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
     if (unlikely(apc_target->have_apc_requests()))
     {
       if (thd == current_thd)
-        apc_target->process_apc_requests();
+        apc_target->process_apc_requests(false);
     }
     return THD_IS_NOT_KILLED;
   }
@@ -5556,7 +5557,7 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
-    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
+    return (int) thd->wsrep_binlog_format(thd->variables.binlog_format);
   }
 
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
@@ -5930,8 +5931,6 @@ void THD::set_examined_row_count(ha_rows count)
 void THD::inc_sent_row_count(ha_rows count)
 {
   m_sent_row_count+= count;
-  DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
-                  m_examined_row_count= (ULONGLONG_MAX - 1000000););
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
@@ -6334,11 +6333,14 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
   reset_binlog_local_stmt_filter();
 
+  // Used binlog format
+  ulong binlog_format= wsrep_binlog_format(variables.binlog_format);
   /*
     We should not decide logging format if the binlog is closed or
     binlogging is off, or if the statement is filtered out from the
     binlog by filtering rules.
   */
+
 #ifdef WITH_WSREP
   if (WSREP_CLIENT_NNULL(this) &&
       wsrep_thd_is_local(this) &&
@@ -6353,6 +6355,27 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_RETURN(-1);
     }
   }
+
+  /*
+    If user has configured wsrep_forced_binlog_format to
+    STMT OR MIXED and used binlog_format would be same
+    and this is CREATE TABLE AS SELECT we will fall back
+    to ROW.
+  */
+  if (wsrep_forced_binlog_format < BINLOG_FORMAT_ROW &&
+      wsrep_ctas)
+  {
+    if (!get_stmt_da()->has_sql_condition(ER_UNKNOWN_ERROR))
+    {
+      push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                          ER_UNKNOWN_ERROR,
+                          "Galera does not support wsrep_forced_binlog_format = %s "
+                          "in CREATE TABLE AS SELECT",
+                          wsrep_forced_binlog_format == BINLOG_FORMAT_STMT ?
+                          "STMT" : "MIXED");
+    }
+    set_current_stmt_binlog_format_row();
+  }
 #endif /* WITH_WSREP */
 
   if (WSREP_EMULATE_BINLOG_NNULL(this) ||
@@ -6360,7 +6383,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   {
     if (is_bulk_op())
     {
-      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
+      if (binlog_format == BINLOG_FORMAT_STMT)
       {
         my_error(ER_BINLOG_NON_SUPPORTED_BULK, MYF(0));
         DBUG_PRINT("info",
@@ -6578,7 +6601,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       prev_access_table= table;
     }
 
-    if (wsrep_binlog_format() != BINLOG_FORMAT_ROW)
+    if (binlog_format != BINLOG_FORMAT_ROW)
     {
       /*
         DML statements that modify a table with an auto_increment
@@ -6662,7 +6685,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if ((wsrep_binlog_format() == BINLOG_FORMAT_ROW || is_bulk_op()) &&
+      else if ((binlog_format == BINLOG_FORMAT_ROW || is_bulk_op()) &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -6692,7 +6715,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     else
     {
       /* binlog_format = STATEMENT */
-      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
+      if (binlog_format == BINLOG_FORMAT_STMT)
       {
         if (lex->is_stmt_row_injection())
         {
@@ -6836,7 +6859,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         "and binlog_filter->db_ok(db) = %d",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
-                        (uint) wsrep_binlog_format(),
+                        (uint) binlog_format,
                         binlog_filter->db_ok(db.str)));
     if (WSREP_NNULL(this) && is_current_stmt_binlog_format_row())
       binlog_prepare_for_row_logging();
@@ -6873,7 +6896,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 void THD::reconsider_logging_format_for_iodup(TABLE *table)
 {
   DBUG_ENTER("reconsider_logging_format_for_iodup");
-  enum_binlog_format bf= (enum_binlog_format) wsrep_binlog_format();
+  enum_binlog_format bf= (enum_binlog_format) wsrep_binlog_format(variables.binlog_format);
 
   DBUG_ASSERT(lex->duplicates == DUP_UPDATE);
 
@@ -6938,7 +6961,7 @@ bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
 {
   return (mysql_bin_log.is_open() &&
           (variables.option_bits & OPTION_BIN_LOG) &&
-          (wsrep_binlog_format() != BINLOG_FORMAT_STMT ||
+          (wsrep_binlog_format(variables.binlog_format) != BINLOG_FORMAT_STMT ||
            binlog_filter->db_ok(db->str)));
 }
 
@@ -6971,7 +6994,8 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
 {
   DBUG_ENTER("binlog_prepare_pending_rows_event");
   /* Pre-conditions */
-  DBUG_ASSERT(table->s->table_map_id != ~0UL);
+  DBUG_ASSERT((table->s->table_map_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
+              (table->s->table_map_id & MAX_TABLE_MAP_ID) != 0);
 
   /* Fetch the type code for the RowsEventT template parameter */
   int const general_type_code= RowsEventT::TYPE_CODE;

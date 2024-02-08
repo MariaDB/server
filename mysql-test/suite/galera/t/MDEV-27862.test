@@ -1,6 +1,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--disable_ps2_protocol
+
 # NEXTVAL
 
 --connection node_1
@@ -54,3 +56,4 @@ SELECT NEXTVAL(seq_transaction) = 4;
 DROP SEQUENCE seq_transaction;
 DROP TABLE t1;
 
+--enable_ps2_protocol

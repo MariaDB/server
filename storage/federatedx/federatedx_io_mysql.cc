@@ -451,11 +451,14 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
                             get_port(),
                             get_socket(), 0))
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
+
+    if ((error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
+      DBUG_RETURN(error);
+
     mysql.reconnect= 1;
   }
 
-  if (!(error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
-    error= mysql_real_query(&mysql, buffer, (ulong)length);
+  error= mysql_real_query(&mysql, buffer, (ulong)length);
   
   DBUG_RETURN(error);
 }

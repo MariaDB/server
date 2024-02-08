@@ -16,6 +16,7 @@ analyze table t1;
 --echo # Delete with limit (quick select - range acces)
 --echo #
 
+--disable_view_protocol
 start transaction;
 --enable_info
 delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 limit 1;
@@ -111,6 +112,7 @@ rollback;
 start transaction;
 delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 order by c2 desc limit 10 returning c1,c2;
 rollback;
+--enable_view_protocol
 
 drop view v1;
 drop table t1;

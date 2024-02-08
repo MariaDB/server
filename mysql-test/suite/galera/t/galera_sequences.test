@@ -134,6 +134,31 @@ DROP SEQUENCE t;
 #
 --error ER_NOT_SUPPORTED_YET
 CREATE SEQUENCE t ENGINE=MYISAM;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE t;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t;
+
+--connection node_2
+# Verify that above MyISAM sequence does not replicate
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE t;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t;
+
+--connection node_1
+CREATE SEQUENCE t NOCACHE ENGINE=InnoDB;
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t ENGINE=MyISAM;
+SHOW CREATE SEQUENCE t;
+SHOW CREATE TABLE t;
+
+--connection node_2
+SHOW CREATE SEQUENCE t;
+SHOW CREATE TABLE t;
+
+--connection node_1
+DROP SEQUENCE t;
 CREATE SEQUENCE t INCREMENT BY 1 NOCACHE ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 
@@ -164,15 +189,15 @@ SET SESSION wsrep_sync_wait=0;
 while ($count)
 {
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1);
 --connection node_2
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (2);
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (2);
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1);
 --dec $count
 }
@@ -222,15 +247,15 @@ SET SESSION wsrep_sync_wait=0;
 while ($count)
 {
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 --connection node_2
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 --dec $count
 }

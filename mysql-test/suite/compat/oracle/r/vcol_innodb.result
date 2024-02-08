@@ -1,0 +1,54 @@
+#
+# MDEV-27744 LPAD in vcol created in ORACLE mode makes table corrupted in non-ORACLE
+#
+FLUSH TABLES;
+SET sql_mode='';
+CREATE TABLE t (d INT,b VARCHAR(1),c CHAR(1),g CHAR(1) GENERATED ALWAYS AS (SUBSTR(b,0,0)) VIRTUAL,PRIMARY KEY(b),KEY g(g)) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+ERROR 21S01: Column count doesn't match value count at row 1
+SET sql_mode='ORACLE';
+INSERT INTO t SET c=REPEAT (1,0);
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+ALTER TABLE t CHANGE COLUMN a b INT;
+ERROR 42S22: Unknown column 'a' in 't'
+DELETE FROM t;
+SET sql_mode='';
+FLUSH TABLES;
+INSERT INTO t SET c='0';
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+DROP TABLE t;
+FLUSH TABLES;
+SET sql_mode='';
+CREATE TABLE t (a INT(1),d INT(1),b VARCHAR(1),c CHAR(1),vadc INT(1) GENERATED ALWAYS AS ( (a + length (d))) STORED,vbc CHAR(1) GENERATED ALWAYS AS (SUBSTR(b,0,0)) VIRTUAL,vbidxc CHAR(1) GENERATED ALWAYS AS (SUBSTR(b,0,0)) VIRTUAL,PRIMARY KEY(b (1),a,d),KEY d (d),KEY a (a),KEY c_renamed (c (1),b (1)),KEY b (b (1),c (1),a),KEY vbidxc (vbidxc),KEY a_2 (a,vbidxc),KEY vbidxc_2 (vbidxc,d)) DEFAULT CHARSET=latin1 ENGINE=InnoDB;
+INSERT INTO t VALUES (0,0,1,0,1,0,1,0,0);
+ERROR 21S01: Column count doesn't match value count at row 1
+SET SESSION sql_mode='ORACLE';
+INSERT INTO t SET c=REPEAT (1,0);
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
+Warning	1364	Field 'b' doesn't have a default value
+ALTER TABLE t CHANGE COLUMN a b CHAR(1);
+ERROR 42S21: Duplicate column name 'b'
+DELETE FROM t;
+SET SESSION sql_mode=DEFAULT;
+DROP TABLE t;
+SET sql_mode='';
+CREATE TABLE t1 (d INT,b VARCHAR(1),c CHAR(1),g CHAR(1) GENERATED ALWAYS AS (SUBSTR(b,0,0)) VIRTUAL,PRIMARY KEY(b),KEY g(g)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0);
+ERROR 21S01: Column count doesn't match value count at row 1
+SET sql_mode='ORACLE';
+INSERT INTO t1 SET c=REPEAT (1,0);
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+ALTER TABLE t1 CHANGE COLUMN a b INT;
+ERROR 42S22: Unknown column 'a' in 't1'
+DELETE FROM t1;
+SET sql_mode='';
+FLUSH TABLES;
+INSERT INTO t1 SET c='0';
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+DROP TABLE t1;

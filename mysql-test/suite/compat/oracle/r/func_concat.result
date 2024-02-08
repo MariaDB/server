@@ -3,12 +3,12 @@ EXPLAIN EXTENDED SELECT 'a'||'b'||'c';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(concat_operator_oracle('a','b'),'c') AS "'a'||'b'||'c'"
+Note	1003	select concat(concat('a','b'),'c') AS "'a'||'b'||'c'"
 EXPLAIN EXTENDED SELECT CONCAT('a'||'b'||'c');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(concat_operator_oracle(concat_operator_oracle('a','b'),'c')) AS "CONCAT('a'||'b'||'c')"
+Note	1003	select concat(concat(concat('a','b'),'c')) AS "CONCAT('a'||'b'||'c')"
 SELECT ''   || '';
 ''   || ''
 
@@ -211,14 +211,14 @@ SET sql_mode=ORACLE;
 CREATE VIEW v1 AS SELECT 'foo'||NULL||'bar' AS test;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE VIEW "v1" AS select concat_operator_oracle(concat_operator_oracle('foo',NULL),'bar') AS "test"	latin1	latin1_swedish_ci
+v1	CREATE VIEW "v1" AS select concat(concat('foo',NULL),'bar') AS "test"	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 test
 foobar
 SET sql_mode=DEFAULT;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select concat_operator_oracle(concat_operator_oracle('foo',NULL),'bar') AS `test`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select oracle_schema.concat(oracle_schema.concat('foo',NULL),'bar') AS `test`	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 test
 foobar
@@ -234,7 +234,7 @@ NULL
 SET sql_mode=ORACLE;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE VIEW "v1" AS select concat('foo',NULL,'bar') AS "test"	latin1	latin1_swedish_ci
+v1	CREATE VIEW "v1" AS select mariadb_schema.concat('foo',NULL,'bar') AS "test"	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 test
 NULL
@@ -268,12 +268,12 @@ EXPLAIN EXTENDED SELECT -1<<1||1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select -1 << concat_operator_oracle(1,1) AS "a"
+Note	1003	select -1 << concat(1,1) AS "a"
 EXPLAIN EXTENDED SELECT -1||0<<1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(-1,0) << 1 AS "a"
+Note	1003	select concat(-1,0) << 1 AS "a"
 SELECT -1+1||1 AS a FROM DUAL;
 a
 01
@@ -284,12 +284,12 @@ EXPLAIN EXTENDED SELECT -1+1||1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(-1 + 1,1) AS "a"
+Note	1003	select concat(-1 + 1,1) AS "a"
 EXPLAIN EXTENDED SELECT -1||0+1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(-1,0) + 1 AS "a"
+Note	1003	select concat(-1,0) + 1 AS "a"
 SELECT 1*1||-1 AS a FROM DUAL;
 a
 1-1
@@ -300,12 +300,12 @@ EXPLAIN EXTENDED SELECT 1*1||-1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(1 * 1,-1) AS "a"
+Note	1003	select concat(1 * 1,-1) AS "a"
 EXPLAIN EXTENDED SELECT 1||1*-1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(1,1 * -1) AS "a"
+Note	1003	select concat(1,1 * -1) AS "a"
 SELECT -1^1||1 AS a FROM DUAL;
 a
 184467440737095516141
@@ -316,12 +316,12 @@ EXPLAIN EXTENDED SELECT -1^1||1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(-1 ^ 1,1) AS "a"
+Note	1003	select concat(-1 ^ 1,1) AS "a"
 EXPLAIN EXTENDED SELECT -1||0^1 AS a FROM DUAL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat_operator_oracle(-1,0 ^ 1) AS "a"
+Note	1003	select concat(-1,0 ^ 1) AS "a"
 #
 # MDEV-17359 Concatenation operator || in like expression failed in sql_mode=ORACLE
 #
@@ -332,7 +332,7 @@ EXPLAIN EXTENDED SELECT 'abc' LIKE 'a'||'%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'abc' like concat_operator_oracle('a','%') AS "'abc' LIKE 'a'||'%'"
+Note	1003	select 'abc' like concat('a','%') AS "'abc' LIKE 'a'||'%'"
 SELECT 'x' FROM DUAL WHERE 11 LIKE 1||1;
 x
 x
@@ -353,7 +353,7 @@ EXPLAIN EXTENDED SELECT c1 FROM t1 WHERE c1 LIKE '%'||'b' ORDER BY ord;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using filesort
 Warnings:
-Note	1003	select "test"."t1"."c1" AS "c1" from "test"."t1" where "test"."t1"."c1" like <cache>(concat_operator_oracle('%','b')) order by "test"."t1"."ord"
+Note	1003	select "test"."t1"."c1" AS "c1" from "test"."t1" where "test"."t1"."c1" like <cache>(concat('%','b')) order by "test"."t1"."ord"
 SELECT c1 FROM t1 WHERE c1 LIKE c2||'%'||'c' ORDER BY ord;
 c1
 abc
@@ -361,7 +361,7 @@ EXPLAIN EXTENDED SELECT c1 FROM t1 WHERE c1 LIKE c2||'%'||'c' ORDER BY ord;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using filesort
 Warnings:
-Note	1003	select "test"."t1"."c1" AS "c1" from "test"."t1" where "test"."t1"."c1" like concat_operator_oracle(concat_operator_oracle("test"."t1"."c2",'%'),'c') order by "test"."t1"."ord"
+Note	1003	select "test"."t1"."c1" AS "c1" from "test"."t1" where "test"."t1"."c1" like concat(concat("test"."t1"."c2",'%'),'c') order by "test"."t1"."ord"
 SELECT 'x' FROM t1 WHERE c1||c2 LIKE 'aa%';
 x
 x
@@ -369,7 +369,7 @@ EXPLAIN EXTENDED SELECT 'x' FROM t1 WHERE c1||c2 LIKE 'aa%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	select 'x' AS "x" from "test"."t1" where concat_operator_oracle("test"."t1"."c1","test"."t1"."c2") like 'aa%'
+Note	1003	select 'x' AS "x" from "test"."t1" where concat("test"."t1"."c1","test"."t1"."c2") like 'aa%'
 SELECT 'x' FROM t1 WHERE c1||c2 LIKE c2||c1;
 x
 x
@@ -377,7 +377,7 @@ EXPLAIN EXTENDED SELECT 'x' FROM t1 WHERE c1||c2 LIKE c2||c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	select 'x' AS "x" from "test"."t1" where concat_operator_oracle("test"."t1"."c1","test"."t1"."c2") like concat_operator_oracle("test"."t1"."c2","test"."t1"."c1")
+Note	1003	select 'x' AS "x" from "test"."t1" where concat("test"."t1"."c1","test"."t1"."c2") like concat("test"."t1"."c2","test"."t1"."c1")
 CREATE VIEW v1 AS SELECT c1, c2, c1 LIKE c2||'_' FROM t1 ORDER BY ord;
 SELECT * FROM v1;
 c1	c2	c1 LIKE c2||'_'
@@ -388,6 +388,6 @@ EXPLAIN EXTENDED SELECT * FROM v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	select "test"."t1"."c1" AS "c1","test"."t1"."c2" AS "c2","test"."t1"."c1" like concat_operator_oracle("test"."t1"."c2",'_') AS "c1 LIKE c2||'_'" from "test"."t1" order by "test"."t1"."ord"
+Note	1003	select "test"."t1"."c1" AS "c1","test"."t1"."c2" AS "c2","test"."t1"."c1" like concat("test"."t1"."c2",'_') AS "c1 LIKE c2||'_'" from "test"."t1" order by "test"."t1"."ord"
 DROP VIEW v1;
 DROP TABLE t1;

@@ -1,0 +1,13 @@
+[mysqld.1]
+log-slave-updates
+loose-innodb
+
+[mysqld.2]
+log-slave-updates
+loose-innodb
+
+[ENV]
+SERVER_MYPORT_1=		@mysqld.1.port
+SERVER_MYSOCK_1=		@mysqld.1.socket
+SERVER_MYPORT_2=		@mysqld.2.port
+SERVER_MYSOCK_2=		@mysqld.2.socket

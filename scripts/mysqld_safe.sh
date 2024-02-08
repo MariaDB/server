@@ -42,7 +42,7 @@ trap '' 1 2 3 15			# we shouldn't let anyone kill us
 
 case "$0" in
   *mysqld_safe)
-    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-safe' instead" 1>&2
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadbd-safe' instead" 1>&2
     ;;
 esac
 

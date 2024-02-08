@@ -1,0 +1,49 @@
+--source include/not_embedded.inc
+
+if (!$SQL_ERRLOG_SO) {
+  skip No SQL_ERROR_LOG plugin;
+}
+
+show variables like 'sql_error_log%';
+set global sql_error_log_rate=1;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--echo # Trying to set the variable at runtime
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET sql_error_log_with_db_and_thread_info=OFF;
+
+--echo #
+--echo # Using test database from mtr
+--echo #
+
+--error ER_DB_DROP_EXISTS
+DROP DATABASE db;
+
+--echo #
+--echo # Using no database at all
+--echo #
+
+
+connect (con1,localhost,root,,*NO-ONE*);
+--error ER_DB_DROP_EXISTS
+DROP DATABASE dbnodb;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Using database with name `NULL`
+--echo #
+CREATE DATABASE `NULL`;
+USE `NULL`;
+--error ER_DB_DROP_EXISTS
+DROP DATABASE db;
+
+
+--let SEARCH_FILE= $MYSQLD_DATADIR/sql_errors.log
+--let LINES_TO_READ=7
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `mtr` /TIME THREAD_ID HOSTNAME `mtr` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `test` /TIME THREAD_ID HOSTNAME `test` //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* NULL /TIME THREAD_ID HOSTNAME NULL //[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [ 0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]* .* @ .* `NULL` /TIME THREAD_ID HOSTNAME `NULL` /
+--source include/read_head.inc
+
+DROP DATABASE `NULL`;

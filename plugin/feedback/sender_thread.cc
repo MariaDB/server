@@ -96,8 +96,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   thd->mysys_var->current_cond= &sleep_condition;
   thd->mysys_var->current_mutex= &sleep_mutex;
+  thd->mark_connection_idle();
   thd->proc_info="feedback";
-  thd->set_command(COM_SLEEP);
   thd->system_thread= SYSTEM_THREAD_EVENT_WORKER; // whatever
   thd->set_time();
   thd->init_for_queries();

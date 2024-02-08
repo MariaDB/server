@@ -1,9 +1,8 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
 
-# Ensure that the history list length will actually be decremented by purge.
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 
 --echo #
 --echo # Bug#21869656 UNDO LOG DOES NOT CONTAIN ENOUGH INFORMATION
@@ -186,5 +185,6 @@ SET GLOBAL innodb_max_purge_lag_wait=0;
 CHECK TABLE t EXTENDED;
 DROP TABLE t;
 
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+
 --source include/wait_until_count_sessions.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

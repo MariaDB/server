@@ -1,1 +1,1 @@
---init-file=$MYSQL_TEST_DIR/../storage/spider/mysql-test/spider/bugfix/t/mdev_27233.sql
+--init-file=$MTR_SUITE_DIR/t/mdev_27233.sql

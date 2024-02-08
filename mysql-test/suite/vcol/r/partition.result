@@ -101,3 +101,25 @@ partition pn values less than (maxvalue));
 insert into t1 (x, b) values (1, ''), (2, ''), (3, 'a'), (4, 'b');
 update t1 set b= 'bar' where x > 0 order by v limit 2;
 drop table t1;
+#
+# MDEV-28127 EXCHANGE PARTITION with non-matching vcol expression segfault
+#
+set @old_mode= @@sql_mode;
+set sql_mode='';
+create table t1 (a int, key(a)) partition by range (a) (partition p values less than (1));
+create table t (a int generated always as (1) virtual, key(a));
+alter table t1 exchange partition p with table t;
+ERROR HY000: Tables have different definitions
+create or replace table t (a int, key(a));
+alter table t1 exchange partition p with table t;
+create or replace table t1 (a int generated always as (1) virtual, key(a)) partition by range (a) (partition p values less than (1));
+create or replace table t (a int generated always as (1) virtual, key(a));
+alter table t1 exchange partition p with table t;
+create or replace table t (a int generated always as (1) stored, key(a));
+alter table t1 exchange partition p with table t;
+ERROR HY000: Tables have different definitions
+insert into t values (1);
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't' has been ignored
+drop tables t1, t;
+set sql_mode= @old_mode;

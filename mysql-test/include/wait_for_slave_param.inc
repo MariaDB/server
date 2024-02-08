@@ -35,7 +35,7 @@
 # $slave_error_param
 #   If set, this script will check if the column of the output from
 #   SHOW SLAVE STATUS named $slave_error_param is nonzero.  If it is,
-#   this script will faile immediately.  Typically, this should be set
+#   this script will fail immediately.  Typically, this should be set
 #   to Last_IO_Errno or Last_SQL_Errno.
 #
 # $rpl_debug
@@ -54,11 +54,6 @@ if (!$_slave_timeout)
   {
     let $_slave_timeout= 1500;
   }
-}
-
-if ($slave_error_param == '')
-{
-  --let $slave_error_param= 1
 }
 
 let $_slave_param_comparison= $slave_param_comparison;
@@ -90,7 +85,7 @@ while ($_slave_continue)
   --let $_show_slave_status_value= query_get_value("SHOW SLAVE STATUS", $slave_param, 1)
 
   # Check if an error condition is reached.
-  if (!$slave_error_param)
+  if ($slave_error_param)
   {
     --let $_show_slave_status_error_value= query_get_value("SHOW SLAVE STATUS", $slave_error_param, 1)
     if ($_show_slave_status_error_value)

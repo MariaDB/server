@@ -4,11 +4,13 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/galera_sst_method.inc
+--source include/force_restart.inc
 
 #
 # Initially wsrep gtid domain id is 100
 #
+
 --connection node_1
 select @@wsrep_gtid_domain_id,@@wsrep_node_name;
 
@@ -26,6 +28,10 @@ select @@wsrep_gtid_domain_id,@@wsrep_node_name;
 --connection node_3
 --source include/shutdown_mysqld.inc
 
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 --connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
@@ -36,6 +42,7 @@ select @@wsrep_gtid_domain_id,@@wsrep_node_name;
 --source include/wait_condition.inc
 --source include/shutdown_mysqld.inc
 
+--sleep 5
 
 #
 # Bootstrap from node_1 and change wsrep_gtid_domain_id to 200
@@ -45,12 +52,11 @@ select @@wsrep_gtid_domain_id,@@wsrep_node_name;
 --source include/start_mysqld.inc
 show variables like 'wsrep_gtid_domain_id';
 
-
 #
 # Restart node_2, expect that wsrep_gtid_domain_id has changed to 200
 #
 --connection node_2
---let $restart_parameters = 
+--let $restart_parameters =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
 show variables like 'wsrep_gtid_domain_id';

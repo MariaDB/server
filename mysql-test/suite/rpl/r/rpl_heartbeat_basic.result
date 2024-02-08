@@ -228,7 +228,7 @@ call mtr.add_suppression("Slave SQL.*Duplicate entry .1. for key .PRIMARY.. on q
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
 set sql_log_bin= 1;
 Heartbeat events are received while sql thread stopped (1 means 'yes'): 1
-include/stop_slave.inc
+include/stop_slave_io.inc
 set sql_log_bin= 0;
 DROP TABLE t1;
 set sql_log_bin= 1;

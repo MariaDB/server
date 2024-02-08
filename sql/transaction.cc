@@ -416,7 +416,7 @@ bool trans_rollback_implicit(THD *thd)
   */
   DBUG_ASSERT(thd->transaction->stmt.is_empty() && !thd->in_sub_stmt);
 
-  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  thd->server_status&= ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, true);
   /*

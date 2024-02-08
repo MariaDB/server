@@ -941,14 +941,15 @@ bool Item_field::register_field_in_write_map(void *arg)
 
   This is used by fix_vcol_expr() when a table is opened
 
-  We don't have to check fields that are marked as NO_DEFAULT_VALUE
-  as the upper level will ensure that all these will be given a value.
+  We don't have to check non-virtual fields that are marked as
+  NO_DEFAULT_VALUE as the upper level will ensure that all these
+  will be given a value.
 */
 
 bool Item_field::check_field_expression_processor(void *arg)
 {
   Field *org_field= (Field*) arg;
-  if (field->flags & NO_DEFAULT_VALUE_FLAG)
+  if (field->flags & NO_DEFAULT_VALUE_FLAG && !field->vcol_info)
     return 0;
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
@@ -2520,7 +2521,8 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
 
 /******************************/
 static
-void my_coll_agg_error(DTCollation &c1, DTCollation &c2, const char *fname)
+void my_coll_agg_error(const DTCollation &c1, const DTCollation &c2,
+                       const char *fname)
 {
   my_error(ER_CANT_AGGREGATE_2COLLATIONS,MYF(0),
            c1.collation->coll_name.str, c1.derivation_name(),
@@ -2603,10 +2605,17 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c,
 }
 
 
+/*
+  @param single_err  When nargs==1, use *single_err as the second aggregated
+                     collation when producing error message.
+*/
+
 bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
                                                  const LEX_CSTRING &fname,
                                                  Item **args, uint nargs,
-                                                 uint flags, int item_sep)
+                                                 uint flags, int item_sep,
+                                                 const Single_coll_err
+                                                 *single_err)
 {
   THD *thd= current_thd;
   if (thd->lex->is_ps_or_view_context_analysis())
@@ -2644,26 +2653,45 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
         args[0]= safe_args[0];
         args[item_sep]= safe_args[1];
       }
-      my_coll_agg_error(args, nargs, fname.str, item_sep);
+      if (nargs == 1 && single_err)
+      {
+        /*
+          Use *single_err to produce an error message mentioning two
+          collations.
+        */
+        if (single_err->first)
+          my_coll_agg_error(args[0]->collation, single_err->coll, fname.str);
+        else
+          my_coll_agg_error(single_err->coll, args[0]->collation, fname.str);
+      }
+      else
+        my_coll_agg_error(args, nargs, fname.str, item_sep);
       return TRUE;
     }
 
     if (conv->fix_fields_if_needed(thd, arg))
       return TRUE;
 
-    Query_arena *arena, backup;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
-    if (arena)
+    if (!thd->stmt_arena->is_conventional() &&
+	((!thd->lex->current_select &&
+	  (thd->stmt_arena->is_stmt_prepare_or_first_sp_execute() ||
+           thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())) ||
+         thd->lex->current_select->first_cond_optimization))
     {
+      Query_arena *arena, backup;
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+
       Item_direct_ref_to_item *ref=
         new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
       if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
       {
-        thd->restore_active_arena(arena, &backup);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
         return TRUE;
       }
       *arg= ref;
-      thd->restore_active_arena(arena, &backup);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       ref->change_item(thd, conv);
     }
     else
@@ -2772,11 +2800,11 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
       quoted `pkg` and `func` separately, so the entire result looks like:
          `db`.`pkg`.`func`
     */
-    Database_qualified_name tmp= Database_qualified_name::split(m_name->m_name);
-    DBUG_ASSERT(tmp.m_db.length);
-    append_identifier(thd, &qname, &tmp.m_db);
+    Identifier_chain2 tmp= Identifier_chain2::split(m_name->m_name);
+    DBUG_ASSERT(tmp[0].length);
+    append_identifier(thd, &qname, &tmp[0]);
     qname.append('.');
-    append_identifier(thd, &qname, &tmp.m_name);
+    append_identifier(thd, &qname, &tmp[1]);
   }
   else
     append_identifier(thd, &qname, &m_name->m_name);
@@ -7043,7 +7071,25 @@ Item *Item_float::neg(THD *thd)
   else if (value < 0 && max_length)
     max_length--;
   value= -value;
-  presentation= 0;
+  if (presentation)
+  {
+    if (*presentation == '-')
+    {
+      // Strip double minus: -(-1) -> '1' instead of '--1'
+      presentation++;
+    }
+    else
+    {
+      size_t presentation_length= strlen(presentation);
+      if (char *tmp= (char*) thd->alloc(presentation_length + 2))
+      {
+        tmp[0]= '-';
+        // Copy with the trailing '\0'
+        memcpy(tmp + 1, presentation, presentation_length + 1);
+        presentation= tmp;
+      }
+    }
+  }
   name= null_clex_str;
   return this;
 }
@@ -9565,6 +9611,11 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 
 
 bool Item_default_value::check_field_expression_processor(void *)
+{
+  return Item_default_value::update_func_default_processor(0);
+}
+
+bool Item_default_value::update_func_default_processor(void *)
 {
   field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
   return 0;

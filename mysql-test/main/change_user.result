@@ -1,4 +1,6 @@
 set global secure_auth=0;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 create user test_nopw;
 grant select on test.* to test_nopw;
 create user test_oldpw identified by password "09301740536db389";
@@ -90,6 +92,8 @@ NULL
 FLUSH STATUS;
 Value of com_select did not change
 set global secure_auth=default;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 set timestamp=unix_timestamp('2010-10-10 10:10:10');
 select now();
 now()

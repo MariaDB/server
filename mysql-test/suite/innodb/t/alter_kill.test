@@ -25,7 +25,7 @@ call mtr.add_suppression("Table .*bug16720368.* is corrupted");
 -- echo # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 -- echo #
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_stats_persistent=0;
 
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 

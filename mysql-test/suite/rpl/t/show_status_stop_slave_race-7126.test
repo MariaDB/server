@@ -15,6 +15,9 @@ call mtr.add_suppression("Master is configured to log replication events");
 # All done.
 
 --connection slave
+# The parallel START SLAVE can leave an error condition if the last START was
+# aborted by the master due to conflicting server_id from multiple connections.
+--let $rpl_allow_error= 1
 --source include/wait_for_slave_to_stop.inc
 start slave;
 

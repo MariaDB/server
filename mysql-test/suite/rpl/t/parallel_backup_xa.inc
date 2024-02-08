@@ -59,6 +59,7 @@ XA RECOVER;
   {
     --let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
     --source include/wait_condition.inc
+    --let $rpl_allow_error=1
   }
   ROLLBACK;
 --let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
@@ -71,6 +72,7 @@ if (!$slave_ooo_error)
 {
   --source include/sync_with_master_gtid.inc
 }  
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 if ($slave_ooo_error)
 {

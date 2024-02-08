@@ -3,7 +3,7 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
-CREATE TABLE t1(f1 INT, f2 INT, INDEX(f1))ENGINE=InnoDB
+CREATE TABLE t1(f1 INT, f2 INT, INDEX(f1))ENGINE=InnoDB STATS_PERSISTENT=0
                 PARTITION BY LIST(f1) (
                         PARTITION p1 VALUES in (1, 2, 3),
                         PARTITION p2 VALUES in (4, 5, 6));

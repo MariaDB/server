@@ -4,7 +4,6 @@
 
 SET GLOBAL
   innodb_file_per_table=OFF,
-  innodb_purge_rseg_truncate_frequency=1,
   innodb_immediate_scrub_data_uncompressed=ON;
 CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
                 f3 INT NOT NULL, INDEX(f1),

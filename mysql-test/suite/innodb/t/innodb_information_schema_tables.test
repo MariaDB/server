@@ -1,6 +1,10 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
 
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= \[Warning\] InnoDB: innodb_open_files 1000000 should not be greater than the open_files_limit [0-9]+;
+--source include/search_pattern_in_file.inc
+
 #
 # MDEV-7762 InnoDB: Failing assertion: block->page.buf_fix_count > 0 in buf0buf.ic line 730
 #

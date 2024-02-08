@@ -574,5 +574,108 @@ insert into t1 values (1,10),(2,20);
 update t1 set b = 30 limit 1;
 drop table t1;
 #
+# MDEV-32839 LONG UNIQUE gives error when used with REPLACE
+#
+create table t1 (
+f1 bigint(20) not null auto_increment primary key,
+f2 varchar(30) default null,
+f3 varchar(30) default null,
+f4 varchar(255) default null,
+f5 varchar(30) default null,
+f6 varchar(255) default null,
+f7 varchar(255) default null,
+unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=myisam;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+f1	f2	f3	f4	f5	f6	f7
+2	00004	0001009089999		netstes	psit	d
+4	00004	0001009089999		netstes	psit	e
+drop table t1;
+create table t1 (
+f1 bigint(20) not null auto_increment primary key,
+f2 varchar(30) default null,
+f3 varchar(30) default null,
+f4 varchar(255) default null,
+f5 varchar(30) default null,
+f6 varchar(255) default null,
+f7 varchar(255) default null,
+unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=innodb;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+f1	f2	f3	f4	f5	f6	f7
+2	00004	0001009089999		netstes	psit	d
+4	00004	0001009089999		netstes	psit	e
+drop table t1;
+create table t1 (
+f1 bigint(20) not null auto_increment primary key,
+f2 varchar(30) default null,
+f3 varchar(30) default null,
+f4 varchar(255) default null,
+f5 varchar(30) default null,
+f6 varchar(255) default null,
+f7 varchar(255) default null,
+unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=myisam partition by key(f1) partitions 2;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+f1	f2	f3	f4	f5	f6	f7
+2	00004	0001009089999		netstes	psit	d
+4	00004	0001009089999		netstes	psit	e
+drop table t1;
+create table t1 (
+f1 bigint(20) not null auto_increment primary key,
+f2 varchar(30) default null,
+f3 varchar(30) default null,
+f4 varchar(255) default null,
+f5 varchar(30) default null,
+f6 varchar(255) default null,
+f7 varchar(255) default null,
+unique problem_key (f3,f5,f6,f2,f4,f7) using hash
+) engine=innodb partition by key(f1) partitions 2;
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'd');
+insert  t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+replace t1 (f2, f3, f4, f5, f6, f7) values ('00004', '0001009089999', '', 'netstes', 'psit', 'e');
+select * from t1;
+f1	f2	f3	f4	f5	f6	f7
+2	00004	0001009089999		netstes	psit	d
+4	00004	0001009089999		netstes	psit	e
+drop table t1;
+#
+# MDEV-29954 Unique hash key on column prefix is computed incorrectly
+#
+create table t1 (c char(10),unique key a using hash (c(1)));
+insert into t1 values (0);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
+# MDEV-32837 long unique does not work like unique key when using replace
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, UNIQUE KEY `test` (b,c) USING HASH) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1),(2,2,2);
+REPLACE INTO t1 VALUES (3,1,1);
+SELECT * FROM t1 ORDER BY a;
+a	b	c
+2	2	2
+3	1	1
+REPLACE INTO t1 VALUES (3,2,2);
+SELECT * FROM t1;
+a	b	c
+3	2	2
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #

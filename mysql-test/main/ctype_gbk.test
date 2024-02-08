@@ -452,8 +452,8 @@ DROP TABLE t1;
 #enable after fix MDEV-27871
 --disable_view_protocol
 set sql_mode='';
-SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
-SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
+SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312)) as exp;
+SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8)) as exp;
 set sql_mode=default;
 --enable_view_protocol
 

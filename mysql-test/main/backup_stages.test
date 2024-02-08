@@ -50,6 +50,7 @@ FROM information_schema.processlist WHERE id = @con1_id;
 # con1 uses @@global.lock_wait_timeout
 
 BACKUP STAGE END;
+--source ../suite/innodb/include/wait_all_purged.inc
 
 --connection con1
 --echo # The connection default has removed the backup lock.

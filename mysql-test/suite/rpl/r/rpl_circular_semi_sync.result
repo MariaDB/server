@@ -1,5 +1,7 @@
 include/master-slave.inc
 [connection master]
+connection server_2;
+call mtr.add_suppression("Timeout waiting for reply of binlog");
 # Master server_1 and Slave server_2 initialization ...
 connection server_2;
 include/stop_slave.inc
@@ -40,6 +42,8 @@ set @@global.rpl_semi_sync_master_enabled = 1;
 INSERT INTO t1(a) VALUES (2);
 include/save_master_gtid.inc
 connection server_1;
+include/stop_slave.inc
+include/start_slave.inc
 #
 # the successful sync is a required proof
 #

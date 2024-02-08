@@ -133,12 +133,17 @@ static void re_init_net_server_extension(THD *thd)
 
 #endif /* HAVE_PSI_INTERFACE */
 
+static inline bool has_unread_compressed_data(const NET *net)
+{
+  return net->compress && net->remain_in_buf;
+}
 
 static inline void set_thd_idle(THD *thd)
 {
   thd->net.reading_or_writing= 1;
 #ifdef HAVE_PSI_INTERFACE
-  net_before_header_psi(&thd->net, thd, 0);
+  if (!has_unread_compressed_data(&thd->net))
+    net_before_header_psi(&thd->net, thd, 0);
 #endif
 }
 
@@ -381,10 +386,8 @@ static void handle_wait_timeout(THD *thd)
 static bool has_unread_data(THD* thd)
 {
   NET *net= &thd->net;
-  if (net->compress && net->remain_in_buf)
-    return true;
   Vio *vio= net->vio;
-  return vio->has_data(vio);
+  return vio->has_data(vio) || has_unread_compressed_data(net);
 }
 
 

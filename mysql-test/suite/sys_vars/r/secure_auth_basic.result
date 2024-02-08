@@ -4,7 +4,11 @@ SELECT @global_start_value;
 1
 '#--------------------FN_DYNVARS_143_01------------------------#'
 SET @@global.secure_auth = 1;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SET @@global.secure_auth = DEFAULT;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 1
@@ -17,15 +21,21 @@ SELECT @@secure_auth;
 SELECT global.secure_auth;
 ERROR 42S02: Unknown table 'global' in field list
 SET global secure_auth = 1;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 1
 '#--------------------FN_DYNVARS_143_03------------------------#'
 SET @@global.secure_auth = 0;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 0
 SET @@global.secure_auth = 1;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 1
@@ -83,23 +93,33 @@ VARIABLE_VALUE
 ON
 '#---------------------FN_DYNVARS_143_08-------------------------#'
 SET @@global.secure_auth = OFF;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 0
 SET @@global.secure_auth = ON;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 1
 '#---------------------FN_DYNVARS_143_09----------------------#'
 SET @@global.secure_auth = TRUE;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 1
 SET @@global.secure_auth = FALSE;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 0
 SET @@global.secure_auth = @global_start_value;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SELECT @@global.secure_auth;
 @@global.secure_auth
 1

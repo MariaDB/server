@@ -9,9 +9,6 @@ INSERT INTO t2 VALUES(1, "b");
 INSERT INTO t2 VALUES(2, "c");
 INSERT INTO t2 VALUES(3, "d");
 connect  con1,localhost,root,,;
-connect  con2,localhost,root,,;
-connection con1;
-'T1'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t2;
@@ -21,7 +18,6 @@ c1	c2
 2	c
 3	d
 connection default;
-'T2'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t1;
@@ -30,8 +26,7 @@ c1	c2
 1	1
 2	2
 3	3
-connection con2;
-'T3'
+connect  con2,localhost,root,,;
 SET AUTOCOMMIT=0;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
@@ -48,7 +43,6 @@ c1	c2
 2	c
 3	d
 connection con1;
-'T1'
 UPDATE t2 SET c1 = c1 + 100;
 SELECT * FROM t2;
 c1	c2
@@ -58,7 +52,6 @@ c1	c2
 103	d
 COMMIT;
 connection default;
-'T2'
 UPDATE t1 SET c1 = c1 + 100;
 SELECT * FROM t1;
 c1	c2
@@ -68,42 +61,29 @@ c1	c2
 103	3
 COMMIT;
 connection con2;
-'T3'
 SET DEBUG_SYNC='row_search_for_mysql_before_return WAIT_FOR waiting1';
 SELECT * FROM t1;;
 connection default;
-'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
-'Signalled T3'
 connection con2;
-'T3'
 c1	c2
 0	0
 1	1
 2	2
 3	3
 connection con2;
-'T3'
 SET DEBUG_SYNC='row_search_for_mysql_before_return WAIT_FOR waiting1';
 SELECT * FROM t2;;
 connection default;
-'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
-'Signalled T3'
 connection con2;
-'T3'
 c1	c2
 0	a
 1	b
 2	c
 3	d
 connection default;
-disconnect con1;
-disconnect con2;
-connect  con1,localhost,root,,;
-connect  con2,localhost,root,,;
 connection con1;
-'T1'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t1;
@@ -113,7 +93,6 @@ c1	c2
 102	2
 103	3
 connection default;
-'T2'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t2;
@@ -131,7 +110,6 @@ c1	c2
 203	d
 COMMIT;
 connection con2;
-'T3'
 SET AUTOCOMMIT=0;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
@@ -148,7 +126,6 @@ c1	c2
 202	c
 203	d
 connection con1;
-'T1'
 UPDATE t1 SET c1 = c1 + 100;
 SELECT * FROM t1;
 c1	c2
@@ -158,44 +135,34 @@ c1	c2
 203	3
 COMMIT;
 connection con2;
-'T3'
 SET DEBUG_SYNC='row_select_wait WAIT_FOR waiting1';
 SELECT * FROM t1;;
 connection con1;
-'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
-'Signalled T3'
 connection con2;
-'T3'
 c1	c2
 100	0
 101	1
 102	2
 103	3
-connection con2;
-'T3'
 SET DEBUG_SYNC='row_select_wait WAIT_FOR waiting1';
 SELECT * FROM t2;;
 connection default;
-'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
-'Signalled T3'
 connection con2;
-'T3'
 c1	c2
 200	a
 201	b
 202	c
 203	d
-connection default;
-disconnect con1;
 disconnect con2;
+connection default;
 DROP TABLE t1;
 DROP TABLE t2;
 #
 # Bug 21433768: NON-REPEATABLE READ WITH REPEATABLE READ ISOLATION
 #
-connect  con1,localhost,root,,;
+connection con1;
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 INT) ENGINE = InnoDB;
 INSERT INTO t1 values (1, 0), (2, 0);
 SELECT * FROM t1 ORDER BY col1;
@@ -218,5 +185,5 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 connection con1;
 disconnect con1;
 connection default;
-DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;

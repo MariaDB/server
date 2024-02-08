@@ -528,3 +528,16 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-31112 vcol circular references lead to stack overflow
+--echo #
+create table t (a int, c int as (a));
+alter table t alter column c drop default;
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+alter table t modify column a int as (c) stored;
+drop table t;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

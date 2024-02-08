@@ -162,8 +162,8 @@ static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
 static int FTB_WORD_cmp_list(CHARSET_INFO *cs, FTB_WORD **a, FTB_WORD **b)
 {
   /* ORDER BY word, ndepth */
-  int i= ha_compare_text(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
-                             (uchar*) (*b)->word + 1, (*b)->len - 1, 0);
+  int i= ha_compare_word(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
+                             (uchar*) (*b)->word + 1, (*b)->len - 1);
   if (!i)
     i= CMP_NUM((*a)->ndepth, (*b)->ndepth);
   return i;
@@ -407,12 +407,12 @@ static int _ft2_search_no_lock(FTB *ftb, FTB_WORD *ftbw, my_bool init_search)
 
   if (!r && !ftbw->off)
   {
-    r= ha_compare_text(ftb->charset,
-                       info->lastkey+1,
-                       info->lastkey_length-extra-1,
-              (uchar*) ftbw->word+1,
-                       ftbw->len-1,
-             (my_bool) (ftbw->flags & FTB_FLAG_TRUNC));
+    r= ha_compare_word_or_prefix(ftb->charset,
+                                 info->lastkey + 1,
+                                 info->lastkey_length - extra - 1,
+                                 (uchar*) ftbw->word + 1,
+                                 ftbw->len - 1,
+                                 (my_bool) (ftbw->flags & FTB_FLAG_TRUNC));
   }
 
   if (r) /* not found */
@@ -907,9 +907,9 @@ static int ftb_find_relevance_add_word(MYSQL_FTPARSER_PARAM *param,
   for (a= 0, b= ftb->queue.elements, c= (a+b)/2; b-a>1; c= (a+b)/2)
   {
     ftbw= ftb->list[c];
-    if (ha_compare_text(ftb->charset, (uchar*)word, len,
-                        (uchar*)ftbw->word+1, ftbw->len-1,
-                        (my_bool) (ftbw->flags & FTB_FLAG_TRUNC)) < 0)
+    if (ha_compare_word_or_prefix(ftb->charset, (uchar*)word, len,
+                                  (uchar*)ftbw->word + 1, ftbw->len - 1,
+                                  (my_bool) (ftbw->flags & FTB_FLAG_TRUNC)) < 0)
       b= c;
     else
       a= c;
@@ -934,9 +934,9 @@ static int ftb_find_relevance_add_word(MYSQL_FTPARSER_PARAM *param,
   for (; c >= 0; c--)
   {
     ftbw= ftb->list[c];
-    if (ha_compare_text(ftb->charset, (uchar*)word, len,
-                        (uchar*)ftbw->word + 1,ftbw->len - 1,
-                        (my_bool)(ftbw->flags & FTB_FLAG_TRUNC)))
+    if (ha_compare_word_or_prefix(ftb->charset, (uchar*) word, len,
+                                  (uchar*) ftbw->word + 1, ftbw->len - 1,
+                                  (my_bool) (ftbw->flags & FTB_FLAG_TRUNC)))
     {
       if (ftb->with_scan & FTB_FLAG_TRUNC)
         continue;

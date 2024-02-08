@@ -45,10 +45,12 @@ CREATE EVENT ev_drop1 ON SCHEDULE EVERY 10 MINUTE DISABLE DO SELECT 1;
 CREATE EVENT ev_drop2 ON SCHEDULE EVERY 10 MINUTE DISABLE DO SELECT 1;
 CREATE EVENT ev_drop3 ON SCHEDULE EVERY 10 MINUTE DISABLE DO SELECT 1;
 USE events_test;
+--disable_service_connection
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.EVENTS;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA='events_conn1_test2';
 DROP DATABASE events_conn1_test2;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA='events_conn1_test2';
+--enable_service_connection
 
 --echo "Now testing stability - dropping db -> events while they are running"
 CREATE DATABASE events_conn1_test2;
