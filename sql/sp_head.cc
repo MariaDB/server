@@ -708,6 +708,7 @@ bool sp_package::validate_public_routines(THD *thd, sp_package *spec)
     if (!found)
     {
       my_error(ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY, MYF(0),
+               lex->sphead->m_handler->type_str(),
                ErrConvDQName(lex->sphead).ptr());
       return true;
     }
@@ -742,6 +743,7 @@ bool sp_package::validate_private_routines(THD *thd)
     if (!found)
     {
       my_error(ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED, MYF(0),
+               lex->sphead->m_handler->type_str(),
                ErrConvDQName(lex->sphead).ptr());
       return true;
     }

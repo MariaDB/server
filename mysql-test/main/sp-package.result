@@ -1,3 +1,6 @@
+#
+# Start of 11.4 tests
+#
 SET sql_mode='';
 CREATE OR REPLACE PACKAGE pkg
 PROCEDURE p1();
@@ -49,3 +52,72 @@ SELECT pkg.f1();
 pkg.f1()
 1
 DROP PACKAGE pkg;
+#
+# MDEV-33428 Error messages ER_PACKAGE_ROUTINE_* are not good enough
+#
+#
+# Routines declared in CREATE PACKAGE missing in CREATE PACKAGE BODY
+#
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+PROCEDURE p2() BEGIN SELECT 0; END;
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+CREATE PACKAGE test2
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY test2
+FUNCTION f2() RETURNS INT BEGIN RETURN 10; END;
+END;
+$$
+ERROR HY000: FUNCTION `test.test2.f1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+FUNCTION p1() RETURNS INT BEGIN RETURN 10; END;
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+PROCEDURE p1(a INT) BEGIN SELECT 0; END; -- Notice different prototype
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+#
+# Forward declarations in CREATE PACKAGE BODY with missing implementations
+#
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+PROCEDURE p1() BEGIN SELECT 0; END;
+PROCEDURE p2();
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p2` has a forward declaration but is not defined
+CREATE PACKAGE BODY test2
+FUNCTION f1() RETURNS INT;
+PROCEDURE p1() BEGIN SELECT 0; END;
+END;
+$$
+ERROR HY000: FUNCTION `test.test2.f1` has a forward declaration but is not defined
+DROP PACKAGE test2;
+#
+# End of 11.4 tests
+#
