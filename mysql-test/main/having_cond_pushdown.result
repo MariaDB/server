@@ -5788,6 +5788,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
+    "having_condition": "t1.a = 8 or t1.a = (subquery#2)",
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
@@ -5799,8 +5800,7 @@ EXPLAIN
               "loops": 1,
               "rows": 7,
               "cost": "COST_REPLACED",
-              "filtered": 100,
-              "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
+              "filtered": 100
             }
           }
         ],
@@ -5838,6 +5838,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
+    "having_condition": "t1.a = 8 or t1.a = (subquery#2)",
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
@@ -5850,7 +5851,7 @@ EXPLAIN
               "rows": 7,
               "cost": "COST_REPLACED",
               "filtered": 100,
-              "attached_condition": "(t1.a = 8 or t1.a = (subquery#2)) and t1.b < 20"
+              "attached_condition": "t1.b < 20"
             }
           }
         ],
@@ -5888,7 +5889,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "having_condition": "sum(t1.b) > 20",
+    "having_condition": "(t1.a = 8 or t1.a = (subquery#2)) and sum(t1.b) > 20",
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
@@ -5900,8 +5901,7 @@ EXPLAIN
               "loops": 1,
               "rows": 7,
               "cost": "COST_REPLACED",
-              "filtered": 100,
-              "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
+              "filtered": 100
             }
           }
         ],
@@ -5939,39 +5939,44 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 7,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "attached_condition": "t1.a = (subquery#2)"
-        }
-      }
-    ],
-    "subqueries": [
-      {
-        "query_block": {
-          "select_id": 2,
-          "cost": "COST_REPLACED",
-          "nested_loop": [
-            {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "loops": 1,
-                "rows": 2,
-                "cost": "COST_REPLACED",
-                "filtered": 100
-              }
+    "having_condition": "t1.a = (subquery#2)",
+    "filesort": {
+      "sort_key": "t1.a",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 7,
+              "cost": "COST_REPLACED",
+              "filtered": 100
             }
-          ]
-        }
+          }
+        ],
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        ]
       }
-    ]
+    }
   }
 }
 SELECT a FROM t1 GROUP BY a HAVING a = ( SELECT MIN(c) FROM t2 );

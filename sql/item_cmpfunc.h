@@ -3269,7 +3269,8 @@ template <template<class> class LI, class T> class Item_equal_iterator;
   All equality predicates of the form field1=field2 contained in a
   conjunction are substituted for a sequence of items of this class.
   An item of this class Item_equal(f1,f2,...fk) represents a
-  multiple equality f1=f2=...=fk.l
+  multiple equality f1=f2=...=fk. We say f1, f2, ..., fk participates
+  in this multiple equality.
 
   If a conjunction contains predicates f1=f2 and f2=f3, a new item of
   this class is created Item_equal(f1,f2,f3) representing the multiple
@@ -3342,7 +3343,7 @@ class Item_equal: public Item_bool_func
     The list of equal items. Currently the list can contain:
      - Item_fields items for references to table columns
      - Item_direct_view_ref items for references to view columns
-     - one const item
+     - one const item that does not contain any subqueries
 
     If the list contains a constant item this item is always first in the list.
     The list contains at least two elements.

@@ -1,0 +1,135 @@
+CREATE TABLE t ( x VARCHAR ( 1 ) ) ;
+INSERT INTO t VALUES ( 'y' ) , ( NULL ) ;
+SELECT x FROM t GROUP BY x HAVING x >= ( x = x ) AND x = ( SELECT x FROM t GROUP BY x ORDER BY x );
+ERROR 21000: Subquery returns more than 1 row
+drop table t;
+CREATE TABLE x ( x VARCHAR ( 1 ) ) ;
+INSERT INTO x ( x ) VALUES ( 'x' ) , ( NULL ) , ( 'x' ) , ( NULL ) ;
+SELECT x AS x , x AS x FROM x GROUP BY x , x HAVING ( ( x >= ( 1.000000 % FALSE AND x = x AND x = 1 ) AND x < 1 ) = 1 AND x = ( SELECT x FROM x AS x GROUP BY x ORDER BY x * 1 , x ASC , x DESC ) ) ORDER BY x / 1 ;
+ERROR 21000: Subquery returns more than 1 row
+drop table x;
+CREATE TABLE t1 (col VARCHAR(1));
+INSERT INTO t1 (col) VALUES ('x'), (NULL), ('x'), (NULL);
+SELECT * FROM t1 GROUP BY col HAVING col = (SELECT * FROM t1) AND col IN (1 , col);
+ERROR 21000: Subquery returns more than 1 row
+drop table t1;
+CREATE TABLE x ( x VARCHAR ( 1 ) ) ;
+INSERT INTO x ( x ) VALUES ( 'x' ) , ( NULL ) , ( 'x' ) , ( NULL ) ;
+SELECT 1 - x IN ( SELECT x FROM x ORDER BY x + 1 ) FROM x GROUP BY x HAVING x = ( SELECT x AS x FROM x WHERE x = x ORDER BY ( 1 < x AND x = 1 ) ) AND x IN ( 1 , x ) ;
+ERROR 21000: Subquery returns more than 1 row
+drop table x;
+CREATE TABLE v0 ( v1 NUMERIC NOT NULL PRIMARY KEY , v2 NUMERIC ) engine=MYISAM;
+INSERT INTO v0 VALUES ( 127 , -1 ) ;
+UPDATE v0 SET v1 = -128 WHERE v2 = 255 ;
+UPDATE v0 SET v1 = 5 WHERE v1 = NULL ;
+UPDATE v0 SET v2 = 89 WHERE v1 = -2147483648 OR v1 = 57 ;
+UPDATE v0 SET v2 = 49 WHERE v1 = 95 ;
+SELECT * FROM v0 ORDER BY v1 ;
+v1	v2
+127	-1
+SELECT * FROM v0 GROUP BY v2 HAVING ( SELECT v2 FROM v0 WHERE v1 > 57 OR v2 > 83 AND v2 NOT LIKE 'x' ORDER BY v1 * v2 ) = v1 AND v1 * v2 + 52 = 'x' ORDER BY v2 ;
+v1	v2
+drop table v0;
+CREATE TABLE t1 (a date);
+INSERT INTO t1 VALUES ('2012-12-12'),('2000-01-01');
+CREATE TABLE t2 (f datetime);
+INSERT INTO t2 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+SELECT a FROM t1 GROUP BY a HAVING (a = '' OR a = 0) AND a = (SELECT MIN(f) FROM t2);
+a
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+DROP TABLE t1, t2;
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int primary key);
+insert into one_k select a.a + b.a * 10 + c.a * 100 from ten a, ten b, ten c;
+CREATE TABLE `t1` (
+`a` int(11) DEFAULT NULL,
+`b` int(11) DEFAULT NULL,
+`c` int(11) DEFAULT NULL,
+`d` int(11) DEFAULT NULL,
+KEY `a` (`a`));
+insert into t1 select a, a, a, a from one_k;
+explain format=json select * from t1 where t1.b = t1.a and t1.b= (select max(a) from ten);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100,
+          "attached_condition": "t1.b = t1.a"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t1 where t1.b = t1.a and t1.b= (select max(a) from one_k use index());
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.013129232,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 10,
+          "cost": 0.013129232,
+          "filtered": 100,
+          "attached_condition": "t1.b = t1.a and t1.a = (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.166681,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "one_k",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 1000,
+                "cost": 0.166681,
+                "filtered": 100
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+drop table t1, ten, one_k;

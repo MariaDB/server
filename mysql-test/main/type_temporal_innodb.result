@@ -27,9 +27,6 @@ Warnings:
 Warning	1292	Truncated incorrect time value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
-1
-Warnings:
-Warning	1292	Truncated incorrect time value: ''
 ALTER TABLE t1 ENGINE=MyISAM;
 SELECT * FROM t1 WHERE b='';
 a	b	c
@@ -78,9 +75,6 @@ Warnings:
 Warning	1292	Truncated incorrect datetime value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
-1
-Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
 ALTER TABLE t1 ENGINE=MyISAM;
 SELECT * FROM t1 WHERE b='';
 a	b	c
@@ -129,9 +123,6 @@ Warnings:
 Warning	1292	Truncated incorrect datetime value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
-1
-Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
 ALTER TABLE t1 ENGINE=MyISAM;
 SELECT * FROM t1 WHERE b='';
 a	b	c
