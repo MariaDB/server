@@ -861,8 +861,8 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
 	value_end--;
       }
 
-      *ptr++ = 0;
-      option_value_start = ptr;
+      *ptr++= 0;
+      option_value_start= ptr;
       if (!mariadbd_option_exists(option)) {
         line_valid= FALSE;
         file_valid= FALSE;
