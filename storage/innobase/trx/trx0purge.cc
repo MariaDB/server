@@ -396,9 +396,7 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
 void purge_sys_t::rseg_enable(trx_rseg_t &rseg)
 {
   ut_ad(this == &purge_sys);
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(rseg.latch.is_write_locked());
-#endif
+  ut_ad(rseg.latch.have_wr());
   uint8_t skipped= skipped_rseg;
   ut_ad(skipped < TRX_SYS_N_RSEGS);
   if (&rseg == &trx_sys.rseg_array[skipped])
@@ -874,9 +872,7 @@ void purge_sys_t::rseg_get_next_history_log()
 {
   fil_addr_t prev_log_addr;
 
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(rseg->latch.is_write_locked());
-#endif
+  ut_ad(rseg->latch.have_wr());
   ut_a(rseg->last_page_no != FIL_NULL);
 
   tail.trx_no= rseg->last_trx_no() + 1;
@@ -992,9 +988,7 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
 {
   ut_ad(next_stored);
   ut_ad(tail.trx_no < low_limit_no());
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(rseg->latch.is_write_locked());
-#endif
+  ut_ad(rseg->latch.have_wr());
 
   if (!offset)
   {

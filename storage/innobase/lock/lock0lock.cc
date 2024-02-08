@@ -47,6 +47,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "que0que.h"
 #include "scope.h"
 #include <debug_sync.h>
+#include <mysql/service_thd_mdl.h>
 
 #include <set>
 
@@ -173,7 +174,7 @@ void lock_sys_t::assert_locked(const dict_table_t &table) const
   ut_ad(!table.is_temporary());
   if (is_writer())
     return;
-  ut_ad(readers);
+  ut_ad(latch.have_rd());
   ut_ad(table.lock_mutex_is_owner());
 }
 
@@ -182,7 +183,7 @@ void lock_sys_t::hash_table::assert_locked(const page_id_t id) const
 {
   if (lock_sys.is_writer())
     return;
-  ut_ad(lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   ut_ad(latch(cell_get(id.fold()))->is_locked());
 }
 
@@ -191,7 +192,7 @@ void lock_sys_t::assert_locked(const hash_cell_t &cell) const
 {
   if (is_writer())
     return;
-  ut_ad(lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   ut_ad(hash_table::latch(const_cast<hash_cell_t*>(&cell))->is_locked());
 }
 #endif
@@ -426,13 +427,10 @@ void lock_sys_t::wr_lock(const char *file, unsigned line)
 {
   mysql_mutex_assert_not_owner(&wait_mutex);
   latch.wr_lock(file, line);
-  ut_ad(!writer.exchange(pthread_self(), std::memory_order_relaxed));
 }
 /** Release exclusive lock_sys.latch */
 void lock_sys_t::wr_unlock()
 {
-  ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-        pthread_self());
   latch.wr_unlock();
 }
 
@@ -441,15 +439,11 @@ void lock_sys_t::rd_lock(const char *file, unsigned line)
 {
   mysql_mutex_assert_not_owner(&wait_mutex);
   latch.rd_lock(file, line);
-  ut_ad(!writer.load(std::memory_order_relaxed));
-  ut_d(readers.fetch_add(1, std::memory_order_relaxed));
 }
 
 /** Release shared lock_sys.latch */
 void lock_sys_t::rd_unlock()
 {
-  ut_ad(!writer.load(std::memory_order_relaxed));
-  ut_ad(readers.fetch_sub(1, std::memory_order_relaxed));
   latch.rd_unlock();
 }
 #endif
@@ -3940,6 +3934,8 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait)
 {
+  ut_ad(!dict_sys.frozen());
+
   mem_heap_t *heap= mem_heap_create(512);
   sel_node_t *node= sel_node_create(heap);
   que_thr_t *thr= pars_complete_graph_for_exec(node, trx, heap, nullptr);
@@ -3975,6 +3971,67 @@ run_again:
 
   return err;
 }
+
+/** Lock the child tables of a table.
+@param table    parent table
+@param trx      transaction
+@return error code */
+dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
+{
+  MDL_context *mdl_context=
+    static_cast<MDL_context*>(thd_mdl_context(trx->mysql_thd));
+  ut_ad(mdl_context);
+  struct table_mdl{dict_table_t* table; MDL_ticket *mdl;};
+  std::vector<table_mdl> children;
+  children.emplace_back(table_mdl{table, nullptr});
+
+  dberr_t err= DB_SUCCESS;
+  dict_sys.freeze(SRW_LOCK_CALL);
+
+ rescan:
+  for (auto f : table->referenced_set)
+    if (dict_table_t *child= f->foreign_table)
+    {
+      if (std::find_if(children.begin(), children.end(),
+                       [&](const table_mdl &c){ return c.table == child; }) !=
+          children.end())
+        continue; /* We already acquired MDL on this child table. */
+      MDL_ticket *mdl= nullptr;
+      child->acquire();
+      child= dict_acquire_mdl_shared<false>(child, mdl_context, &mdl,
+                                            DICT_TABLE_OP_NORMAL);
+      if (child)
+      {
+        if (!mdl)
+          child->release();
+        children.emplace_back(table_mdl{child, mdl});
+        goto rescan;
+      }
+      err= DB_LOCK_WAIT_TIMEOUT;
+      break;
+    }
+  dict_sys.unfreeze();
+
+  if (err == DB_SUCCESS)
+    for (const table_mdl &child : children)
+      if (child.mdl)
+        if ((err= lock_table_for_trx(child.table, trx, LOCK_X)) != DB_SUCCESS)
+          break;
+
+  dict_sys.freeze(SRW_LOCK_CALL);
+  for (table_mdl &child : children)
+  {
+    if (child.mdl)
+    {
+      child.table->release();
+      mdl_context->release_lock(child.mdl);
+    }
+  }
+  dict_sys.unfreeze();
+
+  return err;
+}
+
 
 /** Exclusively lock the data dictionary tables.
 @param trx  dictionary transaction

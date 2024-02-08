@@ -3136,6 +3136,53 @@ SQL_SELECT::test_quick_select(THD *thd,
 
 
 /*
+  @brief
+    Create a bitmap of columns for which to perform Range Analysis for EITS
+    condition selectivity estimates.
+
+  @detail
+    Walk through the bitmap of fields used in the query, and
+     - pick columns for which EITS data is usable (see is_eits_usable() call)
+     - do not produce more than MAX_KEY columns. Range Analyzer cannot handle
+       more than that. If there are more than MAX_KEY eligible columns,
+       this function should be called multiple times to produce multiple
+       bitmaps.
+
+  @param  used_fields  Columns used by the query
+  @param  col_no       Start from this column
+  @param  out          OUT Filled column bitmap
+
+  @return
+     (uint)-1   If there are no more columns for range analysis.
+     Other      Index of the last considered column. Pass this to next call to
+                this function
+*/
+
+uint get_columns_for_pseudo_indexes(const TABLE *table,
+                                    const MY_BITMAP *used_fields, int col_no,
+                                    MY_BITMAP *out)
+{
+  bitmap_clear_all(out);
+  int n_bits= 0;
+
+  for (; table->field[col_no]; col_no++)
+  {
+    if (bitmap_is_set(used_fields, col_no) &&
+        is_eits_usable(table->field[col_no]))
+    {
+      bitmap_set_bit(out, col_no);
+      if (++n_bits == MAX_KEY)
+      {
+        col_no++;
+        break;
+      }
+    }
+  }
+  return n_bits? col_no: (uint)-1;
+}
+
+
+/*
   Build descriptors of pseudo-indexes over columns to perform range analysis
 
   SYNOPSIS
@@ -3160,21 +3207,10 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 {
   Field **field_ptr;
   TABLE *table= param->table;
-  uint parts= 0;
-
-  for (field_ptr= table->field; *field_ptr; field_ptr++)
-  {
-    Field *field= *field_ptr;
-    if (bitmap_is_set(used_fields, field->field_index) &&
-        is_eits_usable(field))
-      parts++;
-  }
+  uint parts= bitmap_bits_set(used_fields);
 
   KEY_PART *key_part;
   uint keys= 0;
-
-  if (!parts)
-    return TRUE;
 
   if (!(key_part= (KEY_PART *)  alloc_root(param->mem_root,
                                            sizeof(KEY_PART) * parts)))
@@ -3187,9 +3223,6 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     Field *field= *field_ptr;
     if (bitmap_is_set(used_fields, field->field_index))
     {
-      if (!is_eits_usable(field))
-        continue;
-
       uint16 store_length;
       uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;
@@ -3534,8 +3567,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;
-    double rows;
-  
     init_sql_alloc(key_memory_quick_range_select_root, &alloc,
                    thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
     bzero((void*) &param, sizeof(param));
@@ -3545,67 +3576,90 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     param.table= table;
     param.remove_false_where_parts= true;
 
-    if (create_key_parts_for_pseudo_indexes(&param, used_fields))
-      goto free_alloc;
-
     param.prev_tables= param.read_tables= 0;
     param.current_table= table->map;
     param.using_real_indexes= FALSE;
-    param.real_keynr[0]= 0;
+    MEM_UNDEFINED(&param.real_keynr, sizeof(param.real_keynr));
+
     param.alloced_sel_args= 0;
     param.max_key_parts= 0;
 
-    thd->no_errors=1;		    
-
-    tree= cond[0]->get_mm_tree(&param, cond);
-
-    if (!tree)
-      goto free_alloc;
-    
+    thd->no_errors=1;
     table->reginfo.impossible_range= 0;
-    if (tree->type == SEL_TREE::IMPOSSIBLE)
-    {
-      rows= 0;
-      table->reginfo.impossible_range= 1;
-      goto free_alloc;
-    }  
-    else if (tree->type == SEL_TREE::ALWAYS)
-    {
-      rows= table_records;
-      goto free_alloc;
-    }        
-    else if (tree->type == SEL_TREE::MAYBE)
-    {
-      rows= table_records;
-      goto free_alloc;
-    }        
 
-    for (uint idx= 0; idx < param.keys; idx++)
+    uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
+    uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
+    MY_BITMAP cols_for_indexes;
+    (void) my_bitmap_init(&cols_for_indexes, used_fields_buff, table->s->fields);
+    bitmap_clear_all(&cols_for_indexes);
+
+    uint column_no= 0; // Start looping from the first column.
+    /*
+      Try getting selectivity estimates for every field that is used in the
+      query and has EITS statistics. We do this:
+
+        for every usable field col
+           create a pseudo INDEX(col);
+        Run the range analyzer (get_mm_tree) for these pseudo-indexes;
+        Look at produced ranges and get their selectivity estimates;
+
+      Note that the range analyzer can process at most MAX_KEY indexes. If
+      the table has >MAX_KEY eligible columns, we will do several range
+      analyzer runs.
+    */
+
+    while (1)
     {
-      SEL_ARG *key= tree->keys[idx];
-      if (key)
+      column_no= get_columns_for_pseudo_indexes(table, used_fields, column_no,
+                                                &cols_for_indexes);
+      if (column_no == (uint)-1)
+        break;  /* Couldn't create any pseudo-indexes. This means we're done */
+
+      if (create_key_parts_for_pseudo_indexes(&param, &cols_for_indexes))
+        goto free_alloc;
+
+      tree= cond[0]->get_mm_tree(&param, cond);
+
+      if (!tree ||
+          tree->type == SEL_TREE::ALWAYS ||
+          tree->type == SEL_TREE::MAYBE)
       {
-        Json_writer_object selectivity_for_column(thd);
-        selectivity_for_column.add("column_name", key->field->field_name);
-        if (key->type == SEL_ARG::IMPOSSIBLE)
+        /* Couldn't infer anything. But there could be more fields, so continue */
+        continue;
+      }
+
+      if (tree->type == SEL_TREE::IMPOSSIBLE)
+      {
+        table->reginfo.impossible_range= 1;
+        goto free_alloc;
+      }
+
+      for (uint idx= 0; idx < param.keys; idx++)
+      {
+        SEL_ARG *key= tree->keys[idx];
+        if (key)
         {
-          rows= 0;
-          table->reginfo.impossible_range= 1;
-          selectivity_for_column.add("selectivity_from_histogram", rows);
-          selectivity_for_column.add("cause", "impossible range");
-          goto free_alloc;
-        }          
-        else
-        {
-          enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
-          thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-          rows= records_in_column_ranges(&param, idx, key);
-          thd->count_cuted_fields= save_count_cuted_fields;
-          if (rows != DBL_MAX)
+          Json_writer_object selectivity_for_column(thd);
+          selectivity_for_column.add("column_name", key->field->field_name);
+          if (key->type == SEL_ARG::IMPOSSIBLE)
           {
-            key->field->cond_selectivity= rows/table_records;
-            selectivity_for_column.add("selectivity_from_histogram",
-                                       key->field->cond_selectivity);
+            table->reginfo.impossible_range= 1;
+            selectivity_for_column.add("selectivity_from_histogram", 0);
+            selectivity_for_column.add("cause", "impossible range");
+            goto free_alloc;
+          }
+          else
+          {
+            enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
+            thd->count_cuted_fields= CHECK_FIELD_IGNORE;
+            double rows= records_in_column_ranges(&param, idx, key);
+            thd->count_cuted_fields= save_count_cuted_fields;
+            if (rows != DBL_MAX)
+            {
+              key->field->cond_selectivity= rows/table_records;
+              selectivity_for_column.add("selectivity_from_histogram",
+                                         key->field->cond_selectivity);
+            }
           }
         }
       }

@@ -9159,10 +9159,9 @@ int TABLE::update_default_fields(bool ignore_errors)
 int TABLE::update_generated_fields()
 {
   int res= 0;
-  if (found_next_number_field)
+  if (next_number_field)
   {
-    next_number_field= found_next_number_field;
-    res= found_next_number_field->set_default();
+    res= next_number_field->set_default();
     if (likely(!res))
       res= file->update_auto_increment();
     next_number_field= NULL;
@@ -9177,6 +9176,18 @@ int TABLE::update_generated_fields()
   return res;
 }
 
+void TABLE::period_prepare_autoinc()
+{
+  if (!found_next_number_field)
+    return;
+  /* Don't generate a new value if the autoinc index is WITHOUT OVERLAPS */
+  DBUG_ASSERT(s->next_number_index != (uint)-1);
+  if (key_info[s->next_number_index].without_overlaps)
+    return;
+
+  next_number_field= found_next_number_field;
+}
+
 int TABLE::period_make_insert(Item *src, Field *dst)
 {
   THD *thd= in_use;
@@ -9186,7 +9197,10 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   int res= src->save_in_field(dst, true);
 
   if (likely(!res))
+  {
+    period_prepare_autoinc();
     res= update_generated_fields();
+  }
 
   if (likely(!res) && triggers)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,

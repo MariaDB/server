@@ -175,7 +175,9 @@ void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
   ut_ad(is_opened());
   if (dberr_t err= os_file_write_func(IORequestWrite, "ib_logfile0", m_file,
                                       buf.data(), offset, buf.size()))
-    ib::fatal() << "write(\"ib_logfile0\") returned " << err;
+    ib::fatal() << "write(\"ib_logfile0\") returned " << err
+                << ". Operating system error number "
+                << IF_WIN(GetLastError(), errno) << ".";
 }
 
 #ifdef HAVE_PMEM
