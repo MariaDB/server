@@ -1417,12 +1417,103 @@ write_slave_info(ds_ctxt *datasink, MYSQL *connection)
 
 
 /*********************************************************************//**
-Old function, not needed anymore with BACKUP LOCKS
+Retrieves MySQL Galera and saves it in a file. It also prints it to stdout.
+
+We should create xtrabackup_galelera_info file even when backup locks
+are used because donor's wsrep_gtid_domain_id is needed later in joiner.
+Note that at this stage wsrep_local_state_uuid and wsrep_last_committed
+are inconsistent but they are not used in joiner. Joiner will rewrite this file
+at mariabackup --prepare phase and thus there is extra file donor_galera_info.
+Information is needed to maitain wsrep_gtid_domain_id and gtid_binlog_pos
+same across the cluster. If joiner node have different wsrep_gtid_domain_id
+we should still receive effective domain id from the donor node,
+and use it.
 */
 bool
 write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 {
-  return true;                                  // Success
+  char *state_uuid = NULL, *state_uuid55 = NULL;
+  char *last_committed = NULL, *last_committed55 = NULL;
+  char *domain_id = NULL, *domain_id55 = NULL;
+  bool result=true;
+  uint n_values=0;
+  char *wsrep_on = NULL, *wsrep_on55 = NULL;
+
+  mysql_variable vars[] = {
+    {"Wsrep_on", &wsrep_on},
+    {"wsrep_on", &wsrep_on55},
+    {NULL, NULL}
+  };
+
+  mysql_variable status[] = {
+    {"Wsrep_local_state_uuid", &state_uuid},
+    {"wsrep_local_state_uuid", &state_uuid55},
+    {"Wsrep_last_committed", &last_committed},
+    {"wsrep_last_committed", &last_committed55},
+    {NULL, NULL}
+  };
+
+  mysql_variable value[] = {
+    {"Wsrep_gtid_domain_id", &domain_id},
+    {"wsrep_gtid_domain_id", &domain_id55},
+    {NULL, NULL}
+  };
+
+  n_values= read_mysql_variables(connection, "SHOW VARIABLES", vars, true);
+
+  if (n_values == 0 || (wsrep_on == NULL && wsrep_on55 == NULL))
+  {
+    msg("Server is not Galera node thus --galera-info does not "
+	"have any effect.");
+    result = true;
+    goto cleanup;
+  }
+
+  read_mysql_variables(connection, "SHOW STATUS", status, true);
+
+  if ((state_uuid == NULL && state_uuid55 == NULL)
+      || (last_committed == NULL && last_committed55 == NULL))
+  {
+    msg("Warning: failed to get master wsrep state from SHOW STATUS.");
+    result = true;
+    goto cleanup;
+  }
+
+  n_values= read_mysql_variables(connection, "SHOW VARIABLES LIKE 'wsrep%'", value, true);
+
+  if (n_values == 0 || (domain_id == NULL && domain_id55 == NULL))
+  {
+    msg("Warning: failed to get master wsrep state from SHOW VARIABLES.");
+    result = true;
+    goto cleanup;
+  }
+
+  result= datasink->backup_file_printf(XTRABACKUP_GALERA_INFO,
+    "%s:%s %s\n", state_uuid ? state_uuid : state_uuid55,
+    last_committed ? last_committed : last_committed55,
+    domain_id ? domain_id : domain_id55);
+
+  if (result)
+  {
+    result= datasink->backup_file_printf(XTRABACKUP_DONOR_GALERA_INFO,
+      "%s:%s %s\n", state_uuid ? state_uuid : state_uuid55,
+      last_committed ? last_committed : last_committed55,
+      domain_id ? domain_id : domain_id55);
+  }
+
+  if (result)
+    write_current_binlog_file(datasink, connection);
+
+  if (result)
+    msg("Writing Galera info succeeded with %s:%s %s",
+      state_uuid ? state_uuid : state_uuid55,
+      last_committed ? last_committed : last_committed55,
+      domain_id ? domain_id : domain_id55);
+
+cleanup:
+  free_mysql_variables(status);
+
+  return(result);
 }
 
 
