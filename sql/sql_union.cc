@@ -122,11 +122,11 @@ int select_unit::send_data(List<Item> &values)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
   if (intersect_mark)
   {
-    fill_record(thd, table, table->field + 1, values, TRUE, FALSE);
+    fill_record(thd, table, table->field + 1, values, true, false, true);
     table->field[0]->store((ulonglong) curr_step, 1);
   }
   else
-    fill_record(thd, table, table->field, values, TRUE, FALSE);
+    fill_record(thd, table, table->field, values, true, false, true);
   if (unlikely(thd->is_error()))
   {
     rc= 1;
@@ -562,7 +562,7 @@ int select_union_direct::send_data(List<Item> &items)
     send_records++;
   }
 
-  fill_record(thd, table, table->field, items, true, false);
+  fill_record(thd, table, table->field, items, true, false, true);
   if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
 

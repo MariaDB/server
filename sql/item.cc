@@ -3991,7 +3991,9 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     as an actual parameter. See Item_param::set_from_item().
   */
   m_is_settable_routine_parameter(true),
-  m_clones(thd->mem_root)
+  m_clones(thd->mem_root),
+  m_associated_field(nullptr),
+  m_default_field(nullptr)
 {
   name= *name_arg;
   /*
@@ -4398,10 +4400,29 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
   case NULL_VALUE:
     return set_field_to_null_with_conversions(field, no_conversions);
   case DEFAULT_VALUE:
+    if (m_associated_field)
+      return assign_default(field);
     return field->save_in_field_default_value(field->table->pos_in_table_list->
                                               top_table() !=
                                               field->table->pos_in_table_list);
   case IGNORE_VALUE:
+    if (m_associated_field)
+    {
+      switch (find_ignore_reaction(field->table->in_use))
+      {
+        case IGNORE_MEANS_DEFAULT:
+          DBUG_ASSERT(0); // impossible now, but fully working code if needed
+          return assign_default(field);
+        case IGNORE_MEANS_FIELD_VALUE:
+          m_associated_field->save_val(field);
+          return false;
+        default:
+          ; // fall through to error
+      }
+      DBUG_ASSERT(0); //impossible
+      my_error(ER_INVALID_DEFAULT_PARAM, MYF(0));
+      return true;
+    }
     return field->save_in_field_ignore_value(field->table->pos_in_table_list->
                                              top_table() !=
                                              field->table->pos_in_table_list);
@@ -5004,6 +5025,44 @@ static Field *make_default_field(THD *thd, Field *field_arg)
                                  (def_field->table->s->default_values -
                                   def_field->table->record[0]));
   return def_field;
+}
+
+
+/**
+  Assign a default value of a table column to the positional parameter that
+  is performed on execution of a prepared statement with the clause
+  'USING DEFAULT'
+
+   @param field  a field that should be assigned an actual value of positional
+                 parameter passed via the clause 'USING DEFAULT'
+
+   @return false on success, true on failure
+*/
+
+bool Item_param::assign_default(Field *field)
+{
+  DBUG_ASSERT(m_associated_field);
+
+  if (m_associated_field->field->flags & NO_DEFAULT_VALUE_FLAG)
+  {
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
+             m_associated_field->field->field_name.str);
+    return true;
+  }
+
+  if (!m_default_field)
+  {
+    m_default_field= make_default_field(field->table->in_use,
+                                        m_associated_field->field);
+
+    if (!m_default_field)
+      return true;
+  }
+
+  if (m_default_field->default_value)
+    m_default_field->set_default();
+
+  return field_conv(field, m_default_field);
 }
 
 
@@ -9672,6 +9731,15 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
   if (arg != new_item)
     thd->change_item_tree(&arg, new_item);
   return (this->*transformer)(thd, args);
+}
+
+
+bool Item_default_value::associate_with_target_field(THD *thd,
+                                                     Item_field *field)
+{
+  m_associated= true;
+  arg= field;
+  return tie_field(thd);
 }
 
 
