@@ -71,3 +71,21 @@ innodb_data_file_path=/var/mysql/test
 
 [mysql-5.7]
 innodb_data_file_path=/var/mysql/test
+Testing path conversion
+[mariadbd]
+innodb_data_file_path=/var/mariadb/test
+
+[mysql-5.7]
+innodb_data_file_path=/var/mysql/test
+Testing path conversion not affecting logs by default
+[mariadbd]
+log_bin=/var/mysql/test
+
+[mysql-5.7]
+log_bin=/var/mysql/test
+Testing --convert-mysql-paths-to-mariadb=all modifying log paths
+[mariadbd]
+log_bin=/var/mariadb/test
+
+[mysql-5.7]
+log_bin=/var/mysql/test

@@ -66,6 +66,17 @@ static const char *edit_mode_values[] = {"remove",
 static TYPELIB edit_mode_typelib = {array_elements(edit_mode_values) - 1,
                                     "", edit_mode_values, NULL};
 
+enum convert_paths_mode
+{
+  CONVERT_PATHS_MODE_ALL,
+  CONVERT_PATHS_MODE_LOGS,
+  CONVERT_PATHS_MODE_NONE,
+};
+static ulong opt_convert_paths_mode;
+static const char *convert_paths_mode_values[] = {"all", "logs", NullS};
+static TYPELIB convert_paths_mode_typelib = {array_elements(convert_paths_mode_values) - 1,
+                                             "", convert_paths_mode_values, NULL};
+
 static const char *opt_current_version;
 static my_bool opt_update;
 static my_bool opt_backup;
@@ -842,6 +853,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       /* Remove pre- and end space */
       char *option_value_start;
       char *value_end;
+      char *mysql_path_position;
       for (value++ ; my_isspace(&my_charset_latin1,*value); value++) ;
       value_end=strend(value);
       /*
@@ -955,11 +967,26 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       else if (!strcmp(curr_gr, "mysqld") &&
                (opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION ||
                 opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION) &&
-               strstr(option_value_start, "/mysql/"))
+               (mysql_path_position= strstr(option_value_start, "/mysql/")))
       {
         file_valid= FALSE;
         generator_add_line(&generator, buff, LINE_TYPE_OPTION, FALSE);
-        add_line(&generator.alloc, &generator.mariadbd_additions, "%s", buff);
+        if (opt_convert_paths_mode == CONVERT_PATHS_MODE_ALL ||
+            (opt_convert_paths_mode == CONVERT_PATHS_MODE_LOGS &&
+             strcmp(option, "log_bin") && strcmp(option, "log_bin_index") &&
+             strcmp(option, "relay_log") && strcmp(option, "relay_log_index")))
+        {
+          *(option_value_start - 1)= '=';
+          *mysql_path_position= 0;
+          add_line(&generator.alloc, &generator.mariadbd_additions,
+                   "%s/mariadb%s\n", option, mysql_path_position + sizeof "mysql");
+          *(option_value_start - 1)= 0;
+          *mysql_path_position= '/';
+        }
+        else
+        {
+          add_line(&generator.alloc, &generator.mariadbd_additions, "%s", buff);
+        }
         continue;
       }
       else if (strcmp(curr_gr, "mariadbd") &&
@@ -1235,6 +1262,7 @@ enum upgrade_config_options
   OPT_NO_MYISAM_FILES,
   OPT_ADD_SKIP_SLAVE_START,
   OPT_FIX_ALL,
+  OPT_CONVERT_MYSQL_PATHS_TO_MARIADB,
 };
 
 static struct my_option my_long_options[] =
@@ -1268,6 +1296,11 @@ static struct my_option my_long_options[] =
   {"fix-all", OPT_FIX_ALL,
    "Enable --no-myisam-files and --add-skip-slave-start.",
    0, 0, 0, GET_NO_ARG, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"convert-mysql-paths-to-mariadb", OPT_CONVERT_MYSQL_PATHS_TO_MARIADB,
+   "Convert paths containing /mysql/ to use /mariadb/ for mariadbd",
+   &opt_convert_paths_mode, &opt_convert_paths_mode,
+   &convert_paths_mode_typelib, GET_ENUM,
+   OPT_ARG, CONVERT_PATHS_MODE_NONE, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 

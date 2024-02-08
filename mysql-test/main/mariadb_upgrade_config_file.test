@@ -131,3 +131,36 @@ EOF
 --exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+innodb_data_file_path=/var/mysql/test
+EOF
+--echo Testing path conversion
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb
+
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+log_bin=/var/mysql/test
+EOF
+--echo Testing path conversion not affecting logs by default
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb
+
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mysqld]
+log_bin=/var/mysql/test
+EOF
+--echo Testing --convert-mysql-paths-to-mariadb=all modifying log paths
+--exec $MARIADB_UPGRADE_CONFIG_FILE --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --update --current-version=mysql-5.7 --edit=last-old-version --convert-mysql-paths-to-mariadb=all
+
+--exec cat $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
