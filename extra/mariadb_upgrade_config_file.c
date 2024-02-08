@@ -995,8 +995,8 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
       }
       else if (strcmp(curr_gr, "mariadbd") &&
                (opt_edit_mode == EDIT_MODE_INLINE_OLD_VERSION ||
-                opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION)
-               && !strcmp(option, "key_buffer_size"))
+                opt_edit_mode == EDIT_MODE_LAST_OLD_VERSION) &&
+               !strcmp(option, "key_buffer_size"))
       {
         file_valid= FALSE;
         generator_add_line(&generator, buff, LINE_TYPE_OPTION, FALSE);
