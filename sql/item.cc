@@ -4969,6 +4969,44 @@ bool Item_param::append_for_log(THD *thd, String *str)
 }
 
 
+/**
+  Allocate a memory and create on it a copy of Field object.
+
+  @param thd        thread handler
+  @param field_arg  an instance of Field the new Field object be based on
+
+  @return a new created Field object on success, nullptr on error.
+*/
+
+static Field *make_default_field(THD *thd, Field *field_arg)
+{
+  Field *def_field;
+
+  if (!(def_field= (Field*) thd->alloc(field_arg->size_of())))
+    return nullptr;
+
+  memcpy((void *)def_field, (void *)field_arg, field_arg->size_of());
+  def_field->reset_fields();
+  // If non-constant default value expression or a blob
+  if (def_field->default_value &&
+      (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
+  {
+    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
+    if (!newptr)
+      return nullptr;
+
+    if (should_mark_column(thd->column_usage))
+      def_field->default_value->expr->update_used_tables();
+    def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
+  }
+  else
+    def_field->move_field_offset((my_ptrdiff_t)
+                                 (def_field->table->s->default_values -
+                                  def_field->table->record[0]));
+  return def_field;
+}
+
+
 /****************************************************************************
   Item_copy_string
 ****************************************************************************/
@@ -9446,69 +9484,10 @@ bool Item_default_value::update_func_default_processor(void *)
 
 bool Item_default_value::fix_fields(THD *thd, Item **items)
 {
-  Item *real_arg;
-  Item_field *field_arg;
-  Field *def_field;
   DBUG_ASSERT(fixed == 0);
   DBUG_ASSERT(arg);
 
-  /*
-    DEFAULT() do not need table field so should not ask handler to bring
-    field value (mark column for read)
-  */
-  enum_column_usage save_column_usage= thd->column_usage;
-  /*
-    Fields which has defult value could be read, so it is better hide system
-    invisible columns.
-  */
-  thd->column_usage= COLUMNS_WRITE;
-  if (arg->fix_fields_if_needed(thd, &arg))
-  {
-    thd->column_usage= save_column_usage;
-    goto error;
-  }
-  thd->column_usage= save_column_usage;
-
-  real_arg= arg->real_item();
-  if (real_arg->type() != FIELD_ITEM)
-  {
-    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name.str);
-    goto error;
-  }
-
-  field_arg= (Item_field *)real_arg;
-  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
-  {
-    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
-             field_arg->field->field_name.str);
-    goto error;
-  }
-  if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
-    goto error;
-  memcpy((void *)def_field, (void *)field_arg->field,
-         field_arg->field->size_of());
-  def_field->reset_fields();
-  // If non-constant default value expression or a blob
-  if (def_field->default_value &&
-      (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
-  {
-    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
-    if (!newptr)
-      goto error;
-    if (should_mark_column(thd->column_usage))
-      def_field->default_value->expr->update_used_tables();
-    def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
-  }
-  else
-    def_field->move_field_offset((my_ptrdiff_t)
-                                 (def_field->table->s->default_values -
-                                  def_field->table->record[0]));
-  set_field(def_field);
-  return FALSE;
-
-error:
-  context->process_error(thd);
-  return TRUE;
+  return tie_field(thd);
 }
 
 void Item_default_value::cleanup()
@@ -9695,6 +9674,66 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
   return (this->*transformer)(thd, args);
 }
 
+
+/**
+  Call fix_fields for an item representing the default value, create
+  an instance of Field for representing the default value and assign it
+  to the Item_field::field.
+
+  @param thd  thread handler
+
+  @return false on success, true on error
+*/
+
+bool Item_default_value::tie_field(THD *thd)
+{
+  Item *real_arg;
+  Item_field *field_arg;
+  Field *def_field;
+
+  /*
+    DEFAULT() do not need table field so should not ask handler to bring
+    field value (mark column for read)
+  */
+  enum_column_usage save_column_usage= thd->column_usage;
+  /*
+    Fields which has defult value could be read, so it is better hide system
+    invisible columns.
+  */
+  thd->column_usage= COLUMNS_WRITE;
+  if (arg->fix_fields_if_needed(thd, &arg))
+  {
+    thd->column_usage= save_column_usage;
+    goto error;
+  }
+  thd->column_usage= save_column_usage;
+
+  real_arg= arg->real_item();
+  if (real_arg->type() != FIELD_ITEM)
+  {
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name.str);
+    goto error;
+  }
+
+  field_arg= (Item_field *)real_arg;
+  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
+  {
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
+             field_arg->field->field_name.str);
+    goto error;
+  }
+  def_field= make_default_field(thd, field_arg->field);
+  if (!def_field)
+    goto error;
+
+  set_field(def_field);
+  return false;
+
+error:
+  context->process_error(thd);
+  return true;
+
+}
 
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {
