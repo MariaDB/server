@@ -76,7 +76,7 @@ EOF
 
 -- source include/start_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT COUNT(*) FROM bug16720368;
 --error ER_TABLE_CORRUPT
 INSERT INTO bug16720368 VALUES(1);

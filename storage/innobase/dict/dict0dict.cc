@@ -1007,6 +1007,17 @@ ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
 }
 #endif /* UNIV_PFS_RWLOCK */
 
+/** Report an error about failing to open a table.
+@param name   table name */
+static void dict_table_open_failed(const table_name_t &name)
+{
+  my_printf_error(ER_TABLE_CORRUPT,
+                  "Table %`.*s.%`s is corrupted."
+                  " Please drop the table and recreate.",
+                  MYF(ME_ERROR_LOG),
+                  int(name.dblen()), name.m_name, name.basename());
+}
+
 /**********************************************************************//**
 Returns a table object and increments its open handle count.
 NOTE! This is a high-level function to be used mainly from outside the
@@ -1039,18 +1050,20 @@ dict_table_open_on_name(
       if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
           !table->is_readable() && table->corrupted)
       {
-        ulint algo = table->space->get_compression_algo();
-        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo)) {
-	  my_printf_error(ER_PROVIDER_NOT_LOADED,
-            "Table %s is compressed with %s, which is not currently loaded. "
-            "Please load the %s provider plugin to open the table",
-	    MYF(ME_ERROR_LOG), table->name,
-            page_compression_algorithms[algo], page_compression_algorithms[algo]);
-        } else {
-	  my_printf_error(ER_TABLE_CORRUPT,
-            "Table %s is corrupted. Please drop the table and recreate.",
-	    MYF(ME_ERROR_LOG), table->name);
-	}
+        ulint algo= table->space->get_compression_algo();
+        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo))
+          my_printf_error(ER_PROVIDER_NOT_LOADED,
+                          "Table %`.*s.%`s is compressed with %s,"
+                          " which is not currently loaded. "
+                          "Please load the %s provider plugin"
+                          " to open the table",
+                          MYF(ME_ERROR_LOG),
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(),
+                          page_compression_algorithms[algo],
+                          page_compression_algorithms[algo]);
+        else
+          dict_table_open_failed(table->name);
         dict_sys.unfreeze();
         DBUG_RETURN(nullptr);
       }
@@ -1070,8 +1083,7 @@ dict_table_open_on_name(
     if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
         !table->is_readable() && table->corrupted)
     {
-      ib::error() << "Table " << table->name
-                  << " is corrupted. Please drop the table and recreate.";
+      dict_table_open_failed(table->name);
       if (!dict_locked)
         dict_sys.unlock();
       DBUG_RETURN(nullptr);
