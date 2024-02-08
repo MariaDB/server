@@ -970,8 +970,31 @@ func_exit:
     for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
     {
-      /* if victim has also BF status, but has earlier seqno, we have to wait */
-      if (lock->trx != trx &&
+      /* Victim trx needs to be different from BF trx and it has to have a
+         THD so that we can kill it. Victim might not have THD in two cases:
+
+         (1) An incomplete transaction that was recovered from undo logs
+         on server startup (and not yet rolled back).
+
+         (2) Transaction that is in XA PREPARE state and whose client
+         connection was disconnected.
+
+         Neither of these can complete before lock_wait_wsrep() releases
+         lock_sys.latch.
+
+         (1) trx_t::commit_in_memory() is clearing both
+         trx_t::state and trx_t::is_recovered before it invokes
+         lock_release(trx_t*) (which would be blocked by the exclusive
+         lock_sys.latch that we are holding here). Hence, it is not
+         possible to write a debug assertion to document this scenario.
+
+         (2) If is in XA PREPARE state, it would eventually be rolled
+         back and the lock conflict would be resolved when an XA COMMIT
+         or XA ROLLBACK statement is executed in some other connection.
+
+         If victim has also BF status, but has earlier seqno, we have to wait.
+      */
+      if (lock->trx != trx && lock->trx->mysql_thd &&
           !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
             wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
       {
@@ -1003,8 +1026,11 @@ func_exit:
         lock= lock_rec_get_next(heap_no, lock);
       do
       {
-        /* if victim has also BF status, but has earlier seqno, we have to wait */
-        if (lock->trx != trx &&
+        /* This is similar case as above except here we have
+           record-locks instead of table locks. See details
+           from comment above.
+        */
+        if (lock->trx != trx && lock->trx->mysql_thd &&
             !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
               wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
         {
@@ -1030,8 +1056,12 @@ func_exit:
 
   std::vector<std::pair<ulong,trx_id_t>> victim_id;
   for (trx_t *v : victims)
+  {
+    /* Victim must have THD */
+    ut_ad(v->mysql_thd);
     victim_id.emplace_back(std::pair<ulong,trx_id_t>
                            {thd_get_thread_id(v->mysql_thd), v->id});
+  }
 
   DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
                   {
