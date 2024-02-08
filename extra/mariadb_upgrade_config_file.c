@@ -1014,7 +1014,7 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
         {
           add_line(&generator.alloc, &generator.mariadbd_additions, "%s", buff);
           add_line(&generator.alloc, &generator.mariadbd_additions,
-                   "#key-buffer-size=64K\n");
+                   "#key_buffer_size=64K\n");
         }
         continue;
       }
