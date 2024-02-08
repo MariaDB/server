@@ -47,7 +47,7 @@ EOF
 --write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
 [mysqld]
 invalid=true
-key_buffer_size=20M
+key_buffer_size=64K
 alter_algorithm=invalid
 EOF
 --echo Testing --edit=last-old-version

@@ -1013,8 +1013,12 @@ static int process_default_file_with_ext(struct upgrade_ctx *ctx,
         else
         {
           add_line(&generator.alloc, &generator.mariadbd_additions, "%s", buff);
-          add_line(&generator.alloc, &generator.mariadbd_additions,
-                   "#key_buffer_size=64K\n");
+          if (strcmp(option_value_start, "64K") &&
+              strcmp(option_value_start, "64k"))
+          {
+            add_line(&generator.alloc, &generator.mariadbd_additions,
+                     "#key_buffer_size=64K\n");
+          }
         }
         continue;
       }

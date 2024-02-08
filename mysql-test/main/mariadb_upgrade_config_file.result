@@ -20,12 +20,11 @@ alter_algorithm=invalid
 key_buffer_size=20M
 Testing --edit=last-old-version
 [mariadbd]
-key_buffer_size=20M
-#key_buffer_size=64K
+key_buffer_size=64K
 
 [mysql-5.7]
 invalid=true
-key_buffer_size=20M
+key_buffer_size=64K
 alter_algorithm=invalid
 Testing mariadbd section additions
 [mariadbd]
