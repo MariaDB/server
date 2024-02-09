@@ -153,6 +153,7 @@ int mi_write(MI_INFO *info, const uchar *record)
   info->update= (HA_STATE_CHANGED | HA_STATE_AKTIV | HA_STATE_WRITTEN |
 		 HA_STATE_ROW_CHANGED);
   info->state->records++;
+  info->lastpos=filepos;
   myisam_log_record(MI_LOG_WRITE,info,record,filepos,0);
   (void) _mi_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
   if (info->invalidator != 0)
