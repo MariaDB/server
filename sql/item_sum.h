@@ -2026,7 +2026,9 @@ protected:
     { return f->val_str(tmp, key + offset); }
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
-  bool uses_non_standard_aggregator_for_distinct() const { return distinct; }
+  bool uses_non_standard_aggregator_for_distinct() const override
+    { return distinct; }
+
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }
