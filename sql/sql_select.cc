@@ -5897,7 +5897,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       */
       /* Largest integer that can be stored in double (no compiler warning) */
       s->worst_seeks= (double) (1ULL << 53);
-      if (thd->variables.optimizer_adjust_secondary_key_costs != 2)
+      if ((thd->variables.optimizer_adjust_secondary_key_costs &
+           OPTIMIZER_ADJ_DISABLE_MAX_SEEKS) == 0)
       {
         s->worst_seeks= MY_MIN((double) s->found_records / 10,
                                (double) s->read_time*3);
@@ -7824,7 +7825,8 @@ double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
   {
     cost= ((file->keyread_time(key, 0, records) +
             file->read_time(key, 1, MY_MIN(records, worst_seeks))));
-    if (thd->variables.optimizer_adjust_secondary_key_costs == 1 &&
+    if ((thd->variables.optimizer_adjust_secondary_key_costs &
+         OPTIMIZER_ADJ_SEC_KEY_COST) &&
         file->is_clustering_key(0))
     {
       /*
@@ -8020,8 +8022,9 @@ best_access_path(JOIN      *join,
     higher to ensure that ref|filter is not less than range over same
     number of rows
   */
-  double filter_setup_cost= (thd->variables.
-                             optimizer_adjust_secondary_key_costs == 2 ?
+  double filter_setup_cost= ((thd->variables.
+                              optimizer_adjust_secondary_key_costs &
+                              OPTIMIZER_ADJ_DISABLE_MAX_SEEKS) ?
                              1.0 : 0.0);
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
@@ -30119,12 +30122,13 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   uint best_key_parts= 0;
   int best_key_direction= 0;
   ha_rows best_records= 0;
-  double read_time;
+  double read_time, records;
   int best_key= -1;
   bool is_best_covering= FALSE;
   double fanout= 1;
   ha_rows table_records= table->stat_records();
   bool group= join && join->group && order == join->group_list;
+  bool group_forces_index_usage= group;
   ha_rows refkey_rows_estimate= table->opt_range_condition_rows;
   const bool has_limit= (select_limit_arg != HA_POS_ERROR);
   THD* thd= join ? join->thd : table->in_use;
@@ -30161,6 +30165,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   {
     uint tablenr= (uint)(tab - join->join_tab);
     read_time= join->best_positions[tablenr].read_time;
+    records= join->best_positions[tablenr].records_read;
     for (uint i= tablenr+1; i < join->table_count; i++)
     {
       fanout*= join->best_positions[i].records_read; // fanout is always >= 1
@@ -30169,8 +30174,23 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     }
   }
   else
+  {
     read_time= table->file->scan_time();
+    records= rows2double(table_records);
+  }
   
+  if ((thd->variables.optimizer_adjust_secondary_key_costs &
+       OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY) && group)
+  {
+    /*
+      read_time does not include TIME_FOR_COMPARE while opt_range.cost, which
+      is used by index_scan_time contains it.
+      Ensure that read_time and index_scan_time always include it to make
+      costs comparable.
+    */
+    read_time+= records/TIME_FOR_COMPARE;
+  }
+
   trace_cheaper_ordering.add("fanout", fanout);
   /*
     TODO: add cost of sorting here.
@@ -30361,30 +30381,62 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         possible_key.add("updated_limit", select_limit);
         rec_per_key= keyinfo->actual_rec_per_key(keyinfo->user_defined_key_parts-1);
         set_if_bigger(rec_per_key, 1);
-        /*
-          Here we take into account the fact that rows are
-          accessed in sequences rec_per_key records in each.
-          Rows in such a sequence are supposed to be ordered
-          by rowid/primary key. When reading the data
-          in a sequence we'll touch not more pages than the
-          table file contains.
-          TODO. Use the formula for a disk sweep sequential access
-          to calculate the cost of accessing data rows for one 
-          index entry.
-        */
-        index_scan_time= select_limit/rec_per_key *
-                         MY_MIN(rec_per_key, table->file->scan_time());
-        double range_scan_time;
-        if (get_range_limit_read_cost(tab, table, table_records, nr,
-                                      select_limit, &range_scan_time))
+
+        if ((thd->variables.optimizer_adjust_secondary_key_costs &
+             OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY) && group)
         {
-          possible_key.add("range_scan_time", range_scan_time);
-          if (range_scan_time < index_scan_time)
-            index_scan_time= range_scan_time;
+          /* Special optimization to avoid forcing an index when group by is used */
+          group_forces_index_usage= 0;
+
+          if (table->opt_range_keys.is_set(nr))
+          {
+            /* opt_range includes TIME_FOR_COMPARE */
+            index_scan_time= (double) table->opt_range[nr].cost;
+          }
+          else
+          {
+            /* Enable secondary_key_cost and disable max_seek option */
+            ulonglong save= thd->variables.optimizer_adjust_secondary_key_costs;
+            thd->variables.optimizer_adjust_secondary_key_costs|=
+                OPTIMIZER_ADJ_SEC_KEY_COST | OPTIMIZER_ADJ_DISABLE_MAX_SEEKS;
+
+            index_scan_time= cost_for_index_read(thd, table, nr,
+                                                 table_records, HA_ROWS_MAX);
+            index_scan_time+= rows2double(table_records) / TIME_FOR_COMPARE;
+            thd->variables.optimizer_adjust_secondary_key_costs= save;
+          }
+          /* Assume data is proportionalyl distributed */
+          index_scan_time*= MY_MIN(select_limit, rec_per_key) / rec_per_key;
+        }
+        else
+        {
+          /*
+            Here we take into account the fact that rows are
+            accessed in sequences rec_per_key records in each.
+            Rows in such a sequence are supposed to be ordered
+            by rowid/primary key. When reading the data
+            in a sequence we'll touch not more pages than the
+            table file contains.
+            TODO. Use the formula for a disk sweep sequential access
+            to calculate the cost of accessing data rows for one
+            index entry.
+          */
+          index_scan_time= select_limit/rec_per_key *
+            MY_MIN(rec_per_key, table->file->scan_time());
+
+          double range_scan_time;
+          if (get_range_limit_read_cost(tab, table, table_records, nr,
+                                        select_limit, &range_scan_time))
+          {
+            possible_key.add("range_scan_time", range_scan_time);
+            if (range_scan_time < index_scan_time)
+              index_scan_time= range_scan_time;
+          }
         }
         possible_key.add("index_scan_time", index_scan_time);
 
-        if ((ref_key < 0 && (group || table->force_index || is_covering)) ||
+        if ((ref_key < 0 &&
+             (group_forces_index_usage || table->force_index || is_covering)) ||
             index_scan_time < read_time)
         {
           ha_rows quick_records= table_records;
@@ -30406,6 +30458,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
             possible_key.add("cause", "ref estimates better");
             continue;
           }
+
           if (table->opt_range_keys.is_set(nr))
             quick_records= table->opt_range[nr].rows;
           possible_key.add("records", quick_records);
@@ -30424,6 +30477,9 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
             is_best_covering= is_covering;
             best_key_direction= direction; 
             best_select_limit= select_limit;
+            if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                 OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY) && group)
+              set_if_smaller(read_time, index_scan_time);
           }
           else
           {

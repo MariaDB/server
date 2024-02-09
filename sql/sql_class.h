@@ -712,6 +712,11 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
+  /*
+    A bitmap of OPTIMIZER_ADJ_* flags (defined in sql_priv.h).
+    See sql_vars.cc:adjust_secondary_key_cost for symbolic names.
+  */
+  ulonglong optimizer_adjust_secondary_key_costs;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -761,7 +766,6 @@ typedef struct system_variables
   ulong optimizer_max_sel_arg_weight;
   ulong optimizer_max_sel_args;
   ulong optimizer_trace_max_mem_size;
-  ulong optimizer_adjust_secondary_key_costs;
   ulong use_stat_tables;
   double sample_percentage;
   ulong histogram_size;

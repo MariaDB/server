@@ -2274,12 +2274,12 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_ADJUST_SECONDARY_KEY_COSTS
 VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	0 = No changes. 1 = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. 2 = Remove 'max_seek optimization' for secondary keys and slight adjustment of filter cost. This option will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	2
-NUMERIC_BLOCK_SIZE	1
-ENUM_VALUE_LIST	NULL
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	A bit field with the following values: adjust_secondary_key_cost = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight adjustment of filter cost. disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. This variable will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARGS
