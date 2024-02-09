@@ -89,7 +89,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
   MARIA_SHARE *share= info->s;
   uint i;
   int save_errno;
-  MARIA_RECORD_POS filepos, oldpos= info->cur_row.lastpos;
+  MARIA_RECORD_POS filepos;
   uchar *buff;
   my_bool lock_tree= share->lock_key_trees;
   my_bool fatal_error;
@@ -303,7 +303,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
   share->state.changed|= STATE_NOT_MOVABLE | STATE_NOT_ZEROFILLED;
   info->state->changed= 1;
 
-  info->cur_row.lastpos= oldpos;
+  info->cur_row.lastpos= filepos;
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
   if (info->invalidator != 0)
   {
