@@ -25,6 +25,9 @@ yes
 # mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 test.have_ssl()
 yes
+# mysql --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
 # mysql -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()"
 test.have_ssl()
 yes

@@ -25,6 +25,15 @@ create function have_ssl() returns char(3)
   from information_schema.session_status
   where variable_name='ssl_cipher');
 
+let host=;
+if ($MTR_COMBINATION_WIN) {
+  # 127.0.0.2 (and generally 127.0.0.0/8) works on Windows the same as 127.0.0.1,
+  # i.e client can connect if server listens on IPv4 loopback
+  #
+  # We use 127.0.0.2 as it does not match any of "localhost","127.0.0.1","::1"
+  # thus it is not considered "secure transport" by the connector/C
+  let host=--host=127.0.0.2;
+}
 #
 # root user, no password, so cannot validate cert.
 #
@@ -33,13 +42,13 @@ create function have_ssl() returns char(3)
 --echo # mysql -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 --replace_regex /TLS\/SSL error.*certificate[^\n]*/TLS\/SSL error: Failed to verify the server certificate/
 --error 1
---exec $MYSQL --protocol tcp -uroot --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -uroot --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 #
 # except if ssl-verify-server-cert is left on default (not explicitly enabled)
 #
 --let $csd=`select @@character_sets_dir`
 --echo # mysql -uroot -e "select test.have_ssl()"
---exec $EXE_MYSQL --no-defaults --character-sets-dir=$csd --protocol tcp --port $MASTER_MYPORT -uroot -e "select test.have_ssl()" 2>&1
+--exec $EXE_MYSQL --no-defaults --character-sets-dir=$csd --protocol tcp $host --port $MASTER_MYPORT -uroot -e "select test.have_ssl()" 2>&1
 #
 # or unless using a secure transport, like unix_socket or named pipes
 #
@@ -52,34 +61,41 @@ if ($MTR_COMBINATION_WIN) {
 }
 --echo # mysql --protocol $proto -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 --exec $MYSQL --protocol $proto -uroot --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+
+#
+# same for tcp via localhost
+#
+--echo # mysql --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+--exec $MYSQL --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+
 #
 # mysql_native_password with password works fine
 #
 --echo # mysql -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()"
---exec $MYSQL --protocol tcp -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 #
 # ed25519 with password works fine
 #
 --echo # mysql -ued -pbar --ssl-verify-server-cert -e "select test.have_ssl()"
---exec $MYSQL --protocol tcp -ued -pbar --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -ued -pbar --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 #
 # three_attempts uses auth string as is, doesn't hash.
 # so it's not safe over untrusted connection and thus cannot validate cert
 #
 --echo # mysql -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select test.have_ssl()"
---exec $MYSQL --protocol tcp -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 --echo # mysql -unohash -ponetwothree --ssl-verify-server-cert -e "select test.have_ssl()"
 --replace_regex /TLS\/SSL error.*certificate[^\n]*/TLS\/SSL error: Failed to verify the server certificate/
 --error 1
---exec $MYSQL --protocol tcp -unohash -ponetwothree --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -unohash -ponetwothree --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 #
 # multi-auth case, both client and server must use
 # the same plugin for cert validation
 #
 --echo # mysql -umulti -ppw1 --ssl-verify-server-cert -e "select test.have_ssl()"
---exec $MYSQL --protocol tcp -umulti -ppw1 --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -umulti -ppw1 --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 --echo # mysql -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()"
---exec $MYSQL --protocol tcp -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
+--exec $MYSQL --protocol tcp $host -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 
 #
 # Now try MitM
