@@ -35,30 +35,6 @@ struct parsed
   std::map<std::string, std::vector<std::string>> sets;
 };
 
-#if defined(__has_feature)
-#  if __has_feature(memory_sanitizer)
-     __attribute__((no_sanitize("memory"))) /* we may run with uninstrumented std::string */
-#  endif
-#endif
-void escape_command(std::ostringstream &out, const char *command)
-{
-  out << '\"';
-  while (*command)
-  {
-    switch (*command) {
-    case '\"':
-    case '\\':
-    case '$':
-      out << '\\';
-      /* falls through */
-    default:
-      out << *command;
-    }
-    command++;
-  }
-  out << '\"';
-}
-
 std::string read_output(FILE *f)
 {
   char buf[4096];
@@ -72,72 +48,68 @@ std::string read_output(FILE *f)
   return output;
 }
 
-#if defined(__has_feature)
-#  if __has_feature(memory_sanitizer)
-     __attribute__((no_sanitize("memory"))) /* we may run with uninstrumented std::string */
-#  endif
-#endif
 std::string call_mariadbd(const char *mariadbd_path)
 {
   std::string output;
-  std::ostringstream command;
-  escape_command(command, mariadbd_path);
-  command << " --no-defaults"
-             " --plugin-maturity=unknown"
-             " --plugin-load=\""
-             "adt_null;"
-             "auth_0x0100;"
-             "auth_ed25519;"
-             "auth_gssapi;"
-             "auth_pam;"
-             // "auth_pam_v1;"
-             "auth_test_plugin;"
-             "cracklib_password_check;"
-             "debug_key_management;"
-             "dialog_examples;"
-             "disks;"
-             "example_key_management;"
-             "file_key_management;"
-             "func_test;"
-             "ha_archive;"
-             "ha_blackhole;"
-             "ha_connect;"
-             "ha_federatedx;"
-             "ha_mroonga;"
-             "handlersocket;"
-             // "ha_oqgraph;"
-             "ha_rocksdb;"
-             "ha_s3;"
-             "hashicorp_key_management;"
-             "ha_sphinx;"
-             "ha_spider;"
-             "ha_test_sql_discovery;"
-             "libdaemon_example;"
-             "locales;"
-             "metadata_lock_info;"
-             "mypluglib;"
-             "password_reuse_check;"
-             "provider_bzip2;"
-             "provider_lz4;"
-             "provider_lzma;"
-             "qa_auth_interface;"
-             "qa_auth_server;"
-             "query_cache_info;"
-             "query_response_time;"
-             "server_audit;"
-             "simple_password_check;"
-             "sql_errlog;"
-             "test_sql_service;"
-             "test_versioning;"
-             "type_mysql_json;"
-             "type_mysql_timestamp;"
-             "type_test;"
-             "wsrep_info"
-             "\""
-             " --verbose"
-             " --help";
+  DYNAMIC_STRING command;
+  init_dynamic_string(&command, "", 0, 0);
+  dynstr_append_os_quoted(&command, mariadbd_path, NullS);
+  dynstr_append(&command, " --no-defaults"
+                          " --plugin-maturity=unknown"
+                          " --plugin-load=");
+  dynstr_append_os_quoted(&command, "adt_null;"
+                                    "auth_0x0100;"
+                                    "auth_ed25519;"
+                                    "auth_gssapi;"
+                                    "auth_pam;"
+                                    // "auth_pam_v1;"
+                                    "auth_test_plugin;"
+                                    "cracklib_password_check;"
+                                    "debug_key_management;"
+                                    "dialog_examples;"
+                                    "disks;"
+                                    "example_key_management;"
+                                    "file_key_management;"
+                                    "func_test;"
+                                    "ha_archive;"
+                                    "ha_blackhole;"
+                                    "ha_connect;"
+                                    "ha_federatedx;"
+                                    "ha_mroonga;"
+                                    "handlersocket;"
+                                    // "ha_oqgraph;"
+                                    "ha_rocksdb;"
+                                    "ha_s3;"
+                                    "hashicorp_key_management;"
+                                    "ha_sphinx;"
+                                    "ha_spider;"
+                                    "ha_test_sql_discovery;"
+                                    "libdaemon_example;"
+                                    "locales;"
+                                    "metadata_lock_info;"
+                                    "mypluglib;"
+                                    "password_reuse_check;"
+                                    "provider_bzip2;"
+                                    "provider_lz4;"
+                                    "provider_lzma;"
+                                    "qa_auth_interface;"
+                                    "qa_auth_server;"
+                                    "query_cache_info;"
+                                    "query_response_time;"
+                                    "server_audit;"
+                                    "simple_password_check;"
+                                    "sql_errlog;"
+                                    "test_sql_service;"
+                                    "test_versioning;"
+                                    "type_mysql_json;"
+                                    "type_mysql_timestamp;"
+                                    "type_test;"
+                                    "wsrep_info", NullS);
+  dynstr_append(&command, " --verbose"
+                          " --help");
 
-  FILE *f= my_popen(command.str().c_str(), "r");
+  FILE *f= my_popen(command.str, "r");
+  dynstr_free(&command);
   if (!f)
   {
     perror("failed to read mariadbd output");
