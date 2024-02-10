@@ -1982,27 +1982,27 @@ public:
 
   Item_func_group_concat(THD *thd, Item_func_group_concat *item);
   ~Item_func_group_concat();
-  void cleanup();
+  void cleanup() override;
 
-  enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
-  const char *func_name() const { return "group_concat("; }
-  const Type_handler *type_handler() const
+  enum Sumfunctype sum_func () const override {return GROUP_CONCAT_FUNC;}
+  const char *func_name() const override { return "group_concat("; }
+  const Type_handler *type_handler() const override
   {
     if (too_big_for_varchar())
       return &type_handler_blob;
     return &type_handler_varchar;
   }
-  void clear();
-  bool add()
+  void clear() override;
+  bool add() override
   {
     return add(skip_nulls());
   }
-  void reset_field() { DBUG_ASSERT(0); }        // not used
-  void update_field() { DBUG_ASSERT(0); }       // not used
-  bool fix_fields(THD *,Item **);
-  bool setup(THD *thd);
-  void make_unique();
-  double val_real()
+  void reset_field() override { DBUG_ASSERT(0); }        // not used
+  void update_field() override { DBUG_ASSERT(0); }       // not used
+  bool fix_fields(THD *,Item **) override;
+  bool setup(THD *thd) override;
+  void make_unique() override;
+  double val_real() override
   {
     int error;
     const char *end;
@@ -2012,7 +2012,7 @@ public:
     end= res->ptr() + res->length();
     return (my_strtod(res->ptr(), (char**) &end, &error));
   }
-  longlong val_int()
+  longlong val_int() override
   {
     String *res;
     char *end_ptr;
@@ -2022,21 +2022,21 @@ public:
     end_ptr= (char*) res->ptr()+ res->length();
     return my_strtoll10(res->ptr(), &end_ptr, &error);
   }
-  my_decimal *val_decimal(my_decimal *decimal_value)
+  my_decimal *val_decimal(my_decimal *decimal_value) override
   {
     return val_decimal_from_string(decimal_value);
   }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     return get_date_from_string(thd, ltime, fuzzydate);
   }
-  String* val_str(String* str);
-  Item *copy_or_same(THD* thd);
-  void no_rows_in_result() {}
-  void print(String *str, enum_query_type query_type);
-  bool change_context_processor(void *cntx)
+  String* val_str(String* str) override;
+  Item *copy_or_same(THD* thd) override;
+  void no_rows_in_result()  override {}
+  void print(String *str, enum_query_type query_type) override;
+  bool change_context_processor(void *cntx) override
     { context= (Name_resolution_context *)cntx; return FALSE; }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_group_concat>(thd, this); }
   qsort_cmp2 get_comparator_function_for_distinct();
   qsort_cmp2 get_comparator_function_for_order_by();
