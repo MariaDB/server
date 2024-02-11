@@ -1478,7 +1478,6 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
   uchar *UNINIT_VAR(to);
   uint UNINIT_VAR(left_length);
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_dynamic_record");
 
   if (filepos == HA_OFFSET_ERROR)
@@ -1515,7 +1514,8 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
       {
         if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                              block_info.rec_len +
-                             share->base.extra_rec_buff_size, flag))
+                             share->base.extra_rec_buff_size,
+                             MY_WME | share->malloc_flag))
           goto err;
       }
       to= info->rec_buff;
@@ -1771,7 +1771,6 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
   uchar *UNINIT_VAR(to);
   MARIA_BLOCK_INFO block_info;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_rnd_dynamic_record");
 
 #ifdef MARIA_EXTERNAL_LOCKING
@@ -1862,7 +1861,8 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
       {
 	if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                              block_info.rec_len +
-                             share->base.extra_rec_buff_size, flag))
+                             share->base.extra_rec_buff_size,
+                             MY_WME | share->malloc_flag))
 	  goto err;
       }
       to= info->rec_buff;

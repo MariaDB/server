@@ -98,7 +98,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   uint errpos;
   MARIA_HA info,*m_info;
   my_bitmap_map *changed_fields_bitmap;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   DBUG_ENTER("maria_clone_internal");
 
   errpos= 0;
@@ -265,7 +265,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,base_key_parts,unique_key_parts,fulltext_keys,uniques;
   uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
-  myf common_flag= open_flags & HA_OPEN_TMP_TABLE ? MY_THREAD_SPECIFIC : 0;
+  myf common_flag= (((open_flags & HA_OPEN_TMP_TABLE) &&
+                     !(open_flags & HA_OPEN_GLOBAL_TMP_TABLE)) ?
+                    MY_THREAD_SPECIFIC : 0);
   uint file_version;
   size_t info_length;
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
@@ -885,9 +887,10 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 
     if (open_flags & HA_OPEN_TMP_TABLE || share->options & HA_OPTION_TMP_TABLE)
     {
-      common_flag|= MY_THREAD_SPECIFIC;
       share->options|= HA_OPTION_TMP_TABLE;
       share->temporary= share->delay_key_write= 1;
+      share->malloc_flag=
+        (open_flags & HA_OPEN_GLOBAL_TMP_TABLE) ? 0 : MY_THREAD_SPECIFIC;
       share->write_flag=MYF(MY_NABP);
       share->w_locks++;			/* We don't have to update status */
       share->tot_locks++;
@@ -1954,9 +1957,8 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
 
 int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
 {
-  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS : 0);
-  if (share->temporary)
-    flags|= MY_THREAD_SPECIFIC;
+  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS : 0) |
+    share->malloc_flag;
   DEBUG_SYNC_C("mi_open_datafile");
   info->dfile.file= share->bitmap.file.file=
     mysql_file_open(key_file_dfile, share->data_file_name.str,

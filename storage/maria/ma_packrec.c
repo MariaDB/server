@@ -1414,7 +1414,6 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
   uchar *header= info->header;
   uint head_length,UNINIT_VAR(ref_length);
   MARIA_SHARE *share= maria->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
 
   if (file >= 0)
   {
@@ -1441,7 +1440,8 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
     */
     if (_ma_alloc_buffer(rec_buff_p, rec_buff_size_p,
                          info->rec_len + info->blob_len +
-                         share->base.extra_rec_buff_size, flag))
+                         share->base.extra_rec_buff_size,
+                         MY_WME | share->malloc_flag))
       return BLOCK_FATAL_ERROR;			/* not enough memory */
     bit_buff->blob_pos= *rec_buff_p + info->rec_len;
     bit_buff->blob_end= bit_buff->blob_pos + info->blob_len;
@@ -1583,7 +1583,6 @@ _ma_mempack_get_block_info(MARIA_HA *maria,
                            uchar *header)
 {
   MARIA_SHARE *share= maria->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
 
   header+= read_pack_length((uint) share->pack.version, header,
                             &info->rec_len);
@@ -1593,7 +1592,8 @@ _ma_mempack_get_block_info(MARIA_HA *maria,
                               &info->blob_len);
     /* _ma_alloc_rec_buff sets my_errno on error */
     if (_ma_alloc_buffer(rec_buff_p, rec_buff_size_p,
-                      info->blob_len + share->base.extra_rec_buff_size, flag))
+                      info->blob_len + share->base.extra_rec_buff_size,
+                      MY_WME | share->malloc_flag))
       return 0;				/* not enough memory */
     bit_buff->blob_pos= *rec_buff_p;
     bit_buff->blob_end= *rec_buff_p + info->blob_len;
