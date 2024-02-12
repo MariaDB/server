@@ -3890,6 +3890,13 @@ fts_write_node(
 	return(error);
 }
 
+/** Sort an array of doc_id */
+void fts_doc_ids_sort(ib_vector_t *doc_ids)
+{
+  doc_id_t *const data= reinterpret_cast<doc_id_t*>(doc_ids->data);
+  std::sort(data, data + doc_ids->used);
+}
+
 /*********************************************************************//**
 Add rows to the DELETED_CACHE table.
 @return DB_SUCCESS if all went well else error code*/
@@ -3911,7 +3918,7 @@ fts_sync_add_deleted_cache(
 
 	ut_a(ib_vector_size(doc_ids) > 0);
 
-	ib_vector_sort(doc_ids, fts_doc_id_cmp);
+	fts_doc_ids_sort(doc_ids);
 
 	info = pars_info_create();
 

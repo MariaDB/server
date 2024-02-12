@@ -419,6 +419,9 @@ inline void fts_doc_ids_free(fts_doc_ids_t* doc_ids)
 	mem_heap_free(static_cast<mem_heap_t*>(doc_ids->self_heap->arg));
 }
 
+/** Sort an array of doc_id */
+void fts_doc_ids_sort(ib_vector_t *doc_ids);
+
 /******************************************************************//**
 Notify the FTS system about an operation on an FTS-indexed table. */
 void

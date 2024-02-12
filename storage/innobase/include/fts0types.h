@@ -306,18 +306,6 @@ fts_ranking_doc_id_cmp(
 	const void*	p2);			/*!< in: id2 */
 
 /******************************************************************//**
-Compare two doc_ids. */
-UNIV_INLINE
-int fts_doc_id_cmp(
-/*==================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
 Duplicate a string. */
 UNIV_INLINE
 void

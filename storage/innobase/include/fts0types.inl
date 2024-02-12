@@ -79,21 +79,6 @@ fts_ranking_doc_id_cmp(
 }
 
 /******************************************************************//**
-Compare two doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int fts_doc_id_cmp(
-/*==================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const doc_id_t*	up1 = static_cast<const doc_id_t*>(p1);
-	const doc_id_t*	up2 = static_cast<const doc_id_t*>(p2);
-
-	return static_cast<int>(*up1 - *up2);
-}
-
-/******************************************************************//**
 Get the first character's code position for FTS index partition */
 extern
 ulint

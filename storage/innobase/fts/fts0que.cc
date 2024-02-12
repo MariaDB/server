@@ -4038,7 +4038,7 @@ fts_query(
 	DEBUG_SYNC_C("fts_deleted_doc_ids_append");
 
 	/* Sort the vector so that we can do a binary search over the ids. */
-	ib_vector_sort(query.deleted->doc_ids, fts_doc_id_cmp);
+	fts_doc_ids_sort(query.deleted->doc_ids);
 
 	/* Convert the query string to lower case before parsing. We own
 	the ut_malloc'ed result and so remember to free it before return. */
