@@ -3767,7 +3767,7 @@ export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
       currently overly restrictive (see BUG#8510).
     */
     sql_mode|= (MODE_REAL_AS_FLOAT | MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
-                MODE_IGNORE_SPACE);
+                MODE_IGNORE_SPACE | MODE_NO_NEW_TRANS_IN_TRANS);
   }
   if (sql_mode & MODE_ORACLE)
     sql_mode|= (MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
@@ -3844,7 +3844,7 @@ static const char *sql_mode_names[]=
   "ALLOW_INVALID_DATES", "ERROR_FOR_DIVISION_BY_ZERO", "TRADITIONAL",
   "NO_AUTO_CREATE_USER", "HIGH_NOT_PRECEDENCE", "NO_ENGINE_SUBSTITUTION",
   "PAD_CHAR_TO_FULL_LENGTH", "EMPTY_STRING_IS_NULL", "SIMULTANEOUS_ASSIGNMENT",
-  "TIME_ROUND_FRACTIONAL",
+  "TIME_ROUND_FRACTIONAL", "NO_NEW_TRANS_IN_TRANS",
   0
 };
 

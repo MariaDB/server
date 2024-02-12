@@ -260,17 +260,17 @@ drop view v2, v1;
 drop table t1, t2;
 
 select @@sql_mode;
-set sql_mode=2097152;
+set sql_mode=0x200000+0;
 select @@sql_mode;
 # BUG#14675
-set sql_mode=4194304;
+set sql_mode=0x400000+0;
 select @@sql_mode;
-set sql_mode=16384+(65536*4);
+set sql_mode=0x44000+0;
 select @@sql_mode;
-set sql_mode=2147483648*2*2*2;
+set sql_mode=0x800000000+0;
 select @@sql_mode;
 --error 1231
-set sql_mode=2147483648*2*2*2*2; # that mode does not exist
+set sql_mode=0x1000000000+0; # that mode does not exist
 select @@sql_mode;
 
 #
@@ -560,6 +560,42 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+
+--echo #
+--echo # MDEV-32652 'START TRANSACTION' in active transaction should emit error
+--echo #
+
+# See main.sql_mode_transaction test for more coverage about this feature
+
+# First verify normal behavior (implicit commit)
+SET sql_mode=DEFAULT;
+START TRANSACTION;
+START TRANSACTION;
+COMMIT;
+
+
+# Verify new behavior (error on the second START TRANSACTION)
+SET sql_mode=NO_NEW_TRANS_IN_TRANS;
+START TRANSACTION;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+START TRANSACTION;
+COMMIT;
+
+# Verify BEGIN statement has the same effect as START TRANSACTION
+BEGIN;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+BEGIN;
+COMMIT;
+
+# Verify setting ANSI mode has the same effect
+SET sql_mode=DEFAULT;
+SET sql_mode=ANSI;
+START TRANSACTION;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+START TRANSACTION;
+COMMIT;
+
+SET sql_mode=DEFAULT;
 
 --echo #
 --echo # End of 10.2 tests

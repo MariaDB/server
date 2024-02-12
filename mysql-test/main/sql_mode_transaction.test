@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+
+# Compare to MDEV-32652 test in main.sql_mode:
+#
+# - main.sql_mode:
+#   Simply verify that START TRANSACTION emits error inside another transaction.
+#   It cannot verify that no implicit commit happens, due to missing
+#   transactional storage engine.
+#
+# - main.sql_mode_transaction:
+#   More comprehensive coverage with InnoDB to verify that no implicit commit
+#   happens by rolling back the statement. This test will skip if InnoDB engine
+#   is not supported.
+
+
+--echo #
+--echo # MDEV-32652 'START TRANSACTION' in active transaction should emit error
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a TEXT) ENGINE=InnoDB;
+
+# First verify normal behavior (implicit commit)
+SET sql_mode=DEFAULT;
+START TRANSACTION;
+INSERT INTO t1 (a) VALUES (1);
+START TRANSACTION;
+SELECT * FROM t1;
+COMMIT;
+
+
+# Verify new behavior (error on the second START TRANSACTION)
+SET sql_mode=NO_NEW_TRANS_IN_TRANS;
+START TRANSACTION;
+INSERT INTO t1 (a) VALUES (2);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+START TRANSACTION;
+# Should still be able to rollback because previous transaction wasn't committed
+ROLLBACK;
+SELECT * FROM t1;
+
+# Verify BEGIN statement has the same effect as START TRANSACTION
+BEGIN;
+INSERT INTO t1 (a) VALUES (3);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+BEGIN;
+# Should still be able to rollback because previous transaction wasn't committed
+ROLLBACK;
+SELECT * FROM t1;
+
+# Verify setting ANSI mode has the same effect
+SET sql_mode=DEFAULT;
+SET sql_mode=ANSI;
+START TRANSACTION;
+INSERT INTO t1 (a) VALUES (4);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+START TRANSACTION;
+# Should still be able to rollback because previous transaction wasn't committed
+ROLLBACK;
+SELECT * FROM t1;
+
+# Clean up
+SET sql_mode=DEFAULT;
+DROP TABLE t1;

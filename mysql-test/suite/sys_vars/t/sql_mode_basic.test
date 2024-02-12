@@ -307,17 +307,17 @@ SELECT @@global.sql_mode;
 SET @@global.sql_mode = 500000;
 SELECT @@global.sql_mode;
 
-SET @@global.sql_mode = 17179869183;
+SET @@global.sql_mode = 0x3ffffffff+0;
 SELECT @@global.sql_mode;
 
-SET @@global.sql_mode = 17179869184;
+SET @@global.sql_mode = 0x400000000+0;
 SELECT @@global.sql_mode;
 
-SET @@global.sql_mode = 34359738367;
+SET @@global.sql_mode = 0xfffffffff+0;
 SELECT @@global.sql_mode;
 
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@global.sql_mode = 34359738368;
+SET @@global.sql_mode = 0x1000000000+0;
 
 # use of decimal values
 

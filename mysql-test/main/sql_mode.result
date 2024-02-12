@@ -463,27 +463,27 @@ drop table t1, t2;
 select @@sql_mode;
 @@sql_mode
 ANSI_QUOTES
-set sql_mode=2097152;
+set sql_mode=0x200000+0;
 select @@sql_mode;
 @@sql_mode
 STRICT_TRANS_TABLES
-set sql_mode=4194304;
+set sql_mode=0x400000+0;
 select @@sql_mode;
 @@sql_mode
 STRICT_ALL_TABLES
-set sql_mode=16384+(65536*4);
+set sql_mode=0x44000+0;
 select @@sql_mode;
 @@sql_mode
-REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,NO_TABLE_OPTIONS,ANSI
-set sql_mode=2147483648*2*2*2;
+REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,NO_TABLE_OPTIONS,ANSI,NO_NEW_TRANS_IN_TRANS
+set sql_mode=0x800000000+0;
 select @@sql_mode;
 @@sql_mode
-TIME_ROUND_FRACTIONAL
-set sql_mode=2147483648*2*2*2*2;
-ERROR 42000: Variable 'sql_mode' can't be set to the value of '34359738368'
+NO_NEW_TRANS_IN_TRANS
+set sql_mode=0x1000000000+0;
+ERROR 42000: Variable 'sql_mode' can't be set to the value of '68719476736'
 select @@sql_mode;
 @@sql_mode
-TIME_ROUND_FRACTIONAL
+NO_NEW_TRANS_IN_TRANS
 set sql_mode=PAD_CHAR_TO_FULL_LENGTH;
 create table t1 (a int auto_increment primary key, b char(5));
 insert into t1 (b) values('a'),('b\t'),('c ');
@@ -784,6 +784,29 @@ END;
 $$
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'error;
 END' at line 4
+#
+# MDEV-32652 'START TRANSACTION' in active transaction should emit error
+#
+SET sql_mode=DEFAULT;
+START TRANSACTION;
+START TRANSACTION;
+COMMIT;
+SET sql_mode=NO_NEW_TRANS_IN_TRANS;
+START TRANSACTION;
+START TRANSACTION;
+ERROR 25000: You are not allowed to execute this command in a transaction
+COMMIT;
+BEGIN;
+BEGIN;
+ERROR 25000: You are not allowed to execute this command in a transaction
+COMMIT;
+SET sql_mode=DEFAULT;
+SET sql_mode=ANSI;
+START TRANSACTION;
+START TRANSACTION;
+ERROR 25000: You are not allowed to execute this command in a transaction
+COMMIT;
+SET sql_mode=DEFAULT;
 #
 # End of 10.2 tests
 #

@@ -1,0 +1,41 @@
+#
+# MDEV-32652 'START TRANSACTION' in active transaction should emit error
+#
+CREATE OR REPLACE TABLE t1 (a TEXT) ENGINE=InnoDB;
+SET sql_mode=DEFAULT;
+START TRANSACTION;
+INSERT INTO t1 (a) VALUES (1);
+START TRANSACTION;
+SELECT * FROM t1;
+a
+1
+COMMIT;
+SET sql_mode=NO_NEW_TRANS_IN_TRANS;
+START TRANSACTION;
+INSERT INTO t1 (a) VALUES (2);
+START TRANSACTION;
+ERROR 25000: You are not allowed to execute this command in a transaction
+ROLLBACK;
+SELECT * FROM t1;
+a
+1
+BEGIN;
+INSERT INTO t1 (a) VALUES (3);
+BEGIN;
+ERROR 25000: You are not allowed to execute this command in a transaction
+ROLLBACK;
+SELECT * FROM t1;
+a
+1
+SET sql_mode=DEFAULT;
+SET sql_mode=ANSI;
+START TRANSACTION;
+INSERT INTO t1 (a) VALUES (4);
+START TRANSACTION;
+ERROR 25000: You are not allowed to execute this command in a transaction
+ROLLBACK;
+SELECT * FROM t1;
+a
+1
+SET sql_mode=DEFAULT;
+DROP TABLE t1;

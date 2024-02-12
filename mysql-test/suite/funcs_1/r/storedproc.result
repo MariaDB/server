@@ -21714,7 +21714,7 @@ ERROR 42000: Variable 'sql_mode' can't be set to the value of ' error_for_divisi
 set @@sql_mode = 'ansi,error_for_division_by_zero';
 SHOW VARIABLES LIKE 'sql_mode';
 Variable_name	Value
-sql_mode	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,ERROR_FOR_DIVISION_BY_ZERO
+sql_mode	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,ERROR_FOR_DIVISION_BY_ZERO,NO_NEW_TRANS_IN_TRANS
 CREATE PROCEDURE sp4()
 BEGIN
 declare a int;
@@ -21727,7 +21727,7 @@ show warnings;
 END//
 show CREATE PROCEDURE sp4;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sp4	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,ERROR_FOR_DIVISION_BY_ZERO	CREATE DEFINER="root"@"localhost" PROCEDURE "sp4"()
+sp4	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI,ERROR_FOR_DIVISION_BY_ZERO,NO_NEW_TRANS_IN_TRANS	CREATE DEFINER="root"@"localhost" PROCEDURE "sp4"()
 BEGIN
 declare a int;
 declare b int;

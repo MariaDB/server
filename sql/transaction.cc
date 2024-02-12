@@ -109,6 +109,28 @@ bool trans_begin(THD *thd, uint flags)
   int res= FALSE;
   DBUG_ENTER("trans_begin");
 
+  /*
+    Based on ANSI SQL standard (2023) 'START TRANSACTION' should raise exception
+    if another SQL-transaction is active.
+
+    For backward compatibility, this is controlled by MODE_NO_NEW_TRANS_IN_TRANS
+    flag in SQL_MODE, which is disabled by default.
+      - MODE_NO_NEW_TRANS_IN_TRANS=1, emit error when 'START TRANSACTION' is
+        used inside active transaction
+      - MODE_NO_NEW_TRANS_IN_TRANS=0, preserve the usual behavior to implicitly
+        commit the current active transaction, and then start a new one.
+  */
+  if (thd->variables.sql_mode & MODE_NO_NEW_TRANS_IN_TRANS)
+  {
+      if (thd->server_status &
+         (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY))
+      {
+        my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
+        DBUG_RETURN(TRUE);
+      }
+  }
+
+
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
@@ -117,6 +139,19 @@ bool trans_begin(THD *thd, uint flags)
 
   DBUG_ASSERT(!thd->locked_tables_mode);
 
+  /*
+    If inside a multi-statement transaction:
+    (transaction that is not explicitly started by 'START TRANSACTION', but
+    started implicitly when autocommit=0)
+
+    'START TRANSACTION' does not emit error in this case, preserving the usual
+    behavior to implicitly commit the current transaction and starting a new one.
+
+    Do not emit error even if SQL_MODE is set to NO_NEW_TRANS_IN_TRANS,
+    because when autocommit=0 all statements are inside transactions automatically.
+    Doing so will completely disable the use of 'START TRANSACTION' which is a
+    severe break of backward compatibility.
+  */
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
