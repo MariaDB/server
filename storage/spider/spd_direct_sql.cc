@@ -387,6 +387,23 @@ int spider_udf_direct_sql_create_conn_key(
   DBUG_RETURN(0);
 }
 
+static inline void spider_maybe_memcpy_string(
+  char **dest,
+  char *src,
+  char *tmp,
+  uint *dest_len,
+  uint src_len)
+{
+    *dest_len= src_len;
+    if (src_len)
+    {
+      *dest= tmp;
+      memcpy(*dest, src, src_len);
+    } else
+      *dest= NULL;
+}
+
+
 SPIDER_CONN *spider_udf_direct_sql_create_conn(
   const SPIDER_DIRECT_SQL *direct_sql,
   int *error_num
@@ -469,74 +486,36 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   {
 #endif
     conn->tgt_port = direct_sql->tgt_port;
-    conn->tgt_socket_length = direct_sql->tgt_socket_length;
-    conn->tgt_socket = tmp_socket;
-    memcpy(conn->tgt_socket, direct_sql->tgt_socket,
-      direct_sql->tgt_socket_length);
-    conn->tgt_username_length = direct_sql->tgt_username_length;
-    conn->tgt_username = tmp_username;
-    memcpy(conn->tgt_username, direct_sql->tgt_username,
-      direct_sql->tgt_username_length);
-    conn->tgt_password_length = direct_sql->tgt_password_length;
-    conn->tgt_password = tmp_password;
-    memcpy(conn->tgt_password, direct_sql->tgt_password,
-      direct_sql->tgt_password_length);
-    conn->tgt_ssl_ca_length = direct_sql->tgt_ssl_ca_length;
-    if (conn->tgt_ssl_ca_length)
-    {
-      conn->tgt_ssl_ca = tmp_ssl_ca;
-      memcpy(conn->tgt_ssl_ca, direct_sql->tgt_ssl_ca,
-        direct_sql->tgt_ssl_ca_length);
-    } else
-      conn->tgt_ssl_ca = NULL;
-    conn->tgt_ssl_capath_length = direct_sql->tgt_ssl_capath_length;
-    if (conn->tgt_ssl_capath_length)
-    {
-      conn->tgt_ssl_capath = tmp_ssl_capath;
-      memcpy(conn->tgt_ssl_capath, direct_sql->tgt_ssl_capath,
-        direct_sql->tgt_ssl_capath_length);
-    } else
-      conn->tgt_ssl_capath = NULL;
-    conn->tgt_ssl_cert_length = direct_sql->tgt_ssl_cert_length;
-    if (conn->tgt_ssl_cert_length)
-    {
-      conn->tgt_ssl_cert = tmp_ssl_cert;
-      memcpy(conn->tgt_ssl_cert, direct_sql->tgt_ssl_cert,
-        direct_sql->tgt_ssl_cert_length);
-    } else
-      conn->tgt_ssl_cert = NULL;
-    conn->tgt_ssl_cipher_length = direct_sql->tgt_ssl_cipher_length;
-    if (conn->tgt_ssl_cipher_length)
-    {
-      conn->tgt_ssl_cipher = tmp_ssl_cipher;
-      memcpy(conn->tgt_ssl_cipher, direct_sql->tgt_ssl_cipher,
-        direct_sql->tgt_ssl_cipher_length);
-    } else
-      conn->tgt_ssl_cipher = NULL;
-    conn->tgt_ssl_key_length = direct_sql->tgt_ssl_key_length;
-    if (conn->tgt_ssl_key_length)
-    {
-      conn->tgt_ssl_key = tmp_ssl_key;
-      memcpy(conn->tgt_ssl_key, direct_sql->tgt_ssl_key,
-        direct_sql->tgt_ssl_key_length);
-    } else
-      conn->tgt_ssl_key = NULL;
-    conn->tgt_default_file_length = direct_sql->tgt_default_file_length;
-    if (conn->tgt_default_file_length)
-    {
-      conn->tgt_default_file = tmp_default_file;
-      memcpy(conn->tgt_default_file, direct_sql->tgt_default_file,
-        direct_sql->tgt_default_file_length);
-    } else
-      conn->tgt_default_file = NULL;
-    conn->tgt_default_group_length = direct_sql->tgt_default_group_length;
-    if (conn->tgt_default_group_length)
-    {
-      conn->tgt_default_group = tmp_default_group;
-      memcpy(conn->tgt_default_group, direct_sql->tgt_default_group,
-        direct_sql->tgt_default_group_length);
-    } else
-      conn->tgt_default_group = NULL;
+    spider_maybe_memcpy_string(
+      &conn->tgt_socket, direct_sql->tgt_socket, tmp_socket,
+      &conn->tgt_socket_length, direct_sql->tgt_socket_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_username, direct_sql->tgt_username, tmp_username,
+      &conn->tgt_username_length, direct_sql->tgt_username_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_password, direct_sql->tgt_password, tmp_password,
+      &conn->tgt_password_length, direct_sql->tgt_password_length);
+     spider_maybe_memcpy_string(
+      &conn->tgt_ssl_ca, direct_sql->tgt_ssl_ca, tmp_ssl_ca,
+      &conn->tgt_ssl_ca_length, direct_sql->tgt_ssl_ca_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_ssl_capath, direct_sql->tgt_ssl_capath, tmp_ssl_capath,
+      &conn->tgt_ssl_capath_length, direct_sql->tgt_ssl_capath_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_ssl_cert, direct_sql->tgt_ssl_cert, tmp_ssl_cert,
+      &conn->tgt_ssl_cert_length, direct_sql->tgt_ssl_cert_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_ssl_cipher, direct_sql->tgt_ssl_cipher, tmp_ssl_cipher,
+      &conn->tgt_ssl_cipher_length, direct_sql->tgt_ssl_cipher_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_ssl_key, direct_sql->tgt_ssl_key, tmp_ssl_key,
+      &conn->tgt_ssl_key_length, direct_sql->tgt_ssl_key_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_default_file, direct_sql->tgt_default_file, tmp_default_file,
+      &conn->tgt_default_file_length, direct_sql->tgt_default_file_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_default_group, direct_sql->tgt_default_group, tmp_default_group,
+      &conn->tgt_default_group_length, direct_sql->tgt_default_group_length);
     conn->tgt_ssl_vsc = direct_sql->tgt_ssl_vsc;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
