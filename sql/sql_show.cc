@@ -5211,7 +5211,8 @@ end:
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
-                                                  const privilege_t need)
+                                                  const privilege_t need,
+                                                  bool any)
 {
   /* 
     We know that the table or at least some of the columns have
@@ -5221,7 +5222,8 @@ static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
   if (!(thd->col_access & need))
   {
     check_grant(thd, need, tables, 0, 1, 1);
-    return tables->grant.privilege & need;
+    return (any ? tables->grant.all_privilege() 
+                : tables->grant.privilege) & need;
   }
   return thd->col_access & need;
 }
@@ -7089,7 +7091,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
-                                                             TABLE_ACLS);
+                                                             TABLE_ACLS, false);
 #endif
 
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
@@ -7434,7 +7436,8 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
-    if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL))
+    if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL, 
+                                        true))
       DBUG_RETURN(0);
 #endif
 
@@ -7636,7 +7639,7 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
-                                                             TABLE_ACLS);
+                                                             TABLE_ACLS, false);
 #endif
 
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
@@ -8483,7 +8486,7 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
     privilege_t need= TABLE_ACLS & ~SELECT_ACL;
-    if (!get_schema_privileges_for_show(thd, tables, need))
+    if (!get_schema_privileges_for_show(thd, tables, need, true))
       DBUG_RETURN(0);
 #endif
 
