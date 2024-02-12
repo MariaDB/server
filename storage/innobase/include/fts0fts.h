@@ -163,6 +163,9 @@ struct fts_token_t;
 struct fts_doc_ids_t;
 struct fts_index_cache_t;
 
+/** Compare two DOC_ID. */
+int fts_doc_id_cmp(const void *p1, const void *p2)
+  __attribute__((nonnull, warn_unused_result));
 
 /** Initialize the "fts_table" for internal query into FTS auxiliary
 tables */

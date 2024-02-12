@@ -47,38 +47,6 @@ fts_string_dup(
 }
 
 /******************************************************************//**
-Compare two fts_trx_row_t doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_trx_row_doc_id_cmp(
-/*===================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const fts_trx_row_t*	tr1 = (const fts_trx_row_t*) p1;
-	const fts_trx_row_t*	tr2 = (const fts_trx_row_t*) p2;
-
-	return((int)(tr1->doc_id - tr2->doc_id));
-}
-
-/******************************************************************//**
-Compare two fts_ranking_t doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_ranking_doc_id_cmp(
-/*===================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const fts_ranking_t*	rk1 = (const fts_ranking_t*) p1;
-	const fts_ranking_t*	rk2 = (const fts_ranking_t*) p2;
-
-	return((int)(rk1->doc_id - rk2->doc_id));
-}
-
-/******************************************************************//**
 Get the first character's code position for FTS index partition */
 extern
 ulint

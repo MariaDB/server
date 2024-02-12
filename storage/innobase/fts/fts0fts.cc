@@ -2212,6 +2212,22 @@ fts_trx_row_get_new_state(
 	return(result);
 }
 
+/** Compare two doubly indirected pointers */
+static int fts_ptr2_cmp(const void *p1, const void *p2)
+{
+  const void *a= **static_cast<const void*const*const*>(p1);
+  const void *b= **static_cast<const void*const*const*>(p2);
+  return b > a ? -1 : a > b;
+}
+
+/** Compare a singly indirected pointer to a doubly indirected one */
+static int fts_ptr1_ptr2_cmp(const void *p1, const void *p2)
+{
+  const void *a= *static_cast<const void*const*>(p1);
+  const void *b= **static_cast<const void*const*const*>(p2);
+  return b > a ? -1 : a > b;
+}
+
 /******************************************************************//**
 Create a savepoint instance.
 @return savepoint instance */
@@ -2234,8 +2250,8 @@ fts_savepoint_create(
 		savepoint->name = mem_heap_strdup(heap, name);
 	}
 
-	savepoint->tables = rbt_create(
-		sizeof(fts_trx_table_t*), fts_trx_table_cmp);
+	static_assert(!offsetof(fts_trx_table_t, table), "ABI");
+	savepoint->tables = rbt_create(sizeof(fts_trx_table_t*), fts_ptr2_cmp);
 
 	return(savepoint);
 }
@@ -2283,6 +2299,19 @@ fts_trx_create(
 	return(ftt);
 }
 
+/** Compare two doc_id */
+static inline int doc_id_cmp(doc_id_t a, doc_id_t b)
+{
+  return b > a ? -1 : a > b;
+}
+
+/** Compare two DOC_ID. */
+int fts_doc_id_cmp(const void *p1, const void *p2)
+{
+  return doc_id_cmp(*static_cast<const doc_id_t*>(p1),
+                    *static_cast<const doc_id_t*>(p2));
+}
+
 /******************************************************************//**
 Create an FTS trx table.
 @return FTS trx table */
@@ -2301,7 +2330,8 @@ fts_trx_table_create(
 	ftt->table = table;
 	ftt->fts_trx = fts_trx;
 
-	ftt->rows = rbt_create(sizeof(fts_trx_row_t), fts_trx_row_doc_id_cmp);
+	static_assert(!offsetof(fts_trx_row_t, doc_id), "ABI");
+	ftt->rows = rbt_create(sizeof(fts_trx_row_t), fts_doc_id_cmp);
 
 	return(ftt);
 }
@@ -2325,7 +2355,8 @@ fts_trx_table_clone(
 	ftt->table = ftt_src->table;
 	ftt->fts_trx = ftt_src->fts_trx;
 
-	ftt->rows = rbt_create(sizeof(fts_trx_row_t), fts_trx_row_doc_id_cmp);
+	static_assert(!offsetof(fts_trx_row_t, doc_id), "ABI");
+	ftt->rows = rbt_create(sizeof(fts_trx_row_t), fts_doc_id_cmp);
 
 	/* Copy the rb tree values to the new savepoint. */
 	rbt_merge_uniq(ftt->rows, ftt_src->rows);
@@ -2350,13 +2381,9 @@ fts_trx_init(
 {
 	fts_trx_table_t*	ftt;
 	ib_rbt_bound_t		parent;
-	ib_rbt_t*		tables;
-	fts_savepoint_t*	savepoint;
-
-	savepoint = static_cast<fts_savepoint_t*>(ib_vector_last(savepoints));
-
-	tables = savepoint->tables;
-	rbt_search_cmp(tables, &parent, &table->id, fts_trx_table_id_cmp, NULL);
+	ib_rbt_t* tables = static_cast<fts_savepoint_t*>(
+		ib_vector_last(savepoints))->tables;
+	rbt_search_cmp(tables, &parent, &table, fts_ptr1_ptr2_cmp, nullptr);
 
 	if (parent.result == 0) {
 		fts_trx_table_t**	fttp;
@@ -5638,8 +5665,8 @@ fts_savepoint_rollback_last_stmt(
 		l_ftt = rbt_value(fts_trx_table_t*, node);
 
 		rbt_search_cmp(
-			s_tables, &parent, &(*l_ftt)->table->id,
-			fts_trx_table_id_cmp, NULL);
+			s_tables, &parent, &(*l_ftt)->table,
+			fts_ptr1_ptr2_cmp, nullptr);
 
 		if (parent.result == 0) {
 			fts_trx_table_t**	s_ftt;

@@ -385,22 +385,6 @@ fts_query_terms_in_document(
 	ulint*		total);		/*!< out: total words in document */
 #endif
 
-/********************************************************************
-Compare two fts_doc_freq_t doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_freq_doc_id_cmp(
-/*================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const fts_doc_freq_t*	fq1 = (const fts_doc_freq_t*) p1;
-	const fts_doc_freq_t*	fq2 = (const fts_doc_freq_t*) p2;
-
-	return((int) (fq1->doc_id - fq2->doc_id));
-}
-
 #if 0
 /*******************************************************************//**
 Print the table used for calculating LCS. */
@@ -506,14 +490,11 @@ fts_query_compare_rank(
 	if (r2->rank < r1->rank) {
 		return(-1);
 	} else if (r2->rank == r1->rank) {
-
 		if (r1->doc_id < r2->doc_id) {
-			return(1);
-		} else if (r1->doc_id > r2->doc_id) {
-			return(1);
+			return -1;
 		}
 
-		return(0);
+		return r1->doc_id > r2->doc_id;
 	}
 
 	return(1);
@@ -674,8 +655,9 @@ fts_query_add_word_freq(
 
 		word_freq.doc_count = 0;
 
+		static_assert(!offsetof(fts_doc_freq_t, doc_id), "ABI");
 		word_freq.doc_freqs = rbt_create(
-			sizeof(fts_doc_freq_t), fts_freq_doc_id_cmp);
+			sizeof(fts_doc_freq_t), fts_doc_id_cmp);
 
 		parent.last = rbt_add_node(
 			query->word_freqs, &parent, &word_freq);
@@ -1253,8 +1235,9 @@ fts_query_intersect(
 
 		/* Create the rb tree that will hold the doc ids of
 		the intersection. */
+		static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 		query->intersection = rbt_create(
-			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+			sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 		query->total_size += SIZEOF_RBT_CREATE;
 
@@ -1540,8 +1523,9 @@ fts_merge_doc_ids(
 	to create a new result set for fts_query_intersect(). */
 	if (query->oper == FTS_EXIST) {
 
+		static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 		query->intersection = rbt_create(
-			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+			sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 		query->total_size += SIZEOF_RBT_CREATE;
 	}
@@ -3012,8 +2996,9 @@ fts_query_visitor(
 
 		if (query->oper == FTS_EXIST) {
 			ut_ad(query->intersection == NULL);
+			static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 			query->intersection = rbt_create(
-				sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+				sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 			query->total_size += SIZEOF_RBT_CREATE;
 		}
@@ -3123,8 +3108,8 @@ fts_ast_visit_sub_exp(
 
 	/* Create new result set to store the sub-expression result. We
 	will merge this result set with the parent after processing. */
-	query->doc_ids = rbt_create(sizeof(fts_ranking_t),
-				    fts_ranking_doc_id_cmp);
+	static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
+	query->doc_ids = rbt_create(sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 	query->total_size += SIZEOF_RBT_CREATE;
 
@@ -3661,8 +3646,9 @@ fts_query_prepare_result(
 		result = static_cast<fts_result_t*>(
 			ut_zalloc_nokey(sizeof(*result)));
 
+		static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 		result->rankings_by_id = rbt_create(
-			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+			sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 		query->total_size += sizeof(fts_result_t) + SIZEOF_RBT_CREATE;
 		result_is_null = true;
@@ -4065,8 +4051,9 @@ fts_query(
 	query.heap = mem_heap_create(128);
 
 	/* Create the rb tree for the doc id (current) set. */
+	static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 	query.doc_ids = rbt_create(
-		sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+		sizeof(fts_ranking_t), fts_doc_id_cmp);
 	query.parser = index->parser;
 
 	query.total_size += SIZEOF_RBT_CREATE;

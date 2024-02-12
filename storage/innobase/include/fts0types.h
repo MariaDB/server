@@ -280,32 +280,6 @@ struct fts_token_t {
 extern const fts_index_selector_t fts_index_selector[];
 
 /******************************************************************//**
-Compare two fts_trx_row_t instances doc_ids. */
-UNIV_INLINE
-int
-fts_trx_row_doc_id_cmp(
-/*===================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
-Compare two fts_ranking_t instances doc_ids. */
-UNIV_INLINE
-int
-fts_ranking_doc_id_cmp(
-/*===================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
 Duplicate a string. */
 UNIV_INLINE
 void
