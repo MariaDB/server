@@ -87,7 +87,7 @@ static int test_rb_tree(TREE_ELEMENT *element);
 
 void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
                int size, qsort_cmp2 compare,
-	       tree_element_free free_element, void *custom_arg,
+               tree_element_free free_element, void *custom_arg,
                myf my_flags)
 {
   DBUG_ENTER("init_tree");
