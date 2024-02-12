@@ -13,7 +13,6 @@ t	1	x	1	x	A	5	NULL	NULL	YES	BTREE
 t	1	y	1	y	A	5	NULL	NULL	YES	BTREE		
 alter table t analyze partition p0;
 Table	Op	Msg_type	Msg_text
-test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 show indexes from t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -22,7 +21,6 @@ t	1	x	1	x	A	5	NULL	NULL	YES	BTREE
 t	1	y	1	y	A	5	NULL	NULL	YES	BTREE		
 alter table t analyze partition p1;
 Table	Op	Msg_type	Msg_text
-test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 show indexes from t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -37,7 +35,6 @@ t	1	x	1	x	A	9	NULL	NULL	YES	BTREE
 t	1	y	1	y	A	9	NULL	NULL	YES	BTREE		
 alter table t analyze partition p0;
 Table	Op	Msg_type	Msg_text
-test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 show indexes from t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -46,7 +43,6 @@ t	1	x	1	x	A	9	NULL	NULL	YES	BTREE
 t	1	y	1	y	A	9	NULL	NULL	YES	BTREE		
 alter table t analyze partition p1;
 Table	Op	Msg_type	Msg_text
-test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 show indexes from t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

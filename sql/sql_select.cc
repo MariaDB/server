@@ -2143,6 +2143,10 @@ JOIN::optimize_inner()
                                                   select_lex->attach_to_conds,
                                                   &cond_value);
       sel->attach_to_conds.empty();
+      Json_writer_object wrapper(thd);
+      Json_writer_object pushd(thd, "condition_pushdown_from_having");
+      pushd.add("conds", conds);
+      pushd.add("having", having);
     }
   }
 
@@ -12846,7 +12850,8 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       if (item->is_null())
         DBUG_RETURN(NESTED_LOOP_OK);
     }
-    fill_record(thd, table, table->field, sjm->sjm_table_cols, TRUE, FALSE);
+    fill_record(thd, table, table->field, sjm->sjm_table_cols, true, false,
+                true);
     if (unlikely(thd->is_error()))
       DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))

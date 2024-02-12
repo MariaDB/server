@@ -116,12 +116,12 @@ int select_unit::send_data(List<Item> &values)
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
-  fill_record(thd, table, table->field + addon_cnt, values, true, false);
+  fill_record(thd, table, table->field + addon_cnt, values, true, false, true);
   /* set up initial values for records to be written */
   if (addon_cnt && step == UNION_TYPE)
   {
     DBUG_ASSERT(addon_cnt == 1);
-    table->field[0]->store((longlong) curr_step, 1);
+    table->field[0]->store((ulonglong) curr_step, 1);
   }
 
   if (unlikely(thd->is_error()))
@@ -619,7 +619,7 @@ int select_unit_ext::send_data(List<Item> &values)
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
-  fill_record(thd, table, table->field + addon_cnt, values, true, false);
+  fill_record(thd, table, table->field + addon_cnt, values, true, false, true);
   /* set up initial values for records to be written */
   if ( step == UNION_TYPE )
   {
@@ -1003,7 +1003,7 @@ int select_union_direct::send_data(List<Item> &items)
   }
 
   send_records++;
-  fill_record(thd, table, table->field, items, true, false);
+  fill_record(thd, table, table->field, items, true, false, true);
   if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
 
