@@ -10,7 +10,6 @@ extern mysql_flavor_t server_flavor;
 extern unsigned long mysql_server_version;
 
 /* server capabilities */
-extern bool have_changed_page_bitmaps;
 extern bool have_backup_locks;
 extern bool have_lock_wait_timeout;
 extern bool have_galera_enabled;
@@ -38,9 +37,6 @@ capture_tool_command(int argc, char **argv);
 
 bool
 select_history();
-
-bool
-flush_changed_page_bitmaps();
 
 void
 backup_cleanup();

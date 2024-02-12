@@ -13,7 +13,6 @@
 galera_as_slave_ctas : MDEV-28378 timeout
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_sequences : MDEV-32561 WSREP FSM failure: no such a transition REPLICATING -> COMMITTED
-galera_shutdown_nonprim : MDEV-32635 galera_shutdown_nonprim: mysql_shutdown failed
 versioning_trx_id : MDEV-18590 : galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_concurrent_ctas : MDEV-32779 galera_concurrent_ctas: assertion in the galera::ReplicatorSMM::finish_cert()
 galera_as_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
