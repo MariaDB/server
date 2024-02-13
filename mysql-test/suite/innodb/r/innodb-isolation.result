@@ -1198,6 +1198,7 @@ COUNT(*)
 #
 # Try COUNT(*) on a DISCARDED table.
 #
+call mtr.add_suppression("Tablespace is missing for table './test/t4'");
 connection default;
 CREATE TABLE t4 LIKE t1;
 INSERT INTO t4 (SELECT * FROM t1);
