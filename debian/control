@@ -1219,6 +1219,7 @@ Depends: mariadb-client (= ${binary:Version}),
          mariadb-server (= ${server:Version}),
          mariadb-test-data (= ${source:Version}),
          virtual-mysql-testsuite,
+         libnet-ssleay-perl,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
