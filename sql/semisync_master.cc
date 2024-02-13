@@ -844,7 +844,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     int wait_result;
     PSI_stage_info old_stage;
     THD *thd= current_thd;
-    bool aborted= 0;
+    bool aborted __attribute__((unused)) = 0;
     set_timespec(start_ts, 0);
 
     DEBUG_SYNC(thd, "rpl_semisync_master_commit_trx_before_lock");
