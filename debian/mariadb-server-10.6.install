@@ -71,6 +71,7 @@ usr/share/man/man1/myisampack.1
 usr/share/man/man1/mysqld_multi.1
 usr/share/man/man1/mysqld_safe.1
 usr/share/man/man1/mysqld_safe_helper.1
+usr/share/man/man1/wsrep_sst_backup.1
 usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1

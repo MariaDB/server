@@ -15,6 +15,22 @@ CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE imp_t1, t1;
 SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;
 #
+# MDEV-33400 Adaptive hash index corruption after DISCARD TABLESPACE
+#
+SET @save_adaptive=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=ON;
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t SELECT * FROM seq_1_to_131;
+ALTER TABLE t ADD hid INT DEFAULT 2;
+INSERT INTO t VALUES (251,1);
+ALTER TABLE t DISCARD TABLESPACE;
+CHECK TABLE mysql.innodb_table_stats;
+Table	Op	Msg_type	Msg_text
+mysql.innodb_table_stats	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;
+# End of 10.4 tests
+#
 # MDEV-18288: Transportable Tablespaces leave AUTO_INCREMENT in mismatched
 # state, causing INSERT errors in newly imported tables when .cfg is not used.
 #
@@ -49,6 +65,7 @@ id
 4
 5
 DROP TABLE t2;
+# End of 10.5 tests
 #
 # MDEV-27006 Assertion `!lock_trx_has_sys_table_locks(trx)'
 #	failed in dberr_t row_discard_tablespace_for_mysql

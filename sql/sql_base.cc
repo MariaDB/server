@@ -8906,6 +8906,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param use_value     forces usage of value of the items instead of result
+  @param check_for_computability whether to check for ability to invoke val_*()
+                                 methods (val_int () etc) against supplied
+                                 values
 
   @details
     fill_record() may set table->auto_increment_field_not_null and a
@@ -8919,7 +8922,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
 bool
 fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
-            bool ignore_errors, bool use_value)
+            bool ignore_errors, bool use_value, bool check_for_computability)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
@@ -8956,6 +8959,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       continue;
 
     value=v++;
+
+    if (check_for_computability &&
+        value->check_is_evaluable_expression_or_error())
+      goto err;
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
 
@@ -9031,7 +9038,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   bool result;
   Table_triggers_list *triggers= table->triggers;
 
-  result= fill_record(thd, table, ptr, values, ignore_errors, FALSE);
+  result= fill_record(thd, table, ptr, values, ignore_errors, false, false);
 
   if (!result && triggers && *ptr)
     result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||

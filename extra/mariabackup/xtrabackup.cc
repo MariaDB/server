@@ -100,7 +100,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "ds_buffer.h"
 #include "ds_tmpfile.h"
 #include "xbstream.h"
-#include "changed_page_bitmap.h"
 #include "read_filt.h"
 #include "backup_wsrep.h"
 #include "innobackupex.h"
@@ -154,7 +153,6 @@ char *xtrabackup_incremental;
 lsn_t incremental_lsn;
 lsn_t incremental_to_lsn;
 lsn_t incremental_last_lsn;
-xb_page_bitmap *changed_page_bitmap;
 
 char *xtrabackup_incremental_basedir; /* for --backup */
 char *xtrabackup_extra_lsndir; /* for --backup with --extra-lsndir */
@@ -424,6 +422,8 @@ pthread_cond_t  scanned_lsn_cond;
 
 /** Store the deferred tablespace name during --backup */
 static std::set<std::string> defer_space_names;
+
+typedef decltype(fil_space_t::id) space_id_t;
 
 typedef std::map<space_id_t,std::string> space_id_to_name_t;
 
@@ -2947,12 +2947,7 @@ static my_bool xtrabackup_copy_datafile(ds_ctxt *ds_data,
 		goto skip;
 	}
 
-	if (!changed_page_bitmap) {
-		read_filter = &rf_pass_through;
-	}
-	else {
-		read_filter = &rf_bitmap;
-	}
+	read_filter = &rf_pass_through;
 
 	res = xb_fil_cur_open(&cursor, read_filter, node, thread_n, ULLONG_MAX);
 	if (res == XB_FIL_CUR_SKIP) {
@@ -4905,11 +4900,6 @@ fail_before_log_copying_thread_start:
 
 	std::thread(log_copying_thread).detach();
 
-	/* FLUSH CHANGED_PAGE_BITMAPS call */
-	if (!flush_changed_page_bitmaps()) {
-		goto fail;
-	}
-
 	ut_a(xtrabackup_parallel > 0);
 
 	if (xtrabackup_parallel > 1) {
@@ -4984,9 +4974,6 @@ fail_before_log_copying_thread_start:
 		goto fail;
 	}
 
-	if (changed_page_bitmap) {
-		xb_page_bitmap_deinit(changed_page_bitmap);
-	}
 	backup_datasinks.destroy();
 
 	msg("Redo log (from LSN " LSN_PF " to " LSN_PF

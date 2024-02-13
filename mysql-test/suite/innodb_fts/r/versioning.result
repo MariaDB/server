@@ -291,8 +291,6 @@ drop index idx on articles2;
 Warnings:
 Warning	1082	InnoDB: Table test/articles2 contains 3 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 create fulltext index idx on articles2(title, body);
-Warnings:
-Warning	1088	Error updating stats for table 'articles2' after table rebuild: Persistent statistics do not exist
 SELECT * FROM articles2 WHERE MATCH (title,body)
 AGAINST ('the' IN NATURAL LANGUAGE MODE);
 id	title	body

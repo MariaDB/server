@@ -599,6 +599,17 @@ public:
   bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
   virtual void setup_caches(THD *thd) {};
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
+
+  /*
+    While most Item_sum descendants employ standard aggregators configured
+    through Item_sum::set_aggregator() call, there are exceptions like
+    Item_func_group_concat, which implements its own custom aggregators for
+    deduplication values.
+    This function distinguishes between the use of standard and custom
+    aggregators by the object
+  */
+  virtual bool uses_non_standard_aggregator_for_distinct() const
+  { return false; }
 };
 
 
@@ -2015,6 +2026,9 @@ protected:
     { return f->val_str(tmp, key + offset); }
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
+  bool uses_non_standard_aggregator_for_distinct() const override
+    { return distinct; }
+
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }

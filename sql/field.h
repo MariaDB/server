@@ -63,6 +63,15 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+enum ignore_value_reaction
+{
+  IGNORE_MEANS_ERROR,
+  IGNORE_MEANS_DEFAULT,
+  IGNORE_MEANS_FIELD_VALUE
+};
+
+ignore_value_reaction find_ignore_reaction(THD *thd);
+
 
 enum enum_conv_type
 {

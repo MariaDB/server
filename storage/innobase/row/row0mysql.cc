@@ -2405,7 +2405,6 @@ row_discard_tablespace(
 	dict_table_change_id_in_cache(table, new_id);
 
 	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-	if (index) index->clear_instant_alter();
 
 	/* Reset the root page numbers. */
 	for (; index; index = UT_LIST_GET_NEXT(indexes, index)) {
