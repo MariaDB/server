@@ -1251,6 +1251,26 @@ public:
   }
 };
 
+class Item_func_session_user :public Item_func_user
+{
+public:
+  Item_func_session_user(THD *thd):
+    Item_func_user(thd) {}
+  bool fix_fields(THD *thd, Item **ref) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("session_user") };
+    return name;
+  }
+  const char *fully_qualified_func_name() const override
+  { return "session_user()"; }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(fully_qualified_func_name(), arg,
+                                     VCOL_SESSION_FUNC);
+  }
+};
+
 
 class Item_func_current_role :public Item_func_sysconst
 {
