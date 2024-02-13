@@ -4393,6 +4393,23 @@ row_import_for_mysql(
 
 	ibuf_delete_for_discarded_space(table->space_id);
 
+#ifdef BTR_CUR_HASH_ADAPT
+	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
+	index entries. If we replaced the discarded tablespace with a
+	smaller one here, there could still be some adaptive hash
+	index entries that point to cached garbage pages in the buffer
+	pool, because PageConverter::operator() only evicted those
+	pages that were replaced by the imported pages. We must
+	detach any remaining adaptive hash index entries, because the
+	adaptive hash index must be a subset of the table contents;
+	false positives are not tolerated. */
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index = index->clone_if_needed();
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+	UT_LIST_GET_FIRST(table->indexes)->clear_instant_alter();
+
 	trx_start_if_not_started(prebuilt->trx, true);
 
 	trx = trx_create();
@@ -4547,21 +4564,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-#ifdef BTR_CUR_HASH_ADAPT
-	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
-	index entries. If we replaced the discarded tablespace with a
-	smaller one here, there could still be some adaptive hash
-	index entries that point to cached garbage pages in the buffer
-	pool, because PageConverter::operator() only evicted those
-	pages that were replaced by the imported pages. We must
-	detach any remaining adaptive hash index entries, because the
-	adaptive hash index must be a subset of the table contents;
-	false positives are not tolerated. */
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
-		index = index->clone_if_needed();
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
