@@ -9037,8 +9037,8 @@ SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
 b	a
 h	1
 n	4
-SELECT json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') ), JSON_VALID(trace) FROM information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') )	JSON_VALID(trace)
+SELECT json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') ) exp1, JSON_VALID(trace) exp2 FROM information_schema.optimizer_trace;
+exp1	exp2
 [
     {
         "conds": "(t1.b <> 'p' or multiple equal(4, t1.a)) and t1.a <= 7",
