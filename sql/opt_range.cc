@@ -3532,7 +3532,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   
     init_sql_alloc(key_memory_quick_range_select_root, &alloc,
                    thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
-    bzero((void*) &param, sizeof(param));
     param.thd= thd;
     param.mem_root= &alloc;
     param.old_root= thd->mem_root;
