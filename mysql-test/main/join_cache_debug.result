@@ -24,7 +24,8 @@ select
 t1.b as t1_b, t2.b as t2_b, t2.d as t2_d
 FROM t1
 LEFT JOIN t2 ON t1.b = t2.b;
-SET statement debug_dbug='+d,analyze_print_r_unpack_ops' for
+SET @old_debug=@@debug_dbug;
+SET debug_dbug='+d,analyze_print_r_unpack_ops';
 analyze
 format=json
 SELECT COUNT(*)
