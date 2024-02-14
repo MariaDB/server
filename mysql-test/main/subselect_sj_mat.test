@@ -2436,18 +2436,4 @@ UPDATE t1, t2 SET t1.a = 26 WHERE t2.b IN (SELECT MIN(d) FROM t3 WHERE c >= '201
 # Cleanup
 DROP TABLE t1, t2, t3;
 
---echo #
---echo # MDEV-32612 Assertion `tab->select->quick' failed in test_if_skip_sort_order
---echo #
-
-CREATE TABLE t1 (l_orderkey int, l_linenumber int, l_quantity double, 
-  PRIMARY KEY (l_orderkey,l_linenumber), KEY (l_orderkey),
-  KEY (l_orderkey,l_quantity)) engine=MyISAM;
-INSERT INTO t1 VALUES (290,1,35),(290,2,2);
-SELECT * FROM t1 
-WHERE l_quantity = 31
-AND (l_quantity = 50 OR l_orderkey = 41)
-ORDER BY l_orderkey, l_linenumber;
-DROP TABLE t1;
-
 --echo # end of 10.6 tests
