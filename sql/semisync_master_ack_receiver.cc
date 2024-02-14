@@ -277,18 +277,8 @@ void Ack_receiver::run()
         if (likely(len != packet_error))
           repl_semisync_master.report_reply_packet(slave->server_id(),
                                                    net.read_pos, len);
-        else
-        {
-          if (net.last_errno == ER_NET_READ_ERROR)
-          {
-            listener.clear_socket_info(slave);
-          }
-          if (net.last_errno > 0 && global_system_variables.log_warnings > 2)
-            sql_print_warning("Semisync ack receiver got error %d \"%s\" "
-                              "from slave server-id %d",
-                              net.last_errno, ER_DEFAULT(net.last_errno),
-                              slave->server_id());
-        }
+        else if (net.last_errno == ER_NET_READ_ERROR)
+          listener.clear_socket_info(slave);
       }
     }
     mysql_mutex_unlock(&m_mutex);
