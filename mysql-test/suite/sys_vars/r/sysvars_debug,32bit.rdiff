@@ -1,7 +1,7 @@
---- r\sysvars_debug.result
-+++ r\sysvars_debug,32bit.reject
-@@ -21,7 +21,7 @@
- GLOBAL_VALUE_ORIGIN	CONFIG
+--- a/mysql-test/suite/sys_vars/r/sysvars_debug.result
++++ b/mysql-test/suite/sys_vars/r/sysvars_debug.result
+@@ -22,7 +22,7 @@
+ GLOBAL_VALUE_ORIGIN	COMMAND-LINE
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
