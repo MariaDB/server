@@ -781,8 +781,7 @@ Depends: galera-4 (>= 26.4),
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
-Conflicts: mariadb-plugin-spider (<< ${source:Version}),
-           mariadb-server-10.0,
+Conflicts: mariadb-server-10.0,
            mariadb-server-10.1,
            mariadb-server-10.2,
            mariadb-server-10.3,
@@ -825,7 +824,6 @@ Replaces: handlersocket-mysql-5.5,
           mariadb-client-10.6,
           mariadb-client-10.7,
           mariadb-client-10.8,
-          mariadb-plugin-spider (<< ${source:Version}),
           mariadb-server-10.0,
           mariadb-server-10.1,
           mariadb-server-10.2,
@@ -1056,6 +1054,27 @@ Description: Mroonga storage engine for MariaDB server
  Mroonga (formerly named Groonga Storage Engine) is a storage engine that
  provides fast CJK-ready full text searching using column store.
  This package contains the Mroonga plugin for MariaDB server.
+
+Package: mariadb-plugin-spider
+Architecture: any
+Depends: mariadb-server (= ${server:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-server-10.0,
+        mariadb-server-10.1,
+        mariadb-server-10.2,
+        mariadb-server-10.3,
+        mariadb-server-10.4
+Replaces: mariadb-server-10.0,
+          mariadb-server-10.1,
+          mariadb-server-10.2,
+          mariadb-server-10.3,
+          mariadb-server-10.4
+Description: Spider storage engine for MariaDB server
+ The Spider storage engine with built-in sharding features. It supports
+ partitioning and xa transactions, and allows tables of different MariaDB server
+ instances to be handled as if they were on the same instance. It refers to one
+ possible implementation of ISO/IEC 9075-9:2008 SQL/MED.
 
 Package: mariadb-plugin-gssapi-server
 Architecture: any
