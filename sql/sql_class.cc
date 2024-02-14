@@ -3238,6 +3238,9 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
 {
   File file;
   uint option= MY_UNPACK_FILENAME | MY_RELATIVE_PATH;
+  MY_STAT file_stat;
+  bool file_exists_already;
+  bool using_fifo= false;
 
 #ifdef DONT_ALLOW_FULL_LOAD_DATA_PATHS
   option|= MY_REPLACE_DIR;			// Force use of db directory
@@ -3258,25 +3261,47 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
     return -1;
   }
 
-  if (!access(path, F_OK))
+  file_exists_already= my_stat(path, &file_stat, MYF(0));
+
+/*
+  Probably a fifo could be used under Windows, but we're not
+  attempting it at the moment.
+*/
+#ifndef _WIN32
+  if (file_exists_already && MY_S_ISFIFO(file_stat.st_mode))
   {
-    my_error(ER_FILE_EXISTS_ERROR, MYF(0), exchange->file_name);
-    return -1;
+    /* The specified file is a fifo */
+    if ((file= mysql_file_open(key_select_to_file,
+                               path, O_WRONLY, MYF(MY_WME))) < 0)
+      return file;
+    using_fifo= true;
   }
-  /* Create the file world readable */
-  if ((file= mysql_file_create(key_select_to_file,
-                               path, 0644, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
-    return file;
-#ifdef HAVE_FCHMOD
-  (void) fchmod(file, 0644);			// Because of umask()
-#else
-  (void) chmod(path, 0644);
 #endif
+
+  if (!using_fifo)
+  {
+    if (file_exists_already)
+    {
+      my_error(ER_FILE_EXISTS_ERROR, MYF(0), exchange->file_name);
+      return -1;
+    }
+    /* Create the file world readable */
+    if ((file= mysql_file_create(key_select_to_file,
+                                 path, 0644, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
+      return file;
+#ifdef HAVE_FCHMOD
+    (void) fchmod(file, 0644);			// Because of umask()
+#else
+    (void) chmod(path, 0644);
+#endif
+  }
+
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
     mysql_file_close(file, MYF(0));
-    /* Delete file on error, it was just created */
-    mysql_file_delete(key_select_to_file, path, MYF(0));
+    /* Delete file on error if it was just created */
+    if (!file_exists_already)
+      mysql_file_delete(key_select_to_file, path, MYF(0));
     return -1;
   }
   return file;
