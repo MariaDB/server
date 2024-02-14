@@ -851,17 +851,17 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   Format_description_log_event *description_event= NULL;
 
 do_retry:
-  if (slave_retries_file.get() &&
+  if (log_slave_retry &&
       (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log || errmsg))
-    slave_retries_print("[R%lu] event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  reason: %u%s%s",
-                        (ulong) retries + 1, (ulonglong) event_count, (ulonglong) events_to_execute,
-                        (ulonglong) log_pos,
-                        (uint) rgi->current_gtid.domain_id, (uint) rgi->current_gtid.server_id,
-                        (ulonglong) rgi->current_gtid.seq_no,
-                        (longlong) thd->query_id,
-                        (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
-                        (errmsg ? "  binlog error: " : ""),
-                        (errmsg ? errmsg : ""));
+    slave_retry_print("[R%lu] event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  reason: %u%s%s",
+                      (ulong) retries + 1, (ulonglong) event_count, (ulonglong) events_to_execute,
+                      (ulonglong) log_pos,
+                      (uint) rgi->current_gtid.domain_id, (uint) rgi->current_gtid.server_id,
+                      (ulonglong) rgi->current_gtid.seq_no,
+                      (longlong) thd->query_id,
+                      (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
+                      (errmsg ? "  binlog error: " : ""),
+                      (errmsg ? errmsg : ""));
 
   DBUG_EXECUTE_IF("rpl_parallel_retries_at_max", {
     if (retries == slave_trans_retries - 1)
@@ -1073,9 +1073,9 @@ do_retry:
       }
       if (unlikely(rlog.error > 0))
       {
-        sql_print_error2("Slave SQL thread: I/O error reading "
-                        "event(errno: %d  cur_log->error: %d)",
-                        my_errno, rlog.error);
+        slave_print_error("Slave SQL thread: I/O error reading "
+                          "event(errno: %d  cur_log->error: %d)",
+                          my_errno, rlog.error);
         errmsg= "Aborting slave SQL thread because of partial event read";
         err= 1;
         goto err;
@@ -1090,10 +1090,10 @@ do_retry:
          (err= rli->relay_log.find_next_log(&linfo, 1)))
       {
         char buff[22];
-        sql_print_error2("next log error: %d  offset: %s  log: %s",
-                        err,
-                        llstr(linfo.index_file_offset, buff),
-                        log_name);
+        slave_print_error("next log error: %d  offset: %s  log: %s",
+                          err,
+                          llstr(linfo.index_file_offset, buff),
+                          log_name);
         goto err;
       }
       strmake_buf(log_name ,linfo.log_file_name);
@@ -1196,15 +1196,15 @@ check_retry:
   } while (event_count < events_to_execute);
 
 err:
-  if (slave_retries_file.get())
-    slave_retries_print("[R%lu] %s event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  result: %u%s%s",
-                        (ulong) (err ? retries : retries + 1), (err ? "[FAILURE]" : "[SUCCESS]"),
-                        (ulonglong) event_count, (ulonglong) events_to_execute, (ulonglong) log_pos,
-                        (ulong) rgi->current_gtid.domain_id, (ulong) rgi->current_gtid.server_id,
-                        (ulonglong) rgi->current_gtid.seq_no, (longlong) thd->query_id,
-                        (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
-                        (errmsg ? "  binlog error: " : ""),
-                        (errmsg ? errmsg : ""));
+  if (log_slave_retry)
+    slave_retry_print("[R%lu] %s event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  result: %u%s%s",
+                      (ulong) (err ? retries : retries + 1), (err ? "[FAILURE]" : "[SUCCESS]"),
+                      (ulonglong) event_count, (ulonglong) events_to_execute, (ulonglong) log_pos,
+                      (ulong) rgi->current_gtid.domain_id, (ulong) rgi->current_gtid.server_id,
+                      (ulonglong) rgi->current_gtid.seq_no, (longlong) thd->query_id,
+                      (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
+                      (errmsg ? "  binlog error: " : ""),
+                      (errmsg ? errmsg : ""));
 
   if (description_event)
     delete description_event;

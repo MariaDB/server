@@ -568,6 +568,32 @@ private:
   time_t last_time;
 };
 
+class Slave_retry_log: public MYSQL_QUERY_LOG
+{
+  FILE* file;
+
+public:
+  Slave_retry_log() : file(NULL) {}
+  FILE *get() { return file; }
+  bool open(const char *log_name)
+  {
+    char buf[FN_REFLEN];
+    DBUG_ASSERT(log_name);
+    DBUG_ASSERT(log_name[0]);
+    return MYSQL_LOG::open(
+#ifdef HAVE_PSI_INTERFACE
+                key_file_slave_retry_log,
+#endif
+                generate_name(log_name, ".log", 0, buf),
+                /* We want more cache (for InnoDB deadlock printing) and O_APPEND */
+                LOG_BIN, 0, 0, WRITE_CACHE);
+  }
+  bool write(const char *format, va_list args);
+  bool acquire();
+  void release();
+};
+
+
 /*
   We assign each binlog file an internal ID, used to identify them for unlog().
   The IDs start from 0 and increment for each new binlog created.
@@ -1249,9 +1275,6 @@ public:
                         const char *sql_text, size_t sql_text_len);
   virtual bool log_error(enum loglevel level, const char *format,
                          va_list args);
-#ifdef HAVE_REPLICATION
-  virtual bool log_slave_retry(const char *format, va_list args);
-#endif
   virtual bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
                            const char *command_type, size_t command_type_len,
                            const char *sql_text, size_t sql_text_len,
@@ -1260,6 +1283,22 @@ public:
   void init_pthread_objects();
   MYSQL_QUERY_LOG *get_mysql_slow_log() { return &mysql_slow_log; }
   MYSQL_QUERY_LOG *get_mysql_log() { return &mysql_log; }
+
+#ifdef HAVE_REPLICATION
+  Slave_retry_log slave_retry_log;
+  bool slave_retry_print(const char *format, va_list args)
+  {
+    return slave_retry_log.write(format, args);
+  }
+  bool slave_retry_print(const char *format, ...)
+  {
+    va_list args;
+    va_start(args, format);
+    bool res= slave_retry_log.write(format, args);
+    va_end(args);
+    return res;
+  }
+#endif
 };
 
 
@@ -1280,6 +1319,7 @@ class LOGGER
   Log_event_handler *general_log_handler_list[MAX_LOG_HANDLERS_NUM + 1];
 
 public:
+  static constexpr const char * starting_msg= "Starting MariaDB %s source revision %s as process %lu";
 
   bool is_log_tables_initialized;
 
@@ -1309,7 +1349,21 @@ public:
   bool error_log_print(enum loglevel level, const char *format,
                       va_list args);
 #ifdef HAVE_REPLICATION
-  bool slave_retries_print(const char *format, va_list args);
+  Slave_retry_log *slave_retry_log()
+  {
+    return &file_log_handler->slave_retry_log;
+  }
+  bool flush_slave_retry_log();
+  void close_slave_retry_log();
+  bool slave_retry_print(const char *format, va_list args);
+  bool slave_retry_print_ib(const char *format, ...);
+  FILE *acquire_slave_retry_file();
+  void release_slave_retry_file();
+#else
+  bool slave_retry_print_ib(const char *format, ...)
+  {
+    return false;
+  }
 #endif
   bool slow_log_print(THD *thd, const char *query, size_t query_length,
                       ulonglong current_utime);
@@ -1353,7 +1407,7 @@ uint purge_log_get_error_code(int res);
 int vprint_msg_to_log(FILE *file, enum loglevel level, const char *format, va_list args);
 void sql_print_error(const char *format, ...);
 #ifdef HAVE_REPLICATION
-void sql_print_error2(const char *format, ...);
+void slave_print_error (const char *format, ...);
 #endif
 void sql_print_warning(const char *format, ...);
 void sql_print_information(const char *format, ...);
@@ -1365,7 +1419,7 @@ int error_log_print(enum loglevel level, const char *format,
                     va_list args);
 
 #ifdef HAVE_REPLICATION
-bool slave_retries_print(const char *format, ...);
+bool slave_retry_print (const char *format, ...);
 #endif
 
 bool slow_log_print(THD *thd, const char *query, uint query_length,
@@ -1472,6 +1526,37 @@ static inline TC_LOG *get_tc_log_implementation()
     return &mysql_bin_log;
   return &tc_log_mmap;
 }
+
+#ifdef HAVE_REPLICATION
+class Slave_retry_file
+{
+  FILE *file;
+
+public:
+  Slave_retry_file()
+  {
+    file= log_slave_retry == LOG_SLRETR_ON ?
+      logger.acquire_slave_retry_file() : NULL;
+  }
+  ~Slave_retry_file()
+  {
+    if (file)
+    {
+      fflush(file);
+      logger.release_slave_retry_file();
+    }
+  }
+
+  operator bool() { return file != NULL; }
+  operator FILE *() { return file; }
+};
+#else
+struct Slave_retry_file
+{
+  operator bool() { return false; }
+  operator FILE *() { return NULL; }
+};
+#endif
 
 #ifdef WITH_WSREP
 IO_CACHE* wsrep_get_cache(THD *, bool);

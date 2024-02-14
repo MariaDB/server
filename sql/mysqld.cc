@@ -780,87 +780,33 @@ char *opt_binlog_index_name=0;
 my_bool opt_binlog_legacy_event_pos= FALSE;
 
 #ifdef HAVE_REPLICATION
-char default_slave_retries_path[FN_REFLEN];
-bool opt_slave_retries= false;
-char *opt_slave_retries_path= NULL;
+ulong log_slave_retry= LOG_SLRETR_OFF;
+char *opt_slave_retry_logname= NULL;
 uint opt_slave_retries_max_log= 0;
 #endif
-Slave_retries_file slave_retries_file;
 
-bool Slave_retries_file::open()
+bool Slave_retry_log::acquire()
 {
 #ifdef HAVE_REPLICATION
-  DBUG_ASSERT(opt_slave_retries);
-  DBUG_ASSERT(opt_slave_retries_path);
-  file= fopen(opt_slave_retries_path, "a");
-  if (!file)
-  {
-    sql_print_error("Open of log_slave_retries '%s' failed: %s (%d)",
-                    opt_slave_retries_path, strerror(errno), errno);
+  mysql_mutex_lock(&LOCK_log);
+  file= fdopen(dup(log_file.file), "w");
+  if (!file) {
+    mysql_mutex_unlock(&LOCK_log);
     return true;
   }
-  else
-  {
-    slave_retries_print("%s (mariadbd %s) starting as process %lu ...",
-                        my_progname, server_version, (ulong) getpid());
-  }
-#endif
   return false;
-}
-
-void Slave_retries_file::close()
-{
-#ifdef HAVE_REPLICATION
-  if (file)
-  {
-    acquire();
-    fclose(file);
-    release();
-  }
-  file= NULL;
-#endif
-}
-
-void Slave_retries_file::init()
-{
-#ifdef HAVE_REPLICATION
-  mysql_mutex_init(key_LOCK_global_system_variables, &mutex, MY_MUTEX_INIT_FAST);
-#endif
-}
-
-void Slave_retries_file::destroy()
-{
-#ifdef HAVE_REPLICATION
-  mysql_mutex_destroy(&mutex);
-#endif
-}
-
-bool Slave_retries_file::acquire()
-{
-#ifdef HAVE_REPLICATION
-  if (!file)
-    return false;
-  mysql_mutex_lock(&mutex);
-  return true;
 #else
-  return false;
+  return true;
 #endif
 }
 
-void Slave_retries_file::release()
+void Slave_retry_log::release()
 {
 #ifdef HAVE_REPLICATION
-  mysql_mutex_unlock(&mutex);
+  fclose(file);
+  file= NULL;
+  mysql_mutex_unlock(&LOCK_log);
 #endif
-}
-
-void Slave_retries_file::flush()
-{
-  if (acquire())
-  {
-    fflush(file);
-    release();
-  }
 }
 
 /* Static variables */
@@ -988,7 +934,7 @@ PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
   key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
   key_file_trg, key_file_trn, key_file_init;
-PSI_file_key key_file_query_log, key_file_slow_log;
+PSI_file_key key_file_query_log, key_file_slow_log, key_file_slave_retry_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
 PSI_file_key key_file_binlog_state, key_file_gtid_index;
@@ -2150,11 +2096,6 @@ static void clean_up(bool print_message)
 #endif
   free_list(opt_plugin_load_list_ptr);
   destroy_proxy_protocol_networks();
-
-#ifdef HAVE_REPLICATION
-  slave_retries_file.close();
-  slave_retries_file.destroy();
-#endif
 
   /*
     The following lines may never be executed as the main thread may have
@@ -4358,6 +4299,10 @@ static int init_common_variables()
     make_default_log_name(&opt_logname, ".log", false);
   if (!opt_slow_logname || !*opt_slow_logname)
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
+#ifdef HAVE_REPLICATION
+  if (!opt_slave_retry_logname || !*opt_slave_retry_logname)
+    make_default_log_name(&opt_slave_retry_logname, "-retry.log", false);
+#endif
 
 #if defined(ENABLED_DEBUG_SYNC)
   /* Initialize the debug sync facility. See debug_sync.cc. */
@@ -4996,8 +4941,7 @@ static int init_server_components()
 ￼    first in error log, for troubleshooting and debugging purposes
 ￼  */
   if (!opt_help)
-    sql_print_information("Starting MariaDB %s source revision %s as process %lu",
-                          server_version, SOURCE_REVISION, (ulong) getpid());
+    sql_print_information(LOGGER::starting_msg, server_version, SOURCE_REVISION, (ulong) getpid());
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
@@ -5052,35 +4996,6 @@ static int init_server_components()
                         "--log-slave-updates would lead to infinite loops in "
                         "this server. However this will be ignored as the "
                         "--log-bin option is not defined.");
-  }
-
-  slave_retries_file.init();
-  if (!log_error_file_ptr[0])
-    fn_format(default_slave_retries_path, pidfile_name, mysql_data_home,
-              "-retries.err", MY_REPLACE_EXT);
-  else
-    fn_format(default_slave_retries_path, log_error_file_ptr, mysql_data_home,
-              "-retries.err", MY_REPLACE_EXT);
-  if (opt_slave_retries_path && !opt_abort)
-  {
-    if (!opt_slave_retries_path[0])
-    {
-      if (!default_slave_retries_path[0])
-      {
-        /* fn_format failed */
-        opt_slave_retries_path= NULL;
-        opt_slave_retries= false;
-      }
-      else
-      {
-        opt_slave_retries_path= my_strdup(key_memory_Sys_var_charptr_value,
-                                          default_slave_retries_path, MYF(0));
-      }
-    }
-
-    if (opt_slave_retries &&
-        slave_retries_file.open())
-      unireg_abort(1);
   }
 #endif
 
@@ -8213,6 +8128,10 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     make_default_log_name(&opt_logname, ".log", false);
     /* Slow query log file */
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
+#ifdef HAVE_REPLICATGION
+    /* Slave retry log file */
+    make_default_log_name(&opt_slave_retry_logname, "-retry.log", false);
+#endif
     /* Binary log file */
     make_default_log_name(&opt_bin_logname, "-bin", true);
     /* Binary log index file */
@@ -9298,6 +9217,7 @@ static PSI_file_info all_server_files[]=
   { &key_file_relay_log_info, "relay_log_info", 0},
   { &key_file_send_file, "send_file", 0},
   { &key_file_slow_log, "slow_log", 0},
+  { &key_file_slave_retry_log, "slave_retries_log", 0},
   { &key_file_tclog, "tclog", 0},
   { &key_file_trg, "trigger_name", 0},
   { &key_file_trn, "trigger", 0},

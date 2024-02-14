@@ -3,6 +3,7 @@ SET @old_general_log= @@global.general_log;
 SET @old_general_log_file= @@global.general_log_file;
 SET @old_slow_query_log= @@global.slow_query_log;
 SET @old_slow_query_log_file= @@global.slow_query_log_file;
+set @old_slave_retry_log_file= @@global.slave_retry_log_file;
 set @save_long_query_time=@@long_query_time;
 set global general_log= OFF;
 truncate table mysql.general_log;
@@ -206,14 +207,17 @@ SET GLOBAL slow_query_log_file= @old_slow_query_log_file;
 
 SET GLOBAL general_log_file = 'bug32748.query.log';
 SET GLOBAL slow_query_log_file = 'bug32748.slow.log';
+set global slave_retry_log_file= 'bug32748.retry.log';
 
 SHOW VARIABLES LIKE '%log_file';
 Variable_name	Value
 general_log_file	bug32748.query.log
+slave_retry_log_file	bug32748.retry.log
 slow_query_log_file	bug32748.slow.log
 
 SET GLOBAL general_log_file = @old_general_log_file;
 SET GLOBAL slow_query_log_file = @old_slow_query_log_file;
+set global slave_retry_log_file= @old_slave_retry_log_file;
 
 # -- End of Bug#32748.
 #

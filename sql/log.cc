@@ -61,6 +61,7 @@
 #include "sp_head.h"
 #include "sql_table.h"
 #include "log_cache.h"
+#include <source_revision.h>
 
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
@@ -1027,18 +1028,13 @@ bool Log_to_file_event_handler::
   return vprint_msg_to_log(stderr, level, format, args);
 }
 
-#ifdef HAVE_REPLICATION
-bool Log_to_file_event_handler::log_slave_retry(const char *format, va_list args)
-{
-  DBUG_ASSERT(slave_retries_file.get());
-  return vprint_msg_to_log(slave_retries_file.get(), NO_LEVEL, format, args);
-}
-#endif
-
 void Log_to_file_event_handler::init_pthread_objects()
 {
   mysql_log.init_pthread_objects();
   mysql_slow_log.init_pthread_objects();
+#ifdef HAVE_REPLICATION
+  slave_retry_log.init_pthread_objects();
+#endif
 }
 
 
@@ -1087,11 +1083,23 @@ bool Log_to_file_event_handler::init()
 {
   if (!is_initialized)
   {
+    // TODO: why these don't check return status?
     if (global_system_variables.sql_log_slow)
       mysql_slow_log.open_slow_log(opt_slow_logname);
 
     if (opt_log)
       mysql_log.open_query_log(opt_logname);
+
+#ifdef HAVE_REPLICATION
+    if (log_slave_retry == LOG_SLRETR_ON) {
+      if (slave_retry_log.open(opt_slave_retry_logname))
+        log_slave_retry= LOG_SLRETR_OFF;
+      else
+        slave_retry_print(LOGGER::starting_msg, server_version,
+                          SOURCE_REVISION, (ulong) getpid());
+
+    }
+#endif
 
     is_initialized= TRUE;
   }
@@ -1104,6 +1112,9 @@ void Log_to_file_event_handler::cleanup()
 {
   mysql_log.cleanup();
   mysql_slow_log.cleanup();
+#ifdef HAVE_REPLICATION
+  slave_retry_log.cleanup();
+#endif
 }
 
 void Log_to_file_event_handler::flush()
@@ -1113,6 +1124,10 @@ void Log_to_file_event_handler::flush()
     mysql_log.reopen_file();
   if (global_system_variables.sql_log_slow)
     mysql_slow_log.reopen_file();
+#ifdef HAVE_REPLICATION
+  if (log_slave_retry == LOG_SLRETR_ON)
+    slave_retry_log.reopen_file();
+#endif
 }
 
 /*
@@ -1150,17 +1165,29 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 
 
 #ifdef HAVE_REPLICATION
-bool LOGGER::slave_retries_print(const char *format, va_list args)
+bool LOGGER::slave_retry_print(const char *format, va_list args)
 {
   bool res= false;
-  if (slave_retries_file.acquire())
+  if (log_slave_retry == LOG_SLRETR_ON)
+    res= file_log_handler->slave_retry_print(format, args);
+  else if (log_slave_retry == LOG_SLRETR_ERRLOG)
+    res= file_log_handler->log_error(INFORMATION_LEVEL, format, args);
+  return res;
+}
+// InnoDB logs to error log itself, so we don't this for InnoDB
+bool LOGGER::slave_retry_print_ib(const char *format, ...)
+{
+  bool res= false;
+  va_list args;
+  if (log_slave_retry == LOG_SLRETR_ON)
   {
-    res= file_log_handler->log_slave_retry(format, args);
-    slave_retries_file.release();
+    va_start(args, format);
+    res= file_log_handler->slave_retry_print(format, args);
+    va_end(args);
   }
   return res;
 }
-#endif
+#endif /* HAVE_REPLICATION */
 
 
 void LOGGER::cleanup_base()
@@ -1272,6 +1299,37 @@ bool LOGGER::flush_general_log()
 
   return 0;
 }
+
+
+#ifdef HAVE_REPLICATION
+bool LOGGER::flush_slave_retry_log()
+{
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
+  my_errno= 0;
+  file_log_handler->slave_retry_log.reopen_file();
+  return (bool) my_errno;
+}
+
+void LOGGER::close_slave_retry_log()
+{
+  file_log_handler->slave_retry_log.close(0);
+}
+
+FILE *LOGGER::acquire_slave_retry_file()
+{
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
+  auto &l= file_log_handler->slave_retry_log;
+  if (l.acquire())
+    return NULL;
+  return l.get();
+}
+
+void LOGGER::release_slave_retry_file()
+{
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
+  file_log_handler->slave_retry_log.release();
+}
+#endif /* HAVE_REPLICATION */
 
 
 /*
@@ -2953,6 +3011,8 @@ void MYSQL_LOG::init_pthread_objects()
                 binlog rotation, to delay actual close of the old file until
                 we have successfully created the new file.
 
+    TODO: exiting can be replaced by bool close_file
+
   NOTES
     One can do an open on the object at once after doing a close.
     The internal structures are not freed until cleanup() is called
@@ -2981,6 +3041,7 @@ void MYSQL_LOG::close(uint exiting)
     }
   }
 
+  // TODO: LOG_TO_BE_OPENED state is never used, this can be removed and log_file.file checked
   log_state= (exiting & LOG_CLOSE_TO_BE_OPENED) ? LOG_TO_BE_OPENED : LOG_CLOSED;
   my_free(name);
   name= NULL;
@@ -3042,10 +3103,11 @@ int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
 */
 
 
+// TODO: why is this void if open() can fail?
 void MYSQL_QUERY_LOG::reopen_file()
 {
   char *save_name;
-  DBUG_ENTER("MYSQL_LOG::reopen_file");
+  DBUG_ENTER("MYSQL_QUERY_LOG::reopen_file");
 
   mysql_mutex_lock(&LOCK_log);
   if (!is_open())
@@ -7400,12 +7462,14 @@ int error_log_print(enum loglevel level, const char *format,
 
 
 #ifdef HAVE_REPLICATION
-bool slave_retries_print(const char *format, ...)
+bool slave_retry_print(const char *format, ...)
 {
+  if (log_slave_retry == LOG_SLRETR_OFF)
+    return false;
   va_list args;
   bool error;
   va_start(args, format);
-  error= logger.slave_retries_print(format, args);
+  error= logger.slave_retry_print(format, args);
   va_end(args);
   return error;
 }
@@ -9669,7 +9733,10 @@ bool flush_error_log()
       result= 1;
     mysql_mutex_unlock(&LOCK_error_log);
   }
-  slave_retries_file.flush();
+#ifdef HAVE_REPLICATION
+  if (log_slave_retry == LOG_SLRETR_ON)
+    logger.flush_slave_retry_log();
+#endif
   return result;
 }
 
@@ -9724,10 +9791,35 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
 }
 #endif /* _WIN32 */
 
+typedef int (*print_fun_t) (void *stream_or_cache, const char *format, ...);
+typedef int (*flush_fun_t) (void *stream_or_cache);
 
-static void print_buffer_to_file(FILE *file,
-                                 enum loglevel level, const char *buffer,
-                                 size_t length)
+
+#ifdef HAVE_REPLICATION
+static int cprintf(IO_CACHE *cache, const char *format, ...)
+{
+  // TODO: avoid intermediate buffer (need extended my_b_write())?
+  uchar buf[4096];
+  size_t size;
+  va_list args;
+  va_start(args, format);
+  size= my_vsnprintf((char *) buf, sizeof(buf), format, args);
+  va_end(args);
+
+  int res= my_b_write(cache, buf, size);
+  return res ? -1 : size;
+}
+
+static int cflush(IO_CACHE *cache)
+{
+  int res= my_b_flush_io_cache(cache, 0);
+  return res;
+}
+#endif /* HAVE_REPLICATION */
+
+static int print_buffer(print_fun_t print_fun, flush_fun_t flush_fun,
+                        void *file, enum loglevel level, const char *buffer,
+                        size_t length)
 {
   time_t skr;
   struct tm tm_tmp;
@@ -9735,7 +9827,6 @@ static void print_buffer_to_file(FILE *file,
   THD *thd= 0;
   size_t tag_length= 0;
   char tag[NAME_LEN];
-  DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
 
   if (mysqld_server_initialized && (thd= current_thd))
@@ -9753,15 +9844,11 @@ static void print_buffer_to_file(FILE *file,
     }
   }
 
-#ifndef EMBEDDED_LIBRARY
-  mysql_mutex_lock(&LOCK_error_log);
-#endif
-
   skr= my_time(0);
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(file, "%d-%02d-%02d %2d:%02d:%02d [T%lu] %s%.*s%.*s\n",
+  int res= print_fun(file, "%d-%02d-%02d %2d:%02d:%02d [T%lu] %s%.*s%.*s\n",
           start->tm_year + 1900,
           start->tm_mon+1,
           start->tm_mday,
@@ -9774,7 +9861,8 @@ static void print_buffer_to_file(FILE *file,
           (int) tag_length, tag,
           (int) length, buffer);
 
-  fflush(file);
+  if (res > 0 && flush_fun(file))
+    res= -1;
 
 #ifdef WITH_WSREP
   if (level <= WARNING_LEVEL)
@@ -9785,11 +9873,7 @@ static void print_buffer_to_file(FILE *file,
     Wsrep_status::report_log_msg(lvl, tag, tag_length, buffer, length, skr);
   }
 #endif /* WITH_WSREP */
-
-#ifndef EMBEDDED_LIBRARY
-  mysql_mutex_unlock(&LOCK_error_log);
-#endif
-  DBUG_VOID_RETURN;
+  return res;
 }
 
 /**
@@ -9815,7 +9899,13 @@ int vprint_msg_to_log(FILE *file, enum loglevel level, const char *format, va_li
   DBUG_ENTER("vprint_msg_to_log");
 
   length= my_vsnprintf(buff, sizeof(buff), format, args);
-  print_buffer_to_file(file, level, buff, length);
+#ifndef EMBEDDED_LIBRARY
+  mysql_mutex_lock(&LOCK_error_log);
+#endif
+  print_buffer((print_fun_t) fprintf, (flush_fun_t) fflush, file, level, buff, length);
+#ifndef EMBEDDED_LIBRARY
+  mysql_mutex_unlock(&LOCK_error_log);
+#endif
 
 #ifdef _WIN32
   if (file == stderr)
@@ -9824,6 +9914,20 @@ int vprint_msg_to_log(FILE *file, enum loglevel level, const char *format, va_li
 
   DBUG_RETURN(0);
 }
+
+#ifdef HAVE_REPLICATION
+bool Slave_retry_log::write(const char *format, va_list args)
+{
+  char   buff[4096];
+  size_t length;
+  mysql_mutex_lock(&LOCK_log);
+  length= my_vsnprintf(buff, sizeof(buff), format, args);
+  int res= print_buffer((print_fun_t) cprintf, (flush_fun_t) cflush, &log_file,
+                         NO_LEVEL, buff, length);
+  mysql_mutex_unlock(&LOCK_log);
+  return res >= 0 ? false : true;
+}
+#endif
 
 void sql_print_error(const char *format, ...) 
 {
@@ -9839,14 +9943,15 @@ void sql_print_error(const char *format, ...)
 
 
 #ifdef HAVE_REPLICATION
-void sql_print_error2(const char *format, ...)
+void slave_print_error(const char *format, ...)
 {
   va_list args;
   DBUG_ENTER("sql_print_error");
 
   va_start(args, format);
   error_log_print(ERROR_LEVEL, format, args);
-  slave_retries_print(format, args);
+  if (log_slave_retry == LOG_SLRETR_ON)
+    slave_retry_print(format, args);
   va_end(args);
 
   DBUG_VOID_RETURN;
