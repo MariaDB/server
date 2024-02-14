@@ -98,6 +98,14 @@ const Type_handler *Type_collection_uuid::find_in_array(const Type_handler *a,
   return NULL;
 }
 
+
+const Type_handler *Type_collection_uuid::type_handler_for_implicit_upgrade(
+                                              const Type_handler *from) const
+{
+  return Type_handler_uuid_new::singleton();
+}
+
+
 /*************************************************************************/
 
 class Create_func_uuid : public Create_func_arg0

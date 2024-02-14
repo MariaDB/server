@@ -3836,6 +3836,16 @@ public:
     const Type_handler *res= type_handler_base();
     return res ? res : this;
   }
+  /*
+    In 10.11.8 the semantics of this method has changed to the opposite.
+    It used to be called with the old data type handler as "this".
+    Now it's called with the new data type hander as "this".
+    To avoid problems during merges, the method name was renamed.
+  */
+  virtual const Type_handler *type_handler_for_implicit_upgrade() const
+  {
+    return this;
+  }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler *type_handler_for_native_format() const
   {
@@ -3981,9 +3991,13 @@ public:
   virtual bool validate_implicit_default_value(THD *thd,
                                                const Column_definition &def)
                                                const;
-  // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
-  virtual void Column_definition_implicit_upgrade(Column_definition *c) const
-  { }
+  /*
+    Automatic upgrade, e.g. for REPAIR or ALTER TABLE t1 FORCE
+    - from the data type specified in old->type_handler()
+    - to the data type specified in "this"
+  */
+  virtual void Column_definition_implicit_upgrade_to_this(
+                                                  Column_definition *old) const;
   // Validate CHECK constraint after the parser
   virtual bool Column_definition_validate_check_constraint(THD *thd,
                                                            Column_definition *c)
@@ -6188,7 +6202,8 @@ public:
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
                                const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6512,7 +6527,8 @@ public:
                              const Type_cast_attributes &attr) const override;
   bool validate_implicit_default_value(THD *thd, const Column_definition &def)
                                        const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6650,7 +6666,8 @@ public:
   {
     return true;
   }
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -7000,6 +7017,7 @@ public:
   {
     return MYSQL_TYPE_VARCHAR;
   }
+  const Type_handler *type_handler_for_implicit_upgrade() const override;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const override
   {
     return varstring_type_handler(item);
@@ -7007,7 +7025,6 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,

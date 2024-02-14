@@ -863,11 +863,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         !(check_opt->sql_flags & TT_USEFRM))
     {
       handler *file= table->table->file;
-      int check_old_types=   file->check_old_types();
       int check_for_upgrade= file->ha_check_for_upgrade(check_opt);
 
-      if (check_old_types == HA_ADMIN_NEEDS_ALTER ||
-          check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
+      if (check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
       {
         /* We use extra_open_options to be able to open crashed tables */
         thd->open_options|= extra_open_options;
@@ -876,7 +874,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         thd->open_options&= ~extra_open_options;
         goto send_result;
       }
-      if (check_old_types || check_for_upgrade)
+      if (check_for_upgrade)
       {
         /* If repair is not implemented for the engine, run ALTER TABLE */
         need_repair_or_alter= 1;

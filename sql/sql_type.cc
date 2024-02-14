@@ -8804,41 +8804,48 @@ bool Type_handler_string_result::union_element_finalize(Item_type_holder* item) 
 
 /***************************************************************************/
 
-void Type_handler_var_string::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+
+const Type_handler *
+Type_handler_var_string::type_handler_for_implicit_upgrade() const
 {
-  // Change old VARCHAR to new VARCHAR
-  c->set_handler(&type_handler_varchar);
+  return &type_handler_varchar;
+}
+
+
+void Type_handler::
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
+{
+  old->set_handler(this);
 }
 
 
 void Type_handler_time_common::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
 {
   if (opt_mysql56_temporal_format)
-    c->set_handler(&type_handler_time2);
+    old->set_handler(&type_handler_time2);
   else
-    c->set_handler(&type_handler_time);
+    old->set_handler(&type_handler_time);
 }
 
 
 void Type_handler_datetime_common::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
 {
   if (opt_mysql56_temporal_format)
-    c->set_handler(&type_handler_datetime2);
+    old->set_handler(&type_handler_datetime2);
   else
-    c->set_handler(&type_handler_datetime);
+    old->set_handler(&type_handler_datetime);
 }
 
 
 void Type_handler_timestamp_common::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
 {
   if (opt_mysql56_temporal_format)
-    c->set_handler(&type_handler_timestamp2);
+    old->set_handler(&type_handler_timestamp2);
   else
-    c->set_handler(&type_handler_timestamp);
+    old->set_handler(&type_handler_timestamp);
 }
 
 
