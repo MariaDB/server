@@ -4504,7 +4504,7 @@ void Security_context::destroy()
     my_free((char*) host);
     host= NULL;
   }
-  if (user != delayed_user)
+  if (is_user_defined())
   {
     my_free((char*) user);
     user= NULL;
