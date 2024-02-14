@@ -5937,58 +5937,65 @@ Sys_slave_trans_retry_interval(
        GLOBAL_VAR(slave_trans_retry_interval), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 3600), DEFAULT(0), BLOCK_SIZE(1));
 
-static bool update_slave_retries_log(sys_var *self, THD* thd, enum_var_type type)
+static bool update_log_slave_retries(sys_var *self, THD* thd, enum_var_type type)
 {
-  if (opt_slave_retries)
+  logger.close_slave_retry_log();
+
+  if (log_slave_retries == SLAVE_RETRIES_ON)
   {
-    if (!slave_retries_file.get() && slave_retries_file.open())
+    if (logger.slave_retry_log()->open(opt_slave_retry_logname))
     {
-      my_error(ER_CANT_OPEN_FILE, MYF(0), opt_slave_retries_path, errno);
-      opt_slave_retries= false;
+      log_slave_retries= SLAVE_RETRIES_OFF;
       return true;
     }
   }
-  else
-    slave_retries_file.close();
+
   return false;
 }
 
-static Sys_var_mybool Sys_slave_retries_log(
-       "log_slave_retries", "Log transaction retries",
-       GLOBAL_VAR(opt_slave_retries),
-       CMD_LINE(OPT_ARG, OPT_SLAVE_RETRIES), DEFAULT(false),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_slave_retries_log));
-
-
-static bool check_slave_retries_file(sys_var *self, THD *thd, set_var *var)
+static bool check_log_slave_retries(sys_var *self, THD *thd, set_var *var)
 {
-  if (opt_slave_retries)
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "modifying while log_slave_retries is ON");
-    return true;
-  }
+  if (opt_bootstrap)
+    log_slave_retries= SLAVE_RETRIES_OFF;
+
   return false;
 }
 
-static bool update_slave_retries_file(sys_var *self, THD* thd, enum_var_type type)
+static const char *slave_retry_log_kw[]= { "OFF", "ON", "ERROR_LOG", NullS };
+static Sys_var_enum Sys_slave_retries_log(
+       "slave_retry_log", "Slave does the logging of transaction retries",
+       GLOBAL_VAR(log_slave_retries), CMD_LINE(OPT_ARG),
+       slave_retry_log_kw, DEFAULT(SLAVE_RETRIES_OFF),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_log_slave_retries),
+       ON_UPDATE(update_log_slave_retries));
+
+static void reopen_slave_retry_log(char *name)
 {
-  if (!opt_slave_retries_path)
-    opt_slave_retries_path=  my_strdup(key_memory_Sys_var_charptr_value,
-                                       default_slave_retries_path, MYF(0));
-  return false;
+  DBUG_ASSERT(log_slave_retries == SLAVE_RETRIES_ON);
+  auto *l= logger.slave_retry_log();
+  l->close(0);
+  if (l->open(opt_slave_retry_logname))
+    log_slave_retries= SLAVE_RETRIES_OFF;
+}
+
+static bool fix_slave_retry_log_file(sys_var *self, THD *thd, enum_var_type type)
+{
+  return fix_log(&opt_slave_retry_logname,  opt_log_basename, "-retry.log",
+                 log_slave_retries == SLAVE_RETRIES_ON,
+                 reopen_slave_retry_log);
 }
 
 static Sys_var_charptr Sys_slave_retries_log_path(
-       "log_slave_retries_file", "Log file path for transaction retries",
-       GLOBAL_VAR(opt_slave_retries_path),
-       CMD_LINE(REQUIRED_ARG, OPT_SLAVE_RETRIES_LOG), DEFAULT(NULL),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_slave_retries_file),
-       ON_UPDATE(update_slave_retries_file));
+       "slave_retry_log_file", "Transaction retries are logged to given file",
+       PREALLOCATED GLOBAL_VAR(opt_slave_retry_logname),
+       CMD_LINE(REQUIRED_ARG), DEFAULT(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_log_path),
+       ON_UPDATE(fix_slave_retry_log_file));
 
 
 static Sys_var_uint Sys_slave_retries_log_max(
-       "log_slave_retries_max", "Log max N transaction retries "
-       "(default 0 means infinity)",
+       "slave_retry_log_max", "Log max N transaction retries per one transaction "
+       "(0 means infinity)",
        GLOBAL_VAR(opt_slave_retries_max_log), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 #endif
@@ -6081,6 +6088,7 @@ static Sys_var_tz Sys_time_zone(
 #include "wsrep_var.h"
 #include "wsrep_sst.h"
 #include "wsrep_binlog.h"
+#include "log.h"
 
 static Sys_var_charptr_fscs Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",

@@ -26,9 +26,9 @@ set @old_domain_parallel_threads= @@global.slave_domain_parallel_threads;
 set @old_parallel_mode= @@global.slave_parallel_mode;
 set @old_slave_transaction_retries= @@global.slave_transaction_retries;
 set @old_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
-set @old_log_slave_retries= @@global.log_slave_retries;
-set @old_log_slave_retries_file= @@global.log_slave_retries_file;
-set @old_log_slave_retries_max= @@global.log_slave_retries_max;
+set @old_slave_retry_log= @@global.slave_retry_log;
+set @old_slave_retry_log_file= @@global.slave_retry_log_file;
+set @old_slave_retry_log_max= @@global.slave_retry_log_max;
 --source include/stop_slave.inc
 change master to master_use_gtid= slave_pos;
 set global slave_parallel_threads= 10;
@@ -37,29 +37,29 @@ set global slave_parallel_mode= optimistic;
 set global slave_transaction_retries= 4;
 set global innodb_lock_wait_timeout= 1;
 
+--error ER_WRONG_VALUE_FOR_VAR
+set global slave_retry_log_file= "/tmp";
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
-set global log_slave_retries= 1;
-set global log_slave_retries_max= 20;
---error ER_NOT_SUPPORTED_YET
-set global log_slave_retries_file= "abcd";
+select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
+set global slave_retry_log= 1;
+set global slave_retry_log_max= 20;
+set global slave_retry_log_file= "abcd";
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
-set global log_slave_retries= OFF;
-set global log_slave_retries_file= "abcdef";
-select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
-set global log_slave_retries_file= default;
-call mtr.add_suppression("Open of log_slave_retries");
-set global log_slave_retries= ON;
+select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
+set global slave_retry_log= OFF;
+set global slave_retry_log_file= "abcdef";
+select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
+set global slave_retry_log_file= default;
+call mtr.add_suppression("Open of slave_retry_log");
+set global slave_retry_log= ON;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
-set global log_slave_retries= off;
-let $logfile= `select @@log_slave_retries_file`;
---remove_file $logfile
-set global log_slave_retries_file= @old_log_slave_retries_file;
+select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
+set global slave_retry_log= off;
+let $logfile= `select @@slave_retry_log_file`;
+set global slave_retry_log_file= @old_slave_retry_log_file;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-select @@log_slave_retries retries, @@log_slave_retries_max max, @@log_slave_retries_file file;
-set global log_slave_retries= ON;
+select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
+set global slave_retry_log= ON;
 
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= on;
@@ -129,8 +129,8 @@ if ($i == 0)
   set global slave_parallel_mode= @old_parallel_mode;
   set global slave_transaction_retries= @old_slave_transaction_retries;
   set global innodb_lock_wait_timeout= @old_innodb_lock_wait_timeout;
-  set global log_slave_retries= @old_log_slave_retries;
-  set global log_slave_retries_max= @old_log_slave_retries_max;
+  set global slave_retry_log= @old_slave_retry_log;
+  set global slave_retry_log_max= @old_slave_retry_log_max;
   --source include/start_slave.inc
   set global innodb_print_all_deadlocks= default;
   set debug_sync= reset;
@@ -159,8 +159,7 @@ reap;
 set global debug_dbug= @old_dbug;
 flush error logs;
 
-let $retries_log= `SELECT @@GLOBAL.log_slave_retries_file`;
-let grep_file= $retries_log;
+let grep_file= `SELECT @@GLOBAL.slave_retry_log_file`;
 let grep_regex= WAITING|Updating;
 let grep_once= \[SUCCESS\];
 --replace_regex /\d+/x/ /  / /
@@ -168,14 +167,14 @@ let grep_once= \[SUCCESS\];
 
 # Cleanup
 --source include/stop_slave.inc
---remove_file $retries_log
 set global slave_parallel_threads= @old_parallel_threads;
 set global slave_domain_parallel_threads= @old_domain_parallel_threads;
 set global slave_parallel_mode= @old_parallel_mode;
 set global slave_transaction_retries= @old_slave_transaction_retries;
 set global innodb_lock_wait_timeout= @old_innodb_lock_wait_timeout;
-set global log_slave_retries= @old_log_slave_retries;
-set global log_slave_retries_max= @old_log_slave_retries_max;
+set global slave_retry_log= @old_slave_retry_log;
+set global slave_retry_log_file= @old_slave_retry_log_file;
+set global slave_retry_log_max= @old_slave_retry_log_max;
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= default;
 set debug_sync= reset;

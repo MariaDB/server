@@ -181,30 +181,18 @@ extern const char *log_output_str;
 extern const char *log_backup_output_str;
 
 #ifdef HAVE_REPLICATION
-extern char default_slave_retries_path[FN_REFLEN];
-extern bool opt_slave_retries;
-extern char *opt_slave_retries_path;
+
+enum log_slave_retries_enum
+{
+  SLAVE_RETRIES_OFF= 0,
+  SLAVE_RETRIES_ON,
+  SLAVE_RETRIES_ERROR_LOG
+};
+
+extern ulong log_slave_retries;
+extern char *opt_slave_retry_logname;
 extern uint opt_slave_retries_max_log;
 #endif
-
-class Slave_retries_file
-{
-  FILE *file;
-  mysql_mutex_t mutex;
-
-public:
-  Slave_retries_file() : file(NULL) {}
-  void init();
-  void destroy();
-  FILE *get() { return file; }
-  bool open();
-  void close();
-  bool acquire();
-  void release();
-  void flush();
-};
-extern Slave_retries_file slave_retries_file;
-
 
 /* System Versioning begin */
 enum vers_system_time_t
@@ -441,7 +429,7 @@ extern PSI_file_key key_file_binlog, key_file_binlog_cache,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
   key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
   key_file_trg, key_file_trn, key_file_init, key_file_log_ddl;
-extern PSI_file_key key_file_query_log, key_file_slow_log;
+extern PSI_file_key key_file_query_log, key_file_slow_log, key_file_slave_retry_log;
 extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
                     key_file_relaylog_cache, key_file_relaylog_index_cache;
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
@@ -862,8 +850,6 @@ enum options_mysqld
   OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE,
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
-  OPT_SLAVE_RETRIES,
-  OPT_SLAVE_RETRIES_LOG,
   OPT_LOWER_CASE_TABLE_NAMES,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
