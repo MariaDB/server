@@ -3221,6 +3221,7 @@ struct event_mysql_xid_t :  MYSQL_XID
   {
     return serialize_xid(buf, formatID, gtrid_length, bqual_length, data);
   }
+  static size_t min_size() { return 12; }
 };
 
 #ifndef MYSQL_CLIENT
@@ -3242,6 +3243,8 @@ struct event_xid_t : XID
     if (full_xid)
       set(full_xid);
   }
+  static size_t min_size() { return 12; }
+  static size_t max_size() { return sizeof(XID); }
 };
 #endif
 
@@ -3729,6 +3732,13 @@ public:
 */
 template <typename T> class List_log_event: public Log_event
 {
+protected:
+  /*
+    Variable size element descendants compute the member at their
+    buffering for binlogging.
+  */
+  uint32 m_elements_size;
+
 public:
   uint32 l_flags;
   uint32 count;
@@ -3784,17 +3794,27 @@ public:
   virtual const char* get_pretty_printed_element_type_str()= 0;
 #endif
 
-  inline int get_element_size()
+  virtual inline int get_element_size()
   {
     return sizeof(T);
   }
 
-  inline int get_data_size() {
+  virtual int get_element_max_size()
+  {
+    return get_element_size();
+  }
+
+  virtual inline int get_data_max_size() {
     /*
       Replacing with dummy event, needed for older slaves, requires a minimum
       of 6 bytes in the body.
     */
-    return get_header_size() + (count * get_element_size());
+    return get_header_size() +
+      (count == 0 ? 2 : (count * get_element_max_size()));
+  }
+
+  virtual inline int get_data_size() {
+    return get_data_max_size();
   }
 
   bool is_valid() const { return list != NULL; }
@@ -3878,6 +3898,7 @@ public:
 #endif
   Log_event_type get_type_code() { return XID_LIST_EVENT; }
   int get_header_size() { return XID_LIST_HEADER_LEN; }
+  inline int get_data_size() { return get_header_size() +  m_elements_size; }
 };
 
 

@@ -2624,11 +2624,10 @@ List_log_event<T>::List_log_event(
   count= val & ((1<<28)-1);
   l_flags= val & ((uint32)0xf << 28);
   buf+= 4;
-  if (event_len - (header_size + post_header_len) < count*get_element_size() ||
-      (!(list=
-      (T *)
-      my_malloc(PSI_INSTRUMENT_ME,
-                            count*sizeof(*list) + (count == 0), MYF(MY_WME)))))
+  if ((event_len - (header_size + post_header_len) < count * T::min_size()) ||
+      (!(list= (T *)
+         my_malloc(PSI_INSTRUMENT_ME,
+                   count*sizeof(*list) + (count == 0), MYF(MY_WME)))))
     return;
 
   for (i= 0; i < count; ++i)

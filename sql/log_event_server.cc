@@ -3615,16 +3615,16 @@ Gtid_log_event::do_shall_skip(rpl_group_info *rgi)
 
 #endif  /* HAVE_REPLICATION */
 
-
+// Also computes the actual class' :: m_elements_size
 template <typename T> bool List_log_event<T>::to_packet(String *packet)
 {
   uint32 i;
   uchar *p;
-  uint32 needed_length;
+  uint32 needed_length, elem_size, total_size;
 
   DBUG_ASSERT(count < 1<<28);
 
-  needed_length= packet->length() + get_data_size();
+  needed_length= packet->length() + T::max_size();
   if (packet->reserve(needed_length))
     return true;
   p= (uchar *)packet->ptr() + packet->length();;
@@ -3637,12 +3637,13 @@ template <typename T> bool List_log_event<T>::to_packet(String *packet)
     int2store(p, 0);
     p+= 2;
   }
-  for (i= 0; i < count; ++i)
+  for (i= 0, elem_size= 0, total_size= 0; i < count;
+       ++i, total_size += elem_size, p+= elem_size, elem_size= 0)
   {
-    uint32 out= 0;
-    write_element(p, &list[i], &out);
-    p+= out;
+    write_element(p, &list[i], &elem_size);
   }
+  m_elements_size= count == 0 ? 2 : total_size;
+  packet->length(get_header_size() + m_elements_size);
 
   return false;
 }
@@ -3665,16 +3666,16 @@ template <typename T> void List_log_event<T>::pack_info(Protocol *protocol)
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
   uint32 i;
-  char delim= '\0';
+  char delim= ',';
 
   buf.length(0);
   buf.append(STRING_WITH_LEN("["));
   for (i= 0; i < count; ++i)
   {
     T *t= &list[i];
-    buf.append(delim);
     pretty_print_element(&buf, t);
-    delim= ',';
+    if (i < count - 1)
+      buf.append(delim);
   }
   buf.append(STRING_WITH_LEN("]"));
 

@@ -35,6 +35,8 @@ struct rpl_gtid
   uint32 domain_id;
   uint32 server_id;
   uint64 seq_no;
+  static size_t min_size() { return sizeof(rpl_gtid); }
+  static size_t max_size() { return sizeof(rpl_gtid); }
 };
 
 inline bool operator==(const rpl_gtid& lhs, const rpl_gtid& rhs)
