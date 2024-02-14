@@ -1304,14 +1304,16 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
     ut_ad(state >= buf_page_t::FREED);
     ut_ad(bpage->in_LRU_list);
 
-    if (!bpage->oldest_modification())
-    {
+    switch (bpage->oldest_modification()) {
+    case 0:
     evict:
       if (state != buf_page_t::FREED &&
           (state >= buf_page_t::READ_FIX || (~buf_page_t::LRU_MASK & state)))
         continue;
       buf_LRU_free_page(bpage, true);
       ++n->evicted;
+      /* fall through */
+    case 1:
       if (UNIV_LIKELY(scanned & 31))
         continue;
       mysql_mutex_unlock(&buf_pool.mutex);
@@ -1327,11 +1329,7 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
       switch (bpage->oldest_modification()) {
       case 1:
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        if (ut_d(lsn_t lsn=) bpage->oldest_modification())
-        {
-          ut_ad(lsn == 1); /* It must be clean while we hold bpage->lock */
-          buf_pool.delete_from_flush_list(bpage);
-        }
+        buf_pool.delete_from_flush_list(bpage);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         /* fall through */
       case 0:
