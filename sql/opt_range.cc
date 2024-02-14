@@ -2671,34 +2671,24 @@ static int fill_used_fields_bitmap(PARAM *param)
      force_quick_range is really needed.
 
   RETURN
-    SQL_SELECT::
-      IMPOSSIBLE_RANGE,
-        impossible select (i.e. certainly no rows will be selected)
-      ERROR,
-        an error occurred, either memory or in evaluating conditions
-      OK = 1,
-        either
-          found usable ranges and quick select has been successfully created.
-          or can't use quick_select
+   -1 if error or impossible select (i.e. certainly no rows will be selected)
+    0 if can't use quick_select
+    1 if found usable ranges and quick select has been successfully created.
 */
 
-quick_select_return
-SQL_SELECT::test_quick_select(THD *thd,
-                              key_map keys_to_use,
-                              table_map prev_tables,
-                              ha_rows limit, bool force_quick_range,
-                              bool ordered_output,
-                              bool remove_false_parts_of_where,
-                              bool only_single_index_range_scan,
-                              bool suppress_unusable_key_notes)
+int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
+				  table_map prev_tables,
+				  ha_rows limit, bool force_quick_range, 
+                                  bool ordered_output,
+                                  bool remove_false_parts_of_where,
+                                  bool only_single_index_range_scan,
+                                  bool suppress_unusable_key_notes)
 {
   uint idx;
   double scan_time;
   Item *notnull_cond= NULL;
   TABLE_READ_PLAN *best_trp= NULL;
   SEL_ARG **backup_keys= 0;
-  quick_select_return returnval= OK;
-
   DBUG_ENTER("SQL_SELECT::test_quick_select");
   DBUG_PRINT("enter",("keys_to_use: %lu  prev_tables: %lu  const_tables: %lu",
 		      (ulong) keys_to_use.to_ulonglong(), (ulong) prev_tables,
@@ -2711,7 +2701,7 @@ SQL_SELECT::test_quick_select(THD *thd,
   head->with_impossible_ranges.clear_all();
   DBUG_ASSERT(!head->is_filled_at_execution());
   if (keys_to_use.is_clear_all() || head->is_filled_at_execution())
-    DBUG_RETURN(OK);
+    DBUG_RETURN(0);
   records= head->stat_records();
   notnull_cond= head->notnull_cond;
   if (!records)
@@ -2764,7 +2754,7 @@ SQL_SELECT::test_quick_select(THD *thd,
     bool force_group_by = false;
 
     if (check_stack_overrun(thd, 2*STACK_MIN_SIZE + sizeof(PARAM), buff))
-      DBUG_RETURN(ERROR);               // Fatal error flag is set
+      DBUG_RETURN(0);                           // Fatal error flag is set
 
     /* set up parameter that is passed to all functions */
     bzero((void*) &param, sizeof(param));
@@ -2800,7 +2790,7 @@ SQL_SELECT::test_quick_select(THD *thd,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(ERROR);
+      DBUG_RETURN(-1);				// Error
     }
     key_parts= param.key_parts;
 
@@ -2868,7 +2858,7 @@ SQL_SELECT::test_quick_select(THD *thd,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(ERROR);
+      DBUG_RETURN(-1);				// Error
     }
 
     thd->mem_root= &alloc;
@@ -2920,8 +2910,7 @@ SQL_SELECT::test_quick_select(THD *thd,
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
-          records=0L;
-          returnval= IMPOSSIBLE_RANGE;
+          records=0L;                      /* Return -1 from this function. */
           read_time= (double) HA_POS_ERROR;
           trace_range.add("impossible_range", true);
           goto free_mem;
@@ -2941,7 +2930,7 @@ SQL_SELECT::test_quick_select(THD *thd,
         thd->no_errors=0;
         thd->mem_root= param.old_root;
         free_root(&alloc, MYF(0));
-        DBUG_RETURN(ERROR);
+        DBUG_RETURN(-1);
       }
     }
 
@@ -3092,13 +3081,8 @@ SQL_SELECT::test_quick_select(THD *thd,
         delete quick;
         quick= NULL;
       }
-      if (quick && records)
-        returnval= OK;
     }
     possible_keys= param.possible_keys;
-
-  if (!records)
-    returnval= IMPOSSIBLE_RANGE;
 
   free_mem:
     if (unlikely(quick && best_trp && thd->trace_started()))
@@ -3125,7 +3109,7 @@ SQL_SELECT::test_quick_select(THD *thd,
     Assume that if the user is using 'limit' we will only need to scan
     limit rows if we are using a key
   */
-  DBUG_RETURN(returnval);
+  DBUG_RETURN(records ? MY_TEST(quick) : -1);
 }
 
 /****************************************************************************
