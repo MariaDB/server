@@ -186,6 +186,8 @@ then
              "$ssl_verify_server_cert" = "on" ]
         then
             SSL_PARAM="$SSL_PARAM --ssl-verify-server-cert"
+        else
+            SSL_PARAM="$SSL_PARAM --disable-ssl-verify-server-cert"
         fi
     fi
 fi
