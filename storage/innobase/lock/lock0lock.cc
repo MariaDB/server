@@ -1812,14 +1812,8 @@ func_exit:
   }
   else if (!wait_lock->is_waiting())
   {
-    wait_lock= trx->lock.wait_lock;
-    if (!wait_lock)
-      goto func_exit;
-    if (!wait_lock->is_waiting())
-    {
-      wait_lock= nullptr;
-      goto func_exit;
-    }
+    wait_lock= nullptr;
+    goto func_exit;
   }
 
   if (wait_lock->is_table())
