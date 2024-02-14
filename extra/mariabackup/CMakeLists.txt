@@ -56,7 +56,6 @@ ENDIF()
 MYSQL_ADD_EXECUTABLE(mariadb-backup
   xtrabackup.cc
   innobackupex.cc
-  changed_page_bitmap.cc
   datasink.cc
   ds_buffer.cc
   ds_compress.cc

@@ -526,8 +526,6 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
 @param[in,out]	row		table row
 @param[in]	ext		cache of externally stored
 				column prefixes, or NULL
-@param[in]	history_fts	row is historical in a system-versioned table
-				on which a FTS_DOC_ID_INDEX(FTS_DOC_ID) exists
 @param[in,out]	doc_id		Doc ID if we are creating
 				FTS index
 @param[in,out]	conv_heap	memory heap where to allocate data when
@@ -550,7 +548,6 @@ row_merge_buf_add(
 	fts_psort_t*		psort_info,
 	dtuple_t*		row,
 	const row_ext_t*	ext,
-	const bool		history_fts,
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
 	dberr_t*		err,
@@ -615,7 +612,7 @@ error:
 			: NULL;
 
 		/* Process the Doc ID column */
-		if (!v_col && (history_fts || *doc_id)
+		if (!v_col && *doc_id
 		    && col->ind == index->table->fts->doc_col) {
 			fts_write_doc_id((byte*) &write_doc_id, *doc_id);
 
@@ -676,7 +673,7 @@ error:
 			}
 
 			/* Tokenize and process data for FTS */
-			if (!history_fts && (index->type & DICT_FTS)) {
+			if (index->type & DICT_FTS) {
 				fts_doc_item_t*	doc_item;
 				byte*		value;
 				void*		ptr;
@@ -1895,6 +1892,7 @@ row_merge_read_clustered_index(
 	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
+	ut_ad(old_table->fts || !new_table->fts || !new_table->versioned());
 	ut_ad(!defaults || col_map);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
@@ -2120,7 +2118,6 @@ corrupted_metadata:
 		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
-		bool history_row, history_fts = false;
 
 		stage->n_pk_recs_inc();
 
@@ -2382,11 +2379,6 @@ end_of_index:
 					   row_heap);
 		ut_ad(row);
 
-		history_row = new_table->versioned()
-		       && dtuple_get_nth_field(row, new_table->vers_end)
-		       ->vers_history_row();
-		history_fts = history_row && new_table->fts;
-
 		for (ulint i = 0; i < n_nonnull; i++) {
 			dfield_t*	field	= &row->fields[nonnull[i]];
 
@@ -2415,7 +2407,7 @@ end_of_index:
 		}
 
 		/* Get the next Doc ID */
-		if (add_doc_id && !history_fts) {
+		if (add_doc_id) {
 			doc_id++;
 		} else {
 			doc_id = 0;
@@ -2455,7 +2447,9 @@ end_of_index:
 								add_autoinc);
 
 			if (new_table->versioned()) {
-				if (history_row) {
+				if (dtuple_get_nth_field(row,
+							 new_table->vers_end)
+				    ->vers_history_row()) {
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
@@ -2571,7 +2565,7 @@ write_buffers:
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table, new_table,
-					psort_info, row, ext, history_fts,
+					psort_info, row, ext,
 					&doc_id, conv_heap, &err,
 					&v_heap, eval_table, trx,
 					col_collate)))) {
@@ -2904,7 +2898,7 @@ write_buffers:
 				    (!(rows_added = row_merge_buf_add(
 						buf, fts_index, old_table,
 						new_table, psort_info,
-						row, ext, history_fts, &doc_id,
+						row, ext, &doc_id,
 						conv_heap, &err, &v_heap,
 						eval_table, trx, col_collate)))) {
                                         /* An empty buffer should have enough

@@ -2937,17 +2937,28 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
+
+/*
+  Symbolic names for OPTIMIZER_ADJ_* flags in sql_priv.h
+*/
+static const char *adjust_secondary_key_cost[]=
+{
+  "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by", 0
+};
+
+
+static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
-    "0 = No changes. "
-    "1 = Update secondary key costs for ranges to be at least 5x of clustered "
-    "primary key costs. "
-    "2 = Remove 'max_seek optimization' for secondary keys and slight "
+    "A bit field with the following values: "
+    "adjust_secondary_key_cost = Update secondary key costs for ranges to be at least "
+    "5x of clustered primary key costs. "
+    "disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight "
     "adjustment of filter cost. "
-    "This option will be deleted in MariaDB 11.0 as it is not needed with the "
+    "disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. "
+    "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
     "new 11.0 optimizer.",
     SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
-    VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1));
+    adjust_secondary_key_cost, DEFAULT(0));
 
 
 static Sys_var_charptr_fscs Sys_pid_file(

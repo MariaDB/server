@@ -3029,7 +3029,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     Show_explain_request::call_in_target_thread, is this necessary anymore?)
   */
   set_current_thd(thd);
-  fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
+  fill_record(thd, dst_table, dst_table->field, items, true, false, false);
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
   DBUG_RETURN(MY_TEST(res));

@@ -575,7 +575,7 @@ fail:
     hash_lock.lock_shared();
 
     const buf_page_t* bpage= buf_pool.page_hash.get(i, chain);
-    if (!bpage)
+    if (!bpage || buf_pool.watch_is_sentinel(*bpage))
     {
       hash_lock.unlock_shared();
       if (i == page_id)

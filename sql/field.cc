@@ -1502,6 +1502,9 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
   if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
 
+  if (expr_item->check_is_evaluable_expression_or_error())
+    goto error;
+
   /* Save the value in the field. Convert the value if needed. */
 
   expr_item->save_in_field(this, 0);
@@ -11478,6 +11481,30 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
   }
   dbug_tmp_restore_column_map(&table->read_set, old_map);
   return rc;
+}
+
+
+/**
+  Find which reaction should be for IGNORE value.
+*/
+
+ignore_value_reaction find_ignore_reaction(THD *thd)
+{
+  enum_sql_command com= thd->lex->sql_command;
+
+  // All insert-like commands
+  if (com == SQLCOM_INSERT || com == SQLCOM_REPLACE ||
+      com == SQLCOM_INSERT_SELECT || com == SQLCOM_REPLACE_SELECT ||
+      com == SQLCOM_LOAD)
+  {
+    return IGNORE_MEANS_DEFAULT;
+  }
+  // Update commands
+  if (com == SQLCOM_UPDATE || com == SQLCOM_UPDATE_MULTI)
+  {
+    return IGNORE_MEANS_FIELD_VALUE;
+  }
+  return IGNORE_MEANS_ERROR;
 }
 
 

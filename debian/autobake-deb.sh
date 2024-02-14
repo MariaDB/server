@@ -32,12 +32,11 @@ then
   # build is not running on Gitlab-CI.
   sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
   # Take the files and part of control from MCS directory
-  if [ ! -f debian/mariadb-plugin-columnstore.install ]
-  then
-    cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
-    echo >> debian/control
-    sed "s/-10.6//" <storage/columnstore/columnstore/debian/control >> debian/control
-  fi
+  cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
+  # idempotent, except for the blank line, but that can be tolerated.
+  sed -e '/Package: mariadb-plugin-columnstore/,/^$/d' -i debian/control
+  echo >> debian/control
+  sed "s/-10.6//" <storage/columnstore/columnstore/debian/control >> debian/control
 fi
 
 # Look up distro-version specific stuff

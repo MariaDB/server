@@ -80,3 +80,38 @@ json_detailed(json_extract(@trace, '$**.considered_access_paths'))
     ]
 ]
 drop table t1, name, flag2;
+select @@optimizer_adjust_secondary_key_costs;
+@@optimizer_adjust_secondary_key_costs
+
+set @@optimizer_adjust_secondary_key_costs=7;
+select @@optimizer_adjust_secondary_key_costs;
+@@optimizer_adjust_secondary_key_costs
+adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by
+set @@optimizer_adjust_secondary_key_costs=default;
+#
+# MDEV-33306 Optimizer choosing incorrect index in 10.6, 10.5 but not in 10.4
+#
+create table t1 (a int primary key, b int, c int, d int, key(b),key(c)) engine=innodb;
+insert into t1 select seq, mod(seq,10), mod(seq,2), seq from seq_1_to_50000;
+explain select b, sum(d) from t1 where c=0 group by b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c	b	5	NULL	#	Using where
+select b, sum(d) from t1 where c=0 group by b;
+b	sum(d)
+0	125025000
+2	124985000
+4	124995000
+6	125005000
+8	125015000
+set @@optimizer_adjust_secondary_key_costs="disable_forced_index_in_group_by";
+explain select b, sum(d) from t1 where c=0 group by b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	c	NULL	NULL	NULL	#	Using where; Using temporary; Using filesort
+select b, sum(d) from t1 where c=0 group by b;
+b	sum(d)
+0	125025000
+2	124985000
+4	124995000
+6	125005000
+8	125015000
+drop table t1;

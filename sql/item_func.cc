@@ -3540,6 +3540,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   initid.const_item=func->const_item_cache;
   initid.decimals=func->decimals;
   initid.ptr=0;
+  not_original=0;
   for (uint i1= 0 ; i1 < arg_count ; i1++)
     buffers[i1].set_thread_specific();
 

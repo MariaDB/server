@@ -736,13 +736,17 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
- --optimizer-adjust-secondary-key-costs=# 
- 0 = No changes. 1 = Update secondary key costs for ranges
- to be at least 5x of clustered primary key costs. 2 =
- Remove 'max_seek optimization' for secondary keys and
- slight adjustment of filter cost. This option will be
- deleted in MariaDB 11.0 as it is not needed with the new
- 11.0 optimizer.
+ --optimizer-adjust-secondary-key-costs=name 
+ A bit field with the following values:
+ adjust_secondary_key_cost = Update secondary key costs
+ for ranges to be at least 5x of clustered primary key
+ costs. disable_max_seek = Disable 'max_seek optimization'
+ for secondary keys and slight adjustment of filter cost.
+ disable_forced_index_in_group_by = Disable automatic
+ forced index in GROUP BY. This variable will be deleted
+ in MariaDB 11.0 as it is not needed with the new 11.0
+ optimizer.
+ Use 'ALL' to set all combinations.
  --optimizer-extra-pruning-depth=# 
  If the optimizer needs to enumerate join prefix of this
  size or larger, then it will try aggressively prune away
@@ -1732,7 +1736,7 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
-optimizer-adjust-secondary-key-costs 0
+optimizer-adjust-secondary-key-costs 
 optimizer-extra-pruning-depth 8
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
