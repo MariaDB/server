@@ -99,9 +99,11 @@ bool fil_space_t::try_to_close(bool print_info)
     if (!node->is_open())
       continue;
 
+    /* Other thread is trying to do fil_delete_tablespace()
+    concurrently for the same tablespace. So ignore this
+    tablespace and try to close the other one */
     const auto n= space.set_closing();
     if (n & STOPPING)
-      /* Let fil_space_t::drop() in another thread handle this. */
       continue;
     if (n & (PENDING | NEEDS_FSYNC))
     {
@@ -506,7 +508,7 @@ void fil_space_t::flush_low()
                                             std::memory_order_relaxed))
   {
     ut_ad(n & PENDING);
-    if (n & STOPPING_WRITES)
+    if (n & STOPPING)
       return;
     if (n & NEEDS_FSYNC)
       break;
@@ -1580,7 +1582,7 @@ fil_name_write(
   mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
-fil_space_t *fil_space_t::drop(ulint id, pfs_os_file_t *detached_handle)
+fil_space_t *fil_space_t::check_pending_operations(ulint id)
 {
   ut_a(!is_system_tablespace(id));
   mysql_mutex_lock(&fil_system.mutex);
@@ -1594,6 +1596,7 @@ fil_space_t *fil_space_t::drop(ulint id, pfs_os_file_t *detached_handle)
 
   if (space->pending() & STOPPING)
   {
+being_deleted:
     /* A thread executing DDL and another thread executing purge may
     be executing fil_delete_tablespace() concurrently for the same
     tablespace. Wait for the other thread to complete the operation. */
@@ -1612,73 +1615,34 @@ fil_space_t *fil_space_t::drop(ulint id, pfs_os_file_t *detached_handle)
       mysql_mutex_lock(&fil_system.mutex);
     }
   }
-
-  /* We must be the first one to set either STOPPING flag on the .ibd file,
-  because the flags are only being set here, within a critical section of
-  fil_system.mutex. */
-  unsigned pending;
-  ut_d(pending=)
-    space->n_pending.fetch_add(STOPPING_READS + 1, std::memory_order_relaxed);
-  ut_ad(!(pending & STOPPING));
-  mysql_mutex_unlock(&fil_system.mutex);
-
-  if (space->crypt_data)
-    fil_space_crypt_close_tablespace(space);
-
-  if (space->purpose == FIL_TYPE_TABLESPACE)
-  {
-    /* Before deleting the file, persistently write a log record. */
-    mtr_t mtr;
-    mtr.start();
-    mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
-    mtr.commit_file(*space, nullptr);
-
-    if (FSP_FLAGS_HAS_DATA_DIR(space->flags))
-      RemoteDatafile::delete_link_file(space->name());
-
-    os_file_delete(innodb_data_file_key, space->chain.start->name);
-  }
   else
-    ut_ad(space->purpose == FIL_TYPE_IMPORT);
-
-  if (char *cfg_name= fil_make_filepath(space->chain.start->name,
-                                        fil_space_t::name_type{}, CFG, false))
   {
-    os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
-    ut_free(cfg_name);
-  }
-
-  mysql_mutex_lock(&fil_system.mutex);
-  ut_ad(space == fil_space_get_by_id(id));
-  pending=
-    space->n_pending.fetch_add(STOPPING_WRITES - 1, std::memory_order_relaxed);
-  ut_ad((pending & STOPPING) == STOPPING_READS);
-  ut_ad(pending & PENDING);
-  pending&= PENDING;
-  if (--pending)
-  {
-    for (ulint count= 0;; count++)
+    if (space->crypt_data)
     {
-      ut_ad(space == fil_space_get_by_id(id));
-      pending= space->n_pending.load(std::memory_order_relaxed) & PENDING;
-      if (!pending)
-        break;
+      space->reacquire();
       mysql_mutex_unlock(&fil_system.mutex);
-      /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
-      if ((count & 511) == 128)
-        sql_print_warning("InnoDB: Trying to delete tablespace '%s' "
-                          "but there are %u pending operations",
-                          space->chain.start->name, pending);
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      fil_space_crypt_close_tablespace(space);
       mysql_mutex_lock(&fil_system.mutex);
+      space->release();
     }
+    if (space->set_stopping_check())
+      goto being_deleted;
   }
 
-  pfs_os_file_t handle= fil_system.detach(space, true);
   mysql_mutex_unlock(&fil_system.mutex);
-  if (detached_handle)
-    *detached_handle = handle;
-  return space;
+
+  for (ulint count= 0;; count++)
+  {
+    const unsigned pending= space->referenced();
+    if (!pending)
+      return space;
+    /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
+    if ((count & 511) == 128)
+      sql_print_warning("InnoDB: Trying to delete tablespace '%s' "
+                        "but there are %u pending operations",
+                        space->chain.start->name, id);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
 }
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
@@ -1687,22 +1651,34 @@ Free all pages used by the tablespace. */
 void fil_close_tablespace(ulint id)
 {
 	ut_ad(!is_system_tablespace(id));
-	fil_space_t* space = fil_space_t::drop(id, nullptr);
+	fil_space_t* space = fil_space_t::check_pending_operations(id);
 	if (!space) {
 		return;
 	}
 
 	space->x_lock();
-	ut_ad(space->is_stopping());
 
 	/* Invalidate in the buffer pool all pages belonging to the
-	tablespace. Since space->is_stopping() holds, readahead
+	tablespace. Since we have invoked space->set_stopping(), readahead
 	can no longer read more pages of this tablespace to buf_pool.
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. */
 	while (buf_flush_list_space(space));
+	ut_ad(space->is_stopping());
 
-	/* If the free is successful, the latch will be released there. */
+	/* If it is a delete then also delete any generated files, otherwise
+	when we drop the database the remove directory will fail. */
+
+	if (char* cfg_name = fil_make_filepath(space->chain.start->name,
+					       fil_space_t::name_type{},
+					       CFG, false)) {
+		os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
+		ut_free(cfg_name);
+	}
+
+	/* If the free is successful, the wrlock will be released before
+	the space memory data structure is freed. */
+
 	if (!fil_space_free(id, true)) {
 		space->x_unlock();
 	}
@@ -1716,8 +1692,16 @@ pfs_os_file_t fil_delete_tablespace(ulint id)
 {
   ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
-  if (fil_space_t *space= fil_space_t::drop(id, &handle))
+  if (fil_space_t *space= fil_space_t::check_pending_operations(id))
+  {
+    /* Before deleting the file(s), persistently write a log record. */
+    mtr_t mtr;
+    mtr.start();
+    mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
+    mtr.commit_file(*space, nullptr, &handle);
     fil_space_free_low(space);
+  }
+
   return handle;
 }
 
