@@ -1404,12 +1404,19 @@ ATTRIBUTE_COLD void fil_space_t::reopen_all()
       if (!node->is_open())
         continue;
 
-      ulint type= OS_DATA_FILE;
+#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+      ulint type;
 
       switch (FSP_FLAGS_GET_ZIP_SSIZE(space.flags)) {
       case 1: case 2:
         type= OS_DATA_FILE_NO_O_DIRECT;
+        break;
+      default:
+        type = OS_DATA_FILE;
       }
+#else
+      constexpr auto type= OS_DATA_FILE;
+#endif
 
       for (ulint count= 10000; count--;)
       {
