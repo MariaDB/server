@@ -197,16 +197,13 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
   This should be called periodically by the APC target thread.
 */
 
-void Apc_target::process_apc_requests(bool force)
+void Apc_target::process_apc_requests()
 {
   while (1)
   {
     Call_request *request;
-
-    if (force)
-      mysql_mutex_lock(LOCK_thd_kill_ptr);
-    else if (mysql_mutex_trylock(LOCK_thd_kill_ptr))
-      break;                              // Mutex is blocked, try again later
+ 
+    mysql_mutex_lock(LOCK_thd_kill_ptr);
     if (!(request= get_first_in_queue()))
     {
       /* No requests in the queue */
