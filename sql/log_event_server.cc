@@ -3624,7 +3624,7 @@ template <typename T> bool List_log_event<T>::to_packet(String *packet)
 
   DBUG_ASSERT(count < 1<<28);
 
-  needed_length= packet->length() + T::max_size();
+  needed_length= packet->length() + 2 + count * T::max_size();
   if (packet->reserve(needed_length))
     return true;
   p= (uchar *)packet->ptr() + packet->length();;
@@ -3822,27 +3822,39 @@ public:
   }
 };
 
-
-Xid_list_log_event::Xid_list_log_event(THD *thd)
-    : List_log_event(0, xid_cache_get_count_binlogged_xaps(thd),
-                     (event_xid_t *) NULL)
+Xid_list_log_event::Xid_list_log_event(THD *thd_arg)
+  : List_log_event(0, 0, (event_xid_t *) NULL)
 {
-  cache_type= EVENT_NO_CACHE;
+  THD *thd= thd_arg;
 
+  cache_type= EVENT_NO_CACHE;
+  if (!thd_arg)
+  {
+    if (!(thd= new THD(0)))
+      return;
+
+    thd->thread_stack= (char*) &thd;
+    thd->store_globals();
+  }
+  count= xid_cache_get_count_binlogged_xaps(thd);
   if (count >= (1<<28))
-    return;
+    goto end;
 
   /* Failure to allocate memory will be caught by is_valid() returning false. */
   if (!(list= (event_xid_t *) my_malloc(PSI_INSTRUMENT_ME,
                                         count ? count * get_element_size() : 1,
                                         MYF(MY_WME))))
-    return;
+    goto end;
 
   if (count)
   {
     Xid_list_builder list_builder(count, list);
     xid_cache_get_binlogged_xaps(thd, &list_builder);
   }
+
+end:
+  if (!thd_arg)
+    delete thd;
 }
 
 

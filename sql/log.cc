@@ -3893,11 +3893,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
         if (write_event(&gl_ev))
           goto err;
-
         Xid_list_log_event xl_ev(current_thd);
         if (xl_ev.count > 0 && write_event(&xl_ev))
           goto err;
-
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
         /*
@@ -11676,6 +11674,32 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
             strmake(strnmov(binlog_checkpoint_name, last_log_name, dir_len),
                     cev->binlog_file_name, FN_REFLEN - 1 - dir_len);
             binlog_checkpoint_found= true;
+          }
+        }
+        break;
+
+      case XID_LIST_EVENT:
+        if (round == 1 && do_xa)
+        {
+          Xid_list_log_event *xlle= (Xid_list_log_event *)ev;
+          for (uint32 i= 0; i < xlle->count; i++)
+          {
+            xid_recovery_member* member;
+            XA_binlog_state xbs= xid_recovery_member::XA_PREPARE;
+
+            if (!(member=
+                  xid_member_replace(&xa_recover_list, 0, &mem_root,
+                                     &xlle->list[i],
+                                     server_id, &xbs, &ctx.last_gtid_coord)))
+              goto err2;
+            /*
+              Xid elements of Xlle can't be decided at this point.
+              There's no exact binlog position for them either.
+              Yet it's known they were binlogged earlier than the current file.
+              And the following setting indicates on that for
+              eventual xarecover_decide_xa().
+            */
+            member->binlog_coord= Binlog_offset(MAX_binlog_id, 0);
           }
         }
         break;

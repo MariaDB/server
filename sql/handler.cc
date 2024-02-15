@@ -2730,7 +2730,7 @@ static bool xarecover_decide_to_commit(xid_recovery_member* member,
 static int xarecover_decide_xa(xid_recovery_member* member,
                                 Binlog_offset *ptr_commit_max)
 {
-  int rc= -1; // todo: account Xlle
+  int rc= -1;
 
   if (member->xa_binlog_state > xid_recovery_member::XA_NONE)
   {
@@ -2742,15 +2742,20 @@ static int xarecover_decide_xa(xid_recovery_member* member,
       rc= 0; // stable xid
     }
     else if (member->xa_binlog_state == xid_recovery_member::XA_PREPARE)
-    {//if (member->in_engine_prepare == 0) {member->is_state_valid= false; return 0;}
+    {
       if (member->decided_to_commit)
       {
         rc= 0;
-        xid_cache_insert(member->full_xid);
+        xid_cache_insert(member->full_xid, true);
       }
       else if (!ptr_commit_max)
       {
-        rc= -1; // ?!
+        /* recover prepared xid from Xid_list_lo_event */
+        if (member->binlog_coord == Binlog_offset(MAX_binlog_id, 0))
+        {
+          rc= 0;
+          xid_cache_insert(member->full_xid, true);
+        }
       }
       else if (member->binlog_coord >= *ptr_commit_max)
       {
@@ -2765,7 +2770,7 @@ static int xarecover_decide_xa(xid_recovery_member* member,
         DBUG_ASSERT(member->in_engine_prepare > 0);
 
         rc= 0;
-        xid_cache_insert(member->full_xid);
+        xid_cache_insert(member->full_xid, true);
       }
     }
     else
@@ -2778,7 +2783,7 @@ static int xarecover_decide_xa(xid_recovery_member* member,
       if (rc != 0)
         member->decided_to_commit= true;
       else
-        xid_cache_insert(member->full_xid);
+        xid_cache_insert(member->full_xid, true);
     }
   }
 
@@ -3044,7 +3049,14 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           }
           else
           {
-            xid_cache_insert(info->list + i);
+            if (opt_bin_log)
+            {
+              sql_print_information("Recovered a prepared XA transaction with "
+                                    "xid %s when the server starts previously "
+                                    "not having or lost binlog",
+                                    event_xid_t(info->list + i).serialize());
+            }
+            xid_cache_insert(info->list + i, opt_bin_log);
             info->found_foreign_xids++;
           }
           continue;

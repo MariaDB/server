@@ -337,7 +337,7 @@ XID_cache_element *xid_cache_search(THD *thd, XID *xid)
 }
 
 
-bool xid_cache_insert(XID *xid)
+bool xid_cache_insert(XID *xid, bool is_binlogged)
 {
   XID_cache_insert_element new_element(XA_PREPARED, xid);
   LF_PINS *pins;
@@ -350,6 +350,8 @@ bool xid_cache_insert(XID *xid)
   {
   case 0:
     new_element.xid_cache_element->set(XID_cache_element::RECOVERED);
+    if (is_binlogged)
+      new_element.xid_cache_element->xap_binlogged_awaiting_xac= true;
     break;
   case 1:
     res= 0;
@@ -451,7 +453,8 @@ static my_bool xid_cache_count_if_binlogged_xap(XID_cache_element *xs,
 int32 xid_cache_get_count_binlogged_xaps(THD *thd)
 {
   uint32 xid_cache_binlogged_xap_arg= 0;
-  if (xid_cache_inited && mysqld_server_started)
+
+  if (xid_cache_inited)
     xid_cache_iterate(thd,
                       (my_hash_walk_action) xid_cache_count_if_binlogged_xap,
                       &xid_cache_binlogged_xap_arg);
