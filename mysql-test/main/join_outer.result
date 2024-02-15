@@ -2911,4 +2911,174 @@ Z	1	Y	1	X	1
 drop view v0, v1, v2, v3;
 drop table t1, t2, t3;
 # end of 10.3 tests
+#
+# MDEV-33436 Transform OUTER JOIN to INNER JOIN in subqueries used with IN operator
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+CREATE TABLE t3 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t2 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t3 VALUES (1,1), (2,2), (3,3);
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='semijoin=off';
+# LEFT JOIN transformed to INNER JOIN
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT t3.a + t2.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t3`.`a` + `test`.`t2`.`a` from `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`t3.a + t2.a`))))
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT t3.a + t2.b
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t3`.`a` + `test`.`t2`.`b` from `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`t3.a + t2.b`))))
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a = 1 AND b IN (SELECT t3.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a
+WHERE t2.b = 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and <expr_cache><`test`.`t1`.`b`>(<in_optimizer>(`test`.`t1`.`b`,`test`.`t1`.`b` in ( <materialize> (/* select#2 */ select `test`.`t3`.`a` from `test`.`t2` join `test`.`t3` where `test`.`t2`.`b` = 1 and `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`b` in <temporary table> on distinct_key where `test`.`t1`.`b` = `<subquery2>`.`a`))))
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE (a, b) IN (SELECT t3.a, t2.b
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `test`.`t3`.`a`,`test`.`t2`.`b` from `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`a` and `test`.`t1`.`b` = `<subquery2>`.`b`))))
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT MAX(t3.a + 2)
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select max(`test`.`t3`.`a` + 2) from `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`MAX(t3.a + 2)`))))
+# ANY is converted to IN, so the transformation is possible
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE a = ANY(SELECT t3.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t3`.`a` from `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`a`))))
+# Transformation is possible since t3.a is null-complemented, and it is enough
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE (a, b) IN (SELECT t3.a + t2.a, t2.b + t2.b
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `test`.`t3`.`a` + `test`.`t2`.`a`,`test`.`t2`.`b` + `test`.`t2`.`b` from `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t2`.`a` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`t3.a + t2.a` and `test`.`t1`.`b` = `<subquery2>`.`t2.b + t2.b`))))
+# Transformation is not possible 'cause t2.a is not null-complemented
+EXPLAIN EXTENDED SELECT b
+FROM t1
+WHERE a IN (SELECT t2.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`b` AS `b` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`a` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`a`))))
+# Transformation is not possible 'cause t2.a, t2.b are not null-complemented
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE (a, b) IN (SELECT t2.a, t2.b
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`a`,`test`.`t2`.`b` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`a` and `test`.`t1`.`b` = `<subquery2>`.`b`))))
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE (a, b) IN (SELECT t2.a + t2.b, t2.a + t2.b + 5
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`a` + `test`.`t2`.`b`,`test`.`t2`.`a` + `test`.`t2`.`b` + 5 from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`t2.a + t2.b` and `test`.`t1`.`b` = `<subquery2>`.`t2.a + t2.b + 5`))))
+# Transformation is not possible 'cause of NOT IN condition
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE a NOT IN (SELECT t3.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t3`.`a` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`a`))))
+# Not transformed 'cause IFNULL() masks NULL-complement
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT IFNULL(t3.a, 1)
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select ifnull(`test`.`t3`.`a`,1) from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`IFNULL(t3.a, 1)`))))
+# TODO: Not transformed, although looks eligible
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE a = (SELECT t3.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where `test`.`t1`.`a` = (/* select#2 */ select `test`.`t3`.`a` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1)
+CREATE TABLE t4 (a BOOLEAN, b BOOLEAN);
+INSERT INTO t4 VALUES (FALSE,TRUE), (TRUE,FALSE), (TRUE,TRUE);
+# Not transformed, and this is correct
+EXPLAIN EXTENDED SELECT a
+FROM t4
+WHERE a IN (SELECT CASE WHEN t3.b IS NULL THEN TRUE
+WHEN t2.a IS NULL THEN TRUE
+ELSE FALSE END
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t4`.`a` AS `a` from `test`.`t4` where <expr_cache><`test`.`t4`.`a`>(<in_optimizer>(`test`.`t4`.`a`,`test`.`t4`.`a` in ( <materialize> (/* select#2 */ select case when `test`.`t3`.`b` is null then 1 when `test`.`t2`.`a` is null then 1 else 0 end from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t2`.`a`) where 1 ), <primary_index_lookup>(`test`.`t4`.`a` in <temporary table> on distinct_key where `test`.`t4`.`a` = `<subquery2>`.`CASE WHEN t3.b IS NULL THEN TRUE
+WHEN t2.a IS NULL THEN TRUE
+ELSE FALSE END`))))
+DROP TABLE t1, t2, t3, t4;
+SET optimizer_switch=@save_optimizer_switch;
+# end of 11.4 tests
 SET optimizer_switch=@org_optimizer_switch;

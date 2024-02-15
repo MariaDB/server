@@ -18923,6 +18923,36 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   }
 }
 
+
+/*
+  Collect the map of not_null_tables from the JOIN::field_list in the case when
+  the JOIN is a top-level subquery used with the IN operator, for example:
+  SELECT a FROM t1 WHERE (a, b) IN
+    (SELECT t3.b + t2.a, t3.b FROM t2 LEFT JOIN t3 ON t2.b = t3.b
+  For this example the function will return a conjunction of not_null_tables
+  for Item("t3.b + t2.a") and Item("t3.b").
+
+  If the JOIN is not a top-level subquery used with the IN operator,
+  the function will return 0 (an empty table_map).
+*/
+static table_map
+subquery_select_list_not_null_tables(JOIN *join)
+{
+  table_map not_null_tables= 0;
+  Item_subselect *subq= join->select_lex->master_unit()->item;
+  if (subq && subq->is_top_level_item() &&
+      subq->substype() == Item_subselect::IN_SUBS)
+  {
+    // Go through the select list and get the not-null-tables for them.
+    List_iterator_fast<Item> it(join->fields_list);
+    Item *item;
+    while ((item= it++))
+      not_null_tables |= item->not_null_tables();
+  }
+  return not_null_tables;
+}
+
+
 /**
   Simplify joins replacing outer joins by inner joins whenever it's
   possible.
@@ -19108,6 +19138,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       used_tables= table->get_map();
       if (conds)
         not_null_tables= conds->not_null_tables();
+      if (top)
+        not_null_tables |= subquery_select_list_not_null_tables(join);
     }
       
     if (table->embedding)
