@@ -6345,13 +6345,6 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
        GLOBAL_VAR(wsrep_mysql_replication_bundle), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1000), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_mybool Sys_wsrep_load_data_splitting(
-       "wsrep_load_data_splitting", "To commit LOAD DATA "
-       "transaction after every 10K rows inserted (deprecated)",
-       GLOBAL_VAR(wsrep_load_data_splitting), 
-       CMD_LINE(OPT_ARG), DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0), ON_UPDATE(0), DEPRECATED(1004, ""));
-
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "
        "foreign key constraint checks",

@@ -115,40 +115,7 @@ DROP TABLE t1, p1;
 # MDEV-5146: Bulk loads into partitioned table not working
 #
 connection node_1;
-# Case 1: wsrep_load_data_splitting = ON & LOAD DATA with 20002
-# entries.
-SET GLOBAL wsrep_load_data_splitting = ON;
-Warnings:
-Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
-CREATE TABLE t1 (pk INT PRIMARY KEY)
-ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
-connection node_2;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-20002
-wsrep_last_committed_diff
-AS_EXPECTED_3_or_5
-DROP TABLE t1;
-# Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
-connection node_1;
-SET GLOBAL wsrep_load_data_splitting = ON;
-Warnings:
-Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
-CREATE TABLE t1 (pk INT PRIMARY KEY)
-ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
-connection node_2;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-101
-wsrep_last_committed_diff
-1
-DROP TABLE t1;
-# Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
-# entries.
-connection node_1;
-SET GLOBAL wsrep_load_data_splitting = OFF;
-Warnings:
-Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
+# Case 1: LOAD DATA with 20002 entries.
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
 connection node_2;
@@ -158,10 +125,18 @@ COUNT(*)
 wsrep_last_committed_diff
 AS_EXPECTED_1_or_2
 DROP TABLE t1;
+# Case 2: LOAD DATA with 101 entries.
 connection node_1;
-SET GLOBAL wsrep_load_data_splitting = 0;;
-Warnings:
-Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+101
+wsrep_last_committed_diff
+1
+DROP TABLE t1;
+connection node_1;
 disconnect node_2;
 disconnect node_1;
 # End of test

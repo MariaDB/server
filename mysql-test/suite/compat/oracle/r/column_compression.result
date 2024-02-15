@@ -11,10 +11,10 @@ DROP TABLE t1;
 # MDEV-17363 - Compressed columns cannot be restored from dump
 #
 CREATE TABLE t1(a INT NOT NULL COMPRESSED);
-ERROR 42000: Incorrect column specifier for column 'a'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 SHOW WARNINGS;
 Level	Code	Message
-Error	1063	Incorrect column specifier for column 'a'
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1(
 a JSON COMPRESSED,
 b VARCHAR(1000) COMPRESSED BINARY,
@@ -126,35 +126,14 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a VARCHAR(10) BINARY COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a VARCHAR(10) ASCII COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a VARCHAR(10) BYTE COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varbinary(10) /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -277,35 +256,14 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a VARCHAR2(10) BINARY COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a VARCHAR2(10) ASCII COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a VARCHAR2(10) BYTE COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varbinary(10) /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -428,35 +386,14 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a TINYTEXT BINARY COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" tinytext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a TINYTEXT ASCII COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" tinytext /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a TINYTEXT BYTE COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -579,35 +516,14 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a TEXT BINARY COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" text /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a TEXT ASCII COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" text /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a TEXT BYTE COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" blob(65535) /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -730,35 +646,14 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a MEDIUMTEXT BINARY COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" mediumtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a MEDIUMTEXT ASCII COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" mediumtext /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a MEDIUMTEXT BYTE COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -881,35 +776,14 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a LONGTEXT BINARY COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a LONGTEXT ASCII COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longtext /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a LONGTEXT BYTE COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -978,26 +852,12 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a VARCHAR(10) DEFAULT '' COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varchar(10) /*!100301 COMPRESSED*/ DEFAULT ''
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a VARCHAR(10) NULL COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -1053,26 +913,12 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a TINYBLOB DEFAULT '' COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" tinyblob /*!100301 COMPRESSED*/ DEFAULT ''
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a TINYBLOB NULL COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -1128,26 +974,12 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a BLOB DEFAULT '' COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longblob /*!100301 COMPRESSED*/ DEFAULT ''
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a BLOB NULL COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -1203,26 +1035,12 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a MEDIUMBLOB DEFAULT '' COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" mediumblob /*!100301 COMPRESSED*/ DEFAULT ''
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a MEDIUMBLOB NULL COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.
@@ -1278,26 +1096,12 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 #
-# The following statements return deprecated syntax warnings
+# The following statements fail by the grammar since 11.5
 #
 CREATE TABLE t1 (a LONGBLOB DEFAULT '' COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longblob /*!100301 COMPRESSED*/ DEFAULT ''
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a LONGBLOB NULL COMPRESSED);
-Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE "t1" (
-  "a" longblob /*!100301 COMPRESSED*/ DEFAULT NULL
-)
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
 # The following statements fail by the grammar,
 # because COMPRESSED immediately follows  'field_type'.

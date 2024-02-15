@@ -15,7 +15,7 @@ DROP TABLE t1;
 --echo # MDEV-17363 - Compressed columns cannot be restored from dump
 --echo #
 
---error ER_WRONG_FIELD_SPEC
+--error ER_PARSE_ERROR
 CREATE TABLE t1(a INT NOT NULL COMPRESSED);
 SHOW WARNINGS;
 

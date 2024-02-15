@@ -348,7 +348,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %ifdef MARIADB
 %expect 62
 %else
-%expect 63
+%expect 62
 %endif
 
 /*
@@ -1775,8 +1775,6 @@ rule:
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
         opt_outer table_list table_name table_alias_ref_list table_alias_ref
-        compressed_deprecated_data_type_attribute
-        compressed_deprecated_column_attribute
         grant_list
         user_list user_and_role_list
         rename_list table_or_tables
@@ -6050,13 +6048,6 @@ opt_asrow_attribute_list:
 field_def:
           /* empty */     { $$.init(); }
         | attribute_list
-        | attribute_list compressed_deprecated_column_attribute { $$= $1; }
-        | attribute_list compressed_deprecated_column_attribute attribute_list
-          {
-            if (($$= $1).merge_column_collate_clause_and_collate_clause(
-                           thd, thd->variables.character_set_collations, $3))
-              MYSQL_YYABORT;
-          }
         | opt_generated_always AS virtual_column_func
          {
            Lex->last_field->vcol_info= $3;
@@ -6286,7 +6277,6 @@ field_type_numeric:
 opt_binary_and_compression:
           /* empty */                                      { $$.init(); }
         | binary                                           { $$= $1; }
-        | binary compressed_deprecated_data_type_attribute { $$= $1; }
         | compressed opt_binary                            { $$= $2; }
         ;
 
@@ -6588,23 +6578,6 @@ compressed:
           COMPRESSED_SYM opt_compression_method
           {
             if (unlikely(Lex->last_field->set_compressed($2)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-compressed_deprecated_data_type_attribute:
-          COMPRESSED_SYM opt_compression_method
-          {
-            if (unlikely(Lex->last_field->set_compressed_deprecated(thd, $2)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-compressed_deprecated_column_attribute:
-          COMPRESSED_SYM opt_compression_method
-          {
-            if (unlikely(Lex->last_field->
-                set_compressed_deprecated_column_attribute(thd, $1.pos(), $2)))
               MYSQL_YYABORT;
           }
         ;

@@ -11133,41 +11133,6 @@ bool Column_definition::set_compressed(const char *method)
 }
 
 
-bool Column_definition::set_compressed_deprecated(THD *thd, const char *method)
-{
-  warn_deprecated<1004>(thd,
-                      "<data type> <character set clause> ... COMPRESSED...",
-                      "'<data type> COMPRESSED... <character set clause> ...'");
-  return set_compressed(method);
-}
-
-
-bool
-Column_definition::set_compressed_deprecated_column_attribute(THD *thd,
-                                                              const char *pos,
-                                                              const char *method)
-{
-  if (compression_method_ptr)
-  {
-    /*
-      Compression method has already been set, e.g.:
-        a VARCHAR(10) COMPRESSED DEFAULT 10 COMPRESSED
-    */
-    thd->parse_error(ER_SYNTAX_ERROR, pos);
-    return true;
-  }
-  enum enum_field_types sql_type= real_field_type();
-  /* We can't use f_is_blob here as pack_flag is not yet set */
-  if (sql_type == MYSQL_TYPE_VARCHAR || sql_type == MYSQL_TYPE_TINY_BLOB ||
-      sql_type == MYSQL_TYPE_BLOB || sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
-      sql_type == MYSQL_TYPE_LONG_BLOB)
-    return set_compressed_deprecated(thd, method);
-  else
-    my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
-  return true;
-}
-
-
 bool Column_definition::check_vcol_for_key(THD *thd) const
 {
   if (vcol_info && (vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC))

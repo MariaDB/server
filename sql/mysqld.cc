@@ -5282,6 +5282,9 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("time-format"),
       MARIADB_REMOVED_OPTION("wsrep-causal-reads"),
 
+      /* removed in 11.5 */
+      MARIADB_REMOVED_OPTION("wsrep-load-data-splitting"),
+
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
