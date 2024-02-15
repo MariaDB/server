@@ -7,11 +7,6 @@
 --enable_result_log
 --enable_query_log
 
-# These suppressions are a workaround and should not be needed once
-# MDEV-29870 is done.
-call mtr.add_suppression("\\[ERROR\\] Table 'mysql.spider_table_sts' doesn't exist");
-call mtr.add_suppression("\\[ERROR\\] Server shutdown in progress");
---error ER_ILLEGAL_HA_CREATE_OPTION
 SET GLOBAL default_tmp_storage_engine=spider;
 --source include/restart_mysqld.inc
 

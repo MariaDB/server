@@ -512,7 +512,7 @@ static enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * thd)
   }
   else
   {
-    DBUG_ASSERT(entry->type == STRING_RESULT);
+    DBUG_ASSERT(entry->type_handler()->result_type() == STRING_RESULT);
     String str;
     uint dummy_errors;
     str.copy(entry->value, entry->length, &my_charset_bin, &my_charset_bin,
@@ -2266,7 +2266,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   }
 
   if (need_sync && repl_semisync_master.flush_net(info->thd,
-                                                  packet->c_ptr_safe()))
+                                                  packet->c_ptr()))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
@@ -3264,8 +3264,13 @@ err:
 
   if (info->thd->killed == KILL_SLAVE_SAME_ID)
   {
-    info->errmsg= "A slave with the same server_uuid/server_id as this slave "
-                  "has connected to the master";
+    /*
+      Note that the text is limited to 64 characters in errmsg-utf8 in
+      ER_ABORTING_CONNECTION.
+    */
+    info->errmsg=
+      "A slave with the same server_uuid/server_id is already "
+      "connected";
     info->error= ER_SLAVE_SAME_ID;
   }
 
@@ -3639,6 +3644,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   @retval 0 success
   @retval 1 error
 */
+
 int reset_slave(THD *thd, Master_info* mi)
 {
   MY_STAT stat_area;
@@ -3736,8 +3742,6 @@ int reset_slave(THD *thd, Master_info* mi)
   else if (global_system_variables.log_warnings > 1)
     sql_print_information("Deleted Master_info file '%s'.", fname);
 
-  if (rpl_semi_sync_slave_enabled)
-    repl_semisync_slave.reset_slave(mi);
 err:
   mi->unlock_slave_threads();
   if (unlikely(error))
@@ -3765,42 +3769,88 @@ err:
 
 struct kill_callback_arg
 {
-  kill_callback_arg(uint32 id): slave_server_id(id), thd(0) {}
-  uint32 slave_server_id;
+  kill_callback_arg(THD *thd_arg, uint32 id):
+    thd(thd_arg), slave_server_id(id), counter(0) {}
   THD *thd;
+  uint32 slave_server_id;
+  uint counter;
 };
 
-static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
+
+/*
+  Collect all active dump threads
+*/
+
+static my_bool kill_callback_collect(THD *thd, kill_callback_arg *arg)
 {
   if (thd->get_command() == COM_BINLOG_DUMP &&
-      thd->variables.server_id == arg->slave_server_id)
+      thd->variables.server_id == arg->slave_server_id &&
+      thd != arg->thd)
   {
-    arg->thd= thd;
+    arg->counter++;
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    return 1;
+    thd->awake_no_mutex(KILL_SLAVE_SAME_ID);  // Mark killed
+    /*
+      Remover the thread from ack_receiver to ensure it is not
+      sending acks to the master anymore.
+    */
+    ack_receiver.remove_slave(thd);
+
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }
   return 0;
 }
 
 
-void kill_zombie_dump_threads(uint32 slave_server_id)
-{
-  kill_callback_arg arg(slave_server_id);
-  server_threads.iterate(kill_callback, &arg);
+/*
+  Check if there are any active dump threads
+*/
 
-  if (arg.thd)
-  {
-    /*
-      Here we do not call kill_one_thread() as
-      it will be slow because it will iterate through the list
-      again. We just to do kill the thread ourselves.
-    */
-    arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
-    mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
-    mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
-  }
+static my_bool kill_callback_check(THD *thd, kill_callback_arg *arg)
+{
+  return (thd->get_command() == COM_BINLOG_DUMP &&
+          thd->variables.server_id == arg->slave_server_id &&
+          thd != arg->thd);
 }
+
+
+/**
+  Try to kill running dump threads on the master
+
+  @result 0   ok
+  @result 1   old slave thread exists and does not want to die
+
+  There should not be more than one dump thread with the same server id
+  this code has however in the past has several issues. To ensure that
+  things works in all cases (now and in the future), this code is collecting
+  all matching server id's and killing all of them.
+*/
+
+bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id)
+{
+  kill_callback_arg arg(thd, slave_server_id);
+  server_threads.iterate(kill_callback_collect, &arg);
+
+  if (!arg.counter)
+    return 0;
+
+  /*
+    Wait up to SECONDS_TO_WAIT_FOR_DUMP_THREAD_KILL for kill
+    of all dump thread, trying every 1/10 of second.
+  */
+  for (uint i= 10 * SECONDS_TO_WAIT_FOR_DUMP_THREAD_KILL ;
+       --i > 0  && !thd->killed;
+       i++)
+  {
+    if (!server_threads.iterate(kill_callback_check, &arg))
+      return 0;                          // All dump thread are killed
+    my_sleep(1000000L / 10);             // Wait 1/10 of a second
+  }
+  return 1;
+}
+
 
 /**
    Get value for a string parameter with error checking

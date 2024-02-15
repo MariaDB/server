@@ -138,6 +138,7 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   net->where_b = net->remain_in_buf=0;
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
+  net->pkt_nr_can_be_reset= 0;
   net->thread_specific_malloc= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
   net->thd= 0;
   net->extension= NULL;

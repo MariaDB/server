@@ -678,3 +678,188 @@ SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
 a	UNIX_TIMESTAMP(a)
 2010-10-31 02:25:25	1288481125
 DROP TABLE t1;
+#
+# MDEV-32148 Inefficient WHERE timestamp_column=datetime_expr
+#
+#
+# Testing a DST change (fall back)
+#
+SET time_zone='Europe/Moscow';
+SET @first_second_after_dst_fall_back=1288479600;
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
+#
+# Optimized (more than 24 hours before the DST fall back)
+#
+SET timestamp=@first_second_after_dst_fall_back-24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1288393199	2010-10-30 02:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2010-10-30 02:59:59'
+#
+# Not optimized (24 hours before the DST fall back)
+#
+SET timestamp=@first_second_after_dst_fall_back-24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1288393200	2010-10-30 03:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+#
+# Not optimized (less than 24 hours after the DST fall back)
+#
+SET timestamp=@first_second_after_dst_fall_back+24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1288565999	2010-11-01 01:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+#
+# Optimized (24 hours after the DST fall back)
+#
+SET timestamp=@first_second_after_dst_fall_back+24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1288566000	2010-11-01 02:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2010-11-01 02:00:00'
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# Testing a DST change (spring forward)
+#
+SET time_zone='Europe/Moscow';
+SET @first_second_after_dst_spring_forward=1301180400;
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
+#
+# Optimized (more than 24 hours before the DST sprint forward)
+#
+SET timestamp=@first_second_after_dst_spring_forward-24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1301093999	2011-03-26 01:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2011-03-26 01:59:59'
+#
+# Not optimized (24 hours before the DST sprint forward)
+#
+SET timestamp=@first_second_after_dst_spring_forward-24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1301094000	2011-03-26 02:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+#
+# Not optimized (less than 24 hours after the DST sprint forward)
+#
+SET timestamp=@first_second_after_dst_spring_forward+24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1301266799	2011-03-28 02:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+#
+# Optimized (24 hours after the DST sprint forward)
+#
+SET timestamp=@first_second_after_dst_spring_forward+24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+1301266800	2011-03-28 03:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2011-03-28 03:00:00'
+DROP TABLE t1;
+#
+# Testing a leap second
+#
+SET time_zone='leap/Europe/Moscow';
+SET @leap_second=362793609;
+/*The 60th leap second*/
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=@leap_second-1;
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=@leap_second;
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=@leap_second+1;
+INSERT INTO t1 VALUES (NOW());
+SELECT UNIX_TIMESTAMP(a), a FROM t1 ORDER BY UNIX_TIMESTAMP(a);
+UNIX_TIMESTAMP(a)	a
+362793608	1981-07-01 03:59:59
+362793609	1981-07-01 03:59:59
+362793610	1981-07-01 04:00:00
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+#
+# Optimized (more than 24 hours before the leap second)
+#
+SET timestamp=@leap_second-24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+362707208	1981-06-30 03:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'1981-06-30 03:59:59'
+#
+# Not optimized (24 hours before the leap second)
+#
+SET timestamp=@leap_second-24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+362707209	1981-06-30 04:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+#
+# Not optimized (less than 24 hours after the leap second)
+#
+SET timestamp=@leap_second+24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+362880008	1981-07-02 03:59:58
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+#
+# Not optimized (24 hours after the leap second)
+#
+SET timestamp=@leap_second+24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+UNIX_TIMESTAMP()	NOW()
+362880009	1981-07-02 03:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'1981-07-02 03:59:59'
+DROP TABLE t1;
+SET time_zone=DEFAULT;

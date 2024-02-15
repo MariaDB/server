@@ -47,9 +47,6 @@ SHOW VARIABLES LIKE "spider_load_sts_at_startup";
 SET GLOBAL spider_load_crd_at_startup = 0;
 SHOW VARIABLES LIKE "spider_load_crd_at_startup";
 
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-
 --echo # MDEV-28008 Deprecate spider_crd_mode and spider_sts_mode
 SET spider_crd_mode = 1;
 SHOW VARIABLES LIKE "spider_crd_mode";

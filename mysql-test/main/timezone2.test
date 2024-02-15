@@ -630,3 +630,155 @@ SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
 SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a <= ALL (SELECT * FROM t1);
 SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-32148 Inefficient WHERE timestamp_column=datetime_expr
+--echo #
+
+--echo #
+--echo # Testing a DST change (fall back)
+--echo #
+
+SET time_zone='Europe/Moscow';
+# '2010-10-31 02:59:59' (1288479599)
+# '2010-10-31 02:00:00' (1288479600)
+SET @first_second_after_dst_fall_back=1288479600;
+
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
+
+--echo #
+--echo # Optimized (more than 24 hours before the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back-24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (24 hours before the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back-24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (less than 24 hours after the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back+24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Optimized (24 hours after the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back+24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # Testing a DST change (spring forward)
+--echo #
+
+SET time_zone='Europe/Moscow';
+# '2011-03-27 01:59:59' (1301180399)
+# '2011-03-27 03:00:00' (1301180400)
+SET @first_second_after_dst_spring_forward=1301180400;
+
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
+
+--echo #
+--echo # Optimized (more than 24 hours before the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward-24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (24 hours before the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward-24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (less than 24 hours after the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward+24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Optimized (24 hours after the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward+24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+DROP TABLE t1;
+
+--echo #
+--echo # Testing a leap second
+--echo #
+
+SET time_zone='leap/Europe/Moscow';
+SET @leap_second=362793609; /*The 60th leap second*/
+
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=@leap_second-1;
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=@leap_second;
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=@leap_second+1;
+INSERT INTO t1 VALUES (NOW());
+SELECT UNIX_TIMESTAMP(a), a FROM t1 ORDER BY UNIX_TIMESTAMP(a);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+
+--echo #
+--echo # Optimized (more than 24 hours before the leap second)
+--echo #
+
+SET timestamp=@leap_second-24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (24 hours before the leap second)
+--echo #
+
+SET timestamp=@leap_second-24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (less than 24 hours after the leap second)
+--echo #
+
+SET timestamp=@leap_second+24*3600-1;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+--echo #
+--echo # Not optimized (24 hours after the leap second)
+--echo #
+
+SET timestamp=@leap_second+24*3600;
+SELECT UNIX_TIMESTAMP(), NOW();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;

@@ -741,7 +741,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ACTION                        /* SQL-2003-N */
 %token  <kwd>  ADMIN_SYM                     /* SQL-2003-N */
 %token  <kwd>  ADDDATE_SYM                   /* MYSQL-FUNC */
-%token  <kwd>  ADD_MONTHS_SYM                /* Oracle FUNC*/
 %token  <kwd>  AFTER_SYM                     /* SQL-2003-N */
 %token  <kwd>  AGAINST
 %token  <kwd>  AGGREGATE_SYM
@@ -817,7 +816,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  DATAFILE_SYM
 %token  <kwd>  DATA_SYM                      /* SQL-2003-N */
 %token  <kwd>  DATETIME
-%token  <kwd>  DATE_FORMAT_SYM               /* MYSQL-FUNC */
 %token  <kwd>  DATE_SYM                      /* SQL-2003-R, Oracle-R, PLSQL-R */
 %token  <kwd>  DAY_SYM                       /* SQL-2003-R */
 %token  <kwd>  DEALLOCATE_SYM                /* SQL-2003-R */
@@ -969,7 +967,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NATIONAL_SYM                  /* SQL-2003-R */
 %token  <kwd>  NCHAR_SYM                     /* SQL-2003-R */
 %token  <kwd>  NEVER_SYM                     /* MySQL */
-%token  <kwd>  NEW_SYM                       /* SQL-2003-R */
 %token  <kwd>  NEXT_SYM                      /* SQL-2003-N */
 %token  <kwd>  NEXTVAL_SYM                   /* PostgreSQL sequence function */
 %token  <kwd>  NOCACHE_SYM
@@ -1134,7 +1131,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  TRIGGERS_SYM
 %token  <kwd>  TRIM_ORACLE
 %token  <kwd>  TRUNCATE_SYM
-%token  <kwd>  TYPES_SYM
 %token  <kwd>  TYPE_SYM                      /* SQL-2003-N */
 %token  <kwd>  UDF_RETURNS_SYM
 %token  <kwd>  UNBOUNDED_SYM                 /* SQL-2011-N */
@@ -1329,6 +1325,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <ident_sys>
         IDENT_sys
+        ident_func
         ident
         label_ident
         sp_decl_ident
@@ -1354,6 +1351,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         IDENT_cli
         ident_cli
         ident_cli_set_usual_case
+        ident_cli_func
 
 %type <ident_sys_ptr>
         ident_sys_alloc
@@ -1369,6 +1367,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_sp_block_section
         keyword_sp_decl
         keyword_sp_head
+        keyword_func_sp_var_and_label
+        keyword_func_sp_var_not_label
         keyword_sp_var_and_label
         keyword_sp_var_not_label
         keyword_sysvar_name
@@ -10312,14 +10312,7 @@ substring_operands_special:
   discouraged.
 */
 function_call_nonkeyword:
-          ADD_MONTHS_SYM '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $5,
-                                                           INTERVAL_MONTH, 0);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | ADDDATE_SYM '(' expr ',' expr ')'
+        ADDDATE_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $5,
                                                              INTERVAL_DAY, 0);
@@ -10355,18 +10348,6 @@ function_call_nonkeyword:
         | DATE_SUB_INTERVAL '(' expr ',' INTERVAL_SYM expr interval ')'
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $6, $7, 1);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DATE_FORMAT_SYM '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DATE_FORMAT_SYM '(' expr ',' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5, $7);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -10495,13 +10476,6 @@ function_call_nonkeyword:
               MYSQL_YYABORT;
           }
         |
-          COLUMN_CHECK_SYM '(' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_dyncol_check(thd, $3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        |
           COLUMN_CREATE_SYM '(' dyncall_create_list ')'
           {
             $$= create_func_dyncol_create(thd, *$3);
@@ -10536,40 +10510,9 @@ function_call_conflict:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | COALESCE '(' expr_list ')'
-          {
-            $$= new (thd->mem_root) Item_func_coalesce(thd, *$3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | COLLATION_SYM '(' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_collation(thd, $3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DATABASE '(' ')'
-          {
-            $$= new (thd->mem_root) Item_func_database(thd);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-            Lex->safe_to_cache_query=0;
-          }
         | IF_SYM '(' expr ',' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_if(thd, $3, $5, $7);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | FORMAT_SYM '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_format(thd, $3, $5);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | FORMAT_SYM '(' expr ',' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_format(thd, $3, $5, $7);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -10594,22 +10537,9 @@ function_call_conflict:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | MICROSECOND_SYM '(' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_microsecond(thd, $3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
         | MOD_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_mod(thd, $3, $5);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | OLD_PASSWORD_SYM '(' expr ')'
-          {
-            $$=  new (thd->mem_root)
-              Item_func_password(thd, $3, Item_func_password::OLD);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -10620,12 +10550,6 @@ function_call_conflict:
             if (unlikely(i1 == NULL))
               MYSQL_YYABORT;
             $$= i1;
-          }
-        | QUARTER_SYM '(' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_quarter(thd, $3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
           }
         | REPEAT_SYM '(' expr ',' expr ')'
           {
@@ -10639,35 +10563,9 @@ function_call_conflict:
                                  make_item_func_replace(thd, $3, $5, $7))))
               MYSQL_YYABORT;
           }
-        | REVERSE_SYM '(' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_reverse(thd, $3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | ROW_COUNT_SYM '(' ')'
-          {
-            $$= new (thd->mem_root) Item_func_row_count(thd);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-            Lex->safe_to_cache_query= 0;
-          }
         | TRUNCATE_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_round(thd, $3, $5, 1);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | WEEK_SYM '(' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_week(thd, $3);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | WEEK_SYM '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_week(thd, $3, $5);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -10716,7 +10614,7 @@ function_call_conflict:
   in sql/item_create.cc
 */
 function_call_generic:
-          IDENT_sys '('
+          ident_func '('
           {
 #ifdef HAVE_DLOPEN
             udf_func *udf= 0;
@@ -15641,6 +15539,22 @@ IDENT_sys:
           }
         ;
 
+ident_cli_func:
+          IDENT
+        | IDENT_QUOTED
+        | keyword_func_sp_var_and_label  { $$= $1; }
+        | keyword_func_sp_var_not_label  { $$= $1; }
+        ;
+
+ident_func:
+          ident_cli_func
+          {
+            if (unlikely(thd->to_ident_sys_alloc(&$$, &$1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
 TEXT_STRING_sys:
           TEXT_STRING
           {
@@ -15864,7 +15778,8 @@ non_reserved_keyword_udt:
   TODO: check if some of them can migrate to keyword_sp_var_and_label.
 */
 keyword_sp_var_not_label:
-          ASCII_SYM
+        keyword_func_sp_var_not_label
+        | ASCII_SYM
         | BACKUP_SYM
         | BINLOG_SYM
         | BYTE_SYM
@@ -15872,7 +15787,6 @@ keyword_sp_var_not_label:
         | CHECKSUM_SYM
         | CHECKPOINT_SYM
         | COLUMN_ADD_SYM
-        | COLUMN_CHECK_SYM
         | COLUMN_CREATE_SYM
         | COLUMN_DELETE_SYM
         | COLUMN_GET_SYM
@@ -15884,7 +15798,6 @@ keyword_sp_var_not_label:
         | EXECUTE_SYM
         | FLUSH_SYM
         | FOLLOWING_SYM
-        | FORMAT_SYM
         | GET_SYM
         | HELP_SYM
         | HOST_SYM
@@ -16038,21 +15951,15 @@ keyword_cast_type:
         ;
 
 
-/*
-  These keywords are fine for both SP variable names and SP labels.
-*/
-keyword_sp_var_and_label:
-          ACTION
+keyword_func_sp_var_and_label:
+        ACTION
         | ACCOUNT_SYM
-        | ADDDATE_SYM
-        | ADD_MONTHS_SYM
         | ADMIN_SYM
         | AFTER_SYM
         | AGAINST
         | AGGREGATE_SYM
         | ALGORITHM_SYM
         | ALWAYS_SYM
-        | ANY_SYM
         | AT_SYM
         | ATOMIC_SYM
         | AUTHORS_SYM
@@ -16060,7 +15967,6 @@ keyword_sp_var_and_label:
         | AUTOEXTEND_SIZE_SYM
         | AUTO_SYM
         | AVG_ROW_LENGTH
-        | AVG_SYM
         | BLOCK_SYM
         | BODY_MARIADB_SYM
         | BTREE_SYM
@@ -16073,7 +15979,6 @@ keyword_sp_var_and_label:
         | CLIENT_SYM
         | CLASS_ORIGIN_SYM
         | COALESCE
-        | CODE_SYM
         | COLLATION_SYM
         | COLUMN_NAME_SYM
         | COLUMNS
@@ -16099,16 +16004,15 @@ keyword_sp_var_and_label:
         | CURSOR_NAME_SYM
         | CYCLE_SYM
         | DATA_SYM
+        | DATABASE
         | DATAFILE_SYM
-        | DATE_FORMAT_SYM
-        | DAY_SYM
         | DEFINER_SYM
         | DELAY_KEY_WRITE_SYM
         | DES_KEY_FILE
         | DIAGNOSTICS_SYM
+        | DISCARD
         | DIRECTORY_SYM
         | DISABLE_SYM
-        | DISCARD
         | DISK_SYM
         | DUMPFILE
         | DUPLICATE_SYM
@@ -16116,6 +16020,11 @@ keyword_sp_var_and_label:
         | ELSEIF_ORACLE_SYM
         | ELSIF_MARIADB_SYM
         | EMPTY_SYM
+        | EXPIRE_SYM
+        | EXPORT_SYM
+        | EXTENDED_SYM
+        | EXTENT_SIZE_SYM
+        | ENABLE_SYM
         | ENDS_SYM
         | ENGINE_SYM
         | ENGINES_SYM
@@ -16128,29 +16037,21 @@ keyword_sp_var_and_label:
         | EXCEPTION_MARIADB_SYM
         | EXCHANGE_SYM
         | EXPANSION_SYM
-        | EXPIRE_SYM
-        | EXPORT_SYM
-        | EXTENDED_SYM
-        | EXTENT_SIZE_SYM
         | FAULTS_SYM
         | FAST_SYM
-        | FOUND_SYM
-        | ENABLE_SYM
         | FEDERATED_SYM
-        | FULL
         | FILE_SYM
         | FIRST_SYM
+        | FOUND_SYM
+        | FULL
         | GENERAL
         | GENERATED_SYM
-        | GET_FORMAT
         | GRANTS
         | GOTO_MARIADB_SYM
         | HASH_SYM
         | HARD_SYM
         | HISTORY_SYM
         | HOSTS_SYM
-        | HOUR_SYM
-        | ID_SYM
         | IDENTIFIED_SYM
         | IGNORE_SERVER_IDS_SYM
         | INCREMENT_SYM
@@ -16168,9 +16069,7 @@ keyword_sp_var_and_label:
         | INVISIBLE_SYM
         | JSON_TABLE_SYM
         | KEY_BLOCK_SIZE
-        | LAST_VALUE
         | LAST_SYM
-        | LASTVAL_SYM
         | LEAVES
         | LESS_SYM
         | LEVEL_SYM
@@ -16212,7 +16111,6 @@ keyword_sp_var_and_label:
         | MESSAGE_TEXT_SYM
         | MICROSECOND_SYM
         | MIGRATE_SYM
-        | MINUTE_SYM
 %ifdef MARIADB
         | MINUS_ORACLE_SYM
 %endif
@@ -16221,7 +16119,6 @@ keyword_sp_var_and_label:
         | MODIFY_SYM
         | MODE_SYM
         | MONITOR_SYM
-        | MONTH_SYM
         | MUTEX_SYM
         | MYSQL_SYM
         | MYSQL_ERRNO_SYM
@@ -16229,8 +16126,6 @@ keyword_sp_var_and_label:
         | NESTED_SYM
         | NEVER_SYM
         | NEXT_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
-        | NEXTVAL_SYM
-        | NEW_SYM
         | NOCACHE_SYM
         | NOCYCLE_SYM
         | NOMINVALUE_SYM
@@ -16246,7 +16141,6 @@ keyword_sp_var_and_label:
         | ONLINE_SYM
         | ONLY_SYM
         | ORDINALITY_SYM
-        | OVERLAPS_SYM
         | PACKAGE_MARIADB_SYM %prec PREC_BELOW_CONTRACTION_TOKEN2
         | PACK_KEYS_SYM
         | PAGE_SYM
@@ -16278,10 +16172,10 @@ keyword_sp_var_and_label:
         | REDOFILE_SYM
         | REDUNDANT_SYM
         | RELAY
-        | RELAYLOG_SYM
         | RELAY_LOG_FILE_SYM
         | RELAY_LOG_POS_SYM
         | RELAY_THREAD
+        | RELAYLOG_SYM
         | RELOAD
         | REORGANIZE_SYM
         | REPEATABLE_SYM
@@ -16296,20 +16190,15 @@ keyword_sp_var_and_label:
         | REVERSE_SYM
         | ROLLUP_SYM
         | ROUTINE_SYM
+        | ROW_COUNT_SYM
         | ROWCOUNT_SYM
         | ROWTYPE_MARIADB_SYM
-        | ROW_COUNT_SYM
         | ROW_FORMAT_SYM
-%ifdef MARIADB
-        | ROWNUM_SYM
-%endif
         | RTREE_SYM
         | SCHEDULE_SYM
         | SCHEMA_NAME_SYM
-        | SECOND_SYM
         | SEQUENCE_SYM
         | SERIALIZABLE_SYM
-        | SETVAL_SYM
         | SIMPLE_SYM
         | SHARE_SYM
         | SKIP_SYM
@@ -16317,7 +16206,6 @@ keyword_sp_var_and_label:
         | SLOW
         | SNAPSHOT_SYM
         | SOFT_SYM
-        | SOUNDS_SYM
         | SOURCE_SYM
         | SQL_CACHE_SYM
         | SQL_BUFFER_RESULT
@@ -16330,7 +16218,6 @@ keyword_sp_var_and_label:
         | STORAGE_SYM
         | STRING_SYM
         | SUBCLASS_ORIGIN_SYM
-        | SUBDATE_SYM
         | SUBJECT_SYM
         | SUBPARTITION_SYM
         | SUBPARTITIONS_SYM
@@ -16338,9 +16225,6 @@ keyword_sp_var_and_label:
         | SUSPEND_SYM
         | SWAPS_SYM
         | SWITCHES_SYM
-%ifdef MARIADB
-        | SYSDATE
-%endif
         | SYSTEM
         | SYSTEM_TIME_SYM
         | TABLE_NAME_SYM
@@ -16354,10 +16238,6 @@ keyword_sp_var_and_label:
         | TRANSACTIONAL_SYM
         | THREADS_SYM
         | TRIGGERS_SYM
-        | TRIM_ORACLE
-        | TIMESTAMP_ADD
-        | TIMESTAMP_DIFF
-        | TYPES_SYM
         | TYPE_SYM
         | UDF_RETURNS_SYM
         | UNCOMMITTED_SYM
@@ -16366,7 +16246,6 @@ keyword_sp_var_and_label:
         | UNDOFILE_SYM
         | UNKNOWN_SYM
         | UNTIL_SYM
-        | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | USE_FRM
         | VARIABLES
         | VERSIONING_SYM
@@ -16374,16 +16253,55 @@ keyword_sp_var_and_label:
         | VIRTUAL_SYM
         | VISIBLE_SYM
         | VALIDATION_SYM
-        | VALUE_SYM
         | WARNINGS
         | WAIT_SYM
-        | WEEK_SYM
-        | WEIGHT_STRING_SYM
         | WITHOUT
         | WORK_SYM
         | X509_SYM
         | XML_SYM
         | VIA_SYM
+        | WEEK_SYM
+        ;
+
+keyword_func_sp_var_not_label:
+        FORMAT_SYM
+        | COLUMN_CHECK_SYM
+        ;
+/*
+  These keywords are fine for both SP variable names and SP labels.
+*/
+keyword_sp_var_and_label:
+        keyword_func_sp_var_and_label
+        | ADDDATE_SYM
+        | ANY_SYM
+        | AVG_SYM
+        | CODE_SYM
+        | DAY_SYM
+        | GET_FORMAT
+        | HOUR_SYM
+        | ID_SYM
+        | LAST_VALUE
+        | LASTVAL_SYM
+        | MINUTE_SYM
+        | MONTH_SYM
+        | NEXTVAL_SYM
+        | OVERLAPS_SYM
+%ifdef MARIADB
+        | ROWNUM_SYM
+%endif
+        | SECOND_SYM
+        | SETVAL_SYM
+        | SOUNDS_SYM
+        | SUBDATE_SYM
+%ifdef MARIADB
+        | SYSDATE
+%endif
+        | TRIM_ORACLE
+        | TIMESTAMP_ADD
+        | TIMESTAMP_DIFF
+        | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
+        | VALUE_SYM
+        | WEIGHT_STRING_SYM
         ;
 
 
@@ -16424,7 +16342,6 @@ reserved_keyword_udt_not_param_type:
         | CURRENT_USER
         | CURRENT_ROLE
         | CURTIME
-        | DATABASE
         | DATABASES
         | DATE_ADD_INTERVAL
         | DATE_SUB_INTERVAL

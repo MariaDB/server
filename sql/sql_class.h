@@ -291,9 +291,8 @@ typedef struct st_user_var_events
   user_var_entry *user_var_event;
   char *value;
   size_t length;
-  Item_result type;
+  const Type_handler *th;
   uint charset_number;
-  bool unsigned_flag;
 } BINLOG_USER_VAR_EVENT;
 
 /*
@@ -667,6 +666,15 @@ enum killed_type
   KILL_TYPE_QUERY
 };
 
+#define SECONDS_TO_WAIT_FOR_KILL 2
+#define SECONDS_TO_WAIT_FOR_DUMP_THREAD_KILL 10
+#if !defined(_WIN32) && defined(HAVE_SELECT)
+/* my_sleep() can wait for sub second times */
+#define WAIT_FOR_KILL_TRY_TIMES 20
+#else
+#define WAIT_FOR_KILL_TRY_TIMES 2
+#endif
+
 #include "sql_lex.h"				/* Must be here */
 
 class Delayed_insert;
@@ -770,9 +778,10 @@ typedef struct system_variables
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
-  ulong optimizer_trace_max_mem_size;
   ulong optimizer_max_sel_arg_weight;
   ulong optimizer_max_sel_args;
+  ulong optimizer_trace_max_mem_size;
+  ulong optimizer_adjust_secondary_key_costs;
   ulong use_stat_tables;
   ulong histogram_size;
   ulong histogram_type;
@@ -4291,6 +4300,8 @@ public:
     utime_after_query= current_utime();
   }
 
+  Timeval_null safe_timeval_replacement_for_nonzero_datetime(const Datetime &);
+
   /**
    Update server status after execution of a top level statement.
    Currently only checks if a query was slow, and assigns
@@ -7273,7 +7284,7 @@ public:
 
 
 // this is needed for user_vars hash
-class user_var_entry
+class user_var_entry: public Type_handler_hybrid_field_type
 {
   CHARSET_INFO *m_charset;
  public:
@@ -7282,8 +7293,6 @@ class user_var_entry
   char *value;
   size_t length;
   query_id_t update_query_id, used_query_id;
-  Item_result type;
-  bool unsigned_flag;
 
   double val_real(bool *null_value);
   longlong val_int(bool *null_value) const;

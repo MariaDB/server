@@ -6,6 +6,8 @@ if (`SELECT $PS_PROTOCOL != 0`)
 --source suite/versioning/common.inc
 --source include/default_optimizer_switch.inc
 
+--let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
+
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
 
@@ -98,11 +100,14 @@ delete from t1;
 delete from t2;
 
 #384
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 #383
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 

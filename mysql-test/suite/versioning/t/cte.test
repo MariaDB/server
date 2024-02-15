@@ -5,6 +5,8 @@ if (`SELECT $PS_PROTOCOL != 0`)
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 
+--let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
+
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
 
@@ -42,6 +44,7 @@ select row_start into @ts_1 from emp where name="jane";
 
 update emp set mgr=30 where name ="john";
 
+--replace_regex $replace_regex_tsltz6
 explain extended
 with ancestors as (
   select e.emp_id, e.name, e.mgr, e.salary from emp as e where name = 'bill'
@@ -68,6 +71,7 @@ as
 )
 select * from ancestors;
 
+--replace_regex $replace_regex_tsltz6
 eval explain extended $q;
 eval $q;
 
@@ -86,6 +90,7 @@ as
 )
 select * from ancestors for system_time as of timestamp @ts_1;
 
+--replace_regex $replace_regex_tsltz6
 eval explain extended $q;
 eval $q;
 
@@ -104,6 +109,7 @@ as
 )
 select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
 
+--replace_regex $replace_regex_tsltz6
 eval explain extended $q;
 eval $q;
 

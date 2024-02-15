@@ -1016,6 +1016,19 @@ public:
     expressions with subqueries in the ORDER/GROUP clauses.
   */
   String *val_str() { return val_str(&str_value); }
+  String *val_str_null_to_empty(String *to)
+  {
+    String *res= val_str(to);
+    if (res)
+      return res;
+    to->set_charset(collation.collation);
+    to->length(0);
+    return to;
+  }
+  String *val_str_null_to_empty(String *to, bool null_to_empty)
+  {
+    return null_to_empty ? val_str_null_to_empty(to) : val_str(to);
+  }
   virtual Item_func *get_item_func() { return NULL; }
 
   const MY_LOCALE *locale_from_val_str();
@@ -4479,6 +4492,13 @@ protected:
   MYSQL_TIME ltime;
 public:
   Item_datetime(THD *thd): Item_int(thd, 0) { unsigned_flag=0; }
+  Item_datetime(THD *thd, const Datetime &dt, decimal_digits_t dec)
+   :Item_int(thd, 0),
+    ltime(*dt.get_mysql_time())
+  {
+    unsigned_flag= 0;
+    decimals= dec;
+  }
   int save_in_field(Field *field, bool no_conversions) override;
   longlong val_int() override;
   double val_real() override { return (double)val_int(); }
@@ -5005,9 +5025,23 @@ class Item_timestamp_literal: public Item_literal
 public:
   Item_timestamp_literal(THD *thd)
    :Item_literal(thd)
-  { }
+  {
+    collation= DTCollation_numeric();
+  }
+  Item_timestamp_literal(THD *thd,
+                         const Timestamp_or_zero_datetime &value,
+                         decimal_digits_t dec)
+   :Item_literal(thd),
+    m_value(value)
+  {
+    DBUG_ASSERT(value.is_zero_datetime() ||
+                !value.to_timestamp().fraction_remainder(dec));
+    collation= DTCollation_numeric();
+    decimals= dec;
+  }
   const Type_handler *type_handler() const override
   { return &type_handler_timestamp2; }
+  void print(String *str, enum_query_type query_type) override;
   int save_in_field(Field *field, bool) override
   {
     Timestamp_or_zero_datetime_native native(m_value, decimals);
@@ -5038,6 +5072,10 @@ public:
   bool val_native(THD *thd, Native *to) override
   {
     return m_value.to_native(to, decimals);
+  }
+  const Timestamp_or_zero_datetime &value() const
+  {
+    return m_value;
   }
   void set_value(const Timestamp_or_zero_datetime &value)
   {
