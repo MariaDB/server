@@ -669,7 +669,9 @@ fil_space_t *purge_sys_t::truncating_tablespace()
   if (space || srv_undo_tablespaces_active < 2 || !srv_undo_log_truncate)
     return space;
 
-  const ulint size= ulint(srv_max_undo_log_size >> srv_page_size_shift);
+  const uint32_t size=
+    uint32_t(std::min(ulonglong{std::numeric_limits<uint32_t>::max()},
+                      srv_max_undo_log_size >> srv_page_size_shift));
   for (ulint i= truncate_undo_space.last, j= i;; )
   {
     if (fil_space_t *s= undo_truncate_try(srv_undo_space_id_start + i, size))
