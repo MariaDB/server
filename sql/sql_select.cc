@@ -203,7 +203,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              void *table_join_idx,
                                              bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
-                            COND *conds, bool top, bool in_sj);
+                            COND *conds, bool top, bool in_sj, uint *changelog);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
@@ -2277,7 +2277,7 @@ JOIN::optimize_inner()
     sel->first_cond_optimization= 0;
 
     /* Convert all outer joins to inner joins if possible */
-    conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
+    conds= simplify_joins(this, join_list, conds, TRUE, FALSE, nullptr);
 
     add_table_function_dependencies(join_list, table_map(-1));
 
@@ -18928,7 +18928,7 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   Collect the map of not_null_tables from the JOIN::field_list in the case when
   the JOIN is a top-level subquery used with the IN operator, for example:
   SELECT a FROM t1 WHERE (a, b) IN
-    (SELECT t3.b + t2.a, t3.b FROM t2 LEFT JOIN t3 ON t2.b = t3.b
+    (SELECT t3.b + t2.a, t3.b FROM t2 LEFT JOIN t3 ON t2.b = t3.b)
   For this example the function will return a conjunction of not_null_tables
   for Item("t3.b + t2.a") and Item("t3.b").
 
@@ -19069,6 +19069,8 @@ subquery_select_list_not_null_tables(JOIN *join)
   @param conds       conditions to add on expressions for converted joins
   @param top         true <=> conds is the where condition
   @param in_sj       TRUE <=> processing semi-join nest's children
+  @param changelog   Don't specify this parameter, it is reserved for
+                     recursive calls inside this function
   @return
     - The new condition, if success
     - 0, otherwise
@@ -19076,8 +19078,24 @@ subquery_select_list_not_null_tables(JOIN *join)
 
 static COND *
 simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
-               bool in_sj)
+               bool in_sj, uint *changelog)
 {
+  /*
+    Each type of change done by this function, or its recursive calls, is
+    tracked in a bitmap:
+  */
+  enum change
+  {
+    NONE= 0,
+    OUTER_JOIN_TO_INNER= 1 << 0,
+    JOIN_COND_TO_WHERE= 1 << 1,
+    PAREN_REMOVAL= 1 << 2,
+    SEMIJOIN= 1 << 3
+  };
+  uint changes= 0; // To keep track of changes.
+  if (changelog == NULL) // This is the top call.
+    changelog= &changes;
+
   TABLE_LIST *table;
   NESTED_JOIN *nested_join;
   TABLE_LIST *prev_table= 0;
@@ -19112,7 +19130,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
            the corresponding on expression is added to E. 
 	*/ 
         expr= simplify_joins(join, &nested_join->join_list,
-                             expr, FALSE, in_sj || table->sj_on_expr);
+                             expr, FALSE, in_sj || table->sj_on_expr,
+                             changelog);
 
         if (!table->prep_on_expr || expr != table->on_expr)
         {
@@ -19125,7 +19144,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       nested_join->used_tables= (table_map) 0;
       nested_join->not_null_tables=(table_map) 0;
       conds= simplify_joins(join, &nested_join->join_list, conds, top, 
-                            in_sj || table->sj_on_expr);
+                            in_sj || table->sj_on_expr, changelog);
       used_tables= nested_join->used_tables;
       not_null_tables= nested_join->not_null_tables;  
       /* The following two might become unequal after table elimination: */
@@ -19157,7 +19176,11 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       */
       if (table->outer_join && !table->embedding && table->table)
         table->table->maybe_null= FALSE;
-      table->outer_join= 0;
+      if (table->outer_join)
+      {
+        *changelog|= OUTER_JOIN_TO_INNER;
+        table->outer_join= 0;
+      }
       if (!(straight_join || table->straight))
       {
         table->dep_tables= 0;
@@ -19175,6 +19198,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       }
       if (table->on_expr)
       {
+        *changelog|= JOIN_COND_TO_WHERE;
         /* Add ON expression to the WHERE or upper-level ON condition. */
         if (conds)
         {
@@ -19256,6 +19280,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         If this is a semi-join that is not contained within another semi-join
         leave it intact (otherwise it is flattened)
       */
+      *changelog|= SEMIJOIN;
       /*
         Make sure that any semi-join appear in
         the join->select_lex->sj_nests list only once
@@ -19285,6 +19310,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
     }
     else if (nested_join && !table->on_expr)
     {
+      *changelog|= PAREN_REMOVAL;
       TABLE_LIST *tbl;
       List_iterator<TABLE_LIST> it(nested_join->join_list);
       List<TABLE_LIST> repl_list;  
@@ -19298,6 +19324,30 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         tbl->dep_tables|= table->dep_tables;
       }
       li.replace(repl_list);
+    }
+  }
+
+  if (changes)
+  {
+    Opt_trace_context * trace= &join->thd->opt_trace;
+    if (unlikely(trace->is_started()))
+    {
+      Json_writer_object trace_wrapper(join->thd);
+      Json_writer_object trace_object(join->thd, "transformations_to_joins");
+      {
+        Json_writer_array trace_changes(join->thd, "transformations");
+        if (changes & SEMIJOIN)
+          trace_changes.add("semijoin");
+        if (changes & OUTER_JOIN_TO_INNER)
+          trace_changes.add("outer_join_to_inner_join");
+        if (changes & JOIN_COND_TO_WHERE)
+          trace_changes.add("JOIN_condition_to_WHERE");
+        if (changes & PAREN_REMOVAL)
+          trace_changes.add("parenthesis_removal");
+      }
+      // the newly transformed query is worth printing
+      opt_trace_print_expanded_query(join->thd, join->select_lex,
+                                     &trace_object);
     }
   }
   DBUG_RETURN(conds); 
