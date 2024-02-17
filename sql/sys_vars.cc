@@ -7383,3 +7383,23 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+/* Temporary for HNSW tests */
+static Sys_var_uint Sys_hnsw_ef_search(
+       "hnsw_ef_search",
+       "hnsw_ef_search",
+       SESSION_VAR(hnsw_ef_search), CMD_LINE(NO_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(10),
+       BLOCK_SIZE(1));
+static Sys_var_uint Sys_hnsw_ef_constructor(
+       "hnsw_ef_constructor",
+       "hnsw_ef_constructor",
+       SESSION_VAR(hnsw_ef_constructor), CMD_LINE(NO_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(10),
+       BLOCK_SIZE(1));
+static Sys_var_uint Sys_hnsw_max_connection_per_layer(
+       "hnsw_max_connection_per_layer",
+       "hnsw_max_connection_per_layer",
+       SESSION_VAR(hnsw_max_connection_per_layer), CMD_LINE(NO_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(50),
+       BLOCK_SIZE(1));

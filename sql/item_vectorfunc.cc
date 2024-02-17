@@ -23,6 +23,7 @@
 
 #include <my_global.h>
 #include "item.h"
+#include "item_vectorfunc.h"
 
 key_map Item_func_vec_distance::part_of_sortkey() const
 {
@@ -48,8 +49,18 @@ double Item_func_vec_distance::val_real()
     return 0;
   float *v1= (float*)r1->ptr();
   float *v2= (float*)r2->ptr();
+  return euclidean_vec_distance(v1, v2, (r1->length()) / sizeof(float));
+}
+
+double euclidean_vec_distance(float *v1, float *v2, size_t v_len)
+{
+  float *p1= v1;
+  float *p2= v2;
   double d= 0;
-  for (uint i=0; i < r1->length() / sizeof(float); i++)
-    d+= (v1[i] - v2[i])*(v1[i] - v2[i]);
+  for (size_t i= 0; i < v_len; p1++, p2++, i++)
+  {
+    float dist= *p1 - *p2;
+    d+= dist * dist;
+  }
   return sqrt(d);
 }
