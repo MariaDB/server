@@ -36,6 +36,7 @@
 #include "sp.h"
 #include "sql_time.h"
 #include "sql_type_geom.h"
+#include "item_vectorfunc.h"
 #include <mysql/plugin_function.h>
 
 
