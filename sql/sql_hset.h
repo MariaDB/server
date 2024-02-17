@@ -62,17 +62,27 @@ public:
     @retval FALSE OK. The value either was inserted or existed
                   in the hash.
   */
-  bool insert(T *value)
+  bool insert(const T *value)
   {
     return my_hash_insert(&m_hash, reinterpret_cast<const uchar*>(value));
   }
-  bool remove(T *value)
+  bool remove(const T *value)
   {
-    return my_hash_delete(&m_hash, reinterpret_cast<uchar*>(value));
+    return my_hash_delete(&m_hash,
+                          reinterpret_cast<uchar*>(const_cast<T*>(value)));
   }
   T *find(const void *key, size_t klen) const
   {
     return (T*)my_hash_search(&m_hash, reinterpret_cast<const uchar *>(key), klen);
+  }
+
+  T *find(const T *other) const
+  {
+    DBUG_ASSERT(m_hash.get_key);
+    size_t klen;
+    uchar *key= m_hash.get_key(reinterpret_cast<const uchar *>(other),
+                               &klen, false);
+    return find(key, klen);
   }
   /** Is this hash set empty? */
   bool is_empty() const { return m_hash.records == 0; }
@@ -82,7 +92,8 @@ public:
   void clear() { my_hash_reset(&m_hash); }
   const T* at(size_t i) const
   {
-    return reinterpret_cast<T*>(my_hash_element(const_cast<HASH*>(&m_hash), i));
+    return reinterpret_cast<const T*>(
+        my_hash_element(const_cast<HASH*>(&m_hash), i));
   }
   /** An iterator over hash elements. Is not insert-stable. */
   class Iterator

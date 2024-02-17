@@ -52,7 +52,7 @@ private:
   uchar                     **m_sort_keys;
   size_t                      m_compare_length;
   Sort_param                 *m_sort_param;
-  Queue<uchar*,uchar*,size_t> m_queue;
+  Queue<uchar*, size_t> m_queue;
 };
 
 
