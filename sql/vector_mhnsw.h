@@ -15,6 +15,10 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
+#include <my_global.h>
+#include "item.h"
+#include "m_string.h"
+#include "structs.h"
 #include "table.h"
 
 extern const LEX_CSTRING mhnsw_hlindex_table;

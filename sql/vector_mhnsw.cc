@@ -17,21 +17,24 @@
 
 #include <my_global.h>
 #include "vector_mhnsw.h"
+
 #include "field.h"
 #include "item.h"
+#include "key.h"
+#include "scope.h"
 #include "sql_queue.h"
-#include <scope.h>
 
 const LEX_CSTRING mhnsw_hlindex_table={STRING_WITH_LEN("\
   CREATE TABLE i (                                      \
     src varbinary(255) not null,                        \
     dst varbinary(255) not null,                        \
-    index (src))                                        \
+    layer int not null,                                 \
+    index (src, layer))                                 \
 ")};
 
 static void store_ref(TABLE *t, handler *h, uint n)
 {
-  t->hlindex->field[n]->store((char*)h->ref, h->ref_length, &my_charset_bin);
+  t->field[n]->store((char*)h->ref, h->ref_length, &my_charset_bin);
 }
 
 int mhnsw_insert(TABLE *table, KEY *keyinfo)
@@ -59,21 +62,24 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   // let's do every node to every node
   h->position(table->record[0]);
-  graph->field[0]->store(1);
-  store_ref(table, h, 0);
+  store_ref(graph, h, 0);
 
-  if (h->lookup_handler->ha_rnd_init(1))
+  handler *g_handler= h->lookup_handler;
+  uchar *g_buffer= h->lookup_buffer;
+
+  if (g_handler->ha_rnd_init(1))
     return 1;
-  while (! ((err= h->lookup_handler->ha_rnd_next(h->lookup_buffer))))
+  while (! ((err= g_handler->ha_rnd_next(g_buffer))))
   {
-    h->lookup_handler->position(h->lookup_buffer);
-    if (graph->field[0]->cmp(h->lookup_handler->ref) == 0)
+    g_handler->position(g_buffer);
+    if (graph->field[0]->cmp(g_handler->ref) == 0)
       continue;
-    store_ref(table, h->lookup_handler, 1);
+    store_ref(graph, g_handler, 1);
+    graph->field[2]->store(0); // Always layer 0 for now.
     if ((err= graph->file->ha_write_row(graph->record[0])))
       break;
   }
-  h->lookup_handler->ha_rnd_end();
+  g_handler->ha_rnd_end();
 
   return err == HA_ERR_END_OF_FILE ? 0 : err;
 }
@@ -97,10 +103,8 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
   String *str, strbuf;
   const size_t ref_length= table->file->ref_length;
   const size_t element_size= ref_length + sizeof(float);
-  uchar *key= (uchar*)alloca(ref_length + 32);
   Hash_set<Node> visited(PSI_INSTRUMENT_MEM, &my_charset_bin, limit,
                          sizeof(float), ref_length, 0, 0, HASH_UNIQUE);
-  uint keylen;
   int err= 0;
 
   DBUG_ASSERT(graph);
@@ -122,6 +126,8 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
 
   if (!(str= graph->field[0]->val_str(&strbuf)))
     return HA_ERR_CRASHED;
+  int layer= graph->field[2]->val_int();
+  (void) layer;
 
   DBUG_ASSERT(str->length() == ref_length);
 
@@ -141,6 +147,7 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
   todo.push(cur);
   visited.insert(cur);
 
+  uchar *key= (uchar*)alloca(graph->key_info->key_length);
   while (todo.elements())
   {
     // 3. pick the top node from the todo
@@ -160,8 +167,10 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
     float threshold= result.is_full() ? result.top()->distance : FLT_MAX;
 
     // 6. add all its [yet unvisited] neighbours to the todo heap
-    keylen= graph->field[0]->get_key_image(key, ref_length, Field::itRAW);
-    if ((err= graph->file->ha_index_read_map(graph->record[0], key, 3,
+    key_copy(key, graph->record[0],
+             graph->key_info, graph->key_info->key_length);
+    if ((err= graph->file->ha_index_read_map(graph->record[0], key,
+                                             HA_WHOLE_KEY,
                                              HA_READ_KEY_EXACT)))
       return HA_ERR_CRASHED;
 
@@ -184,7 +193,7 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
       memcpy(cur->ref, str->ptr(), ref_length);
       todo.push(cur);
       visited.insert(cur);
-    } while (!graph->file->ha_index_next_same(graph->record[0], key, keylen));
+    } while (!graph->file->ha_index_next_same(graph->record[0], key, graph->key_info->key_length));
     // 7. goto 3
   }
 
