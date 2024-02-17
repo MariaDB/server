@@ -17,6 +17,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* This file defines all vector functions */
+#include <my_global.h>
+#include "item.h"
 #include "lex_string.h"
 #include "item_func.h"
 
@@ -34,6 +36,7 @@ class Item_func_vec_distance: public Item_real_func
   {
     return check_argument_types_or_binary(NULL, 0, arg_count);
   }
+
 public:
   Item_func_vec_distance(THD *thd, Item *a, Item *b)
    :Item_real_func(thd, a, b) {}
@@ -51,6 +54,9 @@ public:
   key_map part_of_sortkey() const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
+  virtual ~Item_func_vec_distance() {};
 };
 
+
+double euclidean_vec_distance(float *v1, float *v2, size_t v_len);
 #endif
