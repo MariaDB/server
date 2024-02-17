@@ -6676,8 +6676,9 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 */
 
 int
-subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *, Ordered_key *k1,
-                                                     Ordered_key *k2)
+subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *,
+                                                     const Ordered_key *k1,
+                                                     const Ordered_key *k2)
 {
   rownum_t r1= k1->current();
   rownum_t r2= k2->current();

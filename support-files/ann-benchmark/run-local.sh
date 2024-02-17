@@ -55,8 +55,8 @@ function install_ann_benchmarks() {
   fi
   
   ann_git_repo="https://github.com/HugoWenTD/ann-benchmarks.git"
-  ann_git_branch="mariadb"
-  
+  ann_git_branch="mariadb-configurable"
+
   echo -e "Downloading ann-benchmark...\n"
   if [ ! -d "$target_dir" ]; then
       # Only clone ann-benchmarks repository if it doesn't exist

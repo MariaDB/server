@@ -9842,7 +9842,7 @@ int TABLE::hlindex_open(uint nr)
     }
     TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
     if (!table ||
-        open_table_from_share(in_use, s->hlindex, &empty_clex_str, db_stat, 0,
+        open_table_from_share(in_use, s->hlindex, &empty_clex_str, db_stat, EXTRA_RECORD,
                               in_use->open_options, table, 0))
       return 1;
     hlindex= table;
@@ -9897,7 +9897,7 @@ int TABLE::hlindex_first(uint nr, Item *item, ulonglong limit)
 
   DBUG_ASSERT(hlindex->in_use == in_use);
 
-  return mhnsw_first(this, item, limit);
+  return mhnsw_first(this, key_info + s->keys, item, limit);
 }
 
 int TABLE::hlindex_next()
