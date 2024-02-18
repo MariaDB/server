@@ -1156,15 +1156,17 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
       set_flags(RELAXED_UNIQUE_CHECKS_F);
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
-                          m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                             m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
+                             m_width,
+                             false)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
     {
-      memcpy(m_cols.bitmap, cols->bitmap, no_bytes_in_map(cols));
       create_last_word_mask(&m_cols);
+      /* Use copy_data to ensure things works for bitmaps of different size */
+      bitmap_copy_data(&m_cols, (uchar*) cols->bitmap,
+                       MY_MIN(m_cols.n_bits, cols->n_bits));
     }
   }
   else
@@ -1232,9 +1234,9 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
 
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
-                          m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                             m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
+                             m_width,
+                             false)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
     memcpy(m_cols.bitmap, ptr_after_width, (m_width + 7) / 8);
@@ -1274,8 +1276,6 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
 
 Old_rows_log_event::~Old_rows_log_event()
 {
-  if (m_cols.bitmap == m_bitbuf) // no my_malloc happened
-    m_cols.bitmap= 0; // so no my_free in my_bitmap_free
   my_bitmap_free(&m_cols); // To pair with my_bitmap_init().
   my_free(m_rows_buf);
 }

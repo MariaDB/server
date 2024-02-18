@@ -4923,7 +4923,8 @@ int ha_mroonga::open(const char *name,
     DBUG_RETURN(error);
   thr_lock_data_init(&share->lock,&thr_lock_data,NULL);
 
-  if (bitmap_init(&multiple_column_key_bitmap, NULL, table->s->fields, false))
+  if (my_bitmap_init(&multiple_column_key_bitmap, NULL, table->s->fields,
+                     false))
   {
     mrn_free_share(share);
     share = NULL;
@@ -4939,7 +4940,7 @@ int ha_mroonga::open(const char *name,
 
   if (error)
   {
-    bitmap_free(&multiple_column_key_bitmap);
+    my_bitmap_free(&multiple_column_key_bitmap);
     mrn_free_share(share);
     share = NULL;
   }
@@ -5017,7 +5018,7 @@ int ha_mroonga::close()
   {
     error = add_wrap_hton(share->table_name, share->hton);
   }
-  bitmap_free(&multiple_column_key_bitmap);
+  my_bitmap_free(&multiple_column_key_bitmap);
   if (share->use_count == 1) {
     mrn_free_long_term_share(share->long_term_share);
   }

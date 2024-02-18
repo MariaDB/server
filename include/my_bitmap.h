@@ -22,7 +22,7 @@
 #include <m_string.h>
 #include <my_pthread.h>
 
-typedef uint32 my_bitmap_map;
+typedef ulonglong my_bitmap_map;
 
 typedef struct st_bitmap
 {
@@ -36,15 +36,13 @@ typedef struct st_bitmap
   mysql_mutex_t *mutex;
   my_bitmap_map last_word_mask;
   uint32	n_bits; /* number of bits occupied by the above */
+  my_bool       bitmap_allocated;
 } MY_BITMAP;
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-/* compatibility functions */
-#define bitmap_init(A,B,C,D) my_bitmap_init(A,B,C,D)
-#define bitmap_free(A) my_bitmap_free(A)
 /* Reset memory. Faster then doing a full bzero */
 #define my_bitmap_clear(A) ((A)->bitmap= 0)
 
@@ -63,7 +61,7 @@ extern my_bool bitmap_fast_test_and_set(MY_BITMAP *map, uint bitmap_bit);
 extern my_bool bitmap_fast_test_and_clear(MY_BITMAP *map, uint bitmap_bit);
 extern my_bool bitmap_union_is_set_all(const MY_BITMAP *map1,
                                        const MY_BITMAP *map2);
-extern my_bool bitmap_exists_intersection(const MY_BITMAP **bitmap_array,
+extern my_bool bitmap_exists_intersection(MY_BITMAP **bitmap_array,
                                           uint bitmap_count,
                                           uint start_bit, uint end_bit);
 
@@ -81,14 +79,15 @@ extern void bitmap_union(MY_BITMAP *map, const MY_BITMAP *map2);
 extern void bitmap_xor(MY_BITMAP *map, const MY_BITMAP *map2);
 extern void bitmap_invert(MY_BITMAP *map);
 extern void bitmap_copy(MY_BITMAP *map, const MY_BITMAP *map2);
+extern void bitmap_copy_data(MY_BITMAP *map, const uchar *ptr, uint bits);
 
 extern uint bitmap_lock_set_next(MY_BITMAP *map);
 extern void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit);
 /* Fast, not thread safe, bitmap functions */
-#define bitmap_buffer_size(bits) (((bits)+31)/32)*4
+#define bitmap_buffer_size(bits) (((bits)+63)/64)*8
 #define no_bytes_in_map(map) (((map)->n_bits + 7)/8)
-#define no_words_in_map(map) (((map)->n_bits + 31)/32)
-#define bytes_word_aligned(bytes) (4*((bytes + 3)/4))
+#define no_words_in_map(map) (((map)->n_bits + 63)/64)
+#define bytes_word_aligned(bytes) (8*((bytes + 7)/8))
 /* The following functions must be compatible with create_last_word_mask()! */
 static inline void
 bitmap_set_bit(MY_BITMAP *map,uint bit)
@@ -119,18 +118,26 @@ bitmap_is_set(const MY_BITMAP *map,uint bit)
   return !!(*b & (1U << (bit & 7)));
 }
 
+/* Return true if bitmaps are equal */
 static inline my_bool bitmap_cmp(const MY_BITMAP *map1, const MY_BITMAP *map2)
 {
-  if (memcmp(map1->bitmap, map2->bitmap, 4*(no_words_in_map(map1)-1)) != 0)
-    return FALSE;
-  return ((*map1->last_word_ptr | map1->last_word_mask) ==
-          (*map2->last_word_ptr | map2->last_word_mask));
+  DBUG_ASSERT(map1->n_bits == map2->n_bits);
+  return (memcmp(map1->bitmap, map2->bitmap, 8*(no_words_in_map(map1))) == 0);
 }
 
 #define bitmap_clear_all(MAP) \
-  { memset((MAP)->bitmap, 0, 4*no_words_in_map((MAP))); }
-#define bitmap_set_all(MAP) \
-  (memset((MAP)->bitmap, 0xFF, 4*no_words_in_map((MAP))))
+  { memset((MAP)->bitmap, 0, 8*no_words_in_map((MAP))); }
+
+static inline void
+bitmap_set_all(const MY_BITMAP *map)
+{
+  if (map->n_bits)
+  {
+    memset(map->bitmap, 0xFF, 8*(no_words_in_map(map)-1));
+    DBUG_ASSERT(map->bitmap + no_words_in_map(map)-1 == map->last_word_ptr);
+    *map->last_word_ptr= ~map->last_word_mask;
+  }
+}
 
 #ifdef	__cplusplus
 }

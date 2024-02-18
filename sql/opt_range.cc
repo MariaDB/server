@@ -3582,7 +3582,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     table->reginfo.impossible_range= 0;
 
     uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
-    uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
+    my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
     MY_BITMAP cols_for_indexes;
     (void) my_bitmap_init(&cols_for_indexes, used_fields_buff, table->s->fields, 0);
     bitmap_clear_all(&cols_for_indexes);
