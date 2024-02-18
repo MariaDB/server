@@ -398,6 +398,7 @@ void ha_partition::init_handler_variables()
   m_start_key.length= 0;
   m_myisam= FALSE;
   m_innodb= FALSE;
+  m_myisammrg= FALSE;
   m_extra_cache= FALSE;
   m_extra_cache_size= 0;
   m_extra_prepare_for_update= FALSE;
@@ -3029,6 +3030,10 @@ bool ha_partition::create_handlers(MEM_ROOT *mem_root)
   {
     DBUG_PRINT("info", ("InnoDB"));
     m_innodb= TRUE;
+  }
+  else if (ha_legacy_type(hton0) == DB_TYPE_MRG_MYISAM)
+  {
+    m_myisammrg= TRUE;
   }
   DBUG_RETURN(FALSE);
 }
@@ -9419,9 +9424,14 @@ int ha_partition::extra(enum ha_extra_function operation)
   }
     /* Category 9) Operations only used by MERGE */
   case HA_EXTRA_ADD_CHILDREN_LIST:
+    if (!m_myisammrg)
+      DBUG_RETURN(0);
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_ATTACH_CHILDREN:
   {
+    if (!m_myisammrg)
+      DBUG_RETURN(0);
+
     int result;
     uint num_locks;
     handler **file;
@@ -9440,8 +9450,9 @@ int ha_partition::extra(enum ha_extra_function operation)
     break;
   }
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_DETACH_CHILDREN:
+    if (!m_myisammrg)
+      DBUG_RETURN(0);
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
