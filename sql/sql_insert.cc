@@ -1419,7 +1419,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
 		   *trans_end= trans_start + num;
   Field_translator *trans;
   uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
-  uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
+  my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
   MY_BITMAP used_fields;
   enum_column_usage saved_column_usage= thd->column_usage;
   DBUG_ENTER("check_key_in_view");
@@ -2828,6 +2828,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy->def_read_set.bitmap= (my_bitmap_map*) bitmap;
   copy->def_write_set.bitmap= ((my_bitmap_map*)
                                (bitmap + share->column_bitmap_size));
+  create_last_bit_mask(&copy->def_read_set);
+  create_last_bit_mask(&copy->def_write_set);
   bitmaps_used= 2;
   if (share->default_fields || share->default_expressions)
   {

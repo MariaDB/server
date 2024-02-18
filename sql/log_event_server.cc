@@ -5289,21 +5289,13 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
     set_flags(NO_CHECK_CONSTRAINT_CHECKS_F);
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
-                          m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                             m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
+                             m_width,
+                             false)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
-    {
-      memcpy(m_cols.bitmap, cols->bitmap, no_bytes_in_map(cols));
-      create_last_word_mask(&m_cols);
-    }
-  }
-  else
-  {
-    // Needed because my_bitmap_init() does not set it to null on failure
-    m_cols.bitmap= 0;
+      bitmap_copy(&m_cols, cols);
   }
 }
 
@@ -8401,7 +8393,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
     if (likely(cols != NULL))
     {
       memcpy(m_cols_ai.bitmap, cols->bitmap, no_bytes_in_map(cols));
-      create_last_word_mask(&m_cols_ai);
+      create_last_bit_mask(&m_cols_ai); // Needed to fix last part of bitmap
     }
   }
 }

@@ -3582,7 +3582,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     table->reginfo.impossible_range= 0;
 
     uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
-    uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
+    my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
     MY_BITMAP cols_for_indexes;
     (void) my_bitmap_init(&cols_for_indexes, used_fields_buff, table->s->fields, 0);
     bitmap_clear_all(&cols_for_indexes);
@@ -7439,7 +7439,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       (*scan)->used_fields_covered=
         bitmap_bits_set(&(*scan)->covered_fields);
       (*scan)->first_uncovered_field=
-        bitmap_get_first(&(*scan)->covered_fields);
+        bitmap_get_first_clear(&(*scan)->covered_fields);
     }
 
     my_qsort(ror_scan_mark, ror_scans_end-ror_scan_mark, sizeof(ROR_SCAN_INFO*),

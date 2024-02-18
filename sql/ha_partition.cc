@@ -3731,7 +3731,7 @@ bool ha_partition::init_partition_bitmaps()
   if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
     DBUG_RETURN(true);
 
-  if (bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts, TRUE))
+  if (my_bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts, TRUE))
     DBUG_RETURN(true);
 
   if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts, FALSE))

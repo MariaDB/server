@@ -3387,22 +3387,18 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
 
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
-                          m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                             m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
+                             m_width,
+                             false)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
     memcpy(m_cols.bitmap, ptr_after_width, (m_width + 7) / 8);
-    create_last_word_mask(&m_cols);
+    create_last_bit_mask(&m_cols);              // Needed to fix last part of bitmap
     ptr_after_width+= (m_width + 7) / 8;
     DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
   }
   else
-  {
-    // Needed because my_bitmap_init() does not set it to null on failure
-    m_cols.bitmap= NULL;
     DBUG_VOID_RETURN;
-  }
 
   m_cols_ai.bitmap= m_cols.bitmap; /* See explanation in is_valid() */
 
@@ -3412,23 +3408,20 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
 
     /* if my_bitmap_init fails, caught in is_valid() */
     if (likely(!my_bitmap_init(&m_cols_ai,
-                            m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
-                            m_width,
-                            false)))
+                               m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai :
+                               NULL,
+                               m_width,
+                               false)))
     {
       DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
       memcpy(m_cols_ai.bitmap, ptr_after_width, (m_width + 7) / 8);
-      create_last_word_mask(&m_cols_ai);
+      create_last_bit_mask(&m_cols_ai);     // Needed to fix last part of bitmap
       ptr_after_width+= (m_width + 7) / 8;
       DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
                 no_bytes_in_map(&m_cols_ai));
     }
     else
-    {
-      // Needed because my_bitmap_init() does not set it to null on failure
-      m_cols_ai.bitmap= 0;
       DBUG_VOID_RETURN;
-    }
   }
 
   const uchar* const ptr_rows_data= (const uchar*) ptr_after_width;
@@ -3491,8 +3484,6 @@ void Rows_log_event::uncompress_buf()
 
 Rows_log_event::~Rows_log_event()
 {
-  if (m_cols.bitmap == m_bitbuf) // no my_malloc happened
-    m_cols.bitmap= 0; // so no my_free in my_bitmap_free
   my_bitmap_free(&m_cols); // To pair with my_bitmap_init().
   my_free(m_rows_buf);
   my_free(m_extra_row_data);
@@ -4058,12 +4049,7 @@ Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
 
 Update_rows_log_event::~Update_rows_log_event()
 {
-  if (m_cols_ai.bitmap)
-  {
-    if (m_cols_ai.bitmap == m_bitbuf_ai) // no my_malloc happened
-      m_cols_ai.bitmap= 0; // so no my_free in my_bitmap_free
-    my_bitmap_free(&m_cols_ai); // To pair with my_bitmap_init().
-  }
+  my_bitmap_free(&m_cols_ai); // To pair with my_bitmap_init().
 }
 
 
