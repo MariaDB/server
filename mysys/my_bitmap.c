@@ -677,7 +677,7 @@ uint bitmap_get_next_set(const MY_BITMAP *map, uint bitmap_bit)
   if (first_word)
   {
     /* Optimize common case when most bits are set */
-    if (first_word & (1 << (bitmap_bit & 63)))
+    if (first_word & (1ULL << (bitmap_bit & 63)))
       return bitmap_bit;
     return my_find_first_bit(first_word) + (bitmap_bit & ~63);
   }
