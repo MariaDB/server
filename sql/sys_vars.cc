@@ -7366,3 +7366,11 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+static Sys_var_ulonglong Sys_var_non_blocking_binlog_threshold(
+    "non_blocking_binlog_threshold",
+    "If the binlog size of a transaction exceeds this value, we write it to a "
+    "new temporary file and rename it to the next binlog file.",
+    GLOBAL_VAR(non_blocking_binlog_threshold), CMD_LINE(OPT_ARG),
+    VALID_RANGE(256 * 1024 * 1024, ULONGLONG_MAX), DEFAULT(ULONGLONG_MAX),
+    BLOCK_SIZE(1));

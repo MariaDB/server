@@ -21,6 +21,7 @@ where name like 'Wait/Synch/Rwlock/sql/%'
 'wait/synch/rwlock/sql/LOCK_named_pipe_full_access_group')
 order by name limit 10;
 NAME	ENABLED	TIMED
+wait/synch/rwlock/sql/binlog_checksum_rwlock	YES	YES
 wait/synch/rwlock/sql/LOCK_all_status_vars	YES	YES
 wait/synch/rwlock/sql/LOCK_dbnames	YES	YES
 wait/synch/rwlock/sql/LOCK_dboptions	YES	YES
@@ -30,7 +31,6 @@ wait/synch/rwlock/sql/LOCK_SEQUENCE	YES	YES
 wait/synch/rwlock/sql/LOCK_ssl_refresh	YES	YES
 wait/synch/rwlock/sql/LOCK_system_variables_hash	YES	YES
 wait/synch/rwlock/sql/LOCK_sys_init_connect	YES	YES
-wait/synch/rwlock/sql/LOCK_sys_init_slave	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Cond/sql/%'
   and name not in (

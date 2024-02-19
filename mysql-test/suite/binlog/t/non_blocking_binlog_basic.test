@@ -1,0 +1,31 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/not_embedded.inc
+
+set global non_blocking_binlog_threshold=1;
+show variables like 'non_blocking_binlog_threshold';
+set global non_blocking_binlog_threshold=256*1024*1024;
+show variables like 'non_blocking_binlog_threshold';
+set global non_blocking_binlog_threshold=default;
+show variables like 'non_blocking_binlog_threshold';
+
+reset master;
+create table t1(id int, c1 int) engine=innodb;
+insert into t1 values(1,1);
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+update t1 set c1=2;
+set debug_dbug='-d,non_blocking_binlog_ignore_cache_size';
+insert into t1 values(3,3);
+--replace_column 2 #
+show master status;
+--replace_column 2 # 4 # 5 # 6 #
+show binlog events in 'master-bin.000002';
+drop table t1;
+
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = write non-blocking binlog succeed should be logged
+--let $assert_select = write non-blocking binlog succeed
+--let $assert_only_after = CURRENT_TEST
+--source include/assert_grep.inc
