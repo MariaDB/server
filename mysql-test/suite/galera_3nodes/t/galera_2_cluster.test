@@ -11,8 +11,8 @@
 --source include/have_innodb.inc
 
 --connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5
-
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+
 --connection node_4
 
 --replace_result $NODE_MYPORT_1 NODE_MYPORT_1

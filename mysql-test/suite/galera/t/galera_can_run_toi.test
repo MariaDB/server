@@ -1,4 +1,5 @@
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 #
 # MDEV-24833 : Signal 11 on wsrep_can_run_in_toi at wsrep_mysqld.cc:1994
 #

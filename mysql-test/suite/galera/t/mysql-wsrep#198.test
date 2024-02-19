@@ -39,3 +39,8 @@ UNLOCK TABLES;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+--connection node_1
+
+--disconnect node_2a
+--disconnect node_2b

@@ -5,7 +5,6 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2;
@@ -34,7 +33,6 @@ INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 --let $wait_condition = SELECT COUNT(*) = 10000 FROM t2;
 --source include/wait_condition.inc
 
-
 --echo # ANALYZE test
 --connection node_2
 --let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
@@ -45,8 +43,6 @@ ANALYZE TABLE t1, t2;
 --connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
-
-
 
 --echo # OPTIMIZE test
 --connection node_2
@@ -59,8 +55,6 @@ OPTIMIZE TABLE t1, t2;
 --let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
-
-
 --echo # REPAIR test
 --connection node_2
 --let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
@@ -72,8 +66,6 @@ REPAIR TABLE x1, x2;
 --let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
-
-
 --connection node_2
 SELECT COUNT(*) = 10 FROM t1;
 SELECT COUNT(*) = 10 FROM x1;
@@ -83,4 +75,5 @@ SELECT COUNT(*) = 10 FROM x2;
 --connection node_1
 DROP TABLE t1, t2;
 DROP TABLE x1, x2;
+
 SET GLOBAL wsrep_replicate_myisam = FALSE;

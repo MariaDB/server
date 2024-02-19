@@ -99,19 +99,19 @@ Killing server ...
 connection node_1;
 Killing server ...
 connection node_1_insert_simple;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1_insert_multi;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1_insert_transaction;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1_update_simple;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1_insert_1k;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1_insert_1m;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1_insert_10m;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1;
 Performing --wsrep-recover ...
 Using --wsrep-start-position when starting mysqld ...

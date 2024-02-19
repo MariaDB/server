@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
@@ -283,8 +284,11 @@ CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 ALTER TABLE t ENGINE=MYISAM;
 --error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 1 CACHE=10;
+--error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 1 NOCACHE;
+--error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 0 NOCACHE;
+--error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 0 CACHE=10;
 DROP SEQUENCE t;
 
