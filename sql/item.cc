@@ -799,6 +799,14 @@ bool Item_field::add_field_to_set_processor(void *arg)
 }
 
 
+bool Item_field::remove_column_from_bitmap_processor(void *argument)
+{
+  MY_BITMAP *bitmap = reinterpret_cast<MY_BITMAP*>(argument);
+  bitmap_clear_bit(bitmap, field->field_index);
+  return false;
+}
+
+
 /**
    Rename fields in an expression to new field name as speficied by ALTER TABLE
 */

@@ -2310,6 +2310,42 @@ add_tables_and_routines_for_triggers(THD *thd,
 
 
 /**
+  Check if any of the marked fields are used in the trigger.
+
+  @param used_fields  Bitmap over fields to check
+  @param event_type   Type of event triggers for which we are going to inspect
+  @param action_time  Type of trigger action time we are going to inspect
+*/
+
+bool Table_triggers_list::is_fields_updated_in_trigger(MY_BITMAP *used_fields,
+    trg_event_type event_type,
+    trg_action_time_type action_time)
+{
+  Item_trigger_field *trg_field;
+  DBUG_ASSERT(used_fields->n_bits == trigger_table->s->fields);
+
+  for (Trigger *trigger= get_trigger(event_type, action_time);
+       trigger;
+       trigger= trigger->next)
+  {
+    for (trg_field= trigger->trigger_fields;
+        trg_field;
+        trg_field= trg_field->next_trg_field)
+    {
+      /* We cannot check fields which does not present in table. */
+      if (trg_field->field_idx != (uint)-1)
+      {
+        if (bitmap_is_set(used_fields, trg_field->field_idx) &&
+            trg_field->get_settable_routine_parameter())
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+/**
   Mark fields of subject table which we read/set in its triggers
   as such.
 

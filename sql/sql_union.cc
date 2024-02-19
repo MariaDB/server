@@ -34,11 +34,35 @@
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
 {
-  DBUG_ENTER("mysql_union");
   bool res;
-  if (!(res= unit->prepare(unit->derived, result, SELECT_NO_UNLOCK |
-                           setup_tables_done_option)))
-    res= unit->exec();
+  DBUG_ENTER("mysql_union");
+
+  if ((res= unit->prepare(unit->derived, result, SELECT_NO_UNLOCK |
+                          setup_tables_done_option)))
+    goto err;
+
+  /*
+    Tables are not locked at this point, it means that we have delayed
+    this step until after prepare stage (i.e. this moment). This allows to
+    do better partition pruning and avoid locking unused partitions.
+    As a consequence, in such a case, prepare stage can rely only on
+    metadata about tables used and not data from them.
+    We need to lock tables now in order to proceed with the remaning
+    stages of query optimization and execution.
+  */
+  DBUG_ASSERT(!thd->lex->is_query_tables_locked());
+  if ((res= lock_tables(thd, lex->query_tables, lex->table_count, 0)))
+    goto err;
+
+  /*
+    Tables must be locked before storing the query in the query cache.
+    Transactional engines must been signalled that the statement started,
+    which external_lock signals.
+  */
+  query_cache_store_query(thd, thd->lex->query_tables);
+
+  unit->exec();
+err:
   res|= unit->cleanup();
   DBUG_RETURN(res);
 }
@@ -115,7 +139,8 @@ int select_unit::send_data(List<Item> &values)
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
-  fill_record(thd, table, table->field + addon_cnt, values, true, false);
+  fill_record(thd, table, table->field + addon_cnt, values, true, false,
+              NULL);
   /* set up initial values for records to be written */
   if (addon_cnt && step == UNION_TYPE)
   {
@@ -607,7 +632,7 @@ int select_unit_ext::send_data(List<Item> &values)
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
-  fill_record(thd, table, table->field + addon_cnt, values, true, false);
+  fill_record(thd, table, table->field + addon_cnt, values, true, false, NULL);
   /* set up initial values for records to be written */
   if ( step == UNION_TYPE )
   {
@@ -984,7 +1009,7 @@ int select_union_direct::send_data(List<Item> &items)
   }
 
   send_records++;
-  fill_record(thd, table, table->field, items, true, false);
+  fill_record(thd, table, table->field, items, true, false, NULL);
   if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
 

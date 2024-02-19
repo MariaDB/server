@@ -5437,7 +5437,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   thd->lex->create_info.options|= create_info->options;
 
   /* Open or obtain an exclusive metadata lock on table being created  */
-  result= open_and_lock_tables(thd, *create_info, create_table, FALSE, 0);
+  result= open_normal_and_derived_tables(thd, create_table, 0, DT_INIT);
 
   thd->lex->create_info.options= save_thd_create_info_options;
 

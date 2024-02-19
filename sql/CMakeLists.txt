@@ -104,7 +104,7 @@ SET (SQL_SOURCE
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
-               sql_digest.cc sql_do.cc 
+               sql_digest.cc sql_do.cc sql_data_change.cc
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc 
                sql_list.cc sql_load.cc sql_manager.cc

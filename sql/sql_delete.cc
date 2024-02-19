@@ -326,7 +326,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.using_filesort= FALSE;
 
   create_explain_query(thd->lex, thd->mem_root);
-  if (open_and_lock_tables(thd, table_list, TRUE, 0))
+  if (open_normal_and_derived_tables(thd, table_list, 0, DT_INIT))
     DBUG_RETURN(TRUE);
 
   THD_STAGE_INFO(thd, stage_init_update);
@@ -397,6 +397,26 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(TRUE);
     }
   }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /*
+    Non delete tables are pruned in JOIN::prepare,
+    only the delete table needs this.
+  */
+  if (prune_partitions(thd, table, conds))
+  {
+    free_underlaid_joins(thd, select_lex);
+
+    query_plan.set_no_partitions();
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
+
+    my_ok(thd, 0);
+    DBUG_RETURN(0);
+  }
+#endif
+  if (lock_tables(thd, table_list, thd->lex->table_count, 0))
+    DBUG_RETURN(true);
 
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
   if (select_lex->optimize_unflattened_subqueries(false))
@@ -484,7 +504,14 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
 
+  /* Update the table->file->stats.records number */
+  table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+  set_statistics_for_table(thd, table);
+
+  table->covering_keys.clear_all();
+  table->opt_range_keys.clear_all();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+/* Prune a second time to be able to prune on subqueries in WHERE clause. */
   if (prune_partitions(thd, table, conds))
   {
     free_underlaid_joins(thd, select_lex);
@@ -497,12 +524,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(0);
   }
 #endif
-  /* Update the table->file->stats.records number */
-  table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
-  set_statistics_for_table(thd, table);
-
-  table->covering_keys.clear_all();
-  table->opt_range_keys.clear_all();
 
   select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (unlikely(error))

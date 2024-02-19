@@ -422,8 +422,6 @@ int mysql_update(THD *thd,
     /* convert to multiupdate */
     DBUG_RETURN(2);
   }
-  if (lock_tables(thd, table_list, table_count, 0))
-    DBUG_RETURN(1);
 
   (void) read_statistics_for_tables_if_needed(thd, table_list);
 
@@ -509,6 +507,22 @@ int mysql_update(THD *thd,
 
   switch_to_nullable_trigger_fields(fields, table);
   switch_to_nullable_trigger_fields(values, table);
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (prune_partitions(thd, table, conds))
+  {
+    free_underlaid_joins(thd, select_lex);
+
+    query_plan.set_no_partitions();
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
+
+    my_ok(thd);                              // No matching records
+    DBUG_RETURN(0);
+  }
+#endif
+  if (lock_tables(thd, table_list, table_count, 0))
+    DBUG_RETURN(1);
 
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
   if (select_lex->optimize_unflattened_subqueries(false))
@@ -2600,7 +2614,7 @@ int multi_update::send_data(List<Item> &not_used_values)
                   tmp_table_param[offset].func_count);
       fill_record(thd, tmp_table,
                   tmp_table->field + 1 + unupdated_check_opt_tables.elements,
-                  *values_for_table[offset], TRUE, FALSE);
+                  *values_for_table[offset], TRUE, FALSE, NULL);
 
       /* Write row, ignoring duplicated updates to a row */
       error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);

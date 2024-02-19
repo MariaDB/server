@@ -867,6 +867,14 @@ int close_thread_tables(THD *thd)
 
     /* Ensure we are calling ha_reset() for all used tables */
     mark_used_tables_as_free_for_reuse(thd, thd->open_tables);
+    /*
+      Mark this statement as one that has "unlocked" its tables.
+      For purposes of Query_tables_list::lock_tables_state we treat
+      any statement which passed through close_thread_tables() as
+      such.
+    */
+    thd->lex->lock_tables_state= Query_tables_list::LTS_NOT_LOCKED;
+
 
     /*
       We are under simple LOCK TABLES or we're inside a sub-statement
@@ -910,7 +918,10 @@ int close_thread_tables(THD *thd)
     (void)thd->binlog_flush_pending_rows_event(TRUE);
     error= mysql_unlock_tables(thd, thd->lock);
     thd->lock=0;
-  }
+  } 
+
+  thd->lex->lock_tables_state= Query_tables_list::LTS_NOT_LOCKED;
+
   /*
     Closing a MERGE child before the parent would be fatal if the
     other thread tries to abort the MERGE lock in between.
@@ -5412,8 +5423,23 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
   DBUG_ASSERT(thd->locked_tables_mode <= LTM_LOCK_TABLES ||
               !thd->lex->requires_prelocking());
 
+  /*
+    lock_tables() should not be called if this statement has
+    already locked its tables.
+  */
+  DBUG_ASSERT(thd->lex->lock_tables_state == Query_tables_list::LTS_NOT_LOCKED);
+
   if (!tables && !thd->lex->requires_prelocking())
+  {
+    /*
+      Even though we are not really locking any tables mark this
+      statement as one that has locked its tables, so we won't
+      call this function second time for the same execution of
+      the same statement.
+    */
+    thd->lex->lock_tables_state= Query_tables_list::LTS_LOCKED;
     DBUG_RETURN(0);
+  }
 
   first_not_own= thd->lex->first_not_own_table();
 
@@ -5558,6 +5584,12 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
   if (!res && !(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
     res= thd->decide_logging_format(tables);
 
+  /*
+    Mark the statement as having tables locked. For purposes
+    of Query_tables_list::lock_tables_state we treat any
+    statement which passes through lock_tables() as such.
+  */
+  thd->lex->lock_tables_state= Query_tables_list::LTS_LOCKED;
   DBUG_RETURN(res);
 }
 
@@ -8398,7 +8430,7 @@ err_no_arena:
 
 bool
 fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
-            bool ignore_errors, bool update)
+            bool ignore_errors, bool update, MY_BITMAP *bitmap)
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
@@ -8428,6 +8460,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     value=v++;
     DBUG_ASSERT(value);
     rfield= field->field;
+    /* If bitmap over wanted fields are set, skip non marked fields. */
+    if (bitmap && !bitmap_is_set(bitmap, rfield->field_index))
+        continue;
     table= rfield->table;
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
@@ -8621,7 +8656,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   Table_triggers_list *triggers= table->triggers;
 
   result= fill_record(thd, table, fields, values, ignore_errors,
-                      event == TRG_EVENT_UPDATE);
+                      event == TRG_EVENT_UPDATE, NULL);
 
   if (!result && triggers)
   {
@@ -8673,7 +8708,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
 bool
 fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
-            bool ignore_errors, bool use_value)
+            bool ignore_errors, bool use_value, MY_BITMAP *bitmap)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
@@ -8710,6 +8745,9 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       continue;
 
     value=v++;
+    /* If bitmap over wanted fields are set, skip non marked fields. */
+    if (bitmap && !bitmap_is_set(bitmap, field->field_index))
+        continue;
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
 
@@ -8780,7 +8818,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   bool result;
   Table_triggers_list *triggers= table->triggers;
 
-  result= fill_record(thd, table, ptr, values, ignore_errors, FALSE);
+  result= fill_record(thd, table, ptr, values, ignore_errors, FALSE, NULL);
 
   if (!result && triggers && *ptr)
     result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||

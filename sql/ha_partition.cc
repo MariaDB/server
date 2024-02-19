@@ -11232,16 +11232,18 @@ const COND *ha_partition::cond_push(const COND *cond)
   COND *res_cond= NULL;
   DBUG_ENTER("ha_partition::cond_push");
 
-  do
+  for (uint i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i = bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    if ((*file)->pushed_cond != cond)
+    if (file[i]->pushed_cond != cond)
     {
-      if ((*file)->cond_push(cond))
+      if (file[i]->cond_push(cond))
         res_cond= (COND *) cond;
       else
-        (*file)->pushed_cond= cond;
+        file[i]->pushed_cond= cond;
     }
-  } while (*(++file));
+  }
   DBUG_RETURN(res_cond);
 }
 

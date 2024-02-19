@@ -2592,6 +2592,16 @@ int Field::set_default()
 }
 
 
+void Field::evaluate_insert_default_function()
+{
+}
+
+
+void Field::evaluate_update_default_function()
+{
+}
+
+
 /****************************************************************************
   Field_null, a field that always return NULL
 ****************************************************************************/

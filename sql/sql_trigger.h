@@ -275,6 +275,10 @@ public:
                                             Query_tables_list *prelocking_ctx,
                                             TABLE_LIST *table_list);
 
+  bool is_fields_updated_in_trigger(MY_BITMAP *used_fields,
+      trg_event_type event_type,
+      trg_action_time_type action_time);
+
   Field **nullable_fields() { return record0_field; }
   void reset_extra_null_bitmap()
   {

@@ -609,6 +609,8 @@ enum data_file_type {
   STATIC_RECORD, DYNAMIC_RECORD, COMPRESSED_RECORD, BLOCK_RECORD, NO_RECORD
 };
 
+enum enum_duplicates { DUP_ERROR, DUP_REPLACE, DUP_UPDATE };
+
 /* For key ranges */
 
 #define NO_MIN_RANGE	1U

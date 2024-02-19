@@ -1165,6 +1165,26 @@ public:
     return unireg_check == TIMESTAMP_DN_FIELD
         || unireg_check == TIMESTAMP_DNUN_FIELD;
   }
+  bool has_default_update_unireg_check() const
+  {
+    return unireg_check == TIMESTAMP_UN_FIELD   ||
+           unireg_check == TIMESTAMP_DNUN_FIELD;
+  }
+
+  /**
+     Evaluates the @c INSERT default function and stores the result in the
+     field. If no such function exists for the column, or the function is not
+     valid for the column's data type, invoking this function has no effect.
+  */
+  void evaluate_insert_default_function();
+
+  /**
+     Evaluates the @c UPDATE default function, if one exists, and stores the
+     result in the record buffer. If no such function exists for the column,
+     or the function is not valid for the column's data type, invoking this
+     function has no effect.
+  */
+  void evaluate_update_default_function();
 
   /*
     Mark the field as having a value supplied by the client, thus it should
@@ -5376,6 +5396,12 @@ public:
   {
     return unireg_check == Field::TIMESTAMP_DN_FIELD
         || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
+  }
+
+  bool has_default_update_unireg_check() const
+  {
+    return unireg_check == Field::TIMESTAMP_UN_FIELD ||
+           unireg_check == Field::TIMESTAMP_DNUN_FIELD;
   }
 
   void set_type(const Column_definition &other)

@@ -1973,6 +1973,7 @@ public:
     is_expensive_cache= (int8)(-1);
     return 0;
   }
+  virtual bool remove_column_from_bitmap_processor(void *arg) { return 0; }
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
@@ -3521,6 +3522,7 @@ public:
   bool unknown_splocal_processor(void *arg);
   bool add_field_to_set_processor(void * arg);
   bool find_item_in_field_list_processor(void *arg);
+  bool remove_column_from_bitmap_processor(void *argument);
   bool register_field_in_read_map(void *arg);
   bool register_field_in_write_map(void *arg);
   bool register_field_in_bitmap(void *arg);

@@ -333,6 +333,16 @@ public:
   partition_info *get_clone(THD *thd);
   bool set_named_partition_bitmap(const char *part_name, size_t length);
   bool set_partition_bitmaps(List<String> *partition_names);
+  enum enum_can_prune { PRUNE_NO = 0, PRUNE_DEFAULTS, PRUNE_YES };
+  bool can_prune_insert(THD* thd, enum_duplicates duplic,
+                        COPY_INFO &update, List<Item> &update_fields,
+                        List<Item> &fields, bool empty_values,
+                        enum_can_prune *can_prune_partitions,
+                        bool *prune_needs_default_values,
+                        MY_BITMAP *used_partitions);
+  bool set_used_partition(List<Item> &fields, List<Item> &values,
+                          COPY_INFO &info, bool copy_default_values,
+                          MY_BITMAP *used_partitions);
   bool set_partition_bitmaps_from_table(TABLE_LIST *table_list);
   /* Answers the question if subpartitioning is used for a certain table */
   bool is_sub_partitioned()
@@ -377,6 +387,8 @@ public:
   partition_element *get_part_elem(const char *partition_name, char *file_name,
                                    size_t file_name_size, uint32 *part_id);
   void report_part_expr_error(bool use_subpart_expr);
+  bool is_field_in_part_expr(List<Item> &fields);
+  bool is_full_part_expr_in_fields(List<Item> &fields);
   bool has_same_partitioning(partition_info *new_part_info);
   bool error_if_requires_values() const;
 private:
