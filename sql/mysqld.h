@@ -317,6 +317,7 @@ extern const char *encryption_algorithm_names[];
 extern long opt_secure_timestamp;
 extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
+extern ulonglong non_blocking_binlog_threshold;
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 bool is_set_timestamp_forbidden(THD *thd);
@@ -371,7 +372,8 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
   key_LOCK_SEQUENCE,
   key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial,
-  key_rwlock_THD_list;
+  key_rwlock_THD_list,
+  key_rwlock_binlog_checksum;
 
 #ifdef HAVE_MMAP
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
