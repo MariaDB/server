@@ -9314,8 +9314,9 @@ int ha_partition::extra(enum ha_extra_function operation)
   switch (operation) {
     /* Category 1), used by most handlers */
   case HA_EXTRA_NO_KEYREAD:
-    DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
+    DBUG_RETURN(loop_read_partitions(end_keyread_cb, NULL));
   case HA_EXTRA_KEYREAD:
+    DBUG_RETURN(loop_read_partitions(extra_cb, &operation));
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
@@ -9537,7 +9538,7 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
   switch (operation)
   {
     case HA_EXTRA_KEYREAD:
-      DBUG_RETURN(loop_partitions(start_keyread_cb, &arg));
+      DBUG_RETURN(loop_read_partitions(start_keyread_cb, &arg));
     case HA_EXTRA_CACHE:
       prepare_extra_cache(arg);
       DBUG_RETURN(0);
@@ -9647,6 +9648,27 @@ int ha_partition::loop_partitions(handler_callback callback, void *param)
   DBUG_RETURN(result);
 }
 
+
+int ha_partition::loop_read_partitions(handler_callback callback, void *param)
+{
+  int result= 0, tmp;
+  uint i;
+  DBUG_ENTER("ha_partition::loop_read_partitions");
+
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+  {
+    /*
+      Safety, in case a partition in read_partitions is not in
+      m_opened_partitions. We follow what loop_partitions() does.
+    */
+    if (bitmap_is_set(&m_opened_partitions, i) &&
+        (tmp= callback(m_file[i], param)))
+      result= tmp;
+  }
+  DBUG_RETURN(result);
+}
 
 /*
   Call extra(HA_EXTRA_CACHE) on next partition_id
