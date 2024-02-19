@@ -220,6 +220,25 @@ static const char *get_svc_name(const char *arg)
 }
 
 /*
+  Disable CPU throttling for the process.
+
+  Windows 11 heuristics misdetects server as a background process and runs it
+  on "efficiency" cores, in hybrid  architectures such as Alder Lake (12th
+  generation Intel Core).This results in serious performance degradation.
+*/
+void disable_cpu_throttling()
+{
+#ifdef PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+  PROCESS_POWER_THROTTLING_STATE power_throttling{};
+  power_throttling.Version= PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+  power_throttling.ControlMask= PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+  power_throttling.StateMask= 0;
+  SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling,
+                        &power_throttling, sizeof(power_throttling));
+#endif
+}
+
+/*
   Main function on Windows.
   Runs mysqld as normal process, or as a service.
 
@@ -230,6 +249,7 @@ __declspec(dllexport) int mysqld_win_main(int argc, char **argv)
   save_argv= argv;
   save_argc= argc;
 
+  disable_cpu_throttling();
    /*
      If no special arguments are given, service name is nor present
      run as normal program.
