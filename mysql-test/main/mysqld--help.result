@@ -734,6 +734,10 @@ The following specify which files/extra groups are read (specified before remain
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
+ --non-blocking-binlog-threshold[=#] 
+ If the binlog size of a transaction exceeds this value,
+ we write it to a new temporary file and rename it to the
+ next binlog file.
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See
  also @@sql_notes. Any combination of: basic, 
@@ -1796,6 +1800,7 @@ net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
+non-blocking-binlog-threshold 18446744073709551615
 note-verbosity basic,explain
 old FALSE
 old-mode UTF8_IS_UTF8MB3

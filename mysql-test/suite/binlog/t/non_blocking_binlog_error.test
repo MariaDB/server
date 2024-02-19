@@ -1,0 +1,49 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+call mtr.add_suppression(".*");
+
+reset master;
+create table t1(id int, c1 int) engine=innodb;
+insert into t1 values(1,1);
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='+d,non_blocking_binlog_open_file_failed';
+update t1 set c1=2;
+set debug_dbug='-d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='-d,non_blocking_binlog_open_file_failed';
+insert into t1 values(3,3);
+--replace_column 2 #
+show master status;
+
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = Open file failed should be logged
+--let $assert_select = Open file .* failed
+--let $assert_only_after = CURRENT_TEST
+--source include/assert_grep.inc
+
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='+d,non_blocking_binlog_write_cache_failed';
+update t1 set c1=3;
+set debug_dbug='-d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='-d,non_blocking_binlog_write_cache_failed';
+insert into t1 values(4,4);
+--replace_column 2 #
+show master status;
+
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='+d,non_blocking_binlog_write_gtid_failed';
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+update t1 set c1=5;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--replace_column 2 #
+show master status;
+# c1 should not be 5
+select * from t1;
+
+drop table t1;

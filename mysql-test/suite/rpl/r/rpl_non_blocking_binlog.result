@@ -1,0 +1,22 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(id int, c1 int) engine=innodb;
+insert into t1 values(1,1);
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+update t1 set c1=2;
+set debug_dbug='-d,non_blocking_binlog_ignore_cache_size';
+include/assert_grep.inc [write non-blocking binlog succeed should be logged]
+insert into t1 values(3,3);
+checksum table t1;
+Table	Checksum
+test.t1	4217795292
+include/sync_slave_sql_with_master.inc
+connection slave;
+checksum table t1;
+Table	Checksum
+test.t1	4217795292
+connection master;
+drop table t1;
+include/sync_slave_sql_with_master.inc
+include/rpl_end.inc
