@@ -3573,3 +3573,98 @@ pk	c1
 DROP TABLE t1,t2;
 set global innodb_stats_persistent= @stats.save;
 # End of 10.4 tests
+#
+# MDEV-31154: Fatal InnoDB error or assertion `!is_v' failure upon multi-update with indexed virtual column
+#
+# Test with auto generated Primary Key
+#
+create table t1 (a int, b int as (a/2) virtual, key (b), key (a)) engine=innodb;
+insert into t1(a)
+select (rand(1)*1000)/10 from seq_1_to_1000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+explain extended select count(*) from t1 where a between 21 and 30 and b=12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	b,a	b	5	const	27	9.60	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30
+select count(*) from t1 where a between 21 and 30 and b=12;
+count(*)
+27
+explain extended select count(*) from t1 where a between 21 and 30 and b=12 for update;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	b,a	b	5	const	27	9.60	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30 for update
+select count(*) from t1 where a between 21 and 30 and b=12 for update;
+count(*)
+27
+set optimizer_switch='rowid_filter=on';
+explain extended select count(*) from t1 where a between 21 and 30 and b=12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	27 (10%)	9.60	Using where; Using rowid filter
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30
+select count(*) from t1 where a between 21 and 30 and b=12;
+count(*)
+27
+explain extended select count(*) from t1 where a between 21 and 30 and b=12 for update;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	27 (10%)	9.60	Using where; Using rowid filter
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30 for update
+select count(*) from t1 where a between 21 and 30 and b=12 for update;
+count(*)
+27
+drop table t1;
+set optimizer_switch=@save_optimizer_switch;
+# Test with Primary Key
+#
+create table t1 (p int primary key auto_increment, a int, b int as (a/2) virtual, key (b), key (a)) engine=innodb;
+insert into t1(a)
+select (rand(1)*1000)/10 from seq_1_to_1000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+explain extended select count(*) from t1 where a between 21 and 30 and b=12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	b,a	b	5	const	27	9.60	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30
+select count(*) from t1 where a between 21 and 30 and b=12;
+count(*)
+27
+explain extended select count(*) from t1 where a between 21 and 30 and b=12 for update;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	b,a	b	5	const	27	9.60	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30 for update
+select count(*) from t1 where a between 21 and 30 and b=12 for update;
+count(*)
+27
+set optimizer_switch='rowid_filter=on';
+explain extended select count(*) from t1 where a between 21 and 30 and b=12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	27 (10%)	9.60	Using where; Using rowid filter
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30
+select count(*) from t1 where a between 21 and 30 and b=12;
+count(*)
+27
+explain extended select count(*) from t1 where a between 21 and 30 and b=12 for update;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	27 (10%)	9.60	Using where; Using rowid filter
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 12 and `test`.`t1`.`a` between 21 and 30 for update
+select count(*) from t1 where a between 21 and 30 and b=12 for update;
+count(*)
+27
+drop table t1;
+set optimizer_switch=@save_optimizer_switch;

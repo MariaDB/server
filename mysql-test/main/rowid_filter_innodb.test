@@ -699,3 +699,61 @@ DROP TABLE t1,t2;
 set global innodb_stats_persistent= @stats.save;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-31154: Fatal InnoDB error or assertion `!is_v' failure upon multi-update with indexed virtual column
+--echo #
+
+--echo # Test with auto generated Primary Key
+--echo #
+create table t1 (a int, b int as (a/2) virtual, key (b), key (a)) engine=innodb;
+insert into t1(a)
+select (rand(1)*1000)/10 from seq_1_to_1000;
+analyze table t1;
+
+let $q1= select count(*) from t1 where a between 21 and 30 and b=12;
+let $q2= select count(*) from t1 where a between 21 and 30 and b=12 for update;
+
+set @save_optimizer_switch= @@optimizer_switch;
+
+set optimizer_switch='rowid_filter=off';
+eval explain extended $q1;
+eval $q1;
+eval explain extended $q2;
+eval $q2;
+
+set optimizer_switch='rowid_filter=on';
+eval explain extended $q1;
+eval $q1;
+eval explain extended $q2;
+eval $q2;
+
+drop table t1;
+set optimizer_switch=@save_optimizer_switch;
+
+--echo # Test with Primary Key
+--echo #
+create table t1 (p int primary key auto_increment, a int, b int as (a/2) virtual, key (b), key (a)) engine=innodb;
+insert into t1(a)
+select (rand(1)*1000)/10 from seq_1_to_1000;
+analyze table t1;
+
+let $q1= select count(*) from t1 where a between 21 and 30 and b=12;
+let $q2= select count(*) from t1 where a between 21 and 30 and b=12 for update;
+
+set @save_optimizer_switch= @@optimizer_switch;
+
+set optimizer_switch='rowid_filter=off';
+eval explain extended $q1;
+eval $q1;
+eval explain extended $q2;
+eval $q2;
+
+set optimizer_switch='rowid_filter=on';
+eval explain extended $q1;
+eval $q1;
+eval explain extended $q2;
+eval $q2;
+
+drop table t1;
+set optimizer_switch=@save_optimizer_switch;
