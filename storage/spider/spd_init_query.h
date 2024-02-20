@@ -21,7 +21,7 @@
 
 static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
-    "SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'ORACLE', '');"
+    "SET @@SQL_MODE = REGEXP_REPLACE(@@SQL_MODE, '(ORACLE|NO_ZERO_DATE)', '');"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_xa("
