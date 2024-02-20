@@ -201,7 +201,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 	bool ret;
 	os_file_t file{
           os_file_create_func(logfile0.c_str(),
-                              OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+                              OS_FILE_CREATE,
                               OS_FILE_NORMAL, OS_LOG_FILE, false, &ret)
         };
 
@@ -633,9 +633,8 @@ static uint32_t srv_undo_tablespace_open(bool create, const char* name,
     }
   }
 
-  pfs_os_file_t fh= os_file_create(innodb_data_file_key, name, OS_FILE_OPEN |
-                                   OS_FILE_ON_ERROR_NO_EXIT |
-                                   OS_FILE_ON_ERROR_SILENT,
+  pfs_os_file_t fh= os_file_create(innodb_data_file_key, name,
+                                   OS_FILE_OPEN_SILENT,
                                    OS_FILE_AIO, OS_DATA_FILE,
                                    srv_read_only_mode, &success);
 
@@ -732,9 +731,7 @@ srv_check_undo_redo_logs_exists()
 
 		fh = os_file_create_func(
 			name,
-			OS_FILE_OPEN_RETRY
-			| OS_FILE_ON_ERROR_NO_EXIT
-			| OS_FILE_ON_ERROR_SILENT,
+			OS_FILE_OPEN_RETRY_SILENT,
 			OS_FILE_NORMAL,
 			OS_DATA_FILE,
 			srv_read_only_mode,
@@ -756,8 +753,7 @@ srv_check_undo_redo_logs_exists()
 	auto logfilename = get_log_file_path();
 
 	fh = os_file_create_func(logfilename.c_str(),
-				 OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_NO_EXIT
-				 | OS_FILE_ON_ERROR_SILENT,
+				 OS_FILE_OPEN_RETRY_SILENT,
 				 OS_FILE_NORMAL, OS_LOG_FILE,
 				 srv_read_only_mode, &ret);
 

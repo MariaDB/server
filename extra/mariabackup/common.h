@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_global.h>
 #include <mysql_version.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <my_sys.h>
 

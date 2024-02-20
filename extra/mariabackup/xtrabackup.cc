@@ -54,7 +54,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <scope.h>
 #include <sql_class.h>
 
-#include <fcntl.h>
 #include <string.h>
 
 #ifdef __linux__
