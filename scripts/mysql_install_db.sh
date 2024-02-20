@@ -537,6 +537,25 @@ else
   filter_cmd_line="cat"
 fi
 
+# Disable log error if the user don't have right to write/create the file
+# This is common when a user tries to install a personal mariadbd server and
+# the global config in /etc is using --log-error.
+# The server will internally change log-error to stderr to stderr if it cannot
+# write the the log file. This code only disables the error message from a not
+# writable log-error, which can be confusing.
+if test -n "$log_error"
+then
+    if test \( -e "$log_error" -a \! -w "$log_error" \) -o \( ! -e "$log_error" -a ! -w "`dirname "$log_error"`" \)
+    then
+        if test -n "$verbose"
+        then
+            echo "resetting log-error '$log_error' because no write access"
+        fi
+        log_error=""
+        args="$args --skip-log-error"
+    fi
+fi
+
 # Configure mysqld command line
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
