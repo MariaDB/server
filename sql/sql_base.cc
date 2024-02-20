@@ -1905,6 +1905,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   TABLE_SHARE *share;
   uint gts_flags;
   bool from_share= false;
+  bool is_write_lock_request= table_list->mdl_request.is_write_lock_request();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
 #endif
@@ -1934,7 +1935,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     Note that we allow write locks on log tables as otherwise logging
     to general/slow log would be disabled in read only transactions.
   */
-  if (table_list->mdl_request.is_write_lock_request() &&
+  if (is_write_lock_request &&
       thd->tx_read_only &&
       !(flags & (MYSQL_LOCK_LOG_TABLE | MYSQL_OPEN_HAS_MDL_LOCK)))
   {
@@ -2316,7 +2317,7 @@ retry_share:
     else if (table->s->online_backup)
       mdl_type= MDL_BACKUP_TRANS_DML;
 
-    if (table_list->mdl_request.is_write_lock_request() &&
+    if (is_write_lock_request &&
         ! (flags & (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                     MYSQL_OPEN_FORCE_SHARED_MDL |
                     MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |

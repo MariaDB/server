@@ -5920,6 +5920,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
     first_successful_insert_id_in_prev_stmt;
   backup->first_successful_insert_id_in_cur_stmt= 
     first_successful_insert_id_in_cur_stmt;
+  backup->do_union= binlog_evt_union.do_union;
   store_slow_query_state(backup);
 
   if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
@@ -6001,9 +6002,11 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   if (!in_sub_stmt)
     is_fatal_sub_stmt_error= false;
 
-  if ((variables.option_bits & OPTION_BIN_LOG) && is_update_query(lex->sql_command) &&
-       !is_current_stmt_binlog_format_row())
+  if (binlog_evt_union.do_union != backup->do_union)
+  {
+    DBUG_ASSERT(!backup->do_union);
     mysql_bin_log.stop_union_events(this);
+  }
 
   /*
     The following is added to the old values as we are interested in the
@@ -6031,6 +6034,7 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
   backup->tmp_tables_size=         tmp_tables_size;
   backup->tmp_tables_used=         tmp_tables_used;
   backup->handler_stats=           handler_stats;
+  backup->stmt_changes_data=       stmt_changes_data;
 }
 
 /* Reset variables related to slow query log */
@@ -6059,6 +6063,7 @@ void THD::reset_slow_query_state(Sub_statement_state *backup)
   }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.reset();
+  stmt_changes_data=            0;      // Can be used by audit plugins
 }
 
 /*
@@ -6090,6 +6095,7 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.add(&backup->handler_stats);
+  stmt_changes_data|=            backup->stmt_changes_data;
 }
 
 

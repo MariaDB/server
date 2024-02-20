@@ -22873,7 +22873,13 @@ free_tmp_table(THD *thd, TABLE *entry)
       thd->tmp_tables_size+= (entry->file->stats.data_file_length +
                               entry->file->stats.index_file_length);
     }
-    entry->file->ha_drop_table(entry->s->path.str);
+    /*
+      This is an internal temporary table, we should not call ha_drop_table()
+      as it will mark the transaction read/write
+    */
+    DBUG_ASSERT(entry->s->tmp_table == SYSTEM_TMP_TABLE ||
+                entry->s->tmp_table == INTERNAL_TMP_TABLE);
+    entry->file->drop_table(entry->s->path.str);
     delete entry->file;
     entry->file= NULL;
     entry->reset_created();
