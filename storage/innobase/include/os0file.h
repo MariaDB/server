@@ -113,11 +113,8 @@ enum os_file_create_t {
 					doesn't exist, error) */
 	OS_FILE_CREATE,			/*!< to create new file (if
 					exists, error) */
-	OS_FILE_OVERWRITE,		/*!< to create a new file, if exists
-					the overwrite old file */
 	OS_FILE_OPEN_RAW,		/*!< to open a raw device or disk
 					partition */
-	OS_FILE_CREATE_PATH,		/*!< to create the directories */
 	OS_FILE_OPEN_RETRY,		/*!< open with retry */
 
 	/** Flags that can be combined with the above values. Please ensure
@@ -144,7 +141,7 @@ static const ulint OS_FILE_NORMAL = 62;
 /** Types for file create @{ */
 static constexpr ulint OS_DATA_FILE = 100;
 static constexpr ulint OS_LOG_FILE = 101;
-#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+#if defined _WIN32 || defined O_DIRECT
 static constexpr ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 #endif
 /* @} */
@@ -374,22 +371,6 @@ os_file_create_simple_no_error_handling_func(
 	bool		read_only,
 	bool*		success)
 	MY_ATTRIBUTE((warn_unused_result));
-
-#ifndef HAVE_FCNTL_DIRECT
-#define os_file_set_nocache(fd, file_name, operation_name) do{}while(0)
-#else
-/** Tries to disable OS caching on an opened file descriptor.
-@param[in]	fd		file descriptor to alter
-@param[in]	file_name	file name, used in the diagnostic message
-@param[in]	name		"open" or "create"; used in the diagnostic
-				message */
-void
-os_file_set_nocache(
-/*================*/
-	int	fd,		/*!< in: file descriptor to alter */
-	const char*	file_name,
-	const char*	operation_name);
-#endif
 
 #ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
 /** Obtain an exclusive lock on a file.

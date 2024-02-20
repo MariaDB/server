@@ -4007,7 +4007,7 @@ static int innodb_init_params()
 
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
-#ifdef HAVE_FCNTL_DIRECT
+#if !defined _WIN32 && defined O_DIRECT
 	if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/*
                   Force O_DIRECT on Unixes (on Windows writes are always

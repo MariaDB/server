@@ -63,7 +63,7 @@ enum srv_flush_t
   SRV_LITTLESYNC,
   /** do not flush after writing */
   SRV_NOSYNC,
-  /** invoke os_file_set_nocache() on data files. This implies using
+  /** Open or create files with O_DIRECT. This implies using
   unbuffered I/O but still fdatasync(), because some filesystems might
   not flush meta-data on write completion */
   SRV_O_DIRECT,

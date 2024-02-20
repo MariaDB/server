@@ -4349,9 +4349,7 @@ void row_merge_drop_temp_indexes()
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
-pfs_os_file_t
-row_merge_file_create_low(
-	const char*	path)
+static pfs_os_file_t row_merge_file_create_mode(const char *path, int mode)
 {
 	if (!path) {
 		path = mysql_tmpdir;
@@ -4392,6 +4390,13 @@ row_merge_file_create_low(
 	return(fd);
 }
 
+/** Create a temporary file at the specified path.
+@param path location for creating temporary merge files, or nullptr
+@return File descriptor */
+pfs_os_file_t row_merge_file_create_low(const char *path)
+{
+  return row_merge_file_create_mode(path, O_BINARY | O_SEQUENTIAL);
+}
 
 /** Create a merge file in the given location.
 @param[out]	merge_file	merge file structure
@@ -4402,17 +4407,16 @@ row_merge_file_create(
 	merge_file_t*	merge_file,
 	const char*	path)
 {
-	merge_file->fd = row_merge_file_create_low(path);
 	merge_file->offset = 0;
 	merge_file->n_rec = 0;
-#ifdef HAVE_FCNTL_DIRECT
-	if (merge_file->fd != OS_FILE_CLOSED) {
-		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
-				"row0merge.cc", "sort");
-		}
-	}
+	merge_file->fd =
+		row_merge_file_create_mode(path,
+#if !defined _WIN32 && defined O_DIRECT
+					   srv_disable_sort_file_cache
+					   ? O_DIRECT | O_BINARY | O_SEQUENTIAL
+					   :
 #endif
+					   O_BINARY | O_SEQUENTIAL);
 	return(merge_file->fd);
 }
 
