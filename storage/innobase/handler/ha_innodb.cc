@@ -14865,16 +14865,6 @@ ha_innobase::check(
 			table->s->table_name.str);
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
-
-	} else if (!m_prebuilt->table->is_readable() &&
-		   !m_prebuilt->table->space) {
-
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_MISSING,
-			table->s->table_name.str);
-
-		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
 
 	m_prebuilt->trx->op_info = "checking table";

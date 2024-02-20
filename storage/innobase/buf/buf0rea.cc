@@ -623,7 +623,7 @@ fail:
       on the page, we do not acquire an s-latch on the page, this is to
       prevent deadlocks. The hash_lock is only protecting the
       buf_pool.page_hash for page i, not the bpage contents itself. */
-      if (!bpage)
+      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
       {
 hard_fail:
         hash_lock->read_unlock();

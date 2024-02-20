@@ -297,7 +297,8 @@ static TYPELIB tc_heuristic_recover_typelib=
 };
 
 const char *first_keyword= "first";
-const char *my_localhost= "localhost", *delayed_user= "DELAYED";
+const char *my_localhost= "localhost",
+           *delayed_user= "delayed", *slave_user= "<replication_slave>";
 
 bool opt_large_files= sizeof(my_off_t) > 4;
 static my_bool opt_autocommit; ///< for --autocommit command-line option
@@ -1742,7 +1743,6 @@ static void close_connections(void)
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
   */
-  DBUG_EXECUTE_IF("mysqld_delay_kill_threads_phase_1", my_sleep(200000););
   int n_threads_awaiting_ack= 0;
   server_threads.iterate(kill_thread_phase_1, &n_threads_awaiting_ack);
 

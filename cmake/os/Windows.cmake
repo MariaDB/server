@@ -24,6 +24,14 @@ INCLUDE (CheckCSourceRuns)
 INCLUDE (CheckSymbolExists)
 INCLUDE (CheckTypeSize)
 
+IF(MSVC)
+  IF(CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL ARM64)
+   SET(MSVC_ARM64 1)
+   SET(MSVC_INTEL 0)
+  ELSE()
+   SET(MSVC_INTEL 1)
+  ENDIF()
+ENDIF()
 
 # avoid running system checks by using pre-cached check results
 # system checks are expensive on VS since every tiny program is to be compiled in 
