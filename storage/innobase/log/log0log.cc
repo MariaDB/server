@@ -466,8 +466,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
     resize_lsn.store(1, std::memory_order_relaxed);
     resize_target= 0;
     resize_log.m_file=
-      os_file_create_func(path.c_str(),
-                          OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+      os_file_create_func(path.c_str(), OS_FILE_CREATE,
                           OS_FILE_NORMAL, OS_LOG_FILE, false, &success);
     if (success)
     {

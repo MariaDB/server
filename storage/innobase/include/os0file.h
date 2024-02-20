@@ -109,22 +109,21 @@ struct pfs_os_file_t
 
 /** Options for os_file_create_func @{ */
 enum os_file_create_t {
-	OS_FILE_OPEN = 51,		/*!< to open an existing file (if
-					doesn't exist, error) */
-	OS_FILE_CREATE,			/*!< to create new file (if
-					exists, error) */
-	OS_FILE_OPEN_RAW,		/*!< to open a raw device or disk
-					partition */
-	OS_FILE_OPEN_RETRY,		/*!< open with retry */
+  /** create a new file */
+  OS_FILE_CREATE= 0,
+  /** open an existing file */
+  OS_FILE_OPEN,
+  /** retry opening an existing file */
+  OS_FILE_OPEN_RETRY,
+  /** open a raw block device */
+  OS_FILE_OPEN_RAW,
 
-	/** Flags that can be combined with the above values. Please ensure
-	that the above values stay below 128. */
+  /** do not display diagnostic messages */
+  OS_FILE_ON_ERROR_SILENT= 4,
 
-	OS_FILE_ON_ERROR_NO_EXIT = 128,	/*!< do not exit on unknown errors */
-	OS_FILE_ON_ERROR_SILENT = 256	/*!< don't print diagnostic messages to
-					the log unless it is a fatal error,
-					this flag is only used if
-					ON_ERROR_NO_EXIT is set */
+  OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
+  OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,
+  OS_FILE_OPEN_RETRY_SILENT= OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_SILENT
 };
 
 static const ulint OS_FILE_READ_ONLY = 333;
@@ -346,7 +345,7 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success);
@@ -355,7 +354,7 @@ os_file_create_simple_func(
 os_file_create_simple_no_error_handling(), not directly this function!
 A simple function to open or create a file.
 @param[in]	name		name of the file or path as a null-terminated string
-@param[in]	create_mode	create mode
+@param[in]	create_mode	OS_FILE_CREATE or OS_FILE_OPEN
 @param[in]	access_type	OS_FILE_READ_ONLY, OS_FILE_READ_WRITE, or
 				OS_FILE_READ_ALLOW_DELETE; the last option
 				is used by a backup program reading the file
@@ -366,7 +365,7 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success)
@@ -400,7 +399,7 @@ Opens an existing file or creates a new.
 pfs_os_file_t
 os_file_create_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		purpose,
 	ulint		type,
 	bool		read_only,
@@ -598,7 +597,7 @@ pfs_os_file_t
 pfs_os_file_create_simple_func(
 	mysql_pfs_key_t key,
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success,
@@ -614,7 +613,7 @@ monitor file creation/open.
 @param[in]	key		Performance Schema Key
 @param[in]	name		name of the file or path as a null-terminated
 				string
-@param[in]	create_mode	create mode
+@param[in]	create_mode	OS_FILE_CREATE or OS_FILE_OPEN
 @param[in]	access_type	OS_FILE_READ_ONLY, OS_FILE_READ_WRITE, or
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file
@@ -629,7 +628,7 @@ pfs_os_file_t
 pfs_os_file_create_simple_no_error_handling_func(
 	mysql_pfs_key_t key,
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success,
@@ -662,7 +661,7 @@ pfs_os_file_t
 pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		purpose,
 	ulint		type,
 	bool		read_only,
