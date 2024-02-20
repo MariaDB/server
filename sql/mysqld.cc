@@ -4710,9 +4710,9 @@ static int init_server_components()
   proc_info_hook= set_thd_stage_info;
 
   /*
-￼    Print source revision hash, as one of the first lines, if not the
-￼    first in error log, for troubleshooting and debugging purposes
-￼  */
+    Print source revision hash, as one of the first lines, if not the
+    first in error log, for troubleshooting and debugging purposes
+  */
   if (!opt_help)
     sql_print_information("Starting MariaDB %s source revision %s as process %lu",
                           server_version, SOURCE_REVISION, (ulong) getpid());
@@ -4739,6 +4739,19 @@ static int init_server_components()
 #endif
 
   xid_cache_init();
+
+  /*
+    Do not open binlong when doing bootstrap.
+    This ensures that rpl_load_gtid_slave_state() will not fail with an error
+    as the mysql schema does not yet exists.
+    This also ensures that we don't get an empty binlog file if the user has
+    log-bin in his config files.
+  */
+  if (opt_bootstrap)
+  {
+    opt_bin_log= opt_bin_log_used= binlog_format_used= 0;
+    opt_log_slave_updates= 0;
+  }
 
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)
