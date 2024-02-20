@@ -7194,7 +7194,8 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   else
   {
     /* Ensure the share is destroyed and reopened. */
-    lpt->alter_ctx->fk_table_backup.rollback();
+    if (lpt->alter_ctx->fk_table_backup.share)
+      lpt->alter_ctx->fk_table_backup.rollback();
     close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
 
