@@ -492,8 +492,9 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
       // hex-letters without leading zeros (recommended IPv6-format).
       //
       // If it is not the last field, append closing ':'.
-
-      p += sprintf(p, "%x", ipv6_words[i]);
+      int res= snprintf(p, dstsize_available, "%x", ipv6_words[i]);
+      DBUG_ASSERT(res >= 0);
+      p += res;
 
       if (i + 1 != IN6_ADDR_NUM_WORDS)
       {
