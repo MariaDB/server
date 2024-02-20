@@ -1,0 +1,24 @@
+--source include/have_innodb.inc
+#SET foreign_key_checks = 1;
+
+create table t1(x int auto_increment primary key, y int, unique key(y), z VARCHAR(20)) ENGINE=InnoDB;
+create table t2(a int primary key, x int,
+            foreign key(x) references t1(y) ON DELETE CASCADE) ENGINE=InnoDB;
+    
+create table t3(id INT AUTO_INCREMENT PRIMARY KEY, deleted_x INT, note VARCHAR(50)) ENGINE=InnoDB;
+
+CREATE TRIGGER tr_t2 AFTER DELETE ON t2
+    FOR EACH ROW INSERT INTO t3(deleted_x, note) VALUES (OLD.x, 'Deleted from t2');
+
+
+insert into t1 VALUES (1, 10, 'aboba');
+
+insert into t2 VALUES (1, 10);
+
+delete from t1 where y=10;
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+DROP TABLE t3,t2, t1;

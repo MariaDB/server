@@ -3968,7 +3968,7 @@ static int innodb_init_params()
 	} else if (innodb_flush_method >= 4 /* O_DIRECT */
 		   IF_WIN(&& innodb_flush_method < 8 /* normal */,)) {
 		/* O_DIRECT and similar settings do nothing */
-#ifdef HAVE_FCNTL_DIRECT
+#ifdef O_DIRECT
 	} else if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/* If atomic writes are enabled, do the same as with
 		innodb_flush_method=O_DIRECT: retain the default settings */
@@ -21063,4 +21063,37 @@ buf_pool_size_align(
   } else {
     return (size / m + 1) * m;
   }
+}
+
+
+
+bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after) {
+	btr_pcur_t	*pcur = node->pcur;
+	char db_buf[NAME_LEN + 1];
+	char tbl_buf[NAME_LEN + 1];
+	ulint db_buf_len, tbl_buf_len;
+
+	dict_table_t *table = node->table;
+	dict_index_t *clust_index = dict_table_get_first_index(table);
+
+	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+		return true;
+	}
+
+	THD *thd = current_thd;
+	TABLE *maria_table = find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, tbl_buf_len);
+	if (maria_table->triggers == NULL) {
+		return false;
+	}
+	ha_innobase *handler = (ha_innobase*)maria_table->file;
+	row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
+	
+	ut_ad(is_delete);
+	ut_ad(after);
+
+	const rec_t* rec = btr_pcur_get_rec(pcur); // FIXME: not sure that it's correct
+	const rec_offs*	offsets = rec_get_offsets(rec, clust_index, nullptr, clust_index->n_core_fields, ULINT_UNDEFINED, &node->heap);
+	
+	row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, false, clust_index, offsets);
+	return  maria_table->triggers->process_triggers(thd, TRG_EVENT_DELETE, TRG_ACTION_AFTER, true);
 }

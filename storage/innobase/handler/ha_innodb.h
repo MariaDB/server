@@ -434,6 +434,12 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+	row_prebuilt_t *get_prebuilt(const dict_table_t* table) {
+		build_template(true);
+		m_prebuilt->index = dict_table_get_first_index(table);
+		return m_prebuilt;
+}
+
 protected:
 	bool
 	can_convert_string(const Field_string* field,
@@ -934,3 +940,7 @@ which is in the prepared state
 
 @return 0 or error number */
 int innobase_rollback_by_xid(handlerton* hton, XID* xid);
+
+
+row_prebuilt_t *innobase_get_prebuilt(TABLE *maria_table);
+bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after);

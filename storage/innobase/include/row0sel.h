@@ -455,3 +455,13 @@ row_sel_field_store_in_mysql_format_func(
 #endif /* UNIV_DEBUG */
         const byte*     data,   /*!< in: data to store */
         ulint           len);    /*!< in: length of the data */
+
+
+bool row_sel_store_mysql_rec(
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const dtuple_t*	vrow,
+	bool		rec_clust,
+	const dict_index_t* index,
+	const rec_offs*	offsets);
