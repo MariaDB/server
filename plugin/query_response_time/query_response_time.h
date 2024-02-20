@@ -53,12 +53,30 @@
 
 extern ST_SCHEMA_TABLE query_response_time_table;
 
+enum QUERY_TYPE
+{
+  ANY=    0,                                    /* Total */
+  READ=   1,                                    /* Only reads */
+  WRITE=  2                                     /* Only writes */
+};
+
+#define QUERY_TYPES (QUERY_TYPE::WRITE+1)
+
+typedef class Item COND;
+
 #ifdef HAVE_RESPONSE_TIME_DISTRIBUTION
-extern void query_response_time_init   ();
-extern void query_response_time_free   ();
-extern int query_response_time_flush  ();
-extern void query_response_time_collect(ulonglong query_time);
-extern int  query_response_time_fill   (THD* thd, TABLE_LIST *tables, COND *cond);
+extern void query_response_time_init();
+extern void query_response_time_free();
+extern int query_response_time_flush();
+extern void query_response_time_collect(QUERY_TYPE type, ulonglong query_time);
+extern int  query_response_time_fill(THD* thd, TABLE_LIST *tables,
+                                     COND *cond);
+extern int  query_response_time_fill_read(THD* thd, TABLE_LIST *tables,
+                                        COND *cond);
+extern int  query_response_time_fill_write(THD* thd, TABLE_LIST *tables,
+                                        COND *cond);
+extern int  query_response_time_fill_read_write(THD* thd, TABLE_LIST *tables,
+                                                COND *cond);
 
 extern ulong   opt_query_response_time_range_base;
 extern my_bool opt_query_response_time_stats;
