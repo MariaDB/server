@@ -1,0 +1,160 @@
+--source include/have_unix_socket.inc
+
+--let $OS_USER=$USER
+--write_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+select user(), current_user(), database();
+select @@external_user;
+EOF
+
+--echo ########################################################################
+--echo # Test for case:
+--echo #     - create user A identified via unix_socket as 'B' or unix_socket as 'C';
+--echo #     - connect as database user A using unix user of B
+--echo # Expected result:
+--echo #     - connection succeed
+--echo ########################################################################
+--replace_result $OS_USER "OS_USER"
+eval create user 'DB_USER1' identified via unix_socket as '$OS_USER' or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name';
+--replace_result $OS_USER "OS_USER"
+eval grant select on test.* to 'DB_USER1';
+--echo #
+--echo # Auth succeed with OS user matches the first authentication string.
+--echo # @@external_user is set to OS_USER name.
+--echo #
+--replace_result $OS_USER "OS_USER"
+--exec $MYSQL_TEST -u DB_USER1 < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--replace_result $OS_USER "OS_USER"
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+    json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string from mysql.global_priv where user='DB_USER1';
+
+
+--echo
+--echo ########################################################################
+--echo # Test for case:
+--echo #     - create user A identified via unix_socket as 'B' or unix_socket as 'C';
+--echo #     - connect as database user A using unix user of C
+--echo # Expected result:
+--echo #     - connection succeed
+--echo ########################################################################
+--replace_result $OS_USER "OS_USER"
+eval create user 'DB_USER2' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name' or unix_socket as '$OS_USER';
+--replace_result $OS_USER "OS_USER"
+eval grant select on test.* to 'DB_USER2';
+--echo #
+--echo # Auth succeed with OS user matches the optional authentication string.
+--echo # @@external_user is set to OS_USER name.
+--echo #
+--replace_result $OS_USER "OS_USER"
+--exec $MYSQL_TEST -u DB_USER2 < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--replace_result $OS_USER "OS_USER"
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+    json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string from mysql.global_priv where user='DB_USER1';
+
+
+--echo
+--echo ########################################################################
+--echo # Test for case:
+--echo #     - create user A identified via unix_socket as 'B';
+--echo #     - connect as database user A using unix user of D
+--echo # Expected result:
+--echo #     - connection is refused
+--echo ########################################################################
+eval create user 'DB_USER3' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name';
+eval grant select on test.* to 'DB_USER3';
+--echo #
+--echo # Auth fail with OS user that does not match the authentication string.
+--echo #
+--error 1
+--exec $MYSQL_TEST -u DB_USER3 < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+
+
+--echo #
+--echo ########################################################################
+--echo # Test for case:
+--echo #     - create user A identified via unix_socket as 'B' or unix_socket as 'C';
+--echo #     - connect as database user A using unix user of D
+--echo # Expected result:
+--echo #     - connection is refused
+--echo ########################################################################
+eval create user 'DB_USER4' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-1'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-2';
+eval grant select on test.* to 'DB_USER4';
+--echo #
+--echo # Auth fail with OS user that does not match the authentication string.
+--echo #
+--error 1
+--exec $MYSQL_TEST -u DB_USER4 < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--replace_result $OS_USER "OS_USER"
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+    json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string from mysql.global_priv where user='DB_USER1';
+
+
+--echo ########################################################################
+--echo # Test for case:
+--echo #     - create user A identified via unix_socket as 'B' or unix_socket as 'C' or unix_socket as 'D' or unix_socket as 'E' or unix_socket as 'F';
+--echo #     - connect as database user A using unix user of 'D'
+--echo # Expected result:
+--echo #     - connection succeed
+--echo ########################################################################
+--replace_result $OS_USER "OS_USER"
+eval create user 'DB_USER5' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-B'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-C'
+                                        or unix_socket as '$OS_USER'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-E'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-F';
+--replace_result $OS_USER "OS_USER"
+eval grant select on test.* to 'DB_USER5';
+--echo #
+--echo # Auth succeed with OS user matches the first authentication string.
+--echo # @@external_user is set to OS_USER name.
+--echo #
+--replace_result $OS_USER "OS_USER"
+--exec $MYSQL_TEST -u DB_USER5 < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--replace_result $OS_USER "OS_USER"
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+    json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string_0,
+    json_value(priv, '$.auth_or[1].authentication_string') as optional_authentication_string_1,
+    json_value(priv, '$.auth_or[2].authentication_string') as optional_authentication_string_2,
+    json_value(priv, '$.auth_or[3].authentication_string') as optional_authentication_string_3
+    from mysql.global_priv where user='DB_USER5';
+
+
+--echo
+--echo ########################################################################
+--echo # Test for case:
+--echo #     - create user A identified via unix_socket as 'B';
+--echo #     - connect as database user A using unix user of A
+--echo # Expected result:
+--echo #     - connection is rejected
+--echo ########################################################################
+--echo #
+--echo # Create DB user different with the OS user name, but using OS user name as the authentication string.
+--echo #
+--replace_result $OS_USER "OS_USER"
+eval create user '$OS_USER' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name';
+--replace_result $OS_USER "OS_USER"
+eval grant select on test.* to '$OS_USER';
+--echo #
+--echo # Auth fail with OS user that does not match the authentication string.
+--echo #
+--error 1
+--exec $MYSQL_TEST -u $OS_USER < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+
+
+--echo
+--echo ########################################################################
+--echo # Removing the test user.
+--echo ########################################################################
+eval drop user 'DB_USER1';
+eval drop user 'DB_USER2';
+eval drop user 'DB_USER3';
+eval drop user 'DB_USER4';
+eval drop user 'DB_USER5';
+--replace_result $OS_USER "OS_USER"
+eval drop user '$OS_USER';
+FLUSH PRIVILEGES;
+
+--echo ########################################################################
+--echo # Removing the test file.
+--echo ########################################################################
+--remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
