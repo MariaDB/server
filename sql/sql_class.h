@@ -2121,6 +2121,8 @@ public:
   bool enable_slow_log;
   bool last_insert_id_used;
   bool in_stored_procedure;
+  bool do_union;
+  bool stmt_changes_data;
   enum enum_check_fields count_cuted_fields;
 };
 
@@ -3845,6 +3847,7 @@ public:
     See comment above regarding transaction_isolation.
   */
   bool              tx_read_only;
+  bool              stmt_changes_data;
   enum_check_fields count_cuted_fields;
 
   DYNAMIC_ARRAY user_var_events;        /* For user variables replication */
