@@ -17,10 +17,6 @@ INCLUDE(CheckSymbolExists)
 INCLUDE(CheckCSourceRuns)
 INCLUDE(CheckCSourceCompiles) 
 
-# fcntl(fd, F_SETFL, O_DIRECT) is not supported,
-# and directio(3C) would only work on UFS or NFS, not ZFS.
-SET(HAVE_FCNTL_DIRECT 0 CACHE INTERNAL "")
-
 # Enable 64 bit file offsets
 SET(_FILE_OFFSET_BITS 64)
 

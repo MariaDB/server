@@ -3973,7 +3973,7 @@ static int innodb_init_params()
 	} else if (innodb_flush_method >= 4 /* O_DIRECT */
 		   IF_WIN(&& innodb_flush_method < 8 /* normal */,)) {
 		/* O_DIRECT and similar settings do nothing */
-#ifdef HAVE_FCNTL_DIRECT
+#ifdef O_DIRECT
 	} else if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/* If atomic writes are enabled, do the same as with
 		innodb_flush_method=O_DIRECT: retain the default settings */
