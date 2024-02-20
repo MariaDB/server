@@ -207,7 +207,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `FTS_DOC_ID_INDEX` (`FTS_DOC_ID` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=INPLACE;
-ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
 ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
 ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
 DROP TABLE t1;

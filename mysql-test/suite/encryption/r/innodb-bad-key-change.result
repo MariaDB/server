@@ -31,7 +31,7 @@ foobar	2
 # Restart server with keysbad3.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keysbad3.txt
 SELECT * FROM t1;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keysbad3.txt
 DROP TABLE t1;
 # Start server with keys3.txt
@@ -43,31 +43,31 @@ INSERT INTO t2 VALUES ('foobar',1,2);
 # Restart server with keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 SELECT * FROM t2;
-ERROR 42S02: Table 'test.t2' doesn't exist in engine
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 SELECT * FROM t2 where id = 1;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 SELECT * FROM t2 where b = 1;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 INSERT INTO t2 VALUES ('tmp',3,3);
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 DELETE FROM t2 where b = 3;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 DELETE FROM t2 where id = 3;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 UPDATE t2 set b = b +1;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 OPTIMIZE TABLE t2;
 Table	Op	Msg_type	Msg_text
-test.t2	optimize	Error	Table test/t2 is corrupted. Please drop the table and recreate.
+test.t2	optimize	Error	Table `test`.`t2` is corrupted. Please drop the table and recreate.
 test.t2	optimize	error	Corrupt
 ALTER TABLE t2 ADD COLUMN d INT;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
-test.t2	analyze	Error	Table test/t2 is corrupted. Please drop the table and recreate.
+test.t2	analyze	Error	Table `test`.`t2` is corrupted. Please drop the table and recreate.
 test.t2	analyze	error	Corrupt
 TRUNCATE TABLE t2;
-ERROR HY000: Table test/t2 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 DROP TABLE t2;
 
 # Start server with keys2.txt

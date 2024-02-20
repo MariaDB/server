@@ -278,4 +278,9 @@ call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State T
 --connection node_3
 call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
 
+--disconnect node_1a
+
+# Restore original auto_increment_offset values.
+--let $galera_cluster_size=3
 --source ../galera/include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

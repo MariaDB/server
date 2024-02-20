@@ -45,6 +45,8 @@ Created 2012-02-08 by Sunny Bains.
 #include "lzo/lzo1x.h"
 #include "snappy-c.h"
 #include "log.h"
+#include "table.h"
+#include "ha_innodb.h"
 
 #include "scope.h"
 
@@ -4225,6 +4227,37 @@ fil_tablespace_iterate(
 	return(err);
 }
 
+static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
+                               uint64_t autoinc)
+{
+  if (!table->persistent_autoinc)
+  {
+    ut_ad(!autoinc);
+    return;
+  }
+
+  if (autoinc)
+  {
+    btr_write_autoinc(dict_table_get_first_index(table), autoinc - 1);
+  autoinc_set:
+    table->autoinc= autoinc;
+    sql_print_information("InnoDB: %`.*s.%`s autoinc value set to " UINT64PF,
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(), autoinc);
+  }
+  else if (TABLE *t= prebuilt->m_mysql_table)
+  {
+    if (const Field *ai= t->found_next_number_field)
+    {
+      autoinc= 1 +
+        btr_read_autoinc_with_fallback(table, innodb_col_no(ai),
+                                       t->s->mysql_version,
+                                       innobase_get_int_col_max_value(ai));
+      goto autoinc_set;
+    }
+  }
+}
+
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
 of the table in the data dictionary.
@@ -4250,6 +4283,23 @@ row_import_for_mysql(
 	ut_ad(trx);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(!table->is_readable());
+
+#ifdef BTR_CUR_HASH_ADAPT
+	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
+	index entries. If we replaced the discarded tablespace with a
+	smaller one here, there could still be some adaptive hash
+	index entries that point to cached garbage pages in the buffer
+	pool, because PageConverter::operator() only evicted those
+	pages that were replaced by the imported pages. We must
+	detach any remaining adaptive hash index entries, because the
+	adaptive hash index must be a subset of the table contents;
+	false positives are not tolerated. */
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index = index->clone_if_needed();
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+	UT_LIST_GET_FIRST(table->indexes)->clear_instant_alter();
 
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
@@ -4370,21 +4420,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-#ifdef BTR_CUR_HASH_ADAPT
-	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
-	index entries. If we replaced the discarded tablespace with a
-	smaller one here, there could still be some adaptive hash
-	index entries that point to cached garbage pages in the buffer
-	pool, because PageConverter::operator() only evicted those
-	pages that were replaced by the imported pages. We must
-	detach any remaining adaptive hash index entries, because the
-	adaptive hash index must be a subset of the table contents;
-	false positives are not tolerated. */
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
-		index = index->clone_if_needed();
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -4547,14 +4582,8 @@ row_import_for_mysql(
 	table->flags2 &= ~DICT_TF2_DISCARDED & ((1U << DICT_TF2_BITS) - 1);
 
 	/* Set autoinc value read from .cfg file, if one was specified.
-	Otherwise, keep the PAGE_ROOT_AUTO_INC as is. */
-	if (autoinc) {
-		ib::info() << table->name << " autoinc value set to "
-			<< autoinc;
-
-		table->autoinc = autoinc--;
-		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
-	}
+	Otherwise, read the PAGE_ROOT_AUTO_INC and set it to table autoinc. */
+	row_import_autoinc(table, prebuilt, autoinc);
 
 	return row_import_cleanup(prebuilt, err);
 }

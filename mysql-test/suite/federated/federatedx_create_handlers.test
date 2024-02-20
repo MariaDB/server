@@ -95,12 +95,9 @@ DEFAULT CHARSET=latin1;
 INSERT INTO federated.t3 VALUES
   ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
 
-#Enable after fix MDEV-31361
---disable_ps2_protocol
 SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
---enable_ps2_protocol
 
 EXPLAIN
 SELECT *
@@ -358,6 +355,18 @@ use federated;
 SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
   WHERE id=2) dt2) dt;
 
+PREPARE stmt FROM "
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
+  WHERE id=3) dt2) dt;
+";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+EXPLAIN
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
+  WHERE id=3) dt2) dt;
+
 connection slave;
 CREATE TABLE federated.t10 (a INT,b INT);
 CREATE TABLE federated.t11 (a INT, b INT);
@@ -382,6 +391,52 @@ SELECT * FROM t10 LEFT JOIN
   (t11, (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
     WHERE id=2) dt2) dt
   ) ON t10.a=t11.a;
+
+--echo #
+--echo # MDEV-31361: Second execution of PS for query with derived table
+--echo #
+
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t1 VALUES
+  (3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+use federated;
+
+let $q=
+SELECT * FROM
+  (SELECT * FROM
+    (SELECT * FROM
+        (SELECT * FROM t1 where id>3) dt3
+      WHERE id>3) dt2
+  ) dt;
+
+eval $q;
+
+eval PREPARE stmt FROM "$q";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 
 set global federated_pushdown=0;
 

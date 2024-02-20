@@ -47,6 +47,12 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <stdlib.h>
 #include <string.h>
 #include <limits>
+#ifdef HAVE_PWD_H
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <pwd.h>
+#endif
 #include "common.h"
 #include "xtrabackup.h"
 #include "srv0srv.h"
@@ -65,7 +71,6 @@ char tool_args[2048];
 ulong mysql_server_version;
 
 /* server capabilities */
-bool have_changed_page_bitmaps = false;
 bool have_backup_locks = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
@@ -92,11 +97,54 @@ MYSQL *mysql_connection;
 
 extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
 
+
+/*
+  get_os_user()
+  Ressemles read_user_name() from libmariadb/libmariadb/mariadb_lib.c.
+*/
+
+#if !defined(_WIN32)
+
+#if defined(HAVE_GETPWUID) && defined(NO_GETPWUID_DECL)
+struct passwd *getpwuid(uid_t);
+char* getlogin(void);
+#endif
+
+static const char *get_os_user() // Posix
+{
+  if (!geteuid())
+    return "root";
+#ifdef HAVE_GETPWUID
+  struct passwd *pw;
+  const char *str;
+  if ((pw= getpwuid(geteuid())) != NULL)
+    return pw->pw_name;
+  if ((str= getlogin()) != NULL)
+    return str;
+#endif
+  if ((str= getenv("USER")) ||
+      (str= getenv("LOGNAME")) ||
+      (str= getenv("LOGIN")))
+    return str;
+  return NULL;
+}
+
+#else
+
+static const char *get_os_user() // Windows
+{
+  return getenv("USERNAME");
+}
+
+#endif // _WIN32
+
+
 MYSQL *
 xb_mysql_connect()
 {
 	MYSQL *connection = mysql_init(NULL);
 	char mysql_port_str[std::numeric_limits<int>::digits10 + 3];
+	const char *user= opt_user ? opt_user : get_os_user();
 
 	sprintf(mysql_port_str, "%d", opt_port);
 
@@ -126,7 +174,7 @@ xb_mysql_connect()
 
 	msg("Connecting to MariaDB server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
-	       opt_user ? opt_user : "not set",
+	       user ? user : "not set",
 	       opt_password ? "set" : "not set",
 	       opt_port != 0 ? mysql_port_str : "not set",
 	       opt_socket ? opt_socket : "not set");
@@ -147,7 +195,7 @@ xb_mysql_connect()
 
 	if (!mysql_real_connect(connection,
 				opt_host ? opt_host : "localhost",
-				opt_user,
+				user,
 				opt_password,
 				"" /*database*/, opt_port,
 				opt_socket, 0)) {
@@ -512,24 +560,6 @@ Query the server to find out what backup capabilities it supports.
 bool
 detect_mysql_capabilities_for_backup()
 {
-	const char *query = "SELECT 'INNODB_CHANGED_PAGES', COUNT(*) FROM "
-				"INFORMATION_SCHEMA.PLUGINS "
-			    "WHERE PLUGIN_NAME LIKE 'INNODB_CHANGED_PAGES'";
-	char *innodb_changed_pages = NULL;
-	mysql_variable vars[] = {
-		{"INNODB_CHANGED_PAGES", &innodb_changed_pages}, {NULL, NULL}};
-
-	if (xtrabackup_incremental) {
-
-		read_mysql_variables(mysql_connection, query, vars, true);
-
-		ut_ad(innodb_changed_pages != NULL);
-
-		have_changed_page_bitmaps = (atoi(innodb_changed_pages) == 1);
-
-		free_mysql_variables(vars);
-	}
-
 	/* do some sanity checks */
 	if (opt_galera_info && !have_galera_enabled) {
 		msg("--galera-info is specified on the command "
@@ -1881,18 +1911,6 @@ select_history()
 	}
 	return(true);
 }
-
-bool
-flush_changed_page_bitmaps()
-{
-	if (xtrabackup_incremental && have_changed_page_bitmaps &&
-	    !xtrabackup_incremental_force_scan) {
-		xb_mysql_query(mysql_connection,
-			"FLUSH NO_WRITE_TO_BINLOG CHANGED_PAGE_BITMAPS", false);
-	}
-	return(true);
-}
-
 
 /*********************************************************************//**
 Deallocate memory, disconnect from server, etc.

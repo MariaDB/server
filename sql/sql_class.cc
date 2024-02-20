@@ -5706,6 +5706,40 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
   return &thd->mdl_context;
 }
 
+/**
+  Send check/repair message to the user
+
+  @param op            one of check or repair
+  @param msg_type      one of info, warning or error
+  @param print_to_log  <> 0 if we should also print the message to error log.
+*/
+
+extern "C" void
+print_check_msg(THD *thd, const char *db_name, const char *table_name, const char *op,
+                const char *msg_type, const char *message, my_bool print_to_log)
+{
+  char name[NAME_LEN * 2 + 2];
+  Protocol *protocol= thd->protocol;
+
+  DBUG_ASSERT(strlen(db_name) <= NAME_LEN);
+  DBUG_ASSERT(strlen(table_name) <= NAME_LEN);
+
+  size_t length= size_t(strxnmov(name, sizeof name - 1,
+                                 db_name, ".", table_name, NullS) -
+                        name);
+  protocol->prepare_for_resend();
+  protocol->store(name, length, system_charset_info);
+  protocol->store(op, strlen(op), system_charset_info);
+  protocol->store(msg_type, strlen(msg_type), system_charset_info);
+  protocol->store(message, strlen(message), system_charset_info);
+  if (protocol->write())
+    sql_print_error("Failed on my_net_write, writing to stderr instead: %s: %s\n",
+                    table_name, message);
+  else if (thd->variables.log_warnings > 2 && print_to_log)
+    sql_print_error("%s: table '%s' got '%s' during %s",
+                    msg_type, table_name, message, op);
+}
+
 
 /****************************************************************************
   Handling of statement states in functions and triggers.

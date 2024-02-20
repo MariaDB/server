@@ -2803,6 +2803,42 @@ drop table t1, t2;
 drop view v1;
 drop procedure aproc;
 
+--echo #
+--echo # MDEV-31305: Aggregation over materialized derived table
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE VIEW v AS
+  SELECT seq1.seq AS dim1, seq2.seq AS dim2, seq3.seq AS dim3,
+         FLOOR(RAND(13) * 5) AS p
+    FROM seq_100_to_105 seq1
+         JOIN seq_10_to_15 seq2
+         JOIN seq_1_to_5 seq3;
+
+SELECT v.*, SUM(p) from v;
+
+SELECT d.*, SUM(p)
+  FROM (
+  SELECT seq1.seq AS dim1, seq2.seq AS dim2, seq3.seq AS dim3,
+         FLOOR(RAND(13) * 5) AS p
+    FROM seq_100_to_105 seq1
+         JOIN seq_10_to_15 seq2
+         JOIN seq_1_to_5 seq3
+) d;
+
+WITH demo AS
+(
+  SELECT seq1.seq AS dim1, seq2.seq AS dim2, seq3.seq AS dim3,
+         FLOOR(RAND(13) * 5) AS p
+    FROM seq_100_to_105 seq1
+         JOIN seq_10_to_15 seq2
+         JOIN seq_1_to_5 seq3
+)
+SELECT d.*, SUM(p) FROM demo d;
+
+DROP VIEW v;
+
 --echo # End of 10.4 tests
 
 --echo #

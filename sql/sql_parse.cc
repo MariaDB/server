@@ -4649,10 +4649,15 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if ((res= insert_precheck(thd, all_tables)))
       break;
+
 #ifdef WITH_WSREP
-    if (WSREP(thd) && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    bool wsrep_toi= false;
+    const bool wsrep= WSREP(thd);
+
+    if (wsrep && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
+      wsrep_toi= true;
       WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
     }
 #endif /* WITH_WSREP */
@@ -4687,6 +4692,27 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
+
+#ifdef WITH_WSREP
+      if (wsrep && !first_table->view)
+      {
+        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+
+        // For consistency check inserted table needs to be InnoDB
+        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              HA_ERR_UNSUPPORTED,
+                              "Galera cluster does support consistency check only"
+                              " for InnoDB tables.");
+          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+        }
+
+        // For !InnoDB we start TOI if it is not yet started and hope for the best
+        if (!is_innodb && !wsrep_toi)
+          WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+      }
+#endif /* WITH_WSREP */
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.

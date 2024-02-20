@@ -38,11 +38,11 @@ SELECT COUNT(1) FROM t2;
 COUNT(1)
 2048
 SELECT COUNT(1) FROM t2,t1 where t2.a = t1.a;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 SELECT COUNT(1) FROM t1 where b = 'ab';
-ERROR HY000: Table test/t1 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 SELECT COUNT(1) FROM t1;
-ERROR HY000: Table test/t1 is corrupted. Please drop the table and recreate.
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 
 # Start server with keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt

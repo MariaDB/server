@@ -233,7 +233,14 @@ static void insert_imported(buf_block_t *block)
   if (block->page.oldest_modification() <= 1)
   {
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
-    const lsn_t lsn= log_sys.last_checkpoint_lsn;
+    /* For unlogged mtrs (MTR_LOG_NO_REDO), we use the current system LSN. The
+    mtr that generated the LSN is either already committed or in mtr_t::commit.
+    Shared latch and relaxed atomics should be fine here as it is guaranteed
+    that both the current mtr and the mtr that generated the LSN would have
+    added the dirty pages to flush list before we access the minimum LSN during
+    checkpoint. log_checkpoint_low() acquires exclusive log_sys.latch before
+    commencing. */
+    const lsn_t lsn= log_sys.get_lsn();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_pool.insert_into_flush_list
       (buf_pool.prepare_insert_into_flush_list(lsn), block, lsn);
@@ -511,10 +518,8 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 /** Set create_lsn. */
 inline void fil_space_t::set_create_lsn(lsn_t lsn)
 {
-#ifndef SUX_LOCK_GENERIC
   /* Concurrent log_checkpoint_low() must be impossible. */
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch.have_wr());
   create_lsn= lsn;
 }
 

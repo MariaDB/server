@@ -318,7 +318,6 @@ struct fil_space_t final
   ~fil_space_t()
   {
     ut_ad(!latch_owner);
-    ut_ad(!latch_count);
     latch.destroy();
   }
 
@@ -382,9 +381,9 @@ private:
   /** The reference count */
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
   /** latch protecting all page allocation bitmap pages */
-  srw_lock latch;
+  IF_DBUG(srw_lock_debug, srw_lock) latch;
+  /** the thread that holds the exclusive latch, or 0 */
   pthread_t latch_owner;
-  ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
   /** MariaDB encryption data */
   fil_space_crypt_t *crypt_data;
@@ -977,40 +976,32 @@ public:
                                      bool recheck, bool encrypt);
 
 #ifdef UNIV_DEBUG
-  bool is_latched() const { return latch_count != 0; }
+  bool is_latched() const { return latch.have_any(); }
 #endif
-  bool is_owner() const { return latch_owner == pthread_self(); }
+  bool is_owner() const
+  {
+    const bool owner{latch_owner == pthread_self()};
+    ut_ad(owner == latch.have_wr());
+    return owner;
+  }
   /** Acquire the allocation latch in exclusive mode */
   void x_lock()
   {
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
     latch_owner= pthread_self();
-    ut_ad(!latch_count.fetch_add(1));
   }
   /** Release the allocation latch from exclusive mode */
   void x_unlock()
   {
-    ut_ad(latch_count.fetch_sub(1) == 1);
     ut_ad(latch_owner == pthread_self());
     latch_owner= 0;
     latch.wr_unlock();
   }
   /** Acquire the allocation latch in shared mode */
-  void s_lock()
-  {
-    ut_ad(!is_owner());
-    latch.rd_lock(SRW_LOCK_CALL);
-    ut_ad(!latch_owner);
-    ut_d(latch_count.fetch_add(1));
-  }
+  void s_lock() { latch.rd_lock(SRW_LOCK_CALL); }
   /** Release the allocation latch from shared mode */
-  void s_unlock()
-  {
-    ut_ad(latch_count.fetch_sub(1));
-    ut_ad(!latch_owner);
-    latch.rd_unlock();
-  }
+  void s_unlock() { latch.rd_unlock(); }
 
   typedef span<const char> name_type;
 

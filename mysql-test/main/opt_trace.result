@@ -1790,6 +1790,12 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                 }
               }
             ]
+          },
+          {
+            "prepare_sum_aggregators": {
+              "function": "min(t1.d)",
+              "aggregator_type": "simple"
+            }
           }
         ]
       }
@@ -2010,6 +2016,18 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
           },
           {
             "test_if_skip_sort_order": []
+          },
+          {
+            "prepare_sum_aggregators": {
+              "function": "min(t1.a)",
+              "aggregator_type": "simple"
+            }
+          },
+          {
+            "prepare_sum_aggregators": {
+              "function": "max(t1.a)",
+              "aggregator_type": "simple"
+            }
           }
         ]
       }
@@ -12237,6 +12255,25 @@ JS
 ]
 drop table t1,t2,t3,t10,t11;
 set optimizer_trace=DEFAULT;
+#
+# MDEV-29179 Condition pushdown from HAVING into WHERE is not shown in optimizer trace
+#
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY (a), KEY(b,a)) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (4,'n'),(1,'h'),(NULL,'w');
+SET optimizer_trace= 'enabled=on';
+SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
+b	a
+h	1
+n	4
+SELECT json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') ) exp1, JSON_VALID(trace) exp2 FROM information_schema.optimizer_trace;
+exp1	exp2
+[
+    {
+        "conds": "(t1.b <> 'p' or multiple equal(4, t1.a)) and t1.a <= 7",
+        "having": null
+    }
+]	1
+DROP TABLE t1;
 #
 # End of 10.4 tests
 #

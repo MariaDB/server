@@ -98,7 +98,6 @@ endif
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
-	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DCONC_DEFAULT_CHARSET=utf8mb4 \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \

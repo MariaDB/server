@@ -25,7 +25,7 @@ IF(NOT WITHOUT_SERVER)
     INSTALL_MANPAGES(Server
       wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
       wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1
-      galera_new_cluster.1)
+      galera_new_cluster.1 wsrep_sst_backup.1)
   ENDIF()
 ENDIF()
 INSTALL_MANPAGES(Client

@@ -186,7 +186,7 @@ public:
       char buff[100];
       /* Clear the signal message */
 #ifndef _WIN32
-      read(local_read_signal, buff, sizeof(buff));
+      (void) !read(local_read_signal, buff, sizeof(buff));
 #else
       recv(local_read_signal, buff, sizeof(buff), 0);
 #endif /* _WIN32 */

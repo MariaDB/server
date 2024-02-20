@@ -1,0 +1,16 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+SET GLOBAL wsrep_ignore_apply_errors=0;
+SET SESSION AUTOCOMMIT=0;
+SET SESSION max_error_count=0;
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t0 (id GEOMETRY,parent_id GEOMETRY)ENGINE=SEQUENCE;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t0;
+
+--connection node_1
+SET GLOBAL wsrep_ignore_apply_errors=DEFAULT;
+
