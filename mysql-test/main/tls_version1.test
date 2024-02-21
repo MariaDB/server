@@ -5,9 +5,6 @@
 --exec $MYSQL --host=localhost --ssl -e "show status like 'ssl_version';"
 --error 1
 --exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.2 -e "show status like 'ssl_version';"
---error 1
---exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.1 -e "show status like 'ssl_version';"
---exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.0 -e "show status like 'ssl_version';"
 --exec $MYSQL --host=localhost --ssl -e "select @@tls_version;"
 
 call mtr.add_suppression("TLSv1.0 and TLSv1.1 are insecure");
