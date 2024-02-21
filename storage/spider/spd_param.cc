@@ -2042,7 +2042,7 @@ SPIDER_THDVAR_VALUE_FUNC(uint, internal_xa_id_type)
  */
 static MYSQL_THDVAR_INT(
   casual_read, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Read casually if it is possible", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
