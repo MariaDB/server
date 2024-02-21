@@ -1,0 +1,44 @@
+--source include/not_embedded.inc
+-- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
+
+--echo #
+--echo # MDEV-33526: Create IS.slave_status table
+--echo #             as alias for show slave status command
+--echo #
+
+connection slave;
+
+--echo # Check values between show slave hosts an IS.replica_status
+let $is_slave_status_fields= Connection_name, Slave_SQL_State, Slave_IO_State, Master_Host, Master_User, Master_Port, Connect_Retry, Master_Log_File, Read_Master_Log_Pos, Relay_Log_File, Relay_Log_Pos;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Relay_Master_Log_File, Slave_IO_Running, Slave_SQL_Running, Replicate_Rewrite_DB, Replicate_Do_DB, Replicate_Ignore_DB, Replicate_Do_Table, Replicate_Ignore_Table, Replicate_Wild_Do_Table, Replicate_Wild_Ignore_Table;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Last_Errno, Last_Error, Skip_Counter, Exec_Master_Log_Pos, Relay_Log_Space, Until_Condition, Until_Log_File, Until_Log_Pos;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Master_SSL_Allowed, Master_SSL_CA_File, Master_SSL_CA_Path, Master_SSL_Cert, Master_SSL_Cipher, Master_SSL_Key;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Seconds_Behind_Master, Last_IO_Errno, Last_IO_Error;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Last_SQL_Errno, Last_SQL_Error, Replicate_Ignore_Server_Ids;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Master_Server_Id, Master_SSL_Crl, Master_SSL_Crlpath, Using_Gtid;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Gtid_IO_Pos, Replicate_Ignore_Domain_Ids, Parallel_Mode, SQL_Delay;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+let $is_slave_status_fields= Slave_SQL_Running_State, Slave_DDL_Groups, Slave_Non_Transactional_Groups, Slave_Transactional_Groups;
+--source include/check_show_slave_status_and_is_slave_status.inc
+
+# SQL_Remaining_Delay cannot be tested (returns NULL - Empty variable)
+# Master_SSL_Verify_Server_Cert cannot be tested - parser error
+
+-- source include/rpl_end.inc
+# end of 11.4 tests
