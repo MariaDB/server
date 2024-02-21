@@ -67,6 +67,12 @@ insert into t values (6);
 --let $diff_tables=server_2:test.t,server_3:m2_test.t
 --source include/diff_tables.inc
 
+--echo #
+--echo # MDEV-33526: Create IS.slave_status table
+--echo #             as alias for show slave status command
+--echo #
+
+select Connection_name, Replicate_Rewrite_DB from information_schema.slave_status;
 
 --echo #
 --echo # Cleanup

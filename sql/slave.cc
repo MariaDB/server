@@ -3138,21 +3138,6 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
   DBUG_VOID_RETURN;
 }
 
-/* Text for Slave_IO_Running */
-static const LEX_CSTRING slave_running[]=
-{
-  { STRING_WITH_LEN("No") },
-  { STRING_WITH_LEN("Connecting") },
-  { STRING_WITH_LEN("Preparing") },
-  { STRING_WITH_LEN("Yes") }
-};
-
-static const LEX_CSTRING msg_yes= { STRING_WITH_LEN("Yes") };
-static const LEX_CSTRING msg_no=  { STRING_WITH_LEN("No") };
-#ifndef HAVE_OPENSSL
-static const LEX_CSTRING msg_ignored=  { STRING_WITH_LEN("Ignored") };
-#endif
-
 
 static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                                        String *gtid_pos)
@@ -3337,7 +3322,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store_string_or_null(mi->rli.last_error().message,
                                    &my_charset_bin);
     // Replicate_Ignore_Server_Ids
-    prot_store_ids(thd, &mi->ignore_server_ids);
+    prot_store_ids(thd, &mi->ignore_server_ids, NULL);
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
     // SQL_Delay
@@ -3355,7 +3340,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     }
 
     // Replicate_Do_Domain_Ids & Replicate_Ignore_Domain_Ids
-    mi->domain_id_filter.store_ids(thd);
+    mi->domain_id_filter.store_ids(thd, NULL);
 
     // Parallel_Mode
     {
