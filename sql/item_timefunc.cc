@@ -2142,7 +2142,7 @@ bool Item_extract::fix_length_and_dec()
   switch (int_type) {
   case INTERVAL_YEAR:             set_date_length(4); break; // YYYY
   case INTERVAL_YEAR_MONTH:       set_date_length(6); break; // YYYYMM
-  case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
+  case INTERVAL_QUARTER:          set_date_length(1); break; // 1..4
   case INTERVAL_MONTH:            set_date_length(2); break; // MM
   case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
   case INTERVAL_DAY:              set_day_length(daylen); break; // DD

@@ -1205,6 +1205,21 @@ bool Item_sum_hybrid::fix_length_and_dec_numeric(const Type_handler *handler)
 }
 
 
+bool Item_sum_hybrid::fix_length_and_dec_sint_ge0()
+{
+  // We don't have Item_field's of "ge0" type handlers.
+  DBUG_ASSERT(args[0]->real_item()->type() != FIELD_ITEM);
+  Type_std_attributes::set(args[0]);
+  /*
+    We're converting from e.g. slong_ge0 to slonglong
+    and need to add one extra character for the sign.
+  */
+  max_length++;
+  set_handler(&type_handler_slonglong);
+  return false;
+}
+
+
 /**
    MAX(str_field) converts ENUM/SET to CHAR, and preserve all other types
    for Fields.

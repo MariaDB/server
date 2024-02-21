@@ -5758,6 +5758,38 @@ public:
 };
 
 
+/*
+  The expression of this type reports itself as signed,
+  however it's known not to return negative values.
+  Items of this data type count only digits in Item::max_length,
+  without adding +1 for the sign. This allows expressions
+  of this type convert nicely to VARCHAR and DECIMAL.
+  For example, YEAR(now()) is:
+  - VARCHAR(4) in a string context
+  - DECIMAL(4,0) in a decimal context
+  - but INT(5) in an integer context
+*/
+class Type_handler_long_ge0: public Type_handler_long
+{
+public:
+  uint Item_decimal_precision(const Item *item) const override;
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *item)
+                                           const override;
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item)
+                                             const override;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const override;
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
+};
+
+
 class Type_handler_ulong: public Type_handler_long
 {
 public:
@@ -7598,6 +7630,7 @@ extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_tiny>        type_han
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_short>       type_handler_sshort;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_int24>       type_handler_sint24;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long>        type_handler_slong;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_ge0>    type_handler_slong_ge0;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
 
 extern Named_type_handler<Type_handler_utiny>       type_handler_utiny;
