@@ -555,7 +555,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   space.clear_freed_ranges();
 
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
-  log_write_and_flush();
+  lsn_t pending_lsn= log_write_and_flush();
 #ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
 #endif
@@ -628,6 +628,8 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 
   release();
   release_resources();
+  if (pending_lsn)
+    log_buffer_flush_to_disk_async();
 }
 
 /** Commit a mini-transaction that is deleting or renaming a file.
@@ -678,8 +680,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
   /* Durably write the log for the file system operation. */
-  log_write_and_flush();
-
+  if (log_write_and_flush()) abort(); // FIXME
   log_sys.latch.wr_unlock();
   m_latch_ex= false;
 

@@ -2014,7 +2014,41 @@ os_file_create_func(
 		? FILE_FLAG_OVERLAPPED : 0;
 
 	if (type == OS_LOG_FILE) {
+<<<<<<< HEAD
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {
+||||||| 10d9b890b0f
+		if(srv_flush_log_at_trx_commit != 2 && !log_sys.is_opened())
+			attributes|= FILE_FLAG_NO_BUFFERING;
+		if (srv_file_flush_method == SRV_O_DSYNC)
+			attributes|= FILE_FLAG_WRITE_THROUGH;
+	}
+	else if (type == OS_DATA_FILE)
+	{
+		switch (srv_file_flush_method)
+		{
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_NOSYNC:
+			break;
+		default:
+=======
+		ut_a(read_only || srv_thread_pool);
+		attributes|= FILE_FLAG_OVERLAPPED;
+		if(srv_flush_log_at_trx_commit != 2 && !log_sys.is_opened())
+			attributes|= FILE_FLAG_NO_BUFFERING;
+		if (srv_file_flush_method == SRV_O_DSYNC)
+			attributes|= FILE_FLAG_WRITE_THROUGH;
+	}
+	else if (type == OS_DATA_FILE)
+	{
+		switch (srv_file_flush_method)
+		{
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_NOSYNC:
+			break;
+		default:
+>>>>>>> fbf8646335280150a6ecf5727effb1a719f26b22
 			attributes|= FILE_FLAG_NO_BUFFERING;
 		}
 		if (log_sys.log_write_through)
@@ -3351,7 +3385,9 @@ int os_aio_init()
                             OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_read_events= int(srv_n_read_io_threads *
                            OS_AIO_N_PENDING_IOS_PER_THREAD);
-  int max_events= max_read_events + max_write_events;
+  /* Count one extra aiocb for innodb async redo writes, which
+  bypasses the slots. */
+  int max_events= max_read_events + max_write_events + 1;
   int ret;
 #if LINUX_NATIVE_AIO
   if (srv_use_native_aio && !is_linux_native_aio_supported())

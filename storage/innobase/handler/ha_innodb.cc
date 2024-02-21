@@ -1718,6 +1718,7 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	MYSQL_THD thd= create_background_thd();
 	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
+	ut_ad(!thd_get_thread_id(thd));
 	return thd;
 }
 

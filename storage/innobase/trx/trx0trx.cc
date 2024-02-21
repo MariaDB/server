@@ -1244,9 +1244,6 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   ut_ad(srv_flush_log_at_trx_commit);
   ut_ad(trx->state != TRX_STATE_PREPARED);
 
-  if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
-    return;
-
   const bool flush=
     (!my_disable_sync &&
      (srv_flush_log_at_trx_commit & 1));
