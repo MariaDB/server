@@ -1214,6 +1214,7 @@ os_file_create_func(
 	}
 #else
 	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
+	constexpr int direct_flag = 0;
 #endif
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
