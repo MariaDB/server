@@ -2372,11 +2372,8 @@ create view v1 as select * from t1
   left join ( select 'Y' AS Voted, ElectionID from t2 ) AS T 
     on T.ElectionID = t1.Election
 limit 9;
-#enable after fix MDEV-31277
---disable_ps2_protocol
 # limit X causes merge algorithm select as opposed to temp table
 select * from v1;
---enable_ps2_protocol
 drop table t1, t2;
 drop view v1;
 
@@ -2391,10 +2388,7 @@ create view v10 as select *, 'U' as u from t10 left join (select 'Y' as y, t20.b
 create table t30 (c int);
 insert into t30 values (1),(3);
 create view v20 as select * from t30 left join (select 'X' as x, v10.u, v10.y, v10.b from v10) dt2 on t30.c=dt2.b limit 6;
-#check after fix MDEV-31277
---disable_ps2_protocol
 select * from v20 limit 9;
---enable_ps2_protocol
 drop view v10, v20;
 drop table t10, t20, t30;
 
@@ -2408,8 +2402,6 @@ insert into t3 values (3),(1);
 create table t1 (a int);
 insert into t1 values (1),(2),(7),(1);
 
-#check after fix MDEV-31277
---disable_ps2_protocol
 select * from
 (
   select * from
@@ -2422,7 +2414,6 @@ select * from
     on dt1.a=dt2.b
   limit 9
 ) dt;
---enable_ps2_protocol
 
 ## Same as dt3 above
 create view v3(x,c) as select * from (select 'X' as x, t3.c from t3) dt3;
@@ -2436,10 +2427,7 @@ create view v0(y,b,x,c) as select * from v2 left join v3 on v2.b=v3.c;
 # Same as above select statement
 create view v1 as  select 'Z' as z, t1.a, v0.*  from t1 left join v0 on t1.a=v0.b limit 9;
 
-#check after fix MDEV-31277
---disable_ps2_protocol
 select * from v1;
---enable_ps2_protocol
 
 set statement join_cache_level=0 for
 select * from v1;

@@ -5876,6 +5876,8 @@ class Item_direct_view_ref :public Item_direct_ref
     if (!view->is_inner_table_of_outer_join() ||
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
+    if (null_ref_table && null_ref_table != NO_NULL_TABLE)
+	maybe_null= true;
   }
 
   bool check_null_ref()
