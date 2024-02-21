@@ -1488,7 +1488,7 @@ protected:
     Priority queue of Ordered_key indexes, one per NULLable column.
     This queue is used by the partial match algorithm in method exec().
   */
-  Queue<Ordered_key, Ordered_key> pq;
+  Queue<Ordered_key> pq;
 protected:
   /*
     Comparison function to compare keys in order of decreasing bitmap
