@@ -2096,7 +2096,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                          Table_specification_st *create_info_arg,
                          enum_with_db_name with_db_name)
 {
-  List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, def_value_buf[MAX_FIELD_WIDTH];
   LEX_CSTRING alias;
   String type;
