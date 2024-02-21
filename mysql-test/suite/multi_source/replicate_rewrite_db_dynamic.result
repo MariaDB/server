@@ -41,6 +41,14 @@ include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.t,server_3:m1_test.t]
 include/diff_tables.inc [server_2:test.t,server_3:m2_test.t]
 #
+# MDEV-33526: Create IS.slave_status table
+#             as alias for show slave status command
+#
+select Connection_name, Replicate_Rewrite_DB from information_schema.slave_status;
+Connection_name	Replicate_Rewrite_DB
+m2	test->m2_test
+m1	test->m1_test
+#
 # Cleanup
 connection server_1;
 DROP TABLE t;

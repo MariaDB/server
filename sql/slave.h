@@ -57,6 +57,21 @@
 
 #define MAX_REPLICATION_THREAD 64
 
+/* Text for Slave_IO_Running */
+static const LEX_CSTRING slave_running[]=
+{
+  { STRING_WITH_LEN("No") },
+  { STRING_WITH_LEN("Connecting") },
+  { STRING_WITH_LEN("Preparing") },
+  { STRING_WITH_LEN("Yes") }
+};
+
+static const LEX_CSTRING msg_yes= { STRING_WITH_LEN("Yes") };
+static const LEX_CSTRING msg_no=  { STRING_WITH_LEN("No") };
+#ifndef HAVE_OPENSSL
+static const LEX_CSTRING msg_ignored=  { STRING_WITH_LEN("Ignored") };
+#endif
+
 // Forward declarations
 class Relay_log_info;
 class Master_info;
