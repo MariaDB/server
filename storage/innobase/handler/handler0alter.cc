@@ -2815,6 +2815,14 @@ cannot_create_many_fulltext_index:
 		}
 	}
 
+	if (m_prebuilt->table->is_stats_table()) {
+		if (ha_alter_info->online) {
+			ha_alter_info->unsupported_reason =
+				table_share->table_name.str;
+		}
+		online= false;
+	}
+
 	// FIXME: implement Online DDL for system-versioned operations
 	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
 		if (ha_alter_info->online) {
