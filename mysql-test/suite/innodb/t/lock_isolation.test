@@ -1,0 +1,33 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-32898 Phantom rows caused by updates of PRIMARY KEY
+--echo #
+
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,1),(2,2);
+BEGIN; SELECT * FROM t LOCK IN SHARE MODE;
+--connect con1,localhost,root
+BEGIN;
+SELECT * FROM t;
+--connect con2,localhost,root
+SET innodb_strict_isolation=ON;
+BEGIN;
+SELECT * FROM t;
+--connection default
+UPDATE t SET a=3 WHERE b=2;
+COMMIT;
+--connection con2
+--error ER_CHECKREAD
+UPDATE t SET b=3;
+SELECT * FROM t;
+COMMIT;
+--disconnect con2
+--connection con1
+UPDATE t SET b=3;
+SELECT * FROM t;
+COMMIT;
+--disconnect con1
+--connection default
+SELECT * FROM t;
+DROP TABLE t;

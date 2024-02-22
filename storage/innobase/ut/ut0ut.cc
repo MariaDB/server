@@ -312,14 +312,16 @@ ut_strerr(
 		return("Lock wait");
 	case DB_DEADLOCK:
 		return("Deadlock");
+	case DB_RECORD_CHANGED:
+		return("Record changed");
+#ifdef WITH_WSREP
 	case DB_ROLLBACK:
 		return("Rollback");
+#endif
 	case DB_DUPLICATE_KEY:
 		return("Duplicate key");
 	case DB_MISSING_HISTORY:
 		return("Required history data has been deleted");
-	case DB_CLUSTER_NOT_FOUND:
-		return("Cluster not found");
 	case DB_TABLE_NOT_FOUND:
 		return("Table not found");
 	case DB_TOO_BIG_RECORD:

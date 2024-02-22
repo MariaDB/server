@@ -370,6 +370,12 @@ row_search_index_entry(
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Get the byte offset of the DB_TRX_ID column
+@param[in]	rec	clustered index record
+@param[in]	index	clustered index
+@return	the byte offset of DB_TRX_ID, from the start of rec */
+ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index);
+
 #define ROW_COPY_DATA		1
 #define ROW_COPY_POINTERS	2
 

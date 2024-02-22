@@ -695,6 +695,7 @@ handle_new_error:
 		DBUG_RETURN(true);
 
 	case DB_DEADLOCK:
+	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added

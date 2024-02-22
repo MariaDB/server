@@ -1,0 +1,50 @@
+#
+# MDEV-32898 Phantom rows caused by updates of PRIMARY KEY
+#
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,1),(2,2);
+BEGIN;
+SELECT * FROM t LOCK IN SHARE MODE;
+a	b
+1	1
+2	2
+connect con1,localhost,root;
+BEGIN;
+SELECT * FROM t;
+a	b
+1	1
+2	2
+connect con2,localhost,root;
+SET innodb_strict_isolation=ON;
+BEGIN;
+SELECT * FROM t;
+a	b
+1	1
+2	2
+connection default;
+UPDATE t SET a=3 WHERE b=2;
+COMMIT;
+connection con2;
+UPDATE t SET b=3;
+ERROR HY000: Record has changed since last read in table 't'
+SELECT * FROM t;
+a	b
+1	1
+3	2
+COMMIT;
+disconnect con2;
+connection con1;
+UPDATE t SET b=3;
+SELECT * FROM t;
+a	b
+1	3
+2	2
+3	3
+COMMIT;
+disconnect con1;
+connection default;
+SELECT * FROM t;
+a	b
+1	3
+3	3
+DROP TABLE t;
