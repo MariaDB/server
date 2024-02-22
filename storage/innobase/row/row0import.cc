@@ -2213,6 +2213,7 @@ row_import_cleanup(row_prebuilt_t* prebuilt,
 
 		if (err == DB_SUCCESS) {
 			reload_fts_table(prebuilt, fts_table);
+			table= prebuilt->table;
 			ib::warn() << "Added system generated FTS_DOC_ID "
 				   "and FTS_DOC_ID_INDEX while importing "
 				   "the tablespace " << prebuilt->table->name;
