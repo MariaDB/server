@@ -36,11 +36,6 @@ const LEX_CSTRING mhnsw_hlindex_table={STRING_WITH_LEN("\
     index (layer, src, dst))                            \
 ")};
 
-static void store_ref(TABLE *t, handler *h, uint n)
-{
-  t->field[n]->store((char*)h->ref, h->ref_length, &my_charset_bin);
-}
-
 
 class FVectorRef
 {
@@ -81,7 +76,7 @@ public:
     ref_len= ref_length;
     vec_len= vec_length;
     memcpy(this->ref, ref, ref_len);
-    memcpy(this->vec, vec, vec_len);
+    memcpy(this->vec, vec, vec_len * sizeof(float));
     return false;
   }
 
@@ -122,22 +117,23 @@ public:
   {
     if (!inited)
     {
+      graph->field[0]->store(layer, true);
       graph->field[1]->store_binary(
           reinterpret_cast<const char *>(src.get_ref()),
           src.get_ref_len());
-      graph->field[0]->store(layer, true);
+      graph->field[2]->set_null();
       key_copy(key, graph->record[0],
                graph->key_info, graph->key_info->key_length);
       if ((graph->file->ha_index_read_map(graph->record[0], key,
-                                          HA_WHOLE_KEY,
+                                          (1 | 2),
                                           HA_READ_KEY_EXACT)))
         return nullptr;
       inited= true;
     }
-
-    if (graph->file->ha_index_next_same(graph->record[0], key,
-                                        graph->key_info->key_length))
-      return nullptr;
+    else
+      if (graph->file->ha_index_next_same(graph->record[0], key,
+                                          graph->key_info->key_length))
+        return nullptr;
 
     //TODO This does two memcpys, one should use str's buffer.
     String *str= graph->field[2]->val_str(&strbuf);
@@ -230,13 +226,15 @@ static bool search_layer(TABLE *source,
 
       visited.insert(new_vector);
       const FVector &furthest_best= *best.top();
-      if (target.distance_to(*new_vector) < target.distance_to(furthest_best))
+      if (best.elements() < max_candidates_return)
       {
         candidates.push(new_vector);
-        if (best.elements() == max_candidates_return)
-          best.replace_top(new_vector);
-        else
-          best.push(new_vector);
+        best.push(new_vector);
+      }
+      else if (target.distance_to(*new_vector) < target.distance_to(furthest_best))
+      {
+        best.replace_top(new_vector);
+        candidates.push(new_vector);
       }
     }
   }
@@ -284,15 +282,24 @@ static int connection_exists(TABLE *graph,
   graph->field[2]->store_binary(
     reinterpret_cast<const char *>(dst.get_ref()), dst.get_ref_len());
 
+  key_copy(key, graph->record[0],
+           graph->key_info, graph->key_info->key_length);
+
   int err;
   if ((err= graph->file->ha_index_read_map(graph->record[0], key,
                                            HA_WHOLE_KEY,
                                            HA_READ_KEY_EXACT)))
-    return -1;
+  {
+    if (err != HA_ERR_KEY_NOT_FOUND)
+      return -1;
+    return 0;
+  }
 
+  /*
   if ((err= graph->file->ha_index_next_same(graph->record[0], key,
                                             graph->key_info->key_length)))
     return err == HA_ERR_END_OF_FILE ? 0 : -1;
+  */
   return 1;
 }
 
@@ -369,18 +376,29 @@ static bool get_neighbours(TABLE *source,
            graph->key_info, graph->key_info->key_length);
 
   if ((err= graph->file->ha_index_read_map(graph->record[0], key,
-                                           HA_WHOLE_KEY,
+                                           (1 | 2),
                                            HA_READ_KEY_EXACT)))
-    return true;
+  {
+    if (err != HA_ERR_KEY_NOT_FOUND)
+      return true;
+    return false;
+  }
 
   do
   {
     String ref_str, *ref_ptr;
-    ref_ptr= graph->field[1]->val_str(&ref_str);
-    FVector *start_node= get_fvector_from_source(source, vec_field,
-                                                 {(uchar *)ref_ptr->ptr(),
-                                                 ref_ptr->length()});
-    neighbours->push_back(start_node);
+    ref_ptr= graph->field[2]->val_str(&ref_str);
+    // self-to-self is not needed. TODO(cvicentiu) this link should be
+    // removed when we have other links from src.
+    if (!memcmp(ref_ptr->ptr(),
+                source_node.get_ref(), source_node.get_ref_len()))
+      continue;
+
+    FVector *dst_node= get_fvector_from_source(source, vec_field,
+                                               {(uchar *)ref_ptr->ptr(),
+                                               ref_ptr->length()});
+
+    neighbours->push_back(dst_node);
   } while (!graph->file->ha_index_next_same(graph->record[0], key,
                                             graph->key_info->key_length));
 
@@ -477,16 +495,18 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     }
     // First insert!
     h->position(table->record[0]);
-    store_ref(graph, h, 0);
-    graph->field[0]->store(0); // Base layer
-    err=graph->file->ha_write_row(graph->record[0]);
+    FVectorRef ref{h->ref, h->ref_length};
+    store_link(graph, 0, ref, ref);
+
     h->ha_rnd_end();
     graph->file->ha_index_end();
-    return err;
+    return 0; // TODO (error during store_link)
   }
   else
     max_layer= graph->field[0]->val_int();
+
   FVector target;
+  h->position(table->record[0]);
   target.init(h->ref, h->ref_length,
               reinterpret_cast<const float *>(res->ptr()),
               res->length() / sizeof(float));
@@ -686,7 +706,7 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
     key_copy(key, graph->record[0],
              graph->key_info, graph->key_info->key_length);
     if ((err= graph->file->ha_index_read_map(graph->record[0], key,
-                                             HA_WHOLE_KEY,
+                                             (1 | 2),
                                              HA_READ_KEY_EXACT)))
       return HA_ERR_CRASHED;
 
