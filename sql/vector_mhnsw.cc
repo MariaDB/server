@@ -702,6 +702,10 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
 
     float threshold= result.is_full() ? result.top()->distance : FLT_MAX;
 
+    graph->field[0]->store(0); // TODO: Layer unaware.
+    graph->field[1]->store_binary((const char *)cur->ref,
+                                  table->file->ref_length);
+    graph->field[2]->set_null();
     // 6. add all its [yet unvisited] neighbours to the todo heap
     key_copy(key, graph->record[0],
              graph->key_info, graph->key_info->key_length);
@@ -729,7 +733,8 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
       memcpy(cur->ref, str->ptr(), ref_length);
       todo.push(cur);
       visited.insert(cur);
-    } while (!graph->file->ha_index_next_same(graph->record[0], key, graph->key_info->key_length));
+    } while (!graph->file->ha_index_next_same(graph->record[0], key,
+                                              graph->key_info->key_length));
     // 7. goto 3
   }
 
