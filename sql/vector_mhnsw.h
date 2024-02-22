@@ -24,5 +24,5 @@
 extern const LEX_CSTRING mhnsw_hlindex_table;
 
 int mhnsw_insert(TABLE *table, KEY *keyinfo);
-int mhnsw_first(TABLE *table, Item *dist, ulonglong limit);
+int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
 int mhnsw_next(TABLE *table);

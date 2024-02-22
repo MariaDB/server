@@ -587,26 +587,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     insert_node_connections_on_layer(graph, cur_layer, target, {});
   }
 
-  /*
-  handler *g_handler= h->lookup_handler;
-  uchar *g_buffer= h->lookup_buffer;
-
-
-  if (g_handler->ha_rnd_init(1))
-    return 1;
-  while (! ((err= g_handler->ha_rnd_next(g_buffer))))
-  {
-    g_handler->position(g_buffer);
-    if (graph->field[1]->cmp(g_handler->ref) == 0)
-      continue;
-    store_ref(graph, g_handler, 1);
-    graph->field[0]->store(0); // Always layer 0 for now.
-    if ((err= graph->file->ha_write_row(graph->record[0])))
-      break;
-  }
-  g_handler->ha_rnd_end();
-
-  */
   h->ha_rnd_end();
   graph->file->ha_index_end();
   dbug_tmp_restore_column_map(&table->read_set, old_map);
@@ -621,6 +601,7 @@ struct Node
   uchar ref[1000];
 };
 
+/*
 static int cmp_node_distances(void *, Node *a, Node *b)
 {
   if (a->distance < b->distance)
@@ -629,8 +610,95 @@ static int cmp_node_distances(void *, Node *a, Node *b)
     return 1;
   return 0;
 }
+*/
+
+int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
+{
+  TABLE *graph= table->hlindex;
+  // TODO(cvicentiu) onlye one hlindex now.
+  Field *vec_field= keyinfo->key_part->field;
+  String buf, *res= vec_field->val_str(&buf);
+  FVector target;
+  handler *h= table->file;
+
+  //TODO(scope_exit)
+  int err;
+  if ((err= h->ha_rnd_init(1)))
+    return err;
+
+  if ((err= graph->file->ha_index_init(0, 1)))
+    return err;
+
+  h->position(table->record[0]);
+  target.init(h->ref, h->ref_length,
+              reinterpret_cast<const float *>(res->ptr()),
+              res->length() / sizeof(float));
+
+  List<FVector> candidates;
+  List<FVector> start_nodes;
+
+  longlong max_layer;
+  if ((err= graph->file->ha_index_last(graph->record[0])))
+  {
+    if (err != HA_ERR_END_OF_FILE)
+    {
+      graph->file->ha_index_end();
+      return err;
+    }
+    h->ha_rnd_end();
+    graph->file->ha_index_end();
+    return 0; // TODO (error during store_link)
+  }
+  else
+    max_layer= graph->field[0]->val_int();
+
+  String ref_str, *ref_ptr;
+  ref_ptr= graph->field[1]->val_str(&ref_str);
+  FVector *start_node= get_fvector_from_source(table, vec_field,
+                                               {(uchar *)ref_ptr->ptr(),
+                                               ref_ptr->length()});
+  // TODO(cvicentiu) error checking. Also make sure we use a random start node
+  // in last layer.
+  start_nodes.push_back(start_node);
 
 
+  for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
+  {
+    search_layer(table, vec_field, graph, target, start_nodes, 1,
+                 cur_layer, &candidates);
+    start_nodes.empty();
+    start_nodes.push_back(candidates.head());
+  }
+  search_layer(table, vec_field, graph, target, start_nodes, limit,
+               0, &candidates);
+
+  // 8. return results
+  FVectorRef **context= (FVectorRef**)table->in_use->alloc(
+    sizeof(FVectorRef**)*candidates.elements + 1);
+  graph->context= context;
+
+  FVectorRef **ptr= context + candidates.elements;
+  *ptr= 0;
+  while (candidates.elements)
+    *--ptr= candidates.pop();
+
+  err= mhnsw_next(table);
+  graph->file->ha_index_end();
+
+  return err;
+}
+
+int mhnsw_next(TABLE *table)
+{
+  FVectorRef ***context= (FVectorRef***)&table->hlindex->context;
+  if (**context)
+    return table->file->ha_rnd_pos(table->record[0],
+                                   (uchar *)(*(*context)++)->get_ref());
+  return HA_ERR_END_OF_FILE;
+}
+
+
+/*
 int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
 {
   TABLE *graph= table->hlindex;
@@ -663,7 +731,6 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
   if (!(str= graph->field[1]->val_str(&strbuf)))
     return HA_ERR_CRASHED;
   int layer= graph->field[0]->val_int();
-  (void) layer;
 
   DBUG_ASSERT(str->length() == ref_length);
 
@@ -749,7 +816,9 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
 
   return mhnsw_next(table);
 }
+*/
 
+/*
 int mhnsw_next(TABLE *table)
 {
   Node ***context= (Node***)&table->hlindex->context;
@@ -757,3 +826,4 @@ int mhnsw_next(TABLE *table)
     return table->file->ha_rnd_pos(table->record[0], (*(*context)++)->ref);
   return HA_ERR_END_OF_FILE;
 }
+*/
