@@ -289,6 +289,7 @@ public:
   virtual int geom_length(double *len, const char **end) const  { return -1; }
   virtual int area(double *ar, const char **end) const { return -1;}
   virtual int is_closed(int *closed) const { return -1; }
+  virtual int is_valid(int *valid) const { return -1; }
   virtual int num_interior_ring(uint32 *n_int_rings) const { return -1; }
   virtual int num_points(uint32 *n_points) const { return -1; }
   virtual int num_geometries(uint32 *num) const { return -1; }
@@ -405,6 +406,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
   bool get_mbr(MBR *mbr, const char **end) const;
+  int is_valid(int *valid) const;
   
   int get_xy(double *x, double *y) const
   {
@@ -478,6 +480,7 @@ public:
   int geom_length(double *len, const char **end) const;
   int area(double *ar, const char **end) const;
   int is_closed(int *closed) const;
+  int is_valid(int *valid) const;
   int num_points(uint32 *n_points) const;
   int start_point(String *point) const;
   int end_point(String *point) const;
@@ -509,6 +512,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
   bool get_mbr(MBR *mbr, const char **end) const;
+  int is_valid(int *valid) const;
   int area(double *ar, const char **end) const;
   int exterior_ring(String *result) const;
   int num_interior_ring(uint32 *n_int_rings) const;
@@ -545,6 +549,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
+  int is_valid(int *valid) const;
   bool get_mbr(MBR *mbr, const char **end) const;
   int num_geometries(uint32 *num) const;
   int geometry_n(uint32 num, String *result) const;
@@ -576,6 +581,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
+  int is_valid(int *valid) const;
   bool get_mbr(MBR *mbr, const char **end) const;
   int num_geometries(uint32 *num) const;
   int geometry_n(uint32 num, String *result) const;
@@ -606,6 +612,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
+  int is_valid(int *valid) const;
   bool get_mbr(MBR *mbr, const char **end) const;
   int num_geometries(uint32 *num) const;
   int geometry_n(uint32 num, String *result) const;
@@ -638,6 +645,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
+  int is_valid(int *valid) const;
   bool get_mbr(MBR *mbr, const char **end) const;
   int area(double *ar, const char **end) const;
   int geom_length(double *len, const char **end) const;
