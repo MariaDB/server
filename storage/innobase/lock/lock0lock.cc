@@ -6450,11 +6450,7 @@ namespace Deadlock
   static void print(const char *msg)
   {
     fputs(msg, lock_latest_err_file);
-    {
-      Slave_retry_file f;
-      if (f)
-        fputs(msg, f);
-    }
+    logger.slave_retry_print_ib("InnoDB: %s", msg);
     if (srv_print_all_deadlocks)
       ib::info() << msg;
   }

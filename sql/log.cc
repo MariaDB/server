@@ -1169,16 +1169,25 @@ bool LOGGER::slave_retry_print(const char *format, va_list args)
 {
   bool res= false;
   if (log_slave_retry == LOG_SLRETR_ON)
-  {
     res= file_log_handler->slave_retry_print(format, args);
-  }
   else if (log_slave_retry == LOG_SLRETR_ERRLOG)
-  {
     res= file_log_handler->log_error(INFORMATION_LEVEL, format, args);
+  return res;
+}
+// InnoDB logs to error log itself, so we don't this for InnoDB
+bool LOGGER::slave_retry_print_ib(const char *format, ...)
+{
+  bool res= false;
+  va_list args;
+  if (log_slave_retry == LOG_SLRETR_ON)
+  {
+    va_start(args, format);
+    res= file_log_handler->slave_retry_print(format, args);
+    va_end(args);
   }
   return res;
 }
-#endif
+#endif /* HAVE_REPLICATION */
 
 
 void LOGGER::cleanup_base()

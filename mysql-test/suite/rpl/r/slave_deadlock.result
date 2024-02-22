@@ -46,7 +46,6 @@ set global slave_retry_log_file= @old_slave_retry_log_file;
 select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
 log	max	file
 OFF	20	MYSQLTEST_VARDIR/log/mysqld.2-retry.log
-set global slave_retry_log= ON;
 include/start_slave.inc
 set global innodb_print_all_deadlocks= on;
 connection server_1;
@@ -94,9 +93,9 @@ connection server_2;
 set global debug_dbug= @old_dbug;
 flush error logs;
 MariaDB thread id x, OS thread handle x, query id x, GTID x-x-x Updating
-*** WAITING FOR THIS LOCK TO BE GRANTED:
+x-x-x x:x:x [Tx] InnoDB: *** WAITING FOR THIS LOCK TO BE GRANTED:
 MariaDB thread id x, OS thread handle x, query id x, GTID x-x-x Updating
-*** WAITING FOR THIS LOCK TO BE GRANTED:
+x-x-x x:x:x [Tx] InnoDB: *** WAITING FOR THIS LOCK TO BE GRANTED:
 x-x-x x:x:x [Tx] [Rx] [SUCCESS] event: x of x log_pos: x GTID: x-x-x query_id: x result: x
 include/stop_slave.inc
 set global slave_parallel_threads= @old_parallel_threads;

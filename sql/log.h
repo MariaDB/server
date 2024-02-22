@@ -1355,7 +1355,8 @@ public:
   }
   bool flush_slave_retry_log();
   void close_slave_retry_log();
-  bool slave_retry_print (const char *format, va_list args);
+  bool slave_retry_print(const char *format, va_list args);
+  bool slave_retry_print_ib(const char *format, ...);
   FILE *acquire_slave_retry_file();
   void release_slave_retry_file();
 #endif

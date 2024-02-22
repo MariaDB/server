@@ -59,7 +59,19 @@ let $logfile= `select @@slave_retry_log_file`;
 set global slave_retry_log_file= @old_slave_retry_log_file;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 select @@slave_retry_log log, @@slave_retry_log_max max, @@slave_retry_log_file file;
-set global slave_retry_log= ON;
+
+--disable_query_log
+if ($MTR_COMBINATION_SLAVE_RETRY_LOG)
+{
+  set global slave_retry_log= ON;
+  let grep_file= `SELECT @@GLOBAL.slave_retry_log_file`;
+}
+if ($MTR_COMBINATION_ERROR_LOG)
+{
+  set global slave_retry_log= ERROR_LOG;
+  let grep_file= `SELECT @@GLOBAL.log_error`;
+}
+--enable_query_log
 
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= on;
@@ -159,10 +171,9 @@ reap;
 set global debug_dbug= @old_dbug;
 flush error logs;
 
-let grep_file= `SELECT @@GLOBAL.slave_retry_log_file`;
 let grep_regex= WAITING|Updating;
 let grep_once= \[SUCCESS\];
---replace_regex /\d+/x/ /  / /
+--replace_regex /\d+/x/ /  / / /\[Note\] //
 --source include/grep.inc
 
 # Cleanup
