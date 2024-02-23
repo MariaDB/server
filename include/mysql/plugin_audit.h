@@ -29,7 +29,7 @@ extern "C" {
 
 #define MYSQL_AUDIT_CLASS_MASK_SIZE 1
 
-#define MYSQL_AUDIT_INTERFACE_VERSION 0x0302
+#define MYSQL_AUDIT_INTERFACE_VERSION 0x0303
 
 
 /*************************************************************************
@@ -102,6 +102,8 @@ struct mysql_event_connection
   const char *ip;
   unsigned int ip_length;
   MYSQL_CONST_LEX_STRING database;
+  const char *tls_version;
+  unsigned int tls_version_length;
 };
 
 /*

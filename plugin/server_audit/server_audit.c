@@ -329,6 +329,8 @@ struct connection_info
   int host_length;
   char ip[64];
   int ip_length;
+  char tls_version[64];
+  int tls_version_length;
   const char *query;
   int query_length;
   char query_buffer[1024];
@@ -965,6 +967,7 @@ static struct connection_info *get_loc_info(MYSQL_THD thd)
     ci->user_length= 0;
     ci->host_length= 0;
     ci->ip_length= 0;
+    ci->tls_version_length= 0;
   }
   return ci;
 }
@@ -1146,6 +1149,7 @@ static void setup_connection_simple(struct connection_info *ci)
   ci->user_length= 0;
   ci->host_length= 0;
   ci->ip_length= 0;
+  ci->tls_version_length= 0;
   ci->query_length= 0;
   ci->header= 0;
   ci->proxy_length= 0;
@@ -1169,6 +1173,8 @@ static void setup_connection_connect(MYSQL_THD thd,struct connection_info *cn,
             event->host, event->host_length);
   get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
             event->ip, event->ip_length);
+  get_str_n(cn->tls_version, &cn->tls_version_length, sizeof(cn->tls_version),
+          event->tls_version, event->tls_version_length);
   cn->header= 0;
   if (event->proxy_user && event->proxy_user[0])
   {
@@ -1335,6 +1341,8 @@ static void change_connection(struct connection_info *cn,
             event->user, event->user_length);
   get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
             event->ip, event->ip_length);
+  get_str_n(cn->tls_version, &cn->tls_version_length, sizeof(cn->tls_version),
+          event->tls_version, event->tls_version_length);
 }
 
 /*
@@ -1418,7 +1426,8 @@ static size_t log_header(char *message, size_t message_len,
         (unsigned int) serverhost_len, serverhost,
         username_len, username,
         host_len, host,
-        connection_id, query_id, operation);
+        connection_id,
+        query_id, operation);
 
   (void) localtime_r(ts, &tm_time);
   return my_snprintf(message, message_len,
@@ -1428,7 +1437,8 @@ static size_t log_header(char *message, size_t message_len,
       serverhost_len, serverhost,
       username_len, username,
       host_len, host,
-      connection_id, query_id, operation);
+      connection_id,
+      query_id, operation);
 }
 
 
@@ -1448,10 +1458,10 @@ static int log_proxy(const struct connection_info *cn,
                     cn->ip, cn->ip_length,
                     event->thread_id, 0, "PROXY_CONNECT");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,`%.*s`@`%.*s`,%d", cn->db_length, cn->db,
+    ",%.*s,`%.*s`@`%.*s`,%d,%.*s", cn->db_length, cn->db,
                      cn->proxy_length, cn->proxy,
                      cn->proxy_host_length, cn->proxy_host,
-                     event->status);
+                     event->status, cn->tls_version_length, cn->tls_version);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1473,7 +1483,8 @@ static int log_connection(const struct connection_info *cn,
                     cn->ip, cn->ip_length,
                     event->thread_id, 0, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", cn->db_length, cn->db, event->status);
+    ",%.*s,,%d,%.*s", cn->db_length, cn->db, event->status,
+                    cn->tls_version_length, cn->tls_version);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1494,7 +1505,8 @@ static int log_connection_event(const struct mysql_event_connection *event,
                     event->ip, event->ip_length,
                     event->thread_id, 0, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", event->database.length, event->database.str, event->status);
+    ",%.*s,,%d,%.*s", event->database.length, event->database.str, event->status,
+    event->tls_version_length, event->tls_version);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1837,7 +1849,8 @@ do_log_query:
   csize= log_header(message, message_size-1, &ev_time,
                     servhost, servhost_len,
                     cn->user, cn->user_length,cn->host, cn->host_length,
-                    cn->ip, cn->ip_length, thd_id, query_id, type);
+                    cn->ip, cn->ip_length,
+                    thd_id, query_id, type);
 
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
       ",%.*s,\'", db_length, db);
