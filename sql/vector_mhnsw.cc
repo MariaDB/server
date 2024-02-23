@@ -72,7 +72,7 @@ public:
                                   MYF(0));
     if (!this->ref)
       return true;
-    this->vec= (float *)(ref + ref_length);
+    this->vec= (float *)(this->ref + ref_length);
     ref_len= ref_length;
     vec_len= vec_length;
     memcpy(this->ref, ref, ref_len);
@@ -477,7 +477,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   const uint EF_CONSTRUCTION = 10; // max candidate list size to connect to.
   const uint MAX_INSERT_NEIGHBOUR_CONNECTIONS = 10;
   const uint MAX_NEIGHBORS_PER_LAYER = 10;
-  const double NORMALIZATION_FACTOR = 0.2;
+  const double NORMALIZATION_FACTOR = 1.2;
 
   if ((err= h->ha_rnd_init(1)))
     return err;
@@ -615,15 +615,17 @@ static int cmp_node_distances(void *, Node *a, Node *b)
 int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   TABLE *graph= table->hlindex;
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   // TODO(cvicentiu) onlye one hlindex now.
   Field *vec_field= keyinfo->key_part->field;
-  String buf, *res= vec_field->val_str(&buf);
+  Item_func_vec_distance *fun= (Item_func_vec_distance *)dist;
+  String buf, *res= fun->arguments()[1]->val_str(&buf);
   FVector target;
   handler *h= table->file;
 
   //TODO(scope_exit)
   int err;
-  if ((err= h->ha_rnd_init(1)))
+  if ((err= h->ha_rnd_init(0)))
     return err;
 
   if ((err= graph->file->ha_index_init(0, 1)))
@@ -685,6 +687,7 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   err= mhnsw_next(table);
   graph->file->ha_index_end();
 
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   return err;
 }
 

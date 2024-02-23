@@ -9897,7 +9897,7 @@ int TABLE::hlindex_first(uint nr, Item *item, ulonglong limit)
 
   DBUG_ASSERT(hlindex->in_use == in_use);
 
-  return mhnsw_first(this, item, limit);
+  return mhnsw_first(this, key_info + s->keys, item, limit);
 }
 
 int TABLE::hlindex_next()
