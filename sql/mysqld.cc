@@ -1760,8 +1760,13 @@ static void close_connections(void)
     if (waiting_threads)
       sql_print_information("Delaying shutdown to await semi-sync ACK");
 
-    while (waiting_threads-- > 0)
-      repl_semisync_master.await_slave_reply();
+    /*
+      TODO: Overhaul this because we are no longer dumb to the cond variable.
+      This can just be called once using the same established timeout to loop
+      through all. To think more on it..
+    */
+    //while (waiting_threads-- > 0)
+    repl_semisync_master.await_slave_reply();
   }
 
   DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",

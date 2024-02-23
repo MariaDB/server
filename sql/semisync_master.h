@@ -21,6 +21,7 @@
 
 #include "semisync.h"
 #include "semisync_master_ack_receiver.h"
+#include <queue>
 
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_rpl_semi_sync_master_enabled;
@@ -361,6 +362,25 @@ public:
 
 };
 
+typedef struct _semisync_wait_trx {
+  const char *binlog_name;
+  my_off_t binlog_pos;
+  THD *thd;
+
+  //inline bool is_same(struct _semisync_wait_trx *arg) const
+  //{
+  //  if (!arg || !arg->binlog_name || !this->binlog_name)
+  //    return FALSE;
+
+  //  int cmp = strcmp(this->binlog_name, arg->binlog_name);
+
+  //  if (cmp != 0)
+  //    return FALSE;
+
+  //  return this->binlog_pos == arg->binlog_pos;
+  //}
+} semisync_wait_trx_t;
+
 /**
    The extension class for the master of semi-synchronous replication
 */
@@ -431,10 +451,12 @@ class Repl_semi_sync_master
   /*Waiting for ACK before/after innodb commit*/
   ulong m_wait_point;
 
+  std::queue<semisync_wait_trx_t> wait_queue;
+
   void lock();
   void unlock();
   void cond_broadcast();
-  int  cond_timewait(struct timespec *wait_time);
+  int  cond_timewait(THD *thd, struct timespec *wait_time);
 
   /* Is semi-sync replication on? */
   bool is_on() {
@@ -615,7 +637,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int write_tranx_in_binlog(const char* log_file_name, my_off_t log_file_pos);
+  int write_tranx_in_binlog(THD *thd, const char* log_file_name, my_off_t log_file_pos);
 
   /* Read the slave's reply so that we know how much progress the slave makes
    * on receive replication events.
