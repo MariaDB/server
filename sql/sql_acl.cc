@@ -353,6 +353,30 @@ inline privilege_t public_access()
   return (acl_public ? acl_public->access : NO_ACL);
 }
 
+static void my_error_wrapper_for_grant(bool is_role, const char* user_or_role, const char* host)
+{
+  if (is_role)
+    my_error(ER_NONEXISTING_GRANT_ROLE, MYF(0), user_or_role);
+  else
+    my_error(ER_NONEXISTING_GRANT, MYF(0), user_or_role, host);
+}
+
+static void my_error_wrapper_for_table_grant(bool is_role, const char* user_or_role, const char* host, const char* table)
+{
+  if (is_role)
+    my_error(ER_NONEXISTING_TABLE_GRANT_ROLE, MYF(0), user_or_role, table);
+  else
+    my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0), user_or_role, host, table);
+}
+
+static void my_error_wrapper_for_proc_grant(bool is_role, const char* user_or_role, const char* host, const char* routine)
+{
+  if (is_role)
+    my_error(ER_NONEXISTING_PROC_GRANT_ROLE, MYF(0), user_or_role, routine);
+  else
+    my_error(ER_NONEXISTING_PROC_GRANT, MYF(0), user_or_role, host, routine);
+}
+
 class Grant_tables;
 class User_table;
 class Proxies_priv_table;
@@ -1757,7 +1781,7 @@ class User_table_json: public User_table
                                  USERNAME_CHAR_LENGTH);
     return 0;
   }
-  bool get_value(const char *key, 
+  bool get_value(const char *key,
                  enum json_types vt, const char **v, size_t *vl) const
   {
     enum json_types value_type;
@@ -5108,7 +5132,7 @@ static int replace_db_table(TABLE *table, const char *db,
   {
     if (revoke_grant)
     { // no row, no revoke
-      my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
+      my_error_wrapper_for_grant(combo.is_role(), combo.user.str, combo.host.str);
       goto abort;
     }
     old_row_exists = 0;
@@ -5406,7 +5430,7 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
     DBUG_PRINT ("info", ("Row not found"));
     if (revoke_grant)
     { // no row, no revoke
-      my_error(ER_NONEXISTING_GRANT, MYF(0), user->user.str, user->host.str);
+      my_error_wrapper_for_grant(user->is_role(), user->user.str, user->host.str);
       goto abort;
     }
     old_row_exists= 0;
@@ -5889,9 +5913,9 @@ static int replace_column_table(GRANT_TABLE *g_t,
     {
       if (revoke_grant)
       {
-	my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
+        my_error_wrapper_for_table_grant(combo.is_role(),
                  combo.user.str, combo.host.str,
-                 table_name);                   /* purecov: inspected */
+                 table_name);
 	result= -1;                             /* purecov: inspected */
 	continue;                               /* purecov: inspected */
       }
@@ -6114,9 +6138,9 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
     */
     if (revoke_grant)
     { // no row, no revoke
-      my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
-               combo.user.str, combo.host.str,
-               table_name);		        /* purecov: deadcode */
+      my_error_wrapper_for_table_grant(combo.is_role(),
+                 combo.user.str, combo.host.str,
+                 table_name); /* purecov: deadcode */
       DBUG_RETURN(1);				/* purecov: deadcode */
     }
     old_row_exists = 0;
@@ -6252,7 +6276,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
     */
     if (revoke_grant)
     { // no row, no revoke
-      my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
+      my_error_wrapper_for_proc_grant(combo.is_role(),
                combo.user.str, combo.host.str, routine_name);
       DBUG_RETURN(-1);
     }
@@ -7423,7 +7447,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     {
       if (revoke_grant)
       {
-        my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
+        my_error_wrapper_for_table_grant(Str->is_role(),
                  Str->user.str, Str->host.str, table_list->table_name.str);
         result= TRUE;
         continue;
@@ -7603,7 +7627,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
                                     Str->user.str, table_name, sph, 1);
     if (revoke_grant && (!grant_name || !grant_name->init_privs))
     {
-      my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
+      my_error_wrapper_for_proc_grant(Str->is_role(),
                Str->user.str, Str->host.str, table_name);
       result= TRUE;
       continue;
@@ -9654,8 +9678,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       mysql_mutex_unlock(&acl_cache->lock);
       mysql_rwlock_unlock(&LOCK_grant);
 
-      my_error(ER_NONEXISTING_GRANT, MYF(0),
-               username, hostname);
+      my_error_wrapper_for_grant(false, username, hostname);
       DBUG_RETURN(TRUE);
     }
 
@@ -9709,9 +9732,9 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       {
         mysql_mutex_unlock(&acl_cache->lock);
         mysql_rwlock_unlock(&LOCK_grant);
-        my_error(ER_NONEXISTING_GRANT, MYF(0),
-                 thd->security_ctx->priv_user,
-                 thd->security_ctx->priv_host);
+        my_error_wrapper_for_grant(false,
+                thd->security_ctx->priv_user,
+                thd->security_ctx->priv_host);
         DBUG_RETURN(TRUE);
       }
     }
@@ -11891,6 +11914,7 @@ Silence_routine_definer_errors::handle_condition(
     switch (sql_errno)
     {
       case ER_NONEXISTING_PROC_GRANT:
+      case ER_NONEXISTING_PROC_GRANT_ROLE:
         /* Convert the error into a warning. */
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      sql_errno, msg);
