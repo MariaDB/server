@@ -4521,7 +4521,7 @@ static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
 @param  new_pos    position value
 @param  trx        transaction
 @return DB_SUCCESS or error code */
-dberr_t update_vcol_pos(ulint table_id, ulint new_pos, trx_t *trx)
+dberr_t update_vcol_pos(table_id_t table_id, ulint new_pos, trx_t *trx)
 {
   pars_info_t *info= pars_info_create();
   pars_info_add_ull_literal(info, "id", table_id);
