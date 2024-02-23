@@ -4056,6 +4056,7 @@ void Item_func_group_concat::cleanup()
         unique_filter= NULL;
       }
     }
+    row_count= 0;
     DBUG_ASSERT(tree == 0);
   }
   /*
