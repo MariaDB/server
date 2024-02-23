@@ -858,7 +858,7 @@ static void make_slave_transaction_retry_errors_printable(void)
 }
 
 
-#define DEFAULT_SLAVE_RETRY_ERRORS 9
+static constexpr uint DEFAULT_SLAVE_RETRY_ERRORS= 10;
 
 bool init_slave_transaction_retry_errors(const char* arg)
 {
@@ -900,9 +900,10 @@ bool init_slave_transaction_retry_errors(const char* arg)
   slave_transaction_retry_errors[3]= ER_NET_WRITE_INTERRUPTED;
   slave_transaction_retry_errors[4]= ER_LOCK_WAIT_TIMEOUT;
   slave_transaction_retry_errors[5]= ER_LOCK_DEADLOCK;
-  slave_transaction_retry_errors[6]= ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
-  slave_transaction_retry_errors[7]= 2013; /* CR_SERVER_LOST */
-  slave_transaction_retry_errors[8]= 12701; /* ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM */
+  slave_transaction_retry_errors[6]= ER_CHECKREAD;
+  slave_transaction_retry_errors[7]= ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
+  slave_transaction_retry_errors[8]= 2013; /* CR_SERVER_LOST */
+  slave_transaction_retry_errors[9]= 12701; /* ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM */
 
   /* Add user codes after this */
   for (p= arg, i= DEFAULT_SLAVE_RETRY_ERRORS; *p; )

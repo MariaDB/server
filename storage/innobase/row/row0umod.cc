@@ -190,7 +190,7 @@ row_undo_mod_clust_low(
 @param[in]	rec	clustered index record
 @param[in]	index	clustered index
 @return	the byte offset of DB_TRX_ID, from the start of rec */
-static ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
+ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
 {
 	ut_ad(index->n_uniq <= MAX_REF_PARTS);
 	ulint trx_id_offset = index->trx_id_offset;
