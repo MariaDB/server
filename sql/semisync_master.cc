@@ -502,16 +502,38 @@ void Repl_semi_sync_master::unlock()
 
 void Repl_semi_sync_master::cond_broadcast()
 {
-  mysql_cond_broadcast(&COND_binlog_send);
+  //mysql_cond_broadcast(&COND_binlog_send);
+  //fprintf(stderr, "\n\tcond_broadcasting...");
+  while (!wait_queue.empty())
+  {
+    semisync_wait_trx_t next_waiter= wait_queue.front();
+    if (next_waiter.thd && !next_waiter.thd->is_awaiting_semisync_ack)
+    {
+      //fprintf(stderr, "\n\tTHD %llu not awaiting ACK, continue", next_waiter.thd->thread_id);
+      //wait_queue.pop();
+      continue;
+    }
+    //fprintf(stderr, "\n\tWaking THD %llu (%s, %llu)", next_waiter.thd->thread_id, next_waiter.binlog_name, next_waiter.binlog_pos);
+    mysql_cond_signal(&next_waiter.thd->COND_wakeup_ready);
+    wait_queue.pop();
+  }
+  //fprintf(stderr, "\n\t...cond_broadcast done\n");
 }
 
-int Repl_semi_sync_master::cond_timewait(struct timespec *wait_time)
+int Repl_semi_sync_master::cond_timewait(THD *thd, struct timespec *wait_time)
 {
   int wait_res;
 
   DBUG_ENTER("Repl_semi_sync_master::cond_timewait()");
 
-  wait_res= mysql_cond_timedwait(&COND_binlog_send,
+  /*
+    I think this still needs LOCK_binlog to ensure we don't accidently skip
+    over this thread during wakeup time after receiving an ACK
+  */
+  //wait_res= mysql_cond_timedwait(&COND_binlog_send,
+  //                               &LOCK_binlog, wait_time);
+  wait_res= mysql_cond_timedwait(&thd->COND_wakeup_ready,
+ //                                &thd->LOCK_wakeup_ready, wait_time);
                                  &LOCK_binlog, wait_time);
 
   DBUG_RETURN(wait_res);
@@ -697,10 +719,48 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
 
   if (can_release_threads)
   {
-    DBUG_PRINT("semisync", ("%s: signal all waiting threads.",
-                            "Repl_semi_sync_master::report_reply_binlog"));
+//    DBUG_PRINT("semisync", ("%s: signal all waiting threads.",
+//                            "Repl_semi_sync_master::report_reply_binlog"));
+//
+//    cond_broadcast();
+    //fprintf(stderr, "\n\tACK Received for (%s, %llu), trying to release transactions..", m_reply_file_name, m_reply_file_pos);
+    lock();
+    while (TRUE)
+    {
+      if (wait_queue.empty())
+      {
+        //fprintf(stderr, "\n\twait_queue empty, exiting");
+        break;
+      }
 
-    cond_broadcast();
+      semisync_wait_trx_t next_waiter= wait_queue.front();
+      //fprintf(stderr, "\n\tExamining thd %llu", next_waiter.thd->thread_id);
+
+      cmp= Active_tranx::compare(m_reply_file_name, m_reply_file_pos,
+                                 next_waiter.binlog_name, next_waiter.binlog_pos);
+      if (cmp >= 0)
+      {
+        if (next_waiter.thd->is_awaiting_semisync_ack)
+        {
+          //fprintf(stderr, "\n\tWaking THD %llu (%s, %llu)",
+          //        next_waiter.thd->thread_id, next_waiter.binlog_name,
+          //        next_waiter.binlog_pos);
+          mysql_cond_signal(&next_waiter.thd->COND_wakeup_ready);
+        }
+        else
+        {
+          //fprintf(stderr, "\n\tTHD %llu not awaiting ACK, likely hasn't yet made it to commit_trx()? pop because it won't wait anyway now", next_waiter.thd->thread_id);
+        }
+        wait_queue.pop();
+      }
+      else
+      {
+        //fprintf(stderr, "\n\tNext THD %llu (%s, %llu) is ahead, exiting", next_waiter.thd->thread_id, next_waiter.binlog_name, next_waiter.binlog_pos);
+        break;
+      }
+    }
+    unlock();
+    //fprintf(stderr, "\n\tReleased\n");
   }
 
   DBUG_RETURN(0);
@@ -779,7 +839,7 @@ int Repl_semi_sync_master::report_binlog_update(THD* thd, const char *log_file,
     strcpy(log_info->log_file, log_file + dirname_length(log_file));
     log_info->log_pos = log_pos;
 
-    return write_tranx_in_binlog(log_info->log_file, log_pos);
+    return write_tranx_in_binlog(thd, log_info->log_file, log_pos);
   }
 
   return 0;
@@ -852,9 +912,9 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     lock();
 
     /* This must be called after acquired the lock */
-    THD_ENTER_COND(thd, &COND_binlog_send, &LOCK_binlog,
-                   & stage_waiting_for_semi_sync_ack_from_slave,
-                   & old_stage);
+    //THD_ENTER_COND(thd, &COND_binlog_send, &LOCK_binlog,
+    THD_ENTER_COND(thd, &thd->COND_wakeup_ready, &LOCK_binlog,
+                   &stage_waiting_for_semi_sync_ack_from_slave, &old_stage);
 
     /* This is the real check inside the mutex. */
     if (!get_master_enabled() || !is_on())
@@ -945,8 +1005,8 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
                               m_wait_file_name, (ulong)m_wait_file_pos));
 
       create_timeout(&abstime, &start_ts);
-      wait_result = cond_timewait(&abstime);
-
+      //fprintf(stderr, "\n\tCommit_trx: thd %llu\n", thd->thread_id);
+      wait_result = cond_timewait(thd, &abstime);
       set_thd_awaiting_semisync_ack(thd, FALSE);
       rpl_semi_sync_master_wait_sessions--;
 
@@ -958,12 +1018,17 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
                           trx_wait_binlog_name, (ulong)trx_wait_binlog_pos,
                           m_reply_file_name, (ulong)m_reply_file_pos);
         rpl_semi_sync_master_wait_timeouts++;
+        wait_queue.pop();
 
         /* switch semi-sync off */
         switch_off();
       }
       else
       {
+        /*
+          TODO:
+          I don't think we want to track this anymore. Remove the variables and blocks?
+        */
         int wait_time;
 
         wait_time = get_wait_time(start_ts);
@@ -1043,6 +1108,26 @@ void Repl_semi_sync_master::switch_off()
     m_reply_file_name_inited  = false;
     sql_print_information("Semi-sync replication switched OFF.");
   }
+
+  /*
+    TODO: This logic needs an MTR test
+
+    Wakeup all waiting threads
+  */
+  //fprintf(stderr, "\n\tSemi-sync switching off, clearing wait queue..");
+  //while (!wait_queue.empty())
+  //{
+  //  semisync_wait_trx_t next_waiter= wait_queue.front();
+  //  if (next_waiter.thd && !next_waiter.thd->is_awaiting_semisync_ack)
+  //  {
+  //    fprintf(stderr, "\n\tTHD %llu not awaiting ACK, continue", next_waiter.thd->thread_id);
+  //    //wait_queue.pop();
+  //    continue;
+  //  }
+  //  fprintf(stderr, "\n\tWaking THD %llu (%s, %llu)", next_waiter.thd->thread_id, next_waiter.binlog_name, next_waiter.binlog_pos);
+  //  mysql_cond_signal(&next_waiter.thd->COND_wakeup_ready);
+  //  wait_queue.pop();
+  //}
   cond_broadcast();                /* wake up all waiting threads */
   DBUG_VOID_RETURN;
 }
@@ -1190,7 +1275,7 @@ int Repl_semi_sync_master::update_sync_header(THD* thd, unsigned char *packet,
   DBUG_RETURN(0);
 }
 
-int Repl_semi_sync_master::write_tranx_in_binlog(const char* log_file_name,
+int Repl_semi_sync_master::write_tranx_in_binlog(THD *thd, const char* log_file_name,
                                                  my_off_t log_file_pos)
 {
   int result = 0;
@@ -1245,6 +1330,9 @@ int Repl_semi_sync_master::write_tranx_in_binlog(const char* log_file_name,
     }
     else
     {
+      wait_queue.push({log_file_name, log_file_pos, thd});
+      //fprintf(stderr, "\n\tRegister_trx: thd %llu, %s, %llu", thd->thread_id,
+      //        log_file_name, log_file_pos);
       rpl_semi_sync_master_request_ack++;
     }
   }
@@ -1365,6 +1453,7 @@ void Repl_semi_sync_master::set_export_stats()
 void Repl_semi_sync_master::await_slave_reply()
 {
   struct timespec abstime;
+  int wait_result;
 
   DBUG_ENTER("Repl_semi_sync_master::::await_slave_reply");
   lock();
@@ -1374,7 +1463,40 @@ void Repl_semi_sync_master::await_slave_reply()
     goto end;
 
   create_timeout(&abstime, NULL);
-  cond_timewait(&abstime);
+  //fprintf(stderr, "\n\tShutdown: awaiting semi-sync slave replies...");
+  while (TRUE)
+  {
+    if (wait_queue.empty())
+      break;
+
+    /*
+      TOOD Access to wait_queue needs to be protected
+    */
+    semisync_wait_trx_t front= wait_queue.front();
+    if (!front.thd->is_awaiting_semisync_ack)
+    {
+      //fprintf(stderr, "\n\tTHD %llu not awaiting ACK, timeout? pop and continue", front.thd->thread_id);
+      //wait_queue.pop();
+      continue;
+    }
+
+    //fprintf(stderr, "\n\tTHD %llu being awaited on", front.thd->thread_id);
+    wait_result= cond_timewait(front.thd, &abstime);
+    if (wait_result != 0)
+    {
+      /*
+        Timeout. Fail and exit.
+      */
+      //fprintf(stderr, "\n\tTimeout awaiting semisync ack, exit");
+      break;
+    }
+    //else
+    //{
+    //  wait_queue.pop();
+    //}
+
+  }
+  //fprintf(stderr, "\n\tShutdown: done\n");
 
 end:
   unlock();
