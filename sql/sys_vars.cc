@@ -5941,11 +5941,11 @@ static bool update_log_slave_retries(sys_var *self, THD* thd, enum_var_type type
 {
   logger.close_slave_retry_log();
 
-  if (log_slave_retries == SLAVE_RETRIES_ON)
+  if (log_slave_retry == LOG_SLRETR_ON)
   {
     if (logger.slave_retry_log()->open(opt_slave_retry_logname))
     {
-      log_slave_retries= SLAVE_RETRIES_OFF;
+      log_slave_retry= LOG_SLRETR_OFF;
       return true;
     }
   }
@@ -5956,7 +5956,7 @@ static bool update_log_slave_retries(sys_var *self, THD* thd, enum_var_type type
 static bool check_log_slave_retries(sys_var *self, THD *thd, set_var *var)
 {
   if (opt_bootstrap)
-    log_slave_retries= SLAVE_RETRIES_OFF;
+    log_slave_retry= LOG_SLRETR_OFF;
 
   return false;
 }
@@ -5964,24 +5964,24 @@ static bool check_log_slave_retries(sys_var *self, THD *thd, set_var *var)
 static const char *slave_retry_log_kw[]= { "OFF", "ON", "ERROR_LOG", NullS };
 static Sys_var_enum Sys_slave_retries_log(
        "slave_retry_log", "Slave does the logging of transaction retries",
-       GLOBAL_VAR(log_slave_retries), CMD_LINE(OPT_ARG),
-       slave_retry_log_kw, DEFAULT(SLAVE_RETRIES_OFF),
+       GLOBAL_VAR(log_slave_retry), CMD_LINE(OPT_ARG),
+       slave_retry_log_kw, DEFAULT(LOG_SLRETR_OFF),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_log_slave_retries),
        ON_UPDATE(update_log_slave_retries));
 
 static void reopen_slave_retry_log(char *name)
 {
-  DBUG_ASSERT(log_slave_retries == SLAVE_RETRIES_ON);
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
   auto *l= logger.slave_retry_log();
   l->close(0);
   if (l->open(opt_slave_retry_logname))
-    log_slave_retries= SLAVE_RETRIES_OFF;
+    log_slave_retry= LOG_SLRETR_OFF;
 }
 
 static bool fix_slave_retry_log_file(sys_var *self, THD *thd, enum_var_type type)
 {
   return fix_log(&opt_slave_retry_logname,  opt_log_basename, "-retry.log",
-                 log_slave_retries == SLAVE_RETRIES_ON,
+                 log_slave_retry == LOG_SLRETR_ON,
                  reopen_slave_retry_log);
 }
 

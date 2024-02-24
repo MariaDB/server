@@ -184,12 +184,12 @@ extern const char *log_backup_output_str;
 
 enum log_slave_retries_enum
 {
-  SLAVE_RETRIES_OFF= 0,
-  SLAVE_RETRIES_ON,
-  SLAVE_RETRIES_ERROR_LOG
+  LOG_SLRETR_OFF= 0,
+  LOG_SLRETR_ON,
+  LOG_SLRETR_ERRLOG
 };
 
-extern ulong log_slave_retries;
+extern ulong log_slave_retry;
 extern char *opt_slave_retry_logname;
 extern uint opt_slave_retries_max_log;
 #endif

@@ -851,17 +851,17 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   Format_description_log_event *description_event= NULL;
 
 do_retry:
-  if (log_slave_retries &&
+  if (log_slave_retry &&
       (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log || errmsg))
-    slave_retries_print("[R%lu] event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  reason: %u%s%s",
-                        (ulong) retries + 1, (ulonglong) event_count, (ulonglong) events_to_execute,
-                        (ulonglong) log_pos,
-                        (uint) rgi->current_gtid.domain_id, (uint) rgi->current_gtid.server_id,
-                        (ulonglong) rgi->current_gtid.seq_no,
-                        (longlong) thd->query_id,
-                        (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
-                        (errmsg ? "  binlog error: " : ""),
-                        (errmsg ? errmsg : ""));
+    slave_retry_print("[R%lu] event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  reason: %u%s%s",
+                      (ulong) retries + 1, (ulonglong) event_count, (ulonglong) events_to_execute,
+                      (ulonglong) log_pos,
+                      (uint) rgi->current_gtid.domain_id, (uint) rgi->current_gtid.server_id,
+                      (ulonglong) rgi->current_gtid.seq_no,
+                      (longlong) thd->query_id,
+                      (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
+                      (errmsg ? "  binlog error: " : ""),
+                      (errmsg ? errmsg : ""));
 
   DBUG_EXECUTE_IF("rpl_parallel_retries_at_max", {
     if (retries == slave_trans_retries - 1)
@@ -1196,15 +1196,15 @@ check_retry:
   } while (event_count < events_to_execute);
 
 err:
-  if (log_slave_retries)
-    slave_retries_print("[R%lu] %s event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  result: %u%s%s",
-                        (ulong) (err ? retries : retries + 1), (err ? "[FAILURE]" : "[SUCCESS]"),
-                        (ulonglong) event_count, (ulonglong) events_to_execute, (ulonglong) log_pos,
-                        (ulong) rgi->current_gtid.domain_id, (ulong) rgi->current_gtid.server_id,
-                        (ulonglong) rgi->current_gtid.seq_no, (longlong) thd->query_id,
-                        (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
-                        (errmsg ? "  binlog error: " : ""),
-                        (errmsg ? errmsg : ""));
+  if (log_slave_retry)
+    slave_retry_print("[R%lu] %s event: %llu of %llu  log_pos: %llu  GTID: %u-%u-%llu  query_id: %lld  result: %u%s%s",
+                      (ulong) (err ? retries : retries + 1), (err ? "[FAILURE]" : "[SUCCESS]"),
+                      (ulonglong) event_count, (ulonglong) events_to_execute, (ulonglong) log_pos,
+                      (ulong) rgi->current_gtid.domain_id, (ulong) rgi->current_gtid.server_id,
+                      (ulonglong) rgi->current_gtid.seq_no, (longlong) thd->query_id,
+                      (uint) (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
+                      (errmsg ? "  binlog error: " : ""),
+                      (errmsg ? errmsg : ""));
 
   if (description_event)
     delete description_event;

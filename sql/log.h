@@ -1286,9 +1286,17 @@ public:
 
 #ifdef HAVE_REPLICATION
   Slave_retry_log slave_retry_log;
-  bool log_slave_retry(const char *format, va_list args)
+  bool slave_retry_print(const char *format, va_list args)
   {
     return slave_retry_log.write(format, args);
+  }
+  bool slave_retry_print(const char *format, ...)
+  {
+    va_list args;
+    va_start(args, format);
+    bool res= slave_retry_log.write(format, args);
+    va_end(args);
+    return res;
   }
 #endif
 };
@@ -1347,7 +1355,7 @@ public:
   }
   bool flush_slave_retry_log();
   void close_slave_retry_log();
-  bool slave_retries_print(const char *format, va_list args);
+  bool slave_retry_print (const char *format, va_list args);
   FILE *acquire_slave_retry_file();
   void release_slave_retry_file();
 #endif
@@ -1405,7 +1413,7 @@ int error_log_print(enum loglevel level, const char *format,
                     va_list args);
 
 #ifdef HAVE_REPLICATION
-bool slave_retries_print(const char *format, ...);
+bool slave_retry_print (const char *format, ...);
 #endif
 
 bool slow_log_print(THD *thd, const char *query, uint query_length,
@@ -1521,7 +1529,7 @@ class Slave_retry_file
 public:
   Slave_retry_file()
   {
-    file= log_slave_retries == SLAVE_RETRIES_ON ?
+    file= log_slave_retry == LOG_SLRETR_ON ?
       logger.acquire_slave_retry_file() : NULL;
   }
   ~Slave_retry_file()

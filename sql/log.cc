@@ -1091,12 +1091,12 @@ bool Log_to_file_event_handler::init()
       mysql_log.open_query_log(opt_logname);
 
 #ifdef HAVE_REPLICATION
-    if (log_slave_retries == SLAVE_RETRIES_ON) {
+    if (log_slave_retry == LOG_SLRETR_ON) {
       if (slave_retry_log.open(opt_slave_retry_logname))
-        log_slave_retries= SLAVE_RETRIES_OFF;
+        log_slave_retry= LOG_SLRETR_OFF;
       else
-        slave_retries_print(LOGGER::starting_msg, server_version,
-                            SOURCE_REVISION, (ulong) getpid());
+        slave_retry_print(LOGGER::starting_msg, server_version,
+                          SOURCE_REVISION, (ulong) getpid());
 
     }
 #endif
@@ -1125,7 +1125,7 @@ void Log_to_file_event_handler::flush()
   if (global_system_variables.sql_log_slow)
     mysql_slow_log.reopen_file();
 #ifdef HAVE_REPLICATION
-  if (log_slave_retries == SLAVE_RETRIES_ON)
+  if (log_slave_retry == LOG_SLRETR_ON)
     slave_retry_log.reopen_file();
 #endif
 }
@@ -1165,14 +1165,14 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 
 
 #ifdef HAVE_REPLICATION
-bool LOGGER::slave_retries_print(const char *format, va_list args)
+bool LOGGER::slave_retry_print(const char *format, va_list args)
 {
   bool res= false;
-  if (log_slave_retries == SLAVE_RETRIES_ON)
+  if (log_slave_retry == LOG_SLRETR_ON)
   {
-    res= file_log_handler->log_slave_retry(format, args);
+    res= file_log_handler->slave_retry_print(format, args);
   }
-  else if (log_slave_retries == SLAVE_RETRIES_ERROR_LOG)
+  else if (log_slave_retry == LOG_SLRETR_ERRLOG)
   {
     res= file_log_handler->log_error(INFORMATION_LEVEL, format, args);
   }
@@ -1295,7 +1295,7 @@ bool LOGGER::flush_general_log()
 #ifdef HAVE_REPLICATION
 bool LOGGER::flush_slave_retry_log()
 {
-  DBUG_ASSERT(log_slave_retries == SLAVE_RETRIES_ON);
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
   my_errno= 0;
   file_log_handler->slave_retry_log.reopen_file();
   return (bool) my_errno;
@@ -1308,7 +1308,7 @@ void LOGGER::close_slave_retry_log()
 
 FILE *LOGGER::acquire_slave_retry_file()
 {
-  DBUG_ASSERT(log_slave_retries == SLAVE_RETRIES_ON);
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
   auto &l= file_log_handler->slave_retry_log;
   if (l.acquire())
     return NULL;
@@ -1317,7 +1317,7 @@ FILE *LOGGER::acquire_slave_retry_file()
 
 void LOGGER::release_slave_retry_file()
 {
-  DBUG_ASSERT(log_slave_retries == SLAVE_RETRIES_ON);
+  DBUG_ASSERT(log_slave_retry == LOG_SLRETR_ON);
   file_log_handler->slave_retry_log.release();
 }
 #endif /* HAVE_REPLICATION */
@@ -7453,14 +7453,14 @@ int error_log_print(enum loglevel level, const char *format,
 
 
 #ifdef HAVE_REPLICATION
-bool slave_retries_print(const char *format, ...)
+bool slave_retry_print(const char *format, ...)
 {
-  if (log_slave_retries == SLAVE_RETRIES_OFF)
+  if (log_slave_retry == LOG_SLRETR_OFF)
     return false;
   va_list args;
   bool error;
   va_start(args, format);
-  error= logger.slave_retries_print(format, args);
+  error= logger.slave_retry_print(format, args);
   va_end(args);
   return error;
 }
@@ -9725,7 +9725,7 @@ bool flush_error_log()
     mysql_mutex_unlock(&LOCK_error_log);
   }
 #ifdef HAVE_REPLICATION
-  if (log_slave_retries == SLAVE_RETRIES_ON)
+  if (log_slave_retry == LOG_SLRETR_ON)
     logger.flush_slave_retry_log();
 #endif
   return result;
@@ -9941,8 +9941,8 @@ void slave_print_error(const char *format, ...)
 
   va_start(args, format);
   error_log_print(ERROR_LEVEL, format, args);
-  if (log_slave_retries == SLAVE_RETRIES_ON)
-    slave_retries_print(format, args);
+  if (log_slave_retry == LOG_SLRETR_ON)
+    slave_retry_print(format, args);
   va_end(args);
 
   DBUG_VOID_RETURN;

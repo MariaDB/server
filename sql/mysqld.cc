@@ -780,7 +780,7 @@ char *opt_binlog_index_name=0;
 my_bool opt_binlog_legacy_event_pos= FALSE;
 
 #ifdef HAVE_REPLICATION
-ulong log_slave_retries= SLAVE_RETRIES_OFF;
+ulong log_slave_retry= LOG_SLRETR_OFF;
 char *opt_slave_retry_logname= NULL;
 uint opt_slave_retries_max_log= 0;
 #endif
