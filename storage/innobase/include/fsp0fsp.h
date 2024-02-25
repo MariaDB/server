@@ -558,6 +558,8 @@ void fsp_system_tablespace_truncate(bool shutdown);
 /** Truncate the temporary tablespace */
 void fsp_shrink_temp_space();
 
+extern void fsp_binlog_test(const uchar *data, uint32_t len);
+
 #ifndef UNIV_DEBUG
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
 #endif

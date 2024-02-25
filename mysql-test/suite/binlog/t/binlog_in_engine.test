@@ -1,0 +1,11 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
