@@ -1967,7 +1967,6 @@ slave-parallel-mode conservative
 slave-parallel-threads 0
 slave-parallel-workers 0
 slave-retry-log OFF
-slave-retry-log-file lian-retry.log
 slave-retry-log-max 0
 slave-run-triggers-for-rbr NO
 slave-skip-errors OFF
