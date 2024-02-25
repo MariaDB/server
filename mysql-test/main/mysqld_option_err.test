@@ -61,13 +61,17 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 
 --echo Test to see if multiple ambiguous options and invalid arguments will be displayed in the error output
 --error 1
---exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --getopt-prefix-matching --sql-mode=invalid_value --character --bootstrap=partstoob >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --getopt-prefix-matching --sql-mode=invalid_value --character --bootstrap=partstoob --binlog_cache_size=18446744073709551616 >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
 --let SEARCH_PATTERN=Error while setting value 'invalid_value' to 'sql_mode'
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=ambiguous option '--character'
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=option '--bootstrap' cannot take an argument
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Incorrect integer value: '18446744073709551616'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Error while setting value '18446744073709551616' to 'binlog_cache_size'
 --source include/search_pattern_in_file.inc
 
 #
