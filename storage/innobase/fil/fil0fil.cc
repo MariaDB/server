@@ -186,7 +186,7 @@ it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 
 /** Common InnoDB file extensions */
-const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
+const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg", ".ibb" };
 
 /** Number of pending tablespace flushes */
 Atomic_counter<ulint> fil_n_pending_tablespace_flushes;
@@ -1003,6 +1003,8 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
   default:
     if (UNIV_LIKELY(id <= fil_system.max_assigned_id))
       break;
+    if (id == SRV_SPACE_ID_BINLOG0 || id == SRV_SPACE_ID_BINLOG1)
+      break;
     if (UNIV_UNLIKELY(srv_operation == SRV_OPERATION_BACKUP))
       break;
     if (!fil_system.space_id_reuse_warned)
@@ -1563,9 +1565,10 @@ inline size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
   ut_ad(!is_predefined_tablespace(space_id));
 
   /* fil_name_parse() requires that there be at least one path
-  separator and that the file path end with ".ibd". */
+  separator and that the file path end with ".ibd" or "ibb". */
   ut_ad(strchr(path, '/'));
-  ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
+  ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD) ||
+        !strcmp(&path[strlen(path) - strlen(DOT_IBB)], DOT_IBB));
 
   m_modifications= true;
   if (!is_logged())
