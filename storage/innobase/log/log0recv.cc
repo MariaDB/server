@@ -2755,7 +2755,8 @@ log_parse_file(const page_id_t id, bool if_exists,
 
     if (space_id == TRX_SYS_SPACE || srv_is_undo_tablespace(space_id))
       goto file_rec_error;
-    if (fnend - l < 4 || memcmp(fnend - 4, DOT_IBD, 4))
+    if (fnend - l < 4 ||
+        (memcmp(fnend - 4, DOT_IBD, 4) && memcmp(fnend - 4, DOT_IBB, 4)))
       goto file_rec_error;
 
     if (UNIV_UNLIKELY(!recv_needed_recovery && srv_read_only_mode))

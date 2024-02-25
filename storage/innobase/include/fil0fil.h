@@ -1142,10 +1142,12 @@ enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
 	ISL = 2,
-	CFG = 3
+	CFG = 3,
+	IBB = 4
 };
 extern const char* dot_ext[];
 #define DOT_IBD dot_ext[IBD]
+#define DOT_IBB dot_ext[IBB]
 #define DOT_ISL dot_ext[ISL]
 #define DOT_CFG dot_ext[CFG]
 

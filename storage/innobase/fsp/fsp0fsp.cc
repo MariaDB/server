@@ -6023,3 +6023,127 @@ func_exit:
   mtr.commit();
   sql_print_information("InnoDB: Temporary tablespace truncated successfully");
 }
+
+
+
+fil_space_t* binlog_space;
+buf_block_t *binlog_cur_block;
+uint32_t binlog_cur_page_no;
+uint32_t binlog_cur_page_offset;
+
+/** Create a binlog tablespace file
+@param[in] name	 file name
+@return DB_SUCCESS or error code */
+dberr_t fsp_binlog_tablespace_create(const char* name)
+{
+	pfs_os_file_t	fh;
+	bool		ret;
+
+	uint32_t size= (1<<20) >> srv_page_size_shift /* ToDo --max-binlog-size */;
+	if(srv_read_only_mode)
+		return DB_ERROR;
+
+	os_file_create_subdirs_if_needed(name);
+
+	/* ToDo: Do we need here an mtr.log_file_op(FILE_CREATE) like in fil_ibd_create(()? */
+	fh = os_file_create(
+		innodb_data_file_key, name,
+		OS_FILE_CREATE, OS_DATA_FILE, srv_read_only_mode, &ret);
+
+	if (!ret) {
+		os_file_close(fh);
+		return DB_ERROR;
+	}
+
+	/* ToDo: Enryption? */
+	fil_encryption_t mode= FIL_ENCRYPTION_OFF;
+	fil_space_crypt_t* crypt_data= nullptr;
+
+	/* We created the binlog file and now write it full of zeros */
+	if (!os_file_set_size(name, fh,
+			      os_offset_t{size} << srv_page_size_shift)) {
+		ib::error() << "Unable to allocate " << name;
+		os_file_close(fh);
+		os_file_delete(innodb_data_file_key, name);
+		return DB_ERROR;
+	}
+
+	mysql_mutex_lock(&fil_system.mutex);
+	uint32_t space_id= SRV_SPACE_ID_BINLOG0;
+	if (!(binlog_space= fil_space_t::create(space_id,
+                                                ( FSP_FLAGS_FCRC32_MASK_MARKER |
+						  FSP_FLAGS_FCRC32_PAGE_SSIZE()),
+						false, crypt_data,
+						mode, true))) {
+		mysql_mutex_unlock(&fil_system.mutex);
+		return DB_ERROR;
+	}
+
+	fil_node_t* node = binlog_space->add(name, fh, size, false, true);
+	node->find_metadata();
+	mysql_mutex_unlock(&fil_system.mutex);
+
+        binlog_cur_page_no= 0;
+        binlog_cur_page_offset= FIL_PAGE_DATA;
+	return DB_SUCCESS;
+}
+
+void fsp_binlog_write_start(uint32_t page_no,
+                            const uchar *data, uint32_t len, mtr_t *mtr)
+{
+	buf_block_t *block= fsp_page_create(binlog_space, page_no, mtr);
+	mtr->memcpy<mtr_t::MAYBE_NOP>(*block, FIL_PAGE_DATA + block->page.frame,
+				      data, len);
+	binlog_cur_block= block;
+}
+
+void fsp_binlog_write_offset(uint32_t page_no, uint32_t offset,
+                             const uchar *data, uint32_t len, mtr_t *mtr)
+{
+	dberr_t err;
+        /* ToDo: Is RW_SX_LATCH appropriate here? */
+	buf_block_t *block= buf_page_get_gen(page_id_t{binlog_space->id, page_no},
+					     0, RW_SX_LATCH, binlog_cur_block,
+					     BUF_GET, mtr, &err);
+	ut_a(err == DB_SUCCESS);
+	mtr->memcpy<mtr_t::MAYBE_NOP>(*block,
+                                      offset + block->page.frame,
+                                      data, len);
+}
+
+void fsp_binlog_append(const uchar *data, uint32_t len, mtr_t *mtr)
+{
+  ut_ad(binlog_cur_page_offset <= srv_page_size - FIL_PAGE_DATA_END);
+  uint32_t remain= ((uint32_t)srv_page_size - FIL_PAGE_DATA_END) -
+    binlog_cur_page_offset;
+  // ToDo: Some kind of mutex to protect binlog access.
+  while (len > 0) {
+    if (remain < 4) {
+      binlog_cur_page_offset= FIL_PAGE_DATA;
+      remain= ((uint32_t)srv_page_size - FIL_PAGE_DATA_END) -
+        binlog_cur_page_offset;
+      ++binlog_cur_page_no;
+    }
+    uint32_t this_len= std::min<uint32_t>(len, remain);
+    if (binlog_cur_page_offset == FIL_PAGE_DATA)
+      fsp_binlog_write_start(binlog_cur_page_no, data, this_len, mtr);
+    else
+      fsp_binlog_write_offset(binlog_cur_page_no, binlog_cur_page_offset,
+                              data, this_len, mtr);
+    len-= this_len;
+    data+= this_len;
+    binlog_cur_page_offset+= this_len;
+  }
+}
+
+
+void fsp_binlog_test(const uchar *data, uint32_t len)
+{
+  mtr_t mtr;
+  mtr.start();
+  if (!binlog_space)
+    fsp_binlog_tablespace_create("./binlog-000000.ibb");
+  mtr.set_named_space(binlog_space);
+  fsp_binlog_append(data, len, &mtr);
+  mtr.commit();
+}
