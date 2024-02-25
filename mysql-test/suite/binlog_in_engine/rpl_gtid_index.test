@@ -1,0 +1,31 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+
+--let $binlog_in_engine_test= 1
+--source suite/rpl/include/rpl_gtid_index_setup.inc
+
+
+--echo *** A lot of GTIDs with small binlog size and state interval
+--let $NUM_POS= 1000
+--let $NUM_DOMAIN= 10
+--let $NUM_SERVER= 5
+--let $NUM_SLAVE_CONNECTS= 100
+--let $RND_SEED= 150
+--source suite/rpl/include/rpl_gtid_index.inc
+
+--echo *** Switch to a larger binlog size
+SET @old_binlog_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 16*1024*1024;
+--let $NUM_POS= 4000
+--let $RND_SEED= 666
+--source suite/rpl/include/rpl_gtid_index.inc
+
+
+# Cleanup.
+--connection master
+SET GLOBAL max_binlog_size= @old_binlog_size;
+--source suite/rpl/include/rpl_gtid_index_cleanup.inc
+
+--source include/rpl_end.inc

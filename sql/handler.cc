@@ -1536,6 +1536,12 @@ int ha_prepare(THD *thd)
 
   if (ha_info)
   {
+    if (unlikely(tc_log->log_xa_prepare(thd, all)))
+    {
+      ha_rollback_trans(thd, all);
+      error= 1;
+      goto binlog_error;
+    }
     for (; ha_info; ha_info= ha_info->next())
     {
       transaction_participant *ht= ha_info->ht();
@@ -1559,6 +1565,7 @@ int ha_prepare(THD *thd)
       }
     }
 
+binlog_error:
     DEBUG_SYNC(thd, "at_unlog_xa_prepare");
 
     if (tc_log->unlog_xa_prepare(thd, all))
@@ -2000,6 +2007,10 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (! hi->is_trx_read_write())
       continue;
+    /* We do not need to 2pc the binlog with the engine that implements it. */
+    /* ToDo: This needs refinement, at least to handle the case when we are not binlogging. And maybe the logic could happen more elegantly in a different place, higher in the call stack? */
+    if (ht == opt_binlog_engine_hton)
+      continue;
     /*
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
@@ -2059,14 +2070,14 @@ int ha_commit_trans(THD *thd, bool all)
     if (wsrep_must_abort(thd))
     {
       mysql_mutex_unlock(&thd->LOCK_thd_data);
-      (void)tc_log->unlog(cookie, xid);
+      (void)tc_log->unlog(thd, cookie, xid);
       goto wsrep_err;
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
-  if (tc_log->unlog(cookie, xid))
+  if (tc_log->unlog(thd, cookie, xid))
     error= 2;                                /* Error during commit */
 
 done:
@@ -2225,7 +2236,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   {
     int err= 0;
 
-    if (has_binlog_hton(ha_info))
+    bool is_binlogged= has_binlog_hton(ha_info);
+    if (is_binlogged)
     {
       if ((err= binlog_commit(thd, all, is_ro_1pc_trans(thd, ha_info, all,
                                                         is_real_trans))))
@@ -2258,6 +2270,9 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
       ha_info_next= ha_info->next();
       ha_info->reset(); /* keep it conveniently zero-filled */
     }
+    DEBUG_SYNC(thd, "commit_handlerton_after");
+    if (is_binlogged && is_real_trans)
+      binlog_post_commit(thd, all);
     trans->ha_list= 0;
     trans->no_2pc=0;
     if (all)
@@ -2362,6 +2377,7 @@ int ha_rollback_trans(THD *thd, bool all)
       (void) wsrep_before_rollback(thd, all);
 #endif /* WITH_WSREP */
 
+  bool do_binlog= false;
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -2372,6 +2388,7 @@ int ha_rollback_trans(THD *thd, bool all)
     {
       int err;
       transaction_participant *ht= ha_info->ht();
+      do_binlog|= (ht == &binlog_tp);
       if ((err= ht->rollback(thd, all)))
       {
         // cannot happen
@@ -2388,6 +2405,7 @@ int ha_rollback_trans(THD *thd, bool all)
         }
 #endif /* WITH_WSREP */
       }
+      DEBUG_SYNC(thd, "rollback_handlerton_after");
       status_var_increment(thd->status_var.ha_rollback_count);
       ha_info_next= ha_info->next();
       ha_info->reset(); /* keep it conveniently zero-filled */
@@ -2395,6 +2413,9 @@ int ha_rollback_trans(THD *thd, bool all)
     trans->ha_list= 0;
     trans->no_2pc=0;
   }
+
+  if (do_binlog)
+    binlog_post_rollback(thd, all);
 
 #ifdef WITH_WSREP
   if (WSREP(thd) && thd->is_error())
@@ -2464,7 +2485,7 @@ struct xahton_st {
   int result;
 };
 
-static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
+static bool xacommit_handlerton(THD *thd, transaction_participant *hton, void *arg)
 {
   if (hton->recover)
   {
@@ -2502,6 +2523,15 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
 
   tp_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton, &xaop);
 
+  if (commit)
+    DEBUG_SYNC(current_thd, "xacommit_handlerton_after");
+  else
+    DEBUG_SYNC(current_thd, "xarollback_handlerton_after");
+
+  if (commit)
+    binlog_post_commit_by_xid(xid);
+  else
+    binlog_post_rollback_by_xid(xid);
   return xaop.result;
 }
 
@@ -2619,6 +2649,43 @@ struct xarecover_st
   bool error;
 };
 
+
+/**
+   Recovery for XID (internal 2pc and user XA) using engine-implemented binlog.
+
+   The binlog provides the state of each XID - prepared, committed, rolled
+   back. For prepared XA, it also provides the count of the number of engines
+   participating in that transaction.
+
+   Each XID found prepared in an engine will be committed, rolled back, or left
+   in prepared state according to the state of the binlog. For an XID in the
+   prepared state, if the number of engines found having that XID is too
+   small, it means the server crashed in the middle of preparing a multi-
+   engine transaction, and that XID will be rolled back both in engines and
+   in the binlog.
+*/
+struct xarecover_engine_binlog
+{
+  static constexpr uint32_t MAX_HTONS= 32;
+
+  /* Buffer for engines to return their prepared XID into. */
+  XID *list;
+  /* Hash (of handler_binlog_xid_info) of binlog state of XIDs. */
+  HASH *xid_hash;
+  /*
+    Engine handlertons involved in XID recovery, used for bits in
+    handler_binlog_xid_info::engine_map.
+  */
+  handlerton *htons[MAX_HTONS];
+  /* Used entries in htons. */
+  uint32_t num_htons;
+  /* Size of the XID *list. */
+  int len;
+  /* Set in case of any error during the processing. */
+  bool error;
+};
+
+
 /**
   Inserts a new hash member.
 
@@ -2669,6 +2736,173 @@ static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
 
   return member == NULL;
 }
+
+
+static bool
+record_hton_for_xid(xarecover_engine_binlog *info, handler_binlog_xid_info *rec,
+                    handlerton *hton)
+{
+  uint32_t idx;
+  for (idx= 0; idx < info->num_htons; ++idx)
+  {
+    if (info->htons[idx] == hton)
+    {
+      rec->engine_map|= 1<<idx;
+      return false;
+    }
+  }
+  if (info->num_htons >= xarecover_engine_binlog::MAX_HTONS)
+  {
+    sql_print_error("Too many transactional engines during binlog recovery "
+                    "of prepared transactions (max is %u)",
+                    (uint)xarecover_engine_binlog::MAX_HTONS);
+    return true;
+  }
+  rec->engine_map|= 1<<info->num_htons;
+  info->htons[info->num_htons++]= hton;
+  return false;
+}
+
+
+static my_bool xarecover_engine_binlog(THD *unused, plugin_ref plugin,
+                                       void *arg)
+{
+  handlerton *hton= plugin_hton(plugin);
+  struct xarecover_engine_binlog *info=
+    (struct xarecover_engine_binlog *) arg;
+  int got;
+
+  if (hton->recover)
+  {
+    while ((got= hton->recover(info->list, info->len)) > 0 )
+    {
+      sql_print_information("Found %d prepared transaction(s) in %s",
+                            got, hton_name(hton)->str);
+
+      for (int i=0; i < got; i ++)
+      {
+        XID *xid= &info->list[i];
+        const uchar *key_ptr= xid->key();
+        size_t key_len= xid->key_length();
+        handler_binlog_xid_info *rec= (handler_binlog_xid_info *)
+          my_hash_search(info->xid_hash, key_ptr, key_len);
+
+        /* If the binlog says to roll back, or says nothing, then roll back. */
+        if (!rec || rec->xid_state == handler_binlog_xid_info::BINLOG_ROLLBACK)
+        {
+          if (hton->rollback_by_xid(info->list+i))
+            info->error= true;
+          continue;
+        }
+
+        /* If the binlog says to commit, or says nothing, then commit. */
+        if (rec->xid_state == handler_binlog_xid_info::BINLOG_COMMIT)
+        {
+          if (hton->commit_by_xid(xid))
+            info->error= true;
+          continue;
+        }
+        DBUG_ASSERT(rec->xid_state == handler_binlog_xid_info::BINLOG_PREPARE);
+
+        /*
+          If the binlog has the transaction in the prepared state, then we
+          must check if all involved engines have it prepared as well. We might
+          have crashed before all engines had time to (durably) prepare, in
+          which case we will roll back the ones that did.
+          So we record in the info->xid_hash that we found the XID in this
+          engine, and at the end we then check whether to commit or roll back.
+        */
+        DBUG_ASSERT(rec->engine_count > 0);
+        if (likely(rec->engine_count > 0))
+          --rec->engine_count;
+        if (record_hton_for_xid(info, rec, hton))
+          info->error= true;
+      }
+      if (got < info->len)
+        break;
+    }
+  }
+  return FALSE;
+}
+
+
+int
+ha_recover_engine_binlog(HASH *xid_hash)
+{
+  DBUG_ENTER("ha_recover_engine_binlog");
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  struct xarecover_engine_binlog info;
+  info.xid_hash= xid_hash;
+  info.num_htons= 0;
+  info.error= false;
+  info.list= nullptr;
+
+  sql_print_information("Starting recovery of prepared transactions...");
+
+  for (info.len= MAX_XID_LIST_SIZE; info.len >= MIN_XID_LIST_SIZE; info.len/=2)
+  {
+    info.list=(XID *)my_malloc(key_memory_XID, info.len*sizeof(XID), MYF(0));
+    if (likely(info.list))
+      break;
+  }
+  if (!info.list)
+  {
+    sql_print_error(ER(ER_OUTOFMEMORY),
+                    static_cast<int>(info.len*sizeof(XID)));
+    DBUG_RETURN(1);
+  }
+
+  plugin_foreach(NULL, xarecover_engine_binlog,
+                 MYSQL_STORAGE_ENGINE_PLUGIN, &info);
+
+  my_free(info.list);
+
+  if (info.error)
+    DBUG_RETURN(1);
+
+  /*
+    Now handle any XID found in the prepared state in binlog. They will be
+    left prepared if all engines that participated in the transaction managed
+    to prepare them durably before the server restart; otherwise they will be
+    rolled back in binlog and engines (if any).
+  */
+  for (uint32 i= 0; i < xid_hash->records; ++i)
+  {
+    handler_binlog_xid_info *rec= (handler_binlog_xid_info *)
+      my_hash_element(xid_hash, i);
+    if (rec->xid_state != handler_binlog_xid_info::BINLOG_PREPARE)
+      continue;
+    if (rec->engine_count == 0)
+    {
+      /* Recover the XID as a prepared XA transaction. */
+      xid_cache_insert(&rec->xid);
+    }
+    else
+    {
+      /* Not all participating engines prepared, so roll back. */
+      void *engine_data= nullptr;
+      mysql_mutex_lock(&LOCK_commit_ordered);
+      (*opt_binlog_engine_hton->binlog_xa_rollback_ordered)
+        (current_thd, &rec->xid, &engine_data);
+      mysql_mutex_unlock(&LOCK_commit_ordered);
+      (*opt_binlog_engine_hton->binlog_xa_rollback)
+        (current_thd, &rec->xid, &engine_data);
+      for (uint32_t j= 0; j < info.num_htons; ++j)
+      {
+        if (rec->engine_map & (1<<j)) {
+          handlerton *hton= info.htons[j];
+          (*hton->rollback_by_xid)(&rec->xid);
+        }
+      }
+      (*opt_binlog_engine_hton->binlog_unlog)(&rec->xid, &engine_data);
+      (*opt_binlog_engine_hton->binlog_oob_free)(engine_data);
+    }
+  }
+
+  sql_print_information("Recovery of prepared transaction finished.");
+  DBUG_RETURN(0);
+}
+
 
 /*
   A "transport" type for recovery completion with ha_recover_complete()
@@ -2931,6 +3165,7 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
   return FALSE;
 }
 
+
 int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
 {
   struct xarecover_st info;
@@ -2941,6 +3176,16 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   info.list= NULL;
   info.mem_root= arg_mem_root;
   info.error= false;
+
+  if (opt_binlog_engine_hton)
+  {
+    /*
+      With engine-implemented binlog, recovery is handled during binlog
+      open, calling into ha_recover_engine_binlog().
+    */
+    DBUG_ASSERT(!arg_mem_root);
+    DBUG_RETURN(0);
+  }
 
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
@@ -2954,11 +3199,12 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   if (info.commit_list)
     sql_print_information("Starting table crash recovery...");
 
-  for (info.len= MAX_XID_LIST_SIZE ; 
-       info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
+  for (info.len= MAX_XID_LIST_SIZE; info.len >= MIN_XID_LIST_SIZE; info.len/=2)
   {
     DBUG_EXECUTE_IF("min_xa_len", info.len = 16;);
     info.list=(XID *)my_malloc(key_memory_XID, info.len*sizeof(XID), MYF(0));
+    if (likely(info.list))
+      break;
   }
   if (!info.list)
   {
@@ -8641,8 +8887,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
         wsrep_thd_is_toi(bf_thd))) {
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     DBUG_RETURN(0);
   }
 
@@ -8654,8 +8898,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   else
   {
     WSREP_WARN("Cannot abort InnoDB transaction");
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
 
   DBUG_RETURN(0);

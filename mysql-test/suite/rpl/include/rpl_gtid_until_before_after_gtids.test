@@ -33,6 +33,7 @@ if (!$ssu_before_gtids)
 --source include/stop_slave.inc
 --source include/reset_slave.inc
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set session gtid_domain_id=0;
 

@@ -34,6 +34,7 @@ include/wait_for_slave_sql_to_stop.inc
 RESET REPLICA ALL;
 set @@global.gtid_slave_pos= "";
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE t(f INT) ENGINE=INNODB;
 INSERT INTO t VALUES (10);

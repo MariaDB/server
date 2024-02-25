@@ -333,6 +333,9 @@ fsp_header_check_encryption_key(
 dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                             mtr_t *mtr) noexcept;
+
 /** Create a new segment.
 @param space                tablespace
 @param byte_offset          byte offset of the created segment header

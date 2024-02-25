@@ -1,0 +1,7 @@
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--let $engine= RocksDB
+--source include/xa_crash.inc

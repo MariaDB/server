@@ -293,6 +293,7 @@ if ($cnf == "galera2_to_mariadb")
 
   --connection master
   set global wsrep_on=OFF;
+  --source include/kill_binlog_dump_threads.inc
   RESET MASTER;
   set global wsrep_on=ON;
 }

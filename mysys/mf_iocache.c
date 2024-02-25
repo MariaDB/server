@@ -1791,6 +1791,13 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
     if ((length=(size_t) (info->write_pos - info->write_buffer)))
     {
       my_off_t eof= info->end_of_file + info->write_pos - info->append_read_pos;
+      /*
+        The write_function() updates info->pos_in_file. So compute the new end
+        position here before calling it, but update the value only after we
+        check for error return.
+      */
+      uchar *new_write_end= (info->write_buffer + info->buffer_length -
+                             ((info->pos_in_file + length) & (IO_SIZE - 1)));
       if (append_cache)
       {
         if (tmp_file_track(info, eof) ||
@@ -1815,8 +1822,7 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
         }
         set_if_bigger(info->end_of_file, info->pos_in_file);
       }
-      info->write_end= (info->write_buffer + info->buffer_length -
-                        ((info->pos_in_file + length) & (IO_SIZE - 1)));
+      info->write_end= new_write_end;
       info->write_pos= info->write_buffer;
       ++info->disk_writes;
       UNLOCK_APPEND_BUFFER;

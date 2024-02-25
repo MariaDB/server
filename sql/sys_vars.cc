@@ -1315,14 +1315,22 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space();
-    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
-    sending_new_binlog_file++;
-    mysql_bin_log.unlock_index();
-    mysql_bin_log.purge(1);
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    return 0;
+    if (opt_binlog_engine_hton)
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.engine_purge_logs_by_size(loc_binlog_space_limit);
+    }
+    else
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.count_binlog_space();
+      /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+      sending_new_binlog_file++;
+      mysql_bin_log.unlock_index();
+      mysql_bin_log.purge(1);
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      return 0;
+    }
   }
   mysql_bin_log.unlock_index();
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -1875,6 +1883,16 @@ Sys_max_binlog_size(
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_max_binlog_size));
 
+
+static Sys_var_charptr_fscs Sys_binlog_directory(
+       "binlog_directory",
+       "Directory path (absolute or relative to datadir) where binlog files "
+       "are stored. If this is used, must not specify a directory path for "
+       "--log-bin",
+       READ_ONLY GLOBAL_VAR(opt_binlog_directory), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+
 static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 {
   return false;
@@ -2394,7 +2412,7 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   bool first= true;
 
   str.length(0);
-  rpl_gtid gtid= thd->get_last_commit_gtid();
+  rpl_gtid gtid= *thd->get_last_commit_gtid();
   if ((gtid.seq_no > 0 &&
        rpl_slave_state_tostring_helper(&str, &gtid, &first)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -2697,6 +2715,14 @@ static Sys_var_on_access_global<
         GLOBAL_VAR(slave_abort_blocking_timeout), CMD_LINE(REQUIRED_ARG),
         VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(LONG_TIMEOUT), NO_MUTEX_GUARD,
         NOT_IN_BINLOG);
+
+
+static Sys_var_charptr_fscs Sys_binlog_storage_engine(
+       "binlog_storage_engine",
+       "Use a more efficient binlog implementation integrated with the "
+       "storage engine. Only available for supporting engines",
+       READ_ONLY GLOBAL_VAR(opt_binlog_storage_engine), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
 #endif
 
 
@@ -3810,6 +3836,18 @@ Replicate_events_marked_for_skip
 
 /* new options for semisync */
 
+static bool
+check_rpl_semi_sync_master_enabled(sys_var *self, THD *thd, set_var *var)
+{
+  if (opt_binlog_engine_hton && var->save_result.ulonglong_value)
+  {
+    my_error(ER_NOT_YET_SUPPORTED_ENGINE_BINLOG, MYF(0),
+             "Semi-synchronous replication");
+    return true;
+  }
+  return false;
+}
+
 static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
@@ -3864,7 +3902,8 @@ Sys_semisync_master_enabled(
        "Enable semi-synchronous replication master (disabled by default)",
        GLOBAL_VAR(rpl_semi_sync_master_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_rpl_semi_sync_master_enabled),
        ON_UPDATE(fix_rpl_semi_sync_master_enabled));
 
 static Sys_var_on_access_global<Sys_var_ulong,

@@ -1,0 +1,153 @@
+--source include/not_embedded.inc
+# Test does a lot of queries that take a lot of CPU under Valgrind.
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/have_binlog_format_row.inc
+--source include/have_sequence.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--connection master
+CREATE TABLE t_strings(a INT NOT NULL, b INT NOT NULL, c VARCHAR(2048),
+                       PRIMARY KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t_sum_lengths(a INT PRIMARY KEY, c INT, sum_len BIGINT) ENGINE=InnoDB;
+--let $NUM_ACC= 500
+--let $INIT_AMOUNT= 1000
+CREATE TABLE t_accounts(a INT PRIMARY KEY, balance INT) ENGINE=InnoDB;
+eval INSERT INTO t_accounts(a, balance) SELECT seq, $INIT_AMOUNT FROM seq_1_to_$NUM_ACC;
+
+--disable_query_log
+--delimiter //
+CREATE PROCEDURE gen_load1(x INT)
+  MODIFIES SQL DATA
+  BEGIN
+    DECLARE i INT;
+    SET i = 0;
+    load_loop: LOOP
+      START TRANSACTION;
+      SET @val= REPEAT(@@SESSION.last_gtid, 1 + FLOOR(RAND() * 10));
+      INSERT INTO t_strings VALUES (x, i, @val);
+      INSERT INTO t_sum_lengths(a, c, sum_len) VALUES (x, 1, LENGTH(@val))
+          ON DUPLICATE KEY UPDATE c = c + 1, sum_len = sum_len + LENGTH(@val);
+      COMMIT;
+      SET i = i + 1;
+    END LOOP;
+  END
+//
+
+eval CREATE PROCEDURE gen_load2(x INT)
+  MODIFIES SQL DATA
+  BEGIN
+    DECLARE i INT;
+    SET i = 0;
+    load_loop: LOOP
+      START TRANSACTION;
+      SET @acc1= 1 + FLOOR(RAND() * $NUM_ACC);
+      SET @acc2= 1 + FLOOR(RAND() * $NUM_ACC);
+      SET @amount= 1 + FLOOR(RAND() * $INIT_AMOUNT / 10);
+      UPDATE t_accounts SET balance = balance - @amount WHERE a = @acc1;
+      UPDATE t_accounts SET balance = balance + @amount WHERE a = @acc2;
+      COMMIT;
+      SET i = i + 1;
+    END LOOP;
+  END
+//
+--delimiter ;
+--enable_query_log
+
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 10;
+
+
+--echo *** Looping, killing server while running some parallel load...
+--connection master
+--let $loop= 1
+while ($loop <= 3) {
+  --echo *** Loop: $loop ...
+
+  --connect (con1,localhost,root,,)
+  --send_eval CALL gen_load1(10 + $loop);
+
+  --connect (con2,localhost,root,,)
+  --send_eval CALL gen_load1(20 + $loop);
+
+  --connect (con3,localhost,root,,)
+  --send_eval CALL gen_load1(30 + $loop);
+
+  --connect (con4,localhost,root,,)
+  --send_eval CALL gen_load2(40 + $loop);
+
+  --connect (con5,localhost,root,,)
+  --send_eval CALL gen_load2(50 + $loop);
+
+  --connection master
+  --sleep 0.8
+  --let $rpl_server_number= 1
+  --let $shutdown_timeout=0
+  --source include/rpl_restart_server.inc
+
+  --disconnect con1
+  --disconnect con2
+  --disconnect con3
+  --disconnect con4
+  --disconnect con5
+
+  inc $loop;
+}
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+# Check consistency, to verify that no transaction was
+# partially/incorrectly recovered.
+--let $i= 1
+while ($i <= 2) {
+  --connection server_$i
+  CREATE TEMPORARY TABLE t_check_len AS
+  SELECT a, COUNT(b), SUM(LENGTH(c))
+    FROM t_strings
+   GROUP BY a;
+  --echo *** Must have no rows output from the two SELECT on server $i:
+  (SELECT * FROM t_sum_lengths)
+  EXCEPT
+  (SELECT * FROM t_check_len);
+  (SELECT * FROM t_check_len)
+  EXCEPT
+  (SELECT * FROM t_sum_lengths);
+
+  --echo *** Must have zero balance from the SELECT on server $i:
+  eval SELECT SUM(balance) - $NUM_ACC * $INIT_AMOUNT
+	 FROM t_accounts;
+
+  inc $i;
+}
+
+--echo *** Check that slave data is identical to master
+--let $diff_tables= master:t_strings, slave:t_strings
+--source include/diff_tables.inc
+--let $diff_tables= master:t_sum_lengths, slave:t_sum_lengths
+--source include/diff_tables.inc
+--let $diff_tables= master:t_accounts, slave:t_accounts
+--source include/diff_tables.inc
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_threads;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t_strings;
+DROP TABLE t_sum_lengths;
+DROP TABLE t_accounts;
+DROP PROCEDURE gen_load1;
+DROP PROCEDURE gen_load2;
+--source include/rpl_end.inc

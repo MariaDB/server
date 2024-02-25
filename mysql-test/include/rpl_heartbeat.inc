@@ -1,0 +1,134 @@
+# Testing master to slave heartbeat protocol
+# Shared between rpl.rpl_heartbeat and binlog_in_engine.rpl_heartbeat.
+# 
+# Including:
+# - user interface, grammar, checking the range and warnings about 
+#   unreasonable values for the heartbeat period;
+# - no rotation of relay log if heartbeat is less that slave_net_timeout
+# - SHOW STATUS like 'Slave_received_heartbeats' action
+# - SHOW STATUS like 'Slave_heartbeat_period' report
+
+connection slave;
+-- source include/stop_slave.inc
+
+connection master;
+--source include/kill_binlog_dump_threads.inc
+reset master;
+
+connection slave;
+set @restore_slave_net_timeout= @@global.slave_net_timeout;
+--disable_warnings
+set @@global.slave_net_timeout= 10;
+--enable_warnings
+
+--enable_prepare_warnings
+
+#
+# A warning if period greater than slave_net_timeout
+#
+set @@global.slave_net_timeout= 5;
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_heartbeat_period= 5.001;
+--query_vertical show status like 'Slave_heartbeat_period';
+
+reset slave;
+
+#
+# A warning if slave_net_timeout is set to less than the current HB period
+#
+set @@global.slave_net_timeout= 5;
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_heartbeat_period= 4;
+--query_vertical show status like 'Slave_heartbeat_period';
+set @@global.slave_net_timeout= 3 /* must be a warning */;
+
+reset slave;
+
+
+###
+### checking no rotation
+###
+
+connection master;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+#
+# Even though master_heartbeat_period= 0.5 is 20 times less than
+# @@global.slave_net_timeout= 10 in some circumstances master will
+# not be able to send any heartbeat during the slave's net timeout
+# and slave's relay log will rotate.
+# The probability for such a scenario is pretty small so the following
+# part is almost deterministic.
+#
+
+connection slave;
+set @@global.slave_net_timeout= 10;
+--replace_result $MASTER_MYPORT MASTER_PORT
+# no error this time but rather a warning
+eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period= 0.5;
+--query_vertical show status like 'Slave_heartbeat_period';
+
+start slave;
+
+connection master;
+create table t1 (f1 int);
+
+connection master;
+--source include/save_master_gtid.inc
+connection slave;
+--source include/sync_with_master_gtid.inc
+let $slave_param= Relay_Log_File;
+let $slave_param_value= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
+
+# there is an explicit sleep lasting longer than slave_net_timeout
+# to ensure that nothing will come to slave from master for that period.
+# That would cause reconnecting and relaylog rotation w/o the fix i.e
+# without a heartbeat received.
+
+real_sleep 15;
+
+# check (compare with the previous show's results) that no rotation happened
+source include/check_slave_param.inc;
+
+###
+### SHOW STATUS like 'Slave_heartbeat_period' and 'Slave_received_heartbeats'
+###
+
+--query_vertical show status like 'Slave_heartbeat_period';
+
+#
+# proof that there has been received at least one heartbeat;
+# The exact number of received heartbeat is an indeterministic value
+# and therefore it's not recorded into results.
+#
+
+let $slave_wait_param_counter= 300;
+let $slave_value= query_get_value("SHOW STATUS like 'Slave_received_heartbeats'", Value, 1);
+# Checking the fact that at least one heartbeat is received
+while (!$slave_value)
+{
+  dec $slave_wait_param_counter;
+  if (!$slave_wait_param_counter)
+  {
+    --echo ERROR: failed while waiting for slave parameter $slave_param: $slave_param_value
+    query_vertical show slave status;
+    SHOW STATUS like 'Slave_received_heartbeats';
+    exit;
+  }
+  sleep 0.1;
+  let $slave_value= query_get_value("SHOW STATUS like 'Slave_received_heartbeats'", Value, 1);
+}
+--echo A heartbeat has been received by the slave
+# cleanup
+
+connection master;
+drop table t1;
+
+connection master;
+--source include/save_master_gtid.inc
+connection slave;
+--source include/sync_with_master_gtid.inc
+set @@global.slave_net_timeout= @restore_slave_net_timeout;
+
+--disable_prepare_warnings

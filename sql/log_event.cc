@@ -1341,6 +1341,72 @@ exit:
 }
 
 
+int handler_binlog_reader::read_log_event(String *packet, uint32_t ev_offset,
+                                          size_t max_allowed)
+{
+  uint32_t sofar= 0;
+  bool header_read= false;
+  uint32_t target_size= EVENT_LEN_OFFSET + 4;
+  int res;
+
+  if (unlikely(!buf))
+    return LOG_READ_MEM;
+
+  /*
+    Loop, first reading the "length" field, and then continuing to read data
+    until a full event has been placed in the packet.
+  */
+  for (;;)
+  {
+    if (buf_data_remain <= 0)
+    {
+      res= read_binlog_data(buf, BUF_SIZE);
+      if (res <= 0)
+      {
+        res= (res < 0 ? LOG_READ_IO : LOG_READ_EOF);
+        goto err;
+      }
+      buf_data_pos= 0;
+      buf_data_remain= res;
+    }
+    uint32_t amount= std::min(target_size - sofar, buf_data_remain);
+    packet->append((char *)buf + buf_data_pos, amount);
+    buf_data_pos+= amount;
+    buf_data_remain-= amount;
+    sofar+= amount;
+    if (target_size == sofar)
+    {
+      if (header_read)
+        break;
+      else
+      {
+        header_read= true;
+        target_size= uint4korr(&((*packet)[EVENT_LEN_OFFSET + ev_offset]));
+        if (target_size < LOG_EVENT_MINIMAL_HEADER_LEN)
+        {
+          res= LOG_READ_BOGUS;
+          goto err;
+        }
+	else if (target_size > max_allowed)
+        {
+          res= LOG_READ_TOO_LARGE;
+          goto err;
+        }
+	/*
+          Note that here we rely on the fact that all valid events have more
+          data after the length. This way we avoid conditional for the
+          (useless) special case where we don't need to read anything more
+          after having read the first part.
+        */
+        DBUG_ASSERT(LOG_EVENT_MINIMAL_HEADER_LEN > EVENT_LEN_OFFSET+4);
+      }
+    }
+  }
+  res= 0;  /* Success */
+err:
+  return res;
+}
+
 
 /* 2 utility functions for the next method */
 
