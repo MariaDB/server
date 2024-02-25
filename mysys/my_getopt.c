@@ -133,7 +133,7 @@ double getopt_ulonglong2double(ulonglong v)
   return u.dbl;
 }
 
-#define SET_HO_ERROR_AND_CONTINUE(e) { ho_error= (e); continue; }
+#define SET_HO_ERROR_AND_CONTINUE(e) { ho_error= (e); (*argc)--; continue; }
 
 /**
   Handle command line options.
@@ -1077,6 +1077,8 @@ static ulonglong eval_num_suffix_ull(char *argument,
 static longlong getopt_ll(char *arg, const struct my_option *optp, int *err)
 {
   longlong num=eval_num_suffix_ll(arg, err, (char*) optp->name);
+  if (*err)
+    return(0);
   return getopt_ll_limit_value(num, optp, NULL);
 }
 
@@ -1154,6 +1156,8 @@ longlong getopt_ll_limit_value(longlong num, const struct my_option *optp,
 static ulonglong getopt_ull(char *arg, const struct my_option *optp, int *err)
 {
   ulonglong num= eval_num_suffix_ull(arg, err, (char*) optp->name);
+  if (*err)
+    return(0);
   return getopt_ull_limit_value(num, optp, NULL);
 }
 
