@@ -65,11 +65,13 @@ where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::COND_xid_list"
   order by event_name;
 EVENT_NAME	COUNT_STAR
+wait/synch/cond/sql/MYSQL_BIN_LOG::COND_binlog_use	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_bin_log_updated	MANY
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_relay_log_updated	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_use	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect no slave relay log"
@@ -155,11 +157,13 @@ where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::COND_xid_list"
   order by event_name;
 EVENT_NAME	COUNT_STAR
+wait/synch/cond/sql/MYSQL_BIN_LOG::COND_binlog_use	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_bin_log_updated	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_relay_log_updated	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_use	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect a slave relay log"

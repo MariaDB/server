@@ -96,6 +96,7 @@ SET SESSION binlog_format= @old_mode;
 connection slave;
 include/stop_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (4);

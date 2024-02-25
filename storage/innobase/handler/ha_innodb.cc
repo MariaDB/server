@@ -30,6 +30,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #define MYSQL_SERVER
 #include "univ.i"
+#include "my_bit.h"
 
 /* Include necessary SQL headers */
 #include "ha_prototypes.h"
@@ -107,6 +108,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "innodb_binlog.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -530,6 +532,12 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
+mysql_pfs_key_t fsp_active_binlog_mutex_key;
+mysql_pfs_key_t fsp_binlog_durable_mutex_key;
+mysql_pfs_key_t fsp_binlog_durable_cond_key;
+mysql_pfs_key_t fsp_purge_binlog_mutex_key;
+mysql_pfs_key_t fsp_page_fifo_mutex_key;
+mysql_pfs_key_t ibb_xid_hash_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -2466,72 +2474,6 @@ innobase_raw_format(
 	return(ut_str_sql_format(buf_tmp, buf_tmp_used, buf, buf_size));
 }
 
-/*
-The helper function nlz(x) calculates the number of leading zeros
-in the binary representation of the number "x", either using a
-built-in compiler function or a substitute trick based on the use
-of the multiplication operation and a table indexed by the prefix
-of the multiplication result:
-*/
-#ifdef __GNUC__
-#define nlz(x) __builtin_clzll(x)
-#elif defined(_MSC_VER) && !defined(_M_CEE_PURE) && \
-  (defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM64))
-#ifndef __INTRIN_H_
-#pragma warning(push, 4)
-#pragma warning(disable: 4255 4668)
-#include <intrin.h>
-#pragma warning(pop)
-#endif
-__forceinline unsigned int nlz (ulonglong x)
-{
-#if defined(_M_IX86) || defined(_M_X64)
-  unsigned long n;
-#ifdef _M_X64
-  _BitScanReverse64(&n, x);
-  return (unsigned int) n ^ 63;
-#else
-  unsigned long y = (unsigned long) (x >> 32);
-  unsigned int m = 31;
-  if (y == 0)
-  {
-    y = (unsigned long) x;
-    m = 63;
-  }
-  _BitScanReverse(&n, y);
-  return (unsigned int) n ^ m;
-#endif
-#elif defined(_M_ARM64)
-  return _CountLeadingZeros64(x);
-#endif
-}
-#else
-inline unsigned int nlz (ulonglong x)
-{
-  static unsigned char table [48] = {
-    32,  6,  5,  0,  4, 12,  0, 20,
-    15,  3, 11,  0,  0, 18, 25, 31,
-     8, 14,  2,  0, 10,  0,  0,  0,
-     0,  0,  0, 21,  0,  0, 19, 26,
-     7,  0, 13,  0, 16,  1, 22, 27,
-     9,  0, 17, 23, 28, 24, 29, 30
-  };
-  unsigned int y= (unsigned int) (x >> 32);
-  unsigned int n= 0;
-  if (y == 0) {
-    y= (unsigned int) x;
-    n= 32;
-  }
-  y = y | (y >> 1); // Propagate leftmost 1-bit to the right.
-  y = y | (y >> 2);
-  y = y | (y >> 4);
-  y = y | (y >> 8);
-  y = y & ~(y >> 16);
-  y = y * 0x3EF5D037;
-  return n + table[y >> 26];
-}
-#endif
-
 /*********************************************************************//**
 Compute the next autoinc value.
 
@@ -2574,8 +2516,8 @@ innobase_next_autoinc(
 	  operation. The snippet below calculates the product of two numbers
 	  and detects an unsigned integer overflow:
 	*/
-	unsigned int	m= nlz(need);
-	unsigned int	n= nlz(step);
+	unsigned int	m= my_nlz(need);
+	unsigned int	n= my_nlz(step);
 	if (m + n <= 8 * sizeof(ulonglong) - 2) {
 		// The bit width of the original values is too large,
 		// therefore we are guaranteed to get an overflow.
@@ -2761,6 +2703,7 @@ trx_deregister_from_2pc(
 {
   trx->is_registered= false;
   trx->active_commit_ordered= false;
+  trx->active_prepare= false;
 }
 
 /**
@@ -3837,6 +3780,16 @@ static int innodb_init_params()
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
 
+	if (innodb_binlog_state_interval == 0 ||
+	    innodb_binlog_state_interval !=
+		(ulonglong)1 << (63 - my_nlz(innodb_binlog_state_interval)) ||
+	    innodb_binlog_state_interval % (ulonglong)ibb_page_size) {
+		sql_print_error("InnoDB: innodb_binlog_state_interval must be "
+                                "a power-of-two multiple of the innodb binlog "
+                                "page size=%lu KiB", ibb_page_size >> 10);
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
+	}
+
 #ifdef _WIN32
   if (!is_filename_allowed(srv_buf_dump_filename,
                            strlen(srv_buf_dump_filename), false))
@@ -4085,6 +4038,41 @@ static void innobase_update_optimizer_costs(OPTIMIZER_COSTS *costs)
 }
 
 
+static binlog_file_entry *innodb_get_binlog_file_list(MEM_ROOT *mem_root)
+{
+  uint64_t first, last;
+  if (innodb_find_binlogs(&first, &last))
+    return nullptr;
+  binlog_file_entry *list;
+  binlog_file_entry **next_ptr= &list;
+  for (uint64_t i= first; i <= last; ++i)
+  {
+    binlog_file_entry *e= (binlog_file_entry *)alloc_root(mem_root, sizeof(*e));
+    if (!e)
+      return nullptr;
+    char name_buf[OS_FILE_MAX_PATH];
+    binlog_name_make(name_buf, i);
+    e->name.length= strlen(name_buf);
+    char *str= static_cast<char *>(alloc_root(mem_root, e->name.length + 1));
+    if (!str)
+      return nullptr;
+    strcpy(str, name_buf);
+    e->name.str= str;
+    *next_ptr= e;
+    next_ptr= &(e->next);
+  }
+  *next_ptr= nullptr;
+  return list;
+}
+
+
+static bool
+innodb_binlog_flush()
+{
+  return fsp_binlog_flush();
+}
+
+
 /** Initialize the InnoDB storage engine plugin.
 @param[in,out]	p	InnoDB handlerton
 @return error code
@@ -4158,6 +4146,32 @@ static int innodb_init(void* p)
 		= innodb_prepare_commit_versioned;
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
+        innobase_hton->binlog_init= innodb_binlog_init;
+        innobase_hton->set_binlog_max_size= ibb_set_max_size;
+        innobase_hton->binlog_write_direct_ordered=
+          innobase_binlog_write_direct_ordered;
+        innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
+        innobase_hton->binlog_group_commit_ordered= ibb_group_commit;
+        innobase_hton->binlog_oob_data_ordered= innodb_binlog_oob_ordered;
+        innobase_hton->binlog_oob_data= innodb_binlog_oob;
+        innobase_hton->binlog_savepoint_rollback= ibb_savepoint_rollback;
+        innobase_hton->binlog_oob_reset= innodb_reset_oob;
+        innobase_hton->binlog_oob_free= innodb_free_oob;
+        innobase_hton->binlog_write_xa_prepare_ordered=
+          ibb_write_xa_prepare_ordered;
+        innobase_hton->binlog_write_xa_prepare= ibb_write_xa_prepare;
+        innobase_hton->binlog_xa_rollback_ordered=
+          ibb_xa_rollback_ordered;
+        innobase_hton->binlog_xa_rollback= ibb_xa_rollback;
+        innobase_hton->binlog_unlog= ibb_binlog_unlog;
+        innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
+        innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
+        innobase_hton->get_filename= ibb_get_filename;
+        innobase_hton->binlog_status= innodb_binlog_status;
+        innobase_hton->binlog_flush= innodb_binlog_flush;
+        innobase_hton->binlog_get_init_state= innodb_binlog_get_init_state;
+        innobase_hton->reset_binlogs= innodb_reset_binlogs;
+        innobase_hton->binlog_purge= innodb_binlog_purge;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -4455,8 +4469,8 @@ innobase_commit_ordered(
 	DBUG_ASSERT(all ||
 		(!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)));
 
-	innobase_commit_ordered_2(trx, thd);
 	trx->active_commit_ordered = true;
+	innobase_commit_ordered_2(trx, thd);
 
 	DBUG_VOID_RETURN;
 }
@@ -17286,7 +17300,10 @@ innobase_xa_prepare(
   case TRX_STATE_ACTIVE:
     trx->xid= *thd->get_xid();
     if (prepare_trx)
+    {
       trx_prepare_for_mysql(trx);
+      trx->active_prepare= true;
+    }
     else
     {
       lock_unlock_table_autoinc(trx);
@@ -19983,6 +20000,15 @@ static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,
   "Shrink the temporary tablespace",
   NULL, innodb_trunc_temp_space_update, false);
 
+static MYSQL_SYSVAR_ULONGLONG(binlog_state_interval,
+  innodb_binlog_state_interval,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Interval (in bytes) at which to write the GTID binlog state to binlog "
+  "files to speed up GTID lookups. Must be a multiple of the binlog page "
+  "size (16384 bytes)",
+  NULL, NULL, 2*1024*1024,
+  32768, ULONGLONG_MAX, 0);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -20159,6 +20185,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
   MYSQL_SYSVAR(truncate_temporary_tablespace_now),
+  MYSQL_SYSVAR(binlog_state_interval),
 
   NULL
 };

@@ -2,6 +2,7 @@
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
@@ -18,6 +19,7 @@ connection default;
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
@@ -34,6 +36,7 @@ connection default;
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB

@@ -1,0 +1,1 @@
+--log-bin=slave-bin --loose-skip-innodb --binlog-storage-engine=

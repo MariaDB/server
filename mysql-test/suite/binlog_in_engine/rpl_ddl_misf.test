@@ -1,0 +1,8 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+let $engine_type= InnoDB;
+let $temp_engine_type= MEMORY;
+let $show_binlog = 0;
+let $manipulate = 0;
+--source ../rpl/include/rpl_ddl.test
+--source include/rpl_end.inc

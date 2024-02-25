@@ -49,10 +49,11 @@ connection master;
 # we'll use table-level locking to delay slave SQL thread
 eval create table t1 (n int);
 sync_slave_with_master;
+stop slave;
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 connection slave;
-stop slave;
 --source include/reset_slave.inc
 
 connection master;

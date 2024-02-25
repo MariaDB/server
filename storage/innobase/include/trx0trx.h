@@ -829,7 +829,10 @@ public:
 					is set to false  after commit or
 					rollback. */
 	/** whether this is holding the prepare mutex */
+        /* ToDo: This need a better mechanism. It is currently done to know that we did not do a prepare step before commit_ordered, due to binlog being stored in InnoDB; and therefore we need to do an fsync of the log in commit to make the commit durable. */
 	bool		active_commit_ordered;
+	/** whether innobase_xa_prepare() was done. */
+	bool		active_prepare;
 	/*------------------------------*/
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across

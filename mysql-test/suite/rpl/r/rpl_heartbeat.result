@@ -1,9 +1,11 @@
 include/master-slave.inc
 [connection master]
-connection master;
-reset master;
 connection slave;
 include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
+reset master;
+connection slave;
 set @restore_slave_net_timeout= @@global.slave_net_timeout;
 set @@global.slave_net_timeout= 10;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
@@ -59,7 +61,10 @@ Value	0.500
 start slave;
 connection master;
 create table t1 (f1 int);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/check_slave_param.inc [Relay_Log_File]
 show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
@@ -67,7 +72,10 @@ Value	0.500
 A heartbeat has been received by the slave
 connection master;
 drop table t1;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 set @@global.slave_net_timeout= @restore_slave_net_timeout;
 include/rpl_end.inc
 End of tests
