@@ -61,6 +61,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_debug.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
+#include <innodb_binlog.h>
 #ifdef _WIN32
 #include <direct.h> /* rmdir */
 #endif
@@ -1630,7 +1631,10 @@ public:
       return mysql_data_home;
     if (is_absolute_path(path))
       return path;
-    return buf.assign(mysql_data_home).append(path).c_str();
+    buf.assign(mysql_data_home);
+    if (!buf.empty() && buf.back() != '/' IF_WIN(&& buf.back() != '\\', ))
+      buf.append("/");
+    return buf.append(path).c_str();
   }
 };
 
@@ -1674,6 +1678,7 @@ copy_back()
 	datadir_iter_t *it = NULL;
 	datadir_node_t node;
 	const char *dst_dir;
+	ds_ctxt *ds_binlogs = NULL;
 
 	memset(&node, 0, sizeof(node));
 
@@ -1799,6 +1804,10 @@ copy_back()
 
 	ds_destroy(ds_tmp);
 
+	/* Prepare destination directory for any InnoDB binlog files. */
+	dst_dir = dst_dir_buf.make(opt_binlog_directory);
+	ds_binlogs = ds_create(dst_dir, DS_TYPE_LOCAL);
+
 	/* copy the rest of tablespaces */
 	ds_tmp = ds_create(mysql_data_home, DS_TYPE_LOCAL);
 
@@ -1860,6 +1869,16 @@ copy_back()
 
 		filename = base_name(node.filepath);
 
+		/* Copy InnoDB binlog files into --binlog-directory. */
+		uint64_t file_no;
+		if (is_binlog_name(filename, &file_no)) {
+			if (!(ret = copy_or_move_file(ds_binlogs, filename, filename,
+						      dst_dir, 1))) {
+				goto cleanup;
+			}
+			continue;
+		}
+
 		/* skip .qp files */
 		if (filename_matches(filename, ext_list)) {
 			continue;
@@ -1919,6 +1938,11 @@ cleanup:
 	}
 
 	ds_tmp = NULL;
+
+	if (ds_binlogs != NULL) {
+		ds_destroy(ds_binlogs);
+		ds_binlogs = NULL;
+	}
 
 	return(ret);
 }

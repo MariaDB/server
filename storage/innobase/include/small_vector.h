@@ -19,6 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #pragma once
 /* A normally small vector, inspired by llvm::SmallVector */
 #include "my_global.h"
+#include "my_valgrind.h"
 #include <iterator>
 #include <memory>
 

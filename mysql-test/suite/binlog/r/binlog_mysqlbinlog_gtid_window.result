@@ -391,7 +391,7 @@ DROP TABLE t1;
 # Gtid_list_log_event state
 #
 # Reset server state
-RESET MASTER;
+include/reset_master.inc
 FLUSH LOGS;
 FLUSH LOGS;
 PURGE BINARY LOGS TO "master-bin.000002";

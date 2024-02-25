@@ -25,6 +25,7 @@ SELECT * FROM t1 ORDER BY a;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 --let $old_gtid_pos= `SELECT @@GLOBAL.gtid_current_pos`
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --replace_result $old_gtid_pos OLD_GTID_POS
 eval SET GLOBAL gtid_slave_pos= '$old_gtid_pos';

@@ -1,0 +1,183 @@
+include/reset_master.inc
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+INSERT INTO t2 VALUES (0, REPEAT("x", 2048));
+INSERT INTO t2 SELECT a+1, b FROM t2;
+INSERT INTO t2 SELECT a+2, b FROM t2;
+INSERT INTO t2 SELECT a+4, b FROM t2;
+INSERT INTO t2 SELECT a+8, b FROM t2;
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000000.ibb	262144
+binlog-000001.ibb	262144
+FLUSH BINARY LOGS;
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000000.ibb	65536
+binlog-000001.ibb	262144
+binlog-000002.ibb	262144
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression("InnoDB: Page corruption in binlog tablespace file page number 1");
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' LIMIT 1;
+ERROR HY000: Replication event checksum verification failed while reading from a log file
+include/reset_master.inc
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000000.ibb	262144
+binlog-000001.ibb	262144
+INSERT INTO t1 VALUES (100);
+INSERT INTO t2 VALUES (100, 'xyzzy');
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 1;
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+ERROR HY000: A purgeable log is in use, will not purge
+SHOW WARNINGS;
+Level	Code	Message
+Note	1375	Binary log 'binlog-000000.ibb' is not purged because less than 'slave_connections_needed_for_purge' slaves have processed it
+Error	1378	A purgeable log is in use, will not purge
+SET GLOBAL slave_connections_needed_for_purge= 0;
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+ERROR HY000: A purgeable log is in use, will not purge
+SHOW WARNINGS;
+Level	Code	Message
+Note	1375	Binary log 'binlog-000000.ibb' is not purged because the binlog file is in active use
+Error	1378	A purgeable log is in use, will not purge
+SET @old_max_total= @@GLOBAL.max_binlog_total_size;
+SET GLOBAL max_binlog_total_size= 4*@@GLOBAL.max_binlog_size;
+SET SESSION binlog_format= ROW;
+*** Do 1500 transactions ...
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000011.ibb	262144
+binlog-000012.ibb	262144
+binlog-000013.ibb	262144
+binlog-000014.ibb	262144
+*** Test purge by date.
+SET GLOBAL max_binlog_total_size= 0;
+SET @old_expire= @@GLOBAL.binlog_expire_logs_seconds;
+SET GLOBAL binlog_expire_logs_seconds= 1;
+*** Do 187 inserts ...
+SET GLOBAL binlog_expire_logs_seconds= 0;
+*** Do 1000 transactions ...
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000013.ibb	262144
+binlog-000014.ibb	262144
+binlog-000015.ibb	262144
+binlog-000016.ibb	262144
+binlog-000017.ibb	262144
+binlog-000018.ibb	262144
+binlog-000019.ibb	262144
+binlog-000020.ibb	262144
+binlog-000021.ibb	262144
+binlog-000022.ibb	262144
+binlog-000023.ibb	262144
+binlog-000024.ibb	262144
+binlog-000025.ibb	262144
+SET @now= NOW();
+*** Do 124 inserts ...
+PURGE BINARY LOGS BEFORE @now;
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000024.ibb	262144
+binlog-000025.ibb	262144
+binlog-000026.ibb	262144
+*** Test PURGE BINARY LOGS TO
+PURGE BINARY LOGS TO 'binlog-000026.ibb';
+ERROR HY000: A purgeable log is in use, will not purge
+SHOW WARNINGS;
+Level	Code	Message
+Note	1375	Binary log 'binlog-000025.ibb' is not purged because the binlog file is in active use
+Error	1378	A purgeable log is in use, will not purge
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000025.ibb	262144
+binlog-000026.ibb	262144
+*** Do 436 inserts ...
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000025.ibb	262144
+binlog-000026.ibb	262144
+binlog-000027.ibb	262144
+binlog-000028.ibb	262144
+binlog-000029.ibb	262144
+binlog-000030.ibb	262144
+PURGE BINARY LOGS TO 'binlog-000026.ibb';
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000026.ibb	262144
+binlog-000027.ibb	262144
+binlog-000028.ibb	262144
+binlog-000029.ibb	262144
+binlog-000030.ibb	262144
+PURGE BINARY LOGS TO 'binlog-999999.ibb';
+ERROR HY000: Target log not found in binlog index
+SHOW WARNINGS;
+Level	Code	Message
+Error	1373	Target log not found in binlog index
+*** Test purging logs when setting the maximum size.
+SET GLOBAL max_binlog_total_size= ceil(1.5*@@GLOBAL.max_binlog_size);
+Warnings:
+Note	1375	Binary log 'binlog-000029.ibb' is not purged because the binlog file is in active use
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000029.ibb	262144
+binlog-000030.ibb	262144
+SET SESSION binlog_format= MIXED;
+DROP TABLE t1;
+SET GLOBAL max_binlog_total_size= @old_max_total;
+SET GLOBAL binlog_expire_logs_seconds= @old_expire;
+*** Test FLUSH BINARY LOGS DELETE_DOMAIN_ID.
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101);
+Warnings:
+Warning	1076	The gtid domain being deleted ('101') is not in the current binlog state
+SET SESSION gtid_domain_id= 1;
+SET SESSION gtid_seq_no= 1000;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 2), (3, 0), (4, 5), (5, 0), (6, 3), (7, 4), (8, 8);
+SET SESSION gtid_domain_id= 2;
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (10, 0), (11, 0), (12, 0);
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003,2-1-100
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('2') being deleted. Make sure to first purge those files.
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003,2-1-100
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'binlog-000031.ibb';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101, 2);
+Warnings:
+Warning	1076	The gtid domain being deleted ('101') is not in the current binlog state
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003
+# restart
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 1048576;
+FLUSH BINARY LOGS;
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000031.ibb	32768
+binlog-000032.ibb	32768
+binlog-000033.ibb	262144
+binlog-000034.ibb	1048576
+SET GLOBAL max_binlog_size= @old_max_size;
+DROP TABLE t1;
