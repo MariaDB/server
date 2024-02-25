@@ -87,6 +87,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "btr0pcur.h"
 #include "ibuf0ibuf.h"
+#include "innodb_binlog.h"
 #include "zlib.h"
 #include "log.h"
 
@@ -1968,6 +1969,8 @@ skip_monitors:
 		return(srv_init_abort(err));
 	}
 
+        innodb_binlog_startup_init();
+
 	if (!srv_read_only_mode
 	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 		/* Initialize the innodb_temporary tablespace and keep
@@ -2100,6 +2103,7 @@ void innodb_shutdown()
 		logs_empty_and_mark_files_at_shutdown();
 	}
 
+        innodb_binlog_close(true);
 	os_aio_free();
 	fil_space_t::close_all();
 	/* Exit any remaining threads. */

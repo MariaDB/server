@@ -232,6 +232,7 @@ select Last_Error_Message from performance_schema.replication_applier_status_by_
 RESET SLAVE;
 --connection master
 DROP TABLE t;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo

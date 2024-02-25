@@ -28,6 +28,8 @@ class Gtid_log_event;
 
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
+void give_purge_note(const char *reason, const char *file_name,
+                     bool interactive);
 bool trans_has_updated_trans_table(const THD* thd);
 bool stmt_has_updated_trans_table(const THD *thd);
 bool use_trans_cache(const THD* thd, bool is_transactional);
@@ -61,7 +63,8 @@ class TC_LOG
   virtual int log_and_order(THD *thd, my_xid xid, bool all,
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
-  virtual int unlog(ulong cookie, my_xid xid)=0;
+  virtual int unlog(THD *thd, ulong cookie, my_xid xid)=0;
+  virtual int log_xa_prepare(THD *thd, bool all)= 0;
   virtual int unlog_xa_prepare(THD *thd, bool all)= 0;
   virtual void commit_checkpoint_notify(void *cookie)= 0;
 
@@ -116,7 +119,11 @@ public:
     DBUG_ASSERT(0);
     return 1;
   }
-  int unlog(ulong cookie, my_xid xid) override  { return 0; }
+  int unlog(THD *thd, ulong cookie, my_xid xid) override  { return 0; }
+  int log_xa_prepare(THD *thd, bool all) override
+  {
+    return 0;
+  }
   int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
@@ -203,7 +210,11 @@ class TC_LOG_MMAP: public TC_LOG
   void close() override;
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;
-  int unlog(ulong cookie, my_xid xid) override;
+  int unlog(THD *thd, ulong cookie, my_xid xid) override;
+  int log_xa_prepare(THD *thd, bool all) override
+  {
+    return 0;
+  }
   int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
@@ -266,12 +277,14 @@ class Relay_log_info;
  */
 typedef struct st_log_info
 {
+  /* file_no only used when --binlog-storage-engine set. */
+  std::atomic<uint64_t> file_no;
+  /* log_file_name and *_offset only used when --binlog-storage-engine unset. */
   char log_file_name[FN_REFLEN];
   my_off_t index_file_offset, index_file_start_offset;
   my_off_t pos;
-  bool fatal; // if the purge happens to give us a negative offset
-  st_log_info() : index_file_offset(0), index_file_start_offset(0),
-      pos(0), fatal(0)
+  st_log_info() : file_no(~(uint64_t)0), index_file_offset(0),
+                  index_file_start_offset(0), pos(0)
   {
     DBUG_ENTER("LOG_INFO");
     log_file_name[0] = '\0';
@@ -577,6 +590,10 @@ private:
   case where there is no corresponding binlog id (since nothing was logged).
   And we need an error flag to mark that unlog() must return failure.
 
+  For --binlog-storage-engine, we need unlog if another engine than the
+  binlog engine participated in the transaction, or if we did a user XA
+  commit.
+
   We use the following macros to pack all of this information into the single
   ulong available with log_and_order() / unlog().
 
@@ -585,15 +602,20 @@ private:
   */
 #define BINLOG_COOKIE_ERROR_RETURN 0
 #define BINLOG_COOKIE_DUMMY_ID 1
-#define BINLOG_COOKIE_BASE 2
+#define BINLOG_COOKIE_ENGINE_UNLOG_ID 2
+#define BINLOG_COOKIE_BASE 3
 #define BINLOG_COOKIE_DUMMY(error_flag) \
   ( (BINLOG_COOKIE_DUMMY_ID<<1) | ((error_flag)&1) )
+#define BINLOG_COOKIE_ENGINE_UNLOG(error_flag) \
+  ( (BINLOG_COOKIE_ENGINE_UNLOG_ID<<1) | ((error_flag)&1) )
 #define BINLOG_COOKIE_MAKE(id, error_flag) \
   ( (((id)+BINLOG_COOKIE_BASE)<<1) | ((error_flag)&1) )
 #define BINLOG_COOKIE_GET_ERROR_FLAG(c) ((c) & 1)
 #define BINLOG_COOKIE_GET_ID(c) ( ((ulong)(c)>>1) - BINLOG_COOKIE_BASE )
 #define BINLOG_COOKIE_IS_DUMMY(c) \
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
+#define BINLOG_COOKIE_IS_ENGINE_UNLOG(c) \
+  ( ((ulong)(c)>>1) == BINLOG_COOKIE_ENGINE_UNLOG_ID )
 
 
 class binlog_cache_mngr;
@@ -601,6 +623,7 @@ class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
 class Binlog_commit_by_rotate;
+struct rpl_binlog_state_base;
 
 class MYSQL_BIN_LOG: public TC_LOG, public Event_log
 {
@@ -633,8 +656,6 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
     struct group_commit_entry *next;
     THD *thd;
     binlog_cache_mngr *cache_mngr;
-    bool using_stmt_cache;
-    bool using_trx_cache;
     /*
       Extra events (COMMIT/ROLLBACK/XID, and possibly INCIDENT) to be
       written during group commit. The incident_event is only valid if
@@ -646,6 +667,7 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
     int error;
     int commit_errno;
     IO_CACHE *error_cache;
+    ulong binlog_id;
     /* This is the `all' parameter for ha_commit_ordered(). */
     bool all;
     /*
@@ -662,8 +684,13 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
     bool check_purge;
     /* Flag used to optimise around wait_for_prior_commit. */
     bool queued_by_other;
-    ulong binlog_id;
     bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
+    /*
+      Set for the last participant in group commit, it must invoke
+      binlog_group_commit_ordered (in case of --binlog-storage-engine) after
+      LOCK_commit_ordered has been released.
+    */
+    bool do_binlog_group_commit_ordered;
   };
 
   /*
@@ -676,6 +703,18 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
   */
   uint reset_master_pending;
   ulong mark_xid_done_waiting;
+
+  /*
+    Protect against binlog readers (eg. slave dump threads) running
+    concurrently with RESET MASTER.
+    binlog_use_count counts the number of active readers, or is -1 when a
+    RESET MASTER is running. It is protected by LOCK_binlog_use and
+    COND_binlog_use is signalled when RESET MASTER completes so new
+    readers can wait for that.
+  */
+  int32_t binlog_use_count;
+  mysql_mutex_t LOCK_binlog_use;
+  mysql_cond_t COND_binlog_use;
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
@@ -772,7 +811,7 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
                                      group_commit_entry *tail,
                                      bool commit_by_rotate);
   bool is_xidlist_idle_nolock();
-  void update_gtid_index(uint32 offset, rpl_gtid gtid);
+  void update_gtid_index(uint32 offset, const rpl_gtid *gtid);
 
 public:
   void purge(bool all);
@@ -920,7 +959,8 @@ public:
                         ulong next_log_number) override;
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;
-  int unlog(ulong cookie, my_xid xid) override;
+  int unlog(THD *thd, ulong cookie, my_xid xid) override;
+  int log_xa_prepare(THD *thd, bool all) override;
   int unlog_xa_prepare(THD *thd, bool all) override;
   void commit_checkpoint_notify(void *cookie) override;
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
@@ -972,6 +1012,7 @@ public:
       signal_relay_log_update();
     else
     {
+      DBUG_ASSERT(!opt_binlog_engine_hton);
       lock_binlog_end_pos();
       binlog_end_pos= my_b_safe_tell(&log_file);
       signal_bin_log_update();
@@ -980,6 +1021,7 @@ public:
   }
   void update_binlog_end_pos(my_off_t pos)
   {
+    DBUG_ASSERT(!opt_binlog_engine_hton);
     mysql_mutex_assert_owner(&LOCK_log);
     mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
     lock_binlog_end_pos();
@@ -1008,6 +1050,7 @@ public:
             bool null_created,
             bool need_mutex,
             bool commit_by_rotate = false);
+  bool open_engine(handlerton *hton, ulong max_size, const char *dir);
   bool open_index_file(const char *index_file_name_arg,
                        const char *log_name, bool need_mutex);
   /* Use this to start writing a new log file */
@@ -1051,6 +1094,14 @@ public:
              bool commit_by_rotate= false);
   void checkpoint_and_purge(ulong binlog_id);
   int rotate_and_purge(bool force_rotate, DYNAMIC_ARRAY* drop_gtid_domain= NULL);
+  int flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex);
+  int flush_binlog(DYNAMIC_ARRAY* drop_gtid_domain)
+  {
+    if (opt_binlog_engine_hton)
+      return flush_binlogs_engine(drop_gtid_domain);
+    else
+      return rotate_and_purge(true, drop_gtid_domain);
+  }
   /**
      Flush binlog cache and synchronize to disk.
 
@@ -1086,6 +1137,7 @@ public:
       return 0;
     return real_purge_logs_by_size(binlog_pos);
   }
+  void engine_purge_logs_by_size(ulonglong max_total_size);
   int set_purge_index_file_name(const char *base_file_name);
   int open_purge_index_file(bool destroy);
   bool truncate_and_remove_binlogs(const char *truncate_file,
@@ -1099,11 +1151,16 @@ public:
   int register_create_index_entry(const char* entry);
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
+  bool start_use_binlog(THD *thd);
+  void end_use_binlog(THD *thd);
   bool reset_logs(THD* thd, bool create_new_log,
                   rpl_gtid *init_state, uint32 init_state_len,
                   ulong next_log_number);
+  bool reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
+                            uint32 init_state_len);
   void wait_for_last_checkpoint_event();
   void close(uint exiting);
+  void close_engine();
   void clear_inuse_flag_when_closing(File file);
 
   // iterating through the log index file
@@ -1126,10 +1183,10 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
-  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id,
-                        bool commit_by_rotate,
-                        bool has_xid= false, bool ro_1pc= false);
+  bool write_gtid_event(THD *thd, binlog_cache_data *cache_data,
+                        bool standalone, bool is_transactional,
+                        uint64 commit_id, bool commit_by_rotate,
+                        bool has_xid, bool ro_1pc);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
@@ -1201,6 +1258,11 @@ public:
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
 };
+
+extern bool load_global_binlog_state(rpl_binlog_state_base *state);
+extern bool binlog_recover_gtid_state(rpl_binlog_state_base *state,
+                                      handler_binlog_reader *reader);
+
 
 class Log_event_handler
 {
@@ -1507,8 +1569,12 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
+void binlog_post_commit(THD *thd, bool all);
+void binlog_post_rollback(THD *thd, bool all);
 int binlog_commit_by_xid(XID *xid);
 int binlog_rollback_by_xid(XID *xid);
+void binlog_post_commit_by_xid(XID *xid);
+void binlog_post_rollback_by_xid(XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
 #endif /* LOG_H */

@@ -1,0 +1,53 @@
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (2);
+
+--echo *** Test that RESET MASTER fails when a slave is connected.
+--error ER_BINLOG_IN_USE
+RESET MASTER;
+
+--connection master
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--connection master
+--echo *** Test that RESET MASTER fails on concurrent SHOW BINLOG EVENTS.
+--source include/kill_binlog_dump_threads.inc
+
+--connection master1
+SET debug_sync= 'after_show_binlog_events SIGNAL waiting WAIT_FOR go';
+--disable_result_log
+send SHOW BINLOG EVENTS in 'master-bin.000001';
+
+--connection master
+SET debug_sync= 'now WAIT_FOR waiting';
+--error ER_BINLOG_IN_USE
+RESET MASTER;
+SET debug_sync= 'now SIGNAL go';
+
+--connection master1
+reap;
+--enable_result_log
+
+--connection master
+--echo *** RESET MASTER works when no concurrent reader.
+RESET MASTER;
+
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+SET GLOBAL gtid_slave_pos= '';
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

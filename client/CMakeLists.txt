@@ -77,7 +77,7 @@ TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc)
+MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
 
 MYSQL_ADD_EXECUTABLE(mariadb-admin mysqladmin.cc ../sql/password.c)

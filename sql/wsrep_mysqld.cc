@@ -2313,7 +2313,9 @@ int wsrep_to_buf_helper(
     if (seqno)
     {
       Gtid_log_event gtid_event(thd, seqno, domain_id, true,
-                                LOG_EVENT_SUPPRESS_USE_F, true, 0);
+                                Log_event::EVENT_NO_CACHE,
+                                LOG_EVENT_SUPPRESS_USE_F, true, 0,
+                                false, false);
       gtid_event.server_id= server_id;
       if (!gtid_event.is_valid()) ret= 0;
       ret= writer.write(&gtid_event);
