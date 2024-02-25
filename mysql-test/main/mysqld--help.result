@@ -83,6 +83,10 @@ The following specify which files/extra groups are read (specified before remain
  tables such as in the statement INSERT INTO t_myisam
  SELECT * FROM t_innodb; otherwise, slaves may diverge
  from the master
+ --binlog-directory=name 
+ Directory path (absolute or relative to datadir) where
+ binlog files are stored. If this is used, must not
+ specify a directory path for --log-bin
  --binlog-do-db=name Tells the master it should log updates for the specified
  database, and exclude all others not explicitly mentioned
  --binlog-expire-logs-seconds=# 
@@ -170,6 +174,10 @@ The following specify which files/extra groups are read (specified before remain
  non-transactional engines for the binary log. If you
  often use statements updating a great number of rows, you
  can increase this to get more performance
+ --binlog-storage-engine=name 
+ Use a more efficient binlog implementation integrated
+ with the storage engine. Only available for supporting
+ engines
  --block-encryption-mode=name 
  Default block encryption mode for AES_ENCRYPT() and
  AES_DECRYPT() functions. One of: aes-128-ecb, aes-192-ecb,
@@ -1678,6 +1686,7 @@ binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
+binlog-directory (No default value)
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
@@ -1692,6 +1701,7 @@ binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-space-limit 0
 binlog-stmt-cache-size 32768
+binlog-storage-engine (No default value)
 block-encryption-mode aes-128-ecb
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE

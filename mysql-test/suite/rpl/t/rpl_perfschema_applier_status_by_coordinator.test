@@ -206,11 +206,14 @@ EOF
 
 --connection master
 drop table t;
-reset master;
-
 --connection slave
 --let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
+--connection master
+--source include/kill_binlog_dump_threads.inc
+reset master;
+
+--connection slave
 reset slave;
 reset master;
 set @@global.gtid_slave_pos= "";

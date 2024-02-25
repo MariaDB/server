@@ -138,6 +138,7 @@ DROP TABLE t1;
 STOP SLAVE;
 RESET SLAVE;
 SET GLOBAL wsrep_on = OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 --source include/wait_until_ready.inc
@@ -146,6 +147,7 @@ SET GLOBAL GTID_SLAVE_POS="";
 --connection node_1
 
 SET GLOBAL wsrep_on = OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 --source include/wait_until_ready.inc
@@ -153,6 +155,7 @@ SET GLOBAL wsrep_on = ON;
 --connection node_2
 
 SET GLOBAL wsrep_on = OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 --source include/wait_until_ready.inc
@@ -160,6 +163,7 @@ SET GLOBAL wsrep_on = ON;
 --connection node_3
 
 SET GLOBAL wsrep_on = OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 --source include/wait_until_ready.inc
@@ -167,6 +171,7 @@ SET GLOBAL wsrep_on = ON;
 --connection node_5
 
 SET GLOBAL wsrep_on = OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 --source include/wait_until_ready.inc
@@ -174,6 +179,7 @@ SET GLOBAL wsrep_on = ON;
 --connection node_6
 
 SET GLOBAL wsrep_on = OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 --source include/wait_until_ready.inc

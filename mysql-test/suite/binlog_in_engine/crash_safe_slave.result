@@ -1,0 +1,25 @@
+include/master-slave.inc
+[connection master]
+*** Test that slave doesn't get ahead of a non-durable master that crashes.
+connection master;
+SET GLOBAL innodb_flush_log_at_trx_commit= 0;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c TEXT) ENGINE=InnoDB;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+630
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+connection master1;
+connection server_1;
+connection default;
+connection master;
+include/rpl_reconnect.inc
+SET STATEMENT gtid_domain_id= 1 FOR INSERT INTO t1 VALUES (9, 9, 'extra');
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Asserted this: Row count should match on master and slave (no extra rows on slave)
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

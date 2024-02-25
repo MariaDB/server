@@ -1,0 +1,136 @@
+--source include/have_partition.inc
+--source include/have_binlog_format_row.inc
+--source include/have_sequence.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+# Test a number of transactions that are large and get interleaved with each
+# other over multiple binlog files.
+--let $NUM_CONNECTIONS= 5
+# $NUM_TRANSACTIONS is total, not per connection.
+--let $NUM_TRANSACTIONS=25
+--let $NUM_PIECES= 100
+--let $PIECE_SIZE= 2000
+
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+
+--echo *** Generating $NUM_TRANSACTIONS large transactions in $NUM_CONNECTIONS interleaved connections
+--disable_query_log
+let $t= 0;
+while ($t < $NUM_TRANSACTIONS) {
+  let $b= $t;
+  let $i= 1;
+  while ($i <= $NUM_CONNECTIONS) {
+    --connect(con$i,localhost,root,,)
+    START TRANSACTION;
+    eval INSERT INTO t1 VALUES ($b + $i, 0, 'Initial $i');
+    inc $i;
+    inc $t;
+  }
+
+  let $p= 1;
+  while ($p <= $NUM_PIECES) {
+    let $i= 1;
+    while ($i <= $NUM_CONNECTIONS) {
+      --connection con$i
+      eval INSERT INTO t1 VALUES ($b + $i, $p, REPEAT(CHR(65 + (($p + $i) MOD 26)), $PIECE_SIZE));
+      inc $i;
+    }
+    inc $p;
+  }
+
+  let $i= 1;
+  while ($i <= $NUM_CONNECTIONS) {
+    --connection con$i
+    eval INSERT INTO t1 VALUES ($b + $i, $NUM_PIECES+1, 'Last $i');
+    COMMIT;
+    --disconnect con$i
+    inc $i;
+  }
+}
+--enable_query_log
+
+--connection master
+INSERT INTO t1 VALUES (0, 1, 'End');
+
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+--source include/save_master_gtid.inc
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+
+
+--connection master
+# Test various event group sizes close to the binlog cache size.
+# There was a bug where if the event group fit in the cache without the GTID
+# event, but not with the GTID, then the code would incorrectly attempt to
+# spill part of the GTID event as oob data and the server would hang on
+# incorrect double locking of LOCK_commit_ordered.
+--disable_query_log
+--let $i= 50
+while ($i > 0) {
+  eval INSERT INTO t1 VALUES (1000000, $i, REPEAT('#', @@binlog_cache_size - $i*20));
+  dec $i;
+}
+--enable_query_log
+
+
+--echo *** Test trx cache larger than binlog size is correctly split into multiple pieces when spilled as oob data ***
+--connection master
+CREATE TABLE t2 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+SET @old_binlog_size= @@GLOBAL.max_binlog_size;
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression("Requested max_binlog_size is smaller than the minimum size supported by InnoDB");
+SET GLOBAL max_binlog_size= 4096;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+INSERT INTO t2 VALUES (10001, REPEAT('x', 1024*1024));
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+--source include/save_master_gtid.inc
+SET GLOBAL max_binlog_size= @old_binlog_size;
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+
+
+--echo *** Test that triggers re-allocation of the oob stack due to large tree depth
+--connection master
+CREATE TABLE t3 (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  a text NOT NULL DEFAULT '',
+  b text DEFAULT '',
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+SET @old_cache_size= @@GLOBAL.binlog_cache_size;
+# Use smaller nodes to get larger tree height.
+SET GLOBAL binlog_cache_size= 4096;
+INSERT INTO t3 SELECT seq, 'foo', 'bar' FROM seq_1_to_100;
+UPDATE t3 SET a = REPEAT('x', 65535);
+UPDATE t3 SET b = 'qux';
+SET GLOBAL binlog_cache_size= @old_cache_size;
+
+
+--echo *** Test oob spilling of DDL
+--connection master
+--let $long_list= `SELECT GROUP_CONCAT(seq SEPARATOR ',') FROM seq_0_to_9999`
+evalp
+ALTER TABLE t3
+  PARTITION BY LIST(id)
+  (PARTITION p1 VALUES IN ($long_list),
+   PARTITION p2 VALUES IN (10000));
+
+CREATE TABLE t4 AS SELECT * FROM t3 LIMIT 10;
+ALTER TABLE t4 ENGINE=MyISAM;
+CREATE TABLE t5 AS SELECT * FROM t4;
+
+# Cleanup.
+--connection master
+DROP TABLE t1, t2, t3, t4, t5;
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+--source include/rpl_end.inc

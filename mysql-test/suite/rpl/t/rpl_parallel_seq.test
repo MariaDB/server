@@ -80,6 +80,7 @@ SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 RESET MASTER;
 SET @@global.gtid_slave_pos="";
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Load from master

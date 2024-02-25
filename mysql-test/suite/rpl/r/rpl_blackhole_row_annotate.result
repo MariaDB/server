@@ -1,8 +1,13 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
 SET timestamp=1000000000;
 RESET MASTER;
 connection slave;
+include/start_slave.inc
 SET timestamp=1000000000;
 RESET MASTER;
 connection master;

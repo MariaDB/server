@@ -1,0 +1,10 @@
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+--error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+
+# The BINLOG_GTID_POS() function is not available and will not be, we
+# want to get away from old problematic filename/offset coordinates.
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+SELECT BINLOG_GTID_POS("binlog-000000.ibb", 4096);

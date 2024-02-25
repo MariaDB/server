@@ -17,6 +17,7 @@ SHOW VARIABLES LIKE 'gtid_binlog_state';
 Variable_name	Value
 gtid_binlog_state	
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;

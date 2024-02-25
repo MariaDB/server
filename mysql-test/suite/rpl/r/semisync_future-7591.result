@@ -11,6 +11,7 @@ start slave;
 include/wait_for_slave_io_error.inc [errno=1236]
 connection master;
 insert into t1 values (1);
+include/kill_binlog_dump_threads.inc
 reset master;
 connection slave;
 include/stop_slave_sql.inc

@@ -4013,6 +4013,13 @@ longlong Item_master_pos_wait::val_int()
     sql_print_information("Could not get master info for %s", connection_name.str);
     goto err;
   }
+
+  if (mi->binlog_storage_engine)
+  {
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0), "master_pos_wait()");
+    mi->release();
+    goto err;
+  }
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;

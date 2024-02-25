@@ -1,0 +1,45 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= '';
+connection master;
+include/reset_master.inc
+DROP TABLE IF EXISTS t1, t2;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT, b INT, c VARCHAR(4000)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Flush all dirty pages from buffer pool
+SET @no_checkpoint_save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @no_checkpoint_save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct= @no_checkpoint_save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm= @no_checkpoint_save_pct_lwm;
+
+CHECKSUM TABLE t1, t2;
+Table	Checksum
+test.t1	659068978
+test.t2	4017444020
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+connection default;
+HULU
+BULU
+connection server_1;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+CHECKSUM TABLE t1, t2;
+Table	Checksum
+test.t1	659068978
+test.t2	4017444020
+connection master;
+DROP TABLE t1, t2;
+include/rpl_end.inc

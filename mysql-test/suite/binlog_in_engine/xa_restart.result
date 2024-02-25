@@ -1,0 +1,13 @@
+include/reset_master.inc
+*** Test that a prepare record at the end of binlog does not cause server shutdown to hang
+CALL mtr.add_suppression('Warning.*Found 1 prepared XA transactions');
+CREATE TABLE t1 (a INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES (1, REPEAT('<', 50000));
+INSERT INTO t1 VALUES (2, REPEAT('|', 50000));
+INSERT INTO t1 VALUES (3, REPEAT('>', 50000));
+XA END 'a';
+XA PREPARE 'a';
+# restart
+XA ROLLBACK 'a';
+DROP TABLE t1;
