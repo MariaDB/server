@@ -27,8 +27,12 @@ Created May 26, 2009 Vasil Dimov
 #pragma once
 #include "ut0byte.h"
 
-/** All persistent tablespaces have a smaller fil_space_t::id than this. */
+/** All persistent tablespaces (except binlog tablespaces) have a smaller
+fil_space_t::id than this. */
 constexpr uint32_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0U;
+/** Binlog tablespaces. */
+constexpr uint32_t SRV_SPACE_ID_BINLOG0 = SRV_SPACE_ID_UPPER_BOUND + 1;
+constexpr uint32_t SRV_SPACE_ID_BINLOG1 = SRV_SPACE_ID_UPPER_BOUND + 2;
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 constexpr uint32_t SRV_TMP_SPACE_ID= 0xFFFFFFFEU;
 
