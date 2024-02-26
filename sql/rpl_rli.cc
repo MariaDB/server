@@ -937,6 +937,11 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
     DBUG_PRINT("info",("Got signal of master update or timed out"));
     if (error == ETIMEDOUT || error == ETIME)
     {
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Timeout waiting for %s:%llu. Current pos is %s:%llu",
+                      MYF(ME_ERROR_LOG | ME_NOTE),
+                      log_name_tmp, (ulonglong) log_pos,
+                      group_master_log_name, (ulonglong) group_master_log_pos);
       error= -1;
       break;
     }
@@ -957,6 +962,17 @@ improper_arguments: %d  timed_out: %d",
   if (thd->killed || init_abort_pos_wait != abort_pos_wait ||
       !slave_running)
   {
+    const char *cause= 0;
+    if (init_abort_pos_wait != abort_pos_wait)
+      cause= "CHANGE MASTER detected";
+    else if (!slave_running)
+      cause="slave is not running";
+    else
+      cause="connection was killed";
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "master_pos_wait() was aborted because %s",
+                    MYF(ME_ERROR_LOG | ME_NOTE),
+                    cause);
     error= -2;
   }
   DBUG_RETURN( error ? error : event_count );

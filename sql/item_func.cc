@@ -3931,8 +3931,10 @@ longlong Item_master_pos_wait::val_int()
     connection_name= thd->variables.default_master_connection;
 
   if (!(mi= get_master_info(&connection_name, Sql_condition::WARN_LEVEL_WARN)))
+  {
+    sql_print_information("Could not get master info for %s", connection_name.str);
     goto err;
-
+  }
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;
