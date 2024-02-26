@@ -1750,18 +1750,12 @@ static void close_connections(void)
   /*
     If we are waiting on any ACKs, delay killing the thread until either an ACK
     is received or the timeout is hit.
-
-    Allow at max the number of sessions to await a timeout; however, if all
-    ACKs have been received in less iterations, then quit early
   */
-  if (shutdown_wait_for_slaves && repl_semisync_master.get_master_enabled())
+  if (shutdown_wait_for_slaves && repl_semisync_master.get_master_enabled() &&
+      repl_semisync_master.sync_get_master_wait_sessions())
   {
-    int waiting_threads= repl_semisync_master.sync_get_master_wait_sessions();
-    if (waiting_threads)
-      sql_print_information("Delaying shutdown to await semi-sync ACK");
-
-    while (waiting_threads-- > 0)
-      repl_semisync_master.await_slave_reply();
+    sql_print_information("Delaying shutdown to await semi-sync ACK");
+    repl_semisync_master.await_all_slave_replies();
   }
 
   DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",

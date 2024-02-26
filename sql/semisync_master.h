@@ -21,6 +21,7 @@
 
 #include "semisync.h"
 #include "semisync_master_ack_receiver.h"
+#include <queue>
 
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_rpl_semi_sync_master_enabled;
@@ -361,6 +362,16 @@ public:
 
 };
 
+/*
+  Element in Repl_semi_sync_master::wait_queue to preserve the state of a
+  transaction waiting for an ACK.
+*/
+typedef struct _semisync_wait_trx {
+  const char *binlog_name;
+  my_off_t binlog_pos;
+  THD *thd;
+} semisync_wait_trx_t;
+
 /**
    The extension class for the master of semi-synchronous replication
 */
@@ -431,10 +442,27 @@ class Repl_semi_sync_master
   /*Waiting for ACK before/after innodb commit*/
   ulong m_wait_point;
 
+  /*
+    Transactions, queued in binlog order, which have not yet received an ACK.
+    To ensure transactions are waited on chronologically, enque happens at
+    binlogging time by the binlogging thread (leader thread if using binlog
+    group commit).
+
+    Deque is done by either 1) the ACK_Receiver thread when signalling an
+    acknowledged transaction, or 2) in the event of a timeout, the thread which
+    is handling the timeout when switching off semi-sync.
+
+    Each element consists of the THD performing the wait (if using wait_point
+    AFTER_SYNC and binlog group commit, this is the leader thread; otherwise it
+    is the user connection thread executing the transaction), and its binlog
+    coordinate that must be ACKed.
+  */
+  std::queue<semisync_wait_trx_t> wait_queue;
+
   void lock();
   void unlock();
   void cond_broadcast();
-  int  cond_timewait(struct timespec *wait_time);
+  int  cond_timewait(THD *thd, struct timespec *wait_time);
 
   /* Is semi-sync replication on? */
   bool is_on() {
@@ -482,10 +510,11 @@ class Repl_semi_sync_master
   void create_timeout(struct timespec *out, struct timespec *start_arg);
 
   /*
-    Blocks the calling thread until the ack_receiver either receives an ACK
-    or times out (from rpl_semi_sync_master_timeout)
+    Blocks the calling thread until the ack_receiver either receives ACKs for
+    all transactions awaiting ACKs, or times out (from
+    rpl_semi_sync_master_timeout)
   */
-  void await_slave_reply();
+  void await_all_slave_replies();
 
   /*set the ACK point, after binlog sync or after transaction commit*/
   void set_wait_point(unsigned long ack_point)
@@ -609,13 +638,19 @@ class Repl_semi_sync_master
    *    semi-sync is on
    *
    * Input:  (the transaction events' ending binlog position)
+   *  THD           - (IN)  thread that will wait for an ACK. This can be the
+   *                        binlog leader thread when using wait_point
+   *                        AFTER_SYNC with binlog group commit. In all other
+   *                        cases, this is the user thread executing the
+   *                        transaction.
    *  log_file_name - (IN)  transaction ending position's file name
    *  log_file_pos  - (IN)  transaction ending position's file offset
    *
    * Return:
    *  0: success;  non-zero: error
    */
-  int write_tranx_in_binlog(const char* log_file_name, my_off_t log_file_pos);
+  int write_tranx_in_binlog(THD *thd, const char *log_file_name,
+                            my_off_t log_file_pos);
 
   /* Read the slave's reply so that we know how much progress the slave makes
    * on receive replication events.
@@ -634,9 +669,9 @@ class Repl_semi_sync_master
   int before_reset_master();
 
   /*
-    Determines if the given thread is currently awaiting a semisync_ack. Note
-    that the thread's value is protected by this class's LOCK_binlog, so this
-    function (indirectly) provides safe access.
+    Determines if the given thread is currently awaiting (or queued to await) a
+    semisync_ack. Note that the thread's value is protected by this class's
+    LOCK_binlog, so this function (indirectly) provides safe access.
   */
   my_bool is_thd_awaiting_semisync_ack(THD *thd)
   {
