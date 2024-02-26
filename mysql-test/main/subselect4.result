@@ -2905,6 +2905,7 @@ ANALYZE
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -2933,8 +2934,9 @@ ANALYZE
                       "r_other_time_ms": "REPLACED",
                       "r_engine_stats": REPLACED,
                       "filtered": 100,
-                      "r_filtered": 50,
-                      "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
+                      "r_total_filtered": 50,
+                      "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))",
+                      "r_filtered": 50
                     }
                   }
                 ],
@@ -2959,6 +2961,7 @@ ANALYZE
                             "r_other_time_ms": "REPLACED",
                             "r_engine_stats": REPLACED,
                             "filtered": 100,
+                            "r_total_filtered": 100,
                             "r_filtered": 100
                           }
                         }
