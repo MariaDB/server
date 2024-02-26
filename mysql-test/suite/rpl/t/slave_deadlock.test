@@ -8,7 +8,7 @@
 #
 # force_restart seems to fix this
 
---source include/force_restart.inc
+# --source include/force_restart.inc
 
 # Note that test requires big enough --debug-sync-timeout unfair scheduling at high load.
 # slave_deadlock.opt sets this to 1 hour
@@ -129,8 +129,22 @@ delete from t1 where a = 1;
 --sync_with_master
 
 let $s= `show engine innodb status`;
-let $i= `select instr("$s", "LATEST DETECTED DEADLOCK")`;
+# Somehow `select instr("$s"...) my fail with
+#   mysqltest: At line 132: Empty variable
+# New bug in mysqltest?
+if ($s)
+{
+  let $i= `select instr("$s", "LATEST DETECTED DEADLOCK")`;
+}
+if (!$s)
+{
+  let $exit= 1;
+}
 if ($i == 0)
+{
+  let $exit= 1;
+}
+if ($exit)
 {
   # Deadlock didn't happen, exiting...
   # Both INSERTs continue from after_lock_clust_rec_read_check_and_lock,
