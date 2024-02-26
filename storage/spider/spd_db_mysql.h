@@ -527,11 +527,6 @@ public:
     Time_zone *time_zone,
     int *need_mon
   );
-  bool set_loop_check_in_bulk_sql();
-  int set_loop_check(
-    int *need_mon
-  );
-  int fin_loop_check();
   int exec_simple_sql_with_result(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,

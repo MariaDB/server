@@ -1170,10 +1170,6 @@ public:
     Time_zone *time_zone,
     int *need_mon
   ) = 0;
-  virtual bool set_loop_check_in_bulk_sql();
-  virtual int set_loop_check(
-    int *need_mon
-  );
   virtual int fin_loop_check();
   virtual int show_master_status(
     SPIDER_TRX *trx,
