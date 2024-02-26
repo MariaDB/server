@@ -57,6 +57,7 @@ JSON
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100
         }
       },
@@ -79,8 +80,9 @@ JSON
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "trigcond(t1_t2.t2_d = t3.c and trigcond(t1_t2.t2_d is not null))",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -101,6 +103,7 @@ JSON
             "r_other_time_ms": "REPLACED",
             "r_engine_stats": REPLACED,
             "filtered": 100,
+            "r_total_filtered": 100,
             "r_filtered": 100,
             "using_index": true
           },
