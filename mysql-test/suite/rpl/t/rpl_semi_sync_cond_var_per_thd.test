@@ -22,10 +22,13 @@
 --source include/master-slave.inc
 
 --connection master
+call mtr.add_suppression("Got an error reading communication packets");
 set @save_bgc_count= @@global.binlog_commit_wait_count;
 set @save_bgc_usec= @@global.binlog_commit_wait_usec;
+set @save_debug_dbug= @@global.debug_dbug;
 set @@global.binlog_commit_wait_count=3;
 set @@global.binlog_commit_wait_usec=10000000;
+set @@global.debug_dbug="+d,testing_cond_var_per_thd";
 
 --echo # Ensure semi-sync is on
 --connection slave
@@ -53,12 +56,19 @@ source include/wait_for_status_var.inc;
 --connection default
 --reap
 
+--let $assert_text= Check that there is no 'Thread awaiting semi-sync ACK was awoken before its ACK' warning in error log.
+--let $assert_select=Thread awaiting semi-sync ACK was awoken before its ACK
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_count= 0
+--let $assert_only_after=CURRENT_TEST
+--source include/assert_grep.inc
 
 --echo #
 --echo # Cleanup
 --connection master
 set @@global.binlog_commit_wait_count=@save_bgc_count;
 set @@global.binlog_commit_wait_usec=@save_bgc_usec;
+set @@global.debug_dbug=@save_debug_dbug;
 drop table t1, t2, t3;
 
 --source include/rpl_end.inc

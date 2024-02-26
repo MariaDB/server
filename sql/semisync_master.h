@@ -31,6 +31,7 @@ extern PSI_cond_key key_COND_binlog_send;
 struct Tranx_node {
   char              log_name[FN_REFLEN];
   my_off_t          log_pos;
+  THD               *thd;                   /* The thread awaiting an ACK */
   struct Tranx_node *next;            /* the next node in the sorted list */
   struct Tranx_node *hash_next;    /* the next node during hash collision */
 };
@@ -289,6 +290,18 @@ private:
 };
 
 /**
+  Function pointer type to run on the contents of an Active_tranx node.
+
+  Return 0 for success, 1 for error.
+
+  Note Repl_semi_sync_master::LOCK_binlog is not guaranteed to be held for
+  its invocation. See the context in which it is called to know.
+*/
+
+typedef int (*active_tranx_action)(THD *trx_thd, const char *log_file_name,
+                                    my_off_t trx_log_file_pos);
+
+/**
    This class manages memory for active transaction list.
 
    We record each active transaction with a Tranx_node, each session
@@ -338,20 +351,35 @@ public:
    * Return:
    *  0: success;  non-zero: error
    */
-  int insert_tranx_node(const char *log_file_name, my_off_t log_file_pos);
+  int insert_tranx_node(THD *thd_to_wait, const char *log_file_name,
+                        my_off_t log_file_pos);
 
   /* Clear the active transaction nodes until(inclusive) the specified
    * position.
    * If log_file_name is NULL, everything will be cleared: the sorted
    * list and the hash table will be reset to empty.
+   *
+   * The pre_delete_hook parameter is a function pointer that will be invoked
+   * for each Active_tranx node, in order, from m_trx_front to log_file_name,
+   * e.g. to signal their wakeup condition. Repl_semi_sync_binlog::LOCK_binlog
+   * is held while this is invoked.
    */
   void clear_active_tranx_nodes(const char *log_file_name,
-                               my_off_t    log_file_pos);
+                                my_off_t log_file_pos,
+                                active_tranx_action pre_delete_hook);
 
   /* Given a position, check to see whether the position is an active
    * transaction's ending position by probing the hash table.
    */
   bool is_tranx_end_pos(const char *log_file_name, my_off_t log_file_pos);
+
+  /* Invoke action (function parameter) on only the first element in the list
+   * of active transactions.
+   *
+   * Note this function does not explicitly lock
+   * Repl_semi_sync_master::LOCK_binlog.
+   */
+  int for_front(active_tranx_action action);
 
   /* Given two binlog positions, compare which one is bigger based on
    * (file_name, file_position).
@@ -359,7 +387,23 @@ public:
   static int compare(const char *log_file_name1, my_off_t log_file_pos1,
                      const char *log_file_name2, my_off_t log_file_pos2);
 
+
+  /* Check if there are no transactions actively awaiting ACKs. Returns true
+   * if the internal linked list has no entries, false otherwise.
+   */
+  bool is_empty() { return m_trx_front == NULL; }
+
 };
+
+/*
+  Element in Repl_semi_sync_master::wait_queue to preserve the state of a
+  transaction waiting for an ACK.
+*/
+typedef struct _semisync_wait_trx {
+  const char *binlog_name;
+  my_off_t binlog_pos;
+  THD *thd;
+} semisync_wait_trx_t;
 
 /**
    The extension class for the master of semi-synchronous replication
@@ -433,8 +477,11 @@ class Repl_semi_sync_master
 
   void lock();
   void unlock();
-  void cond_broadcast();
-  int  cond_timewait(struct timespec *wait_time);
+
+  /* Do a cond wait on thd->LOCK_wakup_ready. If wait_time is NULL, timeout
+   * will use m_wait_timeout.
+   */
+  int  cond_timewait(THD *thd, struct timespec *wait_time);
 
   /* Is semi-sync replication on? */
   bool is_on() {
@@ -482,10 +529,11 @@ class Repl_semi_sync_master
   void create_timeout(struct timespec *out, struct timespec *start_arg);
 
   /*
-    Blocks the calling thread until the ack_receiver either receives an ACK
-    or times out (from rpl_semi_sync_master_timeout)
+    Blocks the calling thread until the ack_receiver either receives ACKs for
+    all transactions awaiting ACKs, or times out (from
+    rpl_semi_sync_master_timeout)
   */
-  void await_slave_reply();
+  void await_all_slave_replies();
 
   /*set the ACK point, after binlog sync or after transaction commit*/
   void set_wait_point(unsigned long ack_point)
@@ -544,26 +592,56 @@ class Repl_semi_sync_master
    * all other transaction would not wait either.
    *
    * Input:  (the transaction events' ending binlog position)
-   *  trx_wait_binlog_name - (IN)  ending position's file name
-   *  trx_wait_binlog_pos  - (IN)  ending position's file offset
+   *  trx_wait_binlog_name -     (IN)  ending position's file name
+   *  trx_wait_binlog_pos  -     (IN)  ending position's file offset
+   *  unmark_thd_awaiting_ack  - (IN)  Whether or not to unmark
+   *                             thd->is_awaiting_semisync_ack after receiving
+   *                             an ACK from the replica. If using wait_point
+   *                             AFTER_SYNC with binlog_group_commit, only the
+   *                             last transaction written to binlog in the
+   *                             group should negate the boolean, because the
+   *                             same thread (i.e. leader thread) will wait for
+   *                             all transaction ACKs. Negating it too early
+   *                             would break SHUTDOWN WAIT FOR ALL SLAVES, as
+   *                             that is the condition tested to bypass killing
+   *                             threads in phase 1. In all other situations,
+   *                             the boolean should be negated immediately.
    *
    * Return:
    *  0: success;  non-zero: error
    */
   int commit_trx(const char* trx_wait_binlog_name,
-                 my_off_t trx_wait_binlog_pos);
+                 my_off_t trx_wait_binlog_pos,
+                 bool unmark_thd_awaiting_ack=TRUE);
 
-  /*Wait for ACK after writing/sync binlog to file*/
-  int wait_after_sync(const char* log_file, my_off_t log_pos);
+  /* Wait for ACK after writing/sync binlog to file
+   * For details on parameters, see commit_trx() function declaration comment.
+   */
+  int wait_after_sync(const char *log_file, my_off_t log_pos,
+                      bool unmark_thd_awaiting_ack= TRUE);
 
   /*Wait for ACK after commting the transaction*/
   int wait_after_commit(THD* thd, bool all);
 
   /*Wait after the transaction is rollback*/
   int wait_after_rollback(THD *thd, bool all);
-  /*Store the current binlog position in m_active_tranxs. This position should
-   * be acked by slave*/
-  int report_binlog_update(THD *thd, const char *log_file,my_off_t log_pos);
+  /* Store the current binlog position in m_active_tranxs. This position should
+   * be acked by slave.
+   *
+   * Inputs:
+   *   trans_thd  Thread of the transaction which is executing the
+   *              transaction.
+   *   waiter_thd Thread that will wait for the ACK from the replica,
+   *              which depends on the semi-sync wait point. If AFTER_SYNC,
+   *              and also using binlog group commit, this will be the leader
+   *              thread of the binlog commit. Otherwise, it is the thread that
+   *              is executing the transaction, i.e. the same as trans_thd.
+   *   log_file   Name of the binlog file that the transaction is written into
+   *   log_pos    Offset within the binlog file that the transaction is written
+   *              at
+   */
+  int report_binlog_update(THD *trans_thd, THD *waiter_thd,
+                           const char *log_file, my_off_t log_pos);
 
   int dump_start(THD* thd,
                   const char *log_file,
@@ -609,13 +687,19 @@ class Repl_semi_sync_master
    *    semi-sync is on
    *
    * Input:  (the transaction events' ending binlog position)
+   *  THD           - (IN)  thread that will wait for an ACK. This can be the
+   *                        binlog leader thread when using wait_point
+   *                        AFTER_SYNC with binlog group commit. In all other
+   *                        cases, this is the user thread executing the
+   *                        transaction.
    *  log_file_name - (IN)  transaction ending position's file name
    *  log_file_pos  - (IN)  transaction ending position's file offset
    *
    * Return:
    *  0: success;  non-zero: error
    */
-  int write_tranx_in_binlog(const char* log_file_name, my_off_t log_file_pos);
+  int write_tranx_in_binlog(THD *thd, const char *log_file_name,
+                            my_off_t log_file_pos);
 
   /* Read the slave's reply so that we know how much progress the slave makes
    * on receive replication events.
@@ -634,9 +718,9 @@ class Repl_semi_sync_master
   int before_reset_master();
 
   /*
-    Determines if the given thread is currently awaiting a semisync_ack. Note
-    that the thread's value is protected by this class's LOCK_binlog, so this
-    function (indirectly) provides safe access.
+    Determines if the given thread is currently awaiting (or queued to await) a
+    semisync_ack. Note that the thread's value is protected by this class's
+    LOCK_binlog, so this function (indirectly) provides safe access.
   */
   my_bool is_thd_awaiting_semisync_ack(THD *thd)
   {
