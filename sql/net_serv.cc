@@ -702,8 +702,9 @@ net_real_write(NET *net,const uchar *packet, size_t len)
         if (retry_count++ < net->retry_count)
           continue;
       }
-      EXTRA_DEBUG_fprintf(stderr, "%s: write looped, aborting thread\n",
-                          my_progname);
+      EXTRA_DEBUG_fprintf(stderr,
+                          "%s: write looped on vio with state %d, aborting thread\n",
+                          my_progname, (int) net->vio->type);
       net->error= 2;				/* Close socket */
       net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
                         ER_NET_ERROR_ON_WRITE);
@@ -857,8 +858,9 @@ retry:
         if (vio_should_retry(net->vio) && retry_count++ < net->retry_count)
           continue;
         EXTRA_DEBUG_fprintf(stderr,
-                            "%s: read looped with error %d, aborting thread\n",
-                            my_progname, vio_errno(net->vio));
+                            "%s: read looped with error %d on vio with state %d, "
+                            "aborting thread\n",
+                            my_progname, vio_errno(net->vio), (int) net->vio->type);
         DBUG_PRINT("error",
                    ("Couldn't read packet: remain: %u  errno: %d  length: %ld",
                     remain, vio_errno(net->vio), (long) length));
