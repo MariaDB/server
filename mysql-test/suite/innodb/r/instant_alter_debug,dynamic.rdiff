@@ -1,6 +1,9 @@
-@@ -470,4 +470,4 @@
+--- mysql-test/suite/innodb/r/instant_alter_debug.result	2024-02-27 12:22:59.612941388 +0530
++++ mysql-test/suite/innodb/r/instant_alter_debug,dynamic.reject	2024-02-27 12:23:09.924938462 +0530
+@@ -537,5 +537,5 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--33
-+32
+-35
++34
+ SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

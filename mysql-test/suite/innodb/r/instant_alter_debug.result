@@ -479,14 +479,63 @@ SET DEBUG_SYNC="now WAIT_FOR try_insert";
 INSERT INTO t1 VALUES(1, 2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC="now SIGNAL alter_progress";
-disconnect con1;
 connection default;
 DROP TABLE t1;
+#
+#  MDEV-26198 Assertion `0' failed in row_log_table_apply_op during
+#                ADD PRIMARY KEY or OPTIMIZE TABLE
+#
+CREATE TABLE t1(f1 year default null, f2 year default null,
+f3 text, f4 year default null, f5 year default null,
+f6 year default null, f7 year default null,
+f8 year default null)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, 1, 1, 1, 1, 1, 1);
+ALTER TABLE t1 ADD COLUMN f9 year default null, ALGORITHM=INPLACE;
+set DEBUG_SYNC="row_log_table_apply1_before SIGNAL con1_insert WAIT_FOR con1_finish";
+ALTER TABLE t1 ADD COLUMN f10 YEAR DEFAULT NULL, FORCE, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_insert";
+INSERT IGNORE INTO t1 (f3) VALUES ( 'b' );
+INSERT IGNORE INTO t1 (f3) VALUES ( 'l' );
+SET DEBUG_SYNC="now SIGNAL con1_finish";
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-19044 Alter table corrupts while applying the
+#             modification log
+#
+CREATE TABLE t1 (
+f1 INT,
+f2 INT,
+f3 char(19) CHARACTER SET utf8mb3,
+f4 VARCHAR(500),
+f5 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(3, 1, REPEAT('a', 2), REPEAT("b", 20),'a');
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(1, 2, REPEAT('InnoDB', 2),
+REPEAT("MariaDB", 20), REPEAT('a', 8000), 12);
+INSERT INTO t1 VALUES(1, 2, REPEAT('MYSQL', 2),
+REPEAT("MariaDB", 20), REPEAT('a', 8000), 12);
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL con1_begin WAIT_FOR con1_update';
+ALTER TABLE t1 MODIFY COLUMN f2 INT NOT NULL, FORCE, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR con1_begin';
+UPDATE t1 SET f2=204 order by f1 limit 2;
+SET DEBUG_SYNC='now SIGNAL con1_update';
+connection default;
+disconnect con1;
 SET DEBUG_SYNC=reset;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
 # End of 10.4 tests
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-33
+35
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
