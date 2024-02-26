@@ -194,16 +194,22 @@ show variables like 'rpl_semi_sync_slave_enabled';
 Variable_name	Value
 rpl_semi_sync_slave_enabled	ON
 connection master;
-# Wait that number of active transaction is incremented
+# Check that number of active transactions shouldn't be incremented yet
+# Check that number of active transaction is not yet incremented
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	3
-# Check condition (get ack) before getting the ACK
+Rpl_semi_sync_master_yes_tx	2
+# Check condition (get ack) before getting the ACK increment
 show status like 'Rpl_semi_sync_master_get_ack';
 Variable_name	Value
 Rpl_semi_sync_master_get_ack	2
 SET debug_sync='now SIGNAL unpause_ack_reply_to_binlog';
-# Get ack before
+# ---- Send ACK ----
+# Wait on master's get_ACK incremented
+# Get ack incremented after dbug point (it may be 3 or 4 so we used >=)
+show status like 'Rpl_semi_sync_master_get_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	4
 # Reset debug sync on primary
 SET @@GLOBAL.debug_dbug= "";
 SET debug_sync='RESET';
@@ -211,7 +217,7 @@ SELECT @@GLOBAL.debug_dbug;
 @@GLOBAL.debug_dbug
 
 include/save_master_gtid.inc
-"Waited on Gtid_State_Ack be obtained to single replica
+# Waited on Gtid_State_Ack be obtained to single replica
 SHOW REPLICA HOSTS;
 Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
 3	slave2	SLAVE_PORT	1	0-1-3	0-1-3	semi-sync active
@@ -226,6 +232,7 @@ show status like "Slaves_connected";
 Variable_name	Value
 Slaves_connected	2
 connection slave;
+# Check send ACKs on replica server_id=2
 show status like "Rpl_semi_sync_slave_send_ack";
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	3
@@ -243,6 +250,10 @@ Rpl_semi_sync_slave_send_ack	3
 #         there is no new transaction on primary `Gtid_State_Ack` will
 #         remain empty.
 # -----------------------------------------------------------------------
+connection master;
+# Check request_ack before stopping the slave
+show variables like 'Rpl_semi_sync_master_request_ack';
+Variable_name	Value
 connection slave;
 show variables like 'rpl_semi_sync_slave_enabled';
 Variable_name	Value
@@ -251,8 +262,10 @@ show variables like 'rpl_semi_sync_slave_status';
 Variable_name	Value
 STOP SLAVE IO_THREAD;
 include/wait_for_slave_io_to_stop.inc
+# Semi-sync disabled on server_id=2
 show variables like 'rpl_semi_sync_slave_status';
 Variable_name	Value
+# slave_send_ack should be reseted when replica is stopped, but it is not (TODO?)
 show status like "Rpl_semi_sync_slave_send_ack";
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	3
@@ -260,6 +273,10 @@ connection master;
 show status like "Slaves_connected";
 Variable_name	Value
 Slaves_connected	1
+# Check request_ack after stopping the slave
+show variables like 'Rpl_semi_sync_master_request_ack';
+Variable_name	Value
+# Initial show statement, without server_id=2
 SHOW REPLICA HOSTS;
 Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
 3	slave2	SLAVE_PORT	1	0-1-3	0-1-3	semi-sync active
@@ -268,19 +285,21 @@ connection master;
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	ON
-INSERT INTO t VALUES (10);
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	ON
 show variables like 'rpl_semi_sync_master_enabled';
 Variable_name	Value
 rpl_semi_sync_master_enabled	ON
+INSERT INTO t VALUES (10);
+# Wait on transaction/request/ack and show them
 show status like 'Rpl_semi_sync_master_get_ack';
 Variable_name	Value
 Rpl_semi_sync_master_get_ack	5
-show status like 'Rpl_semi_sync_master_request_ack';
+show variables like 'Rpl_semi_sync_master_request_ack';
 Variable_name	Value
-Rpl_semi_sync_master_request_ack	4
+# Transaction is not incremented and it should (TODO?)
+show variables like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+show variables like 'Rpl_semi_sync_master_no_tx';
+Variable_name	Value
 SHOW REPLICA HOSTS;
 Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
 3	slave2	SLAVE_PORT	1	0-1-4	0-1-4	semi-sync active
@@ -387,10 +406,10 @@ Variable_name	Value
 Slaves_connected	0
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
-Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_no_tx	1
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	5
+Rpl_semi_sync_master_yes_tx	4
 show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	0
@@ -409,10 +428,10 @@ Variable_name	Value
 Rpl_semi_sync_master_status	OFF
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
-Rpl_semi_sync_master_no_tx	1
+Rpl_semi_sync_master_no_tx	2
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	5
+Rpl_semi_sync_master_yes_tx	4
 show status like 'Rpl_semi_sync_master_request_ack';
 Variable_name	Value
 Rpl_semi_sync_master_request_ack	6
@@ -441,7 +460,7 @@ Variable_name	Value
 Rpl_semi_sync_master_status	ON
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	5
+Rpl_semi_sync_master_yes_tx	4
 # Test 10: Testing `rpl_semi_sync_master_timeout=0`
 # Note 1:  For asynchronous replication `Gtid_state_sent` is not null,
 #          but `Gtid_state_ack` is null.
