@@ -750,7 +750,12 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
   double total_size;
   int end_element;
   bool end_assigned;
+
   DBUG_ENTER("Histogram_json_hb::parse");
+
+  mem_root_dynamic_array_init(mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,
                   (const uchar*)hist_data,
@@ -801,7 +806,9 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
     {
       // Some unknown member. Skip it.
       if (json_skip_key(&je))
+      {
         return 1;
+      }
     }
   }
 

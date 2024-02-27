@@ -88,6 +88,7 @@ class Histogram_json_hb final : public Histogram_base
   std::vector<Bucket> buckets;
 
   std::string last_bucket_end_endp;
+  json_engine_t je;
 
 public:
   static constexpr const char* JSON_NAME="histogram_hb";
