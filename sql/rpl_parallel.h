@@ -326,6 +326,11 @@ struct rpl_parallel_thread_pool {
 
 
 struct rpl_parallel_entry {
+  struct sched_bucket : public ilink {
+    sched_bucket() : thr(nullptr) { }
+    rpl_parallel_thread *thr;
+  };
+
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
   uint32 domain_id;
@@ -355,17 +360,19 @@ struct rpl_parallel_entry {
   uint64 stop_sub_id;
 
   /*
-    Cyclic array recording the last rpl_thread_max worker threads that we
+    Array recording the last rpl_thread_max worker threads that we
     queued event for. This is used to limit how many workers a single domain
     can occupy (--slave-domain-parallel-threads).
+
+    The array is structured as a FIFO using an I_List thread_sched_fifo.
 
     Note that workers are never explicitly deleted from the array. Instead,
     we need to check (under LOCK_rpl_thread) that the thread still belongs
     to us before re-using (rpl_thread::current_owner).
   */
-  rpl_parallel_thread **rpl_threads;
+  sched_bucket *rpl_threads;
+  I_List<sched_bucket> *thread_sched_fifo;
   uint32 rpl_thread_max;
-  uint32 rpl_thread_idx;
   /*
     The sub_id of the last transaction to commit within this domain_id.
     Must be accessed under LOCK_parallel_entry protection.
