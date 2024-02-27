@@ -1959,24 +1959,20 @@ Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
 @param[in] path NULL or the directory path or the full path and filename.
 @param[in] name NULL if path is full, or Table/Tablespace name
-@param[in] suffix NULL or the file extention to use.
+@param[in] extension NULL or the file extension to use.
 @param[in] trim_name true if the last name on the path should be trimmed.
 @return own: file name */
 char*
-fil_make_filepath(
+fil_make_filepath_low(
 	const char*	path,
 	const char*	name,
-	ib_extention	ext,
+	ib_extention	extension,
 	bool		trim_name)
 {
 	/* The path may contain the basename of the file, if so we do not
 	need the name.  If the path is NULL, we can use the default path,
 	but there needs to be a name. */
 	ut_ad(path != NULL || name != NULL);
-
-	/* If we are going to strip a name off the path, there better be a
-	path and a new name to put back on. */
-	ut_ad(!trim_name || (path != NULL && name != NULL));
 
 	if (path == NULL) {
 		path = fil_path_to_mysql_datadir;
@@ -1985,7 +1981,7 @@ fil_make_filepath(
 	ulint	len		= 0;	/* current length */
 	ulint	path_len	= strlen(path);
 	ulint	name_len	= (name ? strlen(name) : 0);
-	const char* suffix	= dot_ext[ext];
+	const char* suffix	= dot_ext[extension];
 	ulint	suffix_len	= strlen(suffix);
 	ulint	full_len	= path_len + 1 + name_len + suffix_len + 1;
 
@@ -2083,6 +2079,21 @@ fil_rename_tablespace_check(
 	}
 
 	exists = false;
+	auto schema_path= fil_make_dirpath(new_path, NULL, NO_EXT, true);
+	if (schema_path == NULL) {
+		return DB_ERROR;
+	}
+
+	if (os_file_status(schema_path, &exists, &ftype) && !exists) {
+		sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
+				" because the target schema directory doesn't exist.",
+				old_path, new_path);
+		ut_free(schema_path);
+		return DB_ERROR;
+	}
+	ut_free(schema_path);
+	exists = false;
+
 	if (os_file_status(new_path, &exists, &ftype) && !exists) {
 		return DB_SUCCESS;
 	}
