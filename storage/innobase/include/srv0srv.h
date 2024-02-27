@@ -174,10 +174,6 @@ struct srv_stats_t
 	ulint_ctr_n_t		n_temp_blocks_decrypted;
 };
 
-/** We are prepared for a situation that we have this many threads waiting for
-a transactional lock inside InnoDB. srv_start() sets the value. */
-extern ulint srv_max_n_threads;
-
 extern const char*	srv_main_thread_op_info;
 
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */

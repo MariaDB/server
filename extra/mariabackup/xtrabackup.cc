@@ -4714,22 +4714,6 @@ fail:
 		return(false);
 	}
 
-	if (srv_buf_pool_size >= 1000 * 1024 * 1024) {
-                                  /* Here we still have srv_pool_size counted
-                                  in kilobytes (in 4.0 this was in bytes)
-				  srv_boot() converts the value to
-                                  pages; if buffer pool is less than 1000 MB,
-                                  assume fewer threads. */
-                srv_max_n_threads = 50000;
-
-	} else if (srv_buf_pool_size >= 8 * 1024 * 1024) {
-
-                srv_max_n_threads = 10000;
-        } else {
-		srv_max_n_threads = 1000;       /* saves several MB of memory,
-                                                especially in 64-bit
-                                                computers */
-        }
 	srv_thread_pool_init();
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
@@ -6166,7 +6150,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		return(false);
 	}
 
-	srv_max_n_threads = 1000;
 	srv_n_purge_threads = 1;
 
 	xb_filters_init();

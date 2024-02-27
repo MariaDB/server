@@ -1893,8 +1893,6 @@ copy_back()
 		return(false);
 	}
 
-	srv_max_n_threads = 1000;
-
 	/* copy undo tablespaces */
 
 	Copy_back_dst_dir dst_dir_buf;
@@ -2171,8 +2169,6 @@ decrypt_decompress()
 {
 	bool ret;
 	datadir_iter_t *it = NULL;
-
-	srv_max_n_threads = 1000;
 
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))

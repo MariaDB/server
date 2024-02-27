@@ -92,10 +92,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "ut0crc32.h"
 #include "log.h"
 
-/** We are prepared for a situation that we have this many threads waiting for
-a transactional lock inside InnoDB. srv_start() sets the value. */
-ulint srv_max_n_threads;
-
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
 
@@ -1126,12 +1122,6 @@ dberr_t srv_start(bool create_new_db)
 	started which may need to be instrumented. */
 	mysql_stage_register("innodb", srv_stages,
 			     static_cast<int>(UT_ARR_SIZE(srv_stages)));
-
-	srv_max_n_threads =
-		1 /* dict_stats_thread */
-		+ 1 /* fts_optimize_thread */
-		+ 128 /* safety margin */
-		+ max_connections;
 
 	srv_boot();
 
