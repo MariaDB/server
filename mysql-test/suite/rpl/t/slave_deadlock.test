@@ -2,14 +2,6 @@
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
 
-# On --repeat test infinitely increments thread_id and finally fails --sync_with_master at log_pos 1754:
-#
-# 231009 20:58:15 server id 1  end_log_pos 1754 CRC32 0x7e5aecd1 	Query	thread_id=561	exec_time=0	error_code=0	xid=0
-#
-# force_restart seems to fix this
-
---source include/force_restart.inc
-
 # Note that test requires big enough --debug-sync-timeout unfair scheduling at high load.
 # slave_deadlock.opt sets this to 1 hour
 
@@ -128,8 +120,11 @@ delete from t1 where a = 1;
 --connection server_2
 --sync_with_master
 
+# In MySQL there is escape() command
+# --let $s= escape('"', `show engine innodb status`)
 let $s= `show engine innodb status`;
-let $i= `select instr("$s", "LATEST DETECTED DEADLOCK")`;
+let $i= `select instr("\$s", "LATEST DETECTED DEADLOCK")`;
+
 if ($i == 0)
 {
   # Deadlock didn't happen, exiting...
