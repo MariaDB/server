@@ -4794,6 +4794,7 @@ void thd_increment_bytes_sent(void *thd, size_t length)
   }
 }
 
+
 my_bool thd_net_is_killed(THD *thd)
 {
   return thd && thd->killed ? 1 : 0;
