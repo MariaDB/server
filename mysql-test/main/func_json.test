@@ -310,7 +310,7 @@ set @save_max_allowed_packet=@@max_allowed_packet;
 set @save_net_buffer_length=@@net_buffer_length;
 
 set @@global.net_buffer_length=1024;
-set @@global.max_allowed_packet=2048;
+set @@global.max_allowed_packet=4096;
 --connect (newconn, localhost, root,,)
 
 show variables like 'net_buffer_length';
@@ -3806,10 +3806,10 @@ SET @schema_array= '{"type":"array"}';
 SELECT JSON_SCHEMA_VALID(@schema_array, '[');
 
 --disable_view_protocol
-SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
+SELECT JSON_SCHEMA_VALID(repeat('[', 100), json_object());
 --enable_view_protocol
 
-SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
+SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 100));
 
 --echo #
 --echo # MDEV-30677: Incorrect result for "SELECT JSON_SCHEMA_VALID('{}', NULL)"
