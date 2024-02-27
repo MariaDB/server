@@ -7024,8 +7024,8 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, log_file_name,
-                                                        file->pos_in_file))
+          if (repl_semisync_master.report_binlog_update(
+                  thd, thd, log_file_name, file->pos_in_file))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
@@ -8619,9 +8619,19 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       for (current= queue; current != NULL; current= current->next)
       {
 #ifdef HAVE_REPLICATION
+        /*
+          The thread which will await the ACK from the replica can change
+          depending on the wait-point. If AFTER_COMMIT, then the user thread
+          will perform the wait. If AFTER_SYNC, the binlog group commit leader
+          will perform the wait on behalf of the user thread.
+        */
+        THD *waiter_thd= (repl_semisync_master.wait_point() ==
+                          SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
+                             ? current->thd
+                             : leader->thd;
         if (likely(!current->error) &&
             unlikely(repl_semisync_master.
-                     report_binlog_update(current->thd,
+                     report_binlog_update(current->thd, waiter_thd,
                                           current->cache_mngr->
                                           last_commit_pos_file,
                                           current->cache_mngr->
