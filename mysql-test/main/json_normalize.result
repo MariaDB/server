@@ -43,6 +43,8 @@ NULL
 select json_normalize('{ "invalid": "no_close"');
 json_normalize('{ "invalid": "no_close"')
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_normalize'
 drop table t1;
 drop view v1;
 create table t1 (text varchar(200) character set 'latin1');
