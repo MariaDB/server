@@ -21,7 +21,7 @@ call mtr.add_suppression("Replication event checksum verification");
 call mtr.add_suppression("Relay log write failure");
 call mtr.add_suppression("Failed to kill the active semi-sync connection");
 connection server_1;
-CREATE TABLE t1 (a int);
+CREATE TABLE t1 (a int) engine=innodb;
 connection server_2;
 connection server_3;
 connect server_1_con2, localhost, root,,;
@@ -30,8 +30,8 @@ connect server_1_con2, localhost, root,,;
 #############################
 #
 # Test Case 1) If both replicas simulate a delay that is within the
-# allowed timeout, the primary should delay killing the suspended thread
-# until an ACK is received (Rpl_semi_sync_master_yes_tx should be 1).
+# allowed timeout, the primary should delay killing the Ack_thread
+# until an ACK is received.
 #
 connection server_1;
 #--
@@ -88,14 +88,7 @@ SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
-#-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
-show status like 'Rpl_semi_sync_master_yes_tx';
-Variable_name	Value
-Rpl_semi_sync_master_yes_tx	1
-show status like 'Rpl_semi_sync_master_no_tx';
-Variable_name	Value
-Rpl_semi_sync_master_no_tx	0
-connection server_1_con2;
+ERROR HY000: Lost connection to server during query
 # Check logs to ensure shutdown was delayed
 FOUND 1 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 # Validate slave data is in correct state
@@ -147,8 +140,8 @@ COUNT(*)=0
 1
 #
 # Test Case 2) If both replicas simulate an error before sending an ACK,
-# the primary should delay killing the suspended thread until the
-# timeout is reached (Rpl_semi_sync_master_no_tx should be 1).
+# the primary should delay killing the Ack_thread until the
+# timeout is reached.
 #
 connection server_1;
 #--
@@ -205,14 +198,7 @@ SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
-#-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
-show status like 'Rpl_semi_sync_master_yes_tx';
-Variable_name	Value
-Rpl_semi_sync_master_yes_tx	0
-show status like 'Rpl_semi_sync_master_no_tx';
-Variable_name	Value
-Rpl_semi_sync_master_no_tx	1
-connection server_1_con2;
+ERROR HY000: Lost connection to server during query
 # Check logs to ensure shutdown was delayed
 FOUND 2 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 # Validate slave data is in correct state
@@ -265,8 +251,8 @@ COUNT(*)=0
 #
 # Test Case 3) If one replica simulates a delay within the allowed
 # timeout and the other simulates an error before sending an ACK, the
-# primary should delay killing the suspended thread until it receives an
-# ACK from the delayed slave (Rpl_semi_sync_master_yes_tx should be 1).
+# primary should delay killing the Ack_thread until it receives an
+# ACK from the delayed slave.
 #
 connection server_1;
 #--
@@ -323,14 +309,7 @@ SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
-#-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
-show status like 'Rpl_semi_sync_master_yes_tx';
-Variable_name	Value
-Rpl_semi_sync_master_yes_tx	1
-show status like 'Rpl_semi_sync_master_no_tx';
-Variable_name	Value
-Rpl_semi_sync_master_no_tx	0
-connection server_1_con2;
+ERROR HY000: Lost connection to server during query
 # Check logs to ensure shutdown was delayed
 FOUND 3 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 # Validate slave data is in correct state
@@ -389,8 +368,7 @@ COUNT(*)=0
 # active semi-sync connection in-tact. The slave should notice this, and
 # not issue a `QUIT` command to the primary, which would otherwise be
 # sent to kill an active connection. This test case validates that the
-# slave does not send a `QUIT` in this case (Rpl_semi_sync_master_yes_tx
-# should be 1 because server_3 will send the ACK within a valid timeout).
+# slave does not send a `QUIT` in this case.
 #
 connection server_1;
 #--
@@ -447,14 +425,7 @@ SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_1;
-#-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
-show status like 'Rpl_semi_sync_master_yes_tx';
-Variable_name	Value
-Rpl_semi_sync_master_yes_tx	1
-show status like 'Rpl_semi_sync_master_no_tx';
-Variable_name	Value
-Rpl_semi_sync_master_no_tx	0
-connection server_1_con2;
+ERROR HY000: Lost connection to server during query
 # Check logs to ensure shutdown was delayed
 FOUND 4 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 # Validate slave data is in correct state
@@ -504,14 +475,58 @@ Rpl_semi_sync_slave_status	OFF
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
+#
+# Test Case 5) If a waiting-for-ACK user thread is killed (disconnected)
+# during SHUTDOWN WAIT FOR ALL SLAVES, ensure the primary will still
+# await the ACK from the replica before killing the Ack_receiver thread
+#
+connection server_1;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+include/start_slave.inc
+connection server_1;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+SET GLOBAL rpl_semi_sync_master_timeout= 2000;
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,simulate_delay_semisync_slave_reply";
+connect con1, localhost, root,,;
+connect con2, localhost, root,,;
+connection con1;
+insert into t1 values (2);
+connection server_1;
+# Wait for thd to begin semi-sync wait..
+# ..done
+disconnect con1;
+connection default;
+connection con2;
+SHUTDOWN WAIT FOR ALL SLAVES;
+connection server_2;
+include/assert_grep.inc [Ensure the primary waited for the ACK of the killed thread]
+connection default;
+connection server_1;
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+connection default;
+connection server_1;
 #############################
 # Cleanup
 #############################
 connection server_2;
-include/stop_slave.inc
 include/start_slave.inc
 connection server_3;
-include/stop_slave.inc
 include/start_slave.inc
 connection server_1;
 drop table t1;

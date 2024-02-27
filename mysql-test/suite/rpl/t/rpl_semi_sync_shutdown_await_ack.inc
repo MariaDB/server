@@ -85,15 +85,11 @@ EOF
 SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 
 --echo #-- Begin master shutdown
---send SHUTDOWN WAIT FOR ALL SLAVES
+SHUTDOWN WAIT FOR ALL SLAVES;
+--source include/wait_until_disconnected.inc
 
 --connection server_1
---reap
---echo #-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
-show status like 'Rpl_semi_sync_master_yes_tx';
-show status like 'Rpl_semi_sync_master_no_tx';
-
---connection server_1_con2
+--error 2013
 --reap
 --source include/wait_until_disconnected.inc
 
