@@ -2496,7 +2496,7 @@ VAR* var_get(const char *var_name, const char **var_name_end, my_bool raw,
     {
       if (ignore_not_existing)
 	DBUG_RETURN(0);
-      die("Empty variable");
+      die("Empty variable name in context: \"%.50s\"", var_name - 1);
     }
     length= (uint) (var_name - save_var_name);
     if (length >= MAX_VAR_NAME_LENGTH)
