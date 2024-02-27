@@ -18,6 +18,14 @@
 #include <m_ctype.h>
 #include "json_lib.h"
 
+int get_default_json_depth(void)
+{
+  return 32;
+}
+
+int (*get_json_depth)(void) = get_default_json_depth;
+
+
 /*
   JSON escaping lets user specify UTF16 codes of characters.
   So we're going to need the UTF16 charset capabilities. Let's import
@@ -139,8 +147,9 @@ static int syntax_error(json_engine_t *j)
 /* Value of object. */
 static int mark_object(json_engine_t *j)
 {
+  int curr_json_depth_limit= get_json_depth();
   j->state= JST_OBJ_START;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (++j->stack_p < curr_json_depth_limit)
   {
     j->stack[j->stack_p]= JST_OBJ_CONT;
     return 0;
@@ -153,10 +162,12 @@ static int mark_object(json_engine_t *j)
 /* Read value of object. */
 static int read_obj(json_engine_t *j)
 {
+  int curr_json_depth_limit= get_json_depth();
+
   j->state= JST_OBJ_START;
   j->value_type= JSON_VALUE_OBJECT;
   j->value= j->value_begin;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (++j->stack_p < curr_json_depth_limit)
   {
     j->stack[j->stack_p]= JST_OBJ_CONT;
     return 0;
@@ -169,8 +180,10 @@ static int read_obj(json_engine_t *j)
 /* Value of array. */
 static int mark_array(json_engine_t *j)
 {
+  int curr_json_depth_limit= get_json_depth();
+
   j->state= JST_ARRAY_START;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (++j->stack_p < curr_json_depth_limit)
   {
     j->stack[j->stack_p]= JST_ARRAY_CONT;
     j->value= j->value_begin;
@@ -183,10 +196,12 @@ static int mark_array(json_engine_t *j)
 /* Read value of object. */
 static int read_array(json_engine_t *j)
 {
+  int curr_json_depth_limit= get_json_depth();
+
   j->state= JST_ARRAY_START;
   j->value_type= JSON_VALUE_ARRAY;
   j->value= j->value_begin;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (++j->stack_p < curr_json_depth_limit)
   {
     j->stack[j->stack_p]= JST_ARRAY_CONT;
     return 0;
@@ -1127,7 +1142,7 @@ int json_path_setup(json_path_t *p,
                     CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
 {
  int c_len, t_next, state= PS_GO, is_negative_index= 0, is_last= 0,
-  prev_value=0, is_to= 0, *cur_val;
+  prev_value=0, is_to= 0, *cur_val, curr_json_depth_limit= get_json_depth();
   enum json_path_step_types double_wildcard= JSON_PATH_KEY_NULL;
   json_string_setup(&p->s, i_cs, str, end);
 
@@ -1198,7 +1213,7 @@ int json_path_setup(json_path_t *p,
       prev_value= 0;
       is_negative_index= 0;
       is_last= 0;
-      if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
+      if (p->last_step - p->steps >= curr_json_depth_limit)
         return p->s.error= JE_DEPTH;
       p->types_used|= p->last_step->type= JSON_PATH_KEY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
@@ -1216,7 +1231,7 @@ int json_path_setup(json_path_t *p,
       is_to= 0;
       prev_value= 0;
       is_negative_index= 0;
-      if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
+      if (p->last_step - p->steps >= curr_json_depth_limit)
         return p->s.error= JE_DEPTH;
       p->types_used|= p->last_step->type= JSON_PATH_ARRAY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
@@ -1503,6 +1518,9 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
 {
   uint p_c;
   int path_found, no_match_found;
+
+  state->array_counters= (int*)malloc(get_json_depth() * sizeof(int));
+
   do
   {
     switch (je->state)
@@ -1608,9 +1626,11 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
   } while (json_scan_next(je) == 0);
 
   /* No luck. */
+  free(state->array_counters);
   return 1;
 
 exit:
+  free(state->array_counters);
   return je->s.error;
 }
 
@@ -1902,9 +1922,12 @@ enum json_types json_type(const char *js, const char *js_end,
 {
   json_engine_t je;
 
+  je.stack= (int*)malloc(get_json_depth() * sizeof(int));
+  memset(je.stack, 0, get_json_depth() * sizeof(int));
+
   json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
                   (const uchar *) js_end);
-
+  free(je.stack);
   return smart_read_value(&je, value, value_len);
 }
 
@@ -1915,6 +1938,9 @@ enum json_types json_get_array_item(const char *js, const char *js_end,
 {
   json_engine_t je;
   int c_item= 0;
+
+  je.stack= (int*)malloc(get_json_depth() * sizeof(int));
+  memset(je.stack, 0, get_json_depth() * sizeof(int));
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
                   (const uchar *) js_end);
@@ -1945,6 +1971,7 @@ enum json_types json_get_array_item(const char *js, const char *js_end,
   }
 
 err_return:
+  free(je.stack);
   return JSV_BAD_JSON;
 }
 
@@ -1975,6 +2002,9 @@ enum json_types json_get_object_key(const char *js, const char *js_end,
   json_engine_t je;
   json_string_t key_name;
   int n_keys= 0;
+
+  je.stack= (int*)malloc(get_json_depth() * sizeof(int));
+  memset(je.stack, 0, get_json_depth() * sizeof(int));
 
   json_string_set_cs(&key_name, &my_charset_utf8mb4_bin);
 
@@ -2009,6 +2039,7 @@ enum json_types json_get_object_key(const char *js, const char *js_end,
   }
 
 err_return:
+  free(je.stack);
   return JSV_BAD_JSON;
 }
 
@@ -2030,14 +2061,22 @@ enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
   @retval 0 - success, json is well-formed
   @retval 1 - error, json is invalid
 */
-int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs)
+int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs, json_engine_t *temp_je)
 {
   json_engine_t je;
+
+  je.stack= (int*)malloc(get_json_depth() * sizeof(int));
+  memset(je.stack, 0, get_json_depth() * sizeof(int));
+
   json_scan_start(&je, cs, (const uchar *) js, (const uchar *) js + js_len);
   while (json_scan_next(&je) == 0) /* no-op */ ;
-  return je.s.error == 0;
-}
 
+ *temp_je= je;
+
+  free(je.stack);
+
+  return je.s.error;
+}
 
 /*
   Expects the JSON object as an js argument, and the key name.
@@ -2062,6 +2101,9 @@ int json_locate_key(const char *js, const char *js_end,
   json_engine_t je;
   json_string_t key_name;
   int t_next, c_len, match_result;
+
+  je.stack= (int*)malloc(get_json_depth() * sizeof(int));
+  memset(je.stack, 0, get_json_depth() * sizeof(int));
 
   json_string_set_cs(&key_name, &my_charset_utf8mb4_bin);
 
@@ -2093,7 +2135,10 @@ int json_locate_key(const char *js, const char *js_end,
         *key_end= (const char *) je.s.c_str;
 
         if (*comma_pos == 1)
+        {
+          free(je.stack);
           return 0;
+        }
 
         DBUG_ASSERT(*comma_pos == 0);
 
@@ -2115,11 +2160,13 @@ int json_locate_key(const char *js, const char *js_end,
 
     case JST_OBJ_END:
       *key_start= NULL;
-      return 0;
+       free(je.stack);
+       return 0;
     }
   }
 
 err_return:
+  free(je.stack);
   return 1;
 
 }

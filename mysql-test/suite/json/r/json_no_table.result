@@ -3413,18 +3413,26 @@ error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('[', 100000));
 JSON_VALID(REPEAT('[', 100000))
 0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_VALID' at position 32
 error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('{"a":', 100000));
 JSON_VALID(REPEAT('{"a":', 100000))
 0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_VALID' at position 156
 error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('{"a":[', 100000));
 JSON_VALID(REPEAT('{"a":[', 100000))
 0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_VALID' at position 96
 error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('[{"a":', 100000));
 JSON_VALID(REPEAT('[{"a":', 100000))
 0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_VALID' at position 92
 #
 # Bug#21381806 JSON: ASSERTION FAILED: ARG->NULL_VALUE
 #

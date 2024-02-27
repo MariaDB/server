@@ -629,6 +629,16 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
+void assign_json_depth(int (*newFunc)(void))
+{
+    get_json_depth = newFunc;
+}
+
+int curr_thd_json_depth(void)
+{
+  return current_thd->variables.json_depth_limit;
+}
+
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),

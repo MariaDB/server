@@ -249,6 +249,8 @@ public:
 class Item_func_geometry_from_json: public Item_geometry_func
 {
   String tmp_js;
+  int *temp_json_depth_stack;
+
   bool check_arguments() const override
   {
     // TODO: check with Alexey, for better args[1] and args[2] type control
@@ -256,16 +258,18 @@ class Item_func_geometry_from_json: public Item_geometry_func
            check_argument_types_traditional_scalar(1, MY_MIN(3, arg_count));
   }
 public:
-  Item_func_geometry_from_json(THD *thd, Item *js): Item_geometry_func(thd, js) {}
+  Item_func_geometry_from_json(THD *thd, Item *js): Item_geometry_func(thd, js)
+  { temp_json_depth_stack= NULL; }
   Item_func_geometry_from_json(THD *thd, Item *js, Item *opt):
-    Item_geometry_func(thd, js, opt) {}
+    Item_geometry_func(thd, js, opt) { temp_json_depth_stack= NULL; }
   Item_func_geometry_from_json(THD *thd, Item *js, Item *opt, Item *srid):
-    Item_geometry_func(thd, js, opt, srid) {}
+    Item_geometry_func(thd, js, opt, srid) { temp_json_depth_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_geomfromgeojson") };
     return name;
   }
+  bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometry_from_json>(thd, this); }

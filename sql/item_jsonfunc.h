@@ -41,6 +41,14 @@ public:
   }
 };
 
+class json_common
+{
+  protected:
+   int *json_depth_array;
+  public:
+   json_common() { json_depth_array= NULL; }
+};
+
 
 void report_path_error_ex(const char *ps, json_path_t *p,
                           const char *fname, int n_param,
@@ -52,13 +60,16 @@ void report_json_error_ex(const char *js, json_engine_t *je,
 class Json_engine_scan: public json_engine_t
 {
 public:
-  Json_engine_scan(CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
+  Json_engine_scan(CHARSET_INFO *i_cs, const uchar *str,
+                   const uchar *end, int *json_engine_scan_stack)
   {
+    stack= json_engine_scan_stack;
     json_scan_start(this, i_cs, str, end);
   }
-  Json_engine_scan(const String &str)
+  Json_engine_scan(const String &str, int *json_engine_scan_stack)
    :Json_engine_scan(str.charset(), (const uchar *) str.ptr(),
-                                    (const uchar *) str.end())
+                                    (const uchar *) str.end(),
+                                    json_engine_scan_stack)
   { }
   bool check_and_get_value_scalar(String *res, int *error);
   bool check_and_get_value_complex(String *res, int *error,
@@ -67,14 +78,16 @@ public:
 };
 
 
-class Json_path_extractor: public json_path_with_flags
+class Json_path_extractor: public json_path_with_flags, public json_common
 {
 protected:
   String tmp_js, tmp_path;
   virtual ~Json_path_extractor() { }
   virtual bool check_and_get_value(Json_engine_scan *je,
                                    String *to, int *error)=0;
-  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs);
+  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs,
+               int *json_depth_array, int* json_engine_scan_stack,
+               String *func_name_str);
 };
 
 
@@ -112,9 +125,11 @@ public:
 
 class Item_func_json_equals: public Item_bool_func
 {
+int *temp_json_engine_stack1, *temp_json_engine_stack2;
 public:
   Item_func_json_equals(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b) {}
+    Item_bool_func(thd, a, b)
+    { temp_json_engine_stack1= temp_json_engine_stack2= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_equals") };
@@ -127,15 +142,17 @@ public:
 };
 
 
-class Item_func_json_exists: public Item_bool_func
+class Item_func_json_exists: public Item_bool_func, public json_common
 {
 protected:
   json_path_with_flags path;
   String tmp_js, tmp_path;
+  int *temp_json_engine_stack;
 
 public:
   Item_func_json_exists(THD *thd, Item *js, Item *i_path):
-    Item_bool_func(thd, js, i_path) {}
+    Item_bool_func(thd, js, i_path)
+    { temp_json_engine_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_exists") };
@@ -169,22 +186,21 @@ public:
 class Item_func_json_value: public Item_str_func,
                             public Json_path_extractor
 {
-
+protected:
+  int *json_engine_scan_stack;
 public:
   Item_func_json_value(THD *thd, Item *js, Item *i_path):
-    Item_str_func(thd, js, i_path) {}
+    Item_str_func(thd, js, i_path)
+    {
+      json_engine_scan_stack= NULL;
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_value") };
     return name;
   }
   bool fix_length_and_dec(THD *thd) override ;
-  String *val_str(String *to) override
-  {
-    null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
-    return null_value ? NULL : to;
-  }
+  String *val_str(String *to) override;
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
@@ -198,21 +214,21 @@ public:
 class Item_func_json_query: public Item_json_func,
                             public Json_path_extractor
 {
+protected:
+  int *json_engine_scan_stack;
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
-    Item_json_func(thd, js, i_path) {}
+    Item_json_func(thd, js, i_path)
+    {
+      json_engine_scan_stack= NULL;
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_query") };
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *to) override
-  {
-    null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
-    return null_value ? NULL : to;
-  }
+  String *val_str(String *to) override;
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
@@ -227,9 +243,11 @@ class Item_func_json_quote: public Item_str_func
 {
 protected:
   String tmp_s;
+  int *temp_json_engine_stack;
 
 public:
-  Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s) {}
+  Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s)
+  { temp_json_engine_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_quote") };
@@ -244,11 +262,14 @@ public:
 
 class Item_func_json_unquote: public Item_str_func
 {
+private:
+  int *temp_json_engine_stack;
 protected:
   String tmp_s;
   String *read_json(json_engine_t *je);
 public:
-  Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
+  Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s)
+  { temp_json_engine_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_unquote") };
@@ -290,15 +311,22 @@ public:
 };
 
 
-class Item_func_json_extract: public Item_json_str_multipath
+class Item_func_json_extract: public Item_json_str_multipath,
+                              public json_common
 {
 protected:
   String tmp_js;
+  json_path_t p;
+  int *temp_json_engine_stack, *temp_json_engine_stack_save_je;
 public:
   String *read_json(String *str, json_value_types *type,
                     char **out_val, int *value_len);
   Item_func_json_extract(THD *thd, List<Item> &list):
-    Item_json_str_multipath(thd, list) {}
+    Item_json_str_multipath(thd, list)
+    {
+      temp_json_engine_stack= NULL;
+      temp_json_engine_stack_save_je= NULL;
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_extract") };
@@ -313,10 +341,11 @@ public:
   uint get_n_paths() const override { return arg_count - 1; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_extract>(thd, this); }
+  void set_json_depth_array(THD *thd, int depth);
 };
 
 
-class Item_func_json_contains: public Item_bool_func
+class Item_func_json_contains: public Item_bool_func, public json_common
 {
 protected:
   String tmp_js;
@@ -324,9 +353,17 @@ protected:
   String tmp_path;
   bool a2_constant, a2_parsed;
   String tmp_val, *val;
+  int *temp_json_engine_stack_je, *temp_json_engine_stack_ve,
+      *temp_json_engine_stack_loc_js;
+
 public:
   Item_func_json_contains(THD *thd, List<Item> &list):
-    Item_bool_func(thd, list) {}
+    Item_bool_func(thd, list)
+    {
+      temp_json_engine_stack_je= NULL;
+      temp_json_engine_stack_ve= NULL;
+      temp_json_engine_stack_loc_js= NULL;
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_contains") };
@@ -339,7 +376,8 @@ public:
 };
 
 
-class Item_func_json_contains_path: public Item_bool_func
+class Item_func_json_contains_path: public Item_bool_func,
+                                    public json_common
 {
 protected:
   String tmp_js;
@@ -348,10 +386,13 @@ protected:
   bool mode_one;
   bool ooa_constant, ooa_parsed;
   bool *p_found;
+  json_path_t p;
+  int *temp_json_engine_stack;
 
 public:
   Item_func_json_contains_path(THD *thd, List<Item> &list):
-    Item_bool_func(thd, list), tmp_paths(0) {}
+    Item_bool_func(thd, list), tmp_paths(0)
+    { temp_json_engine_stack= NULL; }
   virtual ~Item_func_json_contains_path();
   LEX_CSTRING func_name_cstring() const override
   {
@@ -371,11 +412,15 @@ class Item_func_json_array: public Item_json_func
 protected:
   String tmp_val;
   ulong result_limit;
+    int *temp_json_engine_stack1, *temp_json_engine_stack2;
+
 public:
   Item_func_json_array(THD *thd):
-    Item_json_func(thd) {}
+    Item_json_func(thd)
+    {temp_json_engine_stack1= temp_json_engine_stack2= NULL; }
   Item_func_json_array(THD *thd, List<Item> &list):
-    Item_json_func(thd, list) {}
+    Item_json_func(thd, list)
+    { temp_json_engine_stack1= temp_json_engine_stack2= NULL; }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -388,14 +433,17 @@ public:
 };
 
 
-class Item_func_json_array_append: public Item_json_str_multipath
+class Item_func_json_array_append: public Item_json_str_multipath,
+                                   public json_common
 {
 protected:
   String tmp_js;
   String tmp_val;
+  int *temp_json_engine_stack;
+
 public:
   Item_func_json_array_append(THD *thd, List<Item> &list):
-    Item_json_str_multipath(thd, list) {}
+    Item_json_str_multipath(thd, list) { temp_json_engine_stack= NULL; }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count/2; }
@@ -478,9 +526,10 @@ public:
 
 class Item_func_json_normalize: public Item_json_func
 {
+int *temp_json_engine_stack;
 public:
   Item_func_json_normalize(THD *thd, Item *a):
-    Item_json_func(thd, a) {}
+    Item_json_func(thd, a) {temp_json_engine_stack= NULL;}
   String *val_str(String *) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -497,9 +546,14 @@ class Item_func_json_object_to_array: public Item_json_func
 {
   protected:
   String tmp;
+  int *temp_json_engine_stack;
+
 public:
   Item_func_json_object_to_array(THD *thd, Item *a):
-    Item_json_func(thd, a) {}
+    Item_json_func(thd, a)
+    {
+      temp_json_engine_stack= NULL;
+    }
   String *val_str(String *) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -512,7 +566,8 @@ public:
 };
 
 
-class Item_func_json_length: public Item_long_func
+class Item_func_json_length: public Item_long_func,
+                             public json_common
 {
   bool check_arguments() const override
   {
@@ -529,9 +584,10 @@ protected:
   json_path_with_flags path;
   String tmp_js;
   String tmp_path;
+  int *temp_json_engine_stack;
 public:
   Item_func_json_length(THD *thd, List<Item> &list):
-    Item_long_func(thd, list) {}
+    Item_long_func(thd, list) { temp_json_engine_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_length") };
@@ -550,14 +606,18 @@ class Item_func_json_depth: public Item_long_func
   { return args[0]->check_type_can_return_text(func_name_cstring()); }
 protected:
   String tmp_js;
+  int *temp_json_engine_stack;
 public:
-  Item_func_json_depth(THD *thd, Item *js): Item_long_func(thd, js) {}
+  Item_func_json_depth(THD *thd, Item *js): Item_long_func(thd, js)
+  {
+    temp_json_engine_stack= NULL;
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_depth") };
     return name;
   }
-  bool fix_length_and_dec(THD *thd) override { max_length= 10; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override;
   longlong val_int() override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_depth>(thd, this); }
@@ -568,6 +628,7 @@ class Item_func_json_type: public Item_str_func
 {
 protected:
   String tmp_js;
+  int *temp_json_engine_stack;
 public:
   Item_func_json_type(THD *thd, Item *js): Item_str_func(thd, js) {}
   LEX_CSTRING func_name_cstring() const override
@@ -582,16 +643,20 @@ public:
 };
 
 
-class Item_func_json_insert: public Item_json_str_multipath
+class Item_func_json_insert: public Item_json_str_multipath,
+                             public json_common
 {
 protected:
   String tmp_js;
   String tmp_val;
   bool mode_insert, mode_replace;
+  int *temp_json_engine_stack;
+
 public:
   Item_func_json_insert(bool i_mode, bool r_mode, THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list),
-      mode_insert(i_mode), mode_replace(r_mode) {}
+      mode_insert(i_mode), mode_replace(r_mode)
+      { temp_json_engine_stack= NULL; }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count/2; }
@@ -608,13 +673,16 @@ public:
 };
 
 
-class Item_func_json_remove: public Item_json_str_multipath
+class Item_func_json_remove: public Item_json_str_multipath,
+                             public json_common
 {
 protected:
   String tmp_js;
+  int *temp_json_engine_stack;
 public:
   Item_func_json_remove(THD *thd, List<Item> &list):
-    Item_json_str_multipath(thd, list) {}
+    Item_json_str_multipath(thd, list)
+    { temp_json_engine_stack= NULL; }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count - 1; }
@@ -628,15 +696,17 @@ public:
 };
 
 
-class Item_func_json_keys: public Item_str_func
+class Item_func_json_keys: public Item_str_func,
+                           public json_common
 {
 protected:
   json_path_with_flags path;
   String tmp_js, tmp_path;
+  int *temp_json_engine_stack;
 
 public:
   Item_func_json_keys(THD *thd, List<Item> &list):
-    Item_str_func(thd, list) {}
+    Item_str_func(thd, list) { temp_json_engine_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_keys") };
@@ -649,7 +719,8 @@ public:
 };
 
 
-class Item_func_json_search: public Item_json_str_multipath
+class Item_func_json_search: public Item_json_str_multipath,
+                             public json_common
 {
 protected:
   String tmp_js, tmp_path, esc_value;
@@ -657,13 +728,14 @@ protected:
   bool ooa_constant, ooa_parsed;
   int escape;
   int n_path_found;
-  json_path_t sav_path;
+  json_path_t sav_path, p;
+  int *temp_json_engine_stack;
 
   int compare_json_value_wild(json_engine_t *je, const String *cmp_str);
 
 public:
   Item_func_json_search(THD *thd, List<Item> &list):
-    Item_json_str_multipath(thd, list) {}
+    Item_json_str_multipath(thd, list) {temp_json_engine_stack= NULL; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_search") };
@@ -691,11 +763,15 @@ public:
 protected:
   formats fmt;
   String tmp_js;
+  int *temp_json_engine_stack;
+
 public:
   Item_func_json_format(THD *thd, Item *js, formats format):
-    Item_json_func(thd, js), fmt(format) {}
+    Item_json_func(thd, js), fmt(format)
+    { temp_json_engine_stack= NULL; }
   Item_func_json_format(THD *thd, List<Item> &list):
-    Item_json_func(thd, list), fmt(DETAILED) {}
+    Item_json_func(thd, list), fmt(DETAILED)
+    {temp_json_engine_stack= NULL; }
 
   LEX_CSTRING func_name_cstring() const override;
   bool fix_length_and_dec(THD *thd) override;
@@ -807,10 +883,14 @@ class Item_func_json_overlaps: public Item_bool_func
   String tmp_js;
   bool a2_constant, a2_parsed;
   String tmp_val, *val;
+  int *temp_json_engine_stack_je, *temp_json_engine_stack_ve;
 public:
   Item_func_json_overlaps(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b)
-    {}
+    {
+      temp_json_engine_stack_je= NULL;
+      temp_json_engine_stack_ve= NULL;
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_overlaps") };
@@ -829,6 +909,7 @@ class Item_func_json_schema_valid: public Item_bool_func
   String tmp_val, *val;
   List<Json_schema_keyword> keyword_list;
   List<Json_schema_keyword> all_keywords;
+  int *temp_json_engine_stack;
 
 public:
   Item_func_json_schema_valid(THD *thd, Item *a, Item *b):
@@ -837,6 +918,7 @@ public:
       val= NULL;
       schema_parsed= false;
       set_maybe_null();
+      temp_json_engine_stack= NULL;
     }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -853,12 +935,16 @@ public:
 class Item_func_json_key_value: public Item_json_func,
                             public Json_path_extractor
 {
-
   String tmp_str;
+  int *temp_json_engine_stack, *json_engine_scan_stack;
 
 public:
   Item_func_json_key_value(THD *thd, Item *js, Item *i_path):
-    Item_json_func(thd, js, i_path) {}
+    Item_json_func(thd, js, i_path)
+    {
+      temp_json_engine_stack= NULL;
+      json_engine_scan_stack= NULL;
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_key_value") };
@@ -886,9 +972,17 @@ protected:
   HASH items;
   MEM_ROOT hash_root;
   bool parse_for_each_row;
+  int *temp_json_engine_stack1, *temp_json_engine_stack2,
+      *temp_json_engine_stack_res;
 public:
   Item_func_json_array_intersect(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) { hash_inited= root_inited= parse_for_each_row= false; }
+    Item_str_func(thd, a, b)
+    {
+      hash_inited= root_inited= parse_for_each_row= false;
+      temp_json_engine_stack1= NULL;
+      temp_json_engine_stack2= NULL;
+      temp_json_engine_stack_res= NULL;
+    }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -916,9 +1010,15 @@ protected:
   bool hash_inited, root_inited;
   HASH items;
   MEM_ROOT hash_root;
+  int *temp_json_engine_stack1, *temp_json_engine_stack_res;
 public:
   Item_func_json_object_filter_keys(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
+    Item_str_func(thd, a, b)
+    {
+      hash_inited= root_inited= false;
+      temp_json_engine_stack1= NULL;
+      temp_json_engine_stack_res= NULL;
+    }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override

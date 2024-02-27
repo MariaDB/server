@@ -13,9 +13,13 @@ json_valid('[false, true, null]')
 select json_valid(repeat('[', 1000));
 json_valid(repeat('[', 1000))
 0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_VALID' at position 32
 select json_valid(repeat('{"a":', 1000));
 json_valid(repeat('{"a":', 1000))
 0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_VALID' at position 156
 select json_value('{"key1":123}', '$.key2');
 json_value('{"key1":123}', '$.key2')
 NULL
@@ -44,8 +48,7 @@ select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
 json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 [1,2,3]
 select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000))) as exp;
-exp
-NULL
+ERROR HY000: Limit of 32 on JSON path depth is reached in argument 2 to function 'json_query' at position 65
 select json_array();
 json_array()
 []
@@ -4795,9 +4798,10 @@ NULL
 SELECT JSON_KEY_VALUE('', '$.a');
 JSON_KEY_VALUE('', '$.a')
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_key_value'
 SELECT JSON_KEY_VALUE('[1,2,3]', '');
-JSON_KEY_VALUE('[1,2,3]', '')
-NULL
+ERROR HY000: Unexpected end of JSON path in argument 2 to function 'json_key_value'
 SELECT JSON_KEY_VALUE('[1,2,3]', NULL);
 JSON_KEY_VALUE('[1,2,3]', NULL)
 NULL
@@ -4845,8 +4849,7 @@ k	v	id
 # With non-scalar
 # With array
 SELECT JSON_KEY_VALUE('[]', '[0]');
-JSON_KEY_VALUE('[]', '[0]')
-NULL
+ERROR HY000: Syntax error in JSON path in argument 2 to function 'json_key_value' at position 1
 SELECT JSON_KEY_VALUE('[1, 2, 3]', '$[0]');
 JSON_KEY_VALUE('[1, 2, 3]', '$[0]')
 NULL

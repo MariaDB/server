@@ -41,11 +41,16 @@ struct st_parse_result
 static void parse_json(const uchar *j, struct st_parse_result *result)
 {
   json_engine_t je;
+  je.stack= (int*)malloc(get_json_depth() * sizeof(int));
+  memset(je.stack, 0, get_json_depth() * sizeof(int));
 
   bzero(result, sizeof(*result));
 
   if (json_scan_start(&je, ci, s_e(j)))
+  {
+    free(je.stack);
     return;
+  }
 
   do
   {
@@ -75,6 +80,7 @@ static void parse_json(const uchar *j, struct st_parse_result *result)
     };
   } while (json_scan_next(&je) == 0);
 
+  free(je.stack);
   result->error= je.s.error;
 }
 
@@ -113,9 +119,14 @@ static const uchar *p0= (const uchar *) "$.key1[12].*[*]";
 static void
 test_path_parsing()
 {
+  int curr_json_depth_limit= get_json_depth();
   json_path_t p;
+
+  p.steps= (json_path_step_t*)malloc(sizeof(json_path_step_t)*curr_json_depth_limit);
+
   if (json_path_setup(&p, ci, s_e(p0)))
-    return;
+    goto error;
+
   ok(p.last_step - p.steps == 4 && 
      p.steps[0].type == JSON_PATH_ARRAY_WILD &&
      p.steps[1].type == JSON_PATH_KEY &&
@@ -123,6 +134,11 @@ test_path_parsing()
      p.steps[3].type == JSON_PATH_KEY_WILD &&
      p.steps[4].type == JSON_PATH_ARRAY_WILD,
      "path");
+
+  error:
+    free(p.steps);
+    p.steps= NULL;
+    return;
 }
 
 
@@ -140,11 +156,19 @@ test_search()
   json_path_t p;
   json_path_step_t *cur_step;
   int n_matches, scal_values;
-  int array_counters[JSON_DEPTH_LIMIT];
+  int curr_json_depth_limit= get_json_depth();
+
+  int *array_counters= (int*) malloc(curr_json_depth_limit * sizeof(int));
+  je.stack= (int *) malloc(sizeof(int)*curr_json_depth_limit);
+  p.steps= (json_path_step_t*)malloc(sizeof(json_path_step_t)*curr_json_depth_limit);
+
+  memset(array_counters, 0, curr_json_depth_limit * sizeof(int));
+  memset(je.stack, 0, curr_json_depth_limit * sizeof(int));
+  memset(p.steps, 0, curr_json_depth_limit * sizeof(json_path_step_t));
 
   if (json_scan_start(&je, ci, s_e(fj0)) ||
       json_path_setup(&p, ci, s_e(fp0)))
-    return;
+    goto end;
 
   cur_step= p.steps;
   n_matches= scal_values= 0;
@@ -152,22 +176,30 @@ test_search()
   {
     n_matches++;
     if (json_read_value(&je))
-      return;
+      goto end;
     if (json_value_scalar(&je))
     {
       scal_values++;
       if (json_scan_next(&je))
-        return;
+        goto end;
     }
     else
     {
       if (json_skip_level(&je) || json_scan_next(&je))
-        return;
+        goto end;
     }
 
   }
 
   ok(n_matches == 3, "search");
+
+  end:
+  free(array_counters);
+  free(je.stack);
+  free(p.steps);
+  je.stack= array_counters= NULL;
+  p.steps= NULL;
+  return;
 }
 
 

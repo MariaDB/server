@@ -1,0 +1,171 @@
+--echo #
+--echo # MDEV-32854: Make JSON_DEPTH_LIMIT configurable
+--echo #
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@json_depth_limit= 50;
+
+SET @json_doc= '{ "level1": { "level2": { "level3": { "level4": { "level5": { "level6": { "level7": { "level8": { "level9": { "level10": "This is level 10" } } } } } } } } } }';
+SELECT JSON_VALID(@json_doc) AS result;
+SET @json_doc= '{"level1":{"level2":{"level3":{"level4":{"level5":{"level6":{"level7":{"level8":{"level9":{"level10":{"level11":{"level12":"This is level 12"}}}}}}}}}}}';
+SELECT JSON_VALID(@json_doc) AS result;
+
+SET @json_doc= '{"key1":123}';
+SELECT JSON_VALUE(@json_doc, '$.key2') AS result;
+SET @json_doc= '{"level1":{"level2":{"level3":{"level4":{"level5":{"level6":{"level7":{"level8":{"level9":{"level10":{"level11":{"level12":"This is level 12"}}}}}}}}}}}';
+--error ER_JSON_PATH_DEPTH
+SELECT JSON_VALUE(@json_doc, '$.level1.level2.level3.level4.level5.level6.level7.level8.level9.level10.level11.level12') AS result;
+SELECT JSON_VALUE(@json_doc, '$.level1.level2.level3.level4.level5.level6.level7.level8.level9') AS result;
+SET @json_doc= '{"level1":{"level2":{"level3":{"level4":{"level5":{"level6":{"level7":{"level8":"This is level 8"}}}}}}}';
+SELECT JSON_VALUE(@json_doc, '$.level1.level2.level3.level4.level5.level6.level7') AS result;
+
+SET @json_doc= '{"level1":{"level2":{"level3":{"level4":{"level5":{"level6":{"level7":{"level8":{"level9":{"level10":{"level11":{"level12":"This is level 12"}}}}}}}}}}}';
+--error ER_JSON_PATH_DEPTH
+SELECT JSON_QUERY(@json_doc, '$.level1.level2.level3.level4.level5.level6.level7.level8.level9.level10.level11.level12') AS result;
+SELECT JSON_QUERY(@json_doc, '$.level1.level2.level3.level4.level5.level6.level7.level8.level9') AS result;
+SET @json_doc= '{"level1":{"level2":{"level3":{"level4":{"level5":{"level6":{"level7":{"level8":"This is level 8"}}}}}}}';
+SELECT JSON_QUERY(@json_doc, '$.level1.level2.level3.level4.level5.level6.level7') AS result;
+
+SET @json_doc= '[[[[[[[[[[["This is level 12"]]]]]]]]]]]';
+SELECT JSON_ARRAY(1,2,3) AS result;
+SELECT JSON_ARRAY(@json_doc) AS result;
+
+SELECT JSON_ARRAY_APPEND('["a", "b"]', '$', false) AS result;
+SELECT JSON_ARRAY_APPEND('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]', '$', false) AS result;
+SELECT JSON_ARRAY_APPEND('[1, [2, [3, [4, [5, [6, [7, [8, [9]]]]]]]]]', '$[1][2][3][4][5][6][7][8][9]', false) AS result;
+SELECT JSON_ARRAY_APPEND('[1, [2, [3, [4, [5, [6, [7, [8, [9]]]]]]]]]', '$[1][2][3][4][5][6][7][8][9][10][11][12]', false) AS result;
+
+SELECT JSON_ARRAY_INSERT('["a", "b"]', '$', false) AS result;
+SELECT JSON_ARRAY_INSERT('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]', '$[1]', false) AS result;
+SELECT JSON_ARRAY_INSERT('[1, 2, 3, 4, [5 ,6]]', '$[1][2][3][4][5][6][7][8][9][10][11][12]', false) AS result;
+
+SELECT JSON_CONTAINS('{"k1":123, "k2":345}', '123', '$.k1') AS result;
+SELECT JSON_CONTAINS('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', '123', '$.k1') AS result;
+SELECT JSON_CONTAINS('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', '123', '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.12') AS result;
+
+SELECT JSON_CONTAINS_PATH('{"k1":123, "k2":345}', "one", '$.k1') AS result;
+SELECT JSON_CONTAINS_PATH('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', "all", '$.k1') AS result;
+SELECT JSON_CONTAINS_PATH('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', "all", '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.12') AS result;
+
+SELECT JSON_EXTRACT('{"key1":"asd", "key2":[2,3]}', "$.key1") AS result;
+SELECT JSON_EXTRACT('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', '$.k1') AS result;
+SELECT JSON_EXTRACT('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', '123', '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.k12') AS result;
+
+
+SELECT JSON_INSERT('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word') AS result;
+SELECT JSON_INSERT('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', '$.x', 'some_value') AS result;
+SELECT JSON_INSERT('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.k12', '123') AS result;
+
+SELECT JSON_REPLACE('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]') AS result;
+SELECT JSON_REPLACE('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', '$.k1', '10') AS result;
+SELECT JSON_REPLACE('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.k12', '123') AS result;
+
+
+SELECT JSON_REMOVE('[1, 2, 3, 4, 5]', '$[2]') AS result;
+SELECT JSON_REMOVE('[1, 2, 3, 4, 5, [6, [7, [8, [9, [10, [11, [12, [13, [14,[15,[16,[17]]]]]]]]]]]]]', '$[5][1][1][1][1][1][1][1]') AS result;
+SELECT JSON_REMOVE('[1, 2, 3, 4, 5]', '$[5][1][1][1][1][1][1][0][1][1][0][2]') AS result;
+
+SELECT JSON_OBJECT("ki", 1, "mi", "ya") AS result;
+SELECT JSON_OBJECT("k1", '{"k2" :"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":{"k13":123}}}}}}}}}}}', "mi", "ya") AS result;
+
+SELECT JSON_EXISTS('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2") AS result;
+SELECT JSON_EXISTS('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', '$.k1') AS result;
+SELECT JSON_EXISTS('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.12') AS result;
+
+SELECT JSON_QUOTE('"string"') AS result;
+SELECT JSON_QUOTE('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}') AS result;
+
+SELECT JSON_MERGE('[1, 2]', '[true, false]') AS result;
+SELECT JSON_MERGE('[1, 2]', '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_TYPE('{"k1":123, "k2":345}') AS result;
+SELECT JSON_TYPE('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_KEYS('{"a":{"c":1, "d":2}, "b":2}') AS result;
+SELECT JSON_KEYS('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}') AS result;
+
+SELECT JSON_SEARCH('["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]', 'one', 'abc') AS result;
+SELECT JSON_SEARCH('["abc", [{"k": "10"}, "def"], {"x":"abc"}, [1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]]', 'all', 'abc') AS result;
+SELECT JSON_SEARCH('["abc", [{"k": "10"}, "def"], {"x":"abc"}, [1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]]', 'one', 'abc') AS result;
+
+SELECT JSON_UNQUOTE('"abc"') AS result;
+
+SELECT JSON_DEPTH('{"k1" : {"k2":"abc"}}') AS result;
+SELECT JSON_DEPTH('[1, [2, [3]]]') AS result;
+SELECT JSON_DEPTH('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}') AS result;
+SELECT JSON_DEPTH('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_LENGTH('[1, 2, 3]') AS result;
+SELECT JSON_LENGTH('{"k1":"v1", "k2":{"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}}') AS result;
+SELECT JSON_LENGTH('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_SET('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]') AS result;
+SELECT JSON_SET('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}', '$.k1', '10') AS result;
+SELECT JSON_SET('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9": 123}}}}}}}}', '$.k1.k2.k3.k4.k5.k6.k7.k8.k9.k10.k11.k12', '123') AS result;
+
+SELECT JSON_COMPACT('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') AS result;
+SELECT JSON_COMPACT('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11" : {"k12" :12}}}} }}} }}}}') AS result;
+
+SELECT JSON_LOOSE('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') AS result;
+SELECT JSON_LOOSE('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11" : {"k12" :12}}}} }}} }}}}') AS result;
+
+SELECT JSON_DETAILED('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') AS result;
+SELECT JSON_DETAILED('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11" : {"k12" :12}}}} }}} }}}}') AS result;
+
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 1),(2, 1), (1, 1),(2, 1), (3, 2),(2, 2),(2, 2),(2, 2);
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(c1 JSON);
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES('[1]'), ('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12, [13, [14]]]]]]]]]]]]]]');
+SELECT JSON_ARRAYAGG(c1) FROM t1;
+DROP TABLE t1;
+
+SELECT JSON_ARRAY_INTERSECT('[1, 2, 3, [5, 6]]', '[2, 3 ,4, [5, 6]]') AS result;
+SELECT JSON_ARRAY_INTERSECT('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]', '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_EQUALS('{"a"   :[1, 2, 3],"b":[4]}', '{"b":[4],"a":[1, 2, 3.0]}') AS result;
+SELECT JSON_EQUALS('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]', '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+SELECT JSON_EQUALS('{"k1":"v1", "k2":{"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}}',
+                   '{"k1":"v1", "k2":{"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}}') AS result;
+
+SELECT JSON_MERGE_PATCH('[1, 2, 3]', '[3, 4]') AS result;
+SELECT JSON_MERGE_PATCH('[1, 2]', '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_MERGE_PRESERVE('[1, 2, 3]', '[3, 4]') AS result;
+SELECT JSON_MERGE_PRESERVE('[1, 2]', '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_NORMALIZE('[1, 2, 3, [4, 5, 6, [7, 8, 9]]]') AS result;
+SELECT JSON_NORMALIZE('[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_OBJECT_FILTER_KEYS('{ "a": 1, "b": 2, "c": 3}', '["a", "b", "c"]') AS result;
+SELECT JSON_OBJECT_FILTER_KEYS('{"a":{"b":"c":{1}}}', '["a", ["b", ["c", [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+SELECT JSON_OBJECT_TO_ARRAY('{"a":"val1", "b", "val2"}') AS result;
+SELECT JSON_OBJECT_TO_ARRAY('{"k1":"v1", "k2":{"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}}') AS result;
+
+CREATE TABLE t1 (a VARCHAR(2), b INT);
+INSERT INTO t1 VALUES ("A", 1),("B", 1), ("C", 1),("D", 1);
+SELECT JSON_OBJECTAGG(a, b) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1(c1 VARCHAR(2), c2 JSON);
+--error ER_JSON_DEPTH
+INSERT INTO t1 VALUES("A", '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11]]]]]]]]]]]');
+SELECT JSON_OBJECTAGG(c1, C2) FROM t1;
+DROP TABLE t1;
+
+SELECT JSON_OVERLAPS('[1, 2, [3, 4]]', '[5, 6, [3, 4]]') AS result;
+SELECT JSON_OVERLAPS('{"k1":"v1", "k2":{"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}}',
+                     '{"k1":"v1", "k2":{"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11":{"k12":12}}}}}}}}}}}}') AS result;
+SELECT JSON_OVERLAPS('[1, 2]', '[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12]]]]]]]]]]]]') AS result;
+
+
+SELECT JSON_PRETTY('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') AS result;
+SELECT JSON_PRETTY('{"k1":123, "k2": {"k3":{"k4":{"k5":{"k6":{"k7":{"k8":{"k9":{"k10":{"k11" : {"k12" :12}}}} }}} }}}}') AS result;
+
+SELECT JSON_SCHEMA_VALID('{"type":"object","properties":{"level1":{"type":"object","properties":{"level2":{"type":"object","properties":{"level3":{"type":"object","properties":{"level4":{"type":"object","properties":{"level5":{"type":"object","properties":{"level6":{"type":"object","properties":{"level7":{"type":"object","properties":{"level8":{"type":"object","properties":{"level9":{"type":"object","properties":{"level10":{"type":"object","properties":{"level11":{"type":"object","properties":{"level12":{"type":"object","properties":{"number1":{"type":"number"},"string1":{"type":"string"},"array1":{"type":"array"}}}}}}}}}}}}}}}}}}}}}}}}
+', '{"level1":{"level2":{"level3":{"level4":{"level5":{"level6":{"level7":{"level8":{"level9":{"level10":{"level11":{"level12":{"number1":42,"string1":"Hello","array1":[1,2,3]}}}}}}}}}}}}}
+') AS result;

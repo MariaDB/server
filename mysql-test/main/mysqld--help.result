@@ -445,6 +445,8 @@ The following specify which files/extra groups are read (specified before remain
  Controls what join operations can be executed with join
  buffers. Odd numbers are used for plain join buffers
  while even numbers are used for linked buffers
+ --json-depth-limit=# 
+ Max for JSON
  --keep-files-on-create 
  Don't overwrite stale .MYD and .MYI even if no directory
  is specified
@@ -1710,6 +1712,7 @@ interactive-timeout 28800
 join-buffer-size 262144
 join-buffer-space-limit 2097152
 join-cache-level 2
+json-depth-limit 32
 keep-files-on-create FALSE
 key-buffer-size 134217728
 key-cache-age-threshold 300

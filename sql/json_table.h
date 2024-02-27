@@ -17,6 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
+#include "mysqld.h"
 #include <json_lib.h>
 
 class Json_table_column;
@@ -57,13 +58,16 @@ public:
   /*** Construction interface ***/
   Json_table_nested_path():
     m_null(TRUE), m_nested(NULL), m_next_nested(NULL)
-  {}
+  {
+    init_json_engine();
+  }
 
   int set_path(THD *thd, const LEX_CSTRING &path);
 
   /*** Methods for performing a scan ***/
   void scan_start(CHARSET_INFO *i_cs, const uchar *str, const uchar *end);
   int scan_next();
+  void init_json_engine();
   bool check_error(const char *str);
 
   /*** Members for getting the values we've scanned to ***/
