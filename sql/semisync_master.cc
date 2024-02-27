@@ -979,6 +979,14 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
         {
           rpl_semi_sync_master_trx_wait_num++;
           rpl_semi_sync_master_trx_wait_time += wait_time;
+          /*
+            Assert we have either recieved our ACK; or have timed out and are
+            awoken in an off state.
+          */
+          DBUG_ASSERT(!get_master_enabled() || !is_on() || thd->is_killed() ||
+                      0 <= Active_tranx::compare(
+                               m_reply_file_name, m_reply_file_pos,
+                               trx_wait_binlog_name, trx_wait_binlog_pos));
         }
       }
     }

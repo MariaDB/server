@@ -1,0 +1,64 @@
+#
+#   This test ensures that, when using semi-sync with the wait_point
+# AFTER_COMMIT, each thread awaiting an ACK is only woken up when its ACK (or
+# an ACK for a later commit in binlog) has been received from the slave.
+#
+#   Prior to MDEV-33551, all threads would be woken up for each ACK received,
+# leading to large slowdowns, as each thread would check if the ACK was for it
+# in mutual exclusion from the others.
+#
+#   To ensure this, a DBUG_ASSERT is added into
+# Repl_semi_sync_master::commit_trx() to ensure that the ACK binlog coordinate
+# is at or after the coordinate we are waiting on. Then, we use binlog group
+# commit to commit a series of transactions, such that each will await an ACK
+# concurrently.
+#
+# References:
+#   MDEV-33551: Semi-sync Wait Point AFTER_COMMIT Slow on Workloads with Heavy
+#               Concurrency
+#
+--source include/have_binlog_format_row.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection master
+set @save_bgc_count= @@global.binlog_commit_wait_count;
+set @save_bgc_usec= @@global.binlog_commit_wait_usec;
+set @@global.binlog_commit_wait_count=3;
+set @@global.binlog_commit_wait_usec=10000000;
+
+--echo # Ensure semi-sync is on
+--connection slave
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--connection master
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--echo # Create three transactions to binlog group commit together
+--connection master
+--send create table t1 (a int)
+--connection server_1
+--send create table t2 (a int)
+--connection default
+--send create table t3 (a int)
+
+--connection master
+--reap
+--connection server_1
+--reap
+--connection default
+--reap
+
+
+--echo #
+--echo # Cleanup
+--connection master
+set @@global.binlog_commit_wait_count=@save_bgc_count;
+set @@global.binlog_commit_wait_usec=@save_bgc_usec;
+drop table t1, t2, t3;
+
+--source include/rpl_end.inc
