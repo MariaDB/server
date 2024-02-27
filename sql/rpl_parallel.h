@@ -326,9 +326,25 @@ struct rpl_parallel_thread_pool {
 
 
 struct rpl_parallel_entry {
+  /*
+    A small struct to put worker threads references into a FIFO (using an
+    I_List) for round-robin scheduling.
+  */
   struct sched_bucket : public ilink {
     sched_bucket() : thr(nullptr) { }
     rpl_parallel_thread *thr;
+  };
+  /*
+    A struct to keep track of into which "generation" an XA XID was last
+    scheduled. A "generation" means that we know that every worker thread
+    slot in the rpl_parallel_entry was scheduled at least once. When more
+    that two generations have passed, we can safely reuse the XID in a
+    different worker.
+  */
+  struct xid_active_generation {
+    uint64 generation;
+    sched_bucket *thr;
+    xid_t xid;
   };
 
   mysql_mutex_t LOCK_parallel_entry;
@@ -373,6 +389,23 @@ struct rpl_parallel_entry {
   sched_bucket *rpl_threads;
   I_List<sched_bucket> *thread_sched_fifo;
   uint32 rpl_thread_max;
+  /*
+    Keep track of all XA XIDs that may still be active in a worker thread.
+    The elements are of type xid_active_generation.
+  */
+  DYNAMIC_ARRAY maybe_active_xid;
+  /*
+    Keeping track of the current scheduling generation.
+
+    A new generation means that every worker thread in the rpl_threads array
+    have been scheduled at least one event group.
+
+    When we have scheduled to slot current_generation_idx= 0, 1, ..., N-1 in this
+    order, we know that (at least) one generation has passed.
+  */
+  uint64 current_generation;
+  uint32 current_generation_idx;
+
   /*
     The sub_id of the last transaction to commit within this domain_id.
     Must be accessed under LOCK_parallel_entry protection.
@@ -426,6 +459,8 @@ struct rpl_parallel_entry {
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 
+  void check_scheduling_generation(sched_bucket *cur);
+  sched_bucket *check_xa_xid_dependency(xid_t *xid);
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,
                                       Gtid_log_event *gtid_ev);

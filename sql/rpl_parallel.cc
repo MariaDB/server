@@ -2325,6 +2325,75 @@ rpl_parallel_thread_pool::copy_pool_for_pfs(Relay_log_info *rli)
   }
 }
 
+
+/*
+  Check when we have done a complete round of scheduling for workers
+  0, 1, ..., (rpl_thread_max-1), in this order.
+  This often occurs every rpl_thread_max event group, but XA XID dependency
+  restrictions can cause insertion of extra out-of-order worker scheduling
+  in-between the normal round-robin scheduling.
+*/
+void
+rpl_parallel_entry::check_scheduling_generation(sched_bucket *cur)
+{
+  uint32 idx= cur - rpl_threads;
+  DBUG_ASSERT(cur >= rpl_threads);
+  DBUG_ASSERT(cur < rpl_threads + rpl_thread_max);
+  if (idx == current_generation_idx)
+  {
+    ++idx;
+    if (idx >= rpl_thread_max)
+    {
+      /* A new generation; all workers have been scheduled at least once. */
+      idx= 0;
+      ++current_generation;
+    }
+    current_generation_idx= idx;
+  }
+}
+
+
+rpl_parallel_entry::sched_bucket *
+rpl_parallel_entry::check_xa_xid_dependency(xid_t *xid)
+{
+  uint64 cur_gen= current_generation;
+  my_off_t i= 0;
+  while (i < maybe_active_xid.elements)
+  {
+    /*
+      Purge no longer active XID from the list:
+
+       - In generation N, XID might have been scheduled for worker W.
+       - Events in generation (N+1) might run freely in parallel with W.
+       - Events in generation (N+2) will have done wait_for_prior_commit for
+         the event group with XID (or a later one), but the XID might still be
+         active for a bit longer after wakeup_prior_commit().
+       - Events in generation (N+3) will have done wait_for_prior_commit() for
+         an event in W _after_ the XID, so are sure not to see the XID active.
+
+      Therefore, XID can be safely scheduled to a different worker in
+      generation (N+3) when last prior use was in generation N (or earlier).
+    */
+    xid_active_generation *a=
+      dynamic_element(&maybe_active_xid, i, xid_active_generation *);
+    if (a->generation + 3 <= cur_gen)
+    {
+      *a= *((xid_active_generation *)pop_dynamic(&maybe_active_xid));
+      continue;
+    }
+    if (xid->eq(&a->xid))
+    {
+      /* Update the last used generation and return the match. */
+      a->generation= cur_gen;
+      return a->thr;
+    }
+    ++i;
+  }
+  /* No matching XID conflicts. */
+  return nullptr;
+}
+
+
 /*
   Obtain a worker thread that we can queue an event to.
 
@@ -2369,17 +2438,36 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
     if (gtid_ev->flags2 &
         (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
     {
-      /*
-        For XA COMMIT/ROLLBACK, choose the same bucket as the XA PREPARE,
-        overriding the round-robin scheduling.
-      */
-      uint32 idx= my_hash_sort(&my_charset_bin, gtid_ev->xid.key(),
-                        gtid_ev->xid.key_length()) % rpl_thread_max;
-      rpl_threads[idx].unlink();
-      thread_sched_fifo->append(rpl_threads + idx);
+      if ((cur_thr= check_xa_xid_dependency(&gtid_ev->xid)))
+      {
+        /*
+          A previously scheduled event group with the same XID might still be
+          active in a worker, so schedule this event group in the same worker
+          to avoid a conflict.
+        */
+        cur_thr->unlink();
+        thread_sched_fifo->append(cur_thr);
+      }
+      else
+      {
+        /* Record this XID now active. */
+        xid_active_generation *a=
+          (xid_active_generation *)alloc_dynamic(&maybe_active_xid);
+        if (!a)
+          return NULL;
+        a->thr= cur_thr= thread_sched_fifo->head();
+        a->generation= current_generation;
+        a->xid.set(&gtid_ev->xid);
+      }
     }
+    else
+      cur_thr= thread_sched_fifo->head();
+
+    check_scheduling_generation(cur_thr);
   }
-  cur_thr= thread_sched_fifo->head();
+  else
+    cur_thr= thread_sched_fifo->head();
+
 
   thr= cur_thr->thr;
   if (thr)
@@ -2471,6 +2559,7 @@ free_rpl_parallel_entry(void *element)
     dealloc_gco(e->current_gco);
     e->current_gco= prev_gco;
   }
+  delete_dynamic(&e->maybe_active_xid);
   mysql_cond_destroy(&e->COND_parallel_entry);
   mysql_mutex_destroy(&e->LOCK_parallel_entry);
   my_free(e);
@@ -2524,11 +2613,26 @@ rpl_parallel::find(uint32 domain_id)
       my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*e)+count*sizeof(*p)));
       return NULL;
     }
+    /* Initialize a FIFO of scheduled worker threads. */
     e->thread_sched_fifo = new (fifo) I_List<rpl_parallel_entry::sched_bucket>;
-    for (ulong i= 0; i < count; ++i)
-      e->thread_sched_fifo->push_back(::new (p+i) rpl_parallel_entry::sched_bucket);
+    /*
+      (We cycle the FIFO _before_ allocating next entry in
+      rpl_parallel_entry::choose_thread(). So initialize the FIFO with the
+      highest element at the front, just so that the first event group gets
+      scheduled on entry 0).
+    */
+    e->thread_sched_fifo->
+      push_back(::new (p+count-1) rpl_parallel_entry::sched_bucket);
+    for (ulong i= 0; i < count-1; ++i)
+      e->thread_sched_fifo->
+        push_back(::new (p+i) rpl_parallel_entry::sched_bucket);
     e->rpl_threads= p;
     e->rpl_thread_max= count;
+    e->current_generation = 0;
+    e->current_generation_idx = 0;
+    init_dynamic_array2(PSI_INSTRUMENT_ME, &e->maybe_active_xid,
+                        sizeof(rpl_parallel_entry::xid_active_generation),
+                        0, count, 0, MYF(0));
     e->domain_id= domain_id;
     e->stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
