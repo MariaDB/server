@@ -25,5 +25,7 @@ bool json_key_equals(const char* key,  LEX_CSTRING val, int key_len);
 bool json_assign_type(uint *curr_type, json_engine_t *je);
 const uchar *get_key_name(const void *key_name, size_t *length, my_bool);
 void json_get_normalized_string(json_engine_t *je, String *res,
-                                int *error);
+                                int *error, MEM_ROOT *current_mem_root,
+                                json_engine_t *temp_je,
+                                MEM_ROOT_DYNAMIC_ARRAY *stack);
 #endif
