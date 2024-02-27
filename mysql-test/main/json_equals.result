@@ -10,12 +10,20 @@ NULL
 select json_equals("", "");
 json_equals("", "")
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_equals'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_equals'
 select json_equals("", 1);
 json_equals("", 1)
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_equals'
 select json_equals(now(), now());
 json_equals(now(), now())
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_equals' at position 5
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_equals' at position 5
 select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3, 4]}');
 json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3, 4]}')
 0
@@ -65,7 +73,7 @@ select json_equals('{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"ob
 select json_equals('{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
 '{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 32_levels;
 32_levels
-NULL
+1
 #
 # test values from different charset
 # (UTF-8 two-bytes vs. latin1 single high-byte)

@@ -1802,13 +1802,27 @@ class User_table_json: public User_table
     int value_len;
     const char *value_start;
     enum json_types value_type;
+    json_engine_t temp_je;
+    MEM_ROOT current_mem_root;
+
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+                    BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
+
+    mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
+                                &temp_je.stack,
+                                sizeof(int), NULL,
+                                JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
     String str, *res= m_table->field[2]->val_str(&str);
     if (!res || !res->length())
       (res= &str)->set(STRING_WITH_LEN("{}"), m_table->field[2]->charset());
     value_type= json_get_object_key(res->ptr(), res->end(), key,
                                     &value_start, &value_len);
     if (value_type == JSV_BAD_JSON)
+    {
+      free_root(&current_mem_root, MYF(0));
       return value_type; // invalid
+    }
     StringBuffer<JSON_SIZE> json(res->charset());
     json.copy(res->ptr(), value_start - res->ptr(), res->charset());
     if (value_type == JSV_NOTHING)
@@ -1827,8 +1841,9 @@ class User_table_json: public User_table
     if (!value_type && string)
       json.append('"');
     json.append(value_start, res->end() - value_start);
-    DBUG_ASSERT(json_valid(json.ptr(), json.length(), json.charset()));
+    DBUG_ASSERT((json_valid(json.ptr(), json.length(), json.charset(), &temp_je) == 0));
     m_table->field[2]->store(json.ptr(), json.length(), json.charset());
+    free_root(&current_mem_root, MYF(0));
     return value_type;
   }
   bool set_str_value(const char *key, const char *val, size_t vlen) const

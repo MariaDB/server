@@ -21,16 +21,17 @@
 
 
 static void
-check_json_normalize(const char *in, const char *expected)
+check_json_normalize(const char *in, const char *expected, json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   int err;
   DYNAMIC_STRING result;
+  MEM_ROOT current_mem_root;
 
   CHARSET_INFO *cs= &my_charset_utf8mb4_general_ci;
 
   init_dynamic_string(&result, NULL, 0, 0);
 
-  err= json_normalize(&result, in, strlen(in), cs);
+  err= json_normalize(&result, in, strlen(in), cs, &current_mem_root, je, stack);
 
   ok(err == 0, "normalize err: %d", err);
 
@@ -43,36 +44,40 @@ check_json_normalize(const char *in, const char *expected)
 
 
 static void
-test_json_normalize_invalid(void)
+test_json_normalize_invalid(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   DYNAMIC_STRING result;
+  MEM_ROOT current_mem_root;
 
   CHARSET_INFO *cs= &my_charset_utf8mb4_general_ci;
 
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+                  BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
+
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, STRING_WITH_LEN(""), cs) != 0,
+  ok(json_normalize(&result, STRING_WITH_LEN(""), cs, &current_mem_root, je, stack) != 0,
      "expected normalized error");
   dynstr_free(&result);
 
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, STRING_WITH_LEN("["), cs) != 0,
+  ok(json_normalize(&result, STRING_WITH_LEN("["), cs, &current_mem_root, je, stack) != 0,
      "expected normalized error");
   dynstr_free(&result);
 
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, STRING_WITH_LEN("}"), cs) != 0,
+  ok(json_normalize(&result, STRING_WITH_LEN("}"), cs, &current_mem_root, je, stack) != 0,
      "expected normalized error");
   dynstr_free(&result);
 
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, NULL, 0, cs) != 0,
+  ok(json_normalize(&result, NULL, 0, cs, &current_mem_root, je, stack) != 0,
      "expected normalized error");
   dynstr_free(&result);
 }
 
 
 static void
-test_json_normalize_single_kv(void)
+test_json_normalize_single_kv(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   const char *in= ""
   "{\n"
@@ -80,12 +85,12 @@ test_json_normalize_single_kv(void)
   "}\n";
 
   const char *expected= "{\"foo\":\"value\"}";
-  check_json_normalize(in, expected);
+  check_json_normalize(in, expected, je, stack);
 }
 
 
 static void
-test_json_normalize_multi_kv(void)
+test_json_normalize_multi_kv(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   const char *in= ""
   "{\n"
@@ -94,42 +99,42 @@ test_json_normalize_multi_kv(void)
   "}\n";
 
   const char *expected= "{\"bar\":\"baz\",\"foo\":\"value\"}";
-  check_json_normalize(in, expected);
+  check_json_normalize(in, expected, je, stack);
 }
 
 
 static void
-test_json_normalize_array(void)
+test_json_normalize_array(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   const char *in= "[ \"a\", \"b\", true, false, null ]";
   const char *expected= "[\"a\",\"b\",true,false,null]";
-  check_json_normalize(in, expected);
+  check_json_normalize(in, expected, je, stack);
 }
 
 
 static void
-test_json_normalize_values(void)
+test_json_normalize_values(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
-  check_json_normalize("\"foo\"", "\"foo\"");
-  check_json_normalize("true", "true");
-  check_json_normalize("false", "false");
-  check_json_normalize("null", "null");
-  check_json_normalize("\"\"", "\"\"");
-  check_json_normalize("{}", "{}");
-  check_json_normalize("[]", "[]");
-  check_json_normalize("5", "5.0E0");
-  check_json_normalize("5.1", "5.1E0");
-  check_json_normalize("-5.1", "-5.1E0");
-  check_json_normalize("12345.67890", "1.23456789E4");
-  check_json_normalize("2.99792458e8", "2.99792458E8");
-  check_json_normalize("6.02214076e23", "6.02214076E23");
-  check_json_normalize("6.62607015e-34", "6.62607015E-34");
-  check_json_normalize("-6.62607015e-34", "-6.62607015E-34");
+  check_json_normalize("\"foo\"", "\"foo\"", je, stack);
+  check_json_normalize("true", "true", je, stack);
+  check_json_normalize("false", "false", je, stack);
+  check_json_normalize("null", "null", je, stack);
+  check_json_normalize("\"\"", "\"\"", je, stack);
+  check_json_normalize("{}", "{}", je, stack);
+  check_json_normalize("[]", "[]", je, stack);
+  check_json_normalize("5", "5.0E0", je, stack);
+  check_json_normalize("5.1", "5.1E0", je, stack);
+  check_json_normalize("-5.1", "-5.1E0", je, stack);
+  check_json_normalize("12345.67890", "1.23456789E4", je, stack);
+  check_json_normalize("2.99792458e8", "2.99792458E8", je, stack);
+  check_json_normalize("6.02214076e23", "6.02214076E23", je, stack);
+  check_json_normalize("6.62607015e-34", "6.62607015E-34", je, stack);
+  check_json_normalize("-6.62607015e-34", "-6.62607015E-34", je, stack);
 }
 
 
 static void
-test_json_normalize_nested_objects(void)
+test_json_normalize_nested_objects(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   const char *in = ""
   "{\n"
@@ -140,12 +145,12 @@ test_json_normalize_nested_objects(void)
 
   const char *expected= "{\"foo\":{\"value\":true},"
                         "\"wiz\":{\"alpha\":false,\"bang\":\"a\"}}";
-  check_json_normalize(in, expected);
+  check_json_normalize(in, expected, je, stack);
 }
 
 
 static void
-test_json_normalize_nested_arrays(void)
+test_json_normalize_nested_arrays(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   const char *in = ""
   "[\n"
@@ -154,12 +159,12 @@ test_json_normalize_nested_arrays(void)
   "]";
 
   const char *expected= "[\"wiz\",[\"bang\",\"alpha\"]]";
-  check_json_normalize(in, expected);
+  check_json_normalize(in, expected, je, stack);
 }
 
 
 static void
-test_json_normalize_nested_deep(void)
+test_json_normalize_nested_deep(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   const char *in = ""
   "{\n"
@@ -184,7 +189,7 @@ test_json_normalize_nested_deep(void)
                "[-1.2E0,\"w\",\"x\"]"
             "]"
   "}";
-  check_json_normalize(in, expected);
+  check_json_normalize(in, expected, je, stack);
 }
 
 
@@ -194,24 +199,27 @@ json_normalize_number(DYNAMIC_STRING *out, const char *str, size_t str_len);
 
 
 static void
-test_json_normalize_non_utf8(void)
+test_json_normalize_non_utf8(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   int err;
   const char utf8[]= { 0x22, 0xC3, 0x8A, 0x22, 0x00 };
   const char latin[] = { 0x22, 0xCA, 0x22, 0x00 };
   DYNAMIC_STRING result;
+  MEM_ROOT current_mem_root;
   CHARSET_INFO *cs_utf8= &my_charset_utf8mb4_bin;
   CHARSET_INFO *cs_latin= &my_charset_latin1;
 
   init_dynamic_string(&result, NULL, 0, 0);
-  err= json_normalize(&result, utf8, strlen(utf8), cs_utf8);
-  ok(err == 0, "normalize err: %d", err);
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+                  BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
+  err= json_normalize(&result, utf8, strlen(utf8), cs_utf8, &current_mem_root, je, stack);
+  ok(err == 0, "normalize err?");
   ok((strcmp(utf8, result.str) == 0), "utf8 round trip");
   dynstr_free(&result);
 
   init_dynamic_string(&result, NULL, 0, 0);
-  err= json_normalize(&result, latin, strlen(latin), cs_latin);
-  ok(err == 0, "normalize err: %d", err);
+  err= json_normalize(&result, latin, strlen(latin), cs_latin, &current_mem_root, je, stack);
+  ok(err == 0, "normalize err?");
   ok((strcmp(utf8, result.str) == 0), "latin to utf8 round trip");
   dynstr_free(&result);
 }
@@ -243,8 +251,20 @@ check_number_normalize(const char *in, const char *expected)
 int
 main(int argc, char** argv)
 {
-  MY_INIT(argv[0]);
+  MEM_ROOT current_mem_root;
+  MEM_ROOT_DYNAMIC_ARRAY stack;
+  json_engine_t je;
 
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+                    BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
+  mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack,
+                              sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
+                              &stack,
+                              sizeof(struct json_norm_value*), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
   plan(88);
   diag("Testing json_normalization.");
 
@@ -268,15 +288,17 @@ main(int argc, char** argv)
   check_number_normalize("0000123.456000000e-9", "1.23456E-7");
   check_number_normalize("0000123.456000000e+9", "1.23456E11");
 
-  test_json_normalize_invalid();
-  test_json_normalize_values();
-  test_json_normalize_single_kv();
-  test_json_normalize_multi_kv();
-  test_json_normalize_array();
-  test_json_normalize_nested_objects();
-  test_json_normalize_nested_arrays();
-  test_json_normalize_nested_deep();
-  test_json_normalize_non_utf8();
+  test_json_normalize_invalid(&je, &stack);
+  test_json_normalize_values(&je, &stack);
+  test_json_normalize_single_kv(&je, &stack);
+  test_json_normalize_multi_kv(&je, &stack);
+  test_json_normalize_array(&je, &stack);
+  test_json_normalize_nested_objects(&je, &stack);
+  test_json_normalize_nested_arrays(&je, &stack);
+  test_json_normalize_nested_deep(&je, &stack);
+  test_json_normalize_non_utf8(&je, &stack);
+
+    free_root(&current_mem_root, MYF(0));
 
   my_end(MY_CHECK_ERROR);
   return exit_status();
