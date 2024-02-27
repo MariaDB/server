@@ -1376,8 +1376,11 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
   size_t startoffset= 0;
 
   if ((null_value=
-        (!(source= args[0]->val_str(&tmp0)) ||
-         !(replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty)) ||
+        (!(source= args[0]->val_str(&tmp0)))))
+    return (String *) 0;
+
+  if ((null_value=
+        (!(replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty)) ||
          re.recompile(args[1]))))
     return (String *) 0;
 

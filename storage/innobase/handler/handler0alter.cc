@@ -7664,7 +7664,7 @@ ha_innobase::prepare_inplace_alter_table(
 	TABLE*			altered_table,
 	Alter_inplace_info*	ha_alter_info)
 {
-	dict_index_t**	drop_index;	/*!< Index to be dropped */
+	dict_index_t**	drop_index= nullptr;	/*!< Index to be dropped */
 	ulint		n_drop_index;	/*!< Number of indexes to drop */
 	dict_foreign_t**drop_fk;	/*!< Foreign key constraints to drop */
 	ulint		n_drop_fk;	/*!< Number of foreign keys to drop */
@@ -8168,8 +8168,6 @@ check_if_can_drop_indexes:
 		}
 
 		row_mysql_unlock_data_dictionary(m_prebuilt->trx);
-	} else {
-		drop_index = NULL;
 	}
 
 	/* Check if any of the existing indexes are marked as corruption
