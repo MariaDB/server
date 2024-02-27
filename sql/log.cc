@@ -7024,8 +7024,8 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, log_file_name,
-                                                        file->pos_in_file))
+          if (repl_semisync_master.report_binlog_update(
+                  thd, thd, log_file_name, file->pos_in_file))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
@@ -8621,7 +8621,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 #ifdef HAVE_REPLICATION
         if (likely(!current->error) &&
             unlikely(repl_semisync_master.
-                     report_binlog_update(current->thd,
+                     report_binlog_update(current->thd, leader->thd,
                                           current->cache_mngr->
                                           last_commit_pos_file,
                                           current->cache_mngr->
