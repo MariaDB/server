@@ -1538,15 +1538,12 @@ static void kill_thread(THD *thd)
 /**
   First shutdown everything but slave threads and binlog dump connections
 */
-static my_bool kill_thread_phase_1(THD *thd, int *n_threads_awaiting_ack)
+static my_bool kill_thread_phase_1(THD *thd, void *)
 {
   DBUG_PRINT("quit", ("Informing thread %ld that it's time to die",
                       (ulong) thd->thread_id));
 
-  if (thd->slave_thread || thd->is_binlog_dump_thread() ||
-      (shutdown_wait_for_slaves &&
-       repl_semisync_master.is_thd_awaiting_semisync_ack(thd) &&
-       ++(*n_threads_awaiting_ack)))
+  if (thd->slave_thread || thd->is_binlog_dump_thread())
     return 0;
 
   if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
@@ -1745,28 +1742,17 @@ static void close_connections(void)
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
   */
-  int n_threads_awaiting_ack= 0;
-  server_threads.iterate(kill_thread_phase_1, &n_threads_awaiting_ack);
+  server_threads.iterate(kill_thread_phase_1);
 
   /*
     If we are waiting on any ACKs, delay killing the thread until either an ACK
     is received or the timeout is hit.
-
-    Allow at max the number of sessions to await a timeout; however, if all
-    ACKs have been received in less iterations, then quit early
   */
   if (shutdown_wait_for_slaves && repl_semisync_master.get_master_enabled())
   {
-    int waiting_threads= repl_semisync_master.sync_get_master_wait_sessions();
-    if (waiting_threads)
-      sql_print_information("Delaying shutdown to await semi-sync ACK");
-
-    while (waiting_threads-- > 0)
-      repl_semisync_master.await_slave_reply();
+    repl_semisync_master.await_all_slave_replies(
+        "Delaying shutdown to await semi-sync ACK");
   }
-
-  DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",
-                  my_sleep(500000););
 
   Events::deinit();
   slave_prepare_for_shutdown();
@@ -1788,7 +1774,7 @@ static void close_connections(void)
   */
   DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; THD_count::connection_thd_count() - n_threads_awaiting_ack
+  for (int i= 0; THD_count::connection_thd_count()
                  && i < 1000 &&
                  DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1);
        i++)
@@ -1806,10 +1792,9 @@ static void close_connections(void)
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
-                      THD_count::value() - binlog_dump_thread_count -
-                          n_threads_awaiting_ack));
+                      THD_count::value() - binlog_dump_thread_count));
 
-  while (THD_count::connection_thd_count() - n_threads_awaiting_ack &&
+  while (THD_count::connection_thd_count() &&
          DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1))
   {
     my_sleep(1000);
