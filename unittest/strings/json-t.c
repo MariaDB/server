@@ -58,12 +58,12 @@ void do_json_ar(int n, int type, const char *value)
        "%i: type=%u keys=%u end=\"%s\"", n, value_type, value_len, value_start);
 }
 
-void do_json_locate(const char *json, const char *key, int from, int to, int cp)
+void do_json_locate(json_engine_t *je, const char *json, const char *key, int from, int to, int cp)
 {
   const char *key_start, *key_end;
   int res, comma_pos;
 
-  res= json_locate_key(json, json + strlen(json),
+  res= json_locate_key(je, json, json + strlen(json),
                        key, &key_start, &key_end, &comma_pos);
   if (key_start)
     ok(res == 0 && key_start - json == from && key_end - json == to &&
@@ -75,7 +75,17 @@ void do_json_locate(const char *json, const char *key, int from, int to, int cp)
 
 int main()
 {
+  json_engine_t je;
+  MEM_ROOT current_mem_root;
+
   plan(18);
+
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+                  BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
+
+  mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   diag("%s", json);
   do_json("int", 4, "1");
@@ -90,14 +100,16 @@ int main()
   do_json_ar(3, 6, "false");
   do_json_ar(4, 0, "1234");
 
-  do_json_locate(json, "bool", 50, 63, 1);
-  do_json_locate(json, "int", 1, 9, 2);
-  do_json_locate(json, "array", 24, 50, 1);
-  do_json_locate(json_w, "bool", 43, 61, 1);
-  do_json_locate(json_w, "int", 1, 12, 2);
-  do_json_locate(json_w, "array", 11, 43, 1);
-  do_json_locate(json_w, "c", -1, -1, -1);
-  do_json_locate(json_1, "str", 1, 22, 0);
+  do_json_locate(&je, json, "bool", 50, 63, 1);
+  do_json_locate(&je, json, "int", 1, 9, 2);
+  do_json_locate(&je, json, "array", 24, 50, 1);
+  do_json_locate(&je, json_w, "bool", 43, 61, 1);
+  do_json_locate(&je, json_w, "int", 1, 12, 2);
+  do_json_locate(&je, json_w, "array", 11, 43, 1);
+  do_json_locate(&je, json_w, "c", -1, -1, -1);
+  do_json_locate(&je, json_1, "str", 1, 22, 0);
+
+  free_root(&current_mem_root, MYF(0));
 
   return exit_status();
 }
