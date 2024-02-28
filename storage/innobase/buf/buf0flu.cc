@@ -2433,16 +2433,6 @@ static void buf_flush_page_cleaner()
     {
       buf_pool.page_cleaner_set_idle(false);
       buf_pool.n_flush_inc();
-      /* Remove clean blocks from buf_pool.flush_list before the LRU scan. */
-      for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p; )
-      {
-        const lsn_t lsn{p->oldest_modification()};
-        ut_ad(lsn > 2 || lsn == 1);
-        buf_page_t *n= UT_LIST_GET_NEXT(list, p);
-        if (lsn <= 1)
-          buf_pool.delete_from_flush_list(p);
-        p= n;
-      }
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       n= srv_max_io_capacity;
       mysql_mutex_lock(&buf_pool.mutex);
