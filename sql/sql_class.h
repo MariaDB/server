@@ -714,7 +714,7 @@ typedef struct system_variables
   ulonglong max_mem_used;
   /*
     A bitmap of OPTIMIZER_ADJ_* flags (defined in sql_priv.h).
-    See sql_vars.cc:adjust_secondary_key_cost for symbolic names.
+    See sys_vars.cc:adjust_secondary_key_cost for symbolic names.
   */
   ulonglong optimizer_adjust_secondary_key_costs;
 
