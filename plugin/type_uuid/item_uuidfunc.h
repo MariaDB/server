@@ -20,6 +20,7 @@
 #include "item.h"
 #include "sql_type_uuid_v1.h"
 #include "sql_type_uuid_v4.h"
+#include "sql_type_uuid_v7.h"
 
 class Item_func_sys_guid: public Item_str_func
 {
@@ -102,4 +103,16 @@ public:
   { return get_item_copy<Item_func_uuid_v4>(thd, this); }
 };
 
+class Item_func_uuid_v7: public Item_func_uuid_vx<UUIDv7>
+{
+public:
+  using Item_func_uuid_vx::Item_func_uuid_vx;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("uuidv7") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_uuid_v7>(thd, this); }
+};
 #endif // ITEM_UUIDFUNC_INCLUDED
