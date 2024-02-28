@@ -2027,6 +2027,7 @@ static void clean_up(bool print_message)
   free_all_rpl_filters();
   wsrep_thr_deinit();
   my_uuid_end();
+  my_uuid_v7_end();
   delete type_handler_data;
   delete binlog_filter;
   delete global_rpl_filter;
@@ -4954,6 +4955,7 @@ static int init_server_components()
   }
 
   my_uuid_init((ulong) (my_rnd(&sql_rand))*12345,12345);
+  my_uuid_v7_init();
   wt_init();
 
   /* Setup logs */
