@@ -1797,13 +1797,14 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
 }
 
 
-inline size_t serialize_with_xid(XID *xid, char *buf,
+inline size_t serialize_with_xid(XID *xid, bufcursor *curs,
                                  const char *query, size_t q_len)
 {
-  memcpy(buf, query, q_len);
+  char *start= bcurs_ptr(curs);
+  bcurs_write_bytes(curs, query, q_len);
+  static_cast<event_xid_t*>(xid)->serialize(curs);
 
-  return
-    q_len + strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
+  return bcurs_ptr(curs) - start;
 }
 
 
@@ -1824,8 +1825,9 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
 
   const char query[]= "XA COMMIT ";
   const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-  char buf[q_len + ser_buf_size]= "COMMIT";
-  size_t buflen= sizeof("COMMIT") - 1;
+  char buf[q_len + ser_buf_size];
+  bufcursor curs= bcurs_new(buf, sizeof(buf));
+  bcurs_write_str(&curs, "COMMIT");
 
   if (thd->lex->sql_command == SQLCOM_XA_COMMIT &&
       thd->lex->xa_opt != XA_ONE_PHASE)
@@ -1834,9 +1836,12 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
     DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
                 XA_PREPARED);
 
-    buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                               buf, query, q_len);
+    /* reset the cursor to overwrite the default */
+    curs= bcurs_new(buf, sizeof(buf));
+    serialize_with_xid(thd->transaction->xid_state.get_xid(), &curs, query, q_len);
   }
+
+  size_t buflen= bcurs_ptr(&curs) - buf;
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
   DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE, ro_1pc));
@@ -1858,16 +1863,21 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
 {
   const char query[]= "XA ROLLBACK ";
   const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-  char buf[q_len + ser_buf_size]= "ROLLBACK";
-  size_t buflen= sizeof("ROLLBACK") - 1;
+  char buf[q_len + ser_buf_size];
+  bufcursor curs= bcurs_new(buf, sizeof(buf));
+  bcurs_write_str(&curs, "ROLLBACK");
 
   if (thd->transaction->xid_state.is_explicit_XA())
   {
     /* for not prepared use plain ROLLBACK */
-    if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
-      buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                                 buf, query, q_len);
+    if (thd->transaction->xid_state.get_state_code() == XA_PREPARED) {
+      /* reset the cursor to overwrite the default */
+      curs= bcurs_new(buf, sizeof(buf));
+      serialize_with_xid(thd->transaction->xid_state.get_xid(), &curs, query, q_len);
+    }
   }
+
+  size_t buflen= bcurs_ptr(&curs) - buf;
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
@@ -2083,11 +2093,13 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
     char buf[q_len + ser_buf_size];
     size_t buflen;
     binlog_cache_data *cache_data;
+    bufcursor curs= bcurs_new(buf, sizeof(buf));
     IO_CACHE *file;
 
-    memcpy(buf, query, q_len);
-    buflen= q_len +
-      strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
+    bcurs_write_bytes(&curs, query, q_len);
+    static_cast<event_xid_t*>(xid)->serialize(&curs);
+    buflen= bcurs_ptr(&curs) - buf;
+
     cache_data= cache_mngr->get_binlog_cache_data(true);
     file= &cache_data->cache_log;
     thd->lex->sql_command= SQLCOM_XA_END;

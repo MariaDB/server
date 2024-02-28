@@ -16,8 +16,10 @@
 
 
 #include "mariadb.h"
+
 #include <my_sys.h>
 #include <m_string.h>
+#include "bufcursor.h"
 
 #ifdef HAVE_SPATIAL
 
@@ -100,12 +102,12 @@ const char *gcalc_ev_name(int ev)
 }
 
 
-static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postfix)
+static void gcalc_pi_str(bufcursor *curs, const Gcalc_heap::Info *pi, const char *postfix)
 {
-  return sprintf(str, "%s %d %d | %s %d %d%s",
-                     GCALC_SIGN(pi->node.shape.ix[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.ix[0]),pi->node.shape.ix[1],
-                     GCALC_SIGN(pi->node.shape.iy[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.iy[0]),pi->node.shape.iy[1],
-                     postfix);
+  bcurs_write(curs, "%s %d %d | %s %d %d%s",
+              GCALC_SIGN(pi->node.shape.ix[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.ix[0]),pi->node.shape.ix[1],
+              GCALC_SIGN(pi->node.shape.iy[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.iy[0]),pi->node.shape.iy[1],
+              postfix);
 
 }
 
@@ -113,7 +115,8 @@ static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postf
 static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
 {
   char buf[128];
-  int n_buf;
+  bufcursor curs = bcurs_new(buf, sizeof(buf));
+
   if (pi->type == Gcalc_heap::nt_intersection)
   {
 #ifdef DBUG_TRACE
@@ -132,31 +135,28 @@ static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
 #endif
     return;
   }
-  n_buf= gcalc_pi_str(buf, pi, "");
-  buf[n_buf]= 0;
+  gcalc_pi_str(&curs, pi, "");
   GCALC_DBUG_PRINT(("%s", buf));
 }
-
 
 static void GCALC_DBUG_PRINT_SLICE(const char *header,
                                    const Gcalc_scan_iterator::point *slice)
 {
-  size_t nbuf;
   char buf[1024];
-  nbuf= strlen(header);
-  strcpy(buf, header);
+  bufcursor curs = bcurs_new(buf, sizeof(buf));
+  bcurs_write_str(&curs, header);
+
   for (; slice; slice= slice->get_next())
   {
-    size_t lnbuf= nbuf;
-    lnbuf+= sprintf(buf + lnbuf, "%d\t", slice->thread);
-    lnbuf+= sprintf(buf + lnbuf, "%s\t", gcalc_ev_name(slice->event));
+    bcurs_write(&curs, "%d\t", slice->thread);
+    bcurs_write(&curs, "%s\t", gcalc_ev_name(slice->event));
+    gcalc_pi_str(&curs, slice->pi, "\t");
 
-    lnbuf+= gcalc_pi_str(buf + lnbuf, slice->pi, "\t");
     if (slice->is_bottom())
-      lnbuf+= sprintf(buf+lnbuf, "bt\t");
+      bcurs_write_str(&curs, "bt\t");
     else
-      lnbuf+= gcalc_pi_str(buf+lnbuf, slice->next_pi, "\t");
-    buf[lnbuf]= 0;
+      gcalc_pi_str(&curs, slice->next_pi, "\t");
+
     GCALC_DBUG_PRINT(("%s", buf));
   }
 }

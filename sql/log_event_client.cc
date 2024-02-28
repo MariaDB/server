@@ -18,6 +18,8 @@
 
 
 #include "log_event.h"
+#include "bufcursor.h"
+
 #ifndef MYSQL_CLIENT
 #error MYSQL_CLIENT must be defined here
 #endif
@@ -635,7 +637,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       float fl;
       float4get(fl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-20g", (double) fl);
+      snprintf(tmp, sizeof(tmp), "%-20g", (double) fl);
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
       return 4;
     }
@@ -649,7 +651,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
 
       float8get(dbl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
+      snprintf(tmp, sizeof(tmp), "%-.20g", dbl); /* strmake doesn't support %-20g */
       my_b_printf(file, tmp, "%s");
       return 8;
     }
@@ -2485,7 +2487,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
       float8get(real_val, val);
-      sprintf(real_buf, "%.14g", real_val);
+      snprintf(real_buf, sizeof(real_buf), "%.14g", real_val);
       if (my_b_printf(&cache, ":=%s%s\n", real_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2815,12 +2817,13 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     sizeof(fmt_delim)  + sizeof(fmt_n_delim)               +
     sizeof(fmt_binlog2) +
     3*PRINT_EVENT_INFO::max_delimiter_size;
+  size_t alloc_size= 0;
 
   if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
 
-  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, (size_t)cache->end_of_file + fmt_size,
-                                   MYF(0))))
+  alloc_size= (size_t)cache->end_of_file + fmt_size;
+  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, alloc_size, MYF(0))))
   {
     perror("Out of memory: can't allocate memory in "
            "copy_cache_to_string_wrapped().");
@@ -2847,39 +2850,42 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
       limit. The estimate includes the maximum packet header
       contribution of non-compressed packet.
     */
-    char *str= to->str;
-    size_t add_to_len;
+    bufcursor curs= bcurs_new(to->str, alloc_size);
+    to->length= bcurs_write(&curs, fmt_frag, 0);
 
-    str += (to->length= sprintf(str, fmt_frag, 0));
-    if (my_b_read(cache, (uchar*) str, (uint32) (cache_size/2 + 1)))
+    size_t cache_read_len= (size_t)(cache_size/2 + 1);
+    bcurs_ensure_spare_cap(&curs, cache_read_len);
+    if (my_b_read(cache, (uchar*)bcurs_ptr(&curs), cache_read_len))
       goto err;
-    str += (add_to_len = (uint32) (cache_size/2 + 1));
-    to->length += add_to_len;
-    str += (add_to_len= sprintf(str, fmt_n_delim, delimiter));
-    to->length += add_to_len;
 
-    str += (add_to_len= sprintf(str, fmt_frag, 1));
-    to->length += add_to_len;
-    if (my_b_read(cache, (uchar*) str, uint32(cache->end_of_file - (cache_size/2 + 1))))
+    bcurs_seek(&curs, cache_read_len);
+    to->length += cache_read_len;
+    to->length += bcurs_write(&curs, fmt_n_delim, delimiter);
+    to->length += bcurs_write(&curs, fmt_frag, 1);
+
+    cache_read_len= (cache->end_of_file - cache_read_len);
+    bcurs_ensure_spare_cap(&curs, cache_read_len);
+    if (my_b_read(cache, (uchar*)bcurs_ptr(&curs), cache_read_len))
       goto err;
-    str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
-    to->length += add_to_len;
-    {
-      str += (add_to_len= sprintf(str , fmt_delim, delimiter));
-      to->length += add_to_len;
-    }
-    to->length += sprintf(str, fmt_binlog2, delimiter);
+
+    bcurs_seek(&curs, cache_read_len);
+    to->length += cache_read_len;
+    to->length += bcurs_write(&curs, fmt_delim, delimiter);
+    to->length += bcurs_write(&curs, fmt_binlog2, delimiter);
   }
   else
   {
-    char *str= to->str;
+    bufcursor curs= bcurs_new(to->str, alloc_size);
+    to->length += bcurs_write(&curs, str_binlog);
 
-    str += (to->length= sprintf(str, str_binlog));
-    if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
+    size_t cache_read_len= (size_t)cache->end_of_file;
+    bcurs_ensure_spare_cap(&curs, cache_read_len);
+    if (my_b_read(cache, (uchar*)bcurs_ptr(&curs), cache_read_len))
       goto err;
-    str += cache->end_of_file;
-    to->length += (size_t)cache->end_of_file;
-      to->length += sprintf(str , fmt_delim, delimiter);
+
+    bcurs_seek(&curs, cache_read_len);
+    to->length += cache_read_len;
+    to->length += bcurs_write(&curs, fmt_delim, delimiter);
   }
 
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
