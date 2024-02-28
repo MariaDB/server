@@ -1114,6 +1114,8 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
                               thd_arg->lex->proc_list.first),
                              sl, this);
 
+  sl->save_ref_ptrs_if_needed(thd);
+
   last_procedure= join->procedure;
 
   if (unlikely(saved_error || (saved_error= thd_arg->is_fatal_error)))
@@ -1267,16 +1269,9 @@ bool init_item_int(THD* thd, Item_int* &item)
 {
   if (!item)
   {
-    Query_arena *arena, backup_arena;
-    arena= thd->activate_stmt_arena_if_needed(&backup_arena);
-
     item= new (thd->mem_root) Item_int(thd, 0);
-
-    if (arena)
-      thd->restore_active_arena(arena, &backup_arena);
-
     if (!item)
-    return false;
+     return false;
   }
   else
   {
@@ -2785,6 +2780,8 @@ bool st_select_lex::cleanup()
 
   if (join)
   {
+    if (join->thd->stmt_arena->is_stmt_prepare())
+      inner_refs_list.empty();
     List_iterator<TABLE_LIST> ti(leaf_tables);
     TABLE_LIST *tbl;
     while ((tbl= ti++))
@@ -2814,7 +2811,6 @@ bool st_select_lex::cleanup()
       continue;
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }
-  inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
   hidden_bit_fields= 0;
   DBUG_RETURN(error);
