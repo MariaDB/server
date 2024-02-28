@@ -9314,8 +9314,9 @@ int ha_partition::extra(enum ha_extra_function operation)
   switch (operation) {
     /* Category 1), used by most handlers */
   case HA_EXTRA_NO_KEYREAD:
-    DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
+    DBUG_RETURN(loop_read_partitions(end_keyread_cb, NULL));
   case HA_EXTRA_KEYREAD:
+    DBUG_RETURN(loop_read_partitions(extra_cb, &operation));
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
@@ -9537,7 +9538,7 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
   switch (operation)
   {
     case HA_EXTRA_KEYREAD:
-      DBUG_RETURN(loop_partitions(start_keyread_cb, &arg));
+      DBUG_RETURN(loop_read_partitions(start_keyread_cb, &arg));
     case HA_EXTRA_CACHE:
       prepare_extra_cache(arg);
       DBUG_RETURN(0);
@@ -9626,13 +9627,52 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
 
 int ha_partition::loop_partitions(handler_callback callback, void *param)
 {
+  int result= loop_partitions_over_map(&m_part_info->lock_partitions,
+                                       callback, param);
+  /* Add all used partitions to be called in reset(). */
+  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
+  return result;
+}
+
+
+/*
+  Call callback(part, param) on read_partitions (the ones used by the query)
+*/
+
+int ha_partition::loop_read_partitions(handler_callback callback, void *param)
+{
+  /*
+    There is no need to record partitions on m_partitions_to_reset as 
+    read_partitions were opened, etc - they will be reset anyway.
+  */
+  return loop_partitions_over_map(&m_part_info->read_partitions, callback,
+                                  param);
+}
+
+
+/**
+  Call callback(part, param) on specified set of partitions
+   
+    @part_map                       The set of partitions to call callback for
+    @param callback                 a callback to call for each partition
+    @param param                    a void*-parameter passed to callback
+
+    @return Operation status
+      @retval >0                    Error code
+      @retval 0                     Success
+*/
+
+int ha_partition::loop_partitions_over_map(const MY_BITMAP *part_map,
+                                           handler_callback callback,
+                                           void *param)
+{
   int result= 0, tmp;
   uint i;
-  DBUG_ENTER("ha_partition::loop_partitions");
+  DBUG_ENTER("ha_partition::loop_partitions_over_map");
 
-  for (i= bitmap_get_first_set(&m_part_info->lock_partitions);
+  for (i= bitmap_get_first_set(part_map);
        i < m_tot_parts;
-       i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+       i= bitmap_get_next_set(part_map, i))
   {
     /*
       This can be called after an error in ha_open.
@@ -9642,8 +9682,6 @@ int ha_partition::loop_partitions(handler_callback callback, void *param)
         (tmp= callback(m_file[i], param)))
       result= tmp;
   }
-  /* Add all used partitions to be called in reset(). */
-  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
   DBUG_RETURN(result);
 }
 
