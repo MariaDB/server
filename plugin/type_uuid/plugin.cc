@@ -160,14 +160,36 @@ protected:
   virtual ~Create_func_uuid_v4() {}
 };
 
+uint64 last_uuidv7_timestamp= 0;
+mysql_mutex_t LOCK_uuid_v7_generator;
+
+class Create_func_uuid_v7 : public Create_func_arg0
+{
+public:
+  Item *create_builder(THD *thd) override
+  {
+    DBUG_ENTER("Create_func_uuid_v7::create");
+    thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    DBUG_RETURN(new (thd->mem_root) Item_func_uuid_v7(thd));
+  }
+  static Create_func_uuid_v7 s_singleton;
+
+protected:
+  Create_func_uuid_v7() {}
+  virtual ~Create_func_uuid_v7() {}
+};
+
 Create_func_uuid Create_func_uuid::s_singleton;
 Create_func_sys_guid Create_func_sys_guid::s_singleton;
 Create_func_uuid_v4 Create_func_uuid_v4::s_singleton;
+Create_func_uuid_v7 Create_func_uuid_v7::s_singleton;
 
 static Plugin_function
   plugin_descriptor_function_uuid(&Create_func_uuid::s_singleton),
   plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton),
-  plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton);
+  plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton),
+  plugin_descriptor_function_uuid_v7(&Create_func_uuid_v7::s_singleton);
 
 static constexpr Name type_name={STRING_WITH_LEN("uuid")};
 
@@ -175,6 +197,18 @@ int uuid_init(void*)
 {
   Type_handler_uuid_new::singleton()->set_name(type_name);
   Type_handler_uuid_old::singleton()->set_name(type_name);
+  return 0;
+}
+
+int uuidv7_init(void*)
+{
+  mysql_mutex_init(0, &LOCK_uuid_v7_generator, MY_MUTEX_INIT_FAST);
+  return 0;
+}
+
+int uuidv7_terminate(void*)
+{
+  mysql_mutex_destroy(&LOCK_uuid_v7_generator);
   return 0;
 }
 
@@ -235,6 +269,21 @@ maria_declare_plugin(type_uuid)
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL// Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_uuid_v7, // pointer to type-specific plugin descriptor
+  "uuidv7",                     // plugin name
+  "Stefano Petrilli",           // plugin author
+  "Function UUIDv7()",          // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  uuidv7_init,                  // Pointer to plugin initialization function
+  uuidv7_terminate,             // Pointer to plugin deinitialization function
   0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
