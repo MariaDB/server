@@ -31,9 +31,9 @@ Log_name	File_size
 master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
-# restart the server with --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# restart the server with --init-rpl-role=SLAVE --sync-binlog=1
 # the server is restarted
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# restart: --init-rpl-role=SLAVE --sync-binlog=1
 connection default;
 #
 # *** Summary: 1 row should be present in both tables; binlog is truncated; number of binlogs at reconnect - 3:
@@ -98,7 +98,7 @@ INSERT INTO t2 VALUES (2, REPEAT("x", 4100));
 INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
 COMMIT;
 connection default;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# restart: --init-rpl-role=SLAVE --sync-binlog=1
 connection default;
 #
 # *** Summary: 2 rows should be present in both tables; no binlog truncation; one extra binlog file compare with A; number of binlogs at reconnect - 4:
@@ -155,9 +155,9 @@ Log_name	File_size
 master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
-# restart the server with --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# restart the server with --init-rpl-role=SLAVE --sync-binlog=1
 # the server is restarted
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# restart: --init-rpl-role=SLAVE --sync-binlog=1
 connection default;
 #
 # *** Summary: 2 rows should be present in both tables; no binlog truncation; the same # of binlog files as in B; number of binlogs at reconnect - 4:
