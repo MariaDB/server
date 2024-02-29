@@ -3034,9 +3034,14 @@ public:
 
   bool binlog_need_stmt_format(bool is_transactional) const
   {
-    return log_current_statement() &&
-           !binlog_get_pending_rows_event(binlog_get_cache_mngr(),
-              use_trans_cache(this, is_transactional));
+    if (!log_current_statement())
+      return false;
+    auto *cache_mngr= binlog_get_cache_mngr();
+    if (!cache_mngr)
+      return true;
+    return !binlog_get_pending_rows_event(cache_mngr,
+                                          use_trans_cache(this,
+                                                          is_transactional));
   }
 
   bool binlog_for_noop_dml(bool transactional_table);
