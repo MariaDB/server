@@ -40,6 +40,7 @@
 #include "sql_audit.h"
 #include "mysqld.h"
 #include "ddl_log.h"
+#include "repl_failsafe.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -11007,7 +11008,8 @@ Recovery_context::Recovery_context() :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
-  do_truncate(global_rpl_semi_sync_slave_enabled),
+  do_truncate(global_rpl_semi_sync_slave_enabled &&
+              rpl_status == RPL_IDLE_SLAVE),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)

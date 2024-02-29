@@ -48,7 +48,7 @@ include/assert.inc [Table t1 should have 2 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-4
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=1
 connection server_1;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
@@ -128,7 +128,7 @@ include/assert.inc [Table t1 should have 5 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-2-7
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=1
 connection server_2;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
@@ -209,7 +209,7 @@ include/assert.inc [Table t1 should have 7 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-9
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=1
 connection server_1;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..

@@ -6594,7 +6594,7 @@ struct my_option my_long_options[]=
 #ifdef HAVE_REPLICATION
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
-   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
   {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
