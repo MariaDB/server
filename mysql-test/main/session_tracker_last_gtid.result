@@ -11,10 +11,6 @@ create table t1 (a int) engine=innodb;
 select @@last_gtid;
 @@last_gtid
 0-1-1000
--- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- last_gtid
--- 0-1-1000
-
 insert into t1 values (1);
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
 -- last_gtid
@@ -23,10 +19,6 @@ insert into t1 values (1);
 select @@last_gtid;
 @@last_gtid
 0-1-1001
--- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- last_gtid
--- 0-1-1001
-
 drop table t1;
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
 -- last_gtid
