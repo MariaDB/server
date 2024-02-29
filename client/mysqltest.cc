@@ -7948,6 +7948,8 @@ static const char *trking_info_desc[SESSION_TRACK_END + 1]=
 
 static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
 {
+  if (!(mysql->server_status & SERVER_SESSION_STATE_CHANGED))
+    return;
 #ifndef EMBEDDED_LIBRARY
   for (unsigned int type= SESSION_TRACK_BEGIN; type <= SESSION_TRACK_END; type++)
   {
