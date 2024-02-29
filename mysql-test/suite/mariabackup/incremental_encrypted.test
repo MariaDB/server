@@ -1,8 +1,8 @@
 --source include/innodb_page_size.inc
 
-if (!$EXAMPLE_KEY_MANAGEMENT_SO)
+if (!$DEBUG_KEY_MANAGEMENT_SO)
 {
-  --skip needs example_key_management plugin
+  --skip needs debug_key_management plugin
 }
 call mtr.add_suppression("InnoDB: New log files created");
 
