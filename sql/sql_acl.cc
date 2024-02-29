@@ -13017,6 +13017,95 @@ err:
 #endif
 }
 
+namespace Show
+{
+  ST_FIELD_INFO users_fields_info[] =
+  {
+    Column("USER", Userhost(), NOT_NULL),
+    Column("PASSWORD_ERRORS", SLonglong(), NULLABLE),
+    Column("PASSWORD_EXPIRATION_TIME", SLonglong(), NULLABLE),
+    CEnd()
+  };
+};
+
+static bool ignore_max_password_errors(const ACL_USER *acl_user);
+
+static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
+{
+  ulonglong lifetime= user->password_lifetime < 0
+                      ? default_password_lifetime
+                      : user->password_lifetime;
+
+  bool ignore_password_errors= ignore_max_password_errors(user);
+  bool ignore_expiration_date= lifetime == 0;
+
+  /* Skip user if nothing to show */
+  if (ignore_password_errors && ignore_expiration_date)
+    return 0;
+
+  Grantee_str grantee(user->user,
+                      Lex_cstring_strlen(safe_str(user->host.hostname)));
+  table->field[0]->store(grantee, strlen(grantee), system_charset_info);
+  if (ignore_password_errors)
+  {
+    table->field[1]->set_null();
+  }
+  else
+  {
+    table->field[1]->set_notnull();
+    table->field[1]->store(user->password_errors);
+  }
+  if (ignore_expiration_date)
+  {
+    table->field[2]->set_null();
+  }
+  else
+  {
+    table->field[2]->set_notnull();
+    table->field[2]->store(user->password_last_changed
+                           + user->password_lifetime * 3600 * 24, true);
+  }
+
+  return schema_table_store_record(thd, table);
+}
+
+int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  int res= 0;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool see_whole_table= check_access(thd, SELECT_ACL, "mysql", NULL, NULL,
+                                     true, true) == 0;
+  TABLE *table= tables->table;
+
+  if (!see_whole_table)
+  {
+    Security_context *sctx= thd->security_ctx;
+    mysql_mutex_lock(&acl_cache->lock);
+    ACL_USER *cur_user= find_user_exact(Lex_cstring_strlen(sctx->priv_host),
+                                        Lex_cstring_strlen(sctx->priv_user));
+    if (!cur_user)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
+      return 1;
+    }
+
+    res= fill_users_schema_record(thd, table, cur_user);
+    mysql_mutex_unlock(&acl_cache->lock);
+    return res;
+  }
+
+  mysql_mutex_lock(&acl_cache->lock);
+  for (size_t i= 0; res == 0 && i < acl_users.elements; i++)
+  {
+    ACL_USER *user= dynamic_element(&acl_users, i, ACL_USER*);
+    res= fill_users_schema_record(thd, table, user);
+  }
+  mysql_mutex_unlock(&acl_cache->lock);
+#endif
+  return res;
+}
+
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 /*
