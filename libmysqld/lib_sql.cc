@@ -266,6 +266,7 @@ static my_bool emb_read_prepare_result(MYSQL *mysql, MYSQL_STMT *stmt)
       mysql->server_status|= SERVER_STATUS_IN_TRANS;
 
     stmt->fields= mysql->fields;
+    free_root(&stmt->mem_root, MYF(0));
     stmt->mem_root= res->alloc;
     mysql->fields= NULL;
     my_free(res);
@@ -375,6 +376,7 @@ int emb_read_binary_rows(MYSQL_STMT *stmt)
     set_stmt_errmsg(stmt, &stmt->mysql->net);
     return 1;
   }
+  free_root(&stmt->result.alloc, MYF(0));
   stmt->result= *data;
   my_free(data);
   set_stmt_errmsg(stmt, &stmt->mysql->net);
