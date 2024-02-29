@@ -48,7 +48,7 @@ include/assert.inc [Table t1 should have 2 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-4
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 connection server_1;
 include/assert.inc [Table t1 should have 1 rows.]
 FOUND 1 /truncated binlog file:.*master.*000001/ in mysqld.1.err
@@ -126,7 +126,7 @@ include/assert.inc [Table t1 should have 5 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-2-7
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 connection server_2;
 include/assert.inc [Table t1 should have 3 rows.]
 FOUND 1 /truncated binlog file:.*slave.*000002.* to remove transactions starting from GTID 0-1-6/ in mysqld.2.err
@@ -205,7 +205,7 @@ include/assert.inc [Table t1 should have 7 rows.]
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-9
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 connection server_1;
 include/assert.inc [Table t1 should have 6 rows.]
 FOUND 1 /truncated binlog file:.*master.*000002.* to remove transactions starting from GTID 0-1-9/ in mysqld.1.err
