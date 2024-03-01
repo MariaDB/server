@@ -2,6 +2,8 @@
 --source include/have_partition.inc
 --source include/have_debug.inc
 --source include/big_test.inc
+# This test timeouts with msan
+--source include/not_msan.inc
 
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
 --let $backup_stream=2
