@@ -125,4 +125,22 @@ SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_s
 --echo # Restoring the original values.
 SET @@global.session_track_system_variables = @global_saved_tmp;
 
---echo # End of tests.
+--echo #
+--echo # MDEV-31609 Send initial values of system variables in first OK packet
+--echo #
+
+set @old_session_track_system_variables=@@global.session_track_system_variables;
+# We set the session_track_system_variables to exclude
+# character_set_results as it can appear out of order in the CI
+# builder x86-debian-sid.
+set global session_track_system_variables="autocommit,character_set_client,character_set_connection,redirect_url,time_zone";
+enable_session_track_info;
+
+connect foo,localhost,root;
+
+disable_session_track_info;
+connection default;
+disconnect foo;
+set global session_track_system_variables=@old_session_track_system_variables;
+
+--echo # End of tests 11.5

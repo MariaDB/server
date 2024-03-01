@@ -688,6 +688,7 @@ void enable_optimizer_trace(struct st_connection *con);
 void display_optimizer_trace(struct st_connection *con,
                              DYNAMIC_STRING *ds);
 
+static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql);
 
 class LogFile {
   FILE* m_file;
@@ -5975,6 +5976,8 @@ do_handle_error:
     // Ignore errors intentionally
   }
 
+  if (display_session_track_info)
+    append_session_track_info(ds, con);
 
   var_set_errno(0);
   handle_no_error(command);
