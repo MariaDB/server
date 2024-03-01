@@ -626,6 +626,7 @@ include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
 connection server_2;
+SET @org_log_warnings=@@GLOBAL.LOG_WARNINGS;
 set global log_warnings=2;
 BEGIN;
 INSERT INTO t1 SET a=1;
@@ -651,7 +652,7 @@ connection server_2;
 include/sync_with_master_gtid.inc
 connection server_2;
 include/stop_slave.inc
-set global log_warnings=default;
+set global log_warnings=@org_log_warnings;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

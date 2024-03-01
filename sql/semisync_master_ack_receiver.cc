@@ -149,7 +149,7 @@ bool Ack_receiver::add_slave(THD *thd)
   slave->thd= thd;
   slave->vio= *thd->net.vio;
   slave->vio.mysql_socket.m_psi= NULL;
-  slave->vio.read_timeout= 1;
+  slave->vio.read_timeout= 1;                   // 1 ms
 
   mysql_mutex_lock(&m_mutex);
 
@@ -336,6 +336,17 @@ void Ack_receiver::run()
           Slave_compress_protocol flag enabled Slaves
         */
         net.compress= slave->thd->net.compress;
+
+        if (unlikely(listener.is_socket_hangup(slave)))
+        {
+          if (global_system_variables.log_warnings > 2)
+            sql_print_warning("Semisync ack receiver got hangup "
+                              "from slave server-id %d",
+                              slave->server_id());
+          it.remove();
+          m_slaves_changed= true;
+          continue;
+        }
 
         len= my_net_read(&net);
         if (likely(len != packet_error))

@@ -1340,6 +1340,8 @@ static bool io_slave_killed(Master_info* mi)
   DBUG_ENTER("io_slave_killed");
 
   DBUG_ASSERT(mi->slave_running); // tracking buffer overrun
+  if (mi->abort_slave || mi->io_thd->killed)
+    DBUG_PRINT("info", ("killed"));
   DBUG_RETURN(mi->abort_slave || mi->io_thd->killed);
 }
 

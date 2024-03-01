@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection master;
+SET @org_log_warnings=@@GLOBAL.LOG_WARNINGS;
 SET GLOBAL LOG_WARNINGS=2;
 connection slave;
 include/stop_slave.inc
@@ -41,11 +42,11 @@ connection master;
 include/wait_for_pattern_in_file.inc
 FOUND 1 /using_gtid\(1\), gtid\(\'0-1-2,10-1-1\'\).*/ in mysqld.1.err
 "===== Clean up ====="
+SET GLOBAL LOG_WARNINGS=@org_log_warnings;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=no;
 include/start_slave.inc
 connection master;
 DROP TABLE t;
-SET GLOBAL LOG_WARNINGS=default;
 include/rpl_end.inc

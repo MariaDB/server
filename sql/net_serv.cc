@@ -74,7 +74,13 @@ static int inline EXTRA_DEBUG_fflush(...) { return 0; }
 #ifdef MYSQL_SERVER
 #include <sql_class.h>
 #include <sql_connect.h>
-#define MYSQL_SERVER_my_error my_error
+
+static void inline MYSQL_SERVER_my_error(uint error, myf flags)
+{
+  my_error(error,
+           flags | MYF(global_system_variables.log_warnings > 3 ? ME_ERROR_LOG : 0));
+}
+
 #else
 static void inline MYSQL_SERVER_my_error(...) {}
 #endif
@@ -766,7 +772,19 @@ net_real_write(NET *net,const uchar *packet, size_t len)
 #endif /* !defined(MYSQL_SERVER) */
       net->error= 2;				/* Close socket */
       net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
-                               ER_NET_ERROR_ON_WRITE);
+                        ER_NET_ERROR_ON_WRITE);
+#ifdef MYSQL_SERVER
+      if (global_system_variables.log_warnings > 3)
+      {
+        my_printf_error(net->last_errno,
+                        "Could not write packet: fd: %lld  state: %d  "
+                        "errno: %d  vio_errno: %d  length: %ld",
+                        MYF(ME_ERROR_LOG),
+                        (longlong) vio_fd(net->vio), (int) net->vio->state,
+                        vio_errno(net->vio), net->last_errno, (ulong) (end-pos));
+        break;
+      }
+#endif
       MYSQL_SERVER_my_error(net->last_errno, MYF(0));
       break;
     }
@@ -1064,20 +1082,34 @@ retry:
                                 (longlong) vio_fd(net->vio));
 	  }
 #ifndef MYSQL_SERVER
-	  if (length != 0 && vio_errno(net->vio) == SOCKET_EINTR)
+	  if (length != 0 && vio_should_retry(net->vio))
 	  {
 	    DBUG_PRINT("warning",("Interrupted read. Retrying..."));
 	    continue;
 	  }
 #endif
-	  DBUG_PRINT("error",("Couldn't read packet: remain: %u  errno: %d  length: %ld",
+	  DBUG_PRINT("error",("Could not read packet: remain: %u  errno: %d  length: %ld",
 			      remain, vio_errno(net->vio), (long) length));
 	  len= packet_error;
 	  net->error= 2;				/* Close socket */
           net->last_errno= (vio_was_timeout(net->vio) ?
-                                   ER_NET_READ_INTERRUPTED :
-                                   ER_NET_READ_ERROR);
-          MYSQL_SERVER_my_error(net->last_errno, MYF(0));
+                            ER_NET_READ_INTERRUPTED :
+                            ER_NET_READ_ERROR);
+#ifdef MYSQL_SERVER
+          if (global_system_variables.log_warnings > 3)
+          {
+            my_printf_error(net->last_errno,
+                            "Could not read packet: fd: %lld  state: %d  "
+                            "remain: %u  errno: %d  vio_errno: %d  "
+                            "length: %lld",
+                            MYF(ME_ERROR_LOG),
+                            (longlong) vio_fd(net->vio), (int) net->vio->state,
+                            remain, vio_errno(net->vio), net->last_errno,
+                            (longlong) length);
+          }
+          else
+            my_error(net->last_errno, MYF(0));
+#endif /* MYSQL_SERVER */
 	  goto end;
 	}
 	remain -= (uint32) length;
@@ -1282,7 +1314,10 @@ ulong
 my_net_read_packet(NET *net, my_bool read_from_server)
 {
   ulong reallen = 0;
-  return my_net_read_packet_reallen(net, read_from_server, &reallen); 
+  ulong length;
+  DBUG_ENTER("my_net_read_packet");
+  length= my_net_read_packet_reallen(net, read_from_server, &reallen);
+  DBUG_RETURN(length);
 }
 
 

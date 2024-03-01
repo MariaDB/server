@@ -962,6 +962,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_ECONNRESET WSAECONNRESET
 #define SOCKET_ENFILE	ENFILE
 #define SOCKET_EMFILE	EMFILE
+#define SOCKET_CLOSED   EIO
 #else /* Unix */
 #define socket_errno	errno
 #define closesocket(A)	close(A)
@@ -971,6 +972,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_EADDRINUSE EADDRINUSE
 #define SOCKET_ETIMEDOUT ETIMEDOUT
 #define SOCKET_ECONNRESET ECONNRESET
+#define SOCKET_CLOSED   EIO
 #define SOCKET_ENFILE	ENFILE
 #define SOCKET_EMFILE	EMFILE
 #endif

@@ -288,12 +288,18 @@ size_t vio_write(Vio *vio, const uchar* buf, size_t size)
 
 int vio_socket_shutdown(Vio *vio, int how)
 {
-  int ret= shutdown(mysql_socket_getfd(vio->mysql_socket), how);
+  int ret;
+  DBUG_ENTER("vio_socket_shutdown");
+  DBUG_PRINT("enter", ("sd: %d", (int)mysql_socket_getfd(vio->mysql_socket)));
+
+  vio->state= VIO_STATE_SHUTDOWN;
+  ret= shutdown(mysql_socket_getfd(vio->mysql_socket), how);
+
 #ifdef  _WIN32
   /* Cancel possible IO in progress (shutdown does not do that on Windows). */
   (void) CancelIoEx((HANDLE)mysql_socket_getfd(vio->mysql_socket), NULL);
 #endif
-  return ret;
+  DBUG_RETURN(ret);
 }
 
 
@@ -552,8 +558,10 @@ my_bool
 vio_should_retry(Vio *vio)
 {
   DBUG_ENTER("vio_should_retry");
-  DBUG_PRINT("info", ("vio_errno: %d", vio_errno(vio)));
-  DBUG_RETURN(vio_errno(vio) == SOCKET_EINTR);
+  DBUG_PRINT("info", ("vio_errno: %d  state: %d",
+                      vio_errno(vio), (int) vio->state));
+  DBUG_RETURN(vio_errno(vio) == SOCKET_EINTR &&
+              vio->state < VIO_STATE_SHUTDOWN);
 }
 
 
@@ -576,28 +584,30 @@ vio_was_timeout(Vio *vio)
 
 int vio_close(Vio *vio)
 {
-  int r=0;
   DBUG_ENTER("vio_close");
   DBUG_PRINT("enter", ("sd: %d", (int)mysql_socket_getfd(vio->mysql_socket)));
 
   if (vio->type != VIO_CLOSED)
   {
+    MYSQL_SOCKET mysql_socket= vio->mysql_socket;
     DBUG_ASSERT(vio->type ==  VIO_TYPE_TCPIP ||
-      vio->type == VIO_TYPE_SOCKET ||
-      vio->type == VIO_TYPE_SSL);
+                vio->type == VIO_TYPE_SOCKET ||
+                vio->type == VIO_TYPE_SSL);
 
-    DBUG_ASSERT(mysql_socket_getfd(vio->mysql_socket) >= 0);
-    if (mysql_socket_close(vio->mysql_socket))
-      r= -1;
+
+    vio->type= VIO_CLOSED;
+    vio->state= VIO_STATE_CLOSED;
+    vio->mysql_socket= MYSQL_INVALID_SOCKET;
+
+    DBUG_ASSERT(mysql_socket_getfd(mysql_socket) >= 0);
+    if (mysql_socket_close(mysql_socket))
+    {
+      DBUG_PRINT("vio_error", ("close() failed, error: %d",socket_errno));
+      /* FIXME: error handling (not critical for MySQL) */
+      DBUG_RETURN(-1);
+    }
   }
-  if (r)
-  {
-    DBUG_PRINT("vio_error", ("close() failed, error: %d",socket_errno));
-    /* FIXME: error handling (not critical for MySQL) */
-  }
-  vio->type= VIO_CLOSED;
-  vio->mysql_socket= MYSQL_INVALID_SOCKET;
-  DBUG_RETURN(r);
+  DBUG_RETURN(0);
 }
 
 
@@ -917,7 +927,17 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
-  DBUG_PRINT("enter", ("timeout: %d", timeout));
+  DBUG_PRINT("enter", ("sd: %d  timeout: %d",
+                       (int) mysql_socket_getfd(vio->mysql_socket),
+                       timeout));
+
+  if (vio->state >= VIO_STATE_SHUTDOWN)
+  {
+    DBUG_PRINT("info", ("vio deactivated. state: %ld", (int) vio->state));
+    /* Socket is shutdown or closed */
+    errno= EIO;
+    DBUG_RETURN(-1);
+  }
 
   memset(&pfd, 0, sizeof(pfd));
 
@@ -948,7 +968,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   switch ((ret= poll(&pfd, 1, timeout)))
   {
   case -1:
-    DBUG_PRINT("error", ("poll returned -1"));
+    DBUG_PRINT("error", ("poll returned -1  errno: %d", vio_errno(vio)));
     /* On error, -1 is returned. */
     break;
   case 0:
@@ -979,6 +999,14 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   fd_set readfds, writefds, exceptfds;
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
+
+  if (vio->state >= VIO_STATE_SHUTDOWN)
+  {
+    DBUG_PRINT("info", ("vio deactive. state: %ld", (int) vio->state));
+    /* Socket is shutdown or closed */
+    errno= EIO;
+    DBUG_RETURN(-1);
+  }
 
   /* Convert the timeout, in milliseconds, to seconds and microseconds. */
   if (timeout >= 0)
@@ -1153,12 +1181,16 @@ my_bool vio_is_connected(Vio *vio)
   uint bytes= 0;
   DBUG_ENTER("vio_is_connected");
 
+  if (vio->state >= VIO_STATE_SHUTDOWN)
+    DBUG_RETURN(FALSE);
+
   /*
     The first step of detecting an EOF condition is verifying
     whether there is data to read. Data in this case would be
     the EOF. An exceptional condition event and/or errors are
     interpreted as if there is data to read.
   */
+
   if (!vio_io_wait(vio, VIO_IO_EVENT_READ, 0))
     DBUG_RETURN(TRUE);
 
