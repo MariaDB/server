@@ -1,4 +1,8 @@
+SET DEBUG_SYNC='dispatch_command_end SIGNAL ready WAIT_FOR go';
+select 1;
 connect  con1,localhost,root,,;
+SET DEBUG_SYNC='now wait_for ready';
+SET DEBUG_SYNC='now signal go';
 SHOW PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
 #	root	#	test	Sleep	#	#	NULL	0.000
@@ -6,6 +10,8 @@ Id	User	Host	db	Command	Time	State	Info	Progress
 SET DEBUG_SYNC='before_execute_sql_command SIGNAL ready WAIT_FOR go';
 SHOW PROCESSLIST;
 connection default;
+1
+1
 SET DEBUG_SYNC='now WAIT_FOR ready';
 KILL QUERY con_id;
 SET DEBUG_SYNC='now SIGNAL go';
