@@ -641,13 +641,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
   plugin->data= hton; // shortcut for the future
-  /* [remove after merge] notes on merge conflict (MDEV-31400):
-  10.6-10.11: 13ba00ff4933cfc1712676f323587504e453d1b5
-  11.0-11.2: 42f8be10f18163c4025710cf6a212e82bddb2f62
-  The 10.11->11.0 conflict is trivial, but the reference commit also
-  contains different non-conflict changes needs to be applied to 11.0
-  (and beyond).
-  */
   if (plugin->plugin->init && (ret= plugin->plugin->init(hton)))
     goto err;
 
