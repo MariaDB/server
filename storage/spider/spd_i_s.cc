@@ -134,7 +134,10 @@ static int spider_i_s_alloc_mem_init(
   void *p
 ) {
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
+  const LEX_CSTRING spider_name={STRING_WITH_LEN("SPIDER")};
   DBUG_ENTER("spider_i_s_alloc_mem_init");
+  if (!plugin_is_ready(&spider_name, MYSQL_STORAGE_ENGINE_PLUGIN))
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
   schema->fields_info = Show::spider_i_s_alloc_mem_fields_info;
   schema->fill_table = spider_i_s_alloc_mem_fill_table;
   schema->idx_field1 = 0;
@@ -258,7 +261,10 @@ static int spider_i_s_wrapper_protocols_init(
   void *p
 ) {
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
+  const LEX_CSTRING spider_name={STRING_WITH_LEN("SPIDER")};
   DBUG_ENTER("spider_i_s_wrapper_protocols_init");
+  if (!plugin_is_ready(&spider_name, MYSQL_STORAGE_ENGINE_PLUGIN))
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
   schema->fields_info = Show::spider_i_s_wrapper_protocols_fields_info;
   schema->fill_table = spider_i_s_wrapper_protocols_fill_table;
   schema->idx_field1 = 0;
