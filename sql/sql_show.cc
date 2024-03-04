@@ -8717,7 +8717,7 @@ static int store_master_info_in_table(THD *thd, Master_info *mi, TABLE *table)
   table->field[39]->store(mi->rli.last_error().number);
   table->field[38]->store(mi->rli.last_error().message,
                           strlen(mi->rli.last_error().message), cs);
-  prot_store_ids(thd, &mi->ignore_server_ids, table->field[41], &Field::store);
+  prot_store_ids<Field,int>(thd, &mi->ignore_server_ids, table->field[41], &Field::store);
   table->field[42]->store((uint32) mi->master_id);
   table->field[43]->store(mi->ssl_crl , strlen(mi->ssl_crl), cs);
   table->field[44]->store(mi->ssl_crlpath, strlen(mi->ssl_crlpath), cs);
@@ -8728,7 +8728,7 @@ static int store_master_info_in_table(THD *thd, Master_info *mi, TABLE *table)
   table->field[46]->store(str.ptr(), str.length(), cs);
   str.length(0);
   // Replicate_Ignore_Domain_Ids
-  mi->domain_id_filter.store_ids(thd, table->field[47], &Field::store);
+  mi->domain_id_filter.store_ids<Field, int>(thd, table->field[47], &Field::store);
   {
     const char *mode_name= get_type(&slave_parallel_mode_typelib,
                                     mi->parallel_mode);

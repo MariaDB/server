@@ -105,7 +105,7 @@ public:
     @retval void
   */
   template <typename T, typename R>
-  void store_ids(THD *thd, T &obj, R (T::*store)());
+  void store_ids(THD *thd, T *obj, R (T::*store)());
 
   /*
     Initialize the given domain id list (DYNAMIC_ARRAY) with the
@@ -430,7 +430,7 @@ int flush_master_info(Master_info* mi,
 void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids);
 template <typename T, typename R>
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T &obj, R (T::*store)());
+void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T *obj, R (T::*store)());
 
 /*
   Multi master are handled trough this struct.
