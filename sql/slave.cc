@@ -3139,6 +3139,60 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
 }
 
 
+time_t calculate_sbm(time_t last_master_timestamp, bool sql_thread_caught_up,
+                     bool using_parallel, Relay_log_info *rli,
+                     long clock_diff_with_master)
+{
+      long time_diff;
+      bool idle;
+      time_t stamp= last_master_timestamp;
+
+      if (!stamp)
+        idle= true;
+      else
+      {
+        idle= sql_thread_caught_up;
+        /*
+          The idleness of the SQL thread is needed for the parallel slave
+          because events can be ignored before distribution to a worker thread.
+          That is, Seconds_Behind_Master should still be calculated and visible
+          while the slave is processing ignored events, such as those skipped
+          due to slave_skip_counter.
+        */
+        if (using_parallel && idle &&
+            !rpl_parallel::workers_idle(rli))
+          idle= false;
+      }
+      if (idle)
+        time_diff= 0;
+      else
+      {
+        time_diff= ((long)(time(0) - stamp) - clock_diff_with_master);
+      /*
+        Apparently on some systems time_diff can be <0. Here are possible
+        reasons related to MySQL:
+        - the master is itself a slave of another master whose time is ahead.
+        - somebody used an explicit SET TIMESTAMP on the master.
+        Possible reason related to granularity-to-second of time functions
+        (nothing to do with MySQL), which can explain a value of -1:
+        assume the master's and slave's time are perfectly synchronized, and
+        that at slave's connection time, when the master's timestamp is read,
+        it is at the very end of second 1, and (a very short time later) when
+        the slave's timestamp is read it is at the very beginning of second
+        2. Then the recorded value for master is 1 and the recorded value for
+        slave is 2. At SHOW SLAVE STATUS time, assume that the difference
+        between timestamp of slave and rli->last_master_timestamp is 0
+        (i.e. they are in the same second), then we get 0-(2-1)=-1 as a result.
+        This confuses users, so we don't go below 0.
+
+        last_master_timestamp == 0 (an "impossible" timestamp 1970) is a
+        special marker to say "consider we have caught up".
+      */
+        if (time_diff < 0)
+          time_diff= 0;
+      }
+      return time_diff;
+}
 static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                                        String *gtid_pos)
 {
@@ -3254,56 +3308,11 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     if ((mi->slave_running == MYSQL_SLAVE_RUN_READING) &&
         mi->rli.slave_running)
     {
-      long time_diff;
-      bool idle;
-      time_t stamp= mi->rli.last_master_timestamp;
-
-      if (!stamp)
-        idle= true;
-      else
-      {
-        idle= mi->rli.sql_thread_caught_up;
-
-        /*
-          The idleness of the SQL thread is needed for the parallel slave
-          because events can be ignored before distribution to a worker thread.
-          That is, Seconds_Behind_Master should still be calculated and visible
-          while the slave is processing ignored events, such as those skipped
-          due to slave_skip_counter.
-        */
-        if (mi->using_parallel() && idle &&
-            !rpl_parallel::workers_idle(&mi->rli))
-          idle= false;
-      }
-      if (idle)
-        time_diff= 0;
-      else
-      {
-        time_diff= ((long)(time(0) - stamp) - mi->clock_diff_with_master);
-      /*
-        Apparently on some systems time_diff can be <0. Here are possible
-        reasons related to MySQL:
-        - the master is itself a slave of another master whose time is ahead.
-        - somebody used an explicit SET TIMESTAMP on the master.
-        Possible reason related to granularity-to-second of time functions
-        (nothing to do with MySQL), which can explain a value of -1:
-        assume the master's and slave's time are perfectly synchronized, and
-        that at slave's connection time, when the master's timestamp is read,
-        it is at the very end of second 1, and (a very short time later) when
-        the slave's timestamp is read it is at the very beginning of second
-        2. Then the recorded value for master is 1 and the recorded value for
-        slave is 2. At SHOW SLAVE STATUS time, assume that the difference
-        between timestamp of slave and rli->last_master_timestamp is 0
-        (i.e. they are in the same second), then we get 0-(2-1)=-1 as a result.
-        This confuses users, so we don't go below 0.
-
-        last_master_timestamp == 0 (an "impossible" timestamp 1970) is a
-        special marker to say "consider we have caught up".
-      */
-        if (time_diff < 0)
-          time_diff= 0;
-      }
-      protocol->store((longlong)time_diff);
+      time_t time_diff= calculate_sbm(mi->rli.last_master_timestamp,
+                                      mi->rli.sql_thread_caught_up,
+                                      mi->using_parallel(),
+                                      &mi->rli, mi->clock_diff_with_master);
+      protocol->store((longlong) time_diff);
     }
     else
     {

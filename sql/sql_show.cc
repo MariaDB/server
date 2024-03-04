@@ -69,7 +69,9 @@
 #include "key.h"
 
 #include "lex_symbol.h"
+#ifdef HAVE_REPLICATION
 #include "slave.h"
+#endif
 #include "rpl_mi.h"
 #include "sql_repl.h"
 #define KEYWORD_SIZE 64
@@ -8699,26 +8701,10 @@ static int store_master_info_in_table(THD *thd, Master_info *mi, TABLE *table)
   if ((mi->slave_running == MYSQL_SLAVE_RUN_READING) &&
       mi->rli.slave_running)
   {
-    long time_diff;
-    bool idle;
-    time_t stamp= mi->rli.last_master_timestamp;
-
-    if (!stamp)
-      idle= true;
-    else
-    {
-      idle= mi->rli.sql_thread_caught_up;
-      if (mi->using_parallel() && idle && !rpl_parallel::workers_idle(&mi->rli))
-        idle= false;
-    }
-    if (idle)
-      time_diff= 0;
-    else
-    {
-      time_diff= ((long)(time(0) - stamp) - mi->clock_diff_with_master);
-      if (time_diff < 0)
-        time_diff= 0;
-    }
+    time_t time_diff= calculate_sbm(mi->rli.last_master_timestamp,
+                                    mi->rli.sql_thread_caught_up,
+                                    mi->using_parallel(),
+                                    &mi->rli, mi->clock_diff_with_master);
     table->field[35]->store((longlong) time_diff, TRUE);
   }
   else
@@ -8808,9 +8794,6 @@ static int get_slave_status_record(THD *thd, TABLE_LIST *tables,
   {
     mi= (Master_info *) my_hash_element(&master_info_index->
                                         master_info_hash, i);
-    mysql_mutex_lock(&mi->sleep_lock);
-    mi->users++;                                // Mark used
-    mysql_mutex_unlock(&mi->sleep_lock);
     if (mi->host[0])
     {
       if (store_master_info_in_table(thd, mi, tables->table))
@@ -8818,7 +8801,6 @@ static int get_slave_status_record(THD *thd, TABLE_LIST *tables,
       if (schema_table_store_record(thd, tables->table))
         DBUG_RETURN(1);
     }
-    mi->release();
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(0);
