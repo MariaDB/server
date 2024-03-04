@@ -6663,7 +6663,7 @@ drop table t1;
 #
 # End of 10.4 tests
 #
-mariadb-dump: --xml can't be used with --tab.
+mariadb-dump: --xml can't be used with --tab or --dir.
 select @@max_connections into @save_max_connections;
 set global max_connections=10;
 mariadb-dump: Got error: 2002: "Received error packet before completion of TLS handshake. The authenticity of the following error cannot be verified: 1040 - Too many connections" when trying to connect
@@ -6673,3 +6673,39 @@ set global max_connections=@save_max_connections;
 #
 # End of 11.4 tests
 #
+# Content of dump directory
+mtr
+mysql
+test
+# Content of 'test' dump subdirectory
+create database db1;
+use db1;
+create table t1(i int);
+insert into t1 values(1);
+create database db2;
+use db2;
+create table t1(i int);
+insert into t1 values(2);
+# Content of dump directory
+db1
+db2
+# Content of 'db1' dump subdirectory
+t1.sql
+t1.txt
+# Content of 'db2' dump subdirectory
+t1.sql
+t1.txt
+drop table db1.t1;
+drop table db2.t1;
+select * from db1.t1;
+i
+1
+select * from db2.t1;
+i
+2
+drop database db1;
+drop database db2;
+mariadb-dump: Options --tab and --dir are mutually exclusive
+mariadb-dump: Error: path 'MYSQLTEST_VARDIR/tmp/mysql' exists, but it is not a directory
+mariadb-dump: Path 'MYSQLTEST_VARDIR/tmp/dump' specified by option '--dir' is not a directory
+mariadb-dump: Path 'MYSQLTEST_VARDIR/does_not_exist' specified by option '--dir' does not exist
