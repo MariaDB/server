@@ -1892,21 +1892,6 @@ bool Domain_id_filter::update_ids(DYNAMIC_ARRAY *do_ids,
   return false;
 }
 
-/**
-  Serialize and store the ids from domain id lists into the thd's protocol
-  buffer.
-
-  @param thd [IN]                   thread handler
-
-  @retval void
-*/
-void Domain_id_filter::store_ids(THD *thd, Field *field)
-{
-  for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
-  {
-    prot_store_ids(thd, &m_domain_ids[i], field);
-  }
-}
 
 /**
   Initialize the given domain_id list (DYNAMIC_ARRAY) with the
@@ -1979,45 +1964,6 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
       insert_dynamic(old_ids, (ulong *) &id);
     }
   }
-  return;
-}
-
-/**
-  Serialize and store the ids from the given ids DYNAMIC_ARRAY into the thd's
-  protocol buffer.
-
-  @param thd [IN]                   thread handler
-  @param ids [IN]                   ids list
-
-  @retval void
-*/
-
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, Field *field)
-{
-  char buff[FN_REFLEN];
-  uint i, cur_len;
-
-  for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
-  {
-    ulong id, len;
-    char dbuff[FN_REFLEN];
-    get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
-    if (cur_len + len + 4 > FN_REFLEN)
-    {
-      /*
-        break the loop whenever remained space could not fit
-        ellipses on the next cycle
-      */
-      cur_len+= sprintf(dbuff + cur_len, "...");
-      break;
-    }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
-  }
-  if (!field)
-    thd->protocol->store(buff, cur_len, &my_charset_bin);
-  else
-    field->store(buff, cur_len, &my_charset_bin);
   return;
 }
 

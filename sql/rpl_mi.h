@@ -101,11 +101,14 @@ public:
     buffer.
 
     @param thd   [IN]                   thread handler
-    @param field [IN]                   field (used to store in IS.replica_status)
+    @param obj   [IN]                   template object (Field or Protocol)
+    @param store [IN]                   template function pointer
 
     @retval void
   */
-  void store_ids(THD *thd, Field *field);
+  template <typename T, typename R>
+  void store_ids(THD *thd, T *obj,
+                 R (T::*store)(const char*, size_t, CHARSET_INFO*));
 
   /*
     Initialize the given domain id list (DYNAMIC_ARRAY) with the
@@ -429,7 +432,9 @@ int flush_master_info(Master_info* mi,
                       bool need_lock_relay_log);
 void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids);
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, Field *field);
+template <typename T, typename R>
+void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T *obj,
+                    R (T::*store)(const char*, size_t, CHARSET_INFO*));
 
 /*
   Multi master are handled trough this struct.
@@ -487,6 +492,65 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
 void free_key_master_info(Master_info *mi);
 uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
+
+
+/**
+  Serialize and store the ids from the given ids DYNAMIC_ARRAY into the thd's
+  protocol buffer.
+
+  @param thd [IN]                   thread handler
+  @param ids [IN]                   ids list
+  @param obj [IN]                   template object (Field or Protocol)
+  @param store [IN]                 template function pointer
+  @retval void
+*/
+template <typename T, typename R>
+void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T *obj,
+                    R (T::*store)(const char*, size_t, CHARSET_INFO*))
+{
+  char buff[FN_REFLEN];
+  uint i, cur_len;
+
+  for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
+  {
+    ulong id, len;
+    char dbuff[FN_REFLEN];
+    get_dynamic(ids, (void *) &id, i);
+    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
+    if (cur_len + len + 4 > FN_REFLEN)
+    {
+      /*
+        break the loop whenever remained space could not fit
+        ellipses on the next cycle
+      */
+      cur_len+= sprintf(dbuff + cur_len, "...");
+      break;
+    }
+    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+  }
+  (static_cast<T*>(obj)->*store)(buff, cur_len, &my_charset_bin);
+  return;
+}
+
+
+/**
+  Serialize and store the ids from domain id lists into the thd's protocol
+  buffer.
+
+  @param thd [IN]                   thread handler
+  @param obj [IN]                   template object (Field or Protocol)
+  @param store [IN]                 template function pointer
+  @retval void
+*/
+template <typename T, typename R>
+void Domain_id_filter::store_ids(THD *thd, T *obj,
+                                 R (T::*store)(const char*, size_t, CHARSET_INFO*))
+{
+  for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
+  {
+    prot_store_ids(thd, &m_domain_ids[i], obj, store);
+  }
+}
 
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */
