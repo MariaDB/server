@@ -3044,3 +3044,73 @@ set global max_connections=@save_max_connections;
 --echo #
 --echo # End of 11.4 tests
 --echo #
+#
+# MDEV-33625 Add option --dir to mariadb-dump
+#
+
+# test --all-databases
+--mkdir $MYSQLTEST_VARDIR/tmp/dump
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --all-databases --parallel=10
+--echo # Content of dump directory
+--list_files $MYSQLTEST_VARDIR/tmp/dump
+--echo # Content of 'test' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/test
+--rmdir $MYSQLTEST_VARDIR/tmp/dump
+
+# test --databases
+create database db1;
+use db1;
+create table t1(i int);
+insert into t1 values(1);
+create database db2;
+use db2;
+create table t1(i int);
+insert into t1 values(2);
+--mkdir $MYSQLTEST_VARDIR/tmp/dump
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --databases db1 db2
+--echo # Content of dump directory
+--list_files $MYSQLTEST_VARDIR/tmp/dump
+--echo # Content of 'db1' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/db1
+--echo # Content of 'db2' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/db2
+drop table db1.t1;
+drop table db2.t1;
+# Test mysqlimport
+--exec $MYSQL db1 < $MYSQLTEST_VARDIR/tmp/dump/db1/t1.sql
+--exec $MYSQL db2 < $MYSQLTEST_VARDIR/tmp/dump/db2/t1.sql
+--exec $MYSQL_IMPORT --silent db1 $MYSQLTEST_VARDIR/tmp/dump/db1/t1.txt
+--exec $MYSQL_IMPORT --silent db2 $MYSQLTEST_VARDIR/tmp/dump/db2/t1.txt
+select * from db1.t1;
+select * from db2.t1;
+drop database db1;
+drop database db2;
+--rmdir $MYSQLTEST_VARDIR/tmp/dump
+
+#
+# --tab and --dir options are conflicting
+#
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp --tab=$MYSQLTEST_VARDIR/tmp mysql 2>&1
+
+# --dir can't create directory, because file with the same name already exists
+--write_file $MYSQLTEST_VARDIR/tmp/mysql
+EOF
+--replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 3
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp mysql 2>&1
+
+# --dir is a file, not directory
+--write_file $MYSQLTEST_VARDIR/tmp/dump
+EOF
+--replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 3
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump mysql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/dump
+
+# --dir is not existent
+--replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 3
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/does_not_exist mysql 2>&1
+

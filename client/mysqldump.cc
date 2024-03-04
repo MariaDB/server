@@ -195,6 +195,19 @@ FILE *stderror_file=0;
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static uint opt_parallel= 0;
+static char *opt_dir;
+
+/**
+ A flag to indicate that backup uses multiple files for output.
+
+ Usual backup outputs backup to stdout, or to a single file.
+
+ However, using  --tab and --dir will produce multiple files per table
+ (afile with extension ".sql" containing DDL and file with extension ".txt" containing
+ tab-separated data).
+*/
+static bool multi_file_output;
+
 /*
   Dynamic_string wrapper functions. In this file use these
   wrappers, they will terminate the process if there is
@@ -349,6 +362,12 @@ static struct my_option my_long_options[] =
    "Delete logs on master after backup. This automatically enables --master-data.",
    &opt_delete_master_logs, &opt_delete_master_logs, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"dir", 'D',
+   "directory to store the backup. Table data is stored in tab-separated file, similar to --tab option,"
+   "in a subdirectory with database name.",
+   &opt_dir, &opt_dir, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
   {"disable-keys", 'K',
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
@@ -626,7 +645,7 @@ static struct my_option my_long_options[] =
 static const char *load_default_groups[]=
 { "mysqldump", "mariadb-dump", "client", "client-server", "client-mariadb",
   0 };
-
+static void ensure_out_dir_exists(const char *db);
 static void maybe_exit(int error);
 static void die(int error, const char* reason, ...);
 static void maybe_die(int error, const char* reason, ...);
@@ -813,7 +832,7 @@ static void write_header(FILE *sql_file, const char *db_name)
       fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
     }
 
-    if (!path)
+    if (!multi_file_output)
     {
       if (!opt_no_create_info)
       {
@@ -828,7 +847,7 @@ static void write_header(FILE *sql_file, const char *db_name)
     fprintf(sql_file,
             "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
             "/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;\n",
-            path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
+            multi_file_output?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
             compatible_mode_normal_str);
     check_io(sql_file);
   }
@@ -848,7 +867,7 @@ static void write_footer(FILE *sql_file)
       fprintf(sql_file,"/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
 
     fprintf(sql_file,"\n/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
-    if (!path)
+    if (!multi_file_output)
     {
       fprintf(md_result_file,"\
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
@@ -1265,17 +1284,42 @@ static int get_options(int *argc, char ***argv)
 
   if (opt_delayed)
     opt_lock=0;                         /* Can't have lock with delayed */
-  if (!path && (enclosed || opt_enclosed || escaped || lines_terminated ||
+
+  if (path != 0 && opt_dir != 0)
+  {
+    fprintf(stderr, "%s: Options --tab and --dir are mutually exclusive\n",
+      my_progname_short);
+    return(EX_USAGE);
+  }
+
+  multi_file_output= path != 0 || opt_dir != 0;
+
+  if (multi_file_output)
+  {
+    const char *outdir= path ? path : opt_dir;
+    int stat_err;
+    struct stat st;
+    if ((stat_err = stat(outdir, &st)) != 0 || (st.st_mode & S_IFDIR) == 0)
+    {
+      fprintf(stderr,
+        "%s: Path '%s' specified by option '%s' %s\n",
+        my_progname_short, outdir, path ? "--tab" : "--dir",
+        stat_err?"does not exist":"is not a directory");
+      return(EX_CONSCHECK);
+    }
+  }
+
+  if (!multi_file_output && (enclosed || opt_enclosed || escaped || lines_terminated ||
                 fields_terminated))
   {
     fprintf(stderr,
-            "%s: You must use option --tab with --fields-...\n", my_progname_short);
+            "%s: You must use option --tab or --dir with --fields-...\n", my_progname_short);
     return(EX_USAGE);
   }
-  if (!path && opt_header)
+  if (!multi_file_output && opt_header)
   {
     fprintf(stderr,
-            "%s: You must use option --tab with --header\n", my_progname_short);
+            "%s: You must use option --tab or --dir with --header\n", my_progname_short);
     return(EX_USAGE);
   }
 
@@ -1322,9 +1366,9 @@ static int get_options(int *argc, char ***argv)
 	    my_progname_short);
     return(EX_USAGE);
   }
-  if (opt_xml && path)
+  if (opt_xml && multi_file_output)
   {
-    fprintf(stderr, "%s: --xml can't be used with --tab.\n", my_progname_short);
+    fprintf(stderr, "%s: --xml can't be used with --tab or --dir.\n", my_progname_short);
     return(EX_USAGE);
   }
   if (opt_xml && opt_dump_history)
@@ -1917,11 +1961,20 @@ static char *cover_definer_clause(const char *stmt_str,
     0        Failed to open file
     > 0      Handle of the open file
 */
-static FILE* open_sql_file_for_table(const char* table, int flags)
+static FILE* open_sql_file_for_table(const char *db, const char* table, int flags)
 {
   FILE* res;
   char filename[FN_REFLEN], tmp_path[FN_REFLEN];
-  convert_dirname(tmp_path,path,NullS);
+  char out_dir_buf[FN_REFLEN];
+
+  char *out_dir= path;
+  if (opt_dir)
+  {
+    out_dir= out_dir_buf;
+    my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
+  }
+
+  convert_dirname(tmp_path, out_dir, NullS);
   res= my_fopen(fn_format(filename, table, tmp_path, ".sql", 4),
                 flags, MYF(MY_WME));
   return res;
@@ -3206,9 +3259,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         DBUG_RETURN(0);
       }
 
-      if (path)
+      if (multi_file_output)
       {
-        if (!(sql_file= open_sql_file_for_table(table, O_WRONLY)))
+        if (!(sql_file= open_sql_file_for_table(db, table, O_WRONLY)))
         {
           my_free(order_by);
           order_by= 0;
@@ -3281,7 +3334,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
           my_free(scv_buff);
 
-          if (path)
+          if (multi_file_output)
             my_fclose(sql_file, MYF(MY_WME));
           DBUG_RETURN(0);
         }
@@ -3340,7 +3393,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
         mysql_free_result(result);
 
-        if (path)
+        if (multi_file_output)
           my_fclose(sql_file, MYF(MY_WME));
 
         seen_views= 1;
@@ -3392,7 +3445,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                 quote_for_equal(table, temp_buff));
     if (mysql_query_with_error_report(mysql, &result, query_buff))
     {
-      if (path)
+      if (multi_file_output)
         my_fclose(sql_file, MYF(MY_WME));
       DBUG_RETURN(0);
     }
@@ -3490,9 +3543,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     /* Make an sql-file, if path was given iow. option -T was given */
     if (!opt_no_create_info)
     {
-      if (path)
+      if (multi_file_output)
       {
-        if (!(sql_file= open_sql_file_for_table(table, O_WRONLY)))
+        if (!(sql_file= open_sql_file_for_table(db, table, O_WRONLY)))
         {
           mysql_free_result(result);
           DBUG_RETURN(0);
@@ -3598,7 +3651,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         }
         fprintf(stderr, "%s: Can't get keys for table %s (%s)\n",
                 my_progname_short, result_table, mysql_error(mysql));
-        if (path)
+        if (multi_file_output)
           my_fclose(sql_file, MYF(MY_WME));
         DBUG_RETURN(0);
       }
@@ -3897,8 +3950,8 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
   DBUG_ENTER("dump_triggers_for_table");
   DBUG_PRINT("enter", ("db: %s, table_name: %s", db_name, table_name));
 
-  if (path &&
-      !(sql_file= open_sql_file_for_table(table_name, O_WRONLY | O_APPEND)))
+  if (multi_file_output &&
+      !(sql_file= open_sql_file_for_table(db_name, table_name, O_WRONLY | O_APPEND)))
     DBUG_RETURN(1);
 
   /* Do not use ANSI_QUOTES on triggers in dump */
@@ -3981,7 +4034,7 @@ skip:
   ret= FALSE;
 
 done:
-  if (path)
+  if (multi_file_output)
     my_fclose(sql_file, MYF(0));
   mysql_free_result(show_triggers_rs);
   DBUG_RETURN(ret);
@@ -4192,14 +4245,22 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
   init_dynamic_string_checked(&query_string, "", 1024, 1024);
 
-  if (path)
+  if (multi_file_output)
   {
     char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+    char out_dir_buf[FN_REFLEN];
+    char *out_dir= path;
+    if (!out_dir)
+    {
+      my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
+      out_dir= out_dir_buf;
+    }
+
     /*
       Convert the path to native os format
       and resolve to the full filepath.
     */
-    convert_dirname(tmp_path,path,NullS);    
+    convert_dirname(tmp_path,out_dir,NullS);
     my_load_path(tmp_path, tmp_path, NULL);
     fn_format(filename, table, tmp_path, ".txt", MYF(MY_UNPACK_FILENAME));
 
@@ -5644,7 +5705,7 @@ static int init_dumping(char *database, int init_func(char*))
     DB_error(mysql, "when selecting the database");
     return 1;                   /* If --force */
   }
-  if (!path && !opt_xml)
+  if (!multi_file_output && !opt_xml)
   {
     if (opt_databases || opt_alldbs)
     {
@@ -5694,6 +5755,9 @@ static int dump_all_tables_in_db(char *database)
 
   afterdot= strmov(hash_key, database);
   *afterdot++= '.';
+
+  if (opt_dir)
+    ensure_out_dir_exists(database);
 
   if (init_dumping(database, using_mysql_db ? init_dumping_mysql_tables
                    : init_dumping_tables))
@@ -5766,7 +5830,7 @@ static int dump_all_tables_in_db(char *database)
       {
         if (dump_triggers_for_table(table, database))
         {
-          if (path)
+          if (multi_file_output)
             my_fclose(md_result_file, MYF(MY_WME));
           maybe_exit(EX_MYSQLERR);
         }
@@ -6044,6 +6108,9 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (init_dumping(db, init_dumping_tables))
     DBUG_RETURN(1);
 
+  if (opt_dir)
+    ensure_out_dir_exists(db);
+
   init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 8192, 0, MYF(0));
   if (!(dump_tables= pos= (char**) alloc_root(&glob_root,
                                               tables * sizeof(char *))))
@@ -6155,7 +6222,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
     {
       if (dump_triggers_for_table(*pos, db))
       {
-        if (path)
+        if (multi_file_output)
           my_fclose(md_result_file, MYF(MY_WME));
         if (!ignore_errors)
           free_root(&glob_root, MYF(0));
@@ -6938,9 +7005,9 @@ static my_bool get_view_structure(char *table, char* db)
   }
 
   /* If requested, open separate .sql file for this view */
-  if (path)
+  if (multi_file_output)
   {
-    if (!(sql_file= open_sql_file_for_table(table, O_WRONLY)))
+    if (!(sql_file= open_sql_file_for_table(db, table, O_WRONLY)))
     {
       mysql_free_result(table_res);
       DBUG_RETURN(1);
@@ -7144,6 +7211,27 @@ static void init_connection_pool(uint n_connections)
   connection_pool.init(conn, n_connections);
 }
 
+/*
+  If --dir option is in use, ensure that output directory for given db
+  exists.
+*/
+static void ensure_out_dir_exists(const char *db)
+{
+  DBUG_ASSERT(opt_dir);
+  char outdir[FN_REFLEN];
+  my_snprintf(outdir, sizeof(outdir), "%s/%s", opt_dir, db);
+  struct stat st;
+  if (stat(outdir, &st) == 0)
+  {
+    if (st.st_mode & S_IFDIR)
+      return;
+    die(EX_CONSCHECK, "Error: path '%s' exists, but it is not a directory",
+        outdir);
+  }
+  if (my_mkdir(outdir, 0777, MYF(MY_WME)))
+    die(EX_MYSQLERR, "Error creating directory %s", outdir);
+}
+
 int main(int argc, char **argv)
 {
   char bin_log_name[FN_REFLEN];
@@ -7185,7 +7273,7 @@ int main(int argc, char **argv)
     free_resources();
     exit(EX_MYSQLERR);
   }
-  if (!path)
+  if (!multi_file_output)
   {
     write_header(md_result_file, *argv);
     if (opt_parallel)
@@ -7365,7 +7453,7 @@ err:
     do_start_slave_sql(mysql);
 
   dbDisconnect(current_host);
-  if (!path)
+  if (!multi_file_output)
     write_footer(md_result_file);
   free_resources();
 
