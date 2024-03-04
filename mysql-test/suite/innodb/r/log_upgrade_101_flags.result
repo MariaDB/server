@@ -1,0 +1,12 @@
+call mtr.add_suppression("InnoDB: The change buffer is corrupted");
+call mtr.add_suppression("InnoDB: Tablespace size stored in header is 768 pages, but the sum of data file sizes is 384 pages");
+call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file");
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_upgrade --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_upgrade --innodb-force-recovery=5 --innodb-log-file-size=4m --innodb_page_size=32k --innodb_buffer_pool_size=10M
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+1
+FOUND 1 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+# restart
+# End of 10.5 tests
