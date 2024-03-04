@@ -6663,7 +6663,7 @@ drop table t1;
 #
 # End of 10.4 tests
 #
-mariadb-dump: --xml can't be used with --tab.
+mariadb-dump: --xml can't be used with --tab or --dir.
 select @@max_connections into @save_max_connections;
 set global max_connections=10;
 mariadb-dump: Got error: 2002: "Received error packet before completion of TLS handshake. The authenticity of the following error cannot be verified: 1040 - Too many connections" when trying to connect
@@ -6673,3 +6673,8 @@ set global max_connections=@save_max_connections;
 #
 # End of 11.4 tests
 #
+# Content of dump directory
+mtr
+mysql
+test
+# Content of 'test' dump subdirectory

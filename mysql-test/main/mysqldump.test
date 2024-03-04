@@ -3044,3 +3044,13 @@ set global max_connections=@save_max_connections;
 --echo #
 --echo # End of 11.4 tests
 --echo #
+#
+# MDEV-33188 Add option --dir to mariadb-dump
+#
+--mkdir $MYSQLTEST_VARDIR/tmp/dump
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --all-databases --parallel=10
+--echo # Content of dump directory
+--list_files $MYSQLTEST_VARDIR/tmp/dump
+--echo # Content of 'test' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/test
+
