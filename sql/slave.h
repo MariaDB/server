@@ -243,6 +243,9 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                      bool full, size_t gtid_pos_length);
 bool show_master_info(THD* thd, Master_info* mi, bool full);
 bool show_all_master_info(THD* thd);
+time_t calculate_sbm(time_t last_master_timestamp, bool sql_thread_caught_up,
+                     bool using_parallel, Relay_log_info *rli,
+                     long clock_diff_with_master);
 void show_binlog_info_get_fields(THD *thd, List<Item> *field_list);
 bool show_binlog_info(THD* thd);
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
