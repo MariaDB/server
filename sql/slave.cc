@@ -3331,7 +3331,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store_string_or_null(mi->rli.last_error().message,
                                    &my_charset_bin);
     // Replicate_Ignore_Server_Ids
-    prot_store_ids(thd, &mi->ignore_server_ids, NULL);
+    prot_store_ids(thd, &mi->ignore_server_ids, thd->protocol, &Protocol::store);
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
     // SQL_Delay
@@ -3349,7 +3349,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     }
 
     // Replicate_Do_Domain_Ids & Replicate_Ignore_Domain_Ids
-    mi->domain_id_filter.store_ids(thd, NULL);
+    mi->domain_id_filter.store_ids(thd, thd->protocol, &Protocol::store);
 
     // Parallel_Mode
     {
