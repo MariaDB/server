@@ -1901,7 +1901,7 @@ bool Domain_id_filter::update_ids(DYNAMIC_ARRAY *do_ids,
   @retval void
 */
 template <typename T, typename R>
-void Domain_id_filter::store_ids(THD *thd, T &obj, R (T::*store)())
+void Domain_id_filter::store_ids(THD *thd, T *obj, R (T::*store)(const char*, size_t, CHARSET_INFO*))
 {
   for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
   {
@@ -1993,7 +1993,7 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
   @retval void
 */
 template <typename T, typename R>
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T &obj, R (T::*store)())
+void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T *obj, R (T::*store)(const char*, size_t, CHARSET_INFO*))
 {
   char buff[FN_REFLEN];
   uint i, cur_len;
