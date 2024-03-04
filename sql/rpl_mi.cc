@@ -1900,11 +1900,12 @@ bool Domain_id_filter::update_ids(DYNAMIC_ARRAY *do_ids,
 
   @retval void
 */
-void Domain_id_filter::store_ids(THD *thd, Field *field)
+template <typename T, typename R>
+void Domain_id_filter::store_ids(THD *thd, T &obj, R (T::*store)())
 {
   for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
   {
-    prot_store_ids(thd, &m_domain_ids[i], field);
+    prot_store_ids(thd, &m_domain_ids[i], obj, (T::*store)());
   }
 }
 
@@ -1991,8 +1992,8 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
 
   @retval void
 */
-
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, Field *field)
+template <typename T, typename R>
+void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, T &obj, R (T::*store)())
 {
   char buff[FN_REFLEN];
   uint i, cur_len;
@@ -2014,10 +2015,11 @@ void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids, Field *field)
     }
     cur_len+= sprintf(buff + cur_len, "%s", dbuff);
   }
-  if (!field)
-    thd->protocol->store(buff, cur_len, &my_charset_bin);
-  else
-    field->store(buff, cur_len, &my_charset_bin);
+  (obj.*store)(buff, cur_len, &my_charset_bin);
+  // if (!field)
+  //   thd->protocol->store(buff, cur_len, &my_charset_bin);
+  // else
+  //   field->store(buff, cur_len, &my_charset_bin);
   return;
 }
 
