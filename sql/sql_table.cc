@@ -12423,6 +12423,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       thd_progress_next_stage(thd);
       error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
     }
+
+    /*
+      We'll do it earlier than usually in mysql_alter_table to handle the
+      online-related errors more comfortably.
+    */
+    lock_error= thd->mdl_context.upgrade_shared_lock(from->mdl_ticket,
+                                                     MDL_EXCLUSIVE,
+                                      (double)thd->variables.lock_wait_timeout);
+    if (!error)
+      error= lock_error;
+
     to->pos_in_table_list= NULL; // Safety
     DBUG_ASSERT(thd->lex->sql_command == saved_sql_command);
     thd->lex->sql_command= saved_sql_command; // Just in case
