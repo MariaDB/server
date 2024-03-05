@@ -6970,16 +6970,6 @@ int spider_db_init(
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
