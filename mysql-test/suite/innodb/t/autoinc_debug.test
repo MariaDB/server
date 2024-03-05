@@ -92,3 +92,67 @@ SELECT * FROM t1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 SET DEBUG_SYNC='RESET';
+
+--echo #
+--echo # MDEV-33593: Auto increment deadlock error causes ASSERT in subsequent save point
+--echo #
+
+CREATE TABLE t1(col1 INT PRIMARY KEY AUTO_INCREMENT, col2 INT) ENGINE=InnoDB;
+CREATE TABLE t2(col1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1(col2) values(100);
+
+--connect(con1, localhost, root,,)
+START TRANSACTION;
+--echo # T1: Acquiring Row X lock on table t2
+INSERT INTO t2 values(100);
+
+--connect(con2, localhost, root,,)
+START TRANSACTION;
+--echo # T2: Wait for (T1) row lock on t2 after acquiring GAP Lock on t1
+UPDATE t1 SET col2 = 20 where col1 = 10;
+--send INSERT INTO t2 values(100)
+
+--connection default
+--echo # T3: Wait for (T2) II row Lock on t1 after acquiring Auto Increment Lock on t1
+SET DEBUG_SYNC='lock_wait_suspend_thread_enter SIGNAL t3_waiting';
+--send INSERT INTO t1(col2) SELECT col2 from t1
+
+--connection con1
+SAVEPOINT s1;
+SET DEBUG_SYNC='now WAIT_FOR t3_waiting';
+--echo # T1: Wait for (T3) auto increment lock on t1 causing  T1 -> T3 -> T2 -> T1 deadlock
+SET debug_dbug = '+d,innodb_deadlock_victim_self';
+--error ER_AUTOINC_READ_FAILED
+INSERT INTO t1(col2) VALUES(200);
+
+--echo # The transaction should have been rolled back
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--echo # Release the previous savepoint using the same name
+SAVEPOINT s1;
+COMMIT;
+
+--connection con2
+--reap
+COMMIT;
+
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+--disconnect con2
+
+--echo # Cleanup
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT * FROM t2;
+DROP TABLE t2;
+
+SET DEBUG_SYNC='RESET';
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

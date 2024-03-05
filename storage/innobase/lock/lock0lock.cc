@@ -6712,6 +6712,8 @@ DeadlockChecker::select_victim() const
 	ut_ad(m_start->lock.wait_lock != 0);
 	ut_ad(m_wait_lock->trx != m_start);
 
+	DBUG_EXECUTE_IF("innodb_deadlock_victim_self", return m_start;);
+
 	if (trx_weight_ge(m_wait_lock->trx, m_start)) {
 		/* The joining transaction is 'smaller',
 		choose it as the victim and roll it back. */
