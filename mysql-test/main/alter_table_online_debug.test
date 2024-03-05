@@ -2074,10 +2074,13 @@ backup stage start;
 --connect (con_lock,localhost,root,,)
 set lock_wait_timeout= 1;
 
-set debug_sync='copy_data_between_tables_before_reset_backup_lock wait_for continue';
+set debug_sync='copy_data_between_tables_before_reset_backup_lock signal backup wait_for continue';
 send alter table t add index (b), algorithm=copy, lock=none;
 
 --connection default
+
+set debug_sync='now wait_for backup';
+
 backup stage block_commit;
 
 set debug_sync='now signal continue';
@@ -2085,18 +2088,12 @@ set debug_sync='now signal continue';
 --connection con_lock
 --error ER_LOCK_WAIT_TIMEOUT
 --reap
-# --echo # error $mysql_errno
-
-set debug_sync='copy_data_between_tables_before_reset_backup_lock wait_for continue';
-send alter table t add index (a), algorithm=copy, lock=none;
+--disconnect con_lock
 
 --connection default
 backup stage end;
-set debug_sync='now signal continue';
+alter table t add index (a), algorithm=copy, lock=none;
 
---connection con_lock
---reap
---disconnect con_lock
 --connection default
 drop table t;
 
