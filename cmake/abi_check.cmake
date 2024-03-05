@@ -23,10 +23,13 @@
 # (Solaris) sed or diff might act differently from GNU, so we run only 
 # on systems we can trust.
 IF(APPLE OR CMAKE_SYSTEM_NAME MATCHES "Linux")
- SET(RUN_ABI_CHECK 1)
+ SET(RUN_ABI_CHECK_DEFAULT 1)
 ELSE()
- SET(RUN_ABI_CHECK 0)
+ SET(RUN_ABI_CHECK_DEFAULT 0)
 ENDIF()
+
+SET(RUN_ABI_CHECK ${RUN_ABI_CHECK_DEFAULT} CACHE
+    BOOL "Verify the exported ABI has not changed")
 
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND RUN_ABI_CHECK)
   IF(CMAKE_C_COMPILER MATCHES "ccache$")
