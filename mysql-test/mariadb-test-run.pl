@@ -4492,6 +4492,7 @@ sub extract_warning_lines ($$) {
      qr/Could not write packet:.* errno: 32 /,
      qr/Could not write packet:.* errno: 104 /,
      qr/Semisync ack receiver got error 1158/,
+     qr/Semisync ack receiver got hangup/,
      qr/Connection was killed/,
      qr/Failed on request_dump/,
      qr/Slave: Can't drop database.* database doesn't exist/,
