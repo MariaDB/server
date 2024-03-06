@@ -20,8 +20,8 @@ Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
 #
 # MDEV-21322: report slave progress to the primary
 #
-call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master');
-call mtr.add_suppression('Replication event checksum verification failed');
+call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master.*');
+call mtr.add_suppression('Slave I/O: Replication event checksum verification failed while reading from network.*');
 call mtr.add_suppression("Timeout waiting for reply of binlog*");
 call mtr.add_suppression('Found invalid event in binary log');
 call mtr.add_suppression('event read from binlog did not pass crc check');
@@ -35,7 +35,7 @@ reset master;
 # Test 1: Primary has not enabled semisync
 # Note:   even if not enabled semisync we are expecting to see following
 #         columns:
-#         `Server_id`,`Host Port`,`Master_id`,`Gtid_State_Sent`,`Gtid_State_Ack`,`Sync`(TODO),
+#         `Server_id`,`Host Port`,`Master_id`,`Gtid_State_Sent`,`Gtid_State_Ack`,`Sync`,
 #         where replica with `server_id=2` is already connected
 # -----------------------------------------------------------------------
 SHOW SLAVE HOSTS;
@@ -265,7 +265,8 @@ include/wait_for_slave_io_to_stop.inc
 # Semi-sync disabled on server_id=2
 show variables like 'rpl_semi_sync_slave_status';
 Variable_name	Value
-# slave_send_ack should be reseted when replica is stopped, but it is not (TODO?)
+# slave_send_ack should be reseted when replica IO thread starts.
+# Here we are checking it holds the same value as before stopping the IO thread.
 show status like "Rpl_semi_sync_slave_send_ack";
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	3
@@ -295,7 +296,7 @@ Variable_name	Value
 Rpl_semi_sync_master_get_ack	5
 show variables like 'Rpl_semi_sync_master_request_ack';
 Variable_name	Value
-# Transaction is not incremented and it should (TODO?)
+# Transaction is not incremented and it should (TODO after MDEV-33615)
 show variables like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 show variables like 'Rpl_semi_sync_master_no_tx';
