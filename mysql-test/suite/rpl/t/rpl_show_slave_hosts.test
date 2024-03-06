@@ -54,7 +54,8 @@ SHOW SLAVE HOSTS;
 --echo # MDEV-21322: report slave progress to the primary
 --echo #
 
-call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master');
+call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master.*');
+call mtr.add_suppression('Slave I/O: Replication event checksum verification failed while reading from network.*');
 call mtr.add_suppression('Replication event checksum verification failed');
 call mtr.add_suppression("Timeout waiting for reply of binlog*");
 call mtr.add_suppression('Found invalid event in binary log');
@@ -69,7 +70,7 @@ reset master;
 --echo # Test 1: Primary has not enabled semisync
 --echo # Note:   even if not enabled semisync we are expecting to see following
 --echo #         columns:
---echo #         `Server_id`,`Host Port`,`Master_id`,`Gtid_State_Sent`,`Gtid_State_Ack`,`Sync`(TODO),
+--echo #         `Server_id`,`Host Port`,`Master_id`,`Gtid_State_Sent`,`Gtid_State_Ack`,`Sync`,
 --echo #         where replica with `server_id=2` is already connected
 --echo # -----------------------------------------------------------------------
 --replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
@@ -364,7 +365,8 @@ source include/wait_for_status_var.inc;
 --echo # Semi-sync disabled on server_id=2
 
 show variables like 'rpl_semi_sync_slave_status';
---echo # slave_send_ack should be reseted when replica is stopped, but it is not (TODO?)
+--echo # slave_send_ack should be reseted when replica IO thread starts.
+--echo # Here we are checking it holds the same value as before stopping the IO thread.
 # Check slave_send_ack is reseted when replica is stopped
 show status like "Rpl_semi_sync_slave_send_ack";
 
@@ -410,7 +412,7 @@ let $status_var_value= `SELECT $master_request_ack_num + 1`;
 source include/wait_for_status_var.inc;
 show variables like 'Rpl_semi_sync_master_request_ack';
 
---echo # Transaction is not incremented and it should (TODO?)
+--echo # Transaction is not incremented and it should (TODO after MDEV-33615)
 # let $status_var= Rpl_semi_sync_master_yes_tx;
 # let $status_var_value= `SELECT $master_request_ack_num + 1`;
 # source include/wait_for_status_var.inc;
