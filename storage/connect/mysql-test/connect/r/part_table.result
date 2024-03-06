@@ -151,7 +151,7 @@ Note	1105	xt3: 0 affected rows
 UPDATE t1 SET msg = 'soixante' WHERE id = 60;
 Warnings:
 Note	1105	xt3: 1 affected rows
-SELECT * FROM t1 WHERE id > 50;
+SELECT * FROM t1 WHERE id > 50 ORDER BY id;
 id	msg
 60	soixante
 72	number

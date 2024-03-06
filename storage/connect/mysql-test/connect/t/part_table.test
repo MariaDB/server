@@ -75,7 +75,7 @@ SELECT * FROM t1 WHERE id = 7;
 SELECT * FROM t1 WHERE id = 35;
 UPDATE t1 SET msg = 'number' WHERE id in (60,72);
 UPDATE t1 SET msg = 'soixante' WHERE id = 60;
-SELECT * FROM t1 WHERE id > 50;
+SELECT * FROM t1 WHERE id > 50 ORDER BY id;
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 UPDATE t1 SET msg = 'sept' WHERE id = 7;
 SELECT * FROM t1;
