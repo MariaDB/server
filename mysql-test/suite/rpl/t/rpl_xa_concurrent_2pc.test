@@ -89,6 +89,7 @@ while ($i)
 	let $slave_sql_errno= 1397; # ER_XAER_NOTA
 	source include/wait_for_slave_sql_error.inc;
 	--eval select count(*) = $i % 2 as 'must be true' from t1;
+        --let $rpl_allow_error=1
 	--source include/stop_slave.inc
 
 	--disable_warnings
