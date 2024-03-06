@@ -326,6 +326,61 @@ def	information_schema	REFERENTIAL_CONSTRAINTS	UNIQUE_CONSTRAINT_CATALOG	4	NULL	
 def	information_schema	REFERENTIAL_CONSTRAINTS	UNIQUE_CONSTRAINT_NAME	6	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	REFERENTIAL_CONSTRAINTS	UNIQUE_CONSTRAINT_SCHEMA	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	REFERENTIAL_CONSTRAINTS	UPDATE_RULE	8	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Connection_name	1	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Connect_Retry	7	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Exec_Master_Log_Pos	25	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Gtid_IO_Pos	47	NULL	NO	varchar	30	90	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(30)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Last_Errno	22	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Last_Error	23	NULL	NO	varchar	1024	3072	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(1024)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Last_IO_Errno	38	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Last_IO_Error	39	NULL	NO	varchar	1024	3072	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(1024)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Last_SQL_Errno	40	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Last_SQL_Error	41	NULL	NO	varchar	1024	3072	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(1024)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_Host	4	NULL	NO	varchar	255	765	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(255)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_Log_File	8	NULL	NO	varchar	518	1554	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(518)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_Port	6	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_Server_Id	43	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Allowed	30	NULL	NO	varchar	7	21	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(7)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_CA_File	31	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_CA_Path	32	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Cert	33	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Cipher	34	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Crl	44	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Crlpath	45	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Key	35	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_SSL_Verify_Server_Cert	37	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Master_User	5	NULL	NO	varchar	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(128)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Parallel_Mode	49	NULL	NO	varchar	12	36	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(12)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Read_Master_Log_Pos	9	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Relay_Log_File	10	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Relay_Log_Pos	11	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Relay_Log_Space	26	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Relay_Master_Log_File	12	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Do_DB	16	NULL	NO	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Do_Table	18	NULL	NO	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Ignore_DB	17	NULL	NO	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Ignore_Domain_Ids	48	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Ignore_Server_Ids	42	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Ignore_Table	19	NULL	NO	varchar	23	69	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(23)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Rewrite_DB	15	NULL	NO	varchar	23	69	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(23)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Wild_Do_Table	20	NULL	NO	varchar	24	72	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(24)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Replicate_Wild_Ignore_Table	21	NULL	NO	varchar	28	84	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(28)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Seconds_Behind_Master	36	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Skip_Counter	24	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_DDL_Groups	53	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(20) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_IO_Running	13	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_IO_State	3	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_Non_Transactional_Groups	54	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(20) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_SQL_Running	14	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_SQL_Running_State	52	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_SQL_State	2	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Slave_Transactional_Groups	55	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(20) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	SQL_Delay	50	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	SQL_Remaining_Delay	51	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(8) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Until_Condition	27	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(6)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Until_Log_File	28	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Until_Log_Pos	29	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
+def	information_schema	REPLICA_STATUS	Using_Gtid	46	NULL	NO	varchar	11	33	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(11)			select		NEVER	NULL	NO	NO
 def	information_schema	ROUTINES	CHARACTER_MAXIMUM_LENGTH	7	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)			select		NEVER	NULL	NO	NO
 def	information_schema	ROUTINES	CHARACTER_OCTET_LENGTH	8	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)			select		NEVER	NULL	NO	NO
 def	information_schema	ROUTINES	CHARACTER_SET_CLIENT	29	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select		NEVER	NULL	NO	NO
@@ -961,6 +1016,61 @@ NULL	information_schema	PROCESSLIST	TID	bigint	NULL	NULL	NULL	NULL	bigint(10)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	DELETE_RULE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	TABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	REFERENCED_TABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	REPLICA_STATUS	Connection_name	varchar	192	576	utf8mb3	utf8mb3_general_ci	varchar(192)
+3.0000	information_schema	REPLICA_STATUS	Slave_SQL_State	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Slave_IO_State	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Master_Host	varchar	255	765	utf8mb3	utf8mb3_general_ci	varchar(255)
+3.0000	information_schema	REPLICA_STATUS	Master_User	varchar	128	384	utf8mb3	utf8mb3_general_ci	varchar(128)
+NULL	information_schema	REPLICA_STATUS	Master_Port	int	NULL	NULL	NULL	NULL	int(7) unsigned
+NULL	information_schema	REPLICA_STATUS	Connect_Retry	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	REPLICA_STATUS	Master_Log_File	varchar	518	1554	utf8mb3	utf8mb3_general_ci	varchar(518)
+NULL	information_schema	REPLICA_STATUS	Read_Master_Log_Pos	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	REPLICA_STATUS	Relay_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	REPLICA_STATUS	Relay_Log_Pos	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	REPLICA_STATUS	Relay_Master_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Slave_IO_Running	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+3.0000	information_schema	REPLICA_STATUS	Slave_SQL_Running	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Rewrite_DB	varchar	23	69	utf8mb3	utf8mb3_general_ci	varchar(23)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Do_DB	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Ignore_DB	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Do_Table	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Ignore_Table	varchar	23	69	utf8mb3	utf8mb3_general_ci	varchar(23)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Wild_Do_Table	varchar	24	72	utf8mb3	utf8mb3_general_ci	varchar(24)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Wild_Ignore_Table	varchar	28	84	utf8mb3	utf8mb3_general_ci	varchar(28)
+NULL	information_schema	REPLICA_STATUS	Last_Errno	int	NULL	NULL	NULL	NULL	int(4) unsigned
+3.0000	information_schema	REPLICA_STATUS	Last_Error	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
+NULL	information_schema	REPLICA_STATUS	Skip_Counter	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	REPLICA_STATUS	Exec_Master_Log_Pos	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	REPLICA_STATUS	Relay_Log_Space	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	REPLICA_STATUS	Until_Condition	varchar	6	18	utf8mb3	utf8mb3_general_ci	varchar(6)
+3.0000	information_schema	REPLICA_STATUS	Until_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	REPLICA_STATUS	Until_Log_Pos	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Allowed	varchar	7	21	utf8mb3	utf8mb3_general_ci	varchar(7)
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_CA_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_CA_Path	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Cert	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Cipher	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Key	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	REPLICA_STATUS	Seconds_Behind_Master	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Verify_Server_Cert	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+NULL	information_schema	REPLICA_STATUS	Last_IO_Errno	int	NULL	NULL	NULL	NULL	int(4) unsigned
+3.0000	information_schema	REPLICA_STATUS	Last_IO_Error	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
+NULL	information_schema	REPLICA_STATUS	Last_SQL_Errno	int	NULL	NULL	NULL	NULL	int(4) unsigned
+3.0000	information_schema	REPLICA_STATUS	Last_SQL_Error	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Ignore_Server_Ids	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	REPLICA_STATUS	Master_Server_Id	int	NULL	NULL	NULL	NULL	int(11) unsigned
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Crl	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Master_SSL_Crlpath	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Using_Gtid	varchar	11	33	utf8mb3	utf8mb3_general_ci	varchar(11)
+3.0000	information_schema	REPLICA_STATUS	Gtid_IO_Pos	varchar	30	90	utf8mb3	utf8mb3_general_ci	varchar(30)
+3.0000	information_schema	REPLICA_STATUS	Replicate_Ignore_Domain_Ids	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	REPLICA_STATUS	Parallel_Mode	varchar	12	36	utf8mb3	utf8mb3_general_ci	varchar(12)
+NULL	information_schema	REPLICA_STATUS	SQL_Delay	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	REPLICA_STATUS	SQL_Remaining_Delay	int	NULL	NULL	NULL	NULL	int(8) unsigned
+3.0000	information_schema	REPLICA_STATUS	Slave_SQL_Running_State	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	REPLICA_STATUS	Slave_DDL_Groups	int	NULL	NULL	NULL	NULL	int(20) unsigned
+NULL	information_schema	REPLICA_STATUS	Slave_Non_Transactional_Groups	int	NULL	NULL	NULL	NULL	int(20) unsigned
+NULL	information_schema	REPLICA_STATUS	Slave_Transactional_Groups	int	NULL	NULL	NULL	NULL	int(20) unsigned
 3.0000	information_schema	ROUTINES	SPECIFIC_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	ROUTINES	ROUTINE_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	ROUTINES	ROUTINE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)

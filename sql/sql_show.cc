@@ -10667,6 +10667,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"REFERENTIAL_CONSTRAINTS", Show::referential_constraints_fields_info,
    0, get_all_tables, 0, get_referential_constraints_record,
    1, 9, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"REPLICA_STATUS" /*alias for SLAVE_STATUS*/, Show::slave_status_info, 0,
+   get_slave_status_record, 0, 0, -1, -1, 0, 0},
   {"ROUTINES", Show::proc_fields_info, 0,
    fill_schema_proc, make_proc_old_format, 0, 2, 3, 0, 0},
   {"SCHEMATA", Show::schema_fields_info, 0,

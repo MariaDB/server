@@ -48,6 +48,10 @@ select Connection_name, Replicate_Rewrite_DB from information_schema.slave_statu
 Connection_name	Replicate_Rewrite_DB
 m2	test->m2_test
 m1	test->m1_test
+select Connection_name, Replicate_Rewrite_DB from information_schema.replica_status;
+Connection_name	Replicate_Rewrite_DB
+m2	test->m2_test
+m1	test->m1_test
 #
 # Cleanup
 connection server_1;

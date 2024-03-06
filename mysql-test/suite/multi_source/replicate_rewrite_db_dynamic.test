@@ -73,7 +73,7 @@ insert into t values (6);
 --echo #
 
 select Connection_name, Replicate_Rewrite_DB from information_schema.slave_status;
-
+select Connection_name, Replicate_Rewrite_DB from information_schema.replica_status;
 --echo #
 --echo # Cleanup
 
