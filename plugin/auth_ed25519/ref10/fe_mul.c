@@ -1,5 +1,6 @@
 #include "fe.h"
 #include "crypto_int64.h"
+#include "crypto_uint64.h"
 
 /*
 h = f * g
@@ -179,16 +180,16 @@ void fe_mul(fe h,const fe f,const fe g)
   crypto_int64 h7 = f0g7+f1g6   +f2g5   +f3g4   +f4g3   +f5g2   +f6g1   +f7g0   +f8g9_19+f9g8_19;
   crypto_int64 h8 = f0g8+f1g7_2 +f2g6   +f3g5_2 +f4g4   +f5g3_2 +f6g2   +f7g1_2 +f8g0   +f9g9_38;
   crypto_int64 h9 = f0g9+f1g8   +f2g7   +f3g6   +f4g5   +f5g4   +f6g3   +f7g2   +f8g1   +f9g0   ;
-  crypto_int64 carry0;
-  crypto_int64 carry1;
-  crypto_int64 carry2;
-  crypto_int64 carry3;
-  crypto_int64 carry4;
-  crypto_int64 carry5;
-  crypto_int64 carry6;
-  crypto_int64 carry7;
-  crypto_int64 carry8;
-  crypto_int64 carry9;
+  crypto_uint64 carry0;
+  crypto_uint64 carry1;
+  crypto_uint64 carry2;
+  crypto_uint64 carry3;
+  crypto_uint64 carry4;
+  crypto_uint64 carry5;
+  crypto_uint64 carry6;
+  crypto_uint64 carry7;
+  crypto_uint64 carry8;
+  crypto_uint64 carry9;
 
   /*
   |h0| <= (1.65*1.65*2^52*(1+19+19+19+19)+1.65*1.65*2^50*(38+38+38+38+38))
