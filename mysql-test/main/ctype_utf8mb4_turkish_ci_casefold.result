@@ -16,6 +16,30 @@ FROM
 SELECT COLLATION(c) FROM v_bmp LIMIT 1;
 COLLATION(c)
 utf8mb4_turkish_ci
+#
+# BMP character summary
+#
+SELECT
+BINARY(c)=BINARY(LOWER(c)) AS `Bc=BLc`,
+BINARY(c)=BINARY(UPPER(c)) AS `Bc=BUc`,
+c=LOWER(c) AS `c=L(c)`,
+c=UPPER(c) AS `c=U(c)`,
+c LIKE LOWER(c) AS `c~~L(c)`,
+c LIKE UPPER(c) AS `c~~U(c)`,
+COUNT(*),
+IF(BINARY(c)=BINARY(LOWER(c)) AND BINARY(c)=BINARY(UPPER(c)),'',
+LEFT(GROUP_CONCAT(c ORDER BY codepoint), 20)) AS example
+FROM v_bmp
+GROUP BY 1, 2, 3, 4, 5, 6;
+Bc=BLc	Bc=BUc	c=L(c)	c=U(c)	c~~L(c)	c~~U(c)	COUNT(*)	example
+0	0	1	1	1	1	4	ǅ,ǈ,ǋ,ǲ
+0	1	1	1	1	1	692	A,B,C,D,E,F,G,H,I,J,
+1	0	1	0	1	0	1	ͅ
+1	0	1	1	1	1	701	a,b,c,d,e,f,g,h,i,j,
+1	1	1	1	1	1	64138	
+#
+# BMP characters with upper/lower mapping
+#
 SELECT
 codepoint_hex4,
 HEX(CAST(LOWER(c) AS CHAR CHARACTER SET ucs2)),
@@ -1421,6 +1445,34 @@ FF57	FF57	FF37
 FF58	FF58	FF38
 FF59	FF59	FF39
 FF5A	FF5A	FF3A
+#
+# BMP characters with a non-trivial upper/lower mapping
+#
+SELECT
+codepoint_hex4 as hex4,
+HEX(CAST(LOWER(c) AS CHAR CHARACTER SET ucs2)) AS hex4_l,
+HEX(CAST(UPPER(c) AS CHAR CHARACTER SET ucs2)) AS hex4_u,
+c=LOWER(c) AS `c=L`,
+c=UPPER(c) AS `c=U`,
+c LIKE LOWER(c) AS `c~~L`,
+c LIKE UPPER(c) AS `c~~U`,
+c,
+LOWER(c) AS `L(c)`,
+UPPER(c) AS `U(c)`
+FROM v_bmp
+WHERE NOT (
+(BINARY(c)=BINARY(LOWER(c)) OR BINARY(c)=BINARY(UPPER(c))) AND
+c = LOWER(c) AND
+c = UPPER(c) AND
+c LIKE UPPER(c) AND
+c LIKE LOWER(c)
+);
+hex4	hex4_l	hex4_u	c=L	c=U	c~~L	c~~U	c	L(c)	U(c)
+01C5	01C6	01C4	1	1	1	1	ǅ	ǆ	Ǆ
+01C8	01C9	01C7	1	1	1	1	ǈ	ǉ	Ǉ
+01CB	01CC	01CA	1	1	1	1	ǋ	ǌ	Ǌ
+01F2	01F3	01F1	1	1	1	1	ǲ	ǳ	Ǳ
+0345	0345	0399	1	0	1	0	ͅ	ͅ	Ι
 DROP VIEW v_bmp;
 EXECUTE IMMEDIATE SFORMAT('
 CREATE VIEW v_supplementary AS
