@@ -128,8 +128,8 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 11	11	stage/sql/Executing	(stage)	STATEMENT	0
 12	12	stage/sql/End of update loop	(stage)	STATEMENT	0
 13	13	stage/sql/Query end	(stage)	STATEMENT	0
-14	14	stage/sql/Commit	(stage)	STATEMENT	0
-15	15	stage/sql/closing tables	(stage)	STATEMENT	0
+14	14	stage/sql/closing tables	(stage)	STATEMENT	0
+15	15	stage/sql/Query end	(stage)	STATEMENT	0
 16	16	stage/sql/Starting cleanup	(stage)	STATEMENT	0
 17	17	stage/sql/Freeing items	(stage)	STATEMENT	0
 18	18	wait/io/socket/sql/client_connection	send	STATEMENT	0
@@ -152,8 +152,8 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 35	35	stage/sql/Executing	(stage)	STATEMENT	24
 36	36	stage/sql/End of update loop	(stage)	STATEMENT	24
 37	37	stage/sql/Query end	(stage)	STATEMENT	24
-38	38	stage/sql/Commit	(stage)	STATEMENT	24
-39	39	stage/sql/closing tables	(stage)	STATEMENT	24
+38	38	stage/sql/closing tables	(stage)	STATEMENT	24
+39	39	stage/sql/Query end	(stage)	STATEMENT	24
 40	40	stage/sql/Starting cleanup	(stage)	STATEMENT	24
 41	41	stage/sql/Freeing items	(stage)	STATEMENT	24
 42	42	wait/io/socket/sql/client_connection	send	STATEMENT	24
@@ -176,8 +176,8 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 59	59	stage/sql/Executing	(stage)	STATEMENT	48
 60	60	stage/sql/End of update loop	(stage)	STATEMENT	48
 61	61	stage/sql/Query end	(stage)	STATEMENT	48
-62	62	stage/sql/Commit	(stage)	STATEMENT	48
-63	63	stage/sql/closing tables	(stage)	STATEMENT	48
+62	62	stage/sql/closing tables	(stage)	STATEMENT	48
+63	63	stage/sql/Query end	(stage)	STATEMENT	48
 64	64	stage/sql/Starting cleanup	(stage)	STATEMENT	48
 65	65	stage/sql/Freeing items	(stage)	STATEMENT	48
 66	66	wait/io/socket/sql/client_connection	send	STATEMENT	48
@@ -203,8 +203,8 @@ select "With a third part to make things complete" as payload	NULL	NULL
 84	84	stage/sql/Executing	(stage)	STATEMENT	72
 85	85	stage/sql/End of update loop	(stage)	STATEMENT	72
 86	86	stage/sql/Query end	(stage)	STATEMENT	72
-87	87	stage/sql/Commit	(stage)	STATEMENT	72
-88	88	stage/sql/closing tables	(stage)	STATEMENT	72
+87	87	stage/sql/closing tables	(stage)	STATEMENT	72
+88	88	stage/sql/Query end	(stage)	STATEMENT	72
 89	89	stage/sql/Starting cleanup	(stage)	STATEMENT	72
 90	92	stage/sql/Freeing items	(stage)	STATEMENT	72
 91	91	wait/io/socket/sql/client_connection	send	STAGE	90
@@ -222,8 +222,8 @@ select "With a third part to make things complete" as payload	NULL	NULL
 102	102	stage/sql/Executing	(stage)	STATEMENT	93
 103	103	stage/sql/End of update loop	(stage)	STATEMENT	93
 104	104	stage/sql/Query end	(stage)	STATEMENT	93
-105	105	stage/sql/Commit	(stage)	STATEMENT	93
-106	106	stage/sql/closing tables	(stage)	STATEMENT	93
+105	105	stage/sql/closing tables	(stage)	STATEMENT	93
+106	106	stage/sql/Query end	(stage)	STATEMENT	93
 107	107	stage/sql/Starting cleanup	(stage)	STATEMENT	93
 108	110	stage/sql/Freeing items	(stage)	STATEMENT	93
 109	109	wait/io/socket/sql/client_connection	send	STAGE	108
@@ -239,8 +239,8 @@ select "With a third part to make things complete" as payload	NULL	NULL
 119	119	stage/sql/Executing	(stage)	STATEMENT	111
 120	120	stage/sql/End of update loop	(stage)	STATEMENT	111
 121	121	stage/sql/Query end	(stage)	STATEMENT	111
-122	122	stage/sql/Commit	(stage)	STATEMENT	111
-123	123	stage/sql/closing tables	(stage)	STATEMENT	111
+122	122	stage/sql/closing tables	(stage)	STATEMENT	111
+123	123	stage/sql/Query end	(stage)	STATEMENT	111
 124	124	stage/sql/Starting cleanup	(stage)	STATEMENT	111
 125	125	stage/sql/Freeing items	(stage)	STATEMENT	111
 126	126	wait/io/socket/sql/client_connection	send	STATEMENT	111
@@ -263,8 +263,8 @@ select "With a third part to make things complete" as payload	NULL	NULL
 143	143	stage/sql/Executing	(stage)	STATEMENT	132
 144	144	stage/sql/End of update loop	(stage)	STATEMENT	132
 145	145	stage/sql/Query end	(stage)	STATEMENT	132
-146	146	stage/sql/Commit	(stage)	STATEMENT	132
-147	147	stage/sql/closing tables	(stage)	STATEMENT	132
+146	146	stage/sql/closing tables	(stage)	STATEMENT	132
+147	147	stage/sql/Query end	(stage)	STATEMENT	132
 148	148	stage/sql/Starting cleanup	(stage)	STATEMENT	132
 149	149	stage/sql/Freeing items	(stage)	STATEMENT	132
 150	150	wait/io/socket/sql/client_connection	send	STATEMENT	132

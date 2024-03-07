@@ -255,10 +255,14 @@ bool trans_begin(THD *thd, uint flags)
 bool trans_commit(THD *thd)
 {
   int res;
+  PSI_stage_info org_stage;
   DBUG_ENTER("trans_commit");
 
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
+
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_commit);
 
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -288,6 +292,7 @@ bool trans_commit(THD *thd)
   DBUG_ASSERT(thd->m_transaction_psi == NULL);
   trans_track_end_trx(thd);
 
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(MY_TEST(res));
 }
 
@@ -320,6 +325,10 @@ bool trans_commit_implicit(THD *thd)
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
+    PSI_stage_info org_stage;
+    thd->backup_stage(&org_stage);
+    THD_STAGE_INFO(thd, stage_commit_implicit);
+
     /* Safety if one did "drop table" on locked tables */
     if (!thd->locked_tables_mode)
       thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
@@ -327,6 +336,8 @@ bool trans_commit_implicit(THD *thd)
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= MY_TEST(ha_commit_trans(thd, TRUE));
+
+    THD_STAGE_INFO(thd, org_stage);
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -361,10 +372,14 @@ bool trans_commit_implicit(THD *thd)
 bool trans_rollback(THD *thd)
 {
   int res;
+  PSI_stage_info org_stage;
   DBUG_ENTER("trans_rollback");
 
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
+
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_rollback);
 
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -384,6 +399,7 @@ bool trans_rollback(THD *thd)
 
   trans_track_end_trx(thd);
 
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(MY_TEST(res));
 }
 
@@ -406,7 +422,11 @@ bool trans_rollback(THD *thd)
 bool trans_rollback_implicit(THD *thd)
 {
   int res;
+  PSI_stage_info org_stage;
   DBUG_ENTER("trans_rollback_implict");
+
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_rollback_implicit);
 
   /*
     Always commit/rollback statement transaction before manipulating
@@ -434,6 +454,7 @@ bool trans_rollback_implicit(THD *thd)
 
   trans_track_end_trx(thd);
 
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(MY_TEST(res));
 }
 
@@ -469,11 +490,17 @@ bool trans_commit_stmt(THD *thd)
 
   if (thd->transaction->stmt.ha_list)
   {
+    PSI_stage_info org_stage;
+    thd->backup_stage(&org_stage);
+    THD_STAGE_INFO(thd, stage_commit);
+
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
     {
       trans_reset_one_shot_chistics(thd);
     }
+
+    THD_STAGE_INFO(thd, org_stage);
   }
 
   mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
@@ -532,9 +559,15 @@ bool trans_rollback_stmt(THD *thd)
 
   if (thd->transaction->stmt.ha_list)
   {
+    PSI_stage_info org_stage;
+    thd->backup_stage(&org_stage);
+    THD_STAGE_INFO(thd, stage_rollback);
+
     ha_rollback_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
       trans_reset_one_shot_chistics(thd);
+
+    THD_STAGE_INFO(thd, org_stage);
   }
 
 #ifdef HAVE_REPLICATION
