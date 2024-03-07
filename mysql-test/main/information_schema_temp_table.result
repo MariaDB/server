@@ -319,3 +319,56 @@ seq3	TEMPORARY SEQUENCE
 drop table seq3;
 show  full tables;
 Tables_in_test	Table_type
+#
+# MDEV-32973: SHOW TABLES LIKE shows temporary tables with
+#             non-matching names
+#
+CREATE DATABASE db;
+USE db;
+CREATE TABLE realtable (a INT);
+CREATE TEMPORARY TABLE temptable (a INT);
+SHOW TABLES LIKE 'faketable';
+Tables_in_db (faketable)
+SHOW TABLES LIKE 'temptable';
+Tables_in_db (temptable)
+temptable
+SHOW TABLES LIKE '%pt%';
+Tables_in_db (%pt%)
+temptable
+SHOW TABLES LIKE '%lt%';
+Tables_in_db (%lt%)
+realtable
+select table_name from information_schema.tables where
+table_schema='db' and table_name='temptable';
+table_name
+temptable
+select table_name from information_schema.tables where
+table_schema='db' and table_name='faketable';
+table_name
+drop database db;
+create database `t\_p`;
+create temporary table `t\_p`.tmp (a int);
+select table_schema, table_name from information_schema.tables where table_schema='t\\_p';
+table_schema	table_name
+t\_p	tmp
+drop database `t\_p`;
+create database db;
+use db;
+create temporary table `t\_p` (a int);
+select table_schema, table_name from information_schema.tables where table_schema='db' and table_name='t\\_p';
+table_schema	table_name
+db	t\_p
+select table_schema, table_name from information_schema.tables where table_name='t\\_p';
+table_schema	table_name
+db	t\_p
+drop table `t\_p`;
+CREATE TEMPORARY TABLE t2 (a INT);
+select table_name from information_schema.tables where
+table_schema='db' and table_name='T2';
+table_name
+SHOW TABLES LIKE 'T%';
+Tables_in_db (T%)
+drop database db;
+#
+# End of 11.2 tests
+#
