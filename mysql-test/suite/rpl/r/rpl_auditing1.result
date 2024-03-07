@@ -1,0 +1,38 @@
+include/master-slave.inc
+[connection master]
+drop table if exists t1;
+connection slave;
+reset master;
+install plugin server_audit soname 'server_audit';
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+connection slave;
+set global server_audit_incl_users='<replication_slave>';
+set global server_audit_logging=on;
+connection master;
+insert into t1 values (2);
+select * from t1;
+a
+1
+2
+truncate t1;
+drop table t1;
+connection slave;
+set global server_audit_logging=off;
+uninstall plugin server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=on',0
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,test,t1,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,mysql,gtid_slave_pos,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,CREATE,test,t1,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,mysql,gtid_slave_pos,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,mysql,table_stats,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,mysql,column_stats,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,mysql,index_stats,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,DROP,test,t1,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,mysql,gtid_slave_pos,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=off',0
+connection master;
+include/rpl_end.inc
