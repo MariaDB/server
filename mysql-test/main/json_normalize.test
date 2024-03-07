@@ -1,3 +1,6 @@
+# Test doesn't work on macOS.
+--source include/not_mac.inc
+
 set names utf8;
 
 create table t1 (json json);
