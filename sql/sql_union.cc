@@ -1602,7 +1602,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   else
     tmp_result= sel_result;
 
-  sl->context.resolve_in_select_list= TRUE;
+  sl->context.select_list_resolving= TRUE;
 
   if (!is_union_select && !is_recursive)
   {

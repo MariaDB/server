@@ -7625,7 +7625,7 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
     in subquery is SELECT query and we allow resolution of names in SELECT
     list
   */
-  select_lex->context.resolve_in_select_list= TRUE;
+  select_lex->context.select_list_resolving= TRUE;
   DBUG_RETURN(0);
 }
 
@@ -8887,7 +8887,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
 
   fake_select_lex->context.outer_context=first_sl->context.outer_context;
   /* allow item list resolving in fake select for ORDER BY */
-  fake_select_lex->context.resolve_in_select_list= TRUE;
+  fake_select_lex->context.select_list_resolving= TRUE;
   fake_select_lex->context.select_lex= fake_select_lex;  
 
   fake_select_lex->nest_level_base= first_select()->nest_level_base;

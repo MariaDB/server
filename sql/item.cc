@@ -3880,7 +3880,7 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
     ctx->last_name_resolution_table=  context->last_name_resolution_table;
     ctx->error_processor=             context->error_processor;
     ctx->error_processor_data=        context->error_processor_data;
-    ctx->resolve_in_select_list=      context->resolve_in_select_list;
+    ctx->select_list_resolving=       context->select_list_resolving;
     ctx->security_ctx=                context->security_ctx;
     this->context=ctx;
   }
@@ -8674,7 +8674,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         last_checked_context= outer_context;
 
         /* Search in the SELECT and GROUP lists of the outer select. */
-        if (outer_context->resolve_in_select_list)
+        if (outer_context->select_list_resolving)
         {
           if (!(ref= resolve_ref_in_select_and_group(thd, this, select)))
             goto error; /* Some error occurred (e.g. ambiguous names). */

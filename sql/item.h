@@ -207,6 +207,7 @@ void view_error_processor(THD *thd, void *data);
 
 typedef List<TABLE_LIST>* ignored_tables_list_t;
 bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl);
+class Item_ident_placeholder;
 
 /*
   Instances of Name_resolution_context store the information necessary for
@@ -276,7 +277,7 @@ struct Name_resolution_context: Sql_alloc
     SELECT list and this->table_list. If FALSE, items are resolved
     only against this->table_list.
   */
-  bool resolve_in_select_list= false;
+  bool select_list_resolving= false;
 
   /*
     Bitmap of tables that should be ignored when doing name resolution.
@@ -301,7 +302,7 @@ struct Name_resolution_context: Sql_alloc
 
   void init()
   {
-    resolve_in_select_list= FALSE;
+    select_list_resolving= FALSE;
     error_processor= &dummy_error_processor;
     ignored_tables= nullptr;
     first_name_resolution_table= nullptr;
@@ -311,7 +312,7 @@ struct Name_resolution_context: Sql_alloc
   void resolve_in_table_list_only(TABLE_LIST *tables)
   {
     table_list= first_name_resolution_table= tables;
-    resolve_in_select_list= FALSE;
+    select_list_resolving= FALSE;
   }
 
   void process_error(THD *thd)
@@ -325,6 +326,7 @@ struct Name_resolution_context: Sql_alloc
             NULL);
   }
 
+  Item* resolve_in_routine_variables(Item_ident_placeholder *ident);
   Item* resolve_in_tables(Item_ident_placeholder *ident);
   Item* resolve_in_select_list(Item_ident_placeholder *ident);
 };
@@ -340,7 +342,7 @@ private:
   TABLE_LIST *save_table_list;
   TABLE_LIST *save_first_name_resolution_table;
   TABLE_LIST *save_next_name_resolution_table;
-  bool        save_resolve_in_select_list;
+  bool        save_select_list_resolving;
   TABLE_LIST *save_next_local;
 
 public:
@@ -352,7 +354,7 @@ public:
   {
     save_table_list=                  context->table_list;
     save_first_name_resolution_table= context->first_name_resolution_table;
-    save_resolve_in_select_list=      context->resolve_in_select_list;
+    save_select_list_resolving=       context->select_list_resolving;
     save_next_local=                  table_list->next_local;
     save_next_name_resolution_table=  table_list->next_name_resolution_table;
   }
@@ -364,7 +366,7 @@ public:
     table_list->next_name_resolution_table= save_next_name_resolution_table;
     context->table_list=                   save_table_list;
     context->first_name_resolution_table=  save_first_name_resolution_table;
-    context->resolve_in_select_list=       save_resolve_in_select_list;
+    context->select_list_resolving=        save_select_list_resolving;
   }
 
   TABLE_LIST *get_first_name_resolution_table()

@@ -1542,7 +1542,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   SELECT_LEX_UNIT *unit= &lex->unit;
   DBUG_ENTER("mysql_test_select");
 
-  lex->first_select_lex()->context.resolve_in_select_list= TRUE;
+  lex->first_select_lex()->context.select_list_resolving= TRUE;
 
   privilege_t privilege(lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL);
   if (tables)
@@ -1744,7 +1744,7 @@ static bool select_like_stmt_test(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
 
-  lex->first_select_lex()->context.resolve_in_select_list= TRUE;
+  lex->first_select_lex()->context.select_list_resolving= TRUE;
 
   if (specific_prepare && (*specific_prepare)(thd))
     DBUG_RETURN(TRUE);
@@ -1832,7 +1832,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
                                        DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
 
-    select_lex->context.resolve_in_select_list= TRUE;
+    select_lex->context.select_list_resolving= TRUE;
 
     lex->unlink_first_table(&link_to_local);
 
@@ -2168,7 +2168,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   SQL_HANDLER *ha_table;
   DBUG_ENTER("mysql_test_handler_read");
 
-  lex->first_select_lex()->context.resolve_in_select_list= TRUE;
+  lex->first_select_lex()->context.select_list_resolving= TRUE;
 
   /*
     We don't have to test for permissions as this is already done during

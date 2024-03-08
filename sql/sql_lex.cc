@@ -6466,7 +6466,7 @@ SELECT_LEX *LEX::alloc_select(bool select)
     select_lex->init_select();
   select_lex->nest_level_base= &this->unit;
   select_lex->include_global((st_select_lex_node**)&all_selects_list);
-  select_lex->context.resolve_in_select_list= TRUE;
+  select_lex->context.select_list_resolving= TRUE;
   DBUG_RETURN(select_lex);
 }
 

@@ -5355,7 +5355,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   DBUG_ENTER("mysql_select");
 
   if (!fields.is_empty())
-    select_lex->context.resolve_in_select_list= true;
+    select_lex->context.select_list_resolving= true;
   JOIN *join;
   if (select_lex->join != 0)
   {
