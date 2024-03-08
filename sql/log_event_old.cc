@@ -1229,17 +1229,12 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
                              false)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
-    memcpy(m_cols.bitmap, ptr_after_width, (m_width + 7) / 8);
-    create_last_bit_mask(&m_cols);              // Needed to fix last part of bitmap
+    bitmap_import(&m_cols, ptr_after_width);
+    DBUG_DUMP("m_cols", ptr_after_width, no_bytes_in_export_map(&m_cols));
     ptr_after_width+= (m_width + 7) / 8;
-    DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
   }
   else
-  {
-    // Needed because my_bitmap_init() does not set it to null on failure
-    m_cols.bitmap= NULL;
     DBUG_VOID_RETURN;
-  }
 
   const uchar* const ptr_rows_data= (const uchar*) ptr_after_width;
   size_t const data_size= event_len - (ptr_rows_data - (const uchar *) buf);
@@ -1257,8 +1252,6 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
     m_rows_cur= m_rows_end;
     memcpy(m_rows_buf, ptr_rows_data, data_size);
   }
-  else
-    m_cols.bitmap= 0; // to not free it
 
   DBUG_VOID_RETURN;
 }
@@ -1277,10 +1270,10 @@ int Old_rows_log_event::get_data_size()
   uchar *end= net_store_length(buf, (m_width + 7) / 8);
 
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
-                  return (int)(6 + no_bytes_in_map(&m_cols) + (end - buf) +
-                  m_rows_cur - m_rows_buf););
+                  return (int)(6 + no_bytes_in_export_map(&m_cols) + (end - buf) +
+                               m_rows_cur - m_rows_buf););
   int data_size= ROWS_HEADER_LEN;
-  data_size+= no_bytes_in_map(&m_cols);
+  data_size+= no_bytes_in_export_map(&m_cols);
   data_size+= (uint) (end - buf);
 
   data_size+= (uint) (m_rows_cur - m_rows_buf);
@@ -1798,6 +1791,8 @@ bool Old_rows_log_event::write_data_body()
   */
   uchar sbuf[MAX_INT_WIDTH];
   my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
+  uint bitmap_size= no_bytes_in_export_map(&m_cols);
+  uchar *bitmap;
 
   // This method should not be reached.
   assert(0);
@@ -1809,10 +1804,14 @@ bool Old_rows_log_event::write_data_body()
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
   res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
 
-  DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
-  res= res || write_data((uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
+  bitmap= (uchar*) my_alloca(bitmap_size);
+  bitmap_export(bitmap, &m_cols);
+
+  DBUG_DUMP("m_cols", bitmap, no_bytes_in_export_map(&m_cols));
+  res= res || write_data(bitmap, no_bytes_in_export_map(&m_cols));
   DBUG_DUMP("rows", m_rows_buf, data_size);
   res= res || write_data(m_rows_buf, (size_t) data_size);
+  my_afree(bitmap);
 
   return res;
 

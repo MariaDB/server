@@ -4484,7 +4484,7 @@ int spider_handlersocket_handler::init()
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
       &minimum_select_bitmap,
-        table ? sizeof(uchar) * no_bytes_in_map(table->read_set) : 0,
+        table ? sizeof(uchar) * my_bitmap_buffer_size(table->read_set) : 0,
       NullS))
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -6159,7 +6159,7 @@ void spider_handlersocket_handler::minimum_select_bitmap_create()
   TABLE *table = spider->get_table();
   Field **field_p;
   DBUG_ENTER("spider_handlersocket_handler::minimum_select_bitmap_create");
-  memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
+  memset(minimum_select_bitmap, 0, my_bitmap_buffer_size(table->read_set));
   if (
     spider->use_index_merge ||
 #ifdef HA_CAN_BULK_ACCESS
@@ -6174,7 +6174,7 @@ void spider_handlersocket_handler::minimum_select_bitmap_create()
       table_share->primary_key == MAX_KEY
     ) {
       /* need all columns */
-      memset(minimum_select_bitmap, 0xFF, no_bytes_in_map(table->read_set));
+      memset(minimum_select_bitmap, 0xFF, my_bitmap_buffer_size(table->read_set));
       DBUG_VOID_RETURN;
     } else {
       /* need primary key columns */

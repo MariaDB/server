@@ -512,16 +512,29 @@ error:
 
 my_bool test_copy(MY_BITMAP *map, uint bitsize)
 {
-  my_bitmap_map buff[16];
-  MY_BITMAP map2;
+  my_bitmap_map buff[16], buff2[16], buff3[16];
+  MY_BITMAP map2, map3;
+  uint rnd_bit;
+
   my_bitmap_init(&map2, buff, sizeof(buff)*8, FALSE);
-  memset((void*) buff, 0xff, sizeof(buff));
+  my_bitmap_init(&map3, buff2, sizeof(buff)*8, FALSE);
+  bitmap_set_all(&map2);
+  bitmap_set_all(&map3);
 
   bitsize= MY_MIN(bitsize, map2.n_bits);
   bitmap_copy(map, &map2);
   if (bitmap_bits_set(map) != bitsize)
   {
     diag("bitmap_copy failed on bitsize %d", bitsize);
+    return 1;
+  }
+  bitmap_set_prefix(&map2, rnd_bit= get_rand_bit(bitsize)+1);
+  bitmap_export((uchar*) buff3, &map2);
+  bitmap_import(&map3, (uchar*) buff3);
+  if (!bitmap_cmp(&map2, &map3))
+  {
+    diag("bitmap_export/bitmap_import failed on bitsize %d  rnd_bit: %d",
+         bitsize, rnd_bit);
     return 1;
   }
   return 0;
@@ -639,6 +652,7 @@ my_bool do_test(uint bitsize)
   bitmap_clear_all(&map);
   if (test_copy(&map,bitsize))
     goto error;
+  bitmap_clear_all(&map);
   if (test_bitmap_exists_intersection(&map, bitsize))
     goto error;
   return FALSE;

@@ -3392,10 +3392,9 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
                              false)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
-    memcpy(m_cols.bitmap, ptr_after_width, (m_width + 7) / 8);
-    create_last_bit_mask(&m_cols);              // Needed to fix last part of bitmap
+    bitmap_import(&m_cols, ptr_after_width);
+    DBUG_DUMP("m_cols", (uchar*) ptr_after_width, no_bytes_in_export_map(&m_cols));
     ptr_after_width+= (m_width + 7) / 8;
-    DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
   }
   else
     DBUG_VOID_RETURN;
@@ -3414,11 +3413,9 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
                                false)))
     {
       DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
-      memcpy(m_cols_ai.bitmap, ptr_after_width, (m_width + 7) / 8);
-      create_last_bit_mask(&m_cols_ai);     // Needed to fix last part of bitmap
+      bitmap_import(&m_cols_ai, ptr_after_width);
+      DBUG_DUMP("m_cols_ai", ptr_after_width, no_bytes_in_export_map(&m_cols_ai));
       ptr_after_width+= (m_width + 7) / 8;
-      DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
-                no_bytes_in_map(&m_cols_ai));
     }
     else
       DBUG_VOID_RETURN;
@@ -3497,9 +3494,10 @@ int Rows_log_event::get_data_size()
   uchar *end= net_store_length(buf, m_width);
 
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
-                  return (int)(6 + no_bytes_in_map(&m_cols) + (end - buf) +
-                  (general_type_code == UPDATE_ROWS_EVENT ? no_bytes_in_map(&m_cols_ai) : 0) +
-                  m_rows_cur - m_rows_buf););
+                  return (int) (6 + no_bytes_in_export_map(&m_cols) + (end - buf) +
+                                (general_type_code == UPDATE_ROWS_EVENT ?
+                                 no_bytes_in_export_map(&m_cols_ai) : 0) +
+                                m_rows_cur - m_rows_buf););
   int data_size= 0;
   Log_event_type type= get_type_code();
   bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
@@ -3514,11 +3512,11 @@ int Rows_log_event::get_data_size()
   {
     data_size= ROWS_HEADER_LEN_V1;
   }
-  data_size+= no_bytes_in_map(&m_cols);
+  data_size+= no_bytes_in_export_map(&m_cols);
   data_size+= (uint) (end - buf);
 
   if (general_type_code == UPDATE_ROWS_EVENT)
-    data_size+= no_bytes_in_map(&m_cols_ai);
+    data_size+= no_bytes_in_export_map(&m_cols_ai);
 
   data_size+= (uint) (m_rows_cur - m_rows_buf);
   return data_size; 

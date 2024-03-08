@@ -6085,29 +6085,36 @@ bool Rows_log_event::write_data_body()
   my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
+  uint bitmap_size= no_bytes_in_export_map(&m_cols);
+  uchar *bitmap;
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
   res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
 
-  DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
-  res= res || write_data((uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
+  bitmap= (uchar*) my_alloca(bitmap_size);
+  bitmap_export(bitmap, &m_cols);
+
+  DBUG_DUMP("m_cols", bitmap, bitmap_size);
+  res= res || write_data(bitmap, bitmap_size);
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
   if (get_general_type_code() == UPDATE_ROWS_EVENT)
   {
-    DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
-              no_bytes_in_map(&m_cols_ai));
-    res= res || write_data((uchar*)m_cols_ai.bitmap,
-                           no_bytes_in_map(&m_cols_ai));
+    DBUG_ASSERT(m_cols.n_bits == m_cols_ai.n_bits);
+    bitmap_export(bitmap, &m_cols_ai);
+
+    DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
+    res= res || write_data(bitmap, bitmap_size);
   }
   DBUG_DUMP("rows", m_rows_buf, data_size);
   res= res || write_data(m_rows_buf, (size_t) data_size);
+  my_afree(bitmap);
 
   return res;
-
 }
+
 
 bool Rows_log_event::write_compressed()
 {
@@ -8391,10 +8398,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
-    {
-      memcpy(m_cols_ai.bitmap, cols->bitmap, no_bytes_in_map(cols));
-      create_last_bit_mask(&m_cols_ai); // Needed to fix last part of bitmap
-    }
+      bitmap_copy(&m_cols_ai, cols);
   }
 }
 

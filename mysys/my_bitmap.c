@@ -18,7 +18,7 @@
  */
 
 /*
-  Handling of uchar arrays as large bitmaps.
+  Handling of my_bitmap_map (ulonglong) arrays as large bitmaps.
 
   API limitations (or, rather asserted safety assumptions,
   to encourage correct programming)
@@ -222,12 +222,14 @@ void my_bitmap_free(MY_BITMAP *map)
 
 my_bool bitmap_fast_test_and_set(MY_BITMAP *map, uint bitmap_bit)
 {
-  uchar *value= ((uchar*) map->bitmap) + (bitmap_bit / 8);
-  uchar bit= 1 << ((bitmap_bit) & 7);
-  uchar res= (*value) & bit;
+  my_bitmap_map *value, bit, res;
   DBUG_ASSERT_BITMAP_AND_BIT(map, bitmap_bit);
+
+  value= map->bitmap + (bitmap_bit/my_bitmap_map_bits);
+  bit= 1ULL << (bitmap_bit & (my_bitmap_map_bits-1));
+  res= *value & bit;
   *value|= bit;
-  return res;
+  return MY_TEST(res);
 }
 
 
@@ -269,13 +271,14 @@ my_bool bitmap_test_and_set(MY_BITMAP *map, uint bitmap_bit)
 
 my_bool bitmap_fast_test_and_clear(MY_BITMAP *map, uint bitmap_bit)
 {
-  uchar *byte= (uchar*) map->bitmap + (bitmap_bit / 8);
-  uchar bit= 1 << ((bitmap_bit) & 7);
-  uchar res= (*byte) & bit;
+  my_bitmap_map *value, bit, res;
   DBUG_ASSERT_BITMAP_AND_BIT(map, bitmap_bit);
 
-  *byte&= ~bit;
-  return res;
+  value= map->bitmap + (bitmap_bit/my_bitmap_map_bits);
+  bit= 1ULL << (bitmap_bit & (my_bitmap_map_bits-1));
+  res= *value & bit;
+  *value&= ~bit;
+  return MY_TEST(res);
 }
 
 
@@ -310,23 +313,24 @@ uint bitmap_set_next(MY_BITMAP *map)
 
 void bitmap_set_prefix(MY_BITMAP *map, uint prefix_size)
 {
-  uint prefix_bytes, prefix_bits, d;
-  uchar *m= (uchar *)map->bitmap;
+  uint prefix, prefix_bits;
+  my_bitmap_map *value= map->bitmap;
   DBUG_ASSERT_BITMAP(map);
   DBUG_ASSERT(prefix_size <= map->n_bits || prefix_size == (uint) ~0);
-
   set_if_smaller(prefix_size, map->n_bits);
-  if ((prefix_bytes= prefix_size / 8))
-    memset(m, 0xff, prefix_bytes);
-  m+= prefix_bytes;
-  if ((prefix_bits= prefix_size & 7))
+
+  if ((prefix= prefix_size / my_bitmap_map_bits))
   {
-    *(m++)= (1 << prefix_bits)-1;
-    // As the prefix bits are set, lets count this byte too as a prefix byte.
-    prefix_bytes ++;
+    my_bitmap_map *end= value+prefix;
+    do
+    {
+      *value++= ~(my_bitmap_map) 0;
+    } while (value < end);
   }
-  if ((d= no_bytes_in_map(map)-prefix_bytes))
-    memset(m, 0, d);
+  if ((prefix_bits= prefix_size & (my_bitmap_map_bits-1)))
+    *value++= (1ULL << prefix_bits)-1;
+  while (value <= map->last_word_ptr)
+    *value++= 0;
   DBUG_ASSERT_BITMAP(map);
 }
 
@@ -343,10 +347,9 @@ void bitmap_set_prefix(MY_BITMAP *map, uint prefix_size)
 
 my_bool bitmap_is_prefix(const MY_BITMAP *map, uint prefix_size)
 {
-  uint prefix_mask= last_byte_mask(prefix_size);
-  uchar *m= (uchar*) map->bitmap;
-  uchar *end_prefix= m+(prefix_size-1)/8;
-  uchar *end;
+  my_bitmap_map *value= map->bitmap;
+  my_bitmap_map *end=  value+ (prefix_size/my_bitmap_map_bits);
+  uint prefix_bits;
 
   /* Empty prefix is always true */
   if (!prefix_size)
@@ -354,16 +357,18 @@ my_bool bitmap_is_prefix(const MY_BITMAP *map, uint prefix_size)
 
   DBUG_ASSERT_BITMAP_AND_BIT(map, prefix_size-1);
 
-  while (m < end_prefix)
-    if (*m++ != 0xff)
+  while (value < end)
+    if (*value++ != ~(my_bitmap_map) 0)
       return 0;
 
-  end= ((uchar*) map->last_word_ptr) + sizeof(*map->last_word_ptr)-1;
-  if (*m != prefix_mask)
-    return 0;
-
-  while (++m <= end)
-    if (*m != 0)
+  if ((prefix_bits= prefix_size & (my_bitmap_map_bits-1)))
+  {
+    if (*value++ != (1ULL << prefix_bits)-1)
+      return 0;
+  }
+  end= map->last_word_ptr;
+  while (value <= end)
+    if (*value++ != 0)
       return 0;
   return 1;
 }
@@ -700,3 +705,64 @@ void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit)
   bitmap_clear_bit(map, bitmap_bit);
   bitmap_unlock(map);
 }
+/*
+  Functions to export/import bitmaps to an architecture independent format
+  (low_byte_first)
+*/
+
+#ifdef WORDS_BIGENDIAN
+/* Big endian machines, like powerpc or s390x */
+
+void bitmap_export(uchar *to, MY_BITMAP *map)
+{
+  my_bitmap_map *value;
+  uint length;
+  uchar buff[my_bitmap_map_bytes];
+
+  for (value= map->bitmap ; value < map->last_word_ptr ; value++)
+  {
+    int8store(to, *value);
+    to+= 8;
+  }
+  int8store(buff, *value);
+
+  /* We want length & 7 to return a serie 8,2,3,4,5,6,7, 8,2,3,... */
+  length= 1+ ((no_bytes_in_export_map(map) + 7) & 7);
+  memcpy(to, buff, length);
+}
+
+
+void bitmap_import(MY_BITMAP *map, uchar *from)
+{
+  my_bitmap_map *value;
+  uint length;
+  uchar buff[my_bitmap_map_bytes];
+
+  for (value= map->bitmap ; value < map->last_word_ptr ; value++)
+  {
+    *value= uint8korr(from);
+    from+= 8;
+  }
+  bzero(buff, sizeof(buff));
+
+  /* We want length & 7 to return a serie 8,2,3,4,5,6,7, 8,2,3,... */
+  length= 1+ ((no_bytes_in_export_map(map) + 7) & 7);
+  memcpy(buff, from, length);
+  *value= uint8korr(buff) & ~map->last_bit_mask;
+}
+
+#else
+
+/* Little endian machines, like intel and amd */
+
+void bitmap_export(uchar *to, MY_BITMAP *map)
+{
+  memcpy(to, (uchar*) map->bitmap, no_bytes_in_export_map(map));
+}
+
+void bitmap_import(MY_BITMAP *map, uchar *from)
+{
+  memcpy((uchar*) map->bitmap, from, no_bytes_in_export_map(map));
+  *map->last_word_ptr&= ~map->last_bit_mask;
+}
+#endif /* WORDS_BIGENDIAN */
