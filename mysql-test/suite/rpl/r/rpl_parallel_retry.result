@@ -339,6 +339,28 @@ connection server_1;
 DROP TABLE t1, t2, t3, t4;
 DROP function foo;
 connection server_2;
+connection server_2;
+include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=4;
+connection server_1;
+CREATE TABLE t1 (a INT, b VARCHAR(123)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'asdf');
+UPDATE t1 SET b='zxf1' WHERE a=1;
+UPDATE t1 SET b='\n' WHERE a=1;
+connection server_2;
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,write_row_inject_sleep_before_ha_write_row";
+include/start_slave.inc
+connection server_1;
+connection server_2;
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(100, 100);

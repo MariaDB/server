@@ -7401,6 +7401,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     TODO: Add safety measures against infinite looping. 
    */
 
+  DBUG_EXECUTE_IF("write_row_inject_sleep_before_ha_write_row",
+                  my_sleep(20000););
   if (table->s->sequence)
     error= update_sequence();
   else while (unlikely(error= table->file->ha_write_row(table->record[0])))
@@ -7898,6 +7900,12 @@ static int row_not_found_error(rpl_group_info *rgi)
          ? HA_ERR_KEY_NOT_FOUND : HA_ERR_RECORD_CHANGED;
 }
 
+static int end_of_file_error(rpl_group_info *rgi)
+{
+  return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
+         ? HA_ERR_END_OF_FILE : HA_ERR_RECORD_CHANGED;
+}
+
 /**
   Locate the current row in event's table.
 
@@ -8145,6 +8153,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       while ((error= table->file->ha_index_next(table->record[0])))
       {
         DBUG_PRINT("info",("no record matching the given row found"));
+        if (error == HA_ERR_END_OF_FILE)
+          error= end_of_file_error(rgi);
         table->file->print_error(error, MYF(0));
         table->file->ha_index_end();
         goto end;
@@ -8181,6 +8191,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         break;
 
       case HA_ERR_END_OF_FILE:
+        error= end_of_file_error(rgi);
         DBUG_PRINT("info", ("Record not found"));
         table->file->ha_rnd_end();
         goto end;
