@@ -26,5 +26,5 @@ bool json_assign_type(uint *curr_type, json_engine_t *je);
 uchar* get_key_name(const char *key_name, size_t *length,
                     my_bool /* unused */);
 void json_get_normalized_string(json_engine_t *je, String *res,
-                                int *error);
+                                int *error, MEM_ROOT *current_mem_root);
 #endif

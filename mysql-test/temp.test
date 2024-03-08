@@ -1,0 +1,6 @@
+select json_valid('[1, 2]');
+select json_valid('"string"}');
+select json_valid('{"key1":1, "key2":[2,3]}');
+select json_valid('[false, true, null]');
+select json_valid(repeat('[', 1000));
+select json_valid(repeat('{"a":', 1000));

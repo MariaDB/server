@@ -59,7 +59,7 @@ uchar* get_key_name(const char *key_name, size_t *length,
 }
 
 void json_get_normalized_string(json_engine_t *je, String *res,
-                                int *error)
+                                int *error, MEM_ROOT *current_mem_root)
 {
   char *val_begin= (char*)je->value, *val_end= NULL;
   String val("",0,je->s.cs);
@@ -83,7 +83,7 @@ void json_get_normalized_string(json_engine_t *je, String *res,
       je->value_type == JSON_VALUE_OBJECT)
   {
     if (json_normalize(&a_res, (const char*)val.ptr(),
-                       val_end-val_begin, je->s.cs))
+                       val_end-val_begin, je->s.cs, current_mem_root))
       goto error;
   }
   else if(je->value_type == JSON_VALUE_STRING)

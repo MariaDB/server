@@ -912,7 +912,6 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
-  uint json_depth_limit;
 } SV;
 
 /**
@@ -1070,8 +1069,6 @@ typedef struct system_status_var
   counter
 */
 
-void assign_json_depth(int (*newFunc)(void));
-int curr_thd_json_depth(void);
 #define last_system_status_var questions
 #define last_cleared_system_status_var local_memory_used
 

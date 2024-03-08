@@ -249,7 +249,9 @@ public:
 class Item_func_geometry_from_json: public Item_geometry_func
 {
   String tmp_js;
-  int *temp_json_depth_stack;
+  json_engine_t je;
+  MEM_ROOT current_mem_root;
+  int mem_root_inited;
 
   bool check_arguments() const override
   {
@@ -259,11 +261,11 @@ class Item_func_geometry_from_json: public Item_geometry_func
   }
 public:
   Item_func_geometry_from_json(THD *thd, Item *js): Item_geometry_func(thd, js)
-  { temp_json_depth_stack= NULL; }
+  { mem_root_inited= false; }
   Item_func_geometry_from_json(THD *thd, Item *js, Item *opt):
-    Item_geometry_func(thd, js, opt) { temp_json_depth_stack= NULL; }
+    Item_geometry_func(thd, js, opt) { mem_root_inited= false; }
   Item_func_geometry_from_json(THD *thd, Item *js, Item *opt, Item *srid):
-    Item_geometry_func(thd, js, opt, srid) { temp_json_depth_stack= NULL; }
+    Item_geometry_func(thd, js, opt, srid) { mem_root_inited= false; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_geomfromgeojson") };
@@ -273,6 +275,12 @@ public:
   String *val_str(String *) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometry_from_json>(thd, this); }
+  void cleanup() override
+  {
+    if (mem_root_inited)
+      free_root(&current_mem_root, MYF(0));
+   Item_geometry_func ::cleanup();
+  }
 };
 
 

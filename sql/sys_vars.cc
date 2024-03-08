@@ -1894,12 +1894,6 @@ static Sys_var_ulong Sys_max_error_count(
        SESSION_VAR(max_error_count), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 65535), DEFAULT(DEFAULT_ERROR_COUNT), BLOCK_SIZE(1));
 
-static Sys_var_uint Sys_json_depth_limit(
-       "json_depth_limit",
-       "Max for JSON",
-       READ_ONLY SESSION_VAR(json_depth_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 100), DEFAULT(32), BLOCK_SIZE(1));
-
 static Sys_var_ulonglong Sys_max_heap_table_size(
        "max_heap_table_size",
        "Don't allow creation of heap tables bigger than this",

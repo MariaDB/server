@@ -629,16 +629,6 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
-void assign_json_depth(int (*newFunc)(void))
-{
-    get_json_depth = newFunc;
-}
-
-int curr_thd_json_depth(void)
-{
-  return current_thd->variables.json_depth_limit;
-}
-
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
@@ -4540,6 +4530,116 @@ void thd_increment_bytes_sent(void *thd, size_t length)
   {
     ((THD*) thd)->status_var.bytes_sent+= length;
   }
+}
+
+int mem_root_dynamic_array_init(MEM_ROOT *current_mem_root, PSI_memory_key psi_key,
+                                MEM_ROOT_DYNAMIC_ARRAY *array,
+                                size_t element_size, void *init_buffer,
+                                size_t init_alloc, size_t alloc_increment,
+                                myf my_flags)
+{
+  DBUG_ENTER("init_mem_root_dynamic_array");
+  if (!alloc_increment)
+  {
+    alloc_increment=MY_MAX((8192-MALLOC_OVERHEAD)/element_size,16);
+    if (init_alloc > 8 && alloc_increment > init_alloc * 2)
+      alloc_increment=init_alloc*2;
+  }
+  array->elements=0;
+  array->max_element=init_alloc;
+  array->alloc_increment=alloc_increment;
+  array->size_of_element=element_size;
+  array->m_psi_key= psi_key;
+  array->malloc_flags= my_flags;
+  DBUG_ASSERT((my_flags & MY_INIT_BUFFER_USED) == 0);
+  if ((array->buffer= (uchar*)init_buffer))
+  {
+    array->malloc_flags|= MY_INIT_BUFFER_USED;
+    DBUG_RETURN(FALSE);
+  }
+
+  array->mem_root= current_mem_root ? current_mem_root : _current_thd()->mem_root;
+
+  /*
+    Since the dynamic array is usable even if allocation fails here malloc
+    should not throw an error
+  */
+  if (init_alloc &&
+      !(array->buffer= (uchar*) alloc_root(current_mem_root?
+                                               current_mem_root: _current_thd()->mem_root,
+                                                 init_alloc)))
+    array->max_element=0;
+
+  DBUG_RETURN(FALSE);
+}
+
+
+
+int mem_root_allocate_dynamic(MEM_ROOT *mem_root,
+                              MEM_ROOT_DYNAMIC_ARRAY *array,
+                              size_t max_elements)
+{
+  DBUG_ENTER("allocate_dynamic");
+
+  if (max_elements >= array->max_element)
+  {
+    size_t size;
+    uchar *new_ptr;
+    size= (max_elements + array->alloc_increment)/array->alloc_increment;
+    size*= array->alloc_increment;
+    if (array->malloc_flags & MY_INIT_BUFFER_USED)
+    {
+       /*
+         In this senerio, the buffer is statically preallocated,
+         so we have to create an all-new malloc since we overflowed
+       */
+       if (!(new_ptr= (uchar *) alloc_root(mem_root ?
+                                            mem_root : current_thd->mem_root,
+                                           size * array->size_of_element)))
+         DBUG_RETURN(0);
+       memcpy(new_ptr, array->buffer,
+              array->elements * array->size_of_element);
+       array->malloc_flags&= ~MY_INIT_BUFFER_USED;
+    }
+    else if (!(new_ptr= (uchar*) my_realloc(array->m_psi_key,
+                                            array->buffer,size *
+                                            array->size_of_element,
+                                            MYF(MY_WME | MY_ALLOW_ZERO_PTR |
+                                                array->malloc_flags))))
+      DBUG_RETURN(TRUE);
+    array->buffer= new_ptr;
+    array->max_element= size;
+  }
+  DBUG_RETURN(FALSE);
+}
+
+
+int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  MEM_ROOT *mem_root= array->mem_root ? array->mem_root : _current_thd()->mem_root;
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(mem_root, array, idx))
+      return TRUE;
+    array->elements++;
+  }
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element);
+  return FALSE;
+}
+
+void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx)
+{
+  MEM_ROOT *mem_root= array->mem_root ? array->mem_root : _current_thd()->mem_root;
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(mem_root, array, idx))
+      return 0;
+  }
+  // Calculate the pointer to the desired element in the array
+  void* element_ptr = array->buffer + (idx * array->size_of_element);
+  return element_ptr;
 }
 
 my_bool thd_net_is_killed(THD *thd)

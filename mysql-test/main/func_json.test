@@ -18,7 +18,7 @@ select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
 select json_query('{"key1": 1}', '$.key1');
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
---error ER_JSON_PATH_DEPTH
+#--error ER_JSON_PATH_DEPTH
 select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000))) as exp;
 
 select json_array();

@@ -341,6 +341,17 @@ typedef struct st_dynamic_array
   myf malloc_flags;
 } DYNAMIC_ARRAY;
 
+typedef struct st_mem_root_dynamic_array
+{
+  MEM_ROOT *mem_root;
+  uchar *buffer;
+  size_t elements, max_element;
+  size_t alloc_increment;
+  size_t size_of_element;
+  PSI_memory_key m_psi_key;
+  myf malloc_flags;
+} MEM_ROOT_DYNAMIC_ARRAY;
+
 
 typedef struct st_dynamic_array_append
 {
@@ -1143,6 +1154,17 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
+
+extern int mem_root_dynamic_array_init(MEM_ROOT *mem_root,
+                                       PSI_memory_key psi_key,
+                                       MEM_ROOT_DYNAMIC_ARRAY *array,
+                                       size_t element_size, void *init_buffer,
+                                       size_t init_alloc,
+                                       size_t alloc_increment,
+                                       myf my_flags);
+extern int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                          const void *element, size_t idx);
+extern void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx);
 
 #include <mysql/psi/psi.h>
 

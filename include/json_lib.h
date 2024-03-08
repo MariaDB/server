@@ -30,8 +30,6 @@ enum json_errors {
   JE_STRING_CONST= -5, /* Character disallowed in string constant. */
 
   JE_ESCAPING= -6,     /* Error in the escaping. */
-
-  JE_DEPTH= -7,        /* The limit on the JSON depth was overrun. */
 };
 
 
@@ -107,8 +105,8 @@ typedef struct st_json_path_step_t
 typedef struct st_json_path_t
 {
   json_string_t s;  /* The string to be parsed. */
-  json_path_step_t *steps; /* Steps of the path. */
-  json_path_step_t *last_step; /* Points to the last step. */
+  MEM_ROOT_DYNAMIC_ARRAY steps; /* Steps of the path. */
+  json_path_step_t*  last_step; /* Points to the last step. */
 
   int mode_strict; /* TRUE if the path specified as 'strict' */
   enum json_path_step_types types_used; /* The '|' of all step's 'type'-s */
@@ -228,7 +226,7 @@ typedef struct st_json_engine_t
   const uchar *value_end; /* Points to the next character after the value. */
   int value_len; /* The length of the value. Does not count quotations for */
                  /* string constants. */
-  int *stack; /* Keeps the stack of nested JSON structures. */
+  MEM_ROOT_DYNAMIC_ARRAY stack; /* Keeps the stack of nested JSON structures. */
   int stack_p;                 /* The 'stack' pointer. */
   volatile uchar *killed_ptr;
 } json_engine_t;
@@ -369,7 +367,7 @@ int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped);
 */
 int json_find_path(json_engine_t *je,
                    json_path_t *p, json_path_step_t **p_cur_step,
-                   int *array_counters);
+                   MEM_ROOT_DYNAMIC_ARRAY *array_counters);
 
 
 typedef struct st_json_find_paths_t
@@ -378,7 +376,7 @@ typedef struct st_json_find_paths_t
   json_path_t *paths;
   uint cur_depth;
   uint *path_depths;
-  int *array_counters;
+  MEM_ROOT_DYNAMIC_ARRAY array_counters;
 } json_find_paths_t;
 
 
@@ -439,9 +437,11 @@ int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
 int json_get_path_next(json_engine_t *je, json_path_t *p);
 
 int json_path_compare(const json_path_t *a, const json_path_t *b,
-                      enum json_value_types vt, const int* array_size_counter);
+                      enum json_value_types vt,
+                      MEM_ROOT_DYNAMIC_ARRAY* array_size_counter);
 
-int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs, json_engine_t *je);
+int json_valid(const char *js, size_t js_len,
+               CHARSET_INFO *cs, json_engine_t *je);
 
 int json_locate_key(const char *js, const char *js_end,
                     const char *kname,
@@ -449,7 +449,8 @@ int json_locate_key(const char *js, const char *js_end,
                     int *comma_pos);
 
 int json_normalize(DYNAMIC_STRING *result,
-                   const char *s, size_t size, CHARSET_INFO *cs);
+                   const char *s, size_t size, CHARSET_INFO *cs,
+                   MEM_ROOT *current_mem_root);
 
 int json_skip_array_and_count(json_engine_t *j, int* n_item);
 

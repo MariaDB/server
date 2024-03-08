@@ -1,0 +1,1 @@
+select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
