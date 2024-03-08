@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+# Default paths
+SCRIPT_DIR=$(dirname "$(readlink -m "$0")")
+MARIADB_SOURCE_DIR="$SCRIPT_DIR/../.."
+MARIADB_BUILD_DIR=$(realpath "${MARIADB_BUILD_DIR:-$MARIADB_SOURCE_DIR/builddir}")
+
+# Skip building some of the engine/plugins as not necessary or does not build with current vector branch
+cmake -S $MARIADB_SOURCE_DIR -B $MARIADB_BUILD_DIR -G Ninja -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF -DPLUGIN_SPIDER=NO
+
+cmake --build $MARIADB_BUILD_DIR

@@ -519,6 +519,39 @@ mini-benchmark:
       metrics:
         - metrics.txt
 
+ann-benchmark:
+  stage: test
+  needs: []
+  image: ubuntu:22.04
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    # Install dependencies for MariaDB build
+    - apt-get update
+    - apt-get install -y --no-install-recommends devscripts equivs ccache ninja-build
+    - mk-build-deps -r -i debian/control -t 'apt-get -y -o Debug::pkgProblemResolver=yes --no-install-recommends'
+    # Build MariaDB for vector support with ccache
+    - mkdir -p builddir
+    - export CCACHE_DIR="$(pwd)/.ccache"; update-ccache-symlinks; ccache --zero-stats  # Zero out ccache counters
+    - ./support-files/ann-benchmark/server-vector-build.sh 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - ccache -s  # Show ccache stats to validate it worked
+    # Prepare and run ann-benchmarks
+    - apt-get install -y --no-install-recommends python3-numpy python3-scipy python3-pip build-essential git libmariadb-dev
+    - mkdir -p ann-workspace
+    - ./support-files/ann-benchmark/run-local.sh
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - ${WORKING_DIR}/debug
+      - ann-workspace/ann-benchmarks/results
+  cache:
+    key: $MARIADB_MAJOR_VERSION
+    paths:
+      - .ccache
+
 cppcheck: 
   stage: sast
   needs: []
