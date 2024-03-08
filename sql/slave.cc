@@ -5006,6 +5006,7 @@ connected:
          important thing is to not confuse users by saying "reading" whereas
          we're in fact receiving nothing.
       */
+      thd->set_time_for_next_stage();
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
 
 #ifdef ENABLED_DEBUG_SYNC
@@ -5052,6 +5053,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       } // if (event_len == packet_error)
 
       retry_count=0;                    // ok event, reset retry counter
+      thd->set_time_for_next_stage();
       THD_STAGE_INFO(thd, stage_queueing_master_event_to_the_relay_log);
       event_buf= mysql->net.read_pos + 1;
       mi->semi_ack= 0;
