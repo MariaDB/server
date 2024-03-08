@@ -147,7 +147,12 @@ if (-e $config)
 
             if (/(\S+)\s*=\s*(.*\S)/)
             {
-                $config{lc $1} = $2 if exists $config{lc $1};
+                my ($k, $v) = ($1, $2);
+                if ($k =~ /^filter_/i) {
+                  $config{lc $k} = StringOrRegex($v) if exists $config{lc $k};
+                } else {
+                  $config{lc $k} = $v if exists $config{lc $k};
+                }
             }
         }
         close CFG;
