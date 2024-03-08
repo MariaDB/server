@@ -21,7 +21,7 @@ ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 endif
 
 BUILDDIR := builddir
-DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
+DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/.*[~-]\(.*\)/\1/')
 RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
 TMP:=$(CURDIR)/debian/tmp
 
