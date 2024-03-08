@@ -4634,7 +4634,8 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
 
 
 static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
-                                     LEX_CSTRING *db, LEX_CSTRING *table)
+                                     const LEX_CSTRING *db,
+                                     const LEX_CSTRING *table)
 {
   LEX_CSTRING engine_name= { buf, 0 };
 
@@ -4684,7 +4685,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   LEX *old_lex= thd->lex, temp_lex, *lex;
   LEX_CSTRING db_name, table_name;
   TABLE_LIST *table_list;
-  bool result= true;
+  bool result= true, open_result, run, ext_error_handling;
   DBUG_ENTER("fill_schema_table_by_open");
 
   /*
@@ -4761,7 +4762,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   }
 
   DBUG_ASSERT(thd->lex == lex);
-  result= open_tables_only_view_structure(thd, table_list, can_deadlock);
+  open_result= open_tables_only_view_structure(thd, table_list, can_deadlock);
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
@@ -4776,28 +4777,41 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result && thd->is_error() &&
-      (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-       thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-       thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
+  result= open_result;
+  run= true;
+  ext_error_handling= schema_table->i_s_requested_object
+                                                  & I_S_EXTENDED_ERROR_HANDLING;
+  if (result && thd->is_error())
   {
-    /*
-      Hide error for a non-existing table.
-      For example, this error can occur when we use a where condition
-      with a db name and table, but the table does not exist or
-      there is a view with the same name.
-    */
-    result= false;
-    thd->clear_error();
+    if (!is_show_fields_or_keys)
+    {
+      /*
+        Hide error for a non-existing table and skip processing.
+        For example, this error can occur when we use a where condition
+        with a db name and table, but the table does not exist or
+        there is a view with the same name.
+        Some errors, like ER_UNKNOWN_STORAGE_ENGINE, can still allow table
+        processing, if the information schema table supports that.
+      */
+      run= run && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE
+               && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
+               && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
+      if (!run)
+        thd->clear_error();
+      else if (!ext_error_handling)
+        convert_error_to_warning(thd);
+      result= false;
+    }
   }
-  else
+
+  if (run && (!open_result || ext_error_handling))
   {
     char buf[NAME_CHAR_LEN + 1];
     if (unlikely(thd->is_error()))
       get_table_engine_for_i_s(thd, buf, table_list, &db_name, &table_name);
 
     result= schema_table->process_table(thd, table_list,
-                                        table, result,
+                                        table, open_result,
                                         orig_db_name,
                                         orig_table_name);
   }
@@ -5121,13 +5135,18 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     {
       res= 0;
     }
-    else
+    else if (schema_table->i_s_requested_object & I_S_EXTENDED_ERROR_HANDLING)
     {
       char buf[NAME_CHAR_LEN + 1];
       get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
 
       res= schema_table->process_table(thd, &table_list, table,
                                        true, db_name, table_name);
+    }
+    else
+    {
+      if (thd->is_error())
+        convert_error_to_warning(thd);
     }
     goto end;
   }
@@ -5206,6 +5225,29 @@ end:
   if (!thd->is_fatal_error)
     thd->clear_error();
   return res;
+}
+
+
+static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
+                                                  const privilege_t need,
+                                                  bool any)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /* 
+    We know that the table or at least some of the columns have
+    necessary privileges, but the caller didn't pass down the GRANT_INFO
+    object, so we have to rediscover everything again :( 
+  */
+  if (!(thd->col_access & need))
+  {
+    check_grant(thd, need, tables, 0, 1, 1);
+    return (any ? tables->grant.all_privilege() 
+                : tables->grant.privilege) & need;
+  }
+  return thd->col_access & need;
+#else
+  return need;
+#endif
 }
 
 
@@ -5326,6 +5368,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   */
   if (lsel && lsel->table_list.first)
   {
+    DBUG_ASSERT(thd->sql_command_flags() & CF_STATUS_COMMAND);
     error= fill_schema_table_by_open(thd, thd->mem_root, TRUE,
                                      table, schema_table,
                                      &lsel->table_list.first->db,
@@ -5623,6 +5666,14 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     }
   }
   DBUG_RETURN(0);
+}
+
+
+static int store_yesno(Field *field, bool predicate)
+{
+  static const LEX_CSTRING yes{STRING_WITH_LEN("YES")};
+  static const LEX_CSTRING no {STRING_WITH_LEN("NO")};
+  return field->store(predicate ? yes : no, system_charset_info);
 }
 
 
@@ -6191,11 +6242,88 @@ static void store_variable_type(THD *thd, const sp_variable *spvar,
   }
 }
 
+static int store_schema_period_record(THD *thd, TABLE_LIST *tl,
+                                      TABLE *schema_table,
+                                      const LEX_CSTRING *db_name,
+                                      const LEX_CSTRING *table_name,
+                                      const TABLE_SHARE::period_info_t &period)
+{
+  TABLE_SHARE *s= tl->table->s;
+  const CHARSET_INFO *cs= system_charset_info;
 
-static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
-				    TABLE *table, bool res,
-				    const LEX_CSTRING *db_name,
-				    const LEX_CSTRING *table_name)
+  if (period.start_field(s)->invisible >= INVISIBLE_SYSTEM)
+  {
+    // A system-versioned table without user-defined SYSTEM_TIME
+    DBUG_ASSERT(&period == &s->vers);
+    DBUG_ASSERT(period.end_field(s)->invisible >= INVISIBLE_SYSTEM);
+    return 0;
+  }
+
+  schema_table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  schema_table->field[1]->store(db_name, cs);
+  schema_table->field[2]->store(table_name, cs);
+  schema_table->field[3]->store(period.name, cs);
+
+  /* need any privilege on any of the columns */
+  bool table_granted= get_schema_privileges_for_show(thd, tl, TABLE_ACLS, true);
+  if (!table_granted)
+    return 0;
+
+  int period_field= 4;
+  for (auto *field: {period.start_field(s), period.end_field(s)})
+  {
+    /* Reveal the value only if the user has any privilege on this column */
+    bool col_granted= get_column_grant(thd, &tl->grant, 
+                                        db_name->str, table_name->str,
+                                        field->field_name.str) & COL_DML_ACLS;
+    if (col_granted)
+    {
+      schema_table->field[period_field]->set_notnull();
+      schema_table->field[period_field]->store(field->field_name, cs);
+    }
+
+    period_field++;
+  }
+
+  return schema_table_store_record(thd, schema_table);
+}
+
+
+static int
+get_schema_period_records(THD *thd, TABLE_LIST *tl,
+                          TABLE *schema_table, //!< @ref
+                                               //!< Show::periods_fields_info
+                          bool res,
+                          const LEX_CSTRING *db_name,
+                          const LEX_CSTRING *table_name)
+{
+  TABLE *table= tl->table;
+
+  if (!table || (!table->s->period.name && !table->versioned()))
+    return 0;
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  check_access(thd, SELECT_ACL, db_name->str,
+               &tl->grant.privilege, 0, 0, MY_TEST(tl->schema_table));
+  DBUG_ASSERT(!is_temporary_table(tl));
+#endif
+  int err= 0;
+  if (table->versioned())
+    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
+                                    table->s->vers);
+  if (!err && table->s->period.name)
+    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
+                                    table->s->period);
+
+  return err;
+}
+
+static
+int get_schema_column_record(THD *thd, TABLE_LIST *tables,
+                             TABLE *table, //!< @ref Show::columns_fields_info
+                             bool res,
+                             const LEX_CSTRING *db_name,
+                             const LEX_CSTRING *table_name)
 {
   LEX *lex= thd->lex;
   const char *wild= lex->wild ? lex->wild->ptr() : NullS;
@@ -6206,20 +6334,6 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   bool quoted_defaults= lex->sql_command != SQLCOM_SHOW_FIELDS;
   DBUG_ENTER("get_schema_column_record");
 
-  if (res)
-  {
-    if (lex->sql_command != SQLCOM_SHOW_FIELDS)
-    {
-      /*
-        I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
-        rather than in SHOW COLUMNS
-      */
-      if (thd->is_error())
-        convert_error_to_warning(thd);
-      res= 0;
-    }
-    DBUG_RETURN(res);
-  }
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;
@@ -6285,9 +6399,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
     }
-    pos=(uchar*) ((field->flags & NOT_NULL_FLAG) ?  "NO" : "YES");
-    table->field[6]->store((const char*) pos,
-                           strlen((const char*) pos), cs);
+    store_yesno(table->field[6], (field->flags & NOT_NULL_FLAG) == 0);
     store_column_type(table, field, cs, 7);
     pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
                  (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
@@ -6346,6 +6458,12 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
+    const auto &vers= show_table->s->vers;
+    store_yesno(table->field[22], show_table->versioned() &&
+                                  vers.start_fieldno == field->field_index);
+    store_yesno(table->field[23], show_table->versioned() &&
+                                  vers.end_fieldno == field->field_index);
+
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
   }
@@ -6423,10 +6541,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
     if (!(wild && wild[0] &&
           wild_case_compare(scs, name->str,wild)))
     {
-      LEX_CSTRING yesno[2]= {{ STRING_WITH_LEN("NO") },
-                             { STRING_WITH_LEN("YES") }};
-      LEX_CSTRING *tmp;
-      const char *option_name= default_type != hton ? yesno[1].str
+      const char *option_name= default_type != hton ? "YES"
                                                     : "DEFAULT";
       restore_record(table, s->default_values);
 
@@ -6434,14 +6549,12 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      tmp= &yesno[MY_TEST(hton->commit && !(hton->flags & HTON_NO_ROLLBACK))];
-      table->field[3]->store(tmp->str, tmp->length, scs);
+      store_yesno(table->field[3],
+                  hton->commit && !(hton->flags & HTON_NO_ROLLBACK));
       table->field[3]->set_notnull();
-      tmp= &yesno[MY_TEST(hton->prepare)];
-      table->field[4]->store(tmp->str, tmp->length, scs);
+      store_yesno(table->field[4], hton->prepare);
       table->field[4]->set_notnull();
-      tmp= &yesno[MY_TEST(hton->savepoint_set)];
-      table->field[5]->store(tmp->str, tmp->length, scs);
+      store_yesno(table->field[5], hton->savepoint_set);
       table->field[5]->set_notnull();
 
       if (schema_table_store_record(thd, table))
@@ -7038,24 +7151,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
 {
   CHARSET_INFO *cs= system_charset_info;
   DBUG_ENTER("get_schema_stat_record");
-  if (res)
-  {
-    if (thd->lex->sql_command != SQLCOM_SHOW_KEYS)
-    {
-      /*
-        I.e. we are in SELECT FROM INFORMATION_SCHEMA.STATISTICS
-        rather than in SHOW KEYS
-      */
-      if (unlikely(thd->is_error()))
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     thd->get_stmt_da()->sql_errno(),
-                     thd->get_stmt_da()->message());
-      thd->clear_error();
-      res= 0;
-    }
-    DBUG_RETURN(res);
-  }
-  else if (!tables->view)
+  if (!tables->view)
   {
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
@@ -7067,19 +7163,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       set_statistics_for_table(thd, show_table);
     }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-    bool need_column_checks= false;
-    /* we know that the table or at least some of the columns have
-       necessary privileges, but the caller didn't pass down the GRANT_INFO
-       object, so we have to rediscover everything again :( */
-    if (!(thd->col_access & TABLE_ACLS))
-    {
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.privilege & TABLE_ACLS))
-        need_column_checks= true;
-    }
-#endif
+    bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
+                                                             TABLE_ACLS, false);
 
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
@@ -7090,13 +7175,12 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING *str;
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (need_column_checks)
       {
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+          auto access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str,
                                         key_part->field->field_name.str);
 
@@ -7107,7 +7191,6 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           continue;
         key_part= key_info->key_part;
       }
-#endif
 
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
@@ -7187,8 +7270,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
                                   key_info->comment.length, cs);
 
         // IGNORED column
-        const char *is_ignored= key_info->is_ignored ? "YES" : "NO";
-        table->field[16]->store(is_ignored, strlen(is_ignored), cs);
+        store_yesno(table->field[16], key_info->is_ignored);
         table->field[16]->set_notnull();
 
         if (schema_table_store_record(thd, table))
@@ -7307,10 +7389,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         if (updatable_view && !tables->view->can_be_merged())
           updatable_view= 0;
       }
-      if (updatable_view)
-        table->field[5]->store(STRING_WITH_LEN("YES"), cs);
-      else
-        table->field[5]->store(STRING_WITH_LEN("NO"), cs);
+      store_yesno(table->field[5], updatable_view);
     }
 
     definer_len= (uint)(strxmov(definer, tables->definer.user.str, "@",
@@ -7362,15 +7441,6 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
                                         const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_check_constraints_record");
-  if (res)
-  {
-    if (thd->is_error())
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   if (!tables->view)
   {
     StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
@@ -7414,31 +7484,12 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 					 const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_constraints_record");
-  if (res)
+  if (!tables->view)
   {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
-  else if (!tables->view)
-  {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
-    const privilege_t need= TABLE_ACLS & ~SELECT_ACL;
-    if (!(thd->col_access & need))
-    {
-      /* we know that the table or at least some of the columns have
-         necessary privileges, but the caller didn't pass down the GRANT_INFO
-         object, so we have to rediscover everything again :( */
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.all_privilege() & need))
-        DBUG_RETURN(0);
-    }
-#endif
+    if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL, 
+                                        true))
+      DBUG_RETURN(0);
 
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
@@ -7551,19 +7602,6 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
 				      const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_triggers_record");
-  /*
-    res can be non zero value when processed table is a view or
-    error happened during opening of processed table.
-  */
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   if (!tables->view && tables->table->triggers)
   {
     Table_triggers_list *triggers= tables->table->triggers;
@@ -7593,41 +7631,43 @@ ret:
   DBUG_RETURN(0);
 }
 
+static int
+store_key_column_usage(TABLE *table, const LEX_CSTRING &db_name,
+                       const LEX_CSTRING &table_name,
+                       const LEX_CSTRING &key_name,
+                       const LEX_CSTRING &col_name)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  static const LEX_CSTRING def{STRING_WITH_LEN("def")};
+  const LEX_CSTRING *values[] { &def, &db_name, &key_name,
+                                &def, &db_name, &table_name, &col_name };
+  for (uint i = 0; i < array_elements(values); i++)
+    table->field[i]->store(values[i], cs);
+  return 0;
+}
 
 static void
 store_key_column_usage(TABLE *table, const LEX_CSTRING *db_name,
                        const LEX_CSTRING *table_name, const char *key_name,
-                       size_t key_len, const char *con_type, size_t con_len,
+                       size_t key_len, const char *col_name, size_t col_len,
                        longlong idx)
 {
-  CHARSET_INFO *cs= system_charset_info;
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
-  table->field[1]->store(db_name->str, db_name->length, cs);
-  table->field[2]->store(key_name, key_len, cs);
-  table->field[3]->store(STRING_WITH_LEN("def"), cs);
-  table->field[4]->store(db_name->str, db_name->length, cs);
-  table->field[5]->store(table_name->str, table_name->length, cs);
-  table->field[6]->store(con_type, con_len, cs);
+  store_key_column_usage(table, *db_name, *table_name, {key_name, key_len},
+                         {col_name, col_len});
   table->field[7]->store((longlong) idx, TRUE);
 }
 
 
-static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
-					      TABLE *table, bool res,
-					      const LEX_CSTRING *db_name,
-					      const LEX_CSTRING *table_name)
+static int
+get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
+                                   TABLE *table,
+                                   //!< @ref Show::key_column_usage_fields_info
+                                   bool res,
+                                   const LEX_CSTRING *db_name,
+                                   const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_key_column_usage_record");
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
-  else if (!tables->view)
+  if (!tables->view)
   {
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
@@ -7636,19 +7676,8 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
     show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-    bool need_column_checks= false;
-    /* we know that the table or at least some of the columns have
-       necessary privileges, but the caller didn't pass down the GRANT_INFO
-       object, so we have to rediscover everything again :( */
-    if (!(thd->col_access & TABLE_ACLS))
-    {
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.privilege & TABLE_ACLS))
-        need_column_checks= true;
-    }
-#endif
+    bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
+                                                             TABLE_ACLS, false);
 
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
@@ -7656,13 +7685,12 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
         continue;
       uint f_idx= 0;
       KEY_PART_INFO *key_part= key_info->key_part;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (need_column_checks)
       {
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+          auto access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str,
                                         key_part->field->field_name.str);
 
@@ -7673,7 +7701,6 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
           continue;
         key_part= key_info->key_part;
       }
-#endif
 
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
@@ -7705,7 +7732,7 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
       {
         while ((r_info= it1++))
         {
-          uint access= get_column_grant(thd, &tables->grant, db_name->str,
+          auto access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str, r_info->str);
 
           if (!access)
@@ -7745,6 +7772,40 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
     }
   }
   DBUG_RETURN(res);
+}
+
+
+static
+int get_schema_key_period_usage_record(THD *thd, TABLE_LIST *tables,
+                                       TABLE *schema_table, //!< @ref
+                                       //!< Show::key_period_usage_fields_info
+                                       bool res,
+                                       const LEX_CSTRING *db_name,
+                                       const LEX_CSTRING *table_name)
+{
+  const uint keys_total= tables->table->s->keys;
+  const KEY *keys= tables->table->s->key_info;
+  const Lex_ident &period_name= tables->table->s->period.name;
+  if (!period_name)
+    return 0;
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /* Need any non-SELECT privilege on the table or any of its columns */
+  if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL,
+                                      true))
+    return 0;
+#endif
+
+  bool err= false;
+  for (uint k= 0; !err && k < keys_total; k++)
+  {
+    if (!keys[k].without_overlaps)
+      continue;
+    err= store_key_column_usage(schema_table, *db_name, *table_name,
+                                keys[k].name, period_name);
+    err= err || schema_table_store_record(thd, schema_table);
+  }
+  return err;
 }
 
 
@@ -7882,15 +7943,6 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
 #endif
   DBUG_ENTER("get_schema_partitions_record");
 
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   file= show_table->file;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   part_info= show_table->part_info;
@@ -8475,15 +8527,6 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
   LEX_CSTRING *s;
   DBUG_ENTER("get_referential_constraints_record");
 
-  if (res)
-  {
-    if (unlikely(thd->is_error()))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
   if (!tables->view)
   {
     List<FOREIGN_KEY_INFO> f_key_list;
@@ -8491,20 +8534,10 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     show_table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
-    const privilege_t need= TABLE_ACLS & ~SELECT_ACL;
-    if (!(thd->col_access & need))
-    {
-      /* we know that the table or at least some of the columns have
-         necessary privileges, but the caller didn't pass down the GRANT_INFO
-         object, so we have to rediscover everything again :( */
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.all_privilege() & need))
-        DBUG_RETURN(0);
-    }
-#endif
+    privilege_t need= TABLE_ACLS & ~SELECT_ACL;
+    if (!get_schema_privileges_for_show(thd, tables, need, true))
+      DBUG_RETURN(0);
 
     show_table->file->get_foreign_key_list(thd, &f_key_list);
     FOREIGN_KEY_INFO *f_key_info;
@@ -9599,7 +9632,9 @@ ST_FIELD_INFO columns_fields_info[]=
                                                                  OPEN_FRM_ONLY),
   Column("IS_GENERATED",            Varchar(6),  NOT_NULL,       OPEN_FRM_ONLY),
   Column("GENERATION_EXPRESSION",   Longtext(MAX_FIELD_VARCHARLENGTH),
-                                                 NULLABLE,       OPEN_FRM_ONLY),
+                                                 NULLABLE,       OPEN_FRM_ONLY), // 21
+  Column("IS_SYSTEM_TIME_PERIOD_START", Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 22
+  Column("IS_SYSTEM_TIME_PERIOD_END",   Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 23
   CEnd()
 };
 
@@ -9863,6 +9898,18 @@ ST_FIELD_INFO key_column_usage_fields_info[]=
   CEnd()
 };
 
+ST_FIELD_INFO key_period_usage_fields_info[]=
+{
+  Column("CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_CATALOG",      Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_SCHEMA",       Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("PERIOD_NAME",        Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
+};
+
 
 ST_FIELD_INFO table_names_fields_info[]=
 {
@@ -9973,6 +10020,17 @@ ST_FIELD_INFO sysvars_fields_info[]=
   Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
   Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
   Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
+  CEnd()
+};
+
+ST_FIELD_INFO periods_fields_info[]=
+{
+  Column("TABLE_CATALOG", Catalog(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("TABLE_SCHEMA",      Name(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("TABLE_NAME",        Name(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("PERIOD",            Name(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("START_COLUMN_NAME", Name(), NULLABLE, OPEN_FRM_ONLY),
+  Column("END_COLUMN_NAME",   Name(), NULLABLE, OPEN_FRM_ONLY),
   CEnd()
 };
 
@@ -10308,6 +10366,9 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"KEY_COLUMN_USAGE", Show::key_column_usage_fields_info, 0,
    get_all_tables, 0, get_schema_key_column_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"KEY_PERIOD_USAGE", Show::key_period_usage_fields_info, 0,
+   get_all_tables, 0, get_schema_key_period_usage_record, 4, 5, 0,
+   OPTIMIZE_I_S_TABLE | OPEN_FRM_FILE_ONLY},
   {"OPEN_TABLES", Show::open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
   {"OPTIMIZER_COSTS", Show::optimizer_costs_fields_info, 0,
@@ -10319,6 +10380,9 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"PARTITIONS", Show::partitions_fields_info, 0,
    get_all_tables, 0, get_schema_partitions_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"PERIODS", Show::periods_fields_info, 0,
+   get_all_tables, 0, get_schema_period_records, 1, 2, 0,
+   OPTIMIZE_I_S_TABLE | OPEN_TABLE_ONLY},
   {"PLUGINS", Show::plugin_fields_info, 0,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
   {"PROCESSLIST", Show::processlist_fields_info, 0,
@@ -10348,7 +10412,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", Show::tables_fields_info, 0,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
-   OPTIMIZE_I_S_TABLE},
+   OPTIMIZE_I_S_TABLE|I_S_EXTENDED_ERROR_HANDLING},
   {"TABLESPACES", Show::tablespaces_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"TABLE_CONSTRAINTS", Show::table_constraints_fields_info, 0,
@@ -10365,10 +10429,12 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
   {"VIEWS", Show::view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
-   OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
+   OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE|I_S_EXTENDED_ERROR_HANDLING},
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
+static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
+              "Update enum_schema_tables as well.");
 
 int initialize_schema_table(st_plugin_int *plugin)
 {

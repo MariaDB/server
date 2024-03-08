@@ -233,91 +233,67 @@ void Date_cmp_func_rewriter::rewrite_le_gt_lt_ge()
 }
 
 
-Item *Date_cmp_func_rewriter::create_start_bound()
+Item *Date_cmp_func_rewriter::create_bound(uint month, uint day,
+                                           const TimeOfDay6 &td) const
 {
-  Item_datetime *res;
-  MYSQL_TIME const_arg_ts;
-  memset(&const_arg_ts, 0, sizeof(const_arg_ts));
-  const_arg_ts.time_type= MYSQL_TIMESTAMP_DATETIME;
+  /*
+    We could always create Item_datetime with Item_datetime::decimals==6 here.
+    But this would not be efficient in some cases.
+
+    Let's create an Item_datetime with Item_datetime::decimals
+    equal to field_ref->decimals, so if:
+
+    (1) the original statement:
+
+        SELECT ts3 FROM t1 WHERE DATE(ts3) <= '2024-01-23';
+
+    gets rewritten to:
+
+    (2) a statement with DATETIME comparison
+        with an Item_datetime on the right side:
+
+          SELECT ts3 FROM t1
+          WHERE ts3 <= '2024-01-23 23:59.59.999'; -- Item_datetime
+
+    and then gets further rewritten with help of convert_item_for_comparison()
+    to:
+
+    (3) a statement with TIMESTAMP comparison
+        with an Item_timestamp_literal on the right side
+
+          SELECT ts3 FROM t1
+          WHERE ts3 <= '2024-01-23 23:59:59.999'; -- Item_timestamp_literal
+
+    then we have an efficent statement calling
+    Type_handler_timestamp_common::cmp_native() for comparison,
+    which has a faster execution path when both sides have equal
+    fractional precision.
+  */
   switch (argument_func_type) {
   case Item_func::YEAR_FUNC:
-    const_arg_ts.year= static_cast<unsigned int>(const_arg_value->val_int());
-    const_arg_ts.month= 1;
-    const_arg_ts.day= 1;
-    if (check_datetime_range(&const_arg_ts))
-      return nullptr;
-    res= new (thd->mem_root) Item_datetime(thd);
-    res->set(&const_arg_ts);
-    break;
+  {
+    longlong year= const_arg_value->val_int();
+    const Datetime bound(static_cast<unsigned int>(year), month, day, td);
+    if (!bound.is_valid_datetime())
+      return nullptr; // "year" was out of the supported range
+    return new (thd->mem_root) Item_datetime(thd, bound, field_ref->decimals);
+  }
   case Item_func::DATE_FUNC:
     if (field_ref->field->type() == MYSQL_TYPE_DATE)
       return const_arg_value;
     else
     {
-      Datetime const_arg_dt(current_thd, const_arg_value);
+      const Datetime const_arg_dt(current_thd, const_arg_value);
       if (!const_arg_dt.is_valid_datetime())
-        return nullptr;
-      res= new (thd->mem_root) Item_datetime(thd);
-      const_arg_dt.copy_to_mysql_time(&const_arg_ts);
-      const_arg_ts.second_part= const_arg_ts.second=
-        const_arg_ts.minute= const_arg_ts.hour= 0;
-      const_arg_ts.time_type= MYSQL_TIMESTAMP_DATETIME;
-      res->set(&const_arg_ts);
+        return nullptr; // SQL NULL datetime
+      const Datetime bound(const_arg_dt.time_of_day(td));
+      return new (thd->mem_root) Item_datetime(thd, bound, field_ref->decimals);
     }
-    break;
   default:
     DBUG_ASSERT(0);
-    res= nullptr;
     break;
   }
-  return res;
-}
-
-
-Item *Date_cmp_func_rewriter::create_end_bound()
-{
-  Item_datetime *res;
-  MYSQL_TIME const_arg_ts;
-  memset(&const_arg_ts, 0, sizeof(const_arg_ts));
-  const_arg_ts.time_type= MYSQL_TIMESTAMP_DATETIME;
-  switch (argument_func_type) {
-  case Item_func::YEAR_FUNC:
-    const_arg_ts.year= static_cast<unsigned int>(const_arg_value->val_int());
-    const_arg_ts.month= 12;
-    const_arg_ts.day= 31;
-    const_arg_ts.hour= 23;
-    const_arg_ts.minute= TIME_MAX_MINUTE;
-    const_arg_ts.second= TIME_MAX_SECOND;
-    const_arg_ts.second_part= TIME_MAX_SECOND_PART;
-    if (check_datetime_range(&const_arg_ts))
-      return nullptr;
-    res= new (thd->mem_root) Item_datetime(thd);
-    res->set(&const_arg_ts);
-    break;
-  case Item_func::DATE_FUNC:
-    if (field_ref->field->type() == MYSQL_TYPE_DATE)
-      return const_arg_value;
-    else
-    {
-      res= new (thd->mem_root) Item_datetime(thd);
-      Datetime const_arg_dt(current_thd, const_arg_value);
-      if (!const_arg_dt.is_valid_datetime())
-        return nullptr;
-      const_arg_dt.copy_to_mysql_time(&const_arg_ts);
-      const_arg_ts.hour= 23;
-      const_arg_ts.minute= TIME_MAX_MINUTE;
-      const_arg_ts.second= TIME_MAX_SECOND;
-      const_arg_ts.second_part=TIME_MAX_SECOND_PART;
-      const_arg_ts.time_type= MYSQL_TIMESTAMP_DATETIME;
-      res->set(&const_arg_ts);
-    }
-    break;
-  default:
-    DBUG_ASSERT(0);
-    res= nullptr;
-    break;
-  }
-  return res;
+  return nullptr;
 }
 
 

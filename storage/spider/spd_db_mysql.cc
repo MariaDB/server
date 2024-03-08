@@ -1531,10 +1531,13 @@ int spider_db_mbase_result::fetch_index_for_discover_table_structure(
     }
     DBUG_RETURN(0);
   }
-  if (num_fields() != 13)
+  if (num_fields() < 13)
   {
-    DBUG_PRINT("info",("spider num_fields != 13"));
-    my_printf_error(ER_SPIDER_UNKNOWN_NUM, ER_SPIDER_UNKNOWN_STR, MYF(0));
+    DBUG_PRINT("info",("spider num_fields < 13"));
+    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(0),
+                    "fetch index for table structure discovery because of "
+                    "wrong number of columns in SHOW INDEX FROM output: ",
+                    num_fields());
     DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
   }
   bool first = TRUE;
@@ -1929,7 +1932,7 @@ int spider_db_mbase::connect(
 
     if (!spider_param_same_server_link(thd))
     {
-      if (!strcmp(tgt_host, my_localhost))
+      if (!strcmp(tgt_host, my_localhost) || !tgt_host || !tgt_host[0])
       {
         if (!strcmp(tgt_socket, *spd_mysqld_unix_port))
         {
@@ -1939,7 +1942,7 @@ int spider_db_mbase::connect(
           DBUG_RETURN(ER_SPIDER_SAME_SERVER_LINK_NUM);
         }
       } else if (!strcmp(tgt_host, "127.0.0.1") ||
-        !strcmp(tgt_host, glob_hostname))
+        !strcmp(tgt_host, glob_hostname) || !tgt_host || !tgt_host[0])
       {
         if (tgt_port == (long) *spd_mysqld_port)
         {

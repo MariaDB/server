@@ -138,6 +138,7 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   net->where_b = net->remain_in_buf=0;
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
+  net->pkt_nr_can_be_reset= 0;
   net->thread_specific_malloc= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
   net->thd= 0;
   net->extension= NULL;
@@ -792,6 +793,7 @@ static ulong my_real_read(NET *net, size_t *complen,
   size_t length;
   uint i,retry_count=0;
   ulong len=packet_error;
+  my_bool expect_error_packet __attribute__((unused))= 0;
 retry:
 
   uint32 remain= (net->compress ? NET_HEADER_SIZE+COMP_HEADER_SIZE :
@@ -862,7 +864,31 @@ retry:
 #endif
       if (net->buff[net->where_b + 3] != (uchar) net->pkt_nr)
       {
-        goto packets_out_of_order;
+        if (net->pkt_nr_can_be_reset)
+        {
+          /*
+            We are using a protocol like semi-sync where master and slave
+            sends packets in parallel.
+            Copy current one as it can be useful for debugging.
+          */
+          net->pkt_nr= net->buff[net->where_b + 3];
+        }
+        else
+        {
+#ifndef MYSQL_SERVER
+          if (net->buff[net->where_b + 3] == (uchar) (net->pkt_nr -1))
+          {
+            /*
+              If the server was killed then the server may have missed the
+              last sent client packet and the packet numbering may be one off.
+            */
+            DBUG_PRINT("warning", ("Found possible out of order packets"));
+            expect_error_packet= 1;
+          }
+          else
+#endif
+            goto packets_out_of_order;
+        }
       }
       net->compress_pkt_nr= ++net->pkt_nr;
 #ifdef HAVE_COMPRESS
@@ -905,6 +931,21 @@ retry:
         server_extension= NULL;
       }
     }
+#ifndef MYSQL_SERVER
+    else if (expect_error_packet)
+    {
+      /*
+        This check is safe both for compressed and not compressed protocol
+        as for the compressed protocol errors are not compressed anymore.
+      */
+      if (net->buff[net->where_b] != (uchar) 255)
+      {
+        /* Restore pkt_nr to original value */
+        net->pkt_nr--;
+        goto packets_out_of_order;
+      }
+    }
+#endif
   }
 
 end:

@@ -1,8 +1,6 @@
-diff --git a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
-index bb3378139f2..ddab28508ec 100644
 --- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 +++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
-@@ -4259,99 +4259,9 @@ VARIABLE_COMMENT	Define threads usage for handling queries
+@@ -4639,99 +4639,9 @@
  NUMERIC_MIN_VALUE	NULL
  NUMERIC_MAX_VALUE	NULL
  NUMERIC_BLOCK_SIZE	NULL

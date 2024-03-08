@@ -2673,7 +2673,10 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       return TRUE;
 
     if (!thd->stmt_arena->is_conventional() &&
-        thd->lex->current_select->first_cond_optimization)
+	((!thd->lex->current_select &&
+	  (thd->stmt_arena->is_stmt_prepare_or_first_sp_execute() ||
+           thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())) ||
+         thd->lex->current_select->first_cond_optimization))
     {
       Query_arena *arena, backup;
       arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -7049,7 +7052,25 @@ Item *Item_float::neg(THD *thd)
   else if (value < 0 && max_length)
     max_length--;
   value= -value;
-  presentation= 0;
+  if (presentation)
+  {
+    if (*presentation == '-')
+    {
+      // Strip double minus: -(-1) -> '1' instead of '--1'
+      presentation++;
+    }
+    else
+    {
+      size_t presentation_length= strlen(presentation);
+      if (char *tmp= (char*) thd->alloc(presentation_length + 2))
+      {
+        tmp[0]= '-';
+        // Copy with the trailing '\0'
+        memcpy(tmp + 1, presentation, presentation_length + 1);
+        presentation= tmp;
+      }
+    }
+  }
   name= null_clex_str;
   return this;
 }
@@ -7327,6 +7348,17 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("TIMESTAMP'"));
   char buf[MAX_DATE_STRING_REP_LENGTH];
   int length= my_datetime_to_str(cached_time.get_mysql_time(), buf, decimals);
+  str->append(buf, length);
+  str->append('\'');
+}
+
+
+void Item_timestamp_literal::print(String *str, enum_query_type query_type)
+{
+  str->append(STRING_WITH_LEN("TIMESTAMP/*WITH LOCAL TIME ZONE*/'"));
+  char buf[MAX_DATE_STRING_REP_LENGTH];
+  Datetime dt= m_value.to_datetime(current_thd);
+  int length= my_datetime_to_str(dt.get_mysql_time(), buf, decimals);
   str->append(buf, length);
   str->append('\'');
 }

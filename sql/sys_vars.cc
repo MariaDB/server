@@ -1247,6 +1247,68 @@ Sys_binlog_expire_logs_seconds(
        VALID_RANGE(0, 8553600), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(copy_to_expire_logs_days));
 
+
+static bool update_binlog_space_limit(sys_var *, THD *,
+                                      enum_var_type type)
+{
+#ifdef HAVE_REPLICATION
+  /* Refresh summary of binlog sizes */
+  mysql_bin_log.lock_index();
+  binlog_space_limit= internal_binlog_space_limit;
+  slave_connections_needed_for_purge=
+    internal_slave_connections_needed_for_purge;
+
+  if (opt_bin_log)
+  {
+    if (binlog_space_limit)
+      mysql_bin_log.count_binlog_space();
+    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+    sending_new_binlog_file++;
+     mysql_bin_log.unlock_index();
+    mysql_bin_log.purge(1);
+    return 0;
+  }
+  mysql_bin_log.unlock_index();
+#endif
+  return 0;
+}
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_max_binlog_total_size(
+      "max_binlog_total_size",
+      "Maximum space to use for all binary logs. Extra logs are deleted on "
+      "server start, log rotation, FLUSH LOGS or when writing to binlog. "
+      "Default is 0, which means no size restrictions. "
+      "See also slave_connections_needed_for_purge",
+      GLOBAL_VAR(internal_binlog_space_limit), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+      ON_UPDATE(update_binlog_space_limit));
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_binlog_space_limit(
+      "binlog_space_limit",
+      "Alias for max_binlog_total_size. Compatibility with Percona server.",
+      GLOBAL_VAR(internal_binlog_space_limit), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+      ON_UPDATE(update_binlog_space_limit));
+
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_slave_connections_needed_for_purge(
+      "slave_connections_needed_for_purge",
+      "Minimum number of connected slaves required for automatic binary "
+      "log purge with max_binlog_total_size, binlog_expire_logs_seconds "
+      "or binlog_expire_logs_days.",
+       GLOBAL_VAR(internal_slave_connections_needed_for_purge),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_binlog_space_limit));
+
 static Sys_var_mybool Sys_flush(
        "flush", "Flush MyISAM tables to disk between SQL commands",
        GLOBAL_VAR(myisam_flush),
@@ -2925,6 +2987,14 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
+    "optimizer_adjust_secondary_key_costs",
+    "Unused, will be removed.",
+    SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1),
+    NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+    DEPRECATED(1100, ""));
+
 static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),
@@ -3599,13 +3669,6 @@ static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
   return false;
 }
 
-static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
-                                                   enum_var_type type)
-{
-  repl_semisync_master.check_and_switch();
-  return false;
-}
-
 static Sys_var_on_access_global<Sys_var_mybool,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED>
 Sys_semisync_master_enabled(
@@ -3632,12 +3695,11 @@ static Sys_var_on_access_global<Sys_var_mybool,
                   PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE>
 Sys_semisync_master_wait_no_slave(
        "rpl_semi_sync_master_wait_no_slave",
-       "Wait until timeout when no semi-synchronous replication slave "
-       "available (enabled by default).",
+       "Wait until timeout when no semi-synchronous replication slave is "
+       "available.",
        GLOBAL_VAR(rpl_semi_sync_master_wait_no_slave),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_master_wait_no_slave));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TRACE_LEVEL>
@@ -3663,13 +3725,6 @@ Sys_semisync_master_wait_point(
        repl_semisync_wait_point, DEFAULT(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
-
-static bool fix_rpl_semi_sync_slave_enabled(sys_var *self, THD *thd,
-                                            enum_var_type type)
-{
-  repl_semisync_slave.set_slave_enabled(rpl_semi_sync_slave_enabled != 0);
-  return false;
-}
 
 static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
                                                 enum_var_type type)
@@ -3698,10 +3753,9 @@ static Sys_var_on_access_global<Sys_var_mybool,
 Sys_semisync_slave_enabled(
        "rpl_semi_sync_slave_enabled",
        "Enable semi-synchronous replication slave (disabled by default).",
-       GLOBAL_VAR(rpl_semi_sync_slave_enabled),
+       GLOBAL_VAR(global_rpl_semi_sync_slave_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_slave_enabled));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL>

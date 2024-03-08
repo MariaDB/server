@@ -392,6 +392,9 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
   This directly contradicts the manual (number and a string should
   be compared as doubles), but seems to provide more
   "intuitive" behavior in some cases (but less intuitive in others).
+
+  This method should be moved to Type_handler::convert_item_for_comparison()
+  eventually.
 */
 void Item_func::convert_const_compared_to_int_field(THD *thd)
 {
@@ -409,6 +412,43 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
         convert_const_to_int(thd, field_item, &args[!field]);
     }
   }
+}
+
+
+bool Item_func::aggregate_args2_for_comparison_with_conversion(
+                                            THD *thd,
+                                            Type_handler_hybrid_field_type *th)
+{
+  DBUG_ASSERT(arg_count >= 2);
+  for (bool done= false ; !done ; )
+  {
+    if (th->aggregate_for_comparison(func_name_cstring(), args, 2, false))
+      return true;
+    if (thd->lex->is_ps_or_view_context_analysis())
+      return false;
+    done= true;
+    for (uint subject= 0; subject < 2; subject++)
+    {
+      uint other_side= subject == 0 ? 1 : 0;
+      /* See comment in convert_const_to_int() */
+      if (!args[subject]->with_sum_func() &&
+          args[subject]->can_eval_in_optimize())
+      {
+        Item *item= th->type_handler()->convert_item_for_comparison(thd,
+                                                             args[subject],
+                                                             args[other_side]);
+        if (!item)
+          return true; // An error happened, e.g. EOM
+        if (item != args[subject])
+        {
+          thd->change_item_tree(&args[subject], item);
+          done= false; // Aggregate again, using the replacement item
+          break;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 
@@ -487,7 +527,7 @@ bool Item_bool_rowready_func2::fix_length_and_dec(THD *thd)
   Item_args old_args(args[0], args[1]);
   convert_const_compared_to_int_field(thd);
   Type_handler_hybrid_field_type tmp;
-  if (tmp.aggregate_for_comparison(func_name_cstring(), args, 2, false) ||
+  if (aggregate_args2_for_comparison_with_conversion(thd, &tmp) ||
       tmp.type_handler()->Item_bool_rowready_func2_fix_length_and_dec(thd,
                                                                       this))
   {
@@ -2804,7 +2844,10 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
   set_maybe_null();
   m_arg0= args[0];
   convert_const_compared_to_int_field(thd);
-  if (cmp.set_cmp_func(thd, this, &args[0], &args[1], true/*set_null*/))
+  Type_handler_hybrid_field_type tmp;
+  if (aggregate_args2_for_comparison_with_conversion(thd, &tmp) ||
+      cmp.set_cmp_func(thd, this, tmp.type_handler(),
+                       &args[0], &args[1], true/*set_null*/))
     return true;
   /*
     A special code for EXECUTE..PREPARE.

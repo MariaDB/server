@@ -7,6 +7,7 @@
 # Embedded server does not support crashing
 --source include/not_embedded.inc
 
+call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile:");
 FLUSH TABLES;
 
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -172,6 +173,7 @@ call mtr.add_suppression("InnoDB: Table test/u[123] in the InnoDB data dictionar
 call mtr.add_suppression("InnoDB: Cannot replay rename of tablespace.*");
 call mtr.add_suppression("InnoDB: Attempted to open a previously opened tablespace");
 call mtr.add_suppression("InnoDB: Recovery cannot access file");
+call mtr.add_suppression("InnoDB: Cannot read first page in datafile:");
 FLUSH TABLES;
 --enable_query_log
 

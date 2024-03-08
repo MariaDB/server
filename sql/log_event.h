@@ -60,6 +60,8 @@ typedef ulong enum_slave_exec_mode;
 
 #include "rpl_gtid.h"
 
+#include "log_event_data_type.h"
+
 /* Forward declarations */
 #ifndef MYSQL_CLIENT
 class String;
@@ -158,6 +160,12 @@ class String;
 #define ESCAPED_EMPTY		0x10
 
 #define NUM_LOAD_DELIM_STRS 5
+
+/*
+  The following is the max table_map_id. This is limited by that we
+  are using 6 bytes for it in replication
+*/
+#define MAX_TABLE_MAP_ID ((1ULL << (6*8)) -1)
 
 /*****************************************************************************
 
@@ -3001,33 +3009,27 @@ private:
   @section User_var_log_event_binary_format Binary Format  
 */
 
-class User_var_log_event: public Log_event
+
+class User_var_log_event: public Log_event, public Log_event_data_type
 {
 public:
-  enum {
-    UNDEF_F= 0,
-    UNSIGNED_F= 1
-  };
   const char *name;
   size_t name_len;
   const char *val;
   size_t val_len;
-  Item_result type;
-  uint charset_number;
   bool is_null;
-  uchar flags;
 #ifdef MYSQL_SERVER
   bool deferred;
   query_id_t query_id;
   User_var_log_event(THD* thd_arg, const char *name_arg, size_t name_len_arg,
                      const char *val_arg, size_t val_len_arg,
-                     Item_result type_arg,
-		     uint charset_number_arg, uchar flags_arg,
+                     const Log_event_data_type &data_type,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),
+    Log_event_data_type(data_type),
     name(name_arg), name_len(name_len_arg), val(val_arg),
-    val_len(val_len_arg), type(type_arg), charset_number(charset_number_arg),
-    flags(flags_arg), deferred(false)
+    val_len(val_len_arg),
+    deferred(false)
     {
       is_null= !val;
       if (direct)
@@ -4412,7 +4414,8 @@ public:
   flag_set get_flags(flag_set flag) const { return m_flags & flag; }
 
 #ifdef MYSQL_SERVER
-  Table_map_log_event(THD *thd, TABLE *tbl, ulong tid, bool is_transactional);
+  Table_map_log_event(THD *thd, TABLE *tbl, ulonglong tid,
+                      bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
   Table_map_log_event(const uchar *buf, uint event_len,
@@ -4744,7 +4747,7 @@ protected:
      this class, not create instances of this class.
   */
 #ifdef MYSQL_SERVER
-  Rows_log_event(THD*, TABLE*, ulong table_id,
+  Rows_log_event(THD*, TABLE*, ulonglong table_id,
 		 MY_BITMAP const *cols, bool is_transactional,
 		 Log_event_type event_type);
 #endif
@@ -4974,7 +4977,7 @@ public:
   static constexpr Log_event_type TYPE_CODE = WRITE_ROWS_EVENT;
 
 #if defined(MYSQL_SERVER)
-  Write_rows_log_event(THD*, TABLE*, ulong table_id,
+  Write_rows_log_event(THD*, TABLE*, ulonglong table_id,
                        bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
@@ -5023,7 +5026,7 @@ class Write_rows_compressed_log_event : public Write_rows_log_event
 {
 public:
 #if defined(MYSQL_SERVER)
-  Write_rows_compressed_log_event(THD*, TABLE*, ulong table_id,
+  Write_rows_compressed_log_event(THD*, TABLE*, ulonglong table_id,
                        bool is_transactional);
   virtual bool write(Log_event_writer *writer);
 #endif
@@ -5056,7 +5059,7 @@ public:
   static constexpr Log_event_type TYPE_CODE = UPDATE_ROWS_EVENT;
 
 #ifdef MYSQL_SERVER
-  Update_rows_log_event(THD*, TABLE*, ulong table_id,
+  Update_rows_log_event(THD*, TABLE*, ulonglong table_id,
                         bool is_transactional);
 
   void init(MY_BITMAP const *cols);
@@ -5112,7 +5115,7 @@ class Update_rows_compressed_log_event : public Update_rows_log_event
 {
 public:
 #if defined(MYSQL_SERVER)
-  Update_rows_compressed_log_event(THD*, TABLE*, ulong table_id,
+  Update_rows_compressed_log_event(THD*, TABLE*, ulonglong table_id,
                         bool is_transactional);
   virtual bool write(Log_event_writer *writer);
 #endif
@@ -5153,7 +5156,7 @@ public:
   static constexpr Log_event_type TYPE_CODE = DELETE_ROWS_EVENT;
 
 #ifdef MYSQL_SERVER
-  Delete_rows_log_event(THD*, TABLE*, ulong, bool is_transactional);
+  Delete_rows_log_event(THD*, TABLE*, ulonglong, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
   Delete_rows_log_event(const uchar *buf, uint event_len,
@@ -5203,7 +5206,8 @@ class Delete_rows_compressed_log_event : public Delete_rows_log_event
 {
 public:
 #if defined(MYSQL_SERVER)
-  Delete_rows_compressed_log_event(THD*, TABLE*, ulong, bool is_transactional);
+  Delete_rows_compressed_log_event(THD*, TABLE*, ulonglong,
+                                   bool is_transactional);
   virtual bool write(Log_event_writer *writer);
 #endif
 #ifdef HAVE_REPLICATION

@@ -9,8 +9,8 @@ usr/share/man/man1/mariadb-upgrade.1
 usr/share/man/man1/resolveip.1
 usr/share/man/man8/mariadbd.8
 usr/share/mariadb/bulgarian
-usr/share/mariadb/chinese
 usr/share/mariadb/charsets
+usr/share/mariadb/chinese
 usr/share/mariadb/czech
 usr/share/mariadb/danish
 usr/share/mariadb/dutch
@@ -18,8 +18,8 @@ usr/share/mariadb/english
 usr/share/mariadb/estonian
 usr/share/mariadb/fill_help_tables.sql
 usr/share/mariadb/french
-usr/share/mariadb/german
 usr/share/mariadb/georgian
+usr/share/mariadb/german
 usr/share/mariadb/greek
 usr/share/mariadb/hindi
 usr/share/mariadb/hungarian

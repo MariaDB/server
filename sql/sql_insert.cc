@@ -96,7 +96,8 @@ static void end_delayed_insert(THD *thd);
 pthread_handler_t handle_delayed_insert(void *arg);
 static void unlink_blobs(TABLE *table);
 #endif
-static bool check_view_insertability(THD *thd, TABLE_LIST *view);
+static bool check_view_insertability(THD *thd, TABLE_LIST *view,
+                                     List<Item> &fields);
 static int binlog_show_create_table_(THD *thd, TABLE *table,
                                      Table_specification_st *create_info);
 
@@ -311,7 +312,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
   if (check_key_in_view(thd, table_list) ||
       (table_list->view &&
-       check_view_insertability(thd, table_list)))
+       check_view_insertability(thd, table_list, fields)))
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
     DBUG_RETURN(-1);
@@ -1423,6 +1424,7 @@ abort:
     check_view_insertability()
     thd     - thread handler
     view    - reference on VIEW
+    fields  - fields used in insert
 
   IMPLEMENTATION
     A view is insertable if the folloings are true:
@@ -1438,7 +1440,8 @@ abort:
     TRUE  - can't be used for insert
 */
 
-static bool check_view_insertability(THD * thd, TABLE_LIST *view)
+static bool check_view_insertability(THD *thd, TABLE_LIST *view,
+                                     List<Item> &fields)
 {
   uint num= view->view->first_select_lex()->item_list.elements;
   TABLE *table= view->table;
@@ -1449,6 +1452,8 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
   uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
   MY_BITMAP used_fields;
   enum_column_usage saved_column_usage= thd->column_usage;
+  List_iterator_fast<Item> it(fields);
+  Item *ex;
   DBUG_ENTER("check_key_in_view");
 
   if (!used_fields_buff)
@@ -1477,6 +1482,17 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
     /* simple SELECT list entry (field without expression) */
     if (!(field= trans->item->field_for_view_update()))
     {
+      // Do not check fields which we are not inserting into
+      while((ex= it++))
+      {
+        // The field used in the INSERT
+        if (ex->real_item()->field_for_view_update() ==
+            trans->item->field_for_view_update())
+          break;
+      }
+      it.rewind();
+      if (!ex)
+        continue;
       thd->column_usage= saved_column_usage;
       DBUG_RETURN(TRUE);
     }
@@ -1491,11 +1507,12 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
   }
   thd->column_usage= saved_column_usage;
   /* unique test */
-  for (trans= trans_start; trans != trans_end; trans++)
+  while((ex= it++))
   {
     /* Thanks to test above, we know that all columns are of type Item_field */
-    Item_field *field= (Item_field *)trans->item;
-    /* check fields belong to table in which we are inserting */
+    DBUG_ASSERT(ex->real_item()->field_for_view_update()->type() ==
+                Item::FIELD_ITEM);
+    Item_field *field= (Item_field *)ex->real_item()->field_for_view_update();
     if (field->field->table == table &&
         bitmap_fast_test_and_set(&used_fields, field->field->field_index))
       DBUG_RETURN(TRUE);
@@ -1779,7 +1796,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 
 	/* Check if there is more uniq keys after field */
 
-static int last_uniq_key(TABLE *table,uint keynr)
+static int last_uniq_key(TABLE *table, const KEY *key, uint keynr)
 {
   /*
     When an underlying storage engine informs that the unique key
@@ -1799,7 +1816,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
     return 0;
 
   while (++keynr < table->s->keys)
-    if (table->key_info[keynr].flags & HA_NOSAME)
+    if (key[keynr].flags & HA_NOSAME)
       return 0;
   return 1;
 }
@@ -2114,8 +2131,27 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           tables which have ON UPDATE but have no ON DELETE triggers,
           we just should not expose this fact to users by invoking
           ON UPDATE triggers.
+
+          Note, TABLE_SHARE and TABLE see long uniques differently:
+          - TABLE_SHARE sees as HA_KEY_ALG_LONG_HASH and HA_NOSAME
+          - TABLE sees as usual non-unique indexes
         */
-        if (last_uniq_key(table,key_nr) &&
+        bool is_long_unique= table->s->key_info &&
+                             table->s->key_info[key_nr].algorithm ==
+                             HA_KEY_ALG_LONG_HASH;
+        if ((is_long_unique ?
+             /*
+               We have a long unique. Test that there are no in-engine
+               uniques and the current long unique is the last long unique.
+             */
+             !(table->key_info[0].flags & HA_NOSAME) &&
+             last_uniq_key(table, table->s->key_info, key_nr) :
+             /*
+               We have a normal key - not a long unique.
+               Test is the current normal key is unique and
+               it is the last normal unique.
+             */
+             last_uniq_key(table, table->key_info, key_nr)) &&
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {

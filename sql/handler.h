@@ -1067,10 +1067,12 @@ enum enum_schema_tables
   SCH_KEYWORDS,
   SCH_KEY_CACHES,
   SCH_KEY_COLUMN_USAGE,
+  SCH_KEY_PERIOD_USAGE,
   SCH_OPEN_TABLES,
   SCH_OPTIMIZER_COSTS,
   SCH_OPT_TRACE,
   SCH_PARAMETERS,
+  SCH_PERIODS,
   SCH_PARTITIONS,
   SCH_PLUGINS,
   SCH_PROCESSLIST,
@@ -1091,7 +1093,8 @@ enum enum_schema_tables
   SCH_TABLE_PRIVILEGES,
   SCH_TRIGGERS,
   SCH_USER_PRIVILEGES,
-  SCH_VIEWS
+  SCH_VIEWS,
+  SCH_ENUM_SIZE
 };
 
 struct TABLE_SHARE;
@@ -1519,7 +1522,7 @@ struct handlerton
                        const LEX_CUSTRING *version, ulonglong create_id);
 
   /* Called for all storage handlers after ddl recovery is done */
-  void (*signal_ddl_recovery_done)(handlerton *hton);
+  int (*signal_ddl_recovery_done)(handlerton *hton);
 
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);

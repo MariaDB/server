@@ -8385,11 +8385,6 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                          INSERT_ACL : SELECT_ACL);
     }
 
-    if (tl->with || !tl->db.str ||
-        (tl->select_lex &&
-         (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl))))
-      continue;
-
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
                               t_ref->get_db_name(),
@@ -12172,8 +12167,8 @@ static my_bool count_column_grants(void *grant_table,
   This must be performed under the mutex in order to make sure the
   iteration does not fail.
 */
-static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
-                              enum enum_var_type scope)
+static int show_column_grants(THD *thd, SHOW_VAR *var, void *buff,
+                              system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_ULONG;
   var->value= buff;
@@ -12189,8 +12184,8 @@ static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_database_grants(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_database_grants(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_UINT;
   var->value= buff;
@@ -12205,6 +12200,9 @@ bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
 { return 0; }
 inline privilege_t public_access()
 { return NO_ACL; }
+privilege_t get_column_grant(THD *, GRANT_INFO *,
+                             const char *, const char *, const char *)
+{ return ALL_KNOWN_ACL; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 
