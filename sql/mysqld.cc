@@ -3856,8 +3856,6 @@ static int init_common_variables()
   if (init_thread_environment() || mysql_init_variables())
     exit(1);
 
-  assign_json_depth(curr_thd_json_depth);
-
   if (ignore_db_dirs_init())
     exit(1);
 

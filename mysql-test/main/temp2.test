@@ -1,0 +1,1 @@
+select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 100))) as exp;

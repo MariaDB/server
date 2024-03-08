@@ -75,10 +75,7 @@ select json_equals('{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"ob
 select json_equals('{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
 '{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 32_levels;
 32_levels
-NULL
-Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_equals' at position 248
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_equals' at position 248
+1
 #
 # test values from different charset
 # (UTF-8 two-bytes vs. latin1 single high-byte)

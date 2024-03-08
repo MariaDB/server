@@ -1,0 +1,8 @@
+select json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%',
+null,
+'$**.c'
+);
