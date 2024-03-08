@@ -858,7 +858,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
     }
     if (err)
     {
-      res= EXIT_UNKNOWN_SUFFIX;
+      res= err;
       goto ret;
     };
   }
@@ -992,7 +992,7 @@ static inline ulonglong eval_num_suffix(char *suffix, int *error)
   case 'E':
     return 1ULL << 60;
   default:
-    *error= 1;
+    *error= EXIT_UNKNOWN_SUFFIX;
     return 0ULL;
   }
 }
@@ -1018,15 +1018,16 @@ static longlong eval_num_suffix_ll(char *argument,
   if (errno == ERANGE)
   {
     my_getopt_error_reporter(ERROR_LEVEL,
-                             "Incorrect integer value: '%s'", argument);
-    *error= 1;
+                             "Integer value out of range for int64: '%s'", argument);
+    *error= EXIT_ARGUMENT_INVALID;
     DBUG_RETURN(0);
   }
   num*= eval_num_suffix(endchar, error);
   if (*error)
-    fprintf(stderr,
-	    "Unknown suffix '%c' used for variable '%s' (value '%s')\n",
-	    *endchar, option_name, argument);
+    my_getopt_error_reporter(ERROR_LEVEL,
+                             "Unknown suffix '%c' used for variable '%s' (value '%s'). "
+                             "Legal suffix characters are: K, M, G, T, P, E",
+                             *endchar, option_name, argument);
   DBUG_RETURN(num);
 }
 
@@ -1050,15 +1051,16 @@ static ulonglong eval_num_suffix_ull(char *argument,
   if (errno == ERANGE)
   {
     my_getopt_error_reporter(ERROR_LEVEL,
-                             "Incorrect integer value: '%s'", argument);
-    *error= 1;
+                             "Integer value out of range for uint64: '%s'", argument);
+    *error= EXIT_ARGUMENT_INVALID;
     DBUG_RETURN(0);
   }
   num*= eval_num_suffix(endchar, error);
   if (*error)
-    fprintf(stderr,
-	    "Unknown suffix '%c' used for variable '%s' (value '%s')\n",
-	    *endchar, option_name, argument);
+    my_getopt_error_reporter(ERROR_LEVEL,
+                             "Unknown suffix '%c' used for variable '%s' (value '%s'). "
+                             "Legal suffix characters are: K, M, G, T, P, E",
+                             *endchar, option_name, argument);
   DBUG_RETURN(num);
 }
 
