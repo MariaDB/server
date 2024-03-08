@@ -2958,9 +2958,6 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         Item_empty_string(thd, "Slave_SQL_Running", 3),
                         mem_root);
   field_list->push_back(new (mem_root)
-                        Item_empty_string(thd, "Replicate_Rewrite_DB", 23),
-                        mem_root);
-  field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Replicate_Do_DB", 20),
                         mem_root);
   field_list->push_back(new (mem_root)
@@ -3108,6 +3105,21 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                        Item_return_int(thd, "Slave_Transactional_Groups", 20,
                                        MYSQL_TYPE_LONGLONG),
                         mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Rewrite_DB", 23),
+                        mem_root);
+
+  /*
+    Note, we must never, _ever_, add extra rows to this output of SHOW SLAVE
+    STATUS, except here at the end before the extra rows of SHOW ALL SLAVES
+    STATUS. Otherwise, we break backwards compatibility with applications or
+    scripts that parse the output!
+
+    This also means that we cannot add _any_ new rows in a GA version if a
+    different row was already added in a later MariaDB version, as this would
+    make it impossible to merge the change up while preserving the order of
+    rows.
+  */
 
   if (full)
   {
@@ -3223,7 +3235,6 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                     &my_charset_bin);
     protocol->store(&slave_running[mi->slave_running], &my_charset_bin);
     protocol->store(mi->rli.slave_running ? &msg_yes : &msg_no, &my_charset_bin);
-    protocol->store(rpl_filter->get_rewrite_db());
     protocol->store(rpl_filter->get_do_db());
     protocol->store(rpl_filter->get_ignore_db());
 
@@ -3383,6 +3394,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(mi->total_ddl_groups);
     protocol->store(mi->total_non_trans_groups);
     protocol->store(mi->total_trans_groups);
+    protocol->store(rpl_filter->get_rewrite_db());
 
     if (full)
     {

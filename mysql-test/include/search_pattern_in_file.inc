@@ -25,6 +25,7 @@
 #    Supported formats:
 #     - (default)  : "FOUND n /pattern/ in FILE " or "NOT FOUND ..."
 #     - "matches"  : Each match is printed, on a separate line
+#     - "count"    : "FOUND n matches in FILE" or "NOT FOUND ..." (omit pattern)
 #
 #    In case of
 #    - SEARCH_FILE and/or SEARCH_PATTERN is not set
@@ -112,6 +113,10 @@ perl;
             {
                 print $_ . "\n";
             }
+        }
+        elsif ($ENV{SEARCH_OUTPUT} eq "count")
+        {
+            print "$res matches in $ENV{SEARCH_FILE}\n";
         }
         else
         {
