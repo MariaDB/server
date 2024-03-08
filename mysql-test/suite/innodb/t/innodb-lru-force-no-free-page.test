@@ -2,8 +2,6 @@
 --source include/have_debug.inc
 --source include/not_embedded.inc
 
-call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
-
 SET @saved_debug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,ib_lru_force_no_free_page";
 

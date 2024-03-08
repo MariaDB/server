@@ -4509,7 +4509,7 @@ sub extract_warning_lines ($$) {
      qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
      qr/WSREP: Failed to guess base node address/,
      qr/WSREP: Guessing address for incoming client/,
-
+     qr/InnoDB: Difficult to find free blocks in the buffer pool*/,
      # for UBSAN
      qr/decimal\.c.*: runtime error: signed integer overflow/,
      # Disable test for UBSAN on dynamically loaded objects
