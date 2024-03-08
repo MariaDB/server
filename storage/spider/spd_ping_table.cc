@@ -92,6 +92,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   my_hash_value_type hash_value;
 #endif
   DBUG_ENTER("spider_get_ping_table_mon_list");
+  std::cout << "eww ver: " << spider_mon_table_cache_version
+            << " ver_req: " << spider_mon_table_cache_version_req << "\n";
   if (spider_mon_table_cache_version != spider_mon_table_cache_version_req)
   {
     SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
@@ -349,6 +351,9 @@ int spider_get_ping_table_mon(
     if (error_num == HA_ERR_OUT_OF_MEM)
       goto error;
   }
+  std::cout << "welp " << thd->query() << "\n"
+            << spider_mon_table_cache.elements << "\n";
+  // abort();
   error_num = HA_ERR_KEY_NOT_FOUND;
   table_link_mon->file->print_error(error_num, MYF(0));
   goto error;
@@ -904,6 +909,7 @@ int spider_init_ping_table_mon_cache(
   if (spider_mon_table_cache_version != spider_mon_table_cache_version_req)
   {
     /* reset */
+    std::cout << "argh " << thd->query() << "\n";
     spider_mon_table_cache.elements = 0;
 
     if ((error_num = spider_sys_index_first(table_link_mon,

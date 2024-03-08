@@ -47,10 +47,14 @@ if ($USE_CHILD_GROUP3)
   DROP DATABASE IF EXISTS auto_test_local;
   CREATE DATABASE auto_test_local;
   USE auto_test_local;
+  # flush would "fix" it too
+  # SELECT spider_flush_table_mon_cache();
   --connection child3_2
   DROP DATABASE IF EXISTS auto_test_local;
   CREATE DATABASE auto_test_local;
   USE auto_test_local;
+  # flush would "fix" it too
+  # SELECT spider_flush_table_mon_cache();
   --connection child3_3
   DROP DATABASE IF EXISTS auto_test_local;
   CREATE DATABASE auto_test_local;
@@ -335,6 +339,12 @@ if ($HAVE_PARTITION)
       --enable_result_log
     }
   }
+  # --connection child3_1
+  # select * from mysql.spider_link_mon_servers;
+  # --connection child3_2
+  # select * from mysql.spider_link_mon_servers;
+  # --connection child3_3
+  # select * from mysql.spider_link_mon_servers;
   --connection master_1
   eval $MASTER_1_CHECK_HA_STATUS;
   --error 12511

@@ -11585,6 +11585,11 @@ int spider_db_udf_ping_table_mon_next(
     DBUG_RETURN(error_num);
   }
   spider_conn_set_timeout_from_share(conn, 0, thd, share);
+  std::cout << "blah first_sid: " << first_sid
+            << " I am: " << global_system_variables.server_id
+            << " query to send: " << sql_str.ptr()
+            << " destination: " << (*(MYSQL**) (((void*) conn->db_conn) + 32))->unix_socket
+            << "\n";
   if (spider_db_query(
     conn,
     sql_str.ptr(),
