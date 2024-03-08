@@ -11,8 +11,10 @@ Test to see if multiple ambiguous options and invalid arguments will be displaye
 FOUND 1 /Error while setting value 'invalid_value' to 'sql_mode'/ in mysqltest.log
 FOUND 1 /ambiguous option '--character'/ in mysqltest.log
 FOUND 1 /option '--bootstrap' cannot take an argument/ in mysqltest.log
-FOUND 1 /Incorrect integer value: '18446744073709551616'/ in mysqltest.log
+FOUND 1 /Integer value out of range for uint64: '18446744073709551616'/ in mysqltest.log
 FOUND 1 /Error while setting value '18446744073709551616' to 'binlog_cache_size'/ in mysqltest.log
+FOUND 1 /Unknown suffix 'y' used for variable 'bulk_insert_buffer_size' \(value '123y'\). Legal suffix characters are: K, M, G, T, P, E/ in mysqltest.log
+FOUND 1 /Error while setting value '123y' to 'bulk_insert_buffer_size'/ in mysqltest.log
 Test that --help --verbose works
 Test that --not-known-option --help --verbose gives error
 Done.
