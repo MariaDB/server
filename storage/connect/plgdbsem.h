@@ -404,7 +404,6 @@ typedef class VCTDEF     *PVCTDEF;
 typedef class PIVOTDEF   *PPIVOTDEF;
 typedef class DOMDEF     *PDOMDEF;
 typedef class DIRDEF     *PDIRDEF;
-typedef class RESTDEF    *PRESTDEF;
 typedef class OEMDEF     *POEMDEF;
 typedef class COLCRT     *PCOLCRT;
 typedef class COLDEF     *PCOLDEF;

@@ -29,12 +29,6 @@
 #include <unordered_map>
 #include <mutex>
 
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
-#define HASHICORP_HAVE_EXCEPTIONS 1
-#else
-#define HASHICORP_HAVE_EXCEPTIONS 0
-#endif
-
 #define HASHICORP_DEBUG_LOGGING 0
 
 #define PLUGIN_ERROR_HEADER "hashicorp: "
@@ -209,15 +203,6 @@ unsigned int
   if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
   {
     clock_t timestamp;
-#if HASHICORP_HAVE_EXCEPTIONS
-    try
-    {
-      VER_INFO &ver_info = latest_version_cache.at(key_id);
-      version = ver_info.key_version;
-      timestamp = ver_info.timestamp;
-    }
-    catch (const std::out_of_range &e)
-#else
     VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
     if (ver_iter != latest_version_cache.end())
     {
@@ -225,7 +210,6 @@ unsigned int
       timestamp = ver_iter->second.timestamp;
     }
     else
-#endif
     {
       mtx.unlock();
       return ENCRYPTION_KEY_VERSION_INVALID;
@@ -246,13 +230,6 @@ unsigned int
     }
   }
   KEY_INFO info;
-#if HASHICORP_HAVE_EXCEPTIONS
-  try
-  {
-    info = key_info_cache.at(KEY_ID_AND_VERSION(key_id, version));
-  }
-  catch (const std::out_of_range &e)
-#else
   KEY_MAP::const_iterator key_iter =
     key_info_cache.find(KEY_ID_AND_VERSION(key_id, version));
   if (key_iter != key_info_cache.end())
@@ -260,7 +237,6 @@ unsigned int
     info = key_iter->second;
   }
   else
-#endif
   {
     mtx.unlock();
     return ENCRYPTION_KEY_VERSION_INVALID;
@@ -305,20 +281,12 @@ unsigned int HCData::cache_get_version (unsigned int key_id)
 {
   unsigned int version;
   mtx.lock();
-#if HASHICORP_HAVE_EXCEPTIONS
-  try
-  {
-    version = latest_version_cache.at(key_id).key_version;
-  }
-  catch (const std::out_of_range &e)
-#else
   VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
   if (ver_iter != latest_version_cache.end())
   {
     version = ver_iter->second.key_version;
   }
   else
-#endif
   {
     version = ENCRYPTION_KEY_VERSION_INVALID;
   }
@@ -331,15 +299,6 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
   unsigned int version;
   clock_t timestamp;
   mtx.lock();
-#if HASHICORP_HAVE_EXCEPTIONS
-  try
-  {
-    VER_INFO &ver_info = latest_version_cache.at(key_id);
-    version = ver_info.key_version;
-    timestamp = ver_info.timestamp;
-  }
-  catch (const std::out_of_range &e)
-#else
   VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
   if (ver_iter != latest_version_cache.end())
   {
@@ -347,7 +306,6 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
     timestamp = ver_iter->second.timestamp;
   }
   else
-#endif
   {
     mtx.unlock();
 #if HASHICORP_DEBUG_LOGGING
@@ -977,29 +935,6 @@ struct st_mariadb_encryption hashicorp_key_management_plugin= {
   get_key_from_vault,
   0, 0, 0, 0, 0
 };
-
-#ifdef _MSC_VER
-
-static int setenv (const char *name, const char *value, int overwrite)
-{
-  if (!overwrite)
-  {
-    size_t len= 0;
-    int rc= getenv_s(&len, NULL, 0, name);
-    if (rc)
-    {
-      return rc;
-    }
-    if (len)
-    {
-      errno = EINVAL;
-      return EINVAL;
-    }
-  }
-  return _putenv_s(name, value);
-}
-
-#endif
 
 #define MAX_URL_SIZE 32768
 
