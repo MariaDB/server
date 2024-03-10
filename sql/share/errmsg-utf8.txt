@@ -12272,3 +12272,7 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
+  eng "Optimizer hint syntax error"
+ER_WARN_CONFLICTING_HINT
+  eng "Hint %s is ignored as conflicting/duplicated"

@@ -33,7 +33,7 @@
   from bison.
   See also YYMAXUTOK.
 */
-#define MY_MAX_TOKEN 1100
+#define MY_MAX_TOKEN 1200
 /** Generated token. */
 struct gen_lex_token_string
 {
@@ -55,7 +55,17 @@ int tok_row_single_value_list= 0;
 int tok_row_multiple_value= 0;
 int tok_row_multiple_value_list= 0;
 int tok_ident= 0;
+int tok_ident_at= 0; ///< Fake token for the left part of table@query_block.
+int tok_hint_comment_open= 0; ///< Fake token value for "/*+" of hint comments.
+int tok_hint_comment_close= 0; ///< Fake token value for "*/" of hint comments.
 int tok_unused= 0;
+
+/**
+  Adjustment value to translate hint parser's internal token values to generally
+  visible token values. This adjustment is necessary, since keyword token values
+  of separate parsers may interfere.
+*/
+int tok_hint_adjust= 0;
 
 void set_token(int tok, const char *str)
 {
@@ -184,6 +194,30 @@ void compute_tokens()
   for (i= 0; i< sizeof(sql_functions)/sizeof(sql_functions[0]); i++)
   {
     set_token(sql_functions[i].tok, sql_functions[i].name);
+  }
+
+  /*
+    FAKE tokens to output "optimizer hint" keywords.
+
+    Hint keyword token values may interfere with token values of the main SQL
+    parser, so the tok_hint_adjust adjustment is needed to add them into
+    compiled_token_array and lex_token_array.
+
+    Also see the TOK_HINT_ADJUST() adjustment macro definition.
+  */
+  int tok_hint_min= INT_MAX;
+  for (unsigned int i= 0; i < sizeof(symbols)/sizeof(symbols[0]); i++)
+  {
+    if ((symbols[i].group & SG_HINTS) &&
+        static_cast<int>(symbols[i].tok) < tok_hint_min)
+      tok_hint_min= symbols[i].tok; // Calculate the minimal hint token value.
+  }
+  tok_hint_adjust= max_token_seen + 1 - tok_hint_min;
+  for (unsigned int i= 0; i < sizeof(symbols)/sizeof(symbols[0]); i++)
+  {
+    if (!(symbols[i].group & SG_HINTS))
+      continue;
+    set_token(symbols[i].tok + tok_hint_adjust, symbols[i].name);
   }
 
   /*
@@ -333,6 +367,10 @@ void print_tokens()
   printf("#define TOK_ROW_MULTIPLE_VALUE %d\n", tok_row_multiple_value);
   printf("#define TOK_ROW_MULTIPLE_VALUE_LIST %d\n", tok_row_multiple_value_list);
   printf("#define TOK_IDENT %d\n", tok_ident);
+  printf("#define TOK_IDENT_AT %d\n", tok_ident_at);
+  printf("#define TOK_HINT_COMMENT_OPEN %d\n", tok_hint_comment_open);
+  printf("#define TOK_HINT_COMMENT_CLOSE %d\n", tok_hint_comment_close);
+  printf("#define TOK_HINT_ADJUST(x) ((x) + %d)\n", tok_hint_adjust);
   printf("#define TOK_UNUSED %d\n", tok_unused);
 }
 

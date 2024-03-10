@@ -1238,7 +1238,7 @@ static uint32 get_comment(THD *thd, uint32 comment_pos,
   /* We use uchar * here to make array indexing portable */
   const uchar *query= (uchar*) thd->query();
   const uchar *query_end= (uchar*) query + thd->query_length();
-  const uchar *const state_map= thd->charset()->state_map;
+  const my_lex_states *const state_map= thd->charset()->state_maps->main_map;
 
   *comment_start= "";                            // Ensure it points to something
   for (; query < query_end; query++)

@@ -351,7 +351,7 @@ TODO list:
 #include "wsrep_mysqld.h"
 #endif
 
-const uchar *query_state_map;
+const my_lex_states *query_state_map;
 
 #ifdef EMBEDDED_LIBRARY
 #include "emb_qcache.h"
@@ -2577,7 +2577,7 @@ void Query_cache::init()
     if this character appears straight in the query
     (i.e. not inside a string literal or comment).
   */
-  query_state_map= my_charset_latin1.state_map;
+  query_state_map= my_charset_latin1.state_maps->main_map;
   /*
     If we explicitly turn off query cache from the command line query
     cache will be disabled for the reminder of the server life

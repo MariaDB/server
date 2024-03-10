@@ -2708,8 +2708,10 @@ static bool add_line(String &buffer, char *line, size_t line_length,
 
       break;
     }
-    else if (!*in_string && inchar == '/' && *(pos+1) == '*' &&
-             !(*(pos+2) == '!' || (*(pos+2) == 'M' && *(pos+3) == '!')))
+    else if (!*in_string && inchar == '/' && pos[1] == '*' &&
+             !(pos[2] == '!' ||
+               (pos[2] == 'M' && pos[3] == '!') ||
+               pos[2] == '+'))
     {
       if (preserve_comments)
       {
@@ -2746,8 +2748,8 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     }      
     else
     {						// Add found char to buffer
-      if (!*in_string && inchar == '/' && *(pos + 1) == '*' &&
-          *(pos + 2) == '!')
+      if (!*in_string && inchar == '/' && pos[1] == '*' &&
+          (pos[2] == '!' || pos[2] == '+'))
         ss_comment= 1;
       else if (!*in_string && ss_comment && inchar == '*' && *(pos + 1) == '/')
         ss_comment= 0;

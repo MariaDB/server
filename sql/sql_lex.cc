@@ -19,10 +19,13 @@
 
 #define MYSQL_LEX 1
 #include "mariadb.h"
+#include <lex.h>
 #include "sql_priv.h"
 #include "sql_class.h"                          // sql_lex.h: SQLCOM_END
 #include "sql_lex.h"
 #include "sql_parse.h"                          // add_to_list
+#include "sql_hints.hh"
+#include "sql_lex_hints.h"
 #include "item_create.h"
 #include <m_ctype.h>
 #include <hash.h>
@@ -41,6 +44,10 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
+
+extern int HINT_PARSER_parse(THD *thd,
+                             Hint_scanner *scanner,
+                             PT_hint_list **ret);
 
 void LEX::parse_error(uint err_number)
 {
@@ -636,31 +643,6 @@ Query_tables_list::binlog_stmt_unsafe_errcode[BINLOG_STMT_UNSAFE_COUNT] =
 
 #define TOCK_NAME_LENGTH 24
 
-/*
-  The following data is based on the latin1 character set, and is only
-  used when comparing keywords
-*/
-
-static uchar to_upper_lex[]=
-{
-    0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
-   16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-   32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
-   48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-   64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-   80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95,
-   96, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-   80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,123,124,125,126,127,
-  128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,
-  144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,
-  160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,
-  176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,
-  192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,
-  208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,
-  192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,
-  208,209,210,211,212,213,214,247,216,217,218,219,220,221,222,255
-};
-
 /* 
   Names of the index hints (for error messages). Keep in sync with 
   index_hint_type 
@@ -672,16 +654,6 @@ const char * index_hint_type_name[] =
   "USE INDEX", 
   "FORCE INDEX"
 };
-
-inline int lex_casecmp(const char *s, const char *t, uint len)
-{
-  while (len-- != 0 &&
-         to_upper_lex[(uchar) *s++] == to_upper_lex[(uchar) *t++]) ;
-  return (int) len+1;
-}
-
-#include <lex_hash.h>
-
 
 void lex_init(void)
 {
@@ -859,6 +831,7 @@ Lex_input_stream::reset(char *buffer, size_t length)
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
   m_cpp_ptr= m_cpp_buf;
+  skip_digest= false;
 }
 
 
@@ -1397,12 +1370,62 @@ Yacc_state::~Yacc_state()
   }
 }
 
-int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
-                                   uint len, bool function) const
+bool Lex_input_stream::consume_optimizer_hints(YYSTYPE *yylval)
+{
+  const my_lex_states *state_map= m_thd->charset()->state_maps->main_map;
+  int whitespace= 0;
+  uchar c= yyPeek();
+  uint newlines= 0;
+
+  for (; state_map[c] == MY_LEX_SKIP; whitespace++, c= yyPeekn(whitespace))
+  {
+    if (c == '\n')
+      newlines++;
+  }
+
+  if (yyPeekn(whitespace) == '/' && yyPeekn(whitespace + 1) == '*' &&
+      yyPeekn(whitespace + 2) == '+')
+  {
+    yylineno+= newlines;
+    yySkipn(whitespace); // skip whitespace
+
+    Hint_scanner hint_scanner(m_thd, yylineno, get_ptr(),
+                              (uint) (get_end_of_query() - get_ptr()),
+                              m_digest);
+    PT_hint_list *hint_list= NULL;
+    int rc= HINT_PARSER_parse(m_thd, &hint_scanner, &hint_list);
+    if (rc == 2)
+      return true; // Bison's internal OOM error
+    else if (rc == 1)
+    {
+      /*
+        This branch is for 2 cases:
+        1. YYABORT in the hint parser grammar (we use it to process OOM errors),
+        2. open commentary error.
+      */
+      start_token(); // adjust error message text pointer to "/*+"
+      return true;
+    }
+    else
+    {
+      yylineno= hint_scanner.get_lineno();
+      yySkipn((int)(hint_scanner.get_ptr() - get_ptr()));
+      yylval->optimizer_hints= hint_list; // NULL in case of syntax error
+      m_digest= hint_scanner.get_digest(); // NULL is digest buf. is full.
+      return false;
+    }
+  }
+  else
+    return false;
+}
+
+int Lex_input_stream::find_keyword(YYSTYPE *yylval,
+                                   Lex_ident_cli_st *kwd,
+                                   uint len, bool function)
 {
   const char *tok= m_tok_start;
 
-  SYMBOL *symbol= get_hash_symbol(tok, len, function);
+  SYMBOL *symbol= get_hash_symbol(tok, len, function, false);
   if (symbol)
   {
     kwd->set_keyword(tok, len);
@@ -1445,6 +1468,15 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
              ORACLE_CONCAT_SYM : MYSQL_CONCAT_SYM;
     }
 
+    // OLEGS was in MySQL: yylval->hint_list= NULL;
+    if (symbol->group & SG_HINTABLE_KEYWORDS)
+    {
+      add_digest_token(symbol->tok, yylval);
+      if (consume_optimizer_hints(yylval))
+        return ABORT_SYM;
+      skip_digest= true;
+    }
+
     return symbol->tok;
   }
   return 0;
@@ -1466,7 +1498,7 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
 bool is_keyword(const char *name, uint len)
 {
   DBUG_ASSERT(len != 0);
-  return get_hash_symbol(name,len,0)!=0;
+  return get_hash_symbol(name,len,0,false)!=0;
 }
 
 /**
@@ -1482,7 +1514,7 @@ bool is_keyword(const char *name, uint len)
 bool is_lex_native_function(const LEX_CSTRING *name)
 {
   DBUG_ASSERT(name != NULL);
-  return (get_hash_symbol(name->str, (uint) name->length, 1) != 0);
+  return (get_hash_symbol(name->str, (uint) name->length, 1, false) != 0);
 }
 
 
@@ -1899,7 +1931,10 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
   }
 
   token= lex_one_token(yylval, thd);
-  add_digest_token(token, yylval);
+  if (!skip_digest)
+    // OLEGS: test this
+    add_digest_token(token, yylval);
+  skip_digest=false;
 
   SELECT_LEX *curr_sel= thd->lex->current_select;
 
@@ -2028,7 +2063,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
   enum my_lex_states state;
   LEX *lex= thd->lex;
   CHARSET_INFO *const cs= thd->charset();
-  const uchar *const state_map= cs->state_map;
+  const my_lex_states *state_map= cs->state_maps->main_map;
   const uchar *const ident_map= cs->ident_map;
 
   start_token();
@@ -2151,7 +2186,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       /* fall through */
     case MY_LEX_IDENT:
     {
-      tokval= scan_ident_middle(thd, &yylval->ident_cli,
+      tokval= scan_ident_middle(thd, yylval, &yylval->ident_cli,
                                 &yylval->charset, &state);
       if (!tokval)
         continue;
@@ -2324,7 +2359,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
           state_map[(uchar) yyPeek()] == MY_LEX_LONG_CMP_OP)
       {
         yySkip();
-        if ((tokval= find_keyword(&yylval->kwd, 2, 0)))
+        if ((tokval= find_keyword(yylval, &yylval->kwd, 2, 0)))
           return(tokval);
         yyUnget();
       }
@@ -2339,11 +2374,11 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         if (state_map[(uchar) yyPeek()] == MY_LEX_CMP_OP)
         {
           yySkip();
-          if ((tokval= find_keyword(&yylval->kwd, 3, 0)))
+          if ((tokval= find_keyword(yylval, &yylval->kwd, 3, 0)))
             return(tokval);
           yyUnget();
         }
-        if ((tokval= find_keyword(&yylval->kwd, 2, 0)))
+        if ((tokval= find_keyword(yylval, &yylval->kwd, 2, 0)))
           return(tokval);
         yyUnget();
       }
@@ -2356,7 +2391,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         break;
       }
       yySkip();
-      tokval= find_keyword(&yylval->kwd, 2, 0);  // Is a bool operator
+      tokval= find_keyword(yylval, &yylval->kwd, 2, 0);  // Is a bool operator
       next_state= MY_LEX_START;                  // Allow signed numbers
       return(tokval);
 
@@ -2660,7 +2695,7 @@ bool Lex_input_stream::get_7bit_or_8bit_ident(THD *thd, uchar *last_char)
 */
 
 int Lex_input_stream::find_keyword_qualified_special_func(Lex_ident_cli_st *str,
-                                                          uint length) const
+                                                          uint length) /*const*/
 {
   /*
     There are many other special functions, see the following grammar rules:
@@ -2685,7 +2720,7 @@ int Lex_input_stream::find_keyword_qualified_special_func(Lex_ident_cli_st *str,
     {STRING_WITH_LEN("REPLACE")}
   };
 
-  int tokval= find_keyword(str, length, true);
+  int tokval= find_keyword(nullptr, str, length, true);
   if (!tokval)
     return 0;
   for (size_t i= 0; i < array_elements(funcs); i++)
@@ -2734,7 +2769,7 @@ int Lex_input_stream::scan_ident_common(THD *thd, Lex_ident_cli_st *str,
       such as SUBSTR, REPLACE, TRIM, to make this work:
         c2 varchar(4) GENERATED ALWAYS AS (mariadb_schema.substr(c1,1,4))
     */
-    if ((tokval= find_keyword(str, length, last_char == '(')))
+    if ((tokval= find_keyword(nullptr, str, length, last_char == '(')))
     {
       yyUnget();                         // Put back 'c'
       return tokval;                     // Was keyword
@@ -2818,13 +2853,14 @@ int Lex_input_stream::scan_ident_start(THD *thd, Lex_ident_cli_st *str)
 }
 
 
-int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
+int Lex_input_stream::scan_ident_middle(THD *thd, YYSTYPE *yylval,
+                                        Lex_ident_cli_st *str,
                                         CHARSET_INFO **introducer,
                                         my_lex_states *st)
 {
   CHARSET_INFO *const cs= thd->charset();
   const uchar *const ident_map= cs->ident_map;
-  const uchar *const state_map= cs->state_map;
+  const my_lex_states *state_map= cs->state_maps->main_map;
   const char *start;
   uint length;
   uchar c;
@@ -2878,7 +2914,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   {                                    // '(' must follow directly if function
     int tokval;
     yyUnget();
-    if ((tokval= find_keyword(str, length, c == '(')))
+    if ((tokval= find_keyword(yylval, str, length, c == '(')))
     {
       next_state= MY_LEX_START;        // Allow signed numbers
       return(tokval);                  // Was keyword

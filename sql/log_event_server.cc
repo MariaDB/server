@@ -1969,7 +1969,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           We cannot ask for parsing a statement using a character set
           without state_maps (parser internal data).
         */
-        if (!cs->state_map)
+        if (!cs->state_maps)
         {
           rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                       ER_THD(thd, ER_SLAVE_FATAL_ERROR),

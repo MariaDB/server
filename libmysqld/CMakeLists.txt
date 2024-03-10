@@ -36,6 +36,8 @@ ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
 ${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
 ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
 ${CMAKE_BINARY_DIR}/sql/lex_hash.h
+${CMAKE_BINARY_DIR}/sql/sql_hints.hh
+${CMAKE_BINARY_DIR}/sql/sql_hints.cc
 )
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED TRUE)
@@ -88,6 +90,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_help.cc ../sql/sql_insert.cc ../sql/datadict.cc
            ../sql/sql_admin.cc ../sql/sql_truncate.cc ../sql/sql_reload.cc
            ../sql/sql_lex.cc ../sql/keycaches.cc
+           ../sql/sql_lex_hints.cc ../sql/sql_lex_hash.cc
            ../sql/sql_list.cc ../sql/sql_load.cc ../sql/sql_locale.cc 
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
            ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
@@ -156,6 +159,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sp_instr.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
+           ../sql/parse_tree_hints.cc ../sql/parse_tree_hints.h
 )
 
 

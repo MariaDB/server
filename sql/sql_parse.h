@@ -18,6 +18,9 @@
 
 #include "sql_acl.h"                            /* GLOBAL_ACLS */
 
+#define MY_YACC_INIT 1000			// Start with big alloc
+#define MY_YACC_MAX  32000			// Because of 'short'
+
 class Comp_creator;
 class Item;
 class Object_creation_ctx;
@@ -144,6 +147,41 @@ inline bool check_identifier_name(LEX_CSTRING *str, uint err_code)
 inline bool check_identifier_name(LEX_CSTRING *str)
 {
   return check_identifier_name(str, NAME_CHAR_LEN, 0, "");
+}
+
+template<typename T>
+bool my_yyoverflow(T **yyss, YYSTYPE **yyvs, size_t *yystacksize)
+{
+  Yacc_state *state= & current_thd->m_parser_state->m_yacc;
+  size_t old_info=0;
+  DBUG_ASSERT(state);
+  if ( *yystacksize >= MY_YACC_MAX)
+    return 1;
+  if (!state->yacc_yyvs)
+    old_info= *yystacksize;
+  *yystacksize= set_zone((int)(*yystacksize)*2,MY_YACC_INIT,MY_YACC_MAX);
+  if (!(state->yacc_yyvs= (uchar*)
+        my_realloc(key_memory_bison_stack, state->yacc_yyvs,
+                   *yystacksize*sizeof(**yyvs),
+                   MYF(MY_ALLOW_ZERO_PTR | MY_FREE_ON_ERROR))) ||
+      !(state->yacc_yyss= (uchar*)
+        my_realloc(key_memory_bison_stack, state->yacc_yyss,
+                   *yystacksize*sizeof(**yyss),
+                   MYF(MY_ALLOW_ZERO_PTR | MY_FREE_ON_ERROR))))
+    return 1;
+  if (old_info)
+  {
+    /*
+      Only copy the old stack on the first call to my_yyoverflow(),
+      when replacing a static stack (YYINITDEPTH) by a dynamic stack.
+      For subsequent calls, my_realloc already did preserve the old stack.
+    */
+    memcpy(state->yacc_yyss, *yyss, old_info*sizeof(**yyss));
+    memcpy(state->yacc_yyvs, *yyvs, old_info*sizeof(**yyvs));
+  }
+  *yyss= (T*) state->yacc_yyss;
+  *yyvs= (YYSTYPE*) state->yacc_yyvs;
+  return 0;
 }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS

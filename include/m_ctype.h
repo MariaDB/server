@@ -436,14 +436,14 @@ typedef struct
 
 enum my_lex_states
 {
-  MY_LEX_START, MY_LEX_CHAR, MY_LEX_IDENT, 
+  MY_LEX_START, MY_LEX_CHAR, MY_LEX_IDENT,
   MY_LEX_IDENT_SEP, MY_LEX_IDENT_START,
   MY_LEX_REAL, MY_LEX_HEX_NUMBER, MY_LEX_BIN_NUMBER,
   MY_LEX_CMP_OP, MY_LEX_LONG_CMP_OP, MY_LEX_STRING, MY_LEX_COMMENT, MY_LEX_END,
   MY_LEX_OPERATOR_OR_IDENT, MY_LEX_NUMBER_IDENT, MY_LEX_INT_OR_REAL,
-  MY_LEX_REAL_OR_POINT, MY_LEX_BOOL, MY_LEX_EOL, MY_LEX_ESCAPE, 
-  MY_LEX_LONG_COMMENT, MY_LEX_END_LONG_COMMENT, MY_LEX_SEMICOLON, 
-  MY_LEX_SET_VAR, MY_LEX_USER_END, MY_LEX_HOSTNAME, MY_LEX_SKIP, 
+  MY_LEX_REAL_OR_POINT, MY_LEX_BOOL, MY_LEX_EOL, MY_LEX_ESCAPE,
+  MY_LEX_LONG_COMMENT, MY_LEX_END_LONG_COMMENT, MY_LEX_SEMICOLON,
+  MY_LEX_SET_VAR, MY_LEX_USER_END, MY_LEX_HOSTNAME, MY_LEX_SKIP,
   MY_LEX_USER_VARIABLE_DELIMITER, MY_LEX_SYSTEM_VAR,
   MY_LEX_IDENT_OR_KEYWORD,
   MY_LEX_IDENT_OR_HEX, MY_LEX_IDENT_OR_BIN, MY_LEX_IDENT_OR_NCHAR,
@@ -451,6 +451,28 @@ enum my_lex_states
   MY_LEX_COMMA,
   MY_LEX_IDENT_OR_QUALIFIED_SPECIAL_FUNC
 };
+
+enum __attribute__((packed)) hint_lex_char_classes
+{
+  HINT_CHR_ASTERISK,                    // [*]
+  HINT_CHR_AT,                          // [@]
+  HINT_CHR_BACKQUOTE,                   // [`]
+  HINT_CHR_CHAR,                        // default state
+  HINT_CHR_DIGIT,                       // [[:digit:]]
+  HINT_CHR_DOUBLEQUOTE,                 // ["]
+  HINT_CHR_EOF,                         // pseudo-class
+  HINT_CHR_IDENT,                       // [_$[:alpha:]]
+  HINT_CHR_MB,                          // multibyte character
+  HINT_CHR_NL,                          // \n
+  HINT_CHR_SLASH,                       // [/]
+  HINT_CHR_SPACE                        // [[:space:]] excluding \n
+};
+
+typedef struct
+{
+  enum my_lex_states main_map[256];
+  enum hint_lex_char_classes hint_map[256];
+} lex_state_maps_st;
 
 struct charset_info_st;
 
@@ -777,8 +799,8 @@ struct charset_info_st
   const uint16 *tab_to_uni;
   MY_UNI_IDX  *tab_from_uni;
   MY_CASEFOLD_INFO *casefold;
-  const uchar  *state_map;
-  const uchar  *ident_map;
+  lex_state_maps_st  *state_maps; /* parser internal data */
+  const uchar  *ident_map; /* parser internal data */
   uint      strxfrm_multiply;
   uint      mbminlen;
   uint      mbmaxlen;

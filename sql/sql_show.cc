@@ -69,13 +69,8 @@
 #include "key.h"
 
 #include "lex_symbol.h"
+#include "lex.h"
 #define KEYWORD_SIZE 64
-
-extern SYMBOL symbols[];
-extern size_t symbols_length;
-
-extern SYMBOL sql_functions[];
-extern size_t sql_functions_length;
 
 extern Native_func_registry_array native_func_registry_array;
 

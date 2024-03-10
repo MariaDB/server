@@ -95,6 +95,7 @@ ENDIF()
 SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_hints.cc
               ../sql-common/client.c
                cset_narrowing.cc
                compat56.cc derror.cc des_key_file.cc
@@ -128,6 +129,7 @@ SET (SQL_SOURCE
                sql_digest.cc sql_do.cc
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc
+               sql_lex_hints.cc sql_lex_hash.cc
                sql_list.cc sql_load.cc sql_manager.cc
                sql_parse.cc sql_bootstrap.cc
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc
@@ -191,12 +193,14 @@ SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
+               parse_tree_hints.cc parse_tree_hints.h
 )
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
 IF(have_CXX__Wno_unused_but_set_variable)
   ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/sql_hints.cc
     COMPILE_FLAGS "-Wno-unused-but-set-variable")
 ENDIF()
 
@@ -367,7 +371,7 @@ ENDIF()
 # there
 IF (NOT BISON_FOUND)
   IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
-    FOREACH(file yy_mariadb.cc yy_mariadb.hh yy_oracle.cc yy_oracle.hh)
+    FOREACH(file yy_mariadb.cc yy_mariadb.hh yy_oracle.cc yy_oracle.hh sql_hints.cc sql_hints.hh)
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file} AND (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file}))
         CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}
         ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
@@ -397,11 +401,15 @@ ELSE()
   BISON_TARGET(gen_oracle_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
                                 ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
                COMPILE_FLAGS "-p ORA -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
+  BISON_TARGET(gen_hints_cc_hh ${CMAKE_CURRENT_SOURCE_DIR}/sql_hints.yy
+                               ${CMAKE_CURRENT_BINARY_DIR}/sql_hints.cc
+               COMPILE_FLAGS "-p MYSQL -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4 --name-prefix=HINT_PARSER_")
 ENDIF()
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
-   ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
+   ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh
+   ${CMAKE_CURRENT_BINARY_DIR}/sql_hints.hh)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -422,6 +430,7 @@ ADD_CUSTOM_TARGET(
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
         ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
         ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/sql_hints.cc
 )
 ADD_DEPENDENCIES(sql GenServerSource)
 
@@ -443,6 +452,7 @@ ADD_CUSTOM_TARGET(dist
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
   DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc ${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh
   DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc ${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_hints.cc ${CMAKE_BINARY_DIR}/sql/sql_hints.hh
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

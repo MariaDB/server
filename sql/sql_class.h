@@ -214,6 +214,10 @@ void old_mode_deprecated_warnings(THD *thd, ulonglong v);
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
+extern LEX_STRING EMPTY_STR;
+extern LEX_STRING NULL_STR;
+extern LEX_CSTRING EMPTY_CSTR;
+extern LEX_CSTRING NULL_CSTR;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
@@ -3873,13 +3877,8 @@ public:
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
-
-  /**  
-    is set if a statement accesses a temporary table created through
-    CREATE TEMPORARY TABLE. 
-  */
-private:
   bool       charset_is_system_charset, charset_is_collation_connection;
+private:
   bool       charset_is_character_set_filesystem;
 public:
   bool       enable_slow_log;    /* Enable slow log for current statement */

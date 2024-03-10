@@ -64,16 +64,55 @@ static my_bool is_multi_byte_ident(CHARSET_INFO *cs, uchar ch)
   return MY_CS_IS_TOOSMALL(chlen) ? TRUE : FALSE;
 }
 
+static
+void hint_lex_init_maps(struct charset_info_st *cs,
+                        enum hint_lex_char_classes *hint_map)
+{
+  for (uint i= 0; i < 256 ; i++)
+  {
+    if (is_multi_byte_ident(cs, i))
+      hint_map[i]= HINT_CHR_MB;
+    else if (my_isalpha(cs, i))
+      hint_map[i]= HINT_CHR_IDENT;
+    else if (my_isdigit(cs, i))
+      hint_map[i]= HINT_CHR_DIGIT;
+    else if (my_isspace(cs, i))
+    {
+      DBUG_ASSERT(!is_multi_byte_ident(cs, i));
+      hint_map[i]= HINT_CHR_SPACE;
+    }
+    else
+      hint_map[i]= HINT_CHR_CHAR;
+  }
+  hint_map[(uchar) '*']= HINT_CHR_ASTERISK;
+  hint_map[(uchar) '@']= HINT_CHR_AT;
+  hint_map[(uchar) '`']= HINT_CHR_BACKQUOTE;
+  hint_map[(uchar) '"']= HINT_CHR_DOUBLEQUOTE;
+  hint_map[(uchar) '_']= HINT_CHR_IDENT;
+  hint_map[(uchar) '$']= HINT_CHR_IDENT;
+  hint_map[(uchar) '/']= HINT_CHR_SLASH;
+  hint_map[(uchar) '\n']= HINT_CHR_NL;
+}
+
 static my_bool init_state_maps(struct charset_info_st *cs)
 {
   uint i;
-  uchar *state_map;
+  enum my_lex_states *state_map= NULL;
   uchar *ident_map;
 
-  if (!(cs->state_map= state_map= (uchar*) my_once_alloc(256*2, MYF(MY_WME))))
-    return 1;
-    
-  cs->ident_map= ident_map= state_map + 256;
+  lex_state_maps_st *lex_state_maps= (lex_state_maps_st *)
+    my_once_alloc(sizeof(lex_state_maps_st), MYF(MY_WME));
+
+  if (lex_state_maps == NULL)
+    return TRUE; // OOM
+
+  cs->state_maps= lex_state_maps;
+  state_map= lex_state_maps->main_map;
+
+  if (!(cs->ident_map= ident_map= (uchar*) my_once_alloc(256, MYF(MY_WME))))
+    return TRUE; // OOM
+
+  hint_lex_init_maps(cs, lex_state_maps->hint_map);
 
   /* Fill state_map with states to get a faster parser */
   for (i=0; i < 256 ; i++)

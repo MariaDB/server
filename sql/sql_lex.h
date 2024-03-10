@@ -39,6 +39,7 @@
 #include "table.h"
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
+#include "parse_tree_hints.h"
 
 #ifdef MYSQL_SERVER
 #include "item_func.h"                // Cast_target
@@ -317,6 +318,8 @@ class With_clause;
 class my_var;
 class select_handler;
 class Pushdown_select;
+class Opt_hints_global;
+class Opt_hints_qb;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -368,9 +371,6 @@ void binlog_unsafe_map_init();
 #endif
 
 #if defined(MYSQL_SERVER) && defined(MYSQL_LEX)
-#include "item_func.h"            /* Cast_target used in yy_mariadb.hh */
-#include "sql_get_diagnostics.h"  /* Types used in yy_mariadb.hh */
-#include "sp_pcontext.h"
 #include "yy_mariadb.hh"
 #endif
 
@@ -386,6 +386,17 @@ void binlog_unsafe_map_init();
 
 #ifdef MYSQL_SERVER
 union YYSTYPE {
+  /*
+    Hint parser section (sql_hints.yy)
+  */
+  LEX_CSTRING hint_string;
+  class PT_hint *hint;
+  class PT_hint_list *hint_list;
+  Hint_param_index_list *hint_param_index_list;
+  Hint_param_table *hint_param_table;
+  Hint_param_table_list *hint_param_table_list;
+  class PT_hint_list *optimizer_hints;
+
   int  num;
   ulong ulong_num;
   ulonglong ulonglong_number;
@@ -2990,12 +3001,13 @@ private:
   void add_digest_token(uint token, LEX_YYSTYPE yylval);
 
   bool consume_comment(int remaining_recursions_permitted);
+  bool consume_optimizer_hints(YYSTYPE *yylval);
   int lex_one_token(union YYSTYPE *yylval, THD *thd);
-  int find_keyword(Lex_ident_cli_st *str, uint len, bool function) const;
-  int find_keyword_qualified_special_func(Lex_ident_cli_st *str, uint len) const;
+  int find_keyword(YYSTYPE *yylval, Lex_ident_cli_st *str, uint len, bool function);
+  int find_keyword_qualified_special_func(Lex_ident_cli_st *str, uint len) /*const*/;
   LEX_CSTRING get_token(uint skip, uint length);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
-  int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
+  int scan_ident_middle(THD *thd, YYSTYPE *yylval, Lex_ident_cli_st *str,
                         CHARSET_INFO **cs, my_lex_states *);
   int scan_ident_delimited(THD *thd, Lex_ident_cli_st *str, uchar quote_char);
   bool get_7bit_or_8bit_ident(THD *thd, uchar *last_char);
@@ -3123,6 +3135,25 @@ private:
     NOTE: this member must be used within MYSQLlex() function only.
   */
   CHARSET_INFO *m_underscore_cs;
+
+  /// Skip adding of the current token's digest since it is already added
+  ///
+  /// Usually we calculate a digest token by token at the top-level function
+  /// of the lexer: MYSQLlex(). However, some complex ("hintable") tokens break
+  /// that data flow: for example, the `SELECT /*+ HINT(t) */` is the single
+  /// token from the main parser's point of view, and we add the "SELECT"
+  /// keyword to the digest buffer right after the lex_one_token() call,
+  /// but the "/*+ HINT(t) */" is a sequence of separate tokens from the hint
+  /// parser's point of view, and we add those tokens to the digest buffer
+  /// *inside* the lex_one_token() call. Thus, the usual data flow adds
+  /// tokens from the "/*+ HINT(t) */" string first, and only than it appends
+  /// the "SELECT" keyword token to that stream: "/*+ HINT(t) */ SELECT".
+  /// This is not acceptable, since we use the digest buffer to restore
+  /// query strings in their normalized forms, so the order of added tokens is
+  /// important. Thus, we add tokens of "hintable" keywords to a digest buffer
+  /// right in the hint parser and skip adding of them at the caller with the
+  /// help of skip_digest flag.
+  bool skip_digest;
 };
 
 
@@ -3439,6 +3470,9 @@ public:
   LEX_USER *grant_user;
   XID *xid;
   THD *thd;
+
+  /* Optimizer hints */
+  Opt_hints_global *opt_hints_global;
 
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
@@ -3786,6 +3820,8 @@ public:
   /* System Versioning */
   vers_select_conds_t vers_conditions;
   vers_select_conds_t period_conditions;
+
+  ulong max_statement_time;
 
   inline void free_set_stmt_mem_root()
   {

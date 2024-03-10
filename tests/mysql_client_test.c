@@ -20050,6 +20050,26 @@ static void test_bug17512527()
 }
 #endif
 
+/**
+   WL#8016: Parser for optimizer hints
+*/
+static void test_wl8016()
+{
+  MYSQL_RES *result;
+  int        rc;
+
+  myheader("test_wl8016");
+
+  rc= mysql_query(mysql, "SELECT /*+ ICP(`test*/ 1");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  (void) my_process_result_set(result);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "SELECT /*+ ICP(`test*/`*/ 1");
+  DIE_UNLESS(rc);
+}
 
 /*
   Check compressed protocol
@@ -22500,6 +22520,7 @@ static struct my_tests_st my_tests[]= {
 #ifndef _WIN32
   { "test_bug17512527", test_bug17512527},
 #endif
+  { "test_wl8016", test_wl8016},
   { "test_compressed_protocol", test_compressed_protocol },
   { "test_big_packet", test_big_packet },
   { "test_prepare_analyze", test_prepare_analyze },

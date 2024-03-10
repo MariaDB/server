@@ -186,13 +186,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   yydebug= 1;
 }
 #endif
-
-
-%}
-%{
-/* avoid unintentional %union size increases, it's what a parser stack made of */
-static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
-bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
 %define api.pure                                    /* We have threads */
