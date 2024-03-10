@@ -11905,7 +11905,7 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
 
 /*
   @brief
-    Finalize building the join order which allows to short-cut the join
+    Finalize building the join order which allows it to short-cut the join
     execution.
 
   @detail
@@ -15402,7 +15402,7 @@ void JOIN::drop_unused_derived_keys()
       }
       /*
         We dropped all keys except the chosen one and unique keys.
-        The choosen one is stored as the first key (number 0).
+        The chosen one is stored as the first key (number 0).
       */
       tab->ref.key= 0;
     }
