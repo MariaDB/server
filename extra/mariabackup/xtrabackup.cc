@@ -1803,7 +1803,7 @@ struct my_option xb_client_options[]= {
     {"startup-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
      "This option specifies time in seconds that mariadb-backup should wait for "
      "BACKUP STAGE START to complete. BACKUP STAGE START has to wait until all "
-     "currently running queries using explicite LOCK TABLES has ended. "
+     "currently running queries using explicit LOCK TABLES has ended. "
      "If there are still such queries when the timeout expires, mariadb-backup "
      "terminates with an error. Default is 0, in which case mariadb-backup waits "
      "indefinitely for BACKUP STAGE START to finish",
@@ -5846,7 +5846,7 @@ void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 	}
 
 	/* Mariabackup doesn't detect any FILE_OP for the deferred
-	tablespace. There is a possiblity that page0 could've
+	tablespace. There is a possibility that page0 could've
 	been corrupted persistently in the disk */
 	for (auto space_name: defer_space_names) {
 		if (!check_if_skip_table(space_name.c_str())) {
