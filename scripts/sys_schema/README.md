@@ -3484,7 +3484,7 @@ TEXT
 
 ##### Example
 ```SQL
-mysql> SELECT sys.format_bytes(2348723492723746) AS size;
+mysql> SELECT format_bytes(2348723492723746) AS size;
 +----------+
 | size     |
 +----------+
@@ -3492,7 +3492,7 @@ mysql> SELECT sys.format_bytes(2348723492723746) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mysql> SELECT sys.format_bytes(2348723492723) AS size;
+mysql> SELECT format_bytes(2348723492723) AS size;
 +----------+
 | size     |
 +----------+
@@ -3500,7 +3500,7 @@ mysql> SELECT sys.format_bytes(2348723492723) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mysql> SELECT sys.format_bytes(23487234) AS size;
+mysql> SELECT format_bytes(23487234) AS size;
 +-----------+
 | size      |
 +-----------+

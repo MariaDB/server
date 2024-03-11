@@ -155,6 +155,8 @@ ps_trace_thread	PROCEDURE
 ps_truncate_all_tables	PROCEDURE
 statement_performance_analyzer	PROCEDURE
 table_exists	PROCEDURE
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA = 'sys' ORDER BY TRIGGER_NAME;
 TRIGGER_NAME
 SELECT sys_version FROM sys.version;
