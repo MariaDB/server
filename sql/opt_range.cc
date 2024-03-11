@@ -8842,9 +8842,23 @@ SEL_ARG *Field::stored_field_make_mm_leaf_truncated(RANGE_OPT_PARAM *param,
                                                     Item *value)
 {
   DBUG_ENTER("Field::stored_field_make_mm_leaf_truncated");
+  /*
+    We get into this function when attempt to construct an index lookup value
+    with save_in_field() caused a truncation error. For same cases this means
+    that equality lookup won't have any matches.
+
+    DATE-EXCEPTION: But this is not so for DATE-based columns. An invalid date
+    value is considered equal to the '0000-00-00', which can be present in the
+    table. Ideally, range optimizer should convert this into an index lookup
+    for the '0000-00-00' date but for now we will just produce no range.
+    (Note: the most common case of "WHERE field=invalid_const" is handled by
+    constructing multiple equality with Item_date_literal_for_invalid_dates and
+    we don't take this code path)
+  */
   if ((op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL) &&
       value->result_type() == item_cmp_type(result_type(),
-                                            value->result_type()))
+                                            value->result_type()) &&
+      cmp_type()!=TIME_RESULT) // (DATE-EXCEPTION)
     DBUG_RETURN(new (param->mem_root) SEL_ARG_IMPOSSIBLE(this));
   /*
     TODO: We should return trees of the type SEL_ARG::IMPOSSIBLE

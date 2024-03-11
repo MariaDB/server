@@ -2300,6 +2300,16 @@ let $a= `select group_concat(a) from t2`;
 eval analyze SELECT * FROM t1 where a in ($a);
 drop table t1,ten,t2;
 
+--echo #
+--echo # MDEV-33648: range optimizer works incorrectly for date_col=expression yielding invalid_date
+--echo #
+CREATE TABLE t1 (a ENUM('a'), b DATE, c INT, KEY(b)) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 VALUES ('','0000-00-00',0);
+SELECT 1 as COL FROM t1 WHERE b= (SELECT a FROM t1 group by c);
+--echo # Must produce one row as the previous query:
+SELECT 1 as COL FROM t1 WHERE b IN ((SELECT a FROM t1 group by c), (SELECT a FROM t1 group by c));
+drop table t1;
+
 --echo # End of 10.4 tests
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
