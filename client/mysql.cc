@@ -2018,11 +2018,13 @@ static int get_options(int argc, char **argv)
   return(0);
 }
 
+#ifdef USE_LIBEDIT_INTERFACE
 static inline void reset_prompt(char *in_string, bool *ml_comment) {
   glob_buffer.length(0);
   *ml_comment = false;
   *in_string = 0;
 }
+#endif
 
 static int read_and_execute(bool interactive)
 {
