@@ -119,8 +119,10 @@ connect con2, localhost, root,,;
 START TRANSACTION;
 # T2: Wait for (T1) row lock on t2 after acquiring GAP Lock on t1
 UPDATE t1 SET col2 = 20 where col1 = 10;
+SET DEBUG_SYNC='lock_wait_suspend_thread_enter SIGNAL t2_waiting';
 INSERT INTO t2 values(100);
 connection default;
+SET DEBUG_SYNC='now WAIT_FOR t2_waiting';
 # T3: Wait for (T2) II row Lock on t1 after acquiring Auto Increment Lock on t1
 SET DEBUG_SYNC='lock_wait_suspend_thread_enter SIGNAL t3_waiting';
 INSERT INTO t1(col2) SELECT col2 from t1;
