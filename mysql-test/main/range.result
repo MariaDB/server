@@ -3792,6 +3792,25 @@ pk	a
 3	9
 DROP TABLE t1;
 #
+# MDEV-33648: range optimizer works incorrectly for date_col=expression yielding invalid_date
+#
+CREATE TABLE t1 (a ENUM('a'), b DATE, c INT, KEY(b)) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 VALUES ('','0000-00-00',0);
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT 1 as COL FROM t1 WHERE b= (SELECT a FROM t1 group by c);
+COL
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+# Must produce one row as the previous query:
+SELECT 1 as COL FROM t1 WHERE b IN ((SELECT a FROM t1 group by c), (SELECT a FROM t1 group by c));
+COL
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+drop table t1;
+#
 # End of 10.5 tests
 #
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
