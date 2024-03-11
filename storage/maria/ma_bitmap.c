@@ -232,7 +232,7 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
   uint max_page_size;
   MARIA_FILE_BITMAP *bitmap= &share->bitmap;
   uint size= share->block_size;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   pgcache_page_no_t first_bitmap_with_space;
 #ifndef DBUG_OFF
   /* We want to have a copy of the bitmap to be able to print differences */

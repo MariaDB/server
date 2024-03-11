@@ -272,7 +272,7 @@ create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f` varchar(32) DEFAULT NULL
+  `f` varchar(46) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 f

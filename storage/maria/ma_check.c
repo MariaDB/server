@@ -1304,7 +1304,6 @@ static int check_dynamic_record(HA_CHECK *param, MARIA_HA *info, int extend,
   ulong UNINIT_VAR(left_length);
   uint	b_type;
   char llbuff[22],llbuff2[22],llbuff3[22];
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("check_dynamic_record");
 
   pos= 0;
@@ -1412,7 +1411,8 @@ static int check_dynamic_record(HA_CHECK *param, MARIA_HA *info, int extend,
         {
           if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                                block_info.rec_len +
-                               share->base.extra_rec_buff_size, myflag))
+                               share->base.extra_rec_buff_size,
+                               MY_WME | share->malloc_flag))
 
           {
             _ma_check_print_error(param,

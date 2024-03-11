@@ -489,6 +489,12 @@ enum chf_create_flags {
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
 #define HA_SKIP_KEY_SORT        64U
+/*
+  A temporary table that can be used by different threads, eg. replication
+  threads. This flag ensure that memory is not allocated with THREAD_SPECIFIC,
+  as we do for other temporary tables.
+*/
+#define HA_LEX_CREATE_GLOBAL_TMP_TABLE 128U
 
 #define HA_MAX_REC_LENGTH	65535
 

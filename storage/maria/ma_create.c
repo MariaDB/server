@@ -103,7 +103,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
   DBUG_ASSERT(maria_inited);
 
-  if (flags & HA_CREATE_TMP_TABLE)
+  if ((flags & HA_CREATE_TMP_TABLE) && !(flags & HA_CREATE_GLOBAL_TMP_TABLE))
     common_flag|= MY_THREAD_SPECIFIC;
 
   if (!ci)

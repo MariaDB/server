@@ -20,20 +20,14 @@
 #include "item.h"
 #include "sql_parse.h" // For check_stack_overrun
 
-/*
-  Allocating memory and *also* using it (reading and
-  writing from it) because some build instructions cause
-  compiler to optimize out stack_used_up. Since alloca()
-  here depends on stack_used_up, it doesnt get executed
-  correctly and causes json_debug_nonembedded to fail
-  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
-*/
-#define ALLOCATE_MEM_ON_STACK(A) do \
-                              { \
-                                uchar *array= (uchar*)alloca(A); \
-                                bzero(array, A); \
-                                my_checksum(0, array, A); \
-                              } while(0)
+#ifndef DBUG_OFF
+static int dbug_json_check_min_stack_requirement()
+{
+  my_error(ER_STACK_OVERRUN_NEED_MORE, MYF(ME_FATAL),
+           my_thread_stack_size, my_thread_stack_size, STACK_MIN_SIZE);
+  return 1;
+}
+#endif
 
 /*
   Compare ASCII string against the string with the specified
@@ -151,11 +145,8 @@ int json_path_parts_compare(
   int res, res2;
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  return dbug_json_check_min_stack_requirement(););
+
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -749,7 +740,7 @@ bool Item_func_json_unquote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb3_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  max_length= args[0]->max_length;
+  max_length= args[0]->max_char_length() * collation.collation->mbmaxlen;
   maybe_null= 1;
   return FALSE;
 }
@@ -1198,11 +1189,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
   json_engine_t loc_js;
   bool set_js;
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  return dbug_json_check_min_stack_requirement(););
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -1788,7 +1775,23 @@ bool Item_func_json_array::fix_length_and_dec()
     return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
-    char_length+= args[n_arg]->max_char_length() + 4;
+  {
+    ulonglong arg_length;
+    Item *arg= args[n_arg];
+
+    if (arg->result_type() == STRING_RESULT &&
+        !Type_handler_json_common::is_json_type_handler(arg->type_handler()))
+      arg_length= arg->max_char_length() * 2; /*escaping possible */
+    else if (arg->type_handler()->is_bool_type())
+      arg_length= 5;
+    else
+      arg_length= arg->max_char_length();
+
+    if (arg_length < 4)
+      arg_length= 4; /* can be 'null' */
+
+    char_length+= arg_length + 4;
+  }
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
@@ -2171,13 +2174,8 @@ err_return:
 
 static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
 {
-
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  return dbug_json_check_min_stack_requirement(););
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -2514,11 +2512,7 @@ static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
                           bool *empty_result)
 {
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  return dbug_json_check_min_stack_requirement(););
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -2932,7 +2926,7 @@ longlong Item_func_json_depth::val_int()
 bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb3_general_ci);
-  max_length= 12;
+  max_length= 12 * collation.collation->mbmaxlen;
   maybe_null= 1;
   return FALSE;
 }
@@ -2998,6 +2992,11 @@ bool Item_func_json_insert::fix_length_and_dec()
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
+    /*
+      In the resulting JSON we can insert the property
+      name from the path, and the value itself.
+    */
+    char_length+= args[n_arg/2]->max_char_length() + 6;
     char_length+= args[n_arg/2+1]->max_char_length() + 4;
   }
 
@@ -3807,7 +3806,20 @@ bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   collation.set(args[0]->collation);
-  max_length= args[0]->max_length;
+  switch (fmt)
+  {
+  case COMPACT:
+    max_length= args[0]->max_length;
+    break;
+  case LOOSE:
+    max_length= args[0]->max_length * 2;
+    break;
+  case DETAILED:
+    max_length= MAX_BLOB_WIDTH;
+    break;
+  default:
+    DBUG_ASSERT(0);
+  };
   maybe_null= 1;
   return FALSE;
 }

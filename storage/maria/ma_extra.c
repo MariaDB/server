@@ -542,7 +542,7 @@ int maria_reset(MARIA_HA *info)
 {
   int error= 0;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   DBUG_ENTER("maria_reset");
   /*
     Free buffers and reset the following flags:

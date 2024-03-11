@@ -27,6 +27,7 @@
 #include "sp_rcontext.h"
 #include "sp_head.h"
 #include "sql_trigger.h"
+#include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_show.h"                           // append_identifier
 #include "sql_view.h"                           // VIEW_ANY_SQL
@@ -484,7 +485,10 @@ void Item::print_parenthesised(String *str, enum_query_type query_type,
   bool need_parens= precedence() < parent_prec;
   if (need_parens)
     str->append('(');
-  print(str, query_type);
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+    str->append("<STACK OVERRUN>");
+  else
+    print(str, query_type);
   if (need_parens)
     str->append(')');
 }
