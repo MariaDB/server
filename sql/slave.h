@@ -57,6 +57,21 @@
 
 #define MAX_REPLICATION_THREAD 64
 
+/* Text for Slave_IO_Running */
+static const LEX_CSTRING slave_running[]=
+{
+  { STRING_WITH_LEN("No") },
+  { STRING_WITH_LEN("Connecting") },
+  { STRING_WITH_LEN("Preparing") },
+  { STRING_WITH_LEN("Yes") }
+};
+
+static const LEX_CSTRING msg_yes= { STRING_WITH_LEN("Yes") };
+static const LEX_CSTRING msg_no=  { STRING_WITH_LEN("No") };
+#ifndef HAVE_OPENSSL
+static const LEX_CSTRING msg_ignored=  { STRING_WITH_LEN("Ignored") };
+#endif
+
 // Forward declarations
 class Relay_log_info;
 class Master_info;
@@ -228,6 +243,9 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                      bool full, size_t gtid_pos_length);
 bool show_master_info(THD* thd, Master_info* mi, bool full);
 bool show_all_master_info(THD* thd);
+time_t calculate_sbm(time_t last_master_timestamp, bool sql_thread_caught_up,
+                     bool using_parallel, Relay_log_info *rli,
+                     long clock_diff_with_master);
 void show_binlog_info_get_fields(THD *thd, List<Item> *field_list);
 bool show_binlog_info(THD* thd);
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,

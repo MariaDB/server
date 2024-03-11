@@ -1,0 +1,62 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-33526: Create IS.slave_status table
+#             as alias for show slave status command
+#
+connection slave;
+# Check values between show slave hosts an IS.slave_status
+# Check Connection_name
+# Check Slave_SQL_State
+# Check Slave_IO_State
+# Check Master_Host
+# Check Master_User
+# Check Master_Port
+# Check Connect_Retry
+# Check Master_Log_File
+# Check Read_Master_Log_Pos
+# Check Relay_Log_File
+# Check Relay_Log_Pos
+# Check Relay_Master_Log_File
+# Check Slave_IO_Running
+# Check Slave_SQL_Running
+# Check Replicate_Rewrite_DB
+# Check Replicate_Do_DB
+# Check Replicate_Ignore_DB
+# Check Replicate_Do_Table
+# Check Replicate_Ignore_Table
+# Check Replicate_Wild_Do_Table
+# Check Replicate_Wild_Ignore_Table
+# Check Last_Errno
+# Check Last_Error
+# Check Skip_Counter
+# Check Exec_Master_Log_Pos
+# Check Relay_Log_Space
+# Check Until_Condition
+# Check Until_Log_File
+# Check Until_Log_Pos
+# Check Master_SSL_Allowed
+# Check Master_SSL_CA_File
+# Check Master_SSL_CA_Path
+# Check Master_SSL_Cert
+# Check Master_SSL_Cipher
+# Check Master_SSL_Key
+# Check Seconds_Behind_Master
+# Check Last_IO_Errno
+# Check Last_IO_Error
+# Check Last_SQL_Errno
+# Check Last_SQL_Error
+# Check Replicate_Ignore_Server_Ids
+# Check Master_Server_Id
+# Check Master_SSL_Crl
+# Check Master_SSL_Crlpath
+# Check Using_Gtid
+# Check Gtid_IO_Pos
+# Check Replicate_Ignore_Domain_Ids
+# Check Parallel_Mode
+# Check SQL_Delay
+# Check Slave_SQL_Running_State
+# Check Slave_DDL_Groups
+# Check Slave_Non_Transactional_Groups
+# Check Slave_Transactional_Groups
+include/rpl_end.inc
