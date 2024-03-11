@@ -3318,6 +3318,25 @@ analyze SELECT * FROM t1 where a in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	index	a	a	5	NULL	2000	2000.00	10.05	60.05	Using where; Using index
 drop table t1,ten,t2;
+#
+# MDEV-33648: range optimizer works incorrectly for date_col=expression yielding invalid_date
+#
+CREATE TABLE t1 (a ENUM('a'), b DATE, c INT, KEY(b)) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 VALUES ('','0000-00-00',0);
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT 1 as COL FROM t1 WHERE b= (SELECT a FROM t1 group by c);
+COL
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+# Must produce one row as the previous query:
+SELECT 1 as COL FROM t1 WHERE b IN ((SELECT a FROM t1 group by c), (SELECT a FROM t1 group by c));
+COL
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+drop table t1;
 # End of 10.4 tests
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
