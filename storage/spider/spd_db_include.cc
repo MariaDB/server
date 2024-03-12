@@ -71,22 +71,6 @@ spider_db_conn::spider_db_conn(
   DBUG_VOID_RETURN;
 }
 
-bool spider_db_conn::set_loop_check_in_bulk_sql()
-{
-  DBUG_ENTER("spider_db_conn::set_loop_check_in_bulk_sql");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(FALSE);
-}
-
-int spider_db_conn::set_loop_check(
-  int *need_mon
-) {
-  DBUG_ENTER("spider_db_conn::set_loop_check");
-  DBUG_PRINT("info",("spider this=%p", this));
-  /* nothing to do */
-  DBUG_RETURN(0);
-}
-
 int spider_db_conn::fin_loop_check()
 {
   st_spider_conn_loop_check *lcptr;

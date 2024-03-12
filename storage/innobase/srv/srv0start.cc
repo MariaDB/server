@@ -1541,6 +1541,116 @@ dberr_t srv_start(bool create_new_db)
 
 		fil_system.space_id_reuse_warned = false;
 
+		if (srv_operation == SRV_OPERATION_RESTORE
+		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
+			buf_flush_sync();
+			recv_sys.debug_free();
+			/* After applying the redo log from
+			SRV_OPERATION_BACKUP, flush the changes
+			to the data files and truncate or delete the log.
+			Unless --export is specified, no further change to
+			InnoDB files is needed. */
+			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
+			ut_ad(recv_no_log_write);
+			err = fil_write_flushed_lsn(log_sys.get_lsn());
+			ut_ad(!os_aio_pending_reads());
+			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+			ut_ad(!buf_pool.get_oldest_modification(0));
+			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+			log_sys.log.close_file();
+			if (err == DB_SUCCESS) {
+				bool trunc = srv_operation
+					== SRV_OPERATION_RESTORE;
+				if (!trunc) {
+					delete_log_file("0");
+				} else {
+					auto logfile0 = get_log_file_path();
+					/* Truncate the first log file. */
+					fclose(fopen(logfile0.c_str(), "w"));
+				}
+			}
+			return(err);
+		}
+		/* Upgrade or resize or rebuild the redo logs before
+		generating any dirty pages, so that the old redo log
+		file will not be written to. */
+
+		if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
+			/* Completely ignore the redo log. */
+		} else if (srv_read_only_mode) {
+			/* Leave the redo log alone. */
+		} else if (srv_log_file_size_requested == srv_log_file_size
+			   && srv_log_file_found
+			   && log_sys.log.format
+			   == (srv_encrypt_log
+			       ? log_t::FORMAT_ENC_10_5
+			       : log_t::FORMAT_10_5)
+			   && log_sys.log.subformat == 2) {
+			/* No need to add or remove encryption,
+			upgrade, downgrade, or resize. */
+		} else {
+			/* Prepare to delete the old redo log file */
+			flushed_lsn = srv_prepare_to_delete_redo_log_file(
+				srv_log_file_found);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_1",
+					return(srv_init_abort(DB_ERROR)););
+			/* Prohibit redo log writes from any other
+			threads until creating a log checkpoint at the
+			end of create_log_file(). */
+			ut_d(recv_no_log_write = true);
+			ut_ad(!os_aio_pending_reads());
+			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+			ut_ad(!buf_pool.get_oldest_modification(0));
+			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+			/* os_aio_pending_writes() may hold here if
+			some write_io_callback() did not release the
+			slot yet. However, the page write itself must
+			have completed, because the buf_pool.flush_list
+			is empty. In debug builds, we wait for this to
+			happen, hoping to get a hung process if this
+			assumption does not hold. */
+			ut_d(os_aio_wait_until_no_pending_writes(false));
+
+			DBUG_EXECUTE_IF("innodb_log_abort_3",
+					return(srv_init_abort(DB_ERROR)););
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_3"));
+
+			/* Stamp the LSN to the data files. */
+			err = fil_write_flushed_lsn(flushed_lsn);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_4"));
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+
+			/* Close the redo log file, so that we can replace it */
+			log_sys.log.close_file();
+
+			DBUG_EXECUTE_IF("innodb_log_abort_5",
+					return(srv_init_abort(DB_ERROR)););
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
+
+			ib::info()
+				<< "Starting to delete and rewrite log file.";
+
+			srv_log_file_size = srv_log_file_size_requested;
+
+			err = create_log_file(false, flushed_lsn, logfile0);
+
+			if (err == DB_SUCCESS) {
+				err = create_log_file_rename(flushed_lsn,
+							     logfile0);
+			}
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+		}
+		recv_sys.debug_free();
+
 		if (!srv_read_only_mode) {
 			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
 			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
@@ -1624,118 +1734,6 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
-
-		if (srv_operation == SRV_OPERATION_RESTORE
-		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
-			buf_flush_sync();
-			recv_sys.debug_free();
-			/* After applying the redo log from
-			SRV_OPERATION_BACKUP, flush the changes
-			to the data files and truncate or delete the log.
-			Unless --export is specified, no further change to
-			InnoDB files is needed. */
-			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
-			ut_ad(recv_no_log_write);
-			err = fil_write_flushed_lsn(log_sys.get_lsn());
-			ut_ad(!os_aio_pending_reads());
-			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
-			ut_ad(!buf_pool.get_oldest_modification(0));
-			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
-			log_sys.log.close_file();
-			if (err == DB_SUCCESS) {
-				bool trunc = srv_operation
-					== SRV_OPERATION_RESTORE;
-				if (!trunc) {
-					delete_log_file("0");
-				} else {
-					auto logfile0 = get_log_file_path();
-					/* Truncate the first log file. */
-					fclose(fopen(logfile0.c_str(), "w"));
-				}
-			}
-			return(err);
-		}
-
-		/* Upgrade or resize or rebuild the redo logs before
-		generating any dirty pages, so that the old redo log
-		file will not be written to. */
-
-		if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
-			/* Completely ignore the redo log. */
-		} else if (srv_read_only_mode) {
-			/* Leave the redo log alone. */
-		} else if (srv_log_file_size_requested == srv_log_file_size
-			   && srv_log_file_found
-			   && log_sys.log.format
-			   == (srv_encrypt_log
-			       ? log_t::FORMAT_ENC_10_5
-			       : log_t::FORMAT_10_5)
-			   && log_sys.log.subformat == 2) {
-			/* No need to add or remove encryption,
-			upgrade, downgrade, or resize. */
-		} else {
-			/* Prepare to delete the old redo log file */
-			flushed_lsn = srv_prepare_to_delete_redo_log_file(
-				srv_log_file_found);
-
-			DBUG_EXECUTE_IF("innodb_log_abort_1",
-					return(srv_init_abort(DB_ERROR)););
-			/* Prohibit redo log writes from any other
-			threads until creating a log checkpoint at the
-			end of create_log_file(). */
-			ut_d(recv_no_log_write = true);
-			ut_ad(!os_aio_pending_reads());
-			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
-			ut_ad(!buf_pool.get_oldest_modification(0));
-			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
-			/* os_aio_pending_writes() may hold here if
-			some write_io_callback() did not release the
-			slot yet. However, the page write itself must
-			have completed, because the buf_pool.flush_list
-			is empty. In debug builds, we wait for this to
-			happen, hoping to get a hung process if this
-			assumption does not hold. */
-			ut_d(os_aio_wait_until_no_pending_writes(false));
-
-			DBUG_EXECUTE_IF("innodb_log_abort_3",
-					return(srv_init_abort(DB_ERROR)););
-			DBUG_PRINT("ib_log", ("After innodb_log_abort_3"));
-
-			/* Stamp the LSN to the data files. */
-			err = fil_write_flushed_lsn(flushed_lsn);
-
-			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
-			DBUG_PRINT("ib_log", ("After innodb_log_abort_4"));
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-
-			/* Close the redo log file, so that we can replace it */
-			log_sys.log.close_file();
-
-			DBUG_EXECUTE_IF("innodb_log_abort_5",
-					return(srv_init_abort(DB_ERROR)););
-			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
-
-			ib::info()
-				<< "Starting to delete and rewrite log file.";
-
-			srv_log_file_size = srv_log_file_size_requested;
-
-			err = create_log_file(false, flushed_lsn, logfile0);
-
-			if (err == DB_SUCCESS) {
-				err = create_log_file_rename(flushed_lsn,
-							     logfile0);
-			}
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-		}
-
-		recv_sys.debug_free();
 	}
 
 	ut_ad(err == DB_SUCCESS);

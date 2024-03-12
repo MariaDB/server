@@ -633,6 +633,8 @@ static void log_write_low(const void *str, size_t size)
       len= trailer_offset - log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
     }
 
+    ut_ad(log_sys.is_physical());
+
     memcpy(log_sys.buf + log_sys.buf_free, str, len);
 
     size-= len;

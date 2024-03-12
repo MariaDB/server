@@ -16664,6 +16664,13 @@ ha_innobase::get_auto_increment(
 
 	if (error != DB_SUCCESS) {
 		*first_value = (~(ulonglong) 0);
+		/* This is an error case. We do the error handling by calling
+		the error code conversion function. Specifically, we need to
+		call thd_mark_transaction_to_rollback() to inform sql that we
+		have rolled back innodb transaction after a deadlock error. We
+		ignore the returned mysql error code here. */
+		std::ignore = convert_error_code_to_mysql(
+			error, m_prebuilt->table->flags, m_user_thd);
 		return;
 	}
 

@@ -1066,3 +1066,43 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-31276: Execution of PS from grouping query with join
+--echo #             and GROUP_CONCAT set function
+--echo #
+
+create table t1 (a int, b varchar(20)) engine=myisam;
+create table t2 (a int, c varchar(20)) engine=myisam;
+insert into t1 values (1,"aaaaaaaaaa"),(2,"bbbbbbbbbb");
+insert into t2 values (1,"cccccccccc"),(2,"dddddddddd");
+insert into t2 values (1,"eeeeeee"),(2,"fffffff");
+
+let $q=
+select count(*), group_concat(t1.b,t2.c)
+  from t1 join t2 on t1.a=t2.a group by t1.a;
+
+set group_concat_max_len=5;
+
+eval $q;
+eval explain $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+set join_cache_level=0;
+
+eval $q;
+eval explain $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+set join_cache_level=default;
+set group_concat_max_len=default;
+
+drop table t1,t2;
+
+--echo # End of 10.5 tests

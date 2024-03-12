@@ -270,6 +270,7 @@ log_reserve_and_write_fast(
 	}
 
 	lsn_t lsn = log_sys.get_lsn();
+	ut_ad(log_sys.is_physical());
 	*start_lsn = lsn;
 
 	memcpy(log_sys.buf + log_sys.buf_free, str, len);

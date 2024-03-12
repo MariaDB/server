@@ -166,6 +166,7 @@ SET(CPACK_RPM_server_USER_FILELIST
     ${ignored}
     "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
     "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
+    "%caps(cap_ipc_lock=pe) %{_sbindir}/mysqld"
     )
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")

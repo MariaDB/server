@@ -6713,6 +6713,7 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
         print(buf);
       }
 
+      DBUG_EXECUTE_IF("innodb_deadlock_victim_self", victim= trx;);
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
       /* victim->lock.was_chosen_as_deadlock_victim must always be set before
