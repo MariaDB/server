@@ -1,0 +1,82 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+select @@global.innodb_undo_tablespaces AS EXPECT_0;
+EXPECT_0
+0
+connection node_2;
+# Shutdown node_2
+SET GLOBAL innodb_fast_shutdown=0;
+connection node_1;
+# On node_1, verify that the node has left the cluster.
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15);
+INSERT INTO t1 VALUES (21),(22),(23),(24),(25);
+connection node_2;
+# Clean up datadir to force SST
+# Should list 0 undo log tablespaces
+connection node_1;
+# On node_1, verify that the node has joined the cluster.
+connection node_2;
+SELECT @@global.innodb_undo_tablespaces AS EXPECT_3;
+EXPECT_3
+3
+# Should list 3 undo log tablespaces
+undo001
+undo002
+undo003
+SELECT * FROM t1;
+a
+1
+2
+3
+4
+5
+11
+12
+13
+14
+15
+21
+22
+23
+24
+25
+connection node_2;
+# Shutdown node_2
+SET GLOBAL innodb_fast_shutdown=0;
+connection node_1;
+# On node_1, verify that the node has left the cluster.
+connection node_2;
+# Clean up datadir to force SST
+Starting server ...
+connection node_1;
+# On node_1, verify that the node has joined the cluster.
+connection node_2;
+SELECT @@global.innodb_undo_tablespaces AS EXPECT_0;
+EXPECT_0
+0
+# Should list 0 undo log tablespaces
+SELECT * FROM t1;
+a
+1
+2
+3
+4
+5
+11
+12
+13
+14
+15
+21
+22
+23
+24
+25
+SET GLOBAL innodb_fast_shutdown=DEFAULT;
+connection node_1;
+DROP TABLE t1;
