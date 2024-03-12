@@ -1,3 +1,4 @@
+--source include/not_valgrind.inc
 --source ../include/quick_mode_1_init.inc
 --echo
 --echo this test is for MDEV-16520
