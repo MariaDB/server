@@ -5064,9 +5064,19 @@ bool Item_param::assign_default(Field *field)
   }
 
   if (m_default_field->default_value)
-    m_default_field->set_default();
-
-  return field_conv(field, m_default_field);
+  {
+    return m_default_field->default_value->expr->save_in_field(field, 0);
+  }
+  else if (m_default_field->is_null())
+  {
+    field->set_null();
+    return false;
+  }
+  else
+  {
+    field->set_notnull();
+    return field_conv(field, m_default_field);
+  }
 }
 
 

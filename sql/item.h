@@ -4000,6 +4000,12 @@ public:
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
 
+  void cleanup() override
+  {
+    m_default_field= NULL;
+    Item::cleanup();
+  }
+
   enum Type type() const
   {
     // Don't pretend to be a constant unless value for this item is set.
