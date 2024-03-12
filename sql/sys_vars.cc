@@ -1511,8 +1511,7 @@ static Sys_var_mybool Sys_large_files_support(
 
 static Sys_var_uint Sys_large_page_size(
        "large_page_size",
-       "Previously showed the size of large memory pages, unused since "
-       "multiple page size support was added",
+       UNUSED_HELP,
        READ_ONLY GLOBAL_VAR(opt_large_page_size), NO_CMD_LINE,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
@@ -1901,7 +1900,7 @@ static Sys_var_ulonglong Sys_max_heap_table_size(
 
 static ulong mdl_locks_cache_size;
 static Sys_var_ulong Sys_metadata_locks_cache_size(
-       "metadata_locks_cache_size", "Unused",
+       "metadata_locks_cache_size", UNUSED_HELP,
        READ_ONLY GLOBAL_VAR(mdl_locks_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 1024*1024), DEFAULT(1024),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
@@ -1909,7 +1908,7 @@ static Sys_var_ulong Sys_metadata_locks_cache_size(
 
 static ulong mdl_locks_hash_partitions;
 static Sys_var_ulong Sys_metadata_locks_hash_instances(
-       "metadata_locks_hash_instances", "Unused",
+      "metadata_locks_hash_instances", UNUSED_HELP,
        READ_ONLY GLOBAL_VAR(mdl_locks_hash_partitions), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
@@ -2989,7 +2988,7 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
 
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
-    "Unused",
+    UNUSED_HELP,
     SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1),
     NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
