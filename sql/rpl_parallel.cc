@@ -868,13 +868,7 @@ do_retry:
     });
 #endif
 
-  /*
-    We are still applying the event group, even though we will roll it back
-    and retry it. So for --gtid-ignore-duplicates, keep ownership of the
-    domain during the retry so another master connection will not try to take
-    over and duplicate apply the same event group (MDEV-33475).
-  */
-  rgi->cleanup_context(thd, 1, 1 /* keep_domain_owner */);
+  rgi->cleanup_context(thd, 1);
   wait_for_pending_deadlock_kill(thd, rgi);
   thd->reset_killed();
   thd->clear_error();

@@ -2248,7 +2248,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 }
 
 
-void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owner)
+void rpl_group_info::cleanup_context(THD *thd, bool error)
 {
   DBUG_ENTER("rpl_group_info::cleanup_context");
   DBUG_PRINT("enter", ("error: %d", (int) error));
@@ -2298,7 +2298,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owne
       Ensure we always release the domain for others to process, when using
       --gtid-ignore-duplicates.
     */
-    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL && !keep_domain_owner)
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
       rpl_global_gtid_slave_state->release_domain_owner(this);
   }
 
