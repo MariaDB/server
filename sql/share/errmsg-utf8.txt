@@ -12270,3 +12270,5 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_VARIABLE_DELETED
+        eng "The variable '%s' is deleted and ignored. It it only exists for compatiblity with old installations"
