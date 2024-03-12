@@ -1,6 +1,6 @@
 --- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 +++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
-@@ -4639,99 +4639,9 @@
+@@ -4649,99 +4649,9 @@
  NUMERIC_MIN_VALUE	NULL
  NUMERIC_MAX_VALUE	NULL
  NUMERIC_BLOCK_SIZE	NULL
@@ -51,7 +51,7 @@
 -VARIABLE_NAME	THREAD_POOL_OVERSUBSCRIBE
 -VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	INT UNSIGNED
--VARIABLE_COMMENT	How many additional active worker threads in a group are allowed.
+-VARIABLE_COMMENT	How many additional active worker threads in a group are allowed
 -NUMERIC_MIN_VALUE	1
 -NUMERIC_MAX_VALUE	1000
 -NUMERIC_BLOCK_SIZE	1
@@ -61,7 +61,7 @@
 -VARIABLE_NAME	THREAD_POOL_PRIORITY
 -VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	ENUM
--VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.
+-VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction
 -NUMERIC_MIN_VALUE	NULL
 -NUMERIC_MAX_VALUE	NULL
 -NUMERIC_BLOCK_SIZE	NULL
@@ -81,7 +81,7 @@
 -VARIABLE_NAME	THREAD_POOL_SIZE
 -VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	INT UNSIGNED
--VARIABLE_COMMENT	Number of thread groups in the pool. This parameter is roughly equivalent to maximum number of concurrently executing threads (threads in a waiting state do not count as executing).
+-VARIABLE_COMMENT	Number of thread groups in the pool. This parameter is roughly equivalent to maximum number of concurrently executing threads (threads in a waiting state do not count as executing)
 -NUMERIC_MIN_VALUE	1
 -NUMERIC_MAX_VALUE	100000
 -NUMERIC_BLOCK_SIZE	1
@@ -91,7 +91,7 @@
 -VARIABLE_NAME	THREAD_POOL_STALL_LIMIT
 -VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	INT UNSIGNED
--VARIABLE_COMMENT	Maximum query execution time in milliseconds,before an executing non-yielding thread is considered stalled.If a worker thread is stalled, additional worker thread may be created to handle remaining clients.
+-VARIABLE_COMMENT	Maximum query execution time in milliseconds,before an executing non-yielding thread is considered stalled.If a worker thread is stalled, additional worker thread may be created to handle remaining clients
 -NUMERIC_MIN_VALUE	1
 -NUMERIC_MAX_VALUE	4294967295
 -NUMERIC_BLOCK_SIZE	1

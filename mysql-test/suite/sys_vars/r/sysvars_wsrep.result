@@ -38,7 +38,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	strict
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Certification rules to use in the cluster. Possible values are: "strict": stricter rules that could result in more certification failures. "optimized": relaxed rules that allow more concurrency and cause less certification failures.
+VARIABLE_COMMENT	Certification rules to use in the cluster. Possible values are: "strict": stricter rules that could result in more certification failures. "optimized": relaxed rules that allow more concurrency and cause less certification failures
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -173,7 +173,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Allow reads even when the node is not in the primary component.
+VARIABLE_COMMENT	Allow reads even when the node is not in the primary component
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -218,7 +218,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	When wsrep_gtid_mode is set, this value is used as gtid_domain_id for galera transactions and also copied to the joiner nodes during state transfer. It is ignored, otherwise.
+VARIABLE_COMMENT	When wsrep_gtid_mode is set, this value is used as gtid_domain_id for galera transactions and also copied to the joiner nodes during state transfer. It is ignored, otherwise
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -233,7 +233,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Automatically update the (joiner) node's wsrep_gtid_domain_id value with that of donor's (received during state transfer) and use it in place of gtid_domain_id for all galera transactions. When OFF (default), wsrep_gtid_domain_id is simply ignored (backward compatibility).
+VARIABLE_COMMENT	Automatically update the (joiner) node's wsrep_gtid_domain_id value with that of donor's (received during state transfer) and use it in place of gtid_domain_id for all galera transactions. When OFF (default), wsrep_gtid_domain_id is simply ignored (backward compatibility)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -248,7 +248,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Internal server usage, manually set WSREP GTID seqno.
+VARIABLE_COMMENT	Internal server usage, manually set WSREP GTID seqno
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -323,7 +323,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Set of WSREP features that are enabled.
+VARIABLE_COMMENT	Set of WSREP features that are enabled
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -338,7 +338,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	mysql replication group commit 
+VARIABLE_COMMENT	mysql replication group commit
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1000
 NUMERIC_BLOCK_SIZE	1
@@ -353,7 +353,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Specifies the node's network address, in the format ip address[:port]. Used in situations where autoguessing is not reliable. As of MariaDB 10.1.8, supports IPv6.
+VARIABLE_COMMENT	Specifies the node's network address, in the format ip address[:port]. Used in situations where autoguessing is not reliable. As of MariaDB 10.1.8, supports IPv6
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -383,7 +383,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	HOSTNAME
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Name of this node. This name can be used in wsrep_sst_donor as a preferred donor. Note that multiple nodes in a cluster can have the same name.
+VARIABLE_COMMENT	Name of this node. This name can be used in wsrep_sst_donor as a preferred donor. Note that multiple nodes in a cluster can have the same name
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -413,7 +413,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	To enable wsrep replication 
+VARIABLE_COMMENT	To enable wsrep replication
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -443,7 +443,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Wsrep patch version, for example wsrep_MAJVER.MINVER.
+VARIABLE_COMMENT	Wsrep patch version, for example wsrep_MAJVER.MINVER
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -473,7 +473,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Semicolon (;) separated list of wsrep options (see wsrep_provider_options documentation).
+VARIABLE_COMMENT	Semicolon (;) separated list of wsrep options (see wsrep_provider_options documentation)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -683,7 +683,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	00000000-0000-0000-0000-000000000000:-1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	global transaction position to start from 
+VARIABLE_COMMENT	global transaction position to start from
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

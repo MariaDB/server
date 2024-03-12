@@ -654,7 +654,7 @@ innodb_default_encryption_key_id_update(THD* thd, st_mysql_sys_var* var,
 }
 
 static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
-			 "Default encryption key id used for table encryption.",
+			 "Default encryption key id used for table encryption",
 			 NULL, innodb_default_encryption_key_id_update,
 			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
@@ -871,30 +871,30 @@ static MYSQL_THDVAR_BOOL(table_locks, PLUGIN_VAR_OPCMDARG,
   /* default */ TRUE);
 
 static MYSQL_THDVAR_BOOL(snapshot_isolation, PLUGIN_VAR_OPCMDARG,
-  "Use snapshot isolation (write-write conflict detection).",
+  "Use snapshot isolation (write-write conflict detection)",
   NULL, NULL, FALSE);
 
 static MYSQL_THDVAR_BOOL(strict_mode, PLUGIN_VAR_OPCMDARG,
-  "Use strict mode when evaluating create options.",
+  "Use strict mode when evaluating create options",
   NULL, NULL, TRUE);
 
 static MYSQL_THDVAR_BOOL(ft_enable_stopword, PLUGIN_VAR_OPCMDARG,
-  "Create FTS index with stopword.",
+  "Create FTS index with stopword",
   NULL, NULL,
   /* default */ TRUE);
 
 static MYSQL_THDVAR_UINT(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
-  "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout.",
+  "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout",
   NULL, NULL, 50, 0, 100000000, 0);
 
 static MYSQL_THDVAR_STR(ft_user_stopword_table,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_MEMALLOC,
-  "User supplied stopword table name, effective in the session level.",
+  "User supplied stopword table name, effective in the session level",
   innodb_stopword_table_validate, NULL, NULL);
 
 static MYSQL_THDVAR_STR(tmpdir,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_MEMALLOC,
-  "Directory for temporary non-tablespace files.",
+  "Directory for temporary non-tablespace files",
   innodb_tmpdir_validate, NULL, NULL);
 
 static size_t truncated_status_writes;
@@ -3652,7 +3652,7 @@ innodb_buffer_pool_size_update(
 
 static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   PLUGIN_VAR_RQCMDARG,
-  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
+  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables",
   innodb_buffer_pool_size_validate,
   innodb_buffer_pool_size_update,
   128ULL << 20,
@@ -18747,7 +18747,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
 
 static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   PLUGIN_VAR_READONLY,
-  "The common part for InnoDB table spaces.",
+  "The common part for InnoDB table spaces",
   NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_ENUM(doublewrite, buf_dblwr.use,
@@ -18762,7 +18762,7 @@ static MYSQL_SYSVAR_ENUM(doublewrite, buf_dblwr.use,
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, srv_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Enable atomic writes, instead of using the doublewrite buffer, for files "
-  "on devices that supports atomic writes.",
+  "on devices that supports atomic writes",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
@@ -18784,7 +18784,7 @@ static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
 
 static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   PLUGIN_VAR_RQCMDARG,
-  "Limit to which innodb_io_capacity can be inflated.",
+  "Limit to which innodb_io_capacity can be inflated",
   NULL, innodb_io_capacity_max_update,
   SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT, 100,
   SRV_MAX_IO_CAPACITY_LIMIT, 0);
@@ -18804,14 +18804,14 @@ static MYSQL_SYSVAR_UINT(merge_threshold_set_all_debug,
   innodb_merge_threshold_set_all_debug,
   PLUGIN_VAR_RQCMDARG,
   "Override current MERGE_THRESHOLD setting for all indexes at dictionary"
-  " cache by the specified value dynamically, at the time.",
+  " cache by the specified value dynamically, at the time",
   NULL, innodb_merge_threshold_set_all_debug_update,
   DICT_INDEX_MERGE_THRESHOLD_DEFAULT, 1, 50, 0);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
-  "Number of UNDO log pages to purge in one batch from the history list.",
+  "Number of UNDO log pages to purge in one batch from the history list",
   NULL, NULL,
   1000,			/* Default setting */
   1,			/* Minimum value */
@@ -18838,24 +18838,24 @@ static MYSQL_SYSVAR_UINT(purge_threads, srv_n_purge_threads,
 static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
   "Speeds up the shutdown process of the InnoDB storage engine. Possible"
-  " values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).",
+  " values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean)",
   fast_shutdown_validate, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Stores each InnoDB table to an .ibd file in the database dir.",
+  "Stores each InnoDB table to an .ibd file in the database dir",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_STR(ft_server_stopword_table, innobase_server_stopword_table,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "The user supplied stopword table name.",
+  "The user supplied stopword table name",
   innodb_stopword_table_validate,
   NULL,
   NULL);
 
 static MYSQL_SYSVAR_UINT(flush_log_at_timeout, srv_flush_log_at_timeout,
   PLUGIN_VAR_OPCMDARG,
-  "Write and flush logs every (n) second.",
+  "Write and flush logs every (n) second",
   NULL, NULL, 1, 0, 2700, 0);
 
 static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
@@ -18869,12 +18869,12 @@ static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   " not be lost and will be consistent with the binlog and other transactional"
   " engines. 2 can get inconsistent and lose transactions if there is a"
   " power failure or kernel crash but not if mysqld crashes. 0 has no"
-  " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
+  " guarantees in case of crash. 0 and 2 can be faster than 1 or 3",
   NULL, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
-  "With which method to flush data.",
+  "With which method to flush data",
   NULL, NULL, innodb_flush_method_default, &innodb_flush_method_typelib);
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
@@ -18883,36 +18883,36 @@ static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
-  "Percentage of dirty pages allowed in bufferpool.",
+  "Percentage of dirty pages allowed in bufferpool",
   NULL, innodb_max_dirty_pages_pct_update, 90.0, 0, 99.999, 0);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct_lwm,
   srv_max_dirty_pages_pct_lwm,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of dirty pages at which flushing kicks in. "
-  "The value 0 (default) means 'refer to innodb_max_dirty_pages_pct'.",
+  "The value 0 (default) means 'refer to innodb_max_dirty_pages_pct'",
   NULL, innodb_max_dirty_pages_pct_lwm_update, 0, 0, 99.999, 0);
 
 static MYSQL_SYSVAR_DOUBLE(adaptive_flushing_lwm,
   srv_adaptive_flushing_lwm,
   PLUGIN_VAR_RQCMDARG,
-  "Percentage of log capacity below which no adaptive flushing happens.",
+  "Percentage of log capacity below which no adaptive flushing happens",
   NULL, NULL, 10.0, 0.0, 70.0, 0);
 
 static MYSQL_SYSVAR_BOOL(adaptive_flushing, srv_adaptive_flushing,
   PLUGIN_VAR_NOCMDARG,
-  "Attempt flushing dirty pages to avoid IO bursts at checkpoints.",
+  "Attempt flushing dirty pages to avoid IO bursts at checkpoints",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(flush_sync, srv_flush_sync,
   PLUGIN_VAR_NOCMDARG,
-  "Allow IO bursts at the checkpoints ignoring io_capacity setting.",
+  "Allow IO bursts at the checkpoints ignoring io_capacity setting",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ULONG(flushing_avg_loops,
   srv_flushing_avg_loops,
   PLUGIN_VAR_RQCMDARG,
-  "Number of iterations over which the background flushing is averaged.",
+  "Number of iterations over which the background flushing is averaged",
   NULL, NULL, 30, 1, 1000, 0);
 
 static MYSQL_SYSVAR_ULONG(max_purge_lag, srv_max_purge_lag,
@@ -18990,7 +18990,7 @@ static MYSQL_SYSVAR_BOOL(stats_traditional, srv_stats_sample_traditional,
 #ifdef BTR_CUR_HASH_ADAPT
 static MYSQL_SYSVAR_BOOL(adaptive_hash_index, btr_search_enabled,
   PLUGIN_VAR_OPCMDARG,
-  "Enable InnoDB adaptive hash index (disabled by default).",
+  "Enable InnoDB adaptive hash index (disabled by default)",
   NULL, innodb_adaptive_hash_index_update, false);
 
 /** Number of distinct partitions of AHI.
@@ -19005,7 +19005,7 @@ static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_ahi_parts,
 static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   PLUGIN_VAR_RQCMDARG,
   "Compression level used for zlib compression.  0 is no compression"
-  ", 1 is fastest, 9 is best compression and default is 6.",
+  ", 1 is fastest, 9 is best compression and default is 6",
   NULL, NULL, DEFAULT_COMPRESSION_LEVEL, 0, 9, 0);
 
 static MYSQL_SYSVAR_UINT(autoextend_increment,
@@ -19018,7 +19018,7 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of a single memory chunk"
   " for resizing buffer pool. Online buffer pool resizing happens at this"
-  " granularity. 0 means autosize this variable based on buffer pool size.",
+  " granularity. 0 means autosize this variable based on buffer pool size",
   NULL, NULL,
   0, 0, SIZE_T_MAX, 1024 * 1024);
 
@@ -19093,12 +19093,12 @@ static MYSQL_SYSVAR_BOOL(deadlock_detect, innodb_deadlock_detect,
   PLUGIN_VAR_NOCMDARG,
   "Enable/disable InnoDB deadlock detector (default ON)."
   " if set to OFF, deadlock detection is skipped,"
-  " and we rely on innodb_lock_wait_timeout in case of deadlock.",
+  " and we rely on innodb_lock_wait_timeout in case of deadlock",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ENUM(deadlock_report, innodb_deadlock_report,
   PLUGIN_VAR_RQCMDARG,
-  "How to report deadlocks (if innodb_deadlock_detect=ON).",
+  "How to report deadlocks (if innodb_deadlock_detect=ON)",
   NULL, NULL, Deadlock::REPORT_FULL, &innodb_deadlock_report_typelib);
 
 static MYSQL_SYSVAR_UINT(fill_factor, innobase_fill_factor,
@@ -19108,7 +19108,7 @@ static MYSQL_SYSVAR_UINT(fill_factor, innobase_fill_factor,
 
 static MYSQL_SYSVAR_BOOL(ft_enable_diag_print, fts_enable_diag_print,
   PLUGIN_VAR_OPCMDARG,
-  "Whether to enable additional FTS diagnostic printout ",
+  "Whether to enable additional FTS diagnostic printout",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(disable_sort_file_cache, srv_disable_sort_file_cache,
@@ -19168,7 +19168,7 @@ static MYSQL_SYSVAR_ULONG(ft_max_token_size, fts_max_token_size,
 
 static MYSQL_SYSVAR_ULONG(ft_num_word_optimize, fts_num_word_optimize,
   PLUGIN_VAR_OPCMDARG,
-  "InnoDB Fulltext search number of words to optimize for each optimize table call ",
+  "InnoDB Fulltext search number of words to optimize for each optimize table call",
   NULL, NULL, 2000, 1000, 10000, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_sort_pll_degree, fts_sort_pll_degree,
@@ -19222,28 +19222,28 @@ static void innodb_write_io_threads_update(THD* thd, struct st_mysql_sys_var*, v
 
 static MYSQL_SYSVAR_UINT(read_io_threads, srv_n_read_io_threads,
   PLUGIN_VAR_RQCMDARG,
-  "Number of background read I/O threads in InnoDB.",
+  "Number of background read I/O threads in InnoDB",
   NULL, innodb_read_io_threads_update , 4, 1, 64, 0);
 
 static MYSQL_SYSVAR_UINT(write_io_threads, srv_n_write_io_threads,
   PLUGIN_VAR_RQCMDARG,
-  "Number of background write I/O threads in InnoDB.",
+  "Number of background write I/O threads in InnoDB",
   NULL, innodb_write_io_threads_update, 4, 2, 64, 0);
 
 static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data.",
+  "Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data",
   NULL, NULL, 0, 0, 6, 0);
 
 static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Page size to use for all InnoDB tablespaces.",
+  "Page size to use for all InnoDB tablespaces",
   NULL, NULL, UNIV_PAGE_SIZE_DEF,
   UNIV_PAGE_SIZE_MIN, UNIV_PAGE_SIZE_MAX, 0);
 
 static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Redo log buffer size in bytes.",
+  "Redo log buffer size in bytes",
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
 #if defined __linux__ || defined _WIN32
@@ -19270,7 +19270,7 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
-  "Redo log size in bytes.",
+  "Redo log size in bytes",
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
@@ -19282,19 +19282,19 @@ static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
-  "Percentage of the buffer pool to reserve for 'old' blocks.",
+  "Percentage of the buffer pool to reserve for 'old' blocks",
   NULL, innodb_old_blocks_pct_update, 100 * 3 / 8, 5, 95, 0);
 
 static MYSQL_SYSVAR_UINT(old_blocks_time, buf_LRU_old_threshold_ms,
   PLUGIN_VAR_RQCMDARG,
   "Move blocks to the 'new' end of the buffer pool if the first access"
   " was at least this many milliseconds ago."
-  " The timeout is disabled if 0.",
+  " The timeout is disabled if 0",
   NULL, NULL, 1000, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_ULONG(open_files, innobase_open_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "How many files at the maximum InnoDB keeps open at the same time.",
+  "How many files at the maximum InnoDB keeps open at the same time",
   NULL, NULL, 0, 0, LONG_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(sync_spin_loops, srv_n_spin_wait_rounds,
@@ -19317,22 +19317,22 @@ static MYSQL_SYSVAR_BOOL(prefix_index_cluster_optimization,
 
 static MYSQL_SYSVAR_STR(data_file_path, innobase_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to individual files and their sizes.",
+  "Path to individual files and their sizes",
   NULL, NULL, "ibdata1:12M:autoextend");
 
 static MYSQL_SYSVAR_STR(temp_data_file_path, innobase_temp_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to files and their sizes making temp-tablespace.",
+  "Path to files and their sizes making temp-tablespace",
   NULL, NULL, "ibtmp1:12M:autoextend");
 
 static MYSQL_SYSVAR_STR(undo_directory, srv_undo_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Directory where undo tablespace files live, this path can be absolute.",
+  "Directory where undo tablespace files live, this path can be absolute",
   NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_UINT(undo_tablespaces, srv_undo_tablespaces,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Number of undo tablespaces to use.",
+  "Number of undo tablespaces to use",
   NULL, NULL,
   3L,			/* Default seting */
   0L,			/* Minimum value */
@@ -19362,7 +19362,7 @@ static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
 
 static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   PLUGIN_VAR_OPCMDARG,
-  "Enable or Disable Truncate of UNDO tablespace.",
+  "Enable or Disable Truncate of UNDO tablespace",
   NULL, innodb_undo_log_truncate_update, FALSE);
 
 static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
@@ -19405,13 +19405,13 @@ bool innodb_use_native_aio_default()
 
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Use native AIO if supported on this platform.",
+  "Use native AIO if supported on this platform",
   NULL, NULL, innodb_use_native_aio_default());
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Use NUMA interleave memory policy to allocate InnoDB buffer pool.",
+  "Use NUMA interleave memory policy to allocate InnoDB buffer pool",
   NULL, NULL, FALSE);
 #endif /* HAVE_LIBNUMA */
 
@@ -19427,18 +19427,18 @@ static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequen
   "A number between [0, 100] that tells how oftern buffer pool dump status "
   "in percentages should be printed. E.g. 10 means that buffer pool dump "
   "status is printed when every 10% of number of buffer pool pages are "
-  "dumped. Default is 0 (only start and end status is printed).",
+  "dumped. Default is 0 (only start and end status is printed)",
   NULL, NULL, 0, 0, 100, 0);
 
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
-  "Whether to use read ahead for random access within an extent.",
+  "Whether to use read ahead for random access within an extent",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(read_ahead_threshold, srv_read_ahead_threshold,
   PLUGIN_VAR_RQCMDARG,
   "Number of pages that must be accessed sequentially for InnoDB to"
-  " trigger a readahead.",
+  " trigger a readahead",
   NULL, NULL, 56, 0, 64, 0);
 
 static MYSQL_SYSVAR_STR(monitor_enable, innobase_enable_monitor_counter,
@@ -19466,12 +19466,12 @@ static MYSQL_SYSVAR_STR(monitor_reset_all, innobase_reset_all_monitor_counter,
   innodb_reset_all_monitor_update, NULL);
 
 static MYSQL_SYSVAR_BOOL(status_output, srv_print_innodb_monitor,
-  PLUGIN_VAR_OPCMDARG, "Enable InnoDB monitor output to the error log.",
+  PLUGIN_VAR_OPCMDARG, "Enable InnoDB monitor output to the error log",
   NULL, innodb_status_output_update, FALSE);
 
 static MYSQL_SYSVAR_BOOL(status_output_locks, srv_print_innodb_lock_monitor,
   PLUGIN_VAR_OPCMDARG, "Enable InnoDB lock monitor output to the error log."
-  " Requires innodb_status_output=ON.",
+  " Requires innodb_status_output=ON",
   NULL, innodb_status_output_update, FALSE);
 
 static MYSQL_SYSVAR_BOOL(print_all_deadlocks, srv_print_all_deadlocks,
@@ -19489,7 +19489,7 @@ static MYSQL_SYSVAR_ULONG(compression_failure_threshold_pct,
 static MYSQL_SYSVAR_ULONG(compression_pad_pct_max,
   zip_pad_max, PLUGIN_VAR_OPCMDARG,
   "Percentage of empty space on a data page that can be reserved"
-  " to make the page compressible.",
+  " to make the page compressible",
   NULL, NULL, 50, 0, 75, 0);
 
 static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
@@ -19524,35 +19524,35 @@ static MYSQL_SYSVAR_UINT(trx_rseg_n_slots_debug, trx_rseg_n_slots_debug,
 
 static MYSQL_SYSVAR_UINT(limit_optimistic_insert_debug,
   btr_cur_limit_optimistic_insert_debug, PLUGIN_VAR_RQCMDARG,
-  "Artificially limit the number of records per B-tree page (0=unlimited).",
+  "Artificially limit the number of records per B-tree page (0=unlimited)",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   srv_purge_view_update_only_debug, PLUGIN_VAR_NOCMDOPT,
   "Pause actual purging any delete-marked records, but merely update the purge view."
   " It is to create artificially the situation the purge view have been updated"
-  " but the each purges were not done yet.",
+  " but the each purges were not done yet",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(evict_tables_on_commit_debug,
   innodb_evict_tables_on_commit_debug, PLUGIN_VAR_OPCMDARG,
-  "On transaction commit, try to evict tables from the data dictionary cache.",
+  "On transaction commit, try to evict tables from the data dictionary cache",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_UINT(data_file_size_debug,
   srv_sys_space_size_debug,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "InnoDB system tablespace size to be set in recovery.",
+  "InnoDB system tablespace size to be set in recovery",
   NULL, NULL, 0, 0, 256U << 20, 0);
 
 static MYSQL_SYSVAR_UINT(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,
-  "Make the first page of the given tablespace dirty.",
+  "Make the first page of the given tablespace dirty",
   NULL, innodb_make_page_dirty, 0, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   srv_saved_page_number_debug, PLUGIN_VAR_OPCMDARG,
-  "An InnoDB page number.",
+  "An InnoDB page number",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
 #endif /* UNIV_DEBUG */
 
@@ -19580,7 +19580,7 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
 
 static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wait_threshold,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Maximum number of seconds that semaphore times out in InnoDB.",
+  "Maximum number of seconds that semaphore times out in InnoDB",
   NULL, NULL,
   DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT, /* Default setting */
   1, /* Minimum setting */
@@ -19603,7 +19603,7 @@ static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 PLUGIN_VAR_RQCMDARG,
-			 "Number of threads performing background key rotation ",
+			 "Number of threads performing background key rotation",
 			 NULL,
 			 innodb_encryption_threads_update,
 			 0, 0, 255, 0);
@@ -19614,7 +19614,7 @@ static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 "Key rotation - re-encrypt in background "
                          "all pages that were encrypted with a key that "
                          "many (or more) versions behind. Value 0 indicates "
-			 "that key rotation is disabled.",
+			 "that key rotation is disabled",
 			 NULL,
 			 innodb_encryption_rotate_key_age_update,
 			 1, 0, UINT_MAX32, 0);
@@ -19639,7 +19639,7 @@ static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,
 
 static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tables,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enrypt the temporary table data.",
+  "Enrypt the temporary table data",
   NULL, NULL, false);
 
 static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,

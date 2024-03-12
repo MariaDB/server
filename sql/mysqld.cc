@@ -812,87 +812,87 @@ static struct my_option pfs_early_options[]=
 {
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   {"performance_schema_instrument", OPT_PFS_INSTRUMENT,
-    "Default startup value for a performance schema instrument.",
+    "Default startup value for a performance schema instrument",
     &pfs_param.m_pfs_instrument, &pfs_param.m_pfs_instrument, 0, GET_STR,
     OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_stages_current", 0,
-    "Default startup value for the events_stages_current consumer.",
+    "Default startup value for the events_stages_current consumer",
     &pfs_param.m_consumer_events_stages_current_enabled,
     &pfs_param.m_consumer_events_stages_current_enabled, 0, GET_BOOL,
     OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_stages_history", 0,
-    "Default startup value for the events_stages_history consumer.",
+    "Default startup value for the events_stages_history consumer",
     &pfs_param.m_consumer_events_stages_history_enabled,
     &pfs_param.m_consumer_events_stages_history_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_stages_history_long", 0,
-    "Default startup value for the events_stages_history_long consumer.",
+    "Default startup value for the events_stages_history_long consumer",
     &pfs_param.m_consumer_events_stages_history_long_enabled,
     &pfs_param.m_consumer_events_stages_history_long_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_statements_current", 0,
-    "Default startup value for the events_statements_current consumer.",
+    "Default startup value for the events_statements_current consumer",
     &pfs_param.m_consumer_events_statements_current_enabled,
     &pfs_param.m_consumer_events_statements_current_enabled, 0, GET_BOOL,
     OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_statements_history", 0,
-    "Default startup value for the events_statements_history consumer.",
+    "Default startup value for the events_statements_history consumer",
     &pfs_param.m_consumer_events_statements_history_enabled,
     &pfs_param.m_consumer_events_statements_history_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_statements_history_long", 0,
-    "Default startup value for the events_statements_history_long consumer.",
+    "Default startup value for the events_statements_history_long consumer",
     &pfs_param.m_consumer_events_statements_history_long_enabled,
     &pfs_param.m_consumer_events_statements_history_long_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_transactions_current", 0,
-    "Default startup value for the events_transactions_current consumer.",
+    "Default startup value for the events_transactions_current consumer",
     &pfs_param.m_consumer_events_transactions_current_enabled,
     &pfs_param.m_consumer_events_transactions_current_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_transactions_history", 0,
-    "Default startup value for the events_transactions_history consumer.",
+    "Default startup value for the events_transactions_history consumer",
     &pfs_param.m_consumer_events_transactions_history_enabled,
     &pfs_param.m_consumer_events_transactions_history_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_transactions_history_long", 0,
-    "Default startup value for the events_transactions_history_long consumer.",
+    "Default startup value for the events_transactions_history_long consumer",
     &pfs_param.m_consumer_events_transactions_history_long_enabled,
     &pfs_param.m_consumer_events_transactions_history_long_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_waits_current", 0,
-    "Default startup value for the events_waits_current consumer.",
+    "Default startup value for the events_waits_current consumer",
     &pfs_param.m_consumer_events_waits_current_enabled,
     &pfs_param.m_consumer_events_waits_current_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_waits_history", 0,
-    "Default startup value for the events_waits_history consumer.",
+    "Default startup value for the events_waits_history consumer",
     &pfs_param.m_consumer_events_waits_history_enabled,
     &pfs_param.m_consumer_events_waits_history_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_waits_history_long", 0,
-    "Default startup value for the events_waits_history_long consumer.",
+    "Default startup value for the events_waits_history_long consumer",
     &pfs_param.m_consumer_events_waits_history_long_enabled,
     &pfs_param.m_consumer_events_waits_history_long_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_global_instrumentation", 0,
-    "Default startup value for the global_instrumentation consumer.",
+    "Default startup value for the global_instrumentation consumer",
     &pfs_param.m_consumer_global_instrumentation_enabled,
     &pfs_param.m_consumer_global_instrumentation_enabled, 0,
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_thread_instrumentation", 0,
-    "Default startup value for the thread_instrumentation consumer.",
+    "Default startup value for the thread_instrumentation consumer",
     &pfs_param.m_consumer_thread_instrumentation_enabled,
     &pfs_param.m_consumer_thread_instrumentation_enabled, 0,
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_statements_digest", 0,
-    "Default startup value for the statements_digest consumer.",
+    "Default startup value for the statements_digest consumer",
     &pfs_param.m_consumer_statement_digest_enabled,
     &pfs_param.m_consumer_statement_digest_enabled, 0,
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
   {"getopt-prefix-matching", 0,
-    "Recognize command-line options by their unambiguos prefixes.",
+    "Recognize command-line options by their unambiguos prefixes",
     &my_getopt_prefix_matching, &my_getopt_prefix_matching, 0, GET_BOOL,
     NO_ARG, 1, 0, 1, 0, 0, 0}
 };
@@ -6448,11 +6448,11 @@ int handle_early_options()
 
 struct my_option my_long_options[]=
 {
-  {"help", '?', "Display this help and exit.", 
+  {"help", '?', "Display this help and exit", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
   {"ansi", 'a', "Use ANSI SQL syntax instead of MySQL syntax. This mode "
-   "will also set transaction isolation level 'serializable'.", 0, 0, 0,
+   "will also set transaction isolation level 'serializable'", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   /*
     Because Sys_var_bit does not support command-line options, we need to
@@ -6463,48 +6463,48 @@ struct my_option my_long_options[]=
    GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, NULL},
   {"binlog-do-db", OPT_BINLOG_DO_DB,
    "Tells the master it should log updates for the specified database, "
-   "and exclude all others not explicitly mentioned.",
+   "and exclude all others not explicitly mentioned",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binlog-ignore-db", OPT_BINLOG_IGNORE_DB,
-   "Tells the master that updates to the given database should not be logged to the binary log.",
+   "Tells the master that updates to the given database should not be logged to the binary log",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
-  {"bootstrap", OPT_BOOTSTRAP, "Used by mysql installation scripts.", 0, 0, 0,
+  {"bootstrap", OPT_BOOTSTRAP, "Used by mysql installation scripts", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"character-set-client-handshake", 0,
-   "Don't ignore client side character set value sent during handshake.",
+   "Don't ignore client side character set value sent during handshake",
    &opt_character_set_client_handshake,
    &opt_character_set_client_handshake,
     0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"character-set-filesystem", 0,
-   "Set the filesystem character set.",
+   "Set the filesystem character set",
    &character_set_filesystem_name,
    &character_set_filesystem_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-  {"character-set-server", 'C', "Set the default character set.",
+  {"character-set-server", 'C', "Set the default character set",
    &default_character_set_name, &default_character_set_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-  {"chroot", 'r', "Chroot mysqld daemon during startup.",
+  {"chroot", 'r', "Chroot mysqld daemon during startup",
    &mysqld_chroot, &mysqld_chroot, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
-  {"collation-server", 0, "Set the default collation.",
+  {"collation-server", 0, "Set the default collation",
    &default_collation_name, &default_collation_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-  {"character-set-collations", 0, "Overrides for character set default collations.",
+  {"character-set-collations", 0, "Overrides for character set default collations",
    &character_set_collations_str, &character_set_collations_str,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-  {"console", OPT_CONSOLE, "Write error output on screen; don't remove the console window on windows.",
+  {"console", OPT_CONSOLE, "Write error output on screen; don't remove the console window on windows",
    &opt_console, &opt_console, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
 #ifdef DBUG_OFF
-  {"debug", '#', "Built in DBUG debugger. Disabled in this build.",
+  {"debug", '#', "Built in DBUG debugger. Disabled in this build",
    &current_dbug_option, &current_dbug_option, 0, GET_STR, OPT_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
 #ifdef HAVE_REPLICATION
   {"debug-abort-slave-event-count", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
+   "Option used by mysql-test for debugging and testing of replication",
    &abort_slave_event_count,  &abort_slave_event_count,
    0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
@@ -6524,19 +6524,19 @@ struct my_option my_long_options[]=
 #endif
 #ifdef HAVE_REPLICATION
   {"debug-disconnect-slave-event-count", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
+   "Option used by mysql-test for debugging and testing of replication",
    &disconnect_slave_event_count, &disconnect_slave_event_count,
    0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
-  {"debug-exit-info", 'T', "Used for debugging. Use at your own risk.",
+  {"debug-exit-info", 'T', "Used for debugging. Use at your own risk",
    0, 0, 0, GET_LONG, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-gdb", 0,
-   "Set up signals usable for debugging.",
+   "Set up signals usable for debugging",
    &opt_debugging, &opt_debugging,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"debug-max-binlog-dump-events", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
+   "Option used by mysql-test for debugging and testing of replication",
    &max_binlog_dump_events, &max_binlog_dump_events, 0,
    GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
@@ -6545,7 +6545,7 @@ struct my_option my_long_options[]=
    &my_disable_sync, &my_disable_sync, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"debug-sporadic-binlog-dump-fail", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
+   "Option used by mysql-test for debugging and testing of replication",
    &opt_sporadic_binlog_dump_fail,
    &opt_sporadic_binlog_dump_fail, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
@@ -6567,20 +6567,20 @@ struct my_option my_long_options[]=
     "The default storage engine for user-created temporary tables",
    &default_tmp_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
-  {"default-time-zone", 0, "Set the default time zone.",
+  {"default-time-zone", 0, "Set the default time zone",
    &default_tz_name, &default_tz_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 #if defined(ENABLED_DEBUG_SYNC)
   {"debug-sync-timeout", OPT_DEBUG_SYNC_TIMEOUT,
    "Enable the debug sync facility "
    "and optionally specify a default wait timeout in seconds. "
-   "A zero value keeps the facility disabled.",
+   "A zero value keeps the facility disabled",
    &opt_debug_sync_timeout, 0,
    0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 #ifdef HAVE_des
   {"des-key-file", 0,
-   "Load keys for des_encrypt() and des_encrypt from given file.",
+   "Load keys for des_encrypt() and des_encrypt from given file",
    &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
 #endif /* HAVE_des */
@@ -6594,7 +6594,7 @@ struct my_option my_long_options[]=
   {"external-locking", 0, "Use system (external) locking (disabled by "
    "default).  With this option enabled you can run myisamchk to test "
    "(not repair) tables while the MySQL server is running. Disable with "
-   "--skip-external-locking.", &opt_external_locking, &opt_external_locking,
+   "--skip-external-locking", &opt_external_locking, &opt_external_locking,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   /* We must always support the next option to make scripts like mysqltest
      easier to do */
@@ -6603,9 +6603,9 @@ struct my_option my_long_options[]=
    &opt_support_flashback, &opt_support_flashback,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"gdb", 0,
-   "Set up signals usable for debugging. Deprecated, use --debug-gdb instead.",
+   "Set up signals usable for debugging",
    &opt_debugging, &opt_debugging,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   0, GET_BOOL, NO_ARG, 0, 0, 0, "debug_gdb", 0, 0},
   {"gtid-pos-auto-engines", 0,
    "List of engines for which to automatically create a "
    "mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine "
@@ -6615,21 +6615,19 @@ struct my_option my_long_options[]=
    &gtid_pos_auto_engines, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
 #ifdef HAVE_SOLARIS_LARGE_PAGES
-  {"super-large-pages", 0, "Enable support for super large pages.",
+  {"super-large-pages", 0, "Enable support for super large pages",
    &opt_super_large_pages, &opt_super_large_pages, 0,
    GET_BOOL, OPT_ARG, 0, 0, 1, 0, 1, 0},
 #endif
   {"language", 'L',
-   "Client error messages in given language. May be given as a full path. "
-   "Deprecated. Use --lc-messages-dir instead.",
-   0, 0, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Client error messages in given language. May be given as a full path",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, "lc_messages_dir", 0, 0},
   {"lc-messages", 0,
-   "Set the language used for the error messages.",
+   "Set the language used for the error messages",
    &lc_messages, &lc_messages, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
   {"lc-time-names", 0,
-   "Set the language used for the month names and the days of the week.",
+   "Set the language used for the month names and the days of the week",
    &lc_time_names_name, &lc_time_names_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
   {"log-basename", OPT_LOG_BASENAME,
@@ -6646,11 +6644,11 @@ struct my_option my_long_options[]=
    "'datadir'/'log-basename'-bin or 'datadir'/mysql-bin will be used (the later if "
    "--log-basename is not specified). We strongly recommend to use either "
    "--log-basename or specify a filename to ensure that replication doesn't "
-   "stop if the real hostname of the computer changes.",
+   "stop if the real hostname of the computer changes",
    &opt_bin_logname, &opt_bin_logname, 0, GET_STR,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"log-bin-index", 0,
-   "File that holds the names for last binary log files.",
+   "File that holds the names for last binary log files",
    &opt_binlog_index_name, &opt_binlog_index_name, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"relay-log-index", 0,
@@ -6662,16 +6660,16 @@ struct my_option my_long_options[]=
    "Path to file used for recovery of DDL statements after a crash",
    &opt_ddl_recovery_file, &opt_ddl_recovery_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file.",
+  {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file",
    &myisam_log_filename, &myisam_log_filename, 0, GET_STR,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"log-short-format", 0,
-   "Don't log extra information to update and slow-query logs.",
+   "Don't log extra information to update and slow-query logs",
    &opt_short_log_format, &opt_short_log_format,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"log-tc", 0,
    "Path to transaction coordinator log (used for transactions that affect "
-   "more than one storage engine, when binary log is disabled).",
+   "more than one storage engine, when binary log is disabled)",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"master-info-file", 0,
@@ -6681,7 +6679,7 @@ struct my_option my_long_options[]=
    &master_info_file, &master_info_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"master-retry-count", 0,
-   "The number of tries the slave will make to connect to the master before giving up.",
+   "The number of tries the slave will make to connect to the master before giving up",
    &master_retry_count, &master_retry_count, 0, GET_ULONG,
    REQUIRED_ARG, 100000, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
@@ -6689,16 +6687,16 @@ struct my_option my_long_options[]=
    &rpl_status, &rpl_status, &rpl_role_typelib,
    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
-  {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
+  {"memlock", 0, "Lock mysqld in memory", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"old-style-user-limits", 0,
    "Enable old-style user limits (before 5.0.3, user resources were counted "
-   "per each user+host vs. per account).",
+   "per each user+host vs. per account)",
    &opt_old_style_user_limits, &opt_old_style_user_limits,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"port-open-timeout", 0,
    "Maximum time in seconds to wait for the port to become free. "
-   "(Default: No wait).", &mysqld_port_timeout, &mysqld_port_timeout, 0,
+   "(Default: No wait)", &mysqld_port_timeout, &mysqld_port_timeout, 0,
    GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-do-db", OPT_REPLICATE_DO_DB,
    "Tells the slave thread to restrict replication to the specified database. "
@@ -6707,13 +6705,13 @@ struct my_option my_long_options[]=
    "cross-database queries such as UPDATE some_db.some_table SET foo='bar' "
    "while having selected a different or no database. If you need cross "
    "database updates to work, make sure you have 3.23.28 or later, and use "
-   "replicate-wild-do-table=db_name.%.",
+   "replicate-wild-do-table=db_name.%",
    0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-do-table", OPT_REPLICATE_DO_TABLE,
    "Tells the slave thread to restrict replication to the specified table. "
    "To specify more than one table, use the directive multiple times, once "
    "for each table. This will work for cross-database updates, in contrast "
-   "to replicate-do-db.", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "to replicate-do-db", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-ignore-db", OPT_REPLICATE_IGNORE_DB,
    "Tells the slave thread to not replicate to the specified database. To "
    "specify more than one database to ignore, use the directive multiple "
@@ -6725,16 +6723,16 @@ struct my_option my_long_options[]=
    "Tells the slave thread to not replicate to the specified table. To specify "
    "more than one table to ignore, use the directive multiple times, once for "
    "each table. This will work for cross-database updates, in contrast to "
-   "replicate-ignore-db.", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "replicate-ignore-db", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-rewrite-db", OPT_REPLICATE_REWRITE_DB,
    "Updates to a database with a different name than the original. Example: "
-   "replicate-rewrite-db=master_db_name->slave_db_name.",
+   "replicate-rewrite-db=master_db_name->slave_db_name",
    0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"replicate-same-server-id", 0,
    "In replication, if set to 1, do not skip events having our server id. "
    "Default value is 0 (to break infinite loops in circular replication). "
-   "Can't be set to 1 if --log-slave-updates is used.",
+   "Can't be set to 1 if --log-slave-updates is used",
    &replicate_same_server_id, &replicate_same_server_id,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -6744,7 +6742,7 @@ struct my_option my_long_options[]=
    "directive multiple times, once for each table. This will work for cross-"
    "database updates. Example: replicate-wild-do-table=foo%.bar% will "
    "replicate only updates to tables in all databases that start with foo "
-   "and whose table names start with bar.",
+   "and whose table names start with bar",
    0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-wild-ignore-table", OPT_REPLICATE_WILD_IGNORE_TABLE,
    "Tells the slave thread to not replicate to the tables that match the "
@@ -6752,24 +6750,24 @@ struct my_option my_long_options[]=
    "the directive multiple times, once for each table. This will work for "
    "cross-database updates. Example: replicate-wild-ignore-table=foo%.bar% "
    "will not do updates to tables in databases that start with foo and whose "
-   "table names start with bar.",
+   "table names start with bar",
    0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"safe-mode", OPT_SAFE, "Skip some optimize stages (for testing). Deprecated.",
-   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"safe-mode", OPT_SAFE, "Skip some optimize stages (for testing)",
+   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, "", 0, 0},
   {"safe-user-create", 0,
-   "Don't allow new user creation by the user who has no write privileges to the mysql.user table.",
+   "Don't allow new user creation by the user who has no write privileges to the mysql.user table",
    &opt_safe_user_create, &opt_safe_user_create, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"show-slave-auth-info", 0,
-   "Show user and password in SHOW SLAVE HOSTS on this master.",
+   "Show user and password in SHOW SLAVE HOSTS on this master",
    &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup.",
+  {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup",
    &opt_silent_startup, &opt_silent_startup, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names.", 0, 0, 0,
+  {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-slave-start", 0,
-   "If set, slave is not autostarted.", &opt_skip_slave_start,
+   "If set, slave is not autostarted", &opt_skip_slave_start,
    &opt_skip_slave_start, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"slave-parallel-mode", OPT_SLAVE_PARALLEL_MODE,
@@ -6780,7 +6778,7 @@ struct my_option my_long_options[]=
    "effort to avoid any conflicts. \"aggressive\" tries to maximise the "
    "parallelism, possibly at the cost of increased conflict rate. "
    "\"minimal\" only parallelizes the commit steps of transactions. "
-   "\"none\" disables parallel apply completely.",
+   "\"none\" disables parallel apply completely",
    &opt_slave_parallel_mode, &opt_slave_parallel_mode,
    &slave_parallel_mode_typelib, GET_ENUM | GET_ASK_ADDR, REQUIRED_ARG,
    SLAVE_PARALLEL_CONSERVATIVE, 0, 0, 0, 0, 0},
@@ -6789,21 +6787,21 @@ struct my_option my_long_options[]=
   {"slow-start-timeout", 0,
    "Maximum number of milliseconds that the service control manager should wait "
    "before trying to kill the windows service during startup"
-   "(Default: 15000).", &slow_start_timeout, &slow_start_timeout, 0,
+   "(Default: 15000)", &slow_start_timeout, &slow_start_timeout, 0,
    GET_ULONG, REQUIRED_ARG, 15000, 0, 0, 0, 0, 0},
 #endif
 #ifdef HAVE_OPENSSL
   {"ssl", 0,
-   "Enable SSL for connection (automatically enabled if an ssl option is used).",
+   "Enable SSL for connection (automatically enabled if an ssl option is used)",
    &opt_use_ssl, &opt_use_ssl, 0, GET_BOOL, OPT_ARG, 1, 0, 0,
    0, 0, 0},
 #endif
 #ifdef _WIN32
   {"standalone", 0,
-  "Dummy option to start as a standalone program (NT).", 0, 0, 0, GET_NO_ARG,
+  "Dummy option to start as a standalone program (NT)", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"symbolic-links", 's', "Enable symbolic link support.",
+  {"symbolic-links", 's', "Enable symbolic link support",
    &my_use_symdir, &my_use_symdir, 0, GET_BOOL, NO_ARG,
    /*
      The system call realpath() produces warnings under valgrind and
@@ -6816,7 +6814,7 @@ struct my_option my_long_options[]=
   {"sysdate-is-now", 0,
    "Non-default option to alias SYSDATE() to NOW() to make it safe-replicable. "
    "Since 5.0, SYSDATE() returns a `dynamic' value different for different "
-   "invocations, even within the same statement.",
+   "invocations, even within the same statement",
    &global_system_variables.sysdate_is_now,
    0, 0, GET_BOOL, NO_ARG, 0, 0, 1, 0, 1, 0},
   {"tc-heuristic-recover", 0,
@@ -6826,9 +6824,9 @@ struct my_option my_long_options[]=
   {"temp-pool", 0,
 #if (ENABLE_TEMP_POOL)
    "Using this option will cause most temporary files created to use a small "
-   "set of names, rather than a unique name for each new file. Deprecated.",
+   "set of names, rather than a unique name for each new file. Deprecated",
 #else
-   "This option is ignored on this OS.",
+   "This option is ignored on this OS",
 #endif
    &use_temp_pool, &use_temp_pool, 0, GET_BOOL, NO_ARG, 0,
    0, 0, 0, 0, 0},
@@ -6839,36 +6837,36 @@ struct my_option my_long_options[]=
    GET_ENUM, REQUIRED_ARG, ISO_REPEATABLE_READ, 0, 0, 0, 0, 0},
   {"transaction-read-only", 0,
    "Default transaction access mode. "
-   "True if transactions are read-only.",
+   "True if transactions are read-only",
    &global_system_variables.tx_read_only,
    &global_system_variables.tx_read_only, 0,
    GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"user", 'u', "Run mysqld daemon as user.", 0, 0, 0, GET_STR, REQUIRED_ARG,
+  {"user", 'u', "Run mysqld daemon as user", 0, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
-  {"verbose", 'v', "Used with --help option for detailed help.",
+  {"verbose", 'v', "Used with --help option for detailed help",
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_STR,
+  {"version", 'V', "Output version information and exit", 0, 0, 0, GET_STR,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load", OPT_PLUGIN_LOAD,
    "Semicolon-separated list of plugins to load, where each plugin is "
    "specified as ether a plugin_name=library_file pair or only a library_file. "
-   "If the latter case, all plugins from a given library_file will be loaded.",
+   "If the latter case, all plugins from a given library_file will be loaded",
    0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load-add", OPT_PLUGIN_LOAD_ADD,
    "Optional semicolon-separated list of plugins to load. This option adds "
    "to the list specified by --plugin-load in an incremental way. "
-   "It can be specified many times, adding more plugins every time.",
+   "It can be specified many times, adding more plugins every time",
    0, 0, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
+  {"table_cache", 0, "Sets table_open_cache",
    &tc_size, &tc_size, 0, GET_ULONG,
-   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
+   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, "table_open_cache", 1, 0},
 #ifdef WITH_WSREP
   {"wsrep-new-cluster", 0, "Bootstrap a cluster. It works by overriding the "
    "current value of wsrep_cluster_address. It is recommended not to add this "
    "option to the config file as this will trigger bootstrap on every server "
-   "start.", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
+   "start", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
 };
@@ -7686,24 +7684,8 @@ static void print_version(void)
 /** Compares two options' names, treats - and _ the same */
 static int option_cmp(my_option *a, my_option *b)
 {
-  bool deprecated_a= false, deprecated_b= false;
-
   const char *sa= a->name;
-  if (a->deprecation_substitute != NULL &&
-      !IS_DEPRECATED_NO_REPLACEMENT(a->deprecation_substitute))
-  {
-    sa= a->deprecation_substitute;
-    deprecated_a= true;
-  }
-
   const char *sb= b->name;
-  if (b->deprecation_substitute != NULL &&
-      !IS_DEPRECATED_NO_REPLACEMENT(b->deprecation_substitute))
-  {
-    sb= b->deprecation_substitute;
-    deprecated_b= true;
-  }
-
   for (; *sa || *sb; sa++, sb++)
   {
     if (*sa < *sb)
@@ -7721,13 +7703,6 @@ static int option_cmp(my_option *a, my_option *b)
         return 1;
     }
   }
-
-  if (deprecated_a)
-    return -1;
-
-  if (deprecated_b)
-    return 1;
-
   return 0;
 }
 
@@ -8296,8 +8271,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 #ifdef HAVE_QUERY_CACHE
     SYSVAR_AUTOSIZE(query_cache_size, 0);
 #endif
-    sql_print_warning("The syntax '--safe-mode' is deprecated and will be "
-                      "removed in a future release.");
     break;
   case (int) OPT_SKIP_HOST_CACHE:
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
@@ -8452,20 +8425,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 #endif
     break;
   }
-  }
-
-  if (opt->deprecation_substitute != NULL) {
-    if (IS_DEPRECATED_NO_REPLACEMENT(opt->deprecation_substitute))
-      sql_print_warning("\'%s\' is deprecated and will be removed in a future release", opt->name);
-    else
-    {
-      char buf1[NAME_CHAR_LEN + 3];
-
-      strxmov(buf1, "--", opt->deprecation_substitute, NullS);
-      convert_underscore_to_dash(buf1, strlen(opt->deprecation_substitute) + 2);
-
-      sql_print_warning("\'%s\' is deprecated and will be removed in a future release. Please use %s instead", opt->name, buf1);
-    }
   }
 
   return 0;
@@ -8679,8 +8638,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     global_system_variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
                                            OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
                                            OLD_MODE_COMPAT_5_1_CHECKSUM);
-    sql_print_warning("--old is deprecated and will be removed in a future "
-                      "release. Please use --old-mode instead. ");
   }
 
   if (global_system_variables.net_buffer_length > 

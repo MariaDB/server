@@ -157,20 +157,20 @@ static void update_log_file_size(MYSQL_THD thd,
 /* The 4096 is there because of MariaDB privilege tables */
 static MYSQL_SYSVAR_ULONG(block_size, maria_block_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-       "Block size to be used for Aria index pages.", 0, 0,
+       "Block size to be used for Aria index pages", 0, 0,
        MARIA_KEY_BLOCK_LENGTH, 4096,
        MARIA_MAX_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH);
 
 static MYSQL_SYSVAR_ULONG(checkpoint_interval, checkpoint_interval,
        PLUGIN_VAR_RQCMDARG,
        "Interval between tries to do an automatic checkpoints. In seconds; 0 means"
-       " 'no automatic checkpoints' which makes sense only for testing.",
+       " 'no automatic checkpoints' which makes sense only for testing",
        NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
 
 static MYSQL_SYSVAR_ULONG(checkpoint_log_activity, maria_checkpoint_min_log_activity,
        PLUGIN_VAR_RQCMDARG,
        "Number of bytes that the transaction log has to grow between checkpoints before a new "
-       "checkpoint is written to the log.",
+       "checkpoint is written to the log",
        NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
 
 static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
@@ -182,7 +182,7 @@ static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of consecutive log recovery failures after which logs will be"
        " automatically deleted to cure the problem; 0 (the default) disables"
-       " the feature.", NULL, NULL, 0, 0, UINT_MAX8, 1);
+       " the feature", NULL, NULL, 0, 0, UINT_MAX8, 1);
 
 static MYSQL_SYSVAR_BOOL(page_checksum, maria_page_checksums, 0,
        "Maintain page checksums (can be overridden per table "
@@ -227,7 +227,7 @@ static MYSQL_SYSVAR_ENUM(log_purge_type, log_purge_type,
 static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size,
        maria_max_temp_length, PLUGIN_VAR_RQCMDARG,
        "Don't use the fast sort index method to created index if the "
-       "temporary file would get bigger than this.",
+       "temporary file would get bigger than this",
        0, 0, MAX_FILE_SIZE & ~((ulonglong) (1*MB-1)),
        0, MAX_FILE_SIZE, 1*MB);
 
@@ -236,14 +236,14 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        "This characterizes the number of hits a hot block has to be untouched "
        "until it is considered aged enough to be downgraded to a warm block. "
        "This specifies the percentage ratio of that number of hits to the "
-       "total number of blocks in the page cache.", 0, 0,
+       "total number of blocks in the page cache", 0, 0,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, pagecache_buffer_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "The size of the buffer used for index blocks for Aria tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
+       "multiple writes) to as much as you can afford", 0, 0,
        KEY_CACHE_SIZE, 8192*16L, ~(ulonglong) 0, 1);
 
 static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
@@ -255,7 +255,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of hash buckets for open and changed files.  If you have a lot of Aria "
        "files open you should increase this for faster flush of changes. A good "
-       "value is probably 1/10 of number of possible open Aria files.", 0,0,
+       "value is probably 1/10 of number of possible open Aria files", 0,0,
        512, 128, 16384, 1);
 
 static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMDARG,
@@ -264,12 +264,12 @@ static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMD
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
        "Number of threads to use when repairing Aria tables. The value of 1 "
-       "disables parallel repair.",
+       "disables parallel repair",
        0, 0, 1, 1, 128, 1);
 
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
        "The buffer that is allocated when sorting the index when doing a "
-       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.",
+       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE",
        NULL, NULL,
        SORT_BUFFER_INIT, MARIA_MIN_SORT_MEMORY, SIZE_T_MAX/16, 1);
 

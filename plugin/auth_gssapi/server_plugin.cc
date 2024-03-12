@@ -98,7 +98,7 @@ static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
 
 static MYSQL_SYSVAR_STR(principal_name, srv_principal_name,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
-                        "GSSAPI target name - service principal name for Kerberos authentication.",
+                        "GSSAPI target name - service principal name for Kerberos authentication",
                         NULL,
                         NULL,
                         "");

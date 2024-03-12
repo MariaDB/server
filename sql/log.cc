@@ -12516,7 +12516,7 @@ static MYSQL_SYSVAR_BOOL(
   "thread scheduling. On by default. Disable to run each transaction in group "
   "commit in its own thread, which can be slower at very high concurrency. "
   "This option is mostly for testing one algorithm versus the other, and it "
-  "should not normally be necessary to change it.",
+  "should not normally be necessary to change it",
   NULL,
   NULL,
   1);

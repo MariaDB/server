@@ -173,7 +173,7 @@ static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          "\"Auto\", \"Legacy\", \"Original\", \"Amazon\", "
                          "\"Path\" or \"Domain\". "
                          "Note: \"Legacy\", \"Original\" and \"Amazon\" are "
-                         "deprecated.",
+                         "deprecated",
                          NULL, NULL, 0, &s3_protocol_typelib);
 
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
@@ -181,14 +181,14 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        "This characterizes the number of hits a hot block has to be untouched "
        "until it is considered aged enough to be downgraded to a warm block. "
        "This specifies the percentage ratio of that number of hits to the "
-       "total number of blocks in the page cache.", 0, 0,
+       "total number of blocks in the page cache", 0, 0,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, s3_pagecache_buffer_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "The size of the buffer used for index blocks for S3 tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
+       "multiple writes) to as much as you can afford", 0, 0,
         128*1024*1024, 1024*1024*32, ~(ulonglong) 0, 8192);
 
 static MYSQL_SYSVAR_ULONG(pagecache_division_limit,
@@ -203,7 +203,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size,
        "Number of hash buckets for open files.  If you have a lot "
        "of S3 files open you should increase this for faster flush of "
        "changes. A good value is probably 1/10 of number of possible open "
-       "S3 files.", 0,0, 512, 32, 16384, 1);
+       "S3 files", 0,0, 512, 32, 16384, 1);
 
 static MYSQL_SYSVAR_STR(bucket, s3_bucket,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

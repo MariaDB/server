@@ -6,7 +6,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Block size to be used for Aria index pages.
+ VARIABLE_COMMENT	Block size to be used for Aria index pages
  NUMERIC_MIN_VALUE	4096
  NUMERIC_MAX_VALUE	32768
 @@ -54,7 +54,7 @@
@@ -15,7 +15,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing.
+ VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -64,7 +64,7 @@
@@ -24,7 +24,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log.
+ VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -84,7 +84,7 @@
@@ -33,7 +33,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature.
+ VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	255
 @@ -104,7 +104,7 @@
@@ -60,7 +60,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	This characterizes the number of hits a hot block has to be untouched until it is considered aged enough to be downgraded to a warm block. This specifies the percentage ratio of that number of hits to the total number of blocks in the page cache.
+ VARIABLE_COMMENT	This characterizes the number of hits a hot block has to be untouched until it is considered aged enough to be downgraded to a warm block. This specifies the percentage ratio of that number of hits to the total number of blocks in the page cache
  NUMERIC_MIN_VALUE	100
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -82,7 +82,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files.
+ VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files
  NUMERIC_MIN_VALUE	128
  NUMERIC_MAX_VALUE	16384
 @@ -214,7 +214,7 @@
@@ -91,12 +91,12 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair.
+ VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	128
 @@ -227,7 +227,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.
+ VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE
  NUMERIC_MIN_VALUE	16376
 -NUMERIC_MAX_VALUE	1152921504606846975
 +NUMERIC_MAX_VALUE	268435455
@@ -145,7 +145,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	If non-zero, binlog write will wait at most binlog_commit_wait_usec microseconds for at least this many commits to queue up for group commit to the binlog. This can reduce I/O on the binlog and provide increased opportunity for parallel apply on the slave, but too high a value will decrease commit throughput.
+ VARIABLE_COMMENT	If non-zero, binlog write will wait at most binlog_commit_wait_usec microseconds for at least this many commits to queue up for group commit to the binlog. This can reduce I/O on the binlog and provide increased opportunity for parallel apply on the slave, but too high a value will decrease commit throughput
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -157,7 +157,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum time, in microseconds, to wait for more commits to queue up for binlog group commit. Only takes effect if the value of binlog_commit_wait_count is non-zero.
+ VARIABLE_COMMENT	Maximum time, in microseconds, to wait for more commits to queue up for binlog group commit. Only takes effect if the value of binlog_commit_wait_count is non-zero
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -170,7 +170,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; It and expire_logs_days are linked, such that changes in one are converted into the other. Possible purges happen at startup and at binary log rotation.
+ VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; It and expire_logs_days are linked, such that changes in one are converted into the other. Possible purges happen at startup and at binary log rotation
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	8553600
 @@ -437,7 +437,7 @@
@@ -188,12 +188,12 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The maximum size of a row-based binary log event in bytes. Rows will be grouped into events smaller than this size if possible. The value has to be a multiple of 256.
+ VARIABLE_COMMENT	The maximum size of a row-based binary log event in bytes. Rows will be grouped into events smaller than this size if possible. The value has to be a multiple of 256
  NUMERIC_MIN_VALUE	256
  NUMERIC_MAX_VALUE	4294967040
 @@ -557,7 +557,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance.
+ VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance
  NUMERIC_MIN_VALUE	4096
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -269,7 +269,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing.
+ VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
 @@ -914,7 +914,7 @@
@@ -350,7 +350,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of bytes used for a histogram. If set to 0, no histograms are created by ANALYZE.
+ VARIABLE_COMMENT	Number of bytes used for a histogram. If set to 0, no histograms are created by ANALYZE
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	255
 @@ -1434,7 +1434,7 @@
@@ -359,7 +359,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	How many host names should be cached to avoid resolving.
+ VARIABLE_COMMENT	How many host names should be cached to avoid resolving
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	65536
 @@ -1544,7 +1544,7 @@
@@ -404,7 +404,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Timeout in seconds to wait for a lock before returning an error.
+ VARIABLE_COMMENT	Timeout in seconds to wait for a lock before returning an error
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	31536000
 @@ -1934,7 +1934,7 @@
@@ -466,7 +466,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value.
+ VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value
  NUMERIC_MIN_VALUE	4096
  NUMERIC_MAX_VALUE	1073741824
 @@ -2107,7 +2107,7 @@
@@ -729,7 +729,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Unused, will be removed.
+ VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
 @@ -2594,7 +2594,7 @@
@@ -738,7 +738,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	If the optimizer needs to enumerate join prefix of this size or larger, then it will try aggressively prune away the search space.
+ VARIABLE_COMMENT	If the optimizer needs to enumerate join prefix of this size or larger, then it will try aggressively prune away the search space
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	62
 @@ -2654,7 +2654,7 @@
@@ -747,7 +747,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The maximum number of SEL_ARG objects created when optimizing a range. If more objects would be needed, the range will not be used by the optimizer.
+ VARIABLE_COMMENT	The maximum number of SEL_ARG objects created when optimizing a range. If more objects would be needed, the range will not be used by the optimizer
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -2664,7 +2664,7 @@
@@ -774,7 +774,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value.
+ VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	62
 @@ -2754,7 +2754,7 @@
@@ -813,7 +813,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented user@host accounts. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented user@host accounts. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2834,7 +2834,7 @@
@@ -822,7 +822,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2844,7 +2844,7 @@
@@ -831,7 +831,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2854,7 +2854,7 @@
@@ -840,7 +840,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
 @@ -2864,7 +2864,7 @@
@@ -849,7 +849,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2874,7 +2874,7 @@
@@ -858,7 +858,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_HISTORY. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_HISTORY. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
 @@ -2884,7 +2884,7 @@
@@ -867,7 +867,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows in EVENTS_TRANSACTIONS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows in EVENTS_TRANSACTIONS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2894,7 +2894,7 @@
@@ -876,7 +876,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows per thread in EVENTS_TRANSACTIONS_HISTORY. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows per thread in EVENTS_TRANSACTIONS_HISTORY. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
 @@ -2904,7 +2904,7 @@
@@ -885,7 +885,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2914,7 +2914,7 @@
@@ -894,7 +894,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
 @@ -2924,7 +2924,7 @@
@@ -903,7 +903,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented hosts. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented hosts. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2934,7 +2934,7 @@
@@ -912,7 +912,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of condition instruments.
+ VARIABLE_COMMENT	Maximum number of condition instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -2944,7 +2944,7 @@
@@ -921,7 +921,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented condition objects. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented condition objects. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2954,7 +2954,7 @@
@@ -930,7 +930,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum length considered for digest text, when stored in performance_schema tables.
+ VARIABLE_COMMENT	Maximum length considered for digest text, when stored in performance_schema tables
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
 @@ -2964,7 +2964,7 @@
@@ -939,7 +939,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of file instruments.
+ VARIABLE_COMMENT	Maximum number of file instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -2974,7 +2974,7 @@
@@ -948,7 +948,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of opened instrumented files.
+ VARIABLE_COMMENT	Maximum number of opened instrumented files
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
 @@ -2984,7 +2984,7 @@
@@ -957,7 +957,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented files. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented files. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -2994,7 +2994,7 @@
@@ -966,7 +966,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of index statistics for instrumented tables. Use 0 to disable, -1 for automated scaling.
+ VARIABLE_COMMENT	Maximum number of index statistics for instrumented tables. Use 0 to disable, -1 for automated scaling
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3004,7 +3004,7 @@
@@ -975,7 +975,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of memory pool instruments.
+ VARIABLE_COMMENT	Maximum number of memory pool instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1024
 @@ -3014,7 +3014,7 @@
@@ -984,7 +984,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of metadata locks. Use 0 to disable, -1 for automated scaling.
+ VARIABLE_COMMENT	Maximum number of metadata locks. Use 0 to disable, -1 for automated scaling
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	104857600
 @@ -3024,7 +3024,7 @@
@@ -993,7 +993,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of mutex instruments.
+ VARIABLE_COMMENT	Maximum number of mutex instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -3034,7 +3034,7 @@
@@ -1002,7 +1002,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented MUTEX objects. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented MUTEX objects. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	104857600
 @@ -3044,7 +3044,7 @@
@@ -1011,7 +1011,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented prepared statements. Use 0 to disable, -1 for automated scaling.
+ VARIABLE_COMMENT	Maximum number of instrumented prepared statements. Use 0 to disable, -1 for automated scaling
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3054,7 +3054,7 @@
@@ -1020,7 +1020,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented programs. Use 0 to disable, -1 for automated scaling.
+ VARIABLE_COMMENT	Maximum number of instrumented programs. Use 0 to disable, -1 for automated scaling
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3064,7 +3064,7 @@
@@ -1029,7 +1029,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of rwlock instruments.
+ VARIABLE_COMMENT	Maximum number of rwlock instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -3074,7 +3074,7 @@
@@ -1038,7 +1038,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented RWLOCK objects. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented RWLOCK objects. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	104857600
 @@ -3084,7 +3084,7 @@
@@ -1047,7 +1047,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of socket instruments.
+ VARIABLE_COMMENT	Maximum number of socket instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -3094,7 +3094,7 @@
@@ -1056,7 +1056,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of opened instrumented sockets. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of opened instrumented sockets. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3104,7 +3104,7 @@
@@ -1065,7 +1065,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum length of displayed sql text.
+ VARIABLE_COMMENT	Maximum length of displayed sql text
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
 @@ -3114,7 +3114,7 @@
@@ -1074,7 +1074,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of stage instruments.
+ VARIABLE_COMMENT	Maximum number of stage instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -3124,7 +3124,7 @@
@@ -1083,7 +1083,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of statement instruments.
+ VARIABLE_COMMENT	Maximum number of statement instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -3134,7 +3134,7 @@
@@ -1092,7 +1092,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_CURRENT.
+ VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_CURRENT
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	256
 @@ -3144,7 +3144,7 @@
@@ -1101,7 +1101,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of opened instrumented tables. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of opened instrumented tables. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3154,7 +3154,7 @@
@@ -1110,7 +1110,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented tables. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented tables. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3164,7 +3164,7 @@
@@ -1119,7 +1119,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of lock statistics for instrumented tables. Use 0 to disable, -1 for automated scaling.
+ VARIABLE_COMMENT	Maximum number of lock statistics for instrumented tables. Use 0 to disable, -1 for automated scaling
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3174,7 +3174,7 @@
@@ -1128,7 +1128,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of thread instruments.
+ VARIABLE_COMMENT	Maximum number of thread instruments
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
 @@ -3184,7 +3184,7 @@
@@ -1137,7 +1137,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented threads. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented threads. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3194,7 +3194,7 @@
@@ -1146,7 +1146,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Size of session attribute string buffer per thread. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Size of session attribute string buffer per thread. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3204,7 +3204,7 @@
@@ -1155,7 +1155,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of rows in SETUP_ACTORS.
+ VARIABLE_COMMENT	Maximum number of rows in SETUP_ACTORS
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
 @@ -3214,7 +3214,7 @@
@@ -1164,7 +1164,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of rows in SETUP_OBJECTS.
+ VARIABLE_COMMENT	Maximum number of rows in SETUP_OBJECTS
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3224,7 +3224,7 @@
@@ -1173,7 +1173,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	Maximum number of instrumented users. Use 0 to disable, -1 for automated sizing.
+ VARIABLE_COMMENT	Maximum number of instrumented users. Use 0 to disable, -1 for automated sizing
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
 @@ -3274,7 +3274,7 @@
@@ -1191,7 +1191,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of statements about which profiling information is maintained. If set to 0, no profiles are stored. See SHOW PROFILES.
+ VARIABLE_COMMENT	Number of statements about which profiling information is maintained. If set to 0, no profiles are stored. See SHOW PROFILES
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
 @@ -3304,7 +3304,7 @@
@@ -1200,7 +1200,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting.
+ VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -3364,7 +3364,7 @@
@@ -1331,7 +1331,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The tracing level for semi-sync replication.
+ VARIABLE_COMMENT	The tracing level for semi-sync replication
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -1344,7 +1344,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The tracing level for semi-sync replication.
+ VARIABLE_COMMENT	The tracing level for semi-sync replication
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -1366,7 +1366,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads.
+ VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
 @@ -4044,7 +4044,7 @@
@@ -1375,7 +1375,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave.
+ VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1073741824
 @@ -4074,7 +4074,7 @@
@@ -1384,7 +1384,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0.
+ VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2147483647
 @@ -4094,7 +4094,7 @@
@@ -1447,7 +1447,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection.
+ VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	524288
 @@ -4564,7 +4564,7 @@
@@ -1479,7 +1479,7 @@
  NUMERIC_MAX_VALUE	16384
 @@ -4797,7 +4797,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	Max size for data for an internal temporary on-disk MyISAM or Aria table.
+ VARIABLE_COMMENT	Max size for data for an internal temporary on-disk MyISAM or Aria table
  NUMERIC_MIN_VALUE	1024
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -1488,7 +1488,7 @@
  READ_ONLY	NO
 @@ -4807,7 +4807,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
+ VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -1497,7 +1497,7 @@
  READ_ONLY	NO
 @@ -4817,14 +4817,14 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
+ VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -1536,6 +1536,6 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Size of transaction coordinator log.
+ VARIABLE_COMMENT	Size of transaction coordinator log
  ENUM_VALUE_LIST	NULL
  READ_ONLY	YES

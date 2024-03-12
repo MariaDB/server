@@ -1010,7 +1010,7 @@ static MYSQL_SYSVAR_ENUM(
   enum_var,                       // name
   srv_enum_var,                   // varname
   PLUGIN_VAR_RQCMDARG,            // opt
-  "Sample ENUM system variable.", // comment
+  "Sample ENUM system variable",  // comment
   NULL,                           // check
   NULL,                           // update
   0,                              // def

@@ -12,7 +12,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Attempt flushing dirty pages to avoid IO bursts at checkpoints.
+VARIABLE_COMMENT	Attempt flushing dirty pages to avoid IO bursts at checkpoints
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -24,7 +24,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	10.000000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Percentage of log capacity below which no adaptive flushing happens.
+VARIABLE_COMMENT	Percentage of log capacity below which no adaptive flushing happens
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	70
 NUMERIC_BLOCK_SIZE	NULL
@@ -36,7 +36,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable InnoDB adaptive hash index (disabled by default).
+VARIABLE_COMMENT	Enable InnoDB adaptive hash index (disabled by default)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -84,7 +84,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Size of a single memory chunk for resizing buffer pool. Online buffer pool resizing happens at this granularity. 0 means autosize this variable based on buffer pool size.
+VARIABLE_COMMENT	Size of a single memory chunk for resizing buffer pool. Online buffer pool resizing happens at this granularity. 0 means autosize this variable based on buffer pool size
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1048576
@@ -192,7 +192,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	134217728
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The size of the memory buffer InnoDB uses to cache data and indexes of its tables.
+VARIABLE_COMMENT	The size of the memory buffer InnoDB uses to cache data and indexes of its tables
 NUMERIC_MIN_VALUE	2097152
 NUMERIC_MAX_VALUE	9223372036854775807
 NUMERIC_BLOCK_SIZE	1048576
@@ -204,7 +204,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	A number between [0, 100] that tells how oftern buffer pool dump status in percentages should be printed. E.g. 10 means that buffer pool dump status is printed when every 10% of number of buffer pool pages are dumped. Default is 0 (only start and end status is printed).
+VARIABLE_COMMENT	A number between [0, 100] that tells how oftern buffer pool dump status in percentages should be printed. E.g. 10 means that buffer pool dump status is printed when every 10% of number of buffer pool pages are dumped. Default is 0 (only start and end status is printed)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	100
 NUMERIC_BLOCK_SIZE	0
@@ -288,7 +288,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	6
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Compression level used for zlib compression.  0 is no compression, 1 is fastest, 9 is best compression and default is 6.
+VARIABLE_COMMENT	Compression level used for zlib compression.  0 is no compression, 1 is fastest, 9 is best compression and default is 6
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	9
 NUMERIC_BLOCK_SIZE	0
@@ -300,7 +300,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	50
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Percentage of empty space on a data page that can be reserved to make the page compressible.
+VARIABLE_COMMENT	Percentage of empty space on a data page that can be reserved to make the page compressible
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	75
 NUMERIC_BLOCK_SIZE	0
@@ -324,7 +324,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ibdata1:12M:autoextend
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Path to individual files and their sizes.
+VARIABLE_COMMENT	Path to individual files and their sizes
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -336,7 +336,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	InnoDB system tablespace size to be set in recovery.
+VARIABLE_COMMENT	InnoDB system tablespace size to be set in recovery
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	268435456
 NUMERIC_BLOCK_SIZE	0
@@ -360,7 +360,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The common part for InnoDB table spaces.
+VARIABLE_COMMENT	The common part for InnoDB table spaces
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -372,7 +372,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable/disable InnoDB deadlock detector (default ON). if set to OFF, deadlock detection is skipped, and we rely on innodb_lock_wait_timeout in case of deadlock.
+VARIABLE_COMMENT	Enable/disable InnoDB deadlock detector (default ON). if set to OFF, deadlock detection is skipped, and we rely on innodb_lock_wait_timeout in case of deadlock
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -384,7 +384,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	full
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	How to report deadlocks (if innodb_deadlock_detect=ON).
+VARIABLE_COMMENT	How to report deadlocks (if innodb_deadlock_detect=ON)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -396,7 +396,7 @@ SESSION_VALUE	1
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Default encryption key id used for table encryption.
+VARIABLE_COMMENT	Default encryption key id used for table encryption
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -444,7 +444,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Key rotation - re-encrypt in background all pages that were encrypted with a key that many (or more) versions behind. Value 0 indicates that key rotation is disabled.
+VARIABLE_COMMENT	Key rotation - re-encrypt in background all pages that were encrypted with a key that many (or more) versions behind. Value 0 indicates that key rotation is disabled
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -468,7 +468,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Number of threads performing background key rotation 
+VARIABLE_COMMENT	Number of threads performing background key rotation
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	255
 NUMERIC_BLOCK_SIZE	0
@@ -504,7 +504,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enrypt the temporary table data.
+VARIABLE_COMMENT	Enrypt the temporary table data
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -516,7 +516,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Speeds up the shutdown process of the InnoDB storage engine. Possible values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).
+VARIABLE_COMMENT	Speeds up the shutdown process of the InnoDB storage engine. Possible values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	3
 NUMERIC_BLOCK_SIZE	0
@@ -528,7 +528,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	600
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of seconds that semaphore times out in InnoDB.
+VARIABLE_COMMENT	Maximum number of seconds that semaphore times out in InnoDB
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -540,7 +540,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Stores each InnoDB table to an .ibd file in the database dir.
+VARIABLE_COMMENT	Stores each InnoDB table to an .ibd file in the database dir
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -564,7 +564,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Make the first page of the given tablespace dirty.
+VARIABLE_COMMENT	Make the first page of the given tablespace dirty
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -576,7 +576,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	30
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of iterations over which the background flushing is averaged.
+VARIABLE_COMMENT	Number of iterations over which the background flushing is averaged
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	1000
 NUMERIC_BLOCK_SIZE	0
@@ -588,7 +588,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Write and flush logs every (n) second.
+VARIABLE_COMMENT	Write and flush logs every (n) second
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2700
 NUMERIC_BLOCK_SIZE	0
@@ -600,7 +600,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Controls the durability/speed trade-off for commits. Set to 0 (write and flush redo log to disk only once per second), 1 (flush to disk at each commit), 2 (write to log at commit but flush to disk only once per second) or 3 (flush to disk at prepare and at commit, slower and usually redundant). 1 and 3 guarantees that after a crash, committed transactions will not be lost and will be consistent with the binlog and other transactional engines. 2 can get inconsistent and lose transactions if there is a power failure or kernel crash but not if mysqld crashes. 0 has no guarantees in case of crash. 0 and 2 can be faster than 1 or 3.
+VARIABLE_COMMENT	Controls the durability/speed trade-off for commits. Set to 0 (write and flush redo log to disk only once per second), 1 (flush to disk at each commit), 2 (write to log at commit but flush to disk only once per second) or 3 (flush to disk at prepare and at commit, slower and usually redundant). 1 and 3 guarantees that after a crash, committed transactions will not be lost and will be consistent with the binlog and other transactional engines. 2 can get inconsistent and lose transactions if there is a power failure or kernel crash but not if mysqld crashes. 0 has no guarantees in case of crash. 0 and 2 can be faster than 1 or 3
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	3
 NUMERIC_BLOCK_SIZE	0
@@ -612,7 +612,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	O_DIRECT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	With which method to flush data.
+VARIABLE_COMMENT	With which method to flush data
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -636,7 +636,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Allow IO bursts at the checkpoints ignoring io_capacity setting.
+VARIABLE_COMMENT	Allow IO bursts at the checkpoints ignoring io_capacity setting
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -660,7 +660,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data.
+VARIABLE_COMMENT	Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	6
 NUMERIC_BLOCK_SIZE	0
@@ -696,7 +696,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Whether to enable additional FTS diagnostic printout 
+VARIABLE_COMMENT	Whether to enable additional FTS diagnostic printout
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -708,7 +708,7 @@ SESSION_VALUE	ON
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Create FTS index with stopword.
+VARIABLE_COMMENT	Create FTS index with stopword
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -744,7 +744,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	2000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	InnoDB Fulltext search number of words to optimize for each optimize table call 
+VARIABLE_COMMENT	InnoDB Fulltext search number of words to optimize for each optimize table call
 NUMERIC_MIN_VALUE	1000
 NUMERIC_MAX_VALUE	10000
 NUMERIC_BLOCK_SIZE	0
@@ -768,7 +768,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The user supplied stopword table name.
+VARIABLE_COMMENT	The user supplied stopword table name
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -804,7 +804,7 @@ SESSION_VALUE
 DEFAULT_VALUE	
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	User supplied stopword table name, effective in the session level.
+VARIABLE_COMMENT	User supplied stopword table name, effective in the session level
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -852,7 +852,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	18446744073709551615
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Limit to which innodb_io_capacity can be inflated.
+VARIABLE_COMMENT	Limit to which innodb_io_capacity can be inflated
 NUMERIC_MIN_VALUE	100
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	0
@@ -864,7 +864,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Artificially limit the number of records per B-tree page (0=unlimited).
+VARIABLE_COMMENT	Artificially limit the number of records per B-tree page (0=unlimited)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -876,7 +876,7 @@ SESSION_VALUE	50
 DEFAULT_VALUE	50
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout.
+VARIABLE_COMMENT	Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	100000000
 NUMERIC_BLOCK_SIZE	0
@@ -888,7 +888,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	16777216
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Redo log buffer size in bytes.
+VARIABLE_COMMENT	Redo log buffer size in bytes
 NUMERIC_MIN_VALUE	2097152
 NUMERIC_MAX_VALUE	2147479552
 NUMERIC_BLOCK_SIZE	4096
@@ -912,7 +912,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	100663296
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Redo log size in bytes.
+VARIABLE_COMMENT	Redo log size in bytes
 NUMERIC_MIN_VALUE	4194304
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
@@ -984,7 +984,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	90.000000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Percentage of dirty pages allowed in bufferpool.
+VARIABLE_COMMENT	Percentage of dirty pages allowed in bufferpool
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	99.999
 NUMERIC_BLOCK_SIZE	NULL
@@ -996,7 +996,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0.000000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Percentage of dirty pages at which flushing kicks in. The value 0 (default) means 'refer to innodb_max_dirty_pages_pct'.
+VARIABLE_COMMENT	Percentage of dirty pages at which flushing kicks in. The value 0 (default) means 'refer to innodb_max_dirty_pages_pct'
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	99.999
 NUMERIC_BLOCK_SIZE	NULL
@@ -1056,7 +1056,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	50
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Override current MERGE_THRESHOLD setting for all indexes at dictionary cache by the specified value dynamically, at the time.
+VARIABLE_COMMENT	Override current MERGE_THRESHOLD setting for all indexes at dictionary cache by the specified value dynamically, at the time
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	50
 NUMERIC_BLOCK_SIZE	0
@@ -1116,7 +1116,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	37
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Percentage of the buffer pool to reserve for 'old' blocks.
+VARIABLE_COMMENT	Percentage of the buffer pool to reserve for 'old' blocks
 NUMERIC_MIN_VALUE	5
 NUMERIC_MAX_VALUE	95
 NUMERIC_BLOCK_SIZE	0
@@ -1128,7 +1128,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Move blocks to the 'new' end of the buffer pool if the first access was at least this many milliseconds ago. The timeout is disabled if 0.
+VARIABLE_COMMENT	Move blocks to the 'new' end of the buffer pool if the first access was at least this many milliseconds ago. The timeout is disabled if 0
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -1152,7 +1152,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	How many files at the maximum InnoDB keeps open at the same time.
+VARIABLE_COMMENT	How many files at the maximum InnoDB keeps open at the same time
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	9223372036854775807
 NUMERIC_BLOCK_SIZE	0
@@ -1176,7 +1176,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	16384
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Page size to use for all InnoDB tablespaces.
+VARIABLE_COMMENT	Page size to use for all InnoDB tablespaces
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	65536
 NUMERIC_BLOCK_SIZE	0
@@ -1212,7 +1212,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of UNDO log pages to purge in one batch from the history list.
+VARIABLE_COMMENT	Number of UNDO log pages to purge in one batch from the history list
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	5000
 NUMERIC_BLOCK_SIZE	0
@@ -1248,7 +1248,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Whether to use read ahead for random access within an extent.
+VARIABLE_COMMENT	Whether to use read ahead for random access within an extent
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1260,7 +1260,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	56
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of pages that must be accessed sequentially for InnoDB to trigger a readahead.
+VARIABLE_COMMENT	Number of pages that must be accessed sequentially for InnoDB to trigger a readahead
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	64
 NUMERIC_BLOCK_SIZE	0
@@ -1272,7 +1272,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	4
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Number of background read I/O threads in InnoDB.
+VARIABLE_COMMENT	Number of background read I/O threads in InnoDB
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	64
 NUMERIC_BLOCK_SIZE	0
@@ -1320,7 +1320,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	An InnoDB page number.
+VARIABLE_COMMENT	An InnoDB page number
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
@@ -1332,7 +1332,7 @@ SESSION_VALUE	OFF
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Use snapshot isolation (write-write conflict detection).
+VARIABLE_COMMENT	Use snapshot isolation (write-write conflict detection)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1476,7 +1476,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable InnoDB monitor output to the error log.
+VARIABLE_COMMENT	Enable InnoDB monitor output to the error log
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1488,7 +1488,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable InnoDB lock monitor output to the error log. Requires innodb_status_output=ON.
+VARIABLE_COMMENT	Enable InnoDB lock monitor output to the error log. Requires innodb_status_output=ON
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1500,7 +1500,7 @@ SESSION_VALUE	ON
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Use strict mode when evaluating create options.
+VARIABLE_COMMENT	Use strict mode when evaluating create options
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1536,7 +1536,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ibtmp1:12M:autoextend
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Path to files and their sizes making temp-tablespace.
+VARIABLE_COMMENT	Path to files and their sizes making temp-tablespace
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1548,7 +1548,7 @@ SESSION_VALUE
 DEFAULT_VALUE	
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Directory for temporary non-tablespace files.
+VARIABLE_COMMENT	Directory for temporary non-tablespace files
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1572,7 +1572,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Pause actual purging any delete-marked records, but merely update the purge view. It is to create artificially the situation the purge view have been updated but the each purges were not done yet.
+VARIABLE_COMMENT	Pause actual purging any delete-marked records, but merely update the purge view. It is to create artificially the situation the purge view have been updated but the each purges were not done yet
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1596,7 +1596,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Directory where undo tablespace files live, this path can be absolute.
+VARIABLE_COMMENT	Directory where undo tablespace files live, this path can be absolute
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1608,7 +1608,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable or Disable Truncate of UNDO tablespace.
+VARIABLE_COMMENT	Enable or Disable Truncate of UNDO tablespace
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1620,7 +1620,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	3
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Number of undo tablespaces to use.
+VARIABLE_COMMENT	Number of undo tablespaces to use
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	127
 NUMERIC_BLOCK_SIZE	0
@@ -1632,7 +1632,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes.
+VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1644,7 +1644,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	4
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Number of background write I/O threads in InnoDB.
+VARIABLE_COMMENT	Number of background write I/O threads in InnoDB
 NUMERIC_MIN_VALUE	2
 NUMERIC_MAX_VALUE	64
 NUMERIC_BLOCK_SIZE	0

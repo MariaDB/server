@@ -170,6 +170,8 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   name.str= name_arg;     // ER_NO_DEFAULT relies on 0-termination of name_arg
   name.length= strlen(name_arg);                // and so does this.
   DBUG_ASSERT(name.length <= NAME_CHAR_LEN);
+  DBUG_ASSERT(!comment || !comment[0] || comment[strlen(comment)-1] != '.');
+  DBUG_ASSERT(!comment || !comment[0] || comment[strlen(comment)-1] != ' ');
 
   bzero(&option, sizeof(option));
   option.name= name_arg;
