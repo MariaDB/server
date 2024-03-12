@@ -88,6 +88,7 @@ extern void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit);
 
 #define my_bitmap_map_bytes sizeof(my_bitmap_map)
 #define my_bitmap_map_bits  (my_bitmap_map_bytes*8)
+/* Size in bytes to store 'bits' number of bits */
 #define bitmap_buffer_size(bits) (MY_ALIGN((bits), my_bitmap_map_bits)/8)
 #define my_bitmap_buffer_size(map) bitmap_buffer_size((map)->n_bits)
 #define no_bytes_in_export_map(map) (((map)->n_bits + 7)/8)

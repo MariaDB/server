@@ -257,7 +257,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   Field *field;
   uint keynr;
   MY_BITMAP unique_map; /* Fields in offended unique. */
-  my_bitmap_map unique_map_buf[bitmap_buffer_size(MAX_FIELDS)];
+  my_bitmap_map unique_map_buf[bitmap_buffer_size(MAX_FIELDS)/sizeof(my_bitmap_map)];
   DBUG_ENTER("prepare_record_for_error_message");
 
   /*
