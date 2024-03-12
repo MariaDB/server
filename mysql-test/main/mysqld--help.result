@@ -698,9 +698,9 @@ The following specify which files/extra groups are read (specified before remain
  in between
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
- Unused
+ Unused.
  --metadata-locks-hash-instances=# 
- Unused
+ Unused.
  --min-examined-row-limit=# 
  Alias for log_slow_min_examined_row_limit. Don't write
  queries to slow log that examine fewer rows than that

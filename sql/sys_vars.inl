@@ -64,6 +64,8 @@
 #define PARSED_EARLY sys_var::PARSE_EARLY+
 #define NO_SET_STMT sys_var::NO_SET_STATEMENT+
 
+extern const char *UNUSED_HELP;
+
 /*
   Sys_var_bit meaning is reversed, like in
   @@foreign_key_checks <-> OPTION_NO_FOREIGN_KEY_CHECKS
