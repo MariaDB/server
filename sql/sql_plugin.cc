@@ -4220,10 +4220,9 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
           var= NULL;
           len= tmp->name.length + strlen(o->name) + 2;
           varname= (char*) alloc_root(mem_root, len);
-          strxmov(varname, tmp->name.str, "-", o->name, NullS);
+          strxmov(varname, tmp->name.str, "_", o->name, NullS);
           // Ok to use latin1, as the variable name is pure ASCII
           my_casedn_str_latin1(varname);
-          convert_dash_to_underscore(varname, len-1);
         }
         if (o->flags & PLUGIN_VAR_NOSYSVAR)
         {
