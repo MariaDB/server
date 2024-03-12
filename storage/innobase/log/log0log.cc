@@ -1067,7 +1067,7 @@ NOTE that this function may only be called while not holding
 any synchronization objects except dict_sys.latch. */
 void log_free_check()
 {
-  ut_ad(!lock_sys.is_writer());
+  ut_ad(!lock_sys.is_holder());
   if (log_sys.check_flush_or_checkpoint())
     log_check_margins();
 }
