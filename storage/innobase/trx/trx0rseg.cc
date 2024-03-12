@@ -201,7 +201,7 @@ bool trx_rseg_read_wsrep_checkpoint(const buf_block_t *rseg_header, XID &xid)
 	memcpy(xid.data, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
 	       + rseg_header->page.frame, XIDDATASIZE);
 
-	return true;
+	return wsrep_is_wsrep_xid(&xid);
 }
 
 /** Read the WSREP XID from the TRX_SYS page (in case of upgrade).
@@ -237,7 +237,8 @@ static bool trx_rseg_init_wsrep_xid(const page_t* page, XID& xid)
 	memcpy(xid.data,
 	       TRX_SYS + TRX_SYS_WSREP_XID_INFO
 	       + TRX_SYS_WSREP_XID_DATA + page, XIDDATASIZE);
-	return true;
+
+	return wsrep_is_wsrep_xid(&xid);
 }
 
 /** Recover the latest WSREP checkpoint XID.
@@ -498,10 +499,17 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
           trx_sys.recovered_binlog_offset= binlog_offset;
         trx_sys.recovered_binlog_is_legacy_pos= false;
       }
-#ifdef WITH_WSREP
-      trx_rseg_read_wsrep_checkpoint(rseg_hdr, trx_sys.recovered_wsrep_xid);
-#endif
     }
+#ifdef WITH_WSREP
+    XID tmp_xid;
+    tmp_xid.null();
+    /* Update recovered wsrep xid only if we found wsrep xid from
+       rseg header page and read xid seqno is larger than currently
+       recovered xid seqno. */
+    if (trx_rseg_read_wsrep_checkpoint(rseg_hdr, tmp_xid) &&
+        wsrep_xid_seqno(&tmp_xid) > wsrep_xid_seqno(&trx_sys.recovered_wsrep_xid))
+      trx_sys.recovered_wsrep_xid.set(&tmp_xid);
+#endif
   }
 
   if (srv_operation == SRV_OPERATION_RESTORE)
