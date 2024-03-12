@@ -14,9 +14,8 @@ include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc
 connection master;
-SET @@session.alter_algorithm='INSTANT';
 SET @@session.gtid_domain_id=11;
-ALTER TABLE t1 ADD COLUMN b int;
+ALTER TABLE t1 ADD COLUMN b int, algorithm=instant;
 # START Alter having exclusive lock is waiting for the signal
 connection slave;
 # FTWRL is sent first to wait for SA
@@ -43,9 +42,9 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT) ENGINE=innodb
 slave-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
-slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN b int
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN b int, algorithm=instant
 slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
-slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN b int
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN b int, algorithm=instant
 connection master;
 DROP TABLE t1;
 connection slave;

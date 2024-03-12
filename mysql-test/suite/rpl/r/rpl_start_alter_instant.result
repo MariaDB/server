@@ -7,10 +7,8 @@ a int PRIMARY KEY,
 b varchar(50),
 c varchar(50)
 ) CHARACTER SET=latin1 engine=innodb;
-SET SESSION alter_algorithm='INSTANT';
-ALTER TABLE tab MODIFY COLUMN b varchar(100);
-SET SESSION alter_algorithm='NOCOPY';
-ALTER TABLE tab MODIFY COLUMN c varchar(100);
+ALTER TABLE tab MODIFY COLUMN b varchar(100), algorithm=instant;
+ALTER TABLE tab MODIFY COLUMN c varchar(100), algorithm=nocopy;
 SHOW CREATE TABLE tab;
 Table	Create Table
 tab	CREATE TABLE `tab` (
@@ -28,13 +26,13 @@ b varchar(50),
 c varchar(50)
 ) CHARACTER SET=latin1 engine=innodb
 master-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
-master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100), algorithm=instant
 master-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
-master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100), algorithm=instant
 master-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
-master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100), algorithm=nocopy
 master-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
-master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100), algorithm=nocopy
 connection slave;
 SHOW CREATE TABLE tab;
 Table	Create Table
@@ -53,13 +51,13 @@ b varchar(50),
 c varchar(50)
 ) CHARACTER SET=latin1 engine=innodb
 slave-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
-slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100), algorithm=instant
 slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
-slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100), algorithm=instant
 slave-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
-slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100), algorithm=nocopy
 slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
-slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100), algorithm=nocopy
 connection master;
 DROP TABLE tab;
 connection slave;

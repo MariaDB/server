@@ -816,7 +816,7 @@ typedef struct system_variables
   ulong query_cache_type;
   ulong tx_isolation;
   ulong updatable_views_with_limit;
-  ulong alter_algorithm;
+  ulong alter_algorithm_unused;
   ulong server_id;
   ulong session_track_transaction_info;
   ulong threadpool_priority;
