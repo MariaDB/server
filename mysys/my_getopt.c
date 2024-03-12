@@ -172,6 +172,24 @@ static void validate_value(const char *key, const char *value,
 #define validate_value(key, value, filename) (void)filename
 #endif
 
+void warn_deprecated(const struct my_option *optp)
+{
+  char buf1[NAME_CHAR_LEN + 3];
+  strxmov(buf1, "--", optp->name, NullS);
+  convert_underscore_to_dash(buf1, strlen(buf1));
+  if (IS_DEPRECATED_NO_REPLACEMENT(optp->deprecation_substitute))
+    my_getopt_error_reporter(WARNING_LEVEL, "%s is deprecated and will be "
+      "removed in a future release", buf1);
+  else
+  {
+    char buf2[NAME_CHAR_LEN + 3];
+    strxmov(buf2, "--", optp->deprecation_substitute, NullS);
+    convert_underscore_to_dash(buf2, strlen(buf2));
+    my_getopt_error_reporter(WARNING_LEVEL, "%s is deprecated and will be "
+      "removed in a future release. Please use %s instead.", buf1, buf2);
+  }
+}
+
 /**
   Handle command line options.
   Sort options.
@@ -491,6 +509,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                                enabled_my_option : disabled_my_option,
                                filename))
               DBUG_RETURN(EXIT_ARGUMENT_INVALID);
+            if (optp->deprecation_substitute)
+              warn_deprecated(optp);
 	    continue;
 	  }
 	  argument= optend;
@@ -566,6 +586,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		*((my_bool*) optp->value)= (my_bool) 1;
                 if (get_one_option(optp, argument, filename))
                   DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+                if (optp->deprecation_substitute)
+                  warn_deprecated(optp);
 		continue;
 	      }
 	      else if (optp->arg_type == REQUIRED_ARG ||
@@ -586,6 +608,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                       *((my_bool*) optp->value)= (my_bool) 1;
                     if (get_one_option(optp, argument, filename))
                       DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+                    if (optp->deprecation_substitute)
+                      warn_deprecated(optp);
                     continue;
                   }
 		  /* Check if there are more arguments after this one */
@@ -607,6 +631,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		DBUG_RETURN(error);
               if (get_one_option(optp, argument, filename))
                 DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+              if (optp->deprecation_substitute)
+                warn_deprecated(optp);
 	      break;
 	    }
 	  }
@@ -654,6 +680,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	DBUG_RETURN(error);
       if (get_one_option(optp, argument, filename))
         DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+      if (optp->deprecation_substitute)
+        warn_deprecated(optp);
 
       (*argc)--; /* option handled (long), decrease argument count */
     }
@@ -1594,26 +1622,6 @@ void my_print_help(const struct my_option *options)
 	col+= (optp->arg_type == OPT_ARG) ? 5 : 3;
       }
     }
-    if (optp->deprecation_substitute != NULL)
-    {
-      if (IS_DEPRECATED_NO_REPLACEMENT(optp->deprecation_substitute))
-        col= print_comment("(it's deprecated and will be removed in a future release)",
-                           col, name_space, comment_space);
-      else
-      {
-        char buf1[NAME_CHAR_LEN + 3];
-
-        strxmov(buf1, "--", optp->deprecation_substitute, NullS);
-        convert_underscore_to_dash(buf1, strlen(optp->deprecation_substitute) + 2);
-
-        col= print_comment("(it's deprecated and will be removed in a future release. Please use '",
-                           col, name_space, comment_space);
-        col= print_comment(buf1,
-                           col, name_space, comment_space);
-        col= print_comment("' instead)",
-                           col, name_space, comment_space);
-      }
-    }
     if (optp->comment && *optp->comment)
     {
       uint count;
@@ -1658,6 +1666,23 @@ void my_print_help(const struct my_option *options)
           col= print_comment(optp->typelib->type_names[i], col, name_space, comment_space);
         }
       }
+      if ((optp->var_type & GET_TYPE_MASK) == GET_SET)
+        col= print_comment(", or ALL to set all combinations", col, name_space, comment_space);
+      if (optp->deprecation_substitute != NULL)
+      {
+        col= print_comment(". Deprecated, will be removed in a future release.",
+                           col, name_space, comment_space);
+        if (!IS_DEPRECATED_NO_REPLACEMENT(optp->deprecation_substitute))
+        {
+          char buf1[NAME_CHAR_LEN + 3];
+          DBUG_ASSERT(strlen(optp->deprecation_substitute) < NAME_CHAR_LEN);
+          strxmov(buf1, "--", optp->deprecation_substitute, NullS);
+          convert_underscore_to_dash(buf1, strlen(buf1));
+          col= print_comment(" Please use ", col, name_space, comment_space);
+          col= print_comment(buf1, col, name_space, comment_space);
+          col= print_comment(" instead.", col, name_space, comment_space);
+        }
+      }
     }
     putchar('\n');
     if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL ||
@@ -1670,8 +1695,6 @@ void my_print_help(const struct my_option *options)
         printf(" to disable.)\n");
       }
     }
-    else if ((optp->var_type & GET_TYPE_MASK) == GET_SET)
-      printf("  Use 'ALL' to set all combinations.\n");
   }
   DBUG_VOID_RETURN;
 }

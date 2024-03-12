@@ -515,7 +515,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(longlong, split_read)
 static MYSQL_THDVAR_INT(
   semi_split_read, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Use offset and limit parameter in SQL for split_read parameter.", /* comment */
+  "Use offset and limit parameter in SQL for split_read parameter", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   2, /* def */
@@ -1318,7 +1318,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(double, crd_interval)
 static MYSQL_THDVAR_INT(
   crd_mode, /* name */
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Mode of cardinality confirmation.", /* comment */
+  "Mode of cardinality confirmation", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   1, /* def */
@@ -1339,7 +1339,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_mode)
 static MYSQL_THDVAR_INT(
   crd_sync, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Cardinality synchronization in partitioned table.", /* comment */
+  "Cardinality synchronization in partitioned table", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   0, /* def */
@@ -1359,7 +1359,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_sync)
 static MYSQL_THDVAR_INT(
   crd_type, /* name */
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Type of cardinality calculation.", /* comment */
+  "Type of cardinality calculation", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   2, /* def */
@@ -1377,7 +1377,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_type)
 static MYSQL_THDVAR_INT(
   crd_weight, /* name */
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Weight coefficient to calculate effectiveness of index from cardinality of column.", /* comment */
+  "Weight coefficient to calculate effectiveness of index from cardinality of column", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   2, /* def */
@@ -1397,7 +1397,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(double, crd_weight)
 static MYSQL_THDVAR_INT(
   crd_bg_mode, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Mode of cardinality confirmation at background.", /* comment */
+  "Mode of cardinality confirmation at background", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   2, /* def */
@@ -1436,7 +1436,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(double, sts_interval)
 static MYSQL_THDVAR_INT(
   sts_mode, /* name */
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Mode of table state confirmation.", /* comment */
+  "Mode of table state confirmation", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   1, /* def */
@@ -1457,7 +1457,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, sts_mode)
 static MYSQL_THDVAR_INT(
   sts_sync, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Table state synchronization in partitioned table.", /* comment */
+  "Table state synchronization in partitioned table", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   0, /* def */
@@ -1477,7 +1477,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, sts_sync)
 static MYSQL_THDVAR_INT(
   sts_bg_mode, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Mode of table state confirmation at background.", /* comment */
+  "Mode of table state confirmation at background", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   2, /* def */
@@ -1515,7 +1515,7 @@ SPIDER_THDVAR_VALUE_FUNC(double, ping_interval_at_trx_start)
 static MYSQL_THDVAR_INT(
   auto_increment_mode, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Mode of auto increment.", /* comment */
+  "Mode of auto increment", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   0, /* def */

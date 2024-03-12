@@ -27,10 +27,10 @@
 #define DO_SYSLOG
 #include <syslog.h>
 static const char out_type_desc[]= "Desired output type. Possible values - 'syslog', 'file'"
-                                   " or 'null' as no output.";
+                                   " or 'null' as no output";
 #else
 static const char out_type_desc[]= "Desired output type. Possible values - 'file'"
-                                   " or 'null' as no output.";
+                                   " or 'null' as no output";
 #define syslog(PRIORITY, FORMAT, INFO, MESSAGE_LEN, MESSAGE) do {}while(0)
 static void closelog() {}
 #define openlog(IDENT, LOG_NOWAIT, LOG_USER)  do {}while(0)
@@ -373,10 +373,10 @@ static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *var_ptr, const void *save);
 
 static MYSQL_SYSVAR_STR(incl_users, incl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to monitor.",
+       "Comma separated list of users to monitor",
        check_incl_users, update_incl_users, NULL);
 static MYSQL_SYSVAR_STR(excl_users, excl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to exclude from auditing.",
+       "Comma separated list of users to exclude from auditing",
        check_excl_users, update_excl_users, NULL);
 /* bits in the event filter. */
 #define EVENT_CONNECT 1
@@ -399,7 +399,7 @@ static TYPELIB events_typelib=
 };
 static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
        "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
-           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
+           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL",
        NULL, NULL, 0, &events_typelib);
 #ifdef DO_SYSLOG
 #define OUTPUT_SYSLOG 0
@@ -425,29 +425,29 @@ static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
        0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
-       "Path to the log file.", NULL, update_file_path, default_file_name);
+       "Path to the log file", NULL, update_file_path, default_file_name);
 static MYSQL_SYSVAR_ULONGLONG(file_rotate_size, file_rotate_size,
-       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation.",
+       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation",
        NULL, update_file_rotate_size,
        1000000, 100, ((long long) 0x7FFFFFFFFFFFFFFFLL), 1);
 static MYSQL_SYSVAR_UINT(file_rotations, rotations,
-       PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed.",
+       PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed",
        NULL, update_file_rotations, 9, 0, 999, 1);
 static MYSQL_SYSVAR_BOOL(file_rotate_now, rotate, PLUGIN_VAR_OPCMDARG,
-       "Force log rotation now.", NULL, rotate_log, FALSE);
+       "Force log rotation now", NULL, rotate_log, FALSE);
 static MYSQL_SYSVAR_BOOL(logging, logging,
-       PLUGIN_VAR_OPCMDARG, "Turn on/off the logging.", NULL,
+       PLUGIN_VAR_OPCMDARG, "Turn on/off the logging", NULL,
        update_logging, 0);
 static MYSQL_SYSVAR_UINT(mode, mode,
-       PLUGIN_VAR_OPCMDARG, "Auditing mode.", NULL, update_mode, 0, 0, 1, 1);
+       PLUGIN_VAR_OPCMDARG, "Auditing mode", NULL, update_mode, 0, 0, 1, 1);
 static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident, PLUGIN_VAR_RQCMDARG,
-       "The SYSLOG identifier - the beginning of each SYSLOG record.",
+       "The SYSLOG identifier - the beginning of each SYSLOG record",
        NULL, update_syslog_ident, syslog_ident_buffer);
 static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
-       "The <info> string to be added to the SYSLOG record.", NULL, NULL, "");
+       "The <info> string to be added to the SYSLOG record", NULL, NULL, "");
 static MYSQL_SYSVAR_UINT(query_log_limit, query_log_limit,
-       PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record.",
+       PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record",
        NULL, NULL, 1024, 0, 0x7FFFFFFF, 1);
 
 char locinfo_ini_value[sizeof(struct connection_info)+4];
@@ -494,7 +494,7 @@ static TYPELIB syslog_facility_typelib=
 };
 static MYSQL_SYSVAR_ENUM(syslog_facility, syslog_facility, PLUGIN_VAR_RQCMDARG,
        "The 'facility' parameter of the SYSLOG record."
-       " The default is LOG_USER.", 0, update_syslog_facility, 0/*LOG_USER*/,
+       " The default is LOG_USER", 0, update_syslog_facility, 0/*LOG_USER*/,
        &syslog_facility_typelib);
 
 static const char *syslog_priority_names[]=
@@ -519,7 +519,7 @@ static TYPELIB syslog_priority_typelib=
 };
 static MYSQL_SYSVAR_ENUM(syslog_priority, syslog_priority, PLUGIN_VAR_RQCMDARG,
        "The 'priority' parameter of the SYSLOG record."
-       " The default is LOG_INFO.", 0, update_syslog_priority, 6/*LOG_INFO*/,
+       " The default is LOG_INFO", 0, update_syslog_priority, 6/*LOG_INFO*/,
        &syslog_priority_typelib);
 
 

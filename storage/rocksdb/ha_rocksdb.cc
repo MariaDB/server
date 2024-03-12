@@ -953,19 +953,19 @@ static MYSQL_THDVAR_BOOL(
 static MYSQL_THDVAR_BOOL(
     bulk_load, PLUGIN_VAR_RQCMDARG,
     "Use bulk-load mode for inserts. This disables "
-    "unique_checks and enables rocksdb_commit_in_the_middle.",
+    "unique_checks and enables rocksdb_commit_in_the_middle",
     rocksdb_check_bulk_load, nullptr, FALSE);
 
 static MYSQL_THDVAR_BOOL(bulk_load_allow_sk, PLUGIN_VAR_RQCMDARG,
                          "Allow bulk loading of sk keys during bulk-load. "
-                         "Can be changed only when bulk load is disabled.",
+                         "Can be changed only when bulk load is disabled",
                          /* Intentionally reuse unsorted's check function */
                          rocksdb_check_bulk_load_allow_unsorted, nullptr,
                          FALSE);
 
 static MYSQL_THDVAR_BOOL(bulk_load_allow_unsorted, PLUGIN_VAR_RQCMDARG,
                          "Allow unsorted input during bulk-load. "
-                         "Can be changed only when bulk load is disabled.",
+                         "Can be changed only when bulk load is disabled",
                          rocksdb_check_bulk_load_allow_unsorted, nullptr,
                          FALSE);
 
@@ -980,7 +980,7 @@ static MYSQL_SYSVAR_STR(git_hash, rocksdb_git_hash,
                         nullptr, nullptr, ROCKSDB_GIT_HASH);
 
 static MYSQL_THDVAR_STR(tmpdir, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "Directory for temporary files during DDL operations.",
+                        "Directory for temporary files during DDL operations",
                         nullptr, nullptr, "");
 
 #define DEFAULT_SKIP_UNIQUE_CHECK_TABLES ".*"
@@ -1075,7 +1075,7 @@ static MYSQL_SYSVAR_ENUM(
     "Use read-free replication on the slave (i.e. no row lookup during "
     "replication). Default is OFF, PK_SK will enable it on all tables with "
     "primary key. PK_ONLY will enable it on tables where the only key is the "
-    "primary key (i.e. no secondary keys).",
+    "primary key (i.e. no secondary keys)",
     nullptr, nullptr, read_free_rpl_type::OFF, &read_free_rpl_typelib);
 #endif
 
@@ -1092,7 +1092,7 @@ static MYSQL_THDVAR_ULONG(max_row_locks, PLUGIN_VAR_RQCMDARG,
 
 static MYSQL_THDVAR_ULONGLONG(
     write_batch_max_bytes, PLUGIN_VAR_RQCMDARG,
-    "Maximum size of write batch in bytes. 0 means no limit.", nullptr, nullptr,
+    "Maximum size of write batch in bytes. 0 means no limit", nullptr, nullptr,
     /* default */ 0, /* min */ 0, /* max */ SIZE_T_MAX, 1);
 
 static MYSQL_THDVAR_BOOL(
@@ -1110,7 +1110,7 @@ static MYSQL_THDVAR_ULONG(bulk_load_size, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONGLONG(
     merge_buf_size, PLUGIN_VAR_RQCMDARG,
     "Size to allocate for merge sort buffers written out to disk "
-    "during inplace index creation.",
+    "during inplace index creation",
     nullptr, nullptr,
     /* default (64MB) */ RDB_DEFAULT_MERGE_BUF_SIZE,
     /* min (100B) */ RDB_MIN_MERGE_BUF_SIZE,
@@ -1120,7 +1120,7 @@ static MYSQL_THDVAR_ULONGLONG(
     merge_combine_read_size, PLUGIN_VAR_RQCMDARG,
     "Size that we have to work with during combine (reading from disk) phase "
     "of "
-    "external sort during fast index creation.",
+    "external sort during fast index creation",
     nullptr, nullptr,
     /* default (1GB) */ RDB_DEFAULT_MERGE_COMBINE_READ_SIZE,
     /* min (100B) */ RDB_MIN_MERGE_COMBINE_READ_SIZE,
@@ -1132,7 +1132,7 @@ static MYSQL_THDVAR_ULONGLONG(
     "creation.  Removing this large file all at once when index creation is "
     "complete can cause trim stalls on Flash.  This variable specifies a "
     "duration to sleep (in milliseconds) between calling chsize() to truncate "
-    "the file in chunks.  The chunk size is  the same as merge_buf_size.",
+    "the file in chunks.  The chunk size is  the same as merge_buf_size",
     nullptr, nullptr,
     /* default (0ms) */ RDB_DEFAULT_MERGE_TMP_FILE_REMOVAL_DELAY,
     /* min (0ms) */ RDB_MIN_MERGE_TMP_FILE_REMOVAL_DELAY,
@@ -1225,7 +1225,7 @@ static MYSQL_SYSVAR_ENUM(
     info_log_level, rocksdb_info_log_level, PLUGIN_VAR_RQCMDARG,
     "Filter level for info logs to be written mysqld error log. "
     "Valid values include 'debug_level', 'info_level', 'warn_level'"
-    "'error_level' and 'fatal_level'.",
+    "'error_level' and 'fatal_level'",
     nullptr, rocksdb_set_rocksdb_info_log_level,
     rocksdb::InfoLogLevel::ERROR_LEVEL, &info_log_level_typelib);
 
@@ -1532,7 +1532,7 @@ static MYSQL_SYSVAR_BOOL(
 
 static MYSQL_SYSVAR_BOOL(cache_dump, rocksdb_cache_dump,
                          PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-                         "Include RocksDB block cache content in core dump.",
+                         "Include RocksDB block cache content in core dump",
                          nullptr, nullptr, true);
 
 static MYSQL_SYSVAR_DOUBLE(cache_high_pri_pool_ratio,
@@ -1675,7 +1675,7 @@ static MYSQL_THDVAR_UINT(records_in_range, PLUGIN_VAR_RQCMDARG,
 
 static MYSQL_THDVAR_UINT(force_index_records_in_range, PLUGIN_VAR_RQCMDARG,
                          "Used to override the result of records_in_range() "
-                         "when FORCE INDEX is used.",
+                         "when FORCE INDEX is used",
                          nullptr, nullptr, 0,
                          /* min */ 0, /* max */ INT_MAX, 0);
 
@@ -1735,7 +1735,7 @@ static MYSQL_SYSVAR_BOOL(pause_background_work, rocksdb_pause_background_work,
 
 static MYSQL_SYSVAR_BOOL(
     enable_ttl, rocksdb_enable_ttl, PLUGIN_VAR_RQCMDARG,
-    "Enable expired TTL records to be dropped during compaction.", nullptr,
+    "Enable expired TTL records to be dropped during compaction", nullptr,
     nullptr, TRUE);
 
 static MYSQL_SYSVAR_BOOL(
@@ -1744,7 +1744,7 @@ static MYSQL_SYSVAR_BOOL(
     "For tables with TTL, expired records are skipped/filtered out during "
     "processing and in query results. Disabling this will allow these records "
     "to be seen, but as a result rows may disappear in the middle of "
-    "transactions as they are dropped during compaction. Use with caution.",
+    "transactions as they are dropped during compaction. Use with caution",
     nullptr, nullptr, TRUE);
 
 static MYSQL_SYSVAR_INT(
@@ -1753,7 +1753,7 @@ static MYSQL_SYSVAR_INT(
     "now() + debug_ttl_rec_ts.  The value can be +/- to simulate "
     "a record inserted in the past vs a record inserted in the 'future'. "
     "A value of 0 denotes that the variable is not set. This variable is a "
-    "no-op in non-debug builds.",
+    "no-op in non-debug builds",
     nullptr, nullptr, 0, /* min */ -3600, /* max */ 3600, 0);
 
 static MYSQL_SYSVAR_INT(
@@ -1762,7 +1762,7 @@ static MYSQL_SYSVAR_INT(
     "now() + debug_set_ttl_snapshot_ts.  The value can be +/- to simulate "
     "a snapshot in the past vs a snapshot created in the 'future'. "
     "A value of 0 denotes that the variable is not set. This variable is a "
-    "no-op in non-debug builds.",
+    "no-op in non-debug builds",
     nullptr, nullptr, 0, /* min */ -3600, /* max */ 3600, 0);
 
 static MYSQL_SYSVAR_INT(
@@ -1770,18 +1770,18 @@ static MYSQL_SYSVAR_INT(
     PLUGIN_VAR_RQCMDARG,
     "For debugging purposes only.  Overrides the TTL read filtering time to "
     "time + debug_ttl_read_filter_ts. A value of 0 denotes that the variable "
-    "is not set. This variable is a no-op in non-debug builds.",
+    "is not set. This variable is a no-op in non-debug builds",
     nullptr, nullptr, 0, /* min */ -3600, /* max */ 3600, 0);
 
 static MYSQL_SYSVAR_BOOL(
     debug_ttl_ignore_pk, rocksdb_debug_ttl_ignore_pk, PLUGIN_VAR_RQCMDARG,
     "For debugging purposes only. If true, compaction filtering will not occur "
-    "on PK TTL data. This variable is a no-op in non-debug builds.",
+    "on PK TTL data. This variable is a no-op in non-debug builds",
     nullptr, nullptr, FALSE);
 
 static MYSQL_SYSVAR_UINT(
     max_manual_compactions, rocksdb_max_manual_compactions, PLUGIN_VAR_RQCMDARG,
-    "Maximum number of pending + ongoing number of manual compactions.",
+    "Maximum number of pending + ongoing number of manual compactions",
     nullptr, nullptr, /* default */ 10, /* min */ 0, /* max */ UINT_MAX, 0);
 
 static MYSQL_SYSVAR_BOOL(
@@ -1794,17 +1794,17 @@ static MYSQL_SYSVAR_UINT(
     debug_manual_compaction_delay, rocksdb_debug_manual_compaction_delay,
     PLUGIN_VAR_RQCMDARG,
     "For debugging purposes only. Sleeping specified seconds "
-    "for simulating long running compactions.",
+    "for simulating long running compactions",
     nullptr, nullptr, 0, /* min */ 0, /* max */ UINT_MAX, 0);
 
 static MYSQL_SYSVAR_BOOL(
     reset_stats, rocksdb_reset_stats, PLUGIN_VAR_RQCMDARG,
-    "Reset the RocksDB internal statistics without restarting the DB.", nullptr,
+    "Reset the RocksDB internal statistics without restarting the DB", nullptr,
     rocksdb_set_reset_stats, FALSE);
 
 static MYSQL_SYSVAR_UINT(io_write_timeout, rocksdb_io_write_timeout_secs,
                          PLUGIN_VAR_RQCMDARG,
-                         "Timeout for experimental I/O watchdog.", nullptr,
+                         "Timeout for experimental I/O watchdog", nullptr,
                          rocksdb_set_io_write_timeout, /* default */ 0,
                          /* min */ 0L,
                          /* max */ UINT_MAX, 0);
@@ -1845,7 +1845,7 @@ static MYSQL_SYSVAR_BOOL(
 static MYSQL_SYSVAR_BOOL(
     force_flush_memtable_and_lzero_now,
     rocksdb_force_flush_memtable_and_lzero_now_var, PLUGIN_VAR_RQCMDARG,
-    "Acts similar to force_flush_memtable_now, but also compacts all L0 files.",
+    "Acts similar to force_flush_memtable_now, but also compacts all L0 files",
     rocksdb_force_flush_memtable_and_lzero_now,
     rocksdb_force_flush_memtable_and_lzero_now_stub, FALSE);
 
@@ -1853,7 +1853,7 @@ static MYSQL_SYSVAR_UINT(
     seconds_between_stat_computes, rocksdb_seconds_between_stat_computes,
     PLUGIN_VAR_RQCMDARG,
     "Sets a number of seconds to wait between optimizer stats recomputation. "
-    "Only changed indexes will be refreshed.",
+    "Only changed indexes will be refreshed",
     nullptr, nullptr, rocksdb_seconds_between_stat_computes,
     /* min */ 0L, /* max */ UINT_MAX, 0);
 
@@ -1910,7 +1910,7 @@ static MYSQL_THDVAR_BOOL(verify_row_debug_checksums, PLUGIN_VAR_RQCMDARG,
 
 static MYSQL_THDVAR_BOOL(master_skip_tx_api, PLUGIN_VAR_RQCMDARG,
                          "Skipping holding any lock on row access. "
-                         "Not effective on slave.",
+                         "Not effective on slave",
                          nullptr, nullptr, false);
 
 static MYSQL_SYSVAR_UINT(
@@ -1946,24 +1946,11 @@ static MYSQL_SYSVAR_UINT(
     table_stats_sampling_pct, rocksdb_table_stats_sampling_pct,
     PLUGIN_VAR_RQCMDARG,
     "Percentage of entries to sample when collecting statistics about table "
-    "properties. Specify either 0 to sample everything or percentage "
-    "[" STRINGIFY_ARG(RDB_TBL_STATS_SAMPLE_PCT_MIN) ".." STRINGIFY_ARG(
-        RDB_TBL_STATS_SAMPLE_PCT_MAX) "]. "
-                                      "By default " STRINGIFY_ARG(
-                                          RDB_DEFAULT_TBL_STATS_SAMPLE_PCT) "% "
-                                                                            "of"
-                                                                            " e"
-                                                                            "nt"
-                                                                            "ri"
-                                                                            "es"
-                                                                            " a"
-                                                                            "re"
-                                                                            " "
-                                                                            "sa"
-                                                                            "mp"
-                                                                            "le"
-                                                                            "d"
-                                                                            ".",
+    "properties. Specify either 0 to sample everything or percentage ["
+    STRINGIFY_ARG(RDB_TBL_STATS_SAMPLE_PCT_MIN) ".."
+    STRINGIFY_ARG(RDB_TBL_STATS_SAMPLE_PCT_MAX)
+    "]. By default " STRINGIFY_ARG(RDB_DEFAULT_TBL_STATS_SAMPLE_PCT)
+    "% of entries are sampled",
     nullptr, rocksdb_set_table_stats_sampling_pct, /* default */
     RDB_DEFAULT_TBL_STATS_SAMPLE_PCT, /* everything */ 0,
     /* max */ RDB_TBL_STATS_SAMPLE_PCT_MAX, 0);
@@ -1971,21 +1958,21 @@ static MYSQL_SYSVAR_UINT(
 static MYSQL_SYSVAR_UINT(
     stats_recalc_rate, rocksdb_stats_recalc_rate, PLUGIN_VAR_RQCMDARG,
     "The number of indexes per second to recalculate statistics for. 0 to "
-    "disable background recalculation.",
+    "disable background recalculation",
     nullptr, nullptr, 0 /* default value */, 0 /* min value */,
     UINT_MAX /* max value */, 0);
 
 static MYSQL_SYSVAR_BOOL(
     large_prefix, rocksdb_large_prefix, PLUGIN_VAR_RQCMDARG,
     "Support large index prefix length of 3072 bytes. If off, the maximum "
-    "index prefix length is 767.",
+    "index prefix length is 767",
     nullptr, nullptr, FALSE);
 
 static MYSQL_SYSVAR_BOOL(
     allow_to_start_after_corruption, rocksdb_allow_to_start_after_corruption,
     PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
     "Allow server still to start successfully even if RocksDB corruption is "
-    "detected.",
+    "detected",
     nullptr, nullptr, FALSE);
 
 static MYSQL_SYSVAR_BOOL(error_on_suboptimal_collation,

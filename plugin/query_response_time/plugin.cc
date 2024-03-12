@@ -54,7 +54,7 @@ static MYSQL_SYSVAR_BOOL(flush, opt_query_response_time_flush,
 #ifndef DBUG_OFF
 static MYSQL_THDVAR_ULONGLONG(exec_time_debug, PLUGIN_VAR_NOCMDOPT,
        "Pretend queries take this many microseconds. When 0 (the default) use "
-       "the actual execution time. Used only for debugging.",
+       "the actual execution time. Used only for debugging",
        NULL, NULL, 0, 0, LONG_TIMEOUT, 1);
 #endif
 

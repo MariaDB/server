@@ -980,7 +980,7 @@ static MYSQL_SYSVAR_STR(default_tokenizer, mrn_default_tokenizer,
 static MYSQL_THDVAR_BOOL(
   dry_write, /* name */
   PLUGIN_VAR_OPCMDARG, /* options */
-  "If dry_write is true, any write operations are ignored.", /* comment */
+  "If dry_write is true, any write operations are ignored", /* comment */
   NULL, /* check */
   NULL, /* update */
   false /* default */
@@ -989,7 +989,7 @@ static MYSQL_THDVAR_BOOL(
 static MYSQL_THDVAR_BOOL(
   enable_optimization, /* name */
   PLUGIN_VAR_OPCMDARG, /* options */
-  "If enable_optimization is true, some optimizations will be applied.", /* comment */
+  "If enable_optimization is true, some optimizations will be applied", /* comment */
   NULL, /* check */
   NULL, /* update */
   true /* default */
