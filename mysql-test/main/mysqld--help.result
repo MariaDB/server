@@ -14,8 +14,8 @@ The following specify which files/extra groups are read (specified before remain
  function from any library, for example exit() from
  libc.so
  --alter-algorithm[=name] 
- Specify the alter table algorithm. One of: DEFAULT, COPY,
- INPLACE, NOCOPY, INSTANT
+ Unused. One of: DEFAULT, COPY, INPLACE, NOCOPY, INSTANT.
+ Deprecated, will be removed in a future release.
  --analyze-sample-percentage=# 
  Percentage of rows from the table ANALYZE TABLE will
  sample to collect table statistics. Set to 0 to let
