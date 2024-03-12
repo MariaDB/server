@@ -1597,6 +1597,8 @@ dict_create_add_foreign_field_to_dictionary(
 		       table_name, foreign->id, trx));
 }
 
+#define FK_DEF_LEN (4 * 1024)
+
 /********************************************************************//**
 Construct foreign key constraint defintion from data dictionary information.
 */
@@ -1607,7 +1609,7 @@ dict_foreign_def_get(
 	dict_foreign_t*	foreign,/*!< in: foreign */
 	trx_t*		trx)	/*!< in: trx */
 {
-	char* fk_def = (char *)mem_heap_alloc(foreign->heap, 4*1024);
+	char* const fk_def = (char *)mem_heap_alloc(foreign->heap, FK_DEF_LEN);
 	const char* tbname;
 	char tablebuf[MAX_TABLE_NAME_LEN + 1] = "";
 	unsigned i;
@@ -1618,8 +1620,9 @@ dict_foreign_def_get(
 				tbname, strlen(tbname), trx->mysql_thd);
 	tablebuf[bufend - tablebuf] = '\0';
 
-	sprintf(fk_def,
-		(char *)"CONSTRAINT %s FOREIGN KEY (", (char *)tablebuf);
+	int res = snprintf(fk_def, FK_DEF_LEN,
+			(char *)"CONSTRAINT %s FOREIGN KEY (", (char *)tablebuf);
+	DBUG_ASSERT(res >= 0);
 
 	for(i = 0; i < foreign->n_fields; i++) {
 		char	buf[MAX_TABLE_NAME_LEN + 1] = "";

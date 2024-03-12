@@ -46,15 +46,15 @@ dict_create_add_foreign_id(
 
 	if (foreign->id == NULL) {
 		/* Generate a new constraint id */
-		ulint	namelen	= strlen(name);
+		ulint	id_len= strlen(name) + 20;
 		char*	id	= static_cast<char*>(
 					mem_heap_alloc(foreign->heap,
-						       namelen + 20));
+						       id_len));
 
 		if (dict_table_t::is_temporary_name(name)) {
 
 			/* no overflow if number < 1e13 */
-			sprintf(id, "%s_ibfk_%lu", name,
+			snprintf(id, id_len, "%s_ibfk_%lu", name,
 				(ulong) (*id_nr)++);
 		} else {
 			char	table_name[MAX_TABLE_NAME_LEN + 21];
@@ -75,7 +75,7 @@ dict_create_add_foreign_id(
 			}
 
 			/* no overflow if number < 1e13 */
-			sprintf(id, "%s_ibfk_%lu", table_name,
+			snprintf(id, id_len, "%s_ibfk_%lu", table_name,
 				(ulong) (*id_nr)++);
 
 			if (innobase_check_identifier_length(

@@ -240,7 +240,7 @@ buf_dump(
 
 	char	full_filename[OS_FILE_MAX_PATH];
 	char	tmp_filename[OS_FILE_MAX_PATH + sizeof "incomplete"];
-	char	now[32];
+	char	now[UT_TS_BUF_MIN_LEN];
 	FILE*	f;
 	int	ret;
 
@@ -427,7 +427,7 @@ buf_load()
 /*======*/
 {
 	char		full_filename[OS_FILE_MAX_PATH];
-	char		now[32];
+	char		now[UT_TS_BUF_MIN_LEN];
 	FILE*		f;
 	page_id_t*	dump;
 	ulint		dump_n;
