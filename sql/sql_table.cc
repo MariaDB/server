@@ -11177,10 +11177,7 @@ do_continue:;
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (ha_alter_info.inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK &&
         alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
-         alter_info->algorithm(thd) ==
-                 Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
-         thd->variables.alter_algorithm ==
-                 Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
+        alter_info->algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
       use_inplace= false;
 
     if (ha_alter_info.inplace_supported == HA_ALTER_INPLACE_NOT_SUPPORTED)

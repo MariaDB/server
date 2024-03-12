@@ -6,6 +6,7 @@
 --source include/default_charset.inc
 
 call mtr.add_suppression("character set is multi-byte");
+call mtr.add_suppression("exists only for compatibility");
 
 --disable_warnings
 drop table if exists t1;
@@ -269,3 +270,21 @@ set myisam_repair_threads = default;
 drop table t1;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-33737 The way of ignoring alter-algorithm is inconsistent with
+--echo # other options and with itself
+--echo #
+
+query_vertical select * from information_schema.system_variables where variable_name = 'ALTER_ALGORITHM';
+
+set alter_algorithm=COPY;
+select @@alter_algorithm;
+set statement alter_algorithm=COPY FOR SELECT @@alter_algorithm;
+
+--let $restart_parameters= --alter-algorithm=COPY
+--source include/restart_mysqld.inc
+
+select @@alter_algorithm;
+
+--echo # End of 11.5 tests

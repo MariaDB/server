@@ -186,9 +186,7 @@ bool Alter_info::supports_lock(THD *thd, bool online,
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
-        algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
-        thd->variables.alter_algorithm ==
-                Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
+        algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
          return false;
 
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED ||
@@ -258,7 +256,7 @@ Alter_info::enum_alter_table_algorithm
 Alter_info::algorithm(const THD *thd) const
 {
   if (requested_algorithm == ALTER_TABLE_ALGORITHM_NONE)
-   return (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
+    return ALTER_TABLE_ALGORITHM_DEFAULT;
   return requested_algorithm;
 }
 

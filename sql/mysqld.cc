@@ -5333,6 +5333,7 @@ static int init_server_components()
 
       /* removed in 11.5 */
       MARIADB_REMOVED_OPTION("wsrep-load-data-splitting"),
+      MARIADB_REMOVED_OPTION("alter-algorithm"),
 
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };

@@ -1,8 +1,6 @@
 #
 # MDEV-22649 SIGSEGV in ha_partition::create_partitioning_metadata on ALTER
 #
-set @save_alter_algorithm= @@session.alter_algorithm;
-SET SESSION alter_algorithm=4;
 CREATE TABLE t1(a INT) engine=myisam PARTITION BY RANGE(a) SUBPARTITION BY KEY(a) (PARTITION p0 VALUES LESS THAN (10) (SUBPARTITION s0,SUBPARTITION s1), PARTITION p1 VALUES LESS THAN (20) (SUBPARTITION s2,SUBPARTITION s3));
 show create table t1;
 Table	Create Table
@@ -17,10 +15,9 @@ SUBPARTITION BY KEY (`a`)
  PARTITION `p1` VALUES LESS THAN (20)
  (SUBPARTITION `s2` ENGINE = MyISAM,
   SUBPARTITION `s3` ENGINE = MyISAM))
-ALTER TABLE t1 ADD COLUMN c INT;
+ALTER TABLE t1 ADD COLUMN c INT,ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=COPY
 DROP table if exists t1;
-set @@session.alter_algorithm= @save_alter_algorithm;
 #
 # MDEV-22804 SIGSEGV in ha_partition::create_partitioning_metadata |
 # ERROR 1507 (HY000): Error in list of partitions to DROP

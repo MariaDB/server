@@ -1,4 +1,5 @@
 call mtr.add_suppression("character set is multi-byte");
+call mtr.add_suppression("exists only for compatibility");
 drop table if exists t1;
 create table t1 SELECT 1,"table 1";
 repair table t1 use_frm;
@@ -251,3 +252,40 @@ test.t1	repair	status	OK
 set myisam_repair_threads = default;
 drop table t1;
 # End of 10.2 tests
+#
+# MDEV-33737 The way of ignoring alter-algorithm is inconsistent with
+# other options and with itself
+#
+select * from information_schema.system_variables where variable_name = 'ALTER_ALGORITHM';
+VARIABLE_NAME	ALTER_ALGORITHM
+SESSION_VALUE	DEFAULT
+GLOBAL_VALUE	DEFAULT
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	DEFAULT
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Unused
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	DEFAULT,COPY,INPLACE,NOCOPY,INSTANT
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+GLOBAL_VALUE_PATH	NULL
+set alter_algorithm=COPY;
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is deleted and ignored. It it only exists for compatiblity with old installations
+select @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+set statement alter_algorithm=COPY FOR SELECT @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is deleted and ignored. It it only exists for compatiblity with old installations
+Warning	4200	The variable '@@alter_algorithm' is deleted and ignored. It it only exists for compatiblity with old installations
+# restart: --alter-algorithm=COPY
+select @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+# End of 11.5 tests

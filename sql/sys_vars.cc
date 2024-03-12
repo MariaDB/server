@@ -2831,10 +2831,23 @@ static Sys_var_mybool Sys_skip_grant_tables(
 static const char *alter_algorithm_modes[]= {"DEFAULT", "COPY", "INPLACE",
 "NOCOPY", "INSTANT", NULL};
 
+
+static bool variable_is_ignored(sys_var *self, THD *thd, set_var *var)
+{
+  var->save_result.longlong_value= 0;
+  return false;
+}
+
 static Sys_var_enum Sys_alter_algorithm(
-	"alter_algorithm", "Specify the alter table algorithm",
-	SESSION_VAR(alter_algorithm), CMD_LINE(OPT_ARG),
-	alter_algorithm_modes, DEFAULT(0));
+	"alter_algorithm",
+        UNUSED_HELP,
+	SESSION_VAR(alter_algorithm_unused),
+        CMD_LINE(OPT_ARG, OPT_REMOVED_OPTION),
+	alter_algorithm_modes, DEFAULT(0),
+        NO_MUTEX_GUARD, NOT_IN_BINLOG,
+        ON_CHECK(variable_is_ignored), ON_UPDATE(0),
+        DEPRECATED(1105,""));
+
 
 static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
 {

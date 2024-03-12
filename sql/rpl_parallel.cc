@@ -1235,8 +1235,6 @@ handle_rpl_parallel_thread(void *arg)
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
-  /* Ensure that slave can exeute any alter table it gets from master */
-  thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
   thd->slave_thread= 1;
 
   set_slave_thread_options(thd);

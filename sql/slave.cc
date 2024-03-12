@@ -5531,9 +5531,6 @@ pthread_handler_t handle_slave_sql(void *arg)
   */
   thd->variables.binlog_annotate_row_events= 0;
 
-  /* Ensure that slave can exeute any alter table it gets from master */
-  thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
-
   server_threads.insert(thd);
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
