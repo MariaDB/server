@@ -3604,6 +3604,51 @@ List<Item>* st_select_lex::get_item_list()
 }
 
 
+/**
+  @brief
+    Overwrite the name of each item in the item_list with a new name
+    from overwrite.
+
+  @param
+    overwrite     pointer to a List of Lex_ident_sys from which we will extract
+    names.
+
+  @details
+    This is used in derived tables to optionally set the names of the resultant
+    columns.  Usually called in prepare(), but also to reset the names for
+    prepared statements and procedures.
+
+  @retval
+    The number of names overwritten.
+*/
+int st_select_lex::set_item_list_names(List<Lex_ident_sys> *overwrite)
+{
+  int result= 0;
+
+  if (with_wild)      // noticed with some replace into commands
+    return 0;
+
+  if (item_list.elements != overwrite->elements)
+  {
+    my_error(ER_INCORRECT_COLUMN_NAME_COUNT, MYF(0));
+    return -1;
+  }
+
+  List_iterator<Lex_ident_sys> overwrite_iterator(*overwrite);
+  Lex_ident_sys *new_name;
+
+  List_iterator_fast<Item> item_list_iterator(item_list);
+  Item *item_list_element;
+
+  while ((item_list_element= item_list_iterator++) &&
+         (new_name= overwrite_iterator++) &&
+         ++result)
+    lex_string_set( &item_list_element->name, new_name->str);
+
+  return result;
+}
+
+
 uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
 {
   if (!((options & SELECT_DISTINCT) && !group_list.elements))
@@ -10696,7 +10741,8 @@ SELECT_LEX *LEX::parsed_TVC_end()
 
 TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
                                      int for_system_time,
-                                     LEX_CSTRING *alias)
+                                     LEX_CSTRING *alias,
+                                     List<Lex_ident_sys> *column_names)
 {
   TABLE_LIST *res;
   derived_tables|= DERIVED_SUBQUERY;
@@ -10716,6 +10762,16 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
   if (for_system_time)
   {
     res->vers_conditions= vers_conditions;
+  }
+
+  res->column_names= column_names;
+  if (column_names && column_names->elements > 0)
+  {
+    // pre-allocate space to save item_list names
+    res->original_names= new (thd->mem_root) List<Lex_ident_sys>;
+    for (uint i= 0; i < column_names->elements; i++)
+      res->original_names->push_back( new Lex_ident_sys );
+
   }
   return res;
 }

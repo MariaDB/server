@@ -30986,6 +30986,22 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       str->append(' ');
       append_identifier_opt_casedn(thd, str, alias,
                                    lower_case_table_names == 1);
+
+      if (column_names && (column_names->elements > 0))
+      {
+        str->append('(');
+        List_iterator<Lex_ident_sys> col_iterator(*column_names);
+        Lex_ident_sys *col_name;
+        bool first= true;
+        while ((col_name= col_iterator++))
+        {
+          if (!first)
+            str->append(',');
+          str->append(col_name);
+          first= false;
+        }
+        str->append(')');
+      }
     }
 
     if (index_hints)

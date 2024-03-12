@@ -1511,3 +1511,333 @@ deallocate prepare stmt;
 drop table t1,t2,t3;
 
 --echo # End of MariaDB 11.1 tests
+
+--echo #
+--echo #     MDEV-31466 Add optional correlation column list for derived tables
+--echo #
+
+select * from (values (3,4),(5,6)) as tvc(c1, c2);
+select c1, c2 from (values (3,4),(5,6)) as tvc(c1, c2);
+
+select * from (values (3,4),(5,6)) as tvc(c1, `柱`);
+select * from (select concat(c1, c2) as col from (values (3,4)) as tvc(c1, c2))
+  as derived;
+
+# lets stack it up a bit
+select outmost from
+(
+  select outercol1, outercol2 from
+  (
+    select concat(col1, col2), 1 from
+    (
+      values (3,4),(5,6),(7,8)
+    )
+    as tvc(col1,col2)
+  )
+  as derived ( outercol1, outercol2 )
+)
+derived2 (outmost, outmost1);
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(4,5,6);
+create table t2 like t1;
+insert into t2 values (7,8,9),(10,11,12);
+create table t3 like t1;
+insert into t3 values (10,11,12),(13,14,15);
+
+
+create view v1 as select * from (select * from t1) as d1 (a1, a2, a3);
+create view v2 as select * from (select c1, c2, sum(c3) from t2 group by c1, c2)
+  as d2 (b1, b2, b3);
+create view v3 as select * from (select * from t3 where c1=10)
+  as d3 (d1, d2, d3);
+
+select * from v1;
+select * from v2;
+select * from v1 union select * from v2;
+select * from v3 intersect select * from v2 union select * from v1;
+
+--echo # check out merge derived action.
+--source include/analyze-format.inc
+analyze format=json select * from t1, v3 where t1.c1+9 = v3.d1;
+
+let $q = with cte (ct1, ct2, ct3 )
+  as (select * from v3 intersect select * from v2 union select * from v1)
+  select * from cte where ct1 = 1;
+
+eval $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval create procedure p1(a int) with cte (ct1, ct2, ct3)
+  as (select * from v3 intersect select * from v2 union select * from v1)
+  select * from cte where ct1 = a;
+
+call p1(1);
+call p1(1);
+call p1(4);
+call p1(7);
+drop procedure p1;
+
+select * from (select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where a1 = 1;
+select * from (select c1, c2, c3 from t1 ) 
+  as d1 (a1, a2, a3) where a1 = 1 group by a1 order by a1 desc;
+select * from (select c1, c2, c3 from t1 where c1 = 1 ) as d1 (a1, a2, a3);
+select * from 
+  (select c1, sum(c2), sum(c3) from t1 where c1 = 1 
+    group by c1 order by c1 desc) as d1 (a1, a2, a3)
+  where a3=3;
+
+select * from
+  (select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+
+select a1, count(*) from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  group by a1 order by a1;
+
+select a1, count(*) from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  where a1 in (select c1 from t2);
+
+select a1, count(*) from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  where exists (select c1 from t2 where c1 = a1);
+
+select * from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join t2 on a1=c1;
+
+select * from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join (values (1, 2, 3), (4, 5, 6)) as d2 (b1, b2, b3)
+    on a1=b1;
+
+--error ER_NONUNIQ_TABLE
+select * from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join (values (1, 2, 3), (4, 5, 6)) as d1 (b1, b2, b3)
+    on a1=b1;
+
+--error ER_DUP_FIELDNAME
+select * from (values (3,4),(5,6)) as foo(Col1, Col1);
+
+--error ER_BAD_FIELD_ERROR
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where c1 = 1;
+
+--error ER_INCORRECT_COLUMN_NAME_COUNT
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2) where c1 = 1;
+
+--error ER_PARSE_ERROR
+select * from ( select c1, c2, c3 from t1 ) as d1 () where c1 = 1;
+
+--error ER_NON_UNIQ_ERROR
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join ( select c1, c2, c3 from t1 ) as d2 (a1, a2, a3)
+  where d1.a1=a1;
+
+select * from
+  (select c1, c2, c3 from t1)
+  as d1 (a1, a2, a3)
+union
+select * from t2;
+
+select * from
+ (select c1, c2, c3 from t1)
+  as d1 (a1, a2, a3)
+union
+  select * from
+   (select c1, c2, c3 from t2)
+   as d2;
+
+select * from
+(
+  select * from
+    (select c1, c2, c3 from t1)
+    as d1 (cr1, cr2, cr3)
+  union
+  select * from
+    (select c1, c2, c3 from t2)
+    as d2
+) as d3 (a1, a2, a3);
+
+select * from
+(
+  select * from
+  (select c1, c2, c3 from t1 where c1=1)
+  as d1 (cr1, cr2, cr3)
+  union
+  select * from
+  (select c1, min(c2), max(c3) from t2 group by c1)
+  as d2
+  order by cr1
+  limit 1
+) as d3 (a1, a2, a3);
+
+# TODO add conditions outside and inside everywhere
+
+insert into t2 values (1,2,3);
+
+select * from
+( select c1, c2, c3 from t1)
+as d1 (a1, a2, a3)
+intersect
+select * from t2;
+
+prepare stmt from "select * from (select * from t1) as d1 (a1, a2, a3)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 
+"select * from (select * from t1) as d1 (a1, a2, a3) union select * from "
+"(select * from t1) as d1 (na1, na2, na3)";
+
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+select * from 
+  (select c1 as co1, sum(c2) as co2 from t1 group by co1  order by co1)
+    as foo (col1, col2);
+
+select c1 as col, sum(c2) as s from t1 group by c1;
+select c1 as col, sum(c2) as s from t1 group by col;
+select * from 
+  (select c1 as col, sum(c2) as s from t1 group by c1) as dt (d1,d2);
+select * from
+  (select c1 as col, sum(c2) as s from t1 group by col) as dt (d1,d2);
+
+# better coverage here. TODO
+select * from 
+  (select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+    where d1 > 2 group by d1) zz;
+
+select * from 
+  (select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+    where d1 > 2 group by d1 having sum(d3) > 4 order by d2) zz;
+
+select d1, row_number() over (partition by d1 order by d2) 
+from (select * from t1) dt (d1, d2, d3);
+
+select
+  d1, d2,
+  count(*) over w1 as dc1,
+  count(*) over w2 as dc2,
+  count(*) over w3 as dc3
+from (select * from t1)  dt (d1, d2, d3)
+window
+  w1 as (partition by d2),
+  w2 as (w1 order by d1),
+  w3 as (w2 rows between 2 preceding and 2 following);
+
+with
+  cte1 as 
+    (select * from (select * from t1 group by c1)
+      as dt2 (d1,d2,d3)),
+  cte as 
+    (select cte1.d1, sum(cte1.d2) over (partition by cte1.d1 order by cte1.d1)
+      as k from cte1)
+  select * from cte;
+
+#  TODO use cte twice.
+
+update t1, (select * from t2) as dt (d1,d2,d3)
+set c1=c1+1 where d1= c1+6;
+
+# todo add conditions inside
+
+delete t1 from t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+5;
+
+insert into t1 values (1,2,3),(4,5,6);
+
+delete from t1 using t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+6;
+
+insert into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3);
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+  returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+    where c1=d1 limit 1);
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+  returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+    where c1=d2 limit 1);
+
+execute immediate 
+  "select * from (select c1 as col, sum(c2) as s from t1 "
+  "group by c1) as dt (d1,d2)";
+execute immediate 
+  "select * from (select c1 as col, sum(c2) as s from t1 "
+  "group by col) as dt (d1,d2)";
+
+alter table t1 rename column c1 to cc1;
+
+--error ER_VIEW_INVALID
+select * from v1;
+
+drop view v1, v2, v3;
+drop table t1, t2, t3;
+
+# test derived embedded in views
+# fails on --ps-protocol due to bug seen in MDEV-31277
+#create table t10 (a int);
+#create table t20 (b int);
+#insert into t10 values (1),(2);
+#insert into t20 values (1),(3);
+#create view v10 as select *, 'U' as u from t10
+#  left join (select 'Y' as y, t20.b from t20) dt1 (y, b1) on t10.a= dt1.b1
+#  limit 3;
+#create table t30 (c int);
+#insert into t30 values (1),(3);
+#create view v20 as select * from t30
+#  left join (select 'X' as x, v10.u, v10.y, v10.b1 from v10) dt2 (x, u1, y1, b2)
+#  on t30.c=dt2.b2 limit 6;
+#select * from v20 limit 9;
+#drop view v10, v20;
+#drop table t10, t20, t30;
+
+
+# test pushdown, lifted from derived_cond_pushdown.test
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int, d decimal);
+insert into t1 values
+  (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
+  (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+  (6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
+  (7,11,708), (6,20,214);
+insert into t2 values
+  (2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
+  (8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
+  (8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
+
+# for those looking closer here, check differences with attached_condition
+# and having_condition
+# TODO simplify this. into both where and having
+--source include/analyze-format.inc
+analyze format=json select * from
+(select a, b, max(c) as max_c, avg(c) as avg_c from t1
+  where t1.a>5 group by a,b having max_c < 707) v1 (d1,d2,d3,d4),
+(select a, b, min(c) as min_c from t1 
+  where t1.a>5 group by a,b having min_c < 707) v2 (d5,d6,d7),
+(select a, b, avg(c) as avg_c from t1
+  where t1.a<8 group by a,b) v3 (d8, d9, d10),
+t2 where (v1.d1=v2.d5) and (v1.d2=v3.d9) and ((v3.d10>170) or (v3.d8<5))
+and ((v1.d4<400) or (v1.d1>1)) and (v2.d7<200);
+
+--source include/analyze-format.inc
+set statement optimizer_switch='condition_pushdown_for_derived=off' for 
+analyze format=json select * from
+(select a, b, max(c) as max_c, avg(c) as avg_c from t1
+  where t1.a>5 group by a,b having max_c < 707) v1 (d1,d2,d3,d4),
+(select a, b, min(c) as min_c from t1 
+  where t1.a>5 group by a,b having min_c < 707) v2 (d5,d6,d7),
+(select a, b, avg(c) as avg_c from t1
+  where t1.a<8 group by a,b) v3 (d8, d9, d10),
+t2 where (v1.d1=v2.d5) and (v1.d2=v3.d9) and ((v3.d10>170) or (v3.d8<5))
+and ((v1.d4<400) or (v1.d1>1)) and (v2.d7<200);
+
+drop table t1, t2;
+
+
+--echo #
+--echo # End of 11.3 tests
+--echo #

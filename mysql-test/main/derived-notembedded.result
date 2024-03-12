@@ -1,0 +1,136 @@
+#
+#  MDEV-31466 Add optional correlation column list for derived tables
+#
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(4,5,6);
+create table t2 like t1;
+insert into t2 values (7,8,9),(10,11,12);
+explain format=json
+select * from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join ( values (1, 2, 3), (4, 5, 6) ) as d2 (b1, b2, b3)
+on a1=b1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.c1 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "4",
+          "used_key_parts": ["b1"],
+          "ref": ["test.t1.c1"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set optimizer_trace='enabled=on';
+explain format=json
+select * from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where a1=1
+union
+select * from
+( select c1, c2, c3 from t2 ) as d2 (b1, b2, b3)
+where b1=1;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,3>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.c1 = 1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "UNION",
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t2.c1 = 1"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.expanded_query')) 
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.expanded_query'))
+[
+    "/* select#2 */ select t1.c1 AS c1,t1.c2 AS c2,t1.c3 AS c3 from t1",
+    "/* select#1 */ select d1.a1 AS a1,d1.a2 AS a2,d1.a3 AS a3 from (/* select#2 */ select t1.c1 AS a1,t1.c2 AS a2,t1.c3 AS a3 from t1) d1(a1,a2,a3) where d1.a1 = 1",
+    "/* select#4 */ select t2.c1 AS c1,t2.c2 AS c2,t2.c3 AS c3 from t2",
+    "/* select#3 */ select d2.b1 AS b1,d2.b2 AS b2,d2.b3 AS b3 from (/* select#4 */ select t2.c1 AS b1,t2.c2 AS b2,t2.c3 AS b3 from t2) d2(b1,b2,b3) where d2.b1 = 1",
+    "select a1 AS a1,a2 AS a2,a3 AS a3 from dual"
+]
+drop table t1, t2;
+#
+# End of 11.3 tests
+#
