@@ -134,15 +134,6 @@ double getopt_double_limit_value(double num, const struct my_option *optp,
 ulonglong getopt_double2ulonglong(double);
 double getopt_ulonglong2double(ulonglong);
 
-static inline void convert_dash_to_underscore(char *str, size_t len)
-{
-  for (char *p= str; p <= str+len; p++)
-    if (*p == '-')
-      *p= '_';
-    else if (*p != '_' && isalnum(*p) == 0)
-      break;
-}
-
 static inline void convert_underscore_to_dash(char *str, size_t len)
 {
   for (char *p= str; p <= str+len; p++)
