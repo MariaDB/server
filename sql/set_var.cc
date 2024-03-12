@@ -418,6 +418,8 @@ double sys_var::val_real(bool *is_null,
   return ret;
 }
 
+/* Marker if the variable is deleted instead of depricated */
+const char *UNUSED_HELP="Unused";
 
 void sys_var::do_deprecated_warning(THD *thd)
 {
@@ -430,7 +432,10 @@ void sys_var::do_deprecated_warning(THD *thd)
       strxnmov(buf2, sizeof(buf2)-1, "@@", option.deprecation_substitute, 0);
     else
       buf2[0]= 0;
-    warn_deprecated<999999>(thd, buf1, buf2);
+    if (option.comment == UNUSED_HELP)
+      my_error(ER_VARIABLE_DELETED, MYF(ME_WARNING), buf1);
+    else
+      warn_deprecated<999999>(thd, buf1, buf2);
   }
 }
 

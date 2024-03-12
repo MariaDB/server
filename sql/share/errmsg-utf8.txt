@@ -12278,3 +12278,5 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
         eng "Sequence tables cannot have any constraints"
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
+ER_VARIABLE_DELETED
+        eng "The variable '%s' is deleted and ignored. It it only exists for compatiblity with old installations"
