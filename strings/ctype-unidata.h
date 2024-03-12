@@ -132,6 +132,24 @@ my_toupper_unicode(MY_CASEFOLD_INFO *uni_plane, my_wc_t *wc)
 }
 
 
+/*
+  Compare two characters for equality, according to the collation.
+  For simple Unicode AI CI collations, e.g. utf8mb4_general_ci.
+
+  @return  TRUE if the two characters are equal
+  @return  FALSE otherwise
+*/
+static inline my_bool
+my_casefold_char_eq_general_ci(MY_CASEFOLD_INFO *casefold,
+                               my_wc_t wc1, my_wc_t wc2)
+{
+  DBUG_ASSERT(casefold->simple_weight);
+  my_tosort_unicode(casefold, &wc1);
+  my_tosort_unicode(casefold, &wc2);
+  return wc1 == wc2;
+}
+
+
 extern MY_CASEFOLD_INFO my_casefold_default;
 extern MY_CASEFOLD_INFO my_casefold_turkish;
 extern MY_CASEFOLD_INFO my_casefold_mysql500;

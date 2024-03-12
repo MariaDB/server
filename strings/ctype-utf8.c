@@ -133,170 +133,11 @@ my_casefold_multiply_utf8mbx(CHARSET_INFO *cs)
 }
 
 
-/*
-** Compare string against string with wildcard
-** This function is used in UTF8 and UCS2
-**
-**	0 if matched
-**	-1 if not matched with wildcard
-**	 1 if matched with wildcard
-*/
-
-static
-int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
-                            const char *str,const char *str_end,
-                            const char *wildstr,const char *wildend,
-                            int escape, int w_one, int w_many,
-                            MY_CASEFOLD_INFO *weights, int recurse_level)
+static inline my_bool
+my_char_eq_utf8mbx_general_ci(CHARSET_INFO *cs, my_wc_t wc1, my_wc_t wc2)
 {
-  int result= -1;                             /* Not found, using wildcards */
-  my_wc_t s_wc, w_wc;
-  int scan;
-  my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
-
-  if (my_string_stack_guard && my_string_stack_guard(recurse_level))
-    return 1;
-  while (wildstr != wildend)
-  {
-    while (1)
-    {
-      my_bool escaped= 0;
-      if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                       (const uchar*)wildend)) <= 0)
-        return 1;
-
-      if (w_wc == (my_wc_t) w_many)
-      {
-        result= 1;                                /* Found an anchor char */
-        break;
-      }
-
-      wildstr+= scan;
-      if (w_wc ==  (my_wc_t) escape && wildstr < wildend)
-      {
-        if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                         (const uchar*)wildend)) <= 0)
-          return 1;
-        wildstr+= scan;
-        escaped= 1;
-      }
-
-      if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                       (const uchar*)str_end)) <= 0)
-        return 1;
-      str+= scan;
-
-      if (!escaped && w_wc == (my_wc_t) w_one)
-      {
-        result= 1;                                /* Found an anchor char */
-      }
-      else
-      {
-        if (weights)
-        {
-          my_tosort_unicode(weights, &s_wc);
-          my_tosort_unicode(weights, &w_wc);
-        }
-        if (s_wc != w_wc)
-          return 1;                               /* No match */
-      }
-      if (wildstr == wildend)
-        return (str != str_end);                  /* Match if both are at end */
-    }
-
-    if (w_wc == (my_wc_t) w_many)
-    {                                             /* Found w_many */
-      /* Remove any '%' and '_' from the wild search string */
-      for ( ; wildstr != wildend ; )
-      {
-        if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                         (const uchar*)wildend)) <= 0)
-          return 1;
-
-        if (w_wc == (my_wc_t) w_many)
-        {
-          wildstr+= scan;
-          continue;
-        } 
-
-        if (w_wc == (my_wc_t) w_one)
-        {
-          wildstr+= scan;
-          if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                           (const uchar*)str_end)) <= 0)
-            return 1;
-          str+= scan;
-          continue;
-        }
-        break;                                        /* Not a wild character */
-      }
-
-      if (wildstr == wildend)
-        return 0;                                /* Ok if w_many is last */
-
-      if (str == str_end)
-        return -1;
-
-      if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                       (const uchar*)wildend)) <= 0)
-        return 1;
-      wildstr+= scan;
-
-      if (w_wc ==  (my_wc_t) escape)
-      {
-        if (wildstr < wildend)
-        {
-          if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                           (const uchar*)wildend)) <= 0)
-            return 1;
-          wildstr+= scan;
-        }
-      }
-
-      while (1)
-      {
-        /* Skip until the first character from wildstr is found */
-        while (str != str_end)
-        {
-          if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                           (const uchar*)str_end)) <= 0)
-            return 1;
-          if (weights)
-          {
-            my_tosort_unicode(weights, &s_wc);
-            my_tosort_unicode(weights, &w_wc);
-          }
-
-          if (s_wc == w_wc)
-            break;
-          str+= scan;
-        }
-        if (str == str_end)
-          return -1;
-
-        str+= scan;
-        result= my_wildcmp_unicode_impl(cs, str, str_end, wildstr, wildend,
-                                        escape, w_one, w_many,
-                                        weights, recurse_level + 1);
-        if (result <= 0)
-          return result;
-      }
-    }
-  }
-  return (str != str_end ? 1 : 0);
-}
-
-
-int
-my_wildcmp_unicode(CHARSET_INFO *cs,
-                   const char *str,const char *str_end,
-                   const char *wildstr,const char *wildend,
-                   int escape, int w_one, int w_many,
-                   MY_CASEFOLD_INFO *weights)
-{
-  return my_wildcmp_unicode_impl(cs, str, str_end,
-                                 wildstr, wildend,
-                                 escape, w_one, w_many, weights, 1);
+  DBUG_ASSERT((cs->state & MY_CS_BINSORT) == 0);
+  return my_casefold_char_eq_general_ci(cs->casefold, wc1, wc2);
 }
 
 
@@ -774,15 +615,25 @@ int my_strcasecmp_utf8mb3(CHARSET_INFO *cs, const char *s, const char *t)
 }
 
 
+/*
+  my_wildcmp_utf8mb3_general_ci_impl()
+  An optimized functions for utf8mb3.
+  For general_ci-style collations.
+*/
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb3_general_ci_impl
+#define MY_MB_WC(cs, pwc, s, e)   my_mb_wc_utf8mb3_quick(pwc, s, e)
+#define MY_CHAR_EQ(cs, wc1, wc2)  my_char_eq_utf8mbx_general_ci(cs, wc1, wc2)
+#include "ctype-wildcmp.inl"
+
+
 static
 int my_wildcmp_utf8mb3(CHARSET_INFO *cs,
                        const char *str,const char *str_end,
                        const char *wildstr,const char *wildend,
                        int escape, int w_one, int w_many)
 {
-  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  return my_wildcmp_unicode(cs,str,str_end,wildstr,wildend,
-                            escape,w_one,w_many,uni_plane); 
+  return my_wildcmp_utf8mb3_general_ci_impl(cs,str,str_end,wildstr,wildend,
+                                            escape, w_one, w_many, 1);
 }
 
 
@@ -3117,14 +2968,25 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
 }
 
 
+/*
+  my_wildcmp_utf8mb4_general_ci_impl()
+  An optimized function for utf8mb4.
+  For general_ci-style collations.
+*/
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4_general_ci_impl
+#define MY_MB_WC(cs, pwc, s, e)   my_mb_wc_utf8mb4_quick(pwc, s, e)
+#define MY_CHAR_EQ(cs, wc1, wc2)  my_char_eq_utf8mbx_general_ci(cs, wc1, wc2)
+#include "ctype-wildcmp.inl"
+
+
 static int
 my_wildcmp_utf8mb4(CHARSET_INFO *cs,
                    const char *str, const char *strend,
                    const char *wildstr, const char *wildend,
                    int escape, int w_one, int w_many)
 {
-  return my_wildcmp_unicode(cs, str, strend, wildstr, wildend,
-                            escape, w_one, w_many, cs->casefold);
+  return my_wildcmp_utf8mb4_general_ci_impl(cs, str, strend, wildstr, wildend,
+                                            escape, w_one, w_many, 1);
 }
 
 
