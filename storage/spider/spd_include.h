@@ -1606,6 +1606,7 @@ typedef struct st_spider_table_mon
   st_spider_table_mon        *next;
 } SPIDER_TABLE_MON;
 
+/* List of `SPIDER_TABLE_MON's */
 typedef struct st_spider_table_mon_list
 {
   char                       *key;
