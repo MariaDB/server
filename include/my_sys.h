@@ -1062,7 +1062,7 @@ void my_uuid(uchar *guid);
 void my_uuid_end(void);
 
 void my_uuid_v7_init();
-void my_uuid_v7(uchar *guid);
+int my_uuid_v7(uchar *guid);
 void my_uuid_v7_end(void);
 
 static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)

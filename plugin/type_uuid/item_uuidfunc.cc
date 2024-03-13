@@ -58,7 +58,10 @@ String *Item_func_uuid_v7::val_str(String *str)
   str->set_charset(collation.collation);
 
   uchar buf[MY_UUID_SIZE];
-  my_uuid_v7(buf);
+  if(!my_uuid_v7(buf)) {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+    "Failed to generate a random value for UUIDv7");
+  }
   my_uuid2str(buf, const_cast<char*>(str->ptr()), 1);
   return str;
 }
@@ -68,6 +71,9 @@ bool Item_func_uuid_v7::val_native(THD *, Native *to)
   DBUG_ASSERT(fixed());
   to->alloc(MY_UUID_SIZE);
   to->length(MY_UUID_SIZE);
-  my_uuid_v7((uchar*)to->ptr());
+  if(!my_uuid_v7((uchar*)to->ptr())) {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+    "Failed to generate a random value for UUIDv7");
+  }
   return 0;
 }
