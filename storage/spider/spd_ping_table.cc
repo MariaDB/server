@@ -80,10 +80,10 @@ ulong spider_mon_table_cache_line_no;
 greater than spider_mon_table_cache_version_req. When the inequality
 is strict, an initialisation of spider_mon_table_cache will be
 triggered. */
-volatile ulonglong spider_mon_table_cache_version = 0;
+volatile ulonglong spider_mon_table_cache_version;
 /* The required mon table cache version, incremented by one by the
 udf spider_flush_table_mon_cache */
-volatile ulonglong spider_mon_table_cache_version_req = 1;
+volatile ulonglong spider_mon_table_cache_version_req;
 
  /* Get or create a `SPIDER_TABLE_MON_LIST' for a key `str' */
 SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
