@@ -307,7 +307,7 @@ int spider_udf_get_copy_tgt_tables(
 
     if (
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, tmp_share, 0, mem_root)) ||
+        table_tables, tmp_share, mem_root)) ||
       (error_num = spider_get_sys_tables_link_status(
         table_tables, tmp_share, 0, mem_root)) ||
       (error_num = spider_get_sys_tables_link_idx(
