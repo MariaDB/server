@@ -15708,7 +15708,11 @@ finish:
 /**
   Check whether an equality can be used to build multiple equalities.
 
-    This function first checks whether the equality (left_item=right_item)
+    This function first checks whether the left_item or the right_item
+    contains subqueries, and if so, it will return false, as we do not
+    want to create multiple pointers to items with subqueries during
+    the equality propagation.
+    It then checks whether the equality (left_item=right_item)
     is a simple equality i.e. the one that equates a field with another field
     or a constant (field=field_item or field=const_item).
     If this is the case the function looks for a multiple equality
@@ -15794,6 +15798,10 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
                            Item *left_item, Item *right_item,
                            COND_EQUAL *cond_equal)
 {
+  if (left_item->with_subquery() ||
+      right_item->with_subquery())
+    return false;
+
   Item *orig_left_item= left_item;
   Item *orig_right_item= right_item;
   if (left_item->type() == Item::REF_ITEM)
