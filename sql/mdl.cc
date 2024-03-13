@@ -1056,16 +1056,12 @@ void MDL_request::init_by_key_with_source(const MDL_key *key_arg,
 */
 
 MDL_ticket *MDL_ticket::create(MDL_context *ctx_arg, enum_mdl_type type_arg
-//#ifndef DBUG_OFF
                                , enum_mdl_duration duration_arg
-//#endif
                                )
 {
   return new (std::nothrow)
              MDL_ticket(ctx_arg, type_arg
-//#ifndef DBUG_OFF
                         , duration_arg
-//#endif
                         );
 }
 
@@ -2146,11 +2142,8 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
   if (fix_pins())
     return TRUE;
 
-  if (!(ticket= MDL_ticket::create(this, mdl_request->type
-//#ifndef DBUG_OFF
-                                   , mdl_request->duration
-//#endif
-                                   )))
+  if (!(ticket= MDL_ticket::create(this, mdl_request->type,
+                                   mdl_request->duration)))
     return TRUE;
 
   /* The below call implicitly locks MDL_lock::m_rwlock on success. */

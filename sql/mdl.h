@@ -864,11 +864,9 @@ typedef I_P_List<MDL_request, I_P_List_adapter<MDL_request,
 
 
 template <typename T>
-class MDL_key_trait
+struct MDL_key_trait
 {
-public:
-  using hash_value_type= decltype(MDL_key().tc_hash_value());
-  using key_type= MDL_key;
+  using Hash_value_type= decltype(MDL_key().tc_hash_value());
 
   static MDL_key *get_key(T *t) { return t->get_key(); }
   static my_hash_value_type get_hash_value(const MDL_key *key)
@@ -876,25 +874,10 @@ public:
     return key->tc_hash_value();
   }
 };
-
-template <typename T> class hash_trait
+namespace traits
 {
-public:
-  using elem_type= T *;
-
-  static bool is_equal(const elem_type &lhs, const elem_type rhs)
-  {
-    return lhs == rhs;
-  }
-
-  static bool is_empty(const elem_type &el) { return el == nullptr; }
-  static void set_null(elem_type &el) { el= nullptr; }
-
-  template <class key_type>
-  static const typename key_type *get_key(T *value) 
-  {
-    return value->get_key();
-  }
+template<>
+struct Open_address_hash_key_trait<MDL_key>: public MDL_key_trait<MDL_ticket>{};
 };
 
 /**
@@ -1104,7 +1087,7 @@ private:
   /**
     Ticket hash. Stores only locked tickets.
   */
-  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket> > ticket_hash;
+  Open_address_hash<MDL_key, MDL_ticket*> ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
