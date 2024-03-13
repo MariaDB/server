@@ -3725,21 +3725,41 @@ Gtid_log_event::write()
     write_len= GTID_HEADER_LEN + 2;
   }
 
-  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
+  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA)
+#ifndef DBUG_OFF
+      && !DBUG_IF("negate_xid_from_gtid")
+#endif
+  )
   {
     int4store(&buf[write_len],   xid.formatID);
     buf[write_len +4]=   (uchar) xid.gtrid_length;
     buf[write_len +4+1]= (uchar) xid.bqual_length;
     write_len+= 6;
     long data_length= xid.bqual_length + xid.gtrid_length;
+
+#ifndef DBUG_OFF
+    if (!DBUG_IF("negate_xid_data_from_gtid"))
+    {
+#endif
     memcpy(buf+write_len, xid.data, data_length);
     write_len+= data_length;
+#ifndef DBUG_OFF
+    }
+#endif
   }
+
+  DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
+    flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
+  });
   if (flags_extra > 0)
   {
     buf[write_len]= flags_extra;
     write_len++;
   }
+  DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
+    flags_extra&= ~FL_EXTRA_MULTI_ENGINE_E1;
+  });
+
   if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
   {
     buf[write_len]= extra_engines;
