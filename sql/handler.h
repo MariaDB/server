@@ -4796,6 +4796,8 @@ public:
    in_range_check_pushed_down= false;
  }
 
+ inline void assert_icp_limitations(uchar *buf);
+
  virtual void cancel_pushed_rowid_filter()
  {
    pushed_rowid_filter= NULL;
