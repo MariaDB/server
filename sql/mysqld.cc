@@ -2955,7 +2955,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
-  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   /*
@@ -3009,7 +3008,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
       my_thread_end();
-      DBUG_LEAVE;                               // Must match DBUG_ENTER()
       signal_thread_in_use= 0;
       pthread_exit(0);				// Safety
       return 0;                                 // Avoid compiler warnings

@@ -5929,5 +5929,55 @@ a	b
 2	30
 DROP TABLE t1, t2;
 #
+# MDEV-33549: Incorrect handling of UPDATE in PS mode in case a table's colum declared as NOT NULL
+#
+CREATE TABLE t1 (a INT, b INT DEFAULT NULL);
+INSERT INTO t1 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1 SET b=?' USING DEFAULT;
+SELECT * FROM t1;
+a	b
+20	NULL
+# Run twice the same update in PS mode to check
+# that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1 SET b=?';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+# The same test for multi-table update
+CREATE TABLE t1 (a INT, b INT DEFAULT NULL);
+CREATE TABLE t2 (a INT, c INT DEFAULT NULL);
+INSERT INTO t1 VALUES (20, 30);
+INSERT INTO t2 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET b=? WHERE t1.a=t2.a' USING DEFAULT;
+SELECT * FROM t1;
+a	b
+20	NULL
+# Run twice the same multi-table update in PS mode to check
+# that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1,t2 SET b=? WHERE t1.a=t2.a';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+DEALLOCATE PREPARE stmt;
+# Clean up
+DROP TABLE t1;
+# This time checks that a default value for table's column
+# represented by a function call is handled correctly on UPDATE in PS mode
+CREATE TABLE t1 (a INT, b INT DEFAULT MOD(a, 3));
+INSERT INTO t1 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1, t2 SET b=? WHERE t1.a=t2.a' USING DEFAULT;
+SELECT * FROM t1;
+a	b
+20	2
+# Run twice the same multi-table update in PS mode to check
+# that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1, t2 SET b=? WHERE t1.a=t2.a';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+#
 # End of 10.4 tests
 #
