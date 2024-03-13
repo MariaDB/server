@@ -3000,7 +3000,7 @@ Create_sp_func::create_with_db(THD *thd,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
-  qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
+  qname= new (thd->mem_root) sp_name(thd, db, name, use_explicit_name);
   if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                                qname, &sph, &pkgname)))
     return NULL;

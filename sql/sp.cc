@@ -2286,7 +2286,7 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
     thd->make_lex_string(&lex_db, routine->db.str, routine->db.length);
     thd->make_lex_string(&lex_name, routine->table_name.str,
                          routine->table_name.length);
-    name= new sp_name(&lex_db, &lex_name, true);
+    name= new sp_name(thd, &lex_db, &lex_name, true);
     sp_object_found= sp_find_routine(thd, name, false) != NULL;
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
     if (! sp_object_found)
@@ -2523,7 +2523,7 @@ bool Sp_handler::
     pkgname->m_name= name->m_db;
     *pkg_routine_handler= package_routine_handler();
     return name->make_package_routine_name(thd->mem_root, tmpdb,
-                                           name->m_db, name->m_name);
+                                           *name->get_case_preserved_db(), *name->get_case_preserved_name());
   }
   return false;
 }
@@ -2585,7 +2585,7 @@ bool Sp_handler::
       DBUG_ASSERT(ret == SP_OK);
       *pkg_routine_handler= package_routine_handler();
       if (pkgname->copy_sp_name_internal(thd->mem_root, caller->m_db, pkgstr) ||
-          name->make_package_routine_name(thd->mem_root, pkgstr, name->m_name))
+          name->make_package_routine_name(thd->mem_root, pkgstr, *name->get_case_preserved_name()))
         return true;
     }
     return ret != SP_OK;
@@ -2599,7 +2599,7 @@ bool Sp_handler::
     // Package initialization section is calling a non-qualified routine
     *pkg_routine_handler= package_routine_handler();
     return name->make_package_routine_name(thd->mem_root,
-                                           caller->m_name, name->m_name);
+                                           caller->m_name, *name->get_case_preserved_name());
   }
 
   return false; // A standalone routine is called
@@ -2631,7 +2631,7 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
   if (!thd->db.length)
     return false;
 
-  return name->m_explicit_name ?
+  return name->use_explicit_name() ?
          sp_resolve_package_routine_explicit(thd, caller, name,
                                              pkg_routine_handler, pkgname) :
          sp_resolve_package_routine_implicit(thd, caller, name,
@@ -2915,7 +2915,7 @@ Sp_handler::sp_cache_package_routine(THD *thd,
 {
   DBUG_ENTER("sp_cache_package_routine");
   DBUG_ASSERT(type() == SP_TYPE_FUNCTION || type() == SP_TYPE_PROCEDURE);
-  sp_name pkgname(&name->m_db, &pkgname_cstr, false);
+  sp_name pkgname(thd, &name->m_db, &pkgname_cstr, false);
   sp_head *ph= NULL;
   int ret= sp_handler_package_body.sp_cache_routine(thd, &pkgname,
                                                     lookup_only,
@@ -3079,7 +3079,7 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   const AUTHID definer= {{STRING_WITH_LEN("")}, {STRING_WITH_LEN("")}};
   sp_head *sp;
   sp_cache **spc= get_cache(thd);
-  sp_name sp_name_obj(&db, &name, true); // This can change "name"
+  sp_name sp_name_obj(thd, &db, &name, true); // This can change "name"
   *free_sp_head= 0;
   sp= sp_cache_lookup(spc, &sp_name_obj);
 

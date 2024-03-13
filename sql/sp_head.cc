@@ -449,6 +449,35 @@ bool THD::sp_eval_expr(Field *result_field, Item **expr_item_ptr)
 }
 
 
+void sp_name::on_update_name(MEM_ROOT *mem_root,
+                            const LEX_CSTRING &db,
+                            const LEX_CSTRING &name)
+{
+  m_name_orig_case.m_db= lex_string_strmake_root(mem_root, db.str, db.length);
+  m_name_orig_case.m_name= lex_string_strmake_root(mem_root, name.str, name.length);
+}
+
+
+sp_name::sp_name()
+  : Database_qualified_name(&null_clex_str, &null_clex_str)
+  , m_explicit_name(false)
+  , m_name_orig_case(&null_clex_str, &null_clex_str)
+{}
+
+
+sp_name::sp_name(THD *thd,
+                 const LEX_CSTRING *db,
+                 const LEX_CSTRING *name,
+                 bool use_explicit_name)
+  : Database_qualified_name(db, name)
+  , m_explicit_name(use_explicit_name)
+  , m_name_orig_case(thd->make_clex_string(*db), thd->make_clex_string(*name))
+{
+  if (lower_case_table_names && m_db.length)
+    m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
+}
+
+
 /**
   Create temporary sp_name object from MDL key.
 
@@ -460,16 +489,46 @@ bool THD::sp_eval_expr(Field *result_field, Item **expr_item_ptr)
   @param qname_buff  Buffer to be used for storing quoted routine name
                      (should be at least 2*NAME_LEN+1+1 bytes).
 */
-
 sp_name::sp_name(const MDL_key *key, char *qname_buff)
- :Database_qualified_name(key->db_name(), key->db_name_length(),
-                          key->name(),  key->name_length()),
-  m_explicit_name(false)
+ : Database_qualified_name(key->db_name(), key->db_name_length(),
+                           key->name(), key->name_length())
+ , m_explicit_name(false)
+ , m_name_orig_case(key->db_name(), key->db_name_length(),
+                                   key->name(), key->name_length())
 {
   if (m_db.length)
     strxmov(qname_buff, m_db.str, ".", m_name.str, NullS);
   else
     strmov(qname_buff, m_name.str);
+}
+
+
+bool sp_name::copy_sp_name_internal(MEM_ROOT *mem_root,
+                                    const LEX_CSTRING &db,
+                                    const LEX_CSTRING &name)
+{
+  DBUG_ASSERT(db.str);
+  DBUG_ASSERT(name.str);
+  on_update_name(mem_root, db, name);
+  return Database_qualified_name::copy_sp_name_internal(mem_root, db, name);
+}
+
+
+const LEX_CSTRING* sp_name::get_case_preserved_name() const
+{
+  return &m_name_orig_case.m_name;
+}
+
+
+const LEX_CSTRING* sp_name::get_case_preserved_db() const
+{
+  return &m_name_orig_case.m_db;
+}
+
+
+bool sp_name::use_explicit_name() const
+{
+    return m_explicit_name;
 }
 
 
@@ -548,7 +607,7 @@ void sp_head::destroy(sp_head *sp)
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                  const Sp_handler *sph, enum_sp_aggregate_type agg_type)
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
-   Database_qualified_name(&null_clex_str, &null_clex_str),
+   sp_name(),
    main_mem_root(*mem_root_arg),
 #ifdef PROTECT_STATEMENT_MEMROOT
    executed_counter(0),
@@ -828,7 +887,7 @@ sp_head::init_sp_name(const sp_name *spname)
 
   DBUG_ASSERT(spname && spname->m_db.str && spname->m_db.length);
 
-  m_explicit_name= spname->m_explicit_name;
+  m_explicit_name= spname->use_explicit_name();
   /* We have to copy strings to get them into the right memroot. */
   DBUG_RETURN(copy_sp_name_internal(&main_mem_root,
                                     spname->m_db, spname->m_name));
@@ -2398,7 +2457,7 @@ sp_head::bind_input_param(THD *thd,
           thd->lex->sql_command == SQLCOM_UPDATE ||
           thd->lex->sql_command == SQLCOM_DELETE)
       {
-        my_error(ER_SF_OUT_INOUT_ARG_NOT_ALLOWED, MYF(0), arg_no+1, m_name.str);
+        my_error(ER_SF_OUT_INOUT_ARG_NOT_ALLOWED, MYF(0), arg_no+1, get_case_preserved_name()->str);
         DBUG_RETURN(TRUE);
       }
     }

@@ -110,21 +110,32 @@ protected:
 class sp_name : public Sql_alloc,
                 public Database_qualified_name
 {
-public:
   bool       m_explicit_name;                   /**< Prepend the db name? */
+  /** Database_qualified_name::m_name, but saved in the original case as
+      supplied by the user.  */
+  Database_qualified_name m_name_orig_case;
 
-  sp_name(const LEX_CSTRING *db, const LEX_CSTRING *name,
-          bool use_explicit_name)
-    : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
-  {
-    if (lower_case_table_names && m_db.length)
-      m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
-  }
+  /** This implementation updates m_name_orig_case. */
+  void on_update_name(MEM_ROOT *mem_root,
+                      const LEX_CSTRING &db,
+                      const LEX_CSTRING &name) override;
 
+public:
+  sp_name();
+  sp_name(THD *thd,
+          const LEX_CSTRING *db,
+          const LEX_CSTRING *name,
+          bool use_explicit_name);
   /** Create temporary sp_name object from MDL key. Store in qname_buff */
   sp_name(const MDL_key *key, char *qname_buff);
-
   ~sp_name() = default;
+
+  bool copy_sp_name_internal(MEM_ROOT *mem_root, const
+                             LEX_CSTRING &db,
+                             const LEX_CSTRING &name) override;
+  const LEX_CSTRING* get_case_preserved_name() const;
+  const LEX_CSTRING* get_case_preserved_db() const;
+  bool use_explicit_name() const;
 };
 
 
@@ -132,8 +143,7 @@ bool
 check_routine_name(const LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
-               public Database_qualified_name,
-               public Sql_alloc
+               public sp_name
 {
   sp_head(const sp_head &)= delete;
   void operator=(sp_head &)= delete;

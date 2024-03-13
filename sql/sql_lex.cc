@@ -7135,7 +7135,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     name= item_field->field_name;
   else if (item->type() == Item::FUNC_ITEM &&
            static_cast<Item_func*>(item)->functype() == Item_func::FUNC_SP &&
-           !static_cast<Item_func_sp*>(item)->get_sp_name()->m_explicit_name)
+           !static_cast<Item_func_sp*>(item)->get_sp_name()->use_explicit_name())
   {
     /*
       When a FOR LOOP for a cursor with parameters is parsed:
@@ -7434,7 +7434,7 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
   LEX_CSTRING db;
   if (unlikely(check_routine_name(&name)) ||
       unlikely(copy_db_to(&db)) ||
-      unlikely((!(res= new (thd->mem_root) sp_name(&db, &name, false)))))
+      unlikely((!(res= new (thd->mem_root) sp_name(thd, &db, &name, false)))))
     return NULL;
   return res;
 }
@@ -7474,7 +7474,7 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
   const Lex_ident_db norm_name1= thd->to_ident_db_internal_with_error(name1);
   if (unlikely(!norm_name1.str) ||
       unlikely(check_routine_name(&name2)) ||
-      unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, &name2, true))))
+      unlikely(!(res= new (thd->mem_root) sp_name(thd, &norm_name1, &name2, true))))
     return NULL;
   return res;
 }
@@ -9442,7 +9442,7 @@ bool LEX::call_statement_start(THD *thd,
   LEX_CSTRING pkg_dot_proc;
   if (!(pkg_dot_proc= q_pkg_proc.make_qname(thd->mem_root, false)).str ||
       check_ident_length(&pkg_dot_proc) ||
-      !(spname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_proc, true)))
+      !(spname= new (thd->mem_root) sp_name(thd, &db_int, &pkg_dot_proc, true)))
     return true;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
@@ -9521,11 +9521,11 @@ bool LEX::create_package_finalize(THD *thd,
                                   const char *cpp_body_end)
 {
   if (name2 &&
-      (name2->m_explicit_name != name->m_explicit_name ||
+      (name2->use_explicit_name() != name->use_explicit_name() ||
        strcmp(name2->m_db.str, name->m_db.str) ||
        !Sp_handler::eq_routine_name(name2->m_name, name->m_name)))
   {
-    bool exp= name2->m_explicit_name || name->m_explicit_name;
+    bool exp= name2->use_explicit_name() || name->use_explicit_name();
     my_error(ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
              exp ? ErrConvDQName(name2).ptr() : name2->m_name.str,
              exp ? ErrConvDQName(name).ptr() : name->m_name.str);
@@ -9855,7 +9855,7 @@ Item *LEX::make_item_func_call_generic(THD *thd,
   LEX_CSTRING pkg_dot_func;
   if (!(pkg_dot_func= q_pkg_func.make_qname(thd->mem_root, false)).str ||
       check_ident_length(&pkg_dot_func) ||
-      !(qname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_func, true)))
+      !(qname= new (thd->mem_root) sp_name(thd, &db_int, &pkg_dot_func, true)))
     return NULL;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, qname);
@@ -11872,7 +11872,7 @@ bool LEX::stmt_drop_routine(const Sp_handler *sph,
     */
   }
   set_command(sqlcom, options);
-  spname= new (thd->mem_root) sp_name(&db_int, &name, db.str != NULL);
+  spname= new (thd->mem_root) sp_name(thd, &db_int, &name, db.str != NULL);
   return false;
 }
 

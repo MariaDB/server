@@ -6355,7 +6355,7 @@ drop_routine(THD *thd, LEX *lex)
   int sp_result;
 #ifdef HAVE_DLOPEN
   if (lex->sql_command == SQLCOM_DROP_FUNCTION &&
-      ! lex->spname->m_explicit_name)
+      ! lex->spname->use_explicit_name())
   {
     /* DROP FUNCTION <non qualified name> */
     enum drop_udf_result rc= mysql_drop_function(thd, &lex->spname->m_name);

@@ -2665,8 +2665,8 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
   }
   if (sp->m_handler->
       show_create_sp(thd, &log_query,
-                     sp->m_explicit_name ? sp->m_db : null_clex_str,
-                     sp->m_name, sp->m_params, returns,
+                     sp->m_explicit_name ? *sp->get_case_preserved_db() : null_clex_str,
+                     *sp->get_case_preserved_name(), sp->m_params, returns,
                      sp->m_body, sp->chistics(),
                      thd->lex->definer[0],
                      thd->lex->create_info,
