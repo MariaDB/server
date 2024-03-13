@@ -3564,7 +3564,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
   if (skip_updates &&
       (buffer->length() < 4 ||
       charset_info->strnncoll(alias_element ?
-                              (const uchar*) aliased_buffer->ptr() :
+                              (const uchar*) aliased_buffer.ptr() :
                               (const uchar*) buffer->ptr(), 4,
                               (const uchar*) "SET ",4)))
   {
@@ -5884,7 +5884,7 @@ static char *parse_alias_name(char *line, char **out, bool *is_valid)
     *out= NULL;
     return pos;
   }
-  name= (char *) my_malloc(len + 1, MYF(MY_WME));
+  name= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len + 1, MYF(MY_WME));
   if (!name)
   {
     fprintf(stderr, "Couldn't allocate memory for alias name!\n");
@@ -5982,7 +5982,7 @@ static char *parse_alias_value(char *line, char **out, bool *is_valid)
   }
 
   len= end - beg;
-  value= (char *) my_malloc(len + 1, MYF(MY_WME));
+  value= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len + 1, MYF(MY_WME));
   if (!value)
   {
     fprintf(stderr, "Couldn't allocate memory for alias value!\n");
@@ -6051,7 +6051,7 @@ static char *handle_next_alias(char *line, bool *error)
         {
           my_hash_delete(&aliases, record);
         }
-        alias= (ALIAS *) my_malloc(sizeof(ALIAS), MYF(MY_WME));
+        alias= (ALIAS *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ALIAS), MYF(MY_WME));
         alias->name= name;
         alias->name_len= name_len;
         alias->value= value;
@@ -6103,7 +6103,7 @@ static char *handle_next_unalias(char *line, bool *error)
 static int init_alias()
 {
   /* Initialize the hash structure to store aliases. */
-  if (my_hash_init2(&aliases, 64, charset_info,
+  if (my_hash_init2(PSI_NOT_INSTRUMENTED, &aliases, 64, charset_info,
                     64, 0, 0, get_alias_key, 0,
                     alias_free, MYF(0)))
   {
