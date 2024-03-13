@@ -675,5 +675,59 @@ SHOW TABLES;
 DROP TEMPORARY TABLE t1, t2;
 
 --echo #
+--echo # MDEV-33218: Assertion `active_arena->is_stmt_prepare_or_first_stmt_execute() || active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed. in st_select_lex::fix_prepare_information
+--echo #
+CREATE VIEW v1 AS SELECT 5;
+CREATE PROCEDURE sp() SELECT * FROM v1;
+CREATE TEMPORARY TABLE v1 as SELECT 7;
+--echo # sp() accesses the temporary table v1 that hides the view with the same name
+--echo # Therefore expected output is the row (7)
+CALL sp();
+DROP TEMPORARY TABLE v1;
+--echo # After the temporary table v1 has been dropped the next invocation of sp()
+--echo # accesses the view v1. So, expected output is the row (5)
+CALL sp();
+
+--echo # Clean up
+DROP VIEW v1;
+DROP PROCEDURE sp;
+
+--echo # Another use case is when a temporary table hides a view is dropped
+--echo # inside a stored routine being called.
+
+CREATE VIEW t1 AS SELECT 1;
+
+--delimiter |
+CREATE PROCEDURE p1()
+BEGIN
+  DROP TEMPORARY TABLE t1;
+END
+|
+
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+ CALL p1();
+ RETURN 1;
+END
+|
+
+--delimiter ;
+
+CREATE TEMPORARY TABLE t1 AS SELECT 1 AS a;
+PREPARE stmt FROM 'SELECT f1()';
+EXECUTE stmt;
+--echo # The temporary table t1 has been dropped on first
+--echo # execution of the prepared statement 'stmt',
+--echo # next time this statement is run it results in issuing
+--echo # the error ER_BAD_TABLE_ERROR
+--error ER_BAD_TABLE_ERROR
+EXECUTE stmt;
+
+--echo # Clean up
+DROP VIEW t1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

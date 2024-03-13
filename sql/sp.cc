@@ -1907,7 +1907,7 @@ Sp_handler::sp_show_create_routine(THD *thd,
 
   DBUG_EXECUTE_IF("cache_sp_in_show_create",
     /* Some tests need just need a way to cache SP without other side-effects.*/
-    sp_cache_routine(thd, name, false, &sp);
+    sp_cache_routine(thd, name, &sp);
     sp->show_create_routine(thd, this);
     DBUG_RETURN(false);
   );
@@ -2331,7 +2331,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
   int ret;
   Parser_state *oldps= thd->m_parser_state;
   thd->m_parser_state= NULL;
-  ret= sp_cache_routine(thd, name, false, sp);
+  ret= sp_cache_routine(thd, name, sp);
   thd->m_parser_state= oldps;
   return ret;
 }
@@ -2738,7 +2738,6 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
 */
 
 int Sroutine_hash_entry::sp_cache_routine(THD *thd,
-                                          bool lookup_only,
                                           sp_head **sp) const
 {
   char qname_buff[NAME_LEN*2+1+1];
@@ -2751,7 +2750,7 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
   */
   DBUG_ASSERT(mdl_request.ticket || this == thd->lex->sroutines_list.first);
 
-  return m_handler->sp_cache_routine(thd, &name, lookup_only, sp);
+  return m_handler->sp_cache_routine(thd, &name, sp);
 }
 
 
@@ -2763,9 +2762,6 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
 
   @param[in]  thd   Thread context.
   @param[in]  name  Name of routine.
-  @param[in]  lookup_only Only check that the routine is in the cache.
-                    If it's not, don't try to load. If it is present,
-                    but old, don't try to reload.
   @param[out] sp    Pointer to sp_head object for routine, NULL if routine was
                     not found.
 
@@ -2776,7 +2772,6 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
 
 int Sp_handler::sp_cache_routine(THD *thd,
                                  const Database_qualified_name *name,
-                                 bool lookup_only,
                                  sp_head **sp) const
 {
   int ret= 0;
@@ -2787,9 +2782,6 @@ int Sp_handler::sp_cache_routine(THD *thd,
   DBUG_ASSERT(spc);
 
   *sp= sp_cache_lookup(spc, name);
-
-  if (lookup_only)
-    DBUG_RETURN(SP_OK);
 
   if (*sp)
   {
@@ -2842,7 +2834,6 @@ int Sp_handler::sp_cache_routine(THD *thd,
                        * name->m_db is a database name, e.g. "dbname"
                        * name->m_name is a package-qualified name,
                          e.g. "pkgname.spname"
-  @param lookup_only - don't load mysql.proc if not cached
   @param [OUT] sp    - the result is returned here.
   @retval false      - loaded or does not exists
   @retval true       - error while loading mysql.proc
@@ -2852,14 +2843,13 @@ int
 Sp_handler::sp_cache_package_routine(THD *thd,
                                      const LEX_CSTRING &pkgname_cstr,
                                      const Database_qualified_name *name,
-                                     bool lookup_only, sp_head **sp) const
+                                     sp_head **sp) const
 {
   DBUG_ENTER("sp_cache_package_routine");
   DBUG_ASSERT(type() == TYPE_ENUM_FUNCTION || type() == TYPE_ENUM_PROCEDURE);
   sp_name pkgname(&name->m_db, &pkgname_cstr, false);
   sp_head *ph= NULL;
   int ret= sp_handler_package_body.sp_cache_routine(thd, &pkgname,
-                                                    lookup_only,
                                                     &ph);
   if (!ret)
   {
@@ -2894,12 +2884,12 @@ Sp_handler::sp_cache_package_routine(THD *thd,
 
 int Sp_handler::sp_cache_package_routine(THD *thd,
                                          const Database_qualified_name *name,
-                                         bool lookup_only, sp_head **sp) const
+                                         sp_head **sp) const
 {
   DBUG_ENTER("Sp_handler::sp_cache_package_routine");
   Prefix_name_buf pkgname(thd, name->m_name);
   DBUG_ASSERT(pkgname.length);
-  DBUG_RETURN(sp_cache_package_routine(thd, pkgname, name, lookup_only, sp));
+  DBUG_RETURN(sp_cache_package_routine(thd, pkgname, name, sp));
 }
 
 

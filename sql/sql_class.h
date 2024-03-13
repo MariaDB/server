@@ -1,5 +1,4 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -2268,6 +2267,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -2568,6 +2572,12 @@ public:
   bool create_tmp_table_for_derived;
 
   bool save_prep_leaf_list;
+
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
