@@ -4484,10 +4484,28 @@ int create_table_impl(THD *thd,
       goto err;
     }
 
-    handlerton *db_type;
-    if (!internal_tmp_table &&
-        ha_table_exists(thd, &db, &table_name,
-                        &create_info->org_tabledef_version, NULL, &db_type))
+    handlerton *db_type= NULL;
+    bool tbl_exists=  false;
+    /* This check is need in case OPT_REPLACE and OPT_IF_NOT_EXISTS ddl and LOCK,
+       for which there is no call of `lock_table_names` and `ha_table_exists`.
+    */
+    if (options.or_replace() || options.if_not_exists())
+    {
+        char path[FN_REFLEN + 1];
+        create_info->table_path.length= build_table_filename(path, FN_REFLEN - 1,
+                                                             db.str,
+                                                             table_name.str,
+                                                             "", 0);
+        lex_string_set3(&create_info->table_path, path,
+                        create_info->table_path.length);
+        tbl_exists= ha_table_exists(thd, &db, &table_name,
+                                    &create_info->org_tabledef_version,
+                                    NULL, &db_type, NULL, create_info);
+    }
+    else
+      tbl_exists= create_info->table_exists;
+
+    if (!internal_tmp_table && tbl_exists)
     {
       if (ha_check_if_updates_are_ignored(thd, db_type, "CREATE"))
       {
@@ -4747,13 +4765,12 @@ int mysql_create_table_no_lock(THD *thd,
   {
     const LEX_CSTRING *alias= table_case_name(create_info, table_name);
     path_length= build_table_filename(path, sizeof(path) - 1, db->str,
-                                      alias->str,
-                                 "", 0);
+                                      alias->str,"", 0);
     // Check if we hit FN_REFLEN bytes along with file extension.
     if (path_length+reg_ext_length > FN_REFLEN)
     {
       my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(path)-1,
-               path);
+              path);
       return true;
     }
   }
@@ -4893,7 +4910,10 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   /* Open or obtain an exclusive metadata lock on table being created  */
   create_table->db_type= 0;
-  result= open_and_lock_tables(thd, *create_info, create_table, FALSE, 0);
+  create_info->table_exists= false;
+  lex_string_set3(&create_info->table_path, "\0", FN_REFLEN);
+  result= open_and_lock_tables(thd, *create_info, *create_info,
+                               create_table, FALSE, 0);
 
   thd->lex->create_info.options= save_thd_create_info_options;
 
@@ -5368,7 +5388,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     properly isolated from all concurrent operations which matter.
   */
 
-  res= open_tables(thd, *create_info, &thd->lex->query_tables, &not_used, 0);
+  res= open_tables(thd, *create_info, *create_info, &thd->lex->query_tables, &not_used, 0);
 
   if (res)
   {
@@ -12946,7 +12966,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       goto end_with_restore_list;
     }
 
-    res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
+    res= open_and_lock_tables(thd, create_info, create_info, lex->query_tables, TRUE, 0);
     if (unlikely(res))
     {
       /* Got error or warning. Set res to 1 if error */
@@ -12999,6 +13019,22 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
           CREATE from SELECT give its SELECT_LEX for SELECT,
           and item_list belong to SELECT
         */
+        /*
+          Check here if the table is already being created,
+          since `create_table_impl()` will be called,
+          without inovking of `mysql_create_table()` that calls `ha_table_exists`.
+        */
+        char path[FN_REFLEN + 1];
+        create_info.table_path.length= build_table_filename(path, FN_REFLEN - 1,
+                                                            create_table->db.str,
+                                                            create_table->table_name.str,
+                                                            "", 0);
+        lex_string_set3(&create_info.table_path, path,
+                        create_info.table_path.length);
+        create_info.table_exists= ha_table_exists(thd, &create_table->db,
+                                                  &create_table->table_name,
+                                                  NULL, NULL,
+                                                  &create_table->db_type);
         if (!(res= handle_select(thd, lex, result, 0)))
         {
           if (create_info.tmp_table())

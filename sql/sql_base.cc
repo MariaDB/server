@@ -3455,8 +3455,9 @@ Open_table_context::recover_from_failed_open()
     case OT_ADD_HISTORY_PARTITION:
       DEBUG_SYNC(m_thd, "add_history_partition");
       if (!m_thd->locked_tables_mode)
-        result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
-                                NULL, get_timeout(), 0);
+        result= lock_table_names(m_thd, m_thd->lex->create_info,
+                                 m_thd->lex->create_info, m_failed_table,
+                                 NULL, get_timeout(), 0);
       else
       {
         DBUG_ASSERT(!result);
@@ -4275,6 +4276,7 @@ end:
 
 static bool upgrade_lock_if_not_exists(THD *thd,
                                        const DDL_options_st &create_info,
+                                       HA_CREATE_INFO &ha_create_info,
                                        TABLE_LIST *create_table,
                                        ulong lock_wait_timeout)
 {
@@ -4284,9 +4286,14 @@ static bool upgrade_lock_if_not_exists(THD *thd,
       thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE)
   {
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
-    if (!create_info.or_replace() &&
-        ha_table_exists(thd, &create_table->db, &create_table->table_name,
-                        NULL, NULL, &create_table->db_type))
+    /* Mark table as existed for CREATE to optimize calls of ha_table_exists
+       and store table path. We should not change original default handlerton
+       ha_create_info.db_type from `ha_table_exists`.
+    */
+    ha_create_info.table_exists= ha_table_exists(thd, &create_table->db, &create_table->table_name,
+                                                 NULL, NULL, &create_table->db_type,
+                                                 NULL, &ha_create_info);
+    if (!create_info.or_replace() && ha_create_info.table_exists)
     {
       if (create_info.if_not_exists())
       {
@@ -4339,7 +4346,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
 */
 
 bool
-lock_table_names(THD *thd, const DDL_options_st &options,
+lock_table_names(THD *thd, const DDL_options_st &options, HA_CREATE_INFO &ha_opt,
                  TABLE_LIST *tables_start, TABLE_LIST *tables_end,
                  ulong lock_wait_timeout, uint flags)
 {
@@ -4385,12 +4392,17 @@ lock_table_names(THD *thd, const DDL_options_st &options,
 
   if (mdl_requests.is_empty())
     DBUG_RETURN(FALSE);
-
+  char path[FN_REFLEN + 1];
+  ha_opt.table_path.length= build_table_filename(path, FN_REFLEN - 1,
+                                                 tables_start->db.str,
+                                                 tables_start->table_name.str,
+                                                 "", 0);
+  lex_string_set3(&ha_opt.table_path, path, ha_opt.table_path.length);
   if (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)
   {
     DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
                                                lock_wait_timeout) ||
-                upgrade_lock_if_not_exists(thd, options, tables_start,
+                upgrade_lock_if_not_exists(thd, options, ha_opt, tables_start,
                                            lock_wait_timeout));
   }
 
@@ -4403,7 +4415,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&
-         !upgrade_lock_if_not_exists(thd, options, tables_start,
+         !upgrade_lock_if_not_exists(thd, options, ha_opt, tables_start,
                                      lock_wait_timeout) &&
          !thd->mdl_context.try_acquire_lock(&global_request))
   {
@@ -4528,7 +4540,7 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
   @retval  TRUE   Error, reported.
 */
 
-bool open_tables(THD *thd, const DDL_options_st &options,
+bool open_tables(THD *thd, const DDL_options_st &options, HA_CREATE_INFO &ha_opt,
                  TABLE_LIST **start, uint *counter, uint flags,
                  Prelocking_strategy *prelocking_strategy)
 {
@@ -4618,7 +4630,7 @@ restart:
     else
     {
       TABLE_LIST *table;
-      if (lock_table_names(thd, options, *start,
+      if (lock_table_names(thd, options, ha_opt, *start,
                            thd->lex->first_not_own_table(),
                            ot_ctx.get_timeout(), flags))
       {
@@ -5186,7 +5198,7 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock_table)
   TABLE_LIST *tmp= table->internal_tables;
   DML_prelocking_strategy prelocking_strategy;
 
-  if (open_tables(thd, thd->lex->create_info, &tmp, &counter, 0,
+  if (open_tables(thd, thd->lex->create_info, thd->lex->create_info, &tmp, &counter, 0,
                   &prelocking_strategy))
     goto err;
 
@@ -5616,6 +5628,7 @@ end:
 */
 
 bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
+                          HA_CREATE_INFO &ha_opt,
                           TABLE_LIST *tables,
                           bool derived, uint flags,
                           Prelocking_strategy *prelocking_strategy)
@@ -5625,7 +5638,7 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
   DBUG_ENTER("open_and_lock_tables");
   DBUG_PRINT("enter", ("derived handling: %d", derived));
 
-  if (open_tables(thd, options, &tables, &counter, flags, prelocking_strategy))
+  if (open_tables(thd, options, ha_opt, &tables, &counter, flags, prelocking_strategy))
     goto err;
 
   DBUG_EXECUTE_IF("sleep_open_and_lock_after_open", {

@@ -6421,7 +6421,8 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
                      LEX_CSTRING *partition_engine_name,
-                     handlerton **hton, bool *is_sequence)
+                     handlerton **hton, bool *is_sequence,
+                     HA_CREATE_INFO *ha_create_info)
 {
   handlerton *dummy;
   bool dummy2;
@@ -6475,8 +6476,17 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
 retry_from_frm:
 #endif
   char path[FN_REFLEN + 1];
-  size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db->str, table_name->str, "", 0);
+  size_t path_len= 0;
+  if (ha_create_info)
+  {
+    path_len= ha_create_info->table_path.length;
+    strncpy(path, ha_create_info->table_path.str, path_len);
+  }
+  else
+  /* this happens for views */
+    path_len = build_table_filename(path, sizeof(path) - 1,
+                                    db->str, table_name->str, "", 0);
+
   st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
