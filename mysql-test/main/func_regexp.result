@@ -110,7 +110,7 @@ R2
 R3
 deallocate prepare stmt1;
 drop table t1;
-End of 4.1 tests
+# End of 4.1 tests
 SELECT 1 REGEXP NULL;
 1 REGEXP NULL
 NULL
@@ -126,7 +126,7 @@ NULL
 SELECT "ABC" REGEXP BINARY NULL;
 "ABC" REGEXP BINARY NULL
 NULL
-End of 5.0 tests
+# End of 5.0 tests
 CREATE TABLE t1(a INT, b CHAR(4));
 INSERT INTO t1 VALUES (1, '6.1'), (1, '7.0'), (1, '8.0');
 PREPARE stmt1 FROM "SELECT a FROM t1 WHERE a=1 AND '7.0' REGEXP b LIMIT 1";
@@ -144,7 +144,7 @@ a
 1
 DEALLOCATE PREPARE stmt1;
 DROP TABLE t1;
-End of 5.1 tests
+# End of 5.1 tests
 SELECT ' '  REGEXP '[[:blank:]]';
 ' '  REGEXP '[[:blank:]]'
 1
@@ -163,3 +163,19 @@ SELECT '\t' REGEXP '[[:space:]]';
 SELECT REGEXP_INSTR('111222333',2);
 REGEXP_INSTR('111222333',2)
 4
+# End of 10.3 tests
+#
+# MDEV-33344 REGEXP empty string inconsistent
+#
+create table t1 (x char(5));
+insert t1 values (''), ('x');
+select 'foo' regexp x from t1 order by x asc;
+'foo' regexp x
+1
+0
+select 'foo' regexp x from t1 order by x desc;
+'foo' regexp x
+0
+1
+drop table t1;
+# End of 10.5 tests

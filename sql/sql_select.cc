@@ -18472,6 +18472,12 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
   bool and_level= functype() == Item_func::COND_AND_FUNC;
   List<Item> *cond_arg_list= argument_list();
 
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+  {
+    *cond_value= Item::COND_FALSE;
+    return (COND*) 0;                           // Fatal error flag is set!
+  }
+
   if (and_level)
   {
     /*

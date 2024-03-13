@@ -2,7 +2,7 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--35
-+36
+-37
++38
  SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
  # End of 10.6 tests

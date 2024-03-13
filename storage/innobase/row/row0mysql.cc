@@ -1591,7 +1591,8 @@ init_fts_doc_id_for_ref(
 	for (dict_foreign_t* foreign : table->referenced_set) {
 		ut_ad(foreign->foreign_table);
 
-		if (foreign->foreign_table->fts) {
+		if (foreign->foreign_table->space
+		    && foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);
 		}
 
