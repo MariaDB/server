@@ -3564,13 +3564,15 @@ error_alloc_conn_string:
   DBUG_RETURN(error_num);
 }
 
+/* Set default connect info of a SPIDER_SHARE if needed */
 int spider_set_connect_info_default(
-  SPIDER_SHARE *share,
+  SPIDER_SHARE *share,               /* The `SPIDER_SHARE' to set
+                                     default connect info */
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_element *part_elem,
-  partition_element *sub_elem,
+  partition_element *part_elem, /* partition info used as input */
+  partition_element *sub_elem,  /* subpartition info used as input */
 #endif
-  TABLE_SHARE *table_share
+  TABLE_SHARE *table_share      /* table share info used as input */
 ) {
   bool check_socket;
   bool check_database;
@@ -3763,22 +3765,6 @@ int spider_set_connect_info_default(
       }
     }
 
-/*
-    if (!share->static_link_ids[roop_count])
-    {
-      DBUG_PRINT("info",("spider create default static_link_ids"));
-      share->static_link_ids_lengths[roop_count] =
-        SPIDER_DB_STATIC_LINK_ID_LEN;
-      if (
-        !(share->static_link_ids[roop_count] = spider_create_string(
-          SPIDER_DB_STATIC_LINK_ID_STR,
-          share->static_link_ids_lengths[roop_count]))
-      ) {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-    }
-*/
-
     if (share->tgt_ports[roop_count] == -1)
     {
       share->tgt_ports[roop_count] = MYSQL_PORT;
@@ -3908,6 +3894,11 @@ int spider_set_connect_info_default(
   DBUG_RETURN(0);
 }
 
+/*
+  This function is a no-op if all share->tgt_dbs and
+  share->tgt_table_names are non-null, otherwise it may assign them
+  with db_name and table_name
+*/
 int spider_set_connect_info_default_db_table(
   SPIDER_SHARE *share,
   const char *db_name,
@@ -3993,6 +3984,11 @@ int spider_set_connect_info_default_db_table(
   DBUG_RETURN(0);
 }
 
+/*
+  Parse `dbtable_name' into db name and table name, and call
+  spider_set_connect_info_default_db_table() to set the db/table name
+  values of `share' if needed
+*/
 int spider_set_connect_info_default_dbtable(
   SPIDER_SHARE *share,
   const char *dbtable_name,
@@ -6353,7 +6349,7 @@ int spider_open_all_tables(
       (error_num = spider_get_sys_tables(
         table_tables, &db_name, &table_name, &mem_root)) ||
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, &tmp_share, 0, &mem_root)) ||
+        table_tables, &tmp_share, &mem_root)) ||
       (error_num = spider_set_connect_info_default(
         &tmp_share,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -6970,16 +6966,6 @@ int spider_db_init(
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
