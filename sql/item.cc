@@ -6943,6 +6943,7 @@ Item_basic_constant *
 Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 {
   append(str->str, (uint32) str->length);
+  set_name(thd, &str_value);
   if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
   {
     // If the string has been pure ASCII so far, check the new part.

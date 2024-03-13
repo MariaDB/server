@@ -894,7 +894,7 @@ show status like '%cost%';
 Variable_name	Value
 Last_query_cost	4.016090
 select 'The cost of accessing t1 (dont care if it changes' '^';
-The cost of accessing t1 (dont care if it changes
+The cost of accessing t1 (dont care if it changes^
 The cost of accessing t1 (dont care if it changes^
 select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 Z
