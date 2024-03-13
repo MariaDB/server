@@ -53,7 +53,7 @@ extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 pthread_mutex_t spider_conn_id_mutex;
 pthread_mutex_t spider_ipport_conn_mutex;
-ulonglong spider_conn_id = 1;
+ulonglong spider_conn_id;
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 extern pthread_attr_t spider_pt_attr;
@@ -93,7 +93,7 @@ extern sql_mode_t pushdown_sql_mode;
 HASH spider_open_connections;
 uint spider_open_connections_id;
 HASH spider_ipport_conns;
-long spider_conn_mutex_id = 0;
+long spider_conn_mutex_id;
 
 const char *spider_open_connections_func_name;
 const char *spider_open_connections_file_name;

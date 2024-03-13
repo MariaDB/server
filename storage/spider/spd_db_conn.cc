@@ -67,7 +67,7 @@ pthread_mutex_t spider_open_conn_mutex;
 const char spider_dig_upper[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /* UTC time zone for timestamp columns */
-Time_zone *UTC = 0;
+Time_zone *UTC;
 
 int spider_db_connect(
   const SPIDER_SHARE *share,
