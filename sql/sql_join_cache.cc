@@ -2718,6 +2718,7 @@ bool JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
   explain->incremental= MY_TEST(prev_cache);
 
   explain->join_buffer_size= get_join_buffer_size();
+  explain->is_bka= false;
 
   switch (get_join_alg()) {
   case BNL_JOIN_ALG:
@@ -2728,9 +2729,11 @@ bool JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
     break;
   case BKA_JOIN_ALG:
     explain->join_alg= "BKA";
+    explain->is_bka= true;
     break;
   case BKAH_JOIN_ALG:
     explain->join_alg= "BKAH";
+    explain->is_bka= true;
     break;
   default:
     DBUG_ASSERT(0);

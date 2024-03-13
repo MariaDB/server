@@ -604,7 +604,7 @@ enum explain_extra_tag
 class EXPLAIN_BKA_TYPE
 {
 public:
-  EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
+  EXPLAIN_BKA_TYPE() : join_alg(NULL), is_bka(false) {}
 
   size_t join_buffer_size;
 
@@ -615,6 +615,9 @@ public:
     Other values: BNL, BNLH, BKA, BKAH.
   */
   const char *join_alg;
+
+  /* true <=> BKA is used */
+  bool is_bka;
 
   /* Information about MRR usage.  */
   StringBuffer<64> mrr_type;
@@ -674,16 +677,8 @@ public:
   /* Tracker with the information about how rowid filter is executed */
   Rowid_filter_tracker *tracker;
 
-  void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze);
-
-  /*
-    TODO:
-      Here should be ANALYZE members:
-      - r_rows for the quick select
-      - An object that tracked the table access time
-      - real selectivity of the filter.
-  */
+  void print_explain_json(Explain_query *query, ha_rows loops,
+                          Json_writer *writer, bool is_analyze);
 };
 
 
@@ -870,7 +865,7 @@ public:
   /*
     This is either pushed index condition, or BKA's index condition. 
     (the latter refers to columns of other tables and so can only be checked by
-     BKA code). Examine extra_tags to tell which one it is.
+     BKA code). Examine extra_tags (or bka_type.is_bka) to tell which one it is.
   */
   Item *pushed_index_cond;
 
