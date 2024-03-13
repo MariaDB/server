@@ -3688,6 +3688,7 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  assert_icp_limitations(buf);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_read_map(buf, key, keypart_map, find_flag); })
@@ -3738,6 +3739,7 @@ int handler::ha_index_next(uchar * buf)
  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  assert_icp_limitations(buf);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_next(buf); })
@@ -3753,6 +3755,23 @@ int handler::ha_index_next(uchar * buf)
   DEBUG_SYNC(ha_thd(), "handler_ha_index_next_end");
 
   DBUG_RETURN(result);
+}
+
+
+void handler::assert_icp_limitations(uchar *buf)
+{
+  /*
+    If we are using ICP, we must read the row to table->record[0], as
+    pushed_idx_cond has Item_field objects that refer to table->record[0].
+  */
+  DBUG_ASSERT(!(pushed_idx_cond && active_index == pushed_idx_cond_keyno) ||
+              (buf == table->record[0]));
+  /*
+    Also check that table fields were not "moved" with move_fields(). InnoDB
+    calls Field::offset() and null_offset() which require this.
+  */
+  DBUG_ASSERT(table->field[0]->ptr >= table->record[0] &&
+              table->field[0]->ptr <= table->record[0] + table->s->reclength);
 }
 
 int handler::ha_index_prev(uchar * buf)
@@ -3782,6 +3801,7 @@ int handler::ha_index_first(uchar * buf)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  assert_icp_limitations(buf);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_first(buf); })
@@ -3822,6 +3842,7 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
+  assert_icp_limitations(buf);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
     { result= index_next_same(buf, key, keylen); })
