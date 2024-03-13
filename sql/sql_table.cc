@@ -8337,7 +8337,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
-    else if (field->invisible < INVISIBLE_SYSTEM)
+    else if (field->invisible < INVISIBLE_SYSTEM ||
+             (alter_info->flags & ALTER_VERS_EXPLICIT))
     {
       /*
         This field was not dropped and not changed, add it to the list
@@ -8353,12 +8354,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                            alter->name.str))
 	  break;
       }
-      if (alter && field->invisible < INVISIBLE_SYSTEM)
+      if (alter)
       {
         if (alter->is_rename())
         {
           def->change= alter->name;
           def->field_name= alter->new_name;
+          if (vers_system_invisible)
+            def->invisible= VISIBLE;
           column_rename_param.fields.push_back(def);
           if (field->flags & VERS_ROW_START)
           {

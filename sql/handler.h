@@ -713,6 +713,7 @@ typedef bool Log_func(THD*, TABLE*, Event_log *, binlog_cache_data *, bool,
 #define ALTER_DROP_SYSTEM_VERSIONING (1ULL << 32)
 #define ALTER_ADD_PERIOD             (1ULL << 33)
 #define ALTER_DROP_PERIOD            (1ULL << 34)
+#define ALTER_VERS_EXPLICIT          (1ULL << 35)
 
 /*
   Following defines are used by ALTER_INPLACE_TABLE

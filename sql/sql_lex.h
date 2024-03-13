@@ -4536,7 +4536,11 @@ public:
   }
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
-  bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
+  bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
+  {
+    return alter_info.add_alter_list(thd, name, new_name, exists);
+  }
+
   bool add_alter_list_item_convert_to_charset(Sql_used *used,
                                               const Charset_collation_map_st &map,
                                               CHARSET_INFO *cs)

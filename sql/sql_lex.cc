@@ -562,14 +562,14 @@ bool LEX::add_alter_list(LEX_CSTRING name, Virtual_column_info *expr,
   return false;
 }
 
-
-bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
+bool Alter_info::add_alter_list(THD *thd, LEX_CSTRING name,
+                                LEX_CSTRING new_name, bool exists)
 {
   Alter_column *ac= new (thd->mem_root) Alter_column(name, new_name, exists);
   if (unlikely(ac == NULL))
     return true;
-  alter_info.alter_list.push_back(ac, thd->mem_root);
-  alter_info.flags|= ALTER_RENAME_COLUMN;
+  alter_list.push_back(ac, thd->mem_root);
+  flags|= ALTER_RENAME_COLUMN;
   return false;
 }
 

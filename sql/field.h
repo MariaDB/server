@@ -5965,6 +5965,12 @@ ulonglong TABLE::vers_start_id() const
   return static_cast<ulonglong>(vers_start_field()->val_int());
 }
 
+inline
+bool TABLE::vers_implicit() const
+{
+  return vers_end_field()->invisible == INVISIBLE_SYSTEM;
+}
+
 double pos_in_interval_for_string(CHARSET_INFO *cset,
                                   const uchar *midp_val, uint32 midp_len,
                                   const uchar *min_val,  uint32 min_len,
