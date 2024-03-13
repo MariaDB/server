@@ -2704,9 +2704,9 @@ CREATE TABLE t2 (b VARBINARY(8));
 EXPLAIN
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
 a
 DROP TABLE t1,t2;
@@ -3286,60 +3286,65 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": 0.012403489,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 3,
-          "cost": 0.010504815,
-          "filtered": 100,
-          "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
-        }
-      }
-    ],
-    "subqueries": [
-      {
-        "query_block": {
-          "select_id": 3,
-          "cost": 0.01034841,
-          "having_condition": "trigcond(t3.c is null)",
-          "nested_loop": [
-            {
-              "table": {
-                "table_name": "t3",
-                "access_type": "ALL",
-                "loops": 1,
-                "rows": 2,
-                "cost": 0.01034841,
-                "filtered": 100,
-                "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
-              }
+    "having_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)",
+    "filesort": {
+      "sort_key": "t1.a",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 3,
+              "cost": 0.010504815,
+              "filtered": 100
             }
-          ]
-        }
-      },
-      {
-        "query_block": {
-          "select_id": 2,
-          "cost": 0.01034841,
-          "nested_loop": [
-            {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "loops": 1,
-                "rows": 2,
-                "cost": 0.01034841,
-                "filtered": 100,
-                "attached_condition": "t2.b = 1"
-              }
+          }
+        ],
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 3,
+              "cost": 0.01034841,
+              "having_condition": "trigcond(t3.c is null)",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": 0.01034841,
+                    "filtered": 100,
+                    "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
+                  }
+                }
+              ]
             }
-          ]
-        }
+          },
+          {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.01034841,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": 0.01034841,
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 1"
+                  }
+                }
+              ]
+            }
+          }
+        ]
       }
-    ]
+    }
   }
 }
 PREPARE stmt FROM "SELECT a FROM t1 GROUP BY a
