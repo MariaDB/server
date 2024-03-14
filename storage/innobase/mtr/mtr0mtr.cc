@@ -324,7 +324,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
       const auto s= block.page.state();
       ut_ad(s >= buf_page_t::FREED);
       ut_ad(s < buf_page_t::READ_FIX);
-      ut_ad(block.page.frame);
+      ut_ad(block.page.frame());
       const page_id_t id{block.page.id()};
       if (id < high)
       {
@@ -724,7 +724,7 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
 
 inline void mtr_t::page_checksum(const buf_page_t &bpage)
 {
-  const byte *page= bpage.frame;
+  const byte *page= bpage.frame();
   size_t size= srv_page_size;
 
   if (UNIV_LIKELY_NULL(bpage.zip.data))
@@ -972,9 +972,10 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
 #endif
 
 done:
+  ut_d(const page_t *page= block->page.frame());
   ut_ad(state < buf_page_t::UNFIXED ||
-        page_id_t(page_get_space_id(block->page.frame),
-                  page_get_page_no(block->page.frame)) == block->page.id());
+        page_id_t(page_get_space_id(page),
+                  page_get_page_no(page)) == block->page.id());
   memo_push(block, fix_type);
 }
 
@@ -1011,8 +1012,9 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
 #ifdef BTR_CUR_HASH_ADAPT
   btr_search_drop_page_hash_index(block, true);
 #endif
-  ut_ad(page_id_t(page_get_space_id(block->page.frame),
-                  page_get_page_no(block->page.frame)) == block->page.id());
+  ut_d(const page_t *page= block->page.frame());
+  ut_ad(page_id_t(page_get_space_id(page),
+                  page_get_page_no(page)) == block->page.id());
 }
 
 #ifdef UNIV_DEBUG
@@ -1113,7 +1115,7 @@ buf_block_t* mtr_t::memo_contains_page_flagged(const byte *ptr, ulint flags)
 
     buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
 
-    if (ptr != bpage->frame)
+    if (ptr != bpage->frame())
       continue;
 
     ut_ad(!(slot.type & MTR_MEMO_PAGE_S_FIX) || bpage->lock.have_s());

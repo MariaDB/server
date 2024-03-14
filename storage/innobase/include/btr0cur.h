@@ -780,6 +780,20 @@ struct btr_cur_t {
                                   mtr_t &mtr);
 };
 
+/** Acquire a latch on the previous page without violating the latching order.
+@param block    index page
+@param page_id  page identifier with valid space identifier
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
+@param rw_latch the latch on block (RW_S_LATCH or RW_X_LATCH)
+@param mtr      mini-transaction
+@param err      error code
+@retval 0  if an error occurred
+@retval 1  if the page could be latched in the wrong order
+@retval -1 if the latch on block was temporarily released */
+int btr_latch_prev(buf_block_t *block, page_id_t page_id, ulint zip_size,
+                   rw_lock_type_t rw_latch, mtr_t *mtr, dberr_t *err)
+  MY_ATTRIBUTE((nonnull));
+
 /** Modify the delete-mark flag of a record.
 @tparam         flag    the value of the delete-mark flag
 @param[in,out]  block   buffer block

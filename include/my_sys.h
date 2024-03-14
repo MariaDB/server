@@ -174,6 +174,9 @@ extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf
 
 int my_init_large_pages(my_bool super_large_pages);
 uchar *my_large_malloc(size_t *size, myf my_flags);
+#if defined _WIN32 || defined HAVE_MMAP
+uchar *my_large_virtual_alloc(size_t *size);
+#endif
 void my_large_free(void *ptr, size_t size);
 
 #ifdef _WIN32

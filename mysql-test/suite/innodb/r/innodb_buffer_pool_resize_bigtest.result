@@ -5,10 +5,11 @@ SET @save_size=@@innodb_buffer_pool_size;
 #
 select @@innodb_buffer_pool_chunk_size;
 @@innodb_buffer_pool_chunk_size
-1048576
+134217728
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 SET GLOBAL innodb_buffer_pool_size=256*1024*1024;
 DROP TABLE t1;
-SET GLOBAL innodb_buffer_pool_size=@@innodb_buffer_pool_size + @@innodb_buffer_pool_chunk_size;
+SET GLOBAL innodb_buffer_pool_size=
+CAST(@@innodb_buffer_pool_size / 2 AS INTEGER);
 # End of 10.6 tests
 SET GLOBAL innodb_buffer_pool_size=@save_size;

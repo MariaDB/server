@@ -1,2 +1,0 @@
---loose-innodb_disable_resize_buffer_pool_debug=0
---innodb-buffer-pool-chunk-size=1M

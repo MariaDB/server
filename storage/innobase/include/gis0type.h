@@ -66,10 +66,7 @@ typedef std::vector<rtr_rec_t, ut_allocator<rtr_rec_t> >	rtr_rec_vector;
 
 /* Structure for matched records on the leaf page */
 typedef	struct matched_rec {
-	byte*		bufp;		/*!< aligned buffer point */
-	byte		rec_buf[UNIV_PAGE_SIZE_MAX * 2];
-					/*!< buffer used to copy matching rec */
-	buf_block_t	block;		/*!< the shadow buffer block */
+	buf_block_t*	block;		/*!< the shadow buffer block */
 	ulint		used;		/*!< memory used */
 	rtr_rec_vector*	matched_recs;	/*!< vector holding the matching rec */
 	mysql_mutex_t	rtr_match_mutex;/*!< mutex protect the match_recs

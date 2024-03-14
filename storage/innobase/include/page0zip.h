@@ -245,8 +245,7 @@ void
 page_zip_write_blob_ptr(
 /*====================*/
 	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
-	const byte*	rec,	/*!< in/out: record whose data is being
-				written */
+	const byte*	rec,	/*!< in: record whose data is being written */
 	dict_index_t*	index,	/*!< in: index of the page */
 	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */

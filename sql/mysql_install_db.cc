@@ -333,7 +333,7 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
     " %s"
     " --bootstrap"
     " --datadir=."
-    " --loose-innodb-buffer-pool-size=20M"
+    " --loose-innodb-buffer-pool-size=21M"
     "\""
     , mysqld_path, opt_verbose_bootstrap ? "--console" : "");
   return cmdline;

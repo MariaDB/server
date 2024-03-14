@@ -463,10 +463,13 @@ static ulint trx_rseg_get_n_undo_tablespaces()
   mtr.start();
 
   if (const buf_block_t *sys_header= trx_sysf_get(&mtr, false))
+  {
+    const page_t *sys_page= sys_header->page.frame();
     for (ulint rseg_id= 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++)
-      if (trx_sysf_rseg_get_page_no(sys_header, rseg_id) != FIL_NULL)
-        if (uint32_t space= trx_sysf_rseg_get_space(sys_header, rseg_id))
+      if (trx_sysf_rseg_get_page_no(sys_page, rseg_id) != FIL_NULL)
+        if (uint32_t space= trx_sysf_rseg_get_space(sys_page, rseg_id))
           space_ids.insert(space);
+  }
   mtr.commit();
   return space_ids.size();
 }
@@ -1205,30 +1208,9 @@ dberr_t srv_start(bool create_new_db)
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
-	ib::info() << "Initializing buffer pool, total size = "
-		<< srv_buf_pool_size
-		<< ", chunk size = " << srv_buf_pool_chunk_unit;
-
 	if (buf_pool.create()) {
-		ib::error() << "Cannot allocate memory for the buffer pool";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-	ib::info() << "Completed initialization of buffer pool";
-
-#ifdef UNIV_DEBUG
-	/* We have observed deadlocks with a 5MB buffer pool but
-	the actual lower limit could very well be a little higher. */
-
-	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
-
-		ib::info() << "Small buffer pool size ("
-			<< srv_buf_pool_size / 1024 / 1024
-			<< "M), the flst_validate() debug function can cause a"
-			<< " deadlock if the buffer pool fills up.";
-	}
-#endif /* UNIV_DEBUG */
 
 	if (!log_sys.create()) {
 		sql_print_error("InnoDB: Cannot allocate memory;"
@@ -1672,13 +1654,13 @@ dberr_t srv_start(bool create_new_db)
 				ut_a(block);
 				ulint size = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
-					+ block->page.frame);
+					+ block->page.frame());
 				ut_ad(size == fil_system.sys_space
 				      ->size_in_header);
 				size += sum_of_new_sizes;
 				mtr.write<4>(*block,
 					     FSP_HEADER_OFFSET + FSP_SIZE
-					     + block->page.frame, size);
+					     + block->page.frame(), size);
 				fil_system.sys_space->size_in_header
 					= uint32_t(size);
 				mtr.commit();
@@ -1692,7 +1674,7 @@ dberr_t srv_start(bool create_new_db)
 			buf_block_t* block = buf_page_get(page_id_t(0, 0), 0,
 							  RW_S_LATCH, &mtr);
 			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
-					       + block->page.frame)
+					       + block->page.frame())
 			      == fil_system.sys_space->size_in_header);
 			mtr.commit();
 		}
@@ -1782,7 +1764,8 @@ dberr_t srv_start(bool create_new_db)
 				mtr.commit();
 				return srv_init_abort(DB_CORRUPTION);
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, block->page.frame(),
+					     FIL_PAGE_TYPE_SYS, &mtr);
 			/* Already MySQL 3.23.53 initialized
 			FSP_IBUF_TREE_ROOT_PAGE_NO to
 			FIL_PAGE_INDEX. No need to reset that one. */
@@ -1792,8 +1775,8 @@ dberr_t srv_start(bool create_new_db)
 			if (UNIV_UNLIKELY(!block)) {
 				goto corrupted_old_page;
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_TRX_SYS,
-					     &mtr);
+			fil_block_check_type(*block, block->page.frame(),
+					     FIL_PAGE_TYPE_TRX_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE,
 					  FSP_FIRST_RSEG_PAGE_NO),
@@ -1801,14 +1784,16 @@ dberr_t srv_start(bool create_new_db)
 			if (UNIV_UNLIKELY(!block)) {
 				goto corrupted_old_page;
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, block->page.frame(),
+					     FIL_PAGE_TYPE_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
 				0, RW_X_LATCH, &mtr);
 			if (UNIV_UNLIKELY(!block)) {
 				goto corrupted_old_page;
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, block->page.frame(),
+					     FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
 		}
 

@@ -79,13 +79,15 @@ inline void buf_buddy_free(void* buf, ulint size)
 	buf_buddy_free_low(buf, buf_buddy_get_slot(size));
 }
 
-/** Try to reallocate a block.
-@param[in]	buf		block to be reallocated, must be pointed
-to by the buffer pool
-@param[in]	size		block size, up to srv_page_size
-@retval false	if failed because of no free blocks. */
-bool buf_buddy_realloc(void* buf, ulint size);
+ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
+/** Reallocate a ROW_FORMAT=COMPRESSED page frame during buf_pool_t::resize().
+@param bpage page descriptor covering a ROW_FORMAT=COMPRESSED page
+@param block uncompressed block for storage
+@return block
+@retval nullptr if the block was consumed */
+buf_block_t *buf_buddy_shrink(buf_page_t *bpage, buf_block_t *block);
 
-/** Combine all pairs of free buddies. */
-void buf_buddy_condense_free();
+/** Combine all pairs of free buddies.
+@param size  the target innodb_buffer_pool_size */
+ATTRIBUTE_COLD void buf_buddy_condense_free(size_t size);
 #endif /* buf0buddy_h */

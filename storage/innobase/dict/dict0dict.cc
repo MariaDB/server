@@ -950,7 +950,7 @@ void dict_sys_t::create()
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
   table_hash.create(hash_size);
@@ -4483,7 +4483,7 @@ void dict_sys_t::resize()
   table_id_hash.free();
   temp_id_hash.free();
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
   table_hash.create(hash_size);
   table_id_hash.create(hash_size);

@@ -85,16 +85,6 @@ buf_flush_init_for_writing(
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
-/** Write out dirty blocks from buf_pool.LRU,
-and move clean blocks to buf_pool.free.
-The caller must invoke buf_dblwr.flush_buffered_writes()
-after releasing buf_pool.mutex.
-@param max_n    wished maximum mumber of blocks flushed
-@param evict    whether to evict pages after flushing
-@return evict ? number of processed pages : number of pages written
-@retval 0 if a buf_pool.LRU batch is already running */
-ulint buf_flush_LRU(ulint max_n, bool evict);
-
 /** Wait until a LRU flush batch ends. */
 void buf_flush_wait_LRU_batch_end();
 /** Wait until all persistent pages are flushed up to a limit.
@@ -115,11 +105,11 @@ inline void buf_flush_note_modification(buf_block_t *b, lsn_t start, lsn_t end)
   ut_d(const auto s= b->page.state());
   ut_ad(s > buf_page_t::FREED);
   ut_ad(s < buf_page_t::READ_FIX);
-  ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <= end);
-  mach_write_to_8(b->page.frame + FIL_PAGE_LSN, end);
+  byte *page_lsn= FIL_PAGE_LSN + b->page.frame();
+  ut_ad(mach_read_from_8(page_lsn) <= end);
+  mach_write_to_8(page_lsn, end);
   if (UNIV_LIKELY_NULL(b->page.zip.data))
-    memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
-                      FIL_PAGE_LSN + b->page.frame, 8);
+    memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data, page_lsn, 8);
 
   const lsn_t oldest_modification= b->page.oldest_modification();
 

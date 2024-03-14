@@ -294,7 +294,7 @@ mem_heap_create_block_func(
 			buf_block = buf_block_alloc();
 		}
 
-		block = (mem_block_t*) buf_block->page.frame;
+		block = (mem_block_t*) buf_block->page.frame();
 	}
 
 	if (block == NULL) {

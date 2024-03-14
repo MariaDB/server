@@ -6087,8 +6087,10 @@ func_exit:
 	ut_ad(btr_pcur_is_before_first_on_page(&pcur));
 
 	buf_block_t* block = btr_pcur_get_block(&pcur);
-	ut_ad(page_is_leaf(block->page.frame));
-	ut_ad(!page_has_prev(block->page.frame));
+	page_t* page = btr_pcur_get_page(&pcur);
+
+	ut_ad(page_is_leaf(page));
+	ut_ad(!page_has_prev(page));
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_move_to_next_on_page(&pcur);
 	if (UNIV_UNLIKELY(!rec)) {
@@ -6106,8 +6108,8 @@ func_exit:
 		if (is_root
 		    && !rec_is_alter_metadata(rec, *index)
 		    && !index->table->instant
-		    && !page_has_next(block->page.frame)
-		    && page_rec_is_last(rec, block->page.frame)) {
+		    && !page_has_next(page)
+		    && page_rec_is_last(rec, page)) {
 			goto empty_table;
 		}
 
@@ -6125,7 +6127,7 @@ func_exit:
 			goto func_exit;
 		}
 
-		if (fil_page_get_type(root->page.frame)
+		if (fil_page_get_type(root->page.frame())
 		    != FIL_PAGE_TYPE_INSTANT) {
 			DBUG_ASSERT("wrong page type" == 0);
 			err = DB_CORRUPTION;
@@ -6200,8 +6202,8 @@ func_exit:
 		   && !index->table->instant) {
 empty_table:
 		/* The table is empty. */
-		ut_ad(fil_page_index_page_check(block->page.frame));
-		ut_ad(!page_has_siblings(block->page.frame));
+		ut_ad(fil_page_index_page_check(page));
+		ut_ad(!page_has_siblings(page));
 		ut_ad(block->page.id().page_no() == index->page);
 		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);
@@ -6219,7 +6221,7 @@ empty_table:
 	mtr.start();
 	if (buf_block_t* root = btr_root_block_get(index, RW_S_LATCH, &mtr,
 						   &err)) {
-		if (fil_page_get_type(root->page.frame) != FIL_PAGE_INDEX) {
+		if (fil_page_get_type(root->page.frame()) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT("wrong page type" == 0);
 			err = DB_CORRUPTION;
 			goto func_exit;
@@ -10832,7 +10834,7 @@ commit_cache_norebuild(
 					    RW_X_LATCH, &mtr)) {
 					byte* f = FSP_HEADER_OFFSET
 						+ FSP_SPACE_FLAGS
-						+ b->page.frame;
+						+ b->page.frame();
 					const auto sf = space->flags
 						& ~FSP_FLAGS_MEM_MASK;
 					if (mach_read_from_4(f) != sf) {

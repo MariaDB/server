@@ -54,12 +54,6 @@ inline bool trx_sys_hdr_page(const page_id_t page_id)
 Creates and initializes the transaction system at the database creation. */
 dberr_t trx_sys_create_sys_pages(mtr_t *mtr);
 
-/** Find an available rollback segment.
-@param[in]	sys_header
-@return an unallocated rollback segment slot in the TRX_SYS header
-@retval ULINT_UNDEFINED if not found */
-ulint
-trx_sys_rseg_find_free(const buf_block_t* sys_header);
 /** Request the TRX_SYS page.
 @param[in]	rw	whether to lock the page for writing
 @return the TRX_SYS page
@@ -166,12 +160,12 @@ MySQL/InnoDB 5.1.7, this is FIL_NULL if the slot is unused */
 @return	undo tablespace id */
 inline
 uint32_t
-trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
+trx_sysf_rseg_get_space(const page_t* sys_header, ulint rseg_id)
 {
 	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
 	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE
 				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-				+ sys_header->page.frame);
+				+ sys_header);
 }
 
 /** Read the page number of a rollback segment slot.
@@ -179,12 +173,11 @@ trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
 @param[in]	rseg_id		rollback segment identifier
 @return	undo page number */
 inline uint32_t
-trx_sysf_rseg_get_page_no(const buf_block_t *sys_header, ulint rseg_id)
+trx_sysf_rseg_get_page_no(const page_t *sys_header, ulint rseg_id)
 {
   ut_ad(rseg_id < TRX_SYS_N_RSEGS);
   return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
-			  rseg_id * TRX_SYS_RSEG_SLOT_SIZE +
-			  sys_header->page.frame);
+			  rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_header);
 }
 
 /** Maximum length of MySQL binlog file name, in bytes.
