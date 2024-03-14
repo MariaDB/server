@@ -3244,13 +3244,13 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         force_switch_flag= group_commit_orderer::FORCE_SWITCH;
     }
     /*
-      When DDL flagged XA sees an ongoing one with "duplicate" xid
-      its execution will have to wait for the xid owner full completion.
-      SPECULATE_WAIT provides that, regardless of the parallel mode.
+      If the current event group is an XA, typically XA-COMMIT, whose xid
+      "duplicates" one that is of an earlier group, normally XA-PREPARE,
+      in processing set SPECULATE_WAIT.
+      That, regardless of the type of parallel mode, secures the xid
+      will be passed from XAP to XAC.
     */
-    rgi->speculation=
-      is_dup_xac && (gco->flags & group_commit_orderer::FORCE_SWITCH) ?
-      rpl_group_info::SPECULATE_WAIT : speculation;
+    rgi->speculation= is_dup_xac ? rpl_group_info::SPECULATE_WAIT : speculation;
 
     if (gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID)
       e->last_commit_id= gtid_ev->commit_id;
