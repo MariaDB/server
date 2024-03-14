@@ -512,7 +512,8 @@ err_exit:
 			return DB_SUCCESS;
 		}
 
-		sql_print_error("InnoDB: %s in datafile: %s, Space ID: %zu, "
+		sql_print_information(
+				"InnoDB: %s in datafile: %s, Space ID: %zu, "
 				"Flags: %zu", error_txt, m_filepath,
 				m_space_id, m_flags);
 		m_is_valid = false;

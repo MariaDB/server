@@ -16892,6 +16892,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
 
       if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
+      eq_item->eval_not_null_tables(0);
       eq_item->quick_fix_field();
     }
     current_sjm= field_sjm;
@@ -16949,6 +16950,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   {
     res->quick_fix_field();
     res->update_used_tables();
+    res->eval_not_null_tables(0);
   }
 
   return res;
