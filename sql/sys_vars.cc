@@ -7209,6 +7209,24 @@ static Sys_var_bit Sys_system_versioning_insert_history(
        OPTION_INSERT_HISTORY, DEFAULT(FALSE),
        NO_MUTEX_GUARD, IN_BINLOG);
 
+/* Default limit 1T */
+static Sys_var_ulonglong Sys_max_tmp_space_usage(
+       "max_tmp_session_space_usage",
+       "The maximum total size of temporary file and temporary table usage. "
+       "A value of 0 disables this feature",
+       SESSION_VAR(max_tmp_space_usage), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(1ULL << 40),
+       BLOCK_SIZE(65536));
+
+static Sys_var_ulonglong Sys_max_total_tmp_space_usage(
+       "max_tmp_total_space_usage",
+       "The maximum total size of all temporary file and temporary table "
+       "usage over all connections. "
+       "A value of 0 disables this feature",
+       GLOBAL_VAR(global_max_tmp_space_usage), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(1ULL << 40),
+       BLOCK_SIZE(65536));
+
 /* Optimizer variables */
 
 static Sys_var_uint Sys_in_subquery_conversion_threshold(

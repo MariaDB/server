@@ -74,7 +74,7 @@ my_bool _ma_reset_update_flag(void *param, my_bool concurrent_insert);
 my_bool _ma_start_trans(void* param);
 my_bool _ma_check_status(void *param);
 void maria_versioning(MARIA_HA *info, my_bool versioning);
-void _ma_set_share_data_file_length(struct st_maria_share *share,
+int _ma_set_share_data_file_length(MARIA_HA *info,
                                     ulonglong new_length);
 void _ma_copy_nontrans_state_information(MARIA_HA *info);
 my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,

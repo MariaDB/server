@@ -1266,6 +1266,7 @@ int ha_maria::close(void)
   MARIA_HA *tmp= file;
   if (!tmp)
     return 0;
+  /* Ensure we have no open transactions */
   DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
   DBUG_ASSERT(file->trn_next == 0 && file->trn_prev == 0);
   file= 0;
@@ -2884,9 +2885,32 @@ int ha_maria::delete_table(const char *name)
 
 void ha_maria::drop_table(const char *name)
 {
+  my_bool tracked= file && file->s->tracked;
+  struct tmp_file_tracking track_data;
+  struct tmp_file_tracking track_index;
+
   DBUG_ASSERT(!file || file->s->temporary);
+
+  if (tracked)
+  {
+    /* Inform tracking after files are deleted */
+    track_data= file->s->track_data;
+    track_index= file->s->track_index;
+#ifndef DBUG_OFF
+    /* Avoid DBUG_ASSERT in maria_close() */
+    bzero(&file->s->track_data, sizeof(file->s->track_data));
+    bzero(&file->s->track_index, sizeof(file->s->track_index));
+#endif
+  }
+
   (void) ha_close();
   (void) maria_delete_table_files(name, 1, MY_WME);
+
+  if (tracked)
+  {
+    _ma_update_tmp_file_size(&track_data, 0);
+    _ma_update_tmp_file_size(&track_index, 0);
+  }
 }
 
 

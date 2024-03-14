@@ -1,0 +1,153 @@
+call mtr.add_suppression("Write to binary log failed: .* temporary space limit reached. An incident event is written to binary log.*");
+flush status;
+flush global status;
+show session status like "max_tmp_space_used";
+Variable_name	Value
+Max_tmp_space_used	0
+show global status like  "max_tmp_space_used";
+Variable_name	Value
+Max_tmp_space_used	0
+#
+# MDEV-9101 Limit size of total size of created disk temporary files
+#           and tables.
+show session status like "tmp_space_used";
+Variable_name	Value
+Tmp_space_used	0
+show global status like "tmp_space_used";
+Variable_name	Value
+Tmp_space_used	0
+select @@global.max_tmp_session_space_usage, @@global.max_tmp_total_space_usage;
+@@global.max_tmp_session_space_usage	@@global.max_tmp_total_space_usage
+524288	786432
+select @@binlog_stmt_cache_size,@@binlog_format;
+@@binlog_stmt_cache_size	@@binlog_format
+32768	ROW
+create table t1 (a int primary key, v varchar(256), c int default(0)) engine=innodb;
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_65536;
+ERROR HY000: Local temporary space limit reached
+set @@max_tmp_session_space_usage=1024*1024*1024;
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_65536;
+ERROR HY000: Global temporary space limit reached
+set @@max_tmp_session_space_usage=default;
+set @@binlog_format="statement";
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_65536;
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_65537_to_131072;
+select count(*) from t1;
+count(*)
+131072
+create table t2 (a int, b int) engine=innodb select seq as a, 0 as b from seq_1_to_131072;
+set @@binlog_format="row";
+set @@tmp_memory_table_size=32*1024;
+# The following queries should fail because of tmp_space_usage
+select * from t1 order by a,v;
+ERROR HY000: Local temporary space limit reached
+select v,count(*) from t1 group by v limit 2;
+ERROR HY000: Local temporary space limit reached
+update t1 set v=right(v,2);
+ERROR HY000: Local temporary space limit reached
+set @@binlog_format="statement";
+set @@max_tmp_session_space_usage=65536;
+set @@tmp_memory_table_size=0;
+update t1,t2 set t1.c=t2.a, t2.b=1 where t1.a=t2.a;
+ERROR HY000: Local temporary space limit reached
+set @@binlog_format="row";
+set @@max_tmp_session_space_usage=default;
+drop table t1,t2;
+#
+# Check max_tmp_total_space_usage & processlist
+#
+set @@tmp_memory_table_size=1024*1024;
+show session status like "tmp_space_used";
+Variable_name	Value
+Tmp_space_used	0
+set @@tmp_memory_table_size=0;
+flush status;
+# session.max_tmp_session_space_usage == global.max_tmp_session_space_usage
+connect c1, localhost, root,,;
+connection default;
+create table t1 (a int primary key, v varchar(256), c int default(0)) engine=innodb;
+create table t2 (a int primary key, v varchar(256), c int default(0)) engine=innodb;
+begin;
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_3000;
+connection c1;
+# information_schema.process_list.tmp_space_used == status.tmp_space_used
+insert into t2 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_3000;
+ERROR HY000: Global temporary space limit reached
+# Test setting tmp_space_usage to 0 to disable quotas
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
+set @@global.max_tmp_total_space_usage=0;
+set @@max_tmp_session_space_usage=0;
+insert into t2 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_3000;
+set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
+set @@max_tmp_session_space_usage=0;
+connection default;
+insert into t1 (a,v) values(9999990,0);
+commit;
+select count(*) from t1;
+count(*)
+3001
+disconnect c1;
+drop table t1,t2;
+#
+# Test case from Elena
+#
+SET @@max_tmp_session_space_usage= 64*1024;
+set @@binlog_format="statement";
+CREATE OR REPLACE TABLE t1 (a INT, b INT);
+select benchmark(1,1);
+benchmark(1,1)
+0
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100000;
+ALTER TABLE t1 ORDER BY a, b;
+ERROR HY000: Local temporary space limit reached
+DROP TABLE t1;
+#
+# Show that setting max tmp space too low value can stop binary logging
+# if non transactional tables are used.
+#
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
+SET @@global.max_tmp_total_space_usage=64*1024;
+set @@binlog_format="row";
+create table t1 (a int primary key, v varchar(256)) engine=myisam;
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_65536;
+Got one of the listed errors
+show warnings;
+Level	Code	Message
+Error	42	Global temporary space limit reached
+Error	1534	Writing one row to the row-based binary log failed
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+select count(*) <> 0 from t1;
+count(*) <> 0
+1
+truncate table t1;
+alter table t1 engine=innodb;
+insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) from seq_1_to_65536;
+Got one of the listed errors
+show warnings;
+Level	Code	Message
+Error	42	Global temporary space limit reached
+Error	1534	Writing one row to the row-based binary log failed
+select count(*) <> 0 from t1;
+count(*) <> 0
+0
+drop table t1;
+set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
+#
+# Check updating non transactional table
+#
+SET max_tmp_session_space_usage= 64*1024;
+CREATE TABLE t1 (
+a varchar(1024), b varchar(1024), c varchar(1024), d varchar(1024), e varchar(1024), f varchar(1024), g varchar(1024)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024)),
+(REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024)),
+(REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024)),
+(REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024)),
+(REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024)),
+(REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024),REPEAT('x',1024)),
+('x','x','x','x','x','x','x');
+UPDATE t1 SET a = '' LIMIT 100;
+ERROR HY000: Local temporary space limit reached
+DROP TABLE t1;
+# End of 11.5 tests

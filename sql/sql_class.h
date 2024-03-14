@@ -738,6 +738,7 @@ typedef struct system_variables
   */
   ulonglong slave_skip_counter;
   ulonglong max_relay_log_size;
+  ulonglong max_tmp_space_usage;
 
   double optimizer_where_cost, optimizer_scan_setup_cost;
   double long_query_time_double, max_statement_time_double;
@@ -1059,9 +1060,14 @@ typedef struct system_status_var
   double last_query_cost;
   double cpu_time, busy_time;
   uint32 threads_running;
-  /* Don't initialize */
+
+  /* Following variables are not cleared by FLUSH STATUS */
+  ulonglong max_tmp_space_used;
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
+  /* Don't copy variables back to THD after this in show status */
+  ulonglong tmp_space_used;
+  /* Don't reset variables after this */
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
@@ -1075,12 +1081,22 @@ typedef struct system_status_var
 */
 
 #define last_system_status_var questions
-#define last_cleared_system_status_var local_memory_used
+
+/* Parameters to set_status_var_init() */
+
+#define STATUS_OFFSET(A) offsetof(STATUS_VAR,A)
+/* Clear as part of flush */
+#define clear_for_flush_status      STATUS_OFFSET(tmp_space_used)
+/* Clear as part of startup */
+#define clear_for_new_connection         STATUS_OFFSET(local_memory_used)
+/* Full initialization. Note that global_memory_used is updated early! */
+#define clear_for_server_start  STATUS_OFFSET(global_memory_used)
+#define last_restored_status_var        clear_for_flush_status
+
 
 /** Number of contiguous global status variables */
-constexpr int COUNT_GLOBAL_STATUS_VARS= int(offsetof(STATUS_VAR,
-                                                     last_system_status_var) /
-                                            sizeof(ulong)) + 1;
+constexpr int COUNT_GLOBAL_STATUS_VARS=
+  int(STATUS_OFFSET(last_system_status_var) /sizeof(ulong)) + 1;
 
 /*
   Global status variables
@@ -2114,6 +2130,7 @@ public:
   ulonglong sent_row_count_for_statement, examined_row_count_for_statement;
   ulonglong affected_rows;
   ulonglong bytes_sent_old;
+  ulonglong max_tmp_space_used;
   ha_handler_stats handler_stats;
   ulong     tmp_tables_used;
   ulong     tmp_tables_disk_used;
@@ -3822,6 +3839,7 @@ public:
   ulonglong  tmp_tables_size;
   ulonglong  bytes_sent_old;
   ulonglong  affected_rows;                     /* Number of changed rows */
+  ulonglong  max_tmp_space_used;
 
   Opt_trace_context opt_trace;
   pthread_t  real_id;                           /* For debugging */
@@ -4854,7 +4872,7 @@ public:
             (!transaction->stmt.modified_non_trans_table ||
              (variables.sql_mode & MODE_STRICT_ALL_TABLES)));
   }
-  void set_status_var_init();
+  void set_status_var_init(ulong offset);
   void reset_n_backup_open_tables_state(Open_tables_backup *backup);
   void restore_backup_open_tables_state(Open_tables_backup *backup);
   void reset_sub_statement_state(Sub_statement_state *backup, uint new_state);

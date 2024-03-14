@@ -670,6 +670,13 @@ The following specify which files/extra groups are read (specified before remain
  seconds will be aborted. The argument will be treated as
  a decimal value with microsecond precision. A value of 0
  (default) means no timeout
+ --max-tmp-session-space-usage=# 
+ The maximum total size of temporary file and temporary
+ table usage. A value of 0 disables this feature
+ --max-tmp-total-space-usage=# 
+ The maximum total size of all temporary file and
+ temporary table usage over all connections. A value of 0
+ disables this feature
  --max-user-connections=# 
  The maximum number of active connections for a single
  user (0 = no limit)
@@ -1766,6 +1773,8 @@ max-session-mem-used 9223372036854775807
 max-sort-length 1024
 max-sp-recursion-depth 0
 max-statement-time 0
+max-tmp-session-space-usage 1099511627776
+max-tmp-total-space-usage 1099511627776
 max-user-connections 0
 max-write-lock-count 18446744073709551615
 memlock FALSE

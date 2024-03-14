@@ -3460,6 +3460,8 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
 
   arg->table->field[18]->store(tmp->os_thread_id);
 
+  arg->table->field[19]->store((longlong) tmp->status_var.tmp_space_used, TRUE);
+
   if (schema_table_store_record(arg->thd, arg->table))
     return 1;
   return 0;
@@ -10140,6 +10142,7 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
   Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),
+  Column("TMP_SPACE_USED", SLonglong(10),             NOT_NULL, "Tmp_space_used"),
   CEnd()
 };
 

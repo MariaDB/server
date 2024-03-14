@@ -21,6 +21,7 @@
 #include "trnman.h"
 #include "ma_key_recover.h"
 #include "ma_blockrec.h"
+#include "mysys_err.h"
 
 	/* Functions declared in this file */
 
@@ -385,6 +386,11 @@ err:
 	  mysql_rwlock_unlock(&keyinfo->root_lock);
       }
     }
+  }
+  else if (my_errno == HA_ERR_LOCAL_TMP_SPACE_FULL ||
+           my_errno == HA_ERR_GLOBAL_TMP_SPACE_FULL)
+  {
+    filepos= HA_OFFSET_ERROR;         /* Avoid write_record_abort() */
   }
   else
     fatal_error= 1;

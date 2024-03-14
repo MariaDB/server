@@ -73,6 +73,13 @@ C_MODE_START
 #define MARIA_MIN_PAGE_CACHE_SIZE       (8192L*16L)
 
 /*
+  File align size (must be power of 2) used for pre-allocation of
+  temporary table space. It is used to reduce the number of calls to
+  update_tmp_file_size for static and dynamic rows.
+*/
+#define MARIA_TRACK_INCREMENT_SIZE	        8192
+
+/*
   In the following macros '_keyno_' is 0 .. keys-1.
   If there can be more keys than bits in the key_map, the highest bit
   is for all upper keys. They cannot be switched individually.
@@ -784,6 +791,14 @@ typedef struct st_maria_share
   myf write_flag;
   enum data_file_type data_file_type;
   enum pagecache_page_type page_type;   /* value depending transactional */
+
+  /*
+    tracked will cause lost bytes (not aligned) but this is ok as it is always
+    used with tmp_file_tracking if set
+  */
+  my_bool tracked;                      /* Tracked table (always internal) */
+  struct tmp_file_tracking track_data,track_index;
+
   /**
      if Checkpoint looking at table; protected by close_lock or THR_LOCK_maria
   */
@@ -1785,6 +1800,8 @@ extern my_bool ma_killed_standalone(MARIA_HA *);
 extern uint _ma_file_callback_to_id(void *callback_data);
 extern uint _ma_write_flags_callback(void *callback_data, myf flags);
 extern void free_maria_share(MARIA_SHARE *share);
+extern int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
+                                    ulonglong file_size);
 
 static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
 {
@@ -1803,6 +1820,7 @@ static inline void decrement_share_in_trans(MARIA_SHARE *share)
   else
     mysql_mutex_unlock(&share->intern_lock);
 }
+
 C_MODE_END
 #endif
 

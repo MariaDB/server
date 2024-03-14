@@ -6202,8 +6202,7 @@ execute_show_status(THD *thd, TABLE_LIST *all_tables)
   mysql_mutex_lock(&LOCK_status);
   add_diff_to_status(&global_status_var, &thd->status_var,
                      &old_status_var);
-  memcpy(&thd->status_var, &old_status_var,
-         offsetof(STATUS_VAR, last_cleared_system_status_var));
+  memcpy(&thd->status_var, &old_status_var, last_restored_status_var);
   mysql_mutex_unlock(&LOCK_status);
   thd->initial_status_var= NULL;
   return res;

@@ -110,7 +110,10 @@ static const char *handler_error_messages[]=
   "Sequence values are conflicting",
   "Error during commit",
   "Cannot select partitions",
-  "Cannot initialize encryption. Check that all encryption parameters have been set"
+  "Cannot initialize encryption. Check that all encryption parameters have been set",
+  /* 200 */
+  "Local temporary space limit reached",
+  "Global temporary space limit reached"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

@@ -399,7 +399,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     goto err;
 
   if (open_cached_file(&buffpek_pointers, mysql_tmpdir, TEMP_PREFIX,
-                       DISK_CHUNK_SIZE, MYF(MY_WME)))
+                       DISK_CHUNK_SIZE,
+                       MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
     goto err;
 
   param.local_sortorder=
@@ -452,7 +453,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     /* Open cached file if it isn't open */
     if (!my_b_inited(outfile) &&
         open_cached_file(outfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
-                         MYF(MY_WME)))
+                       MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
       goto err;
     if (reinit_io_cache(outfile,WRITE_CACHE,0L,0,0))
       goto err;
@@ -974,11 +975,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     if (unlikely(thd->check_killed()))
     {
       DBUG_PRINT("info",("Sort killed by user"));
-      if (!quick_select)
-      {
-        (void) file->extra(HA_EXTRA_NO_CACHE);
-        file->ha_rnd_end();
-      }
       goto err;                               /* purecov: inspected */
     }
 
@@ -1083,6 +1079,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_RETURN(num_records);
 
 err:
+  if (!quick_select)
+  {
+    (void) file->extra(HA_EXTRA_NO_CACHE);
+    file->ha_rnd_end();
+  }
   sort_form->column_bitmaps_set(save_read_set, save_write_set);
   DBUG_RETURN(HA_POS_ERROR);
 } /* find_all_keys */
@@ -1121,7 +1122,7 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
 
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
-                       MYF(MY_WME)))
+                       MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   /* check we won't have more buffpeks than we can possibly keep in memory */
   if (my_b_tell(buffpek_pointers) + sizeof(Merge_chunk) > (ulonglong)UINT_MAX)
@@ -1563,7 +1564,7 @@ int merge_many_buff(Sort_param *param, Sort_buffer sort_buffer,
     DBUG_RETURN(0);                             /* purecov: inspected */
   if (flush_io_cache(t_file) ||
       open_cached_file(&t_file2, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
-                       MYF(MY_WME)))
+                       MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
     DBUG_RETURN(1);				/* purecov: inspected */
 
   from_file= t_file; to_file= &t_file2;

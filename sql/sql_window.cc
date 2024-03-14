@@ -2923,15 +2923,16 @@ bool compute_window_func(THD *thd,
       if (unlikely(thd->is_error() || thd->is_killed()))
         break;
 
-
       /* Return to current row after notifying cursors for each window
          function. */
-      tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
+      if (tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf))
+        return true;
     }
 
     /* We now have computed values for each window function. They can now
        be saved in the current row. */
-    save_window_function_values(window_functions, tbl, rowid_buf);
+    if (save_window_function_values(window_functions, tbl, rowid_buf))
+      return true;
 
     rownum++;
   }

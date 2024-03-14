@@ -2269,11 +2269,12 @@ void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owne
   
   DBUG_ASSERT(this->thd == thd);
   /*
-    1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
-    may have opened tables, which we cannot be sure have been closed (because
-    maybe the Rows_log_event have not been found or will not be, because slave
-    SQL thread is stopping, or relay log has a missing tail etc). So we close
-    all thread's tables. And so the table mappings have to be cancelled.
+    1) Instances of Table_map_log_event, if ::do_apply_event() was
+    called on them, may have opened tables, which we cannot be sure
+    have been closed (because maybe the Rows_log_event have not been
+    found or will not be, because slave SQL thread is stopping, or
+    relay log has a missing tail etc). So we close all thread's
+    tables. And so the table mappings have to be cancelled.
     2) Rows_log_event::do_apply_event() may even have started statements or
     transactions on them, which we need to rollback in case of error.
     3) If finding a Format_description_log_event after a BEGIN, we also need
@@ -2282,6 +2283,11 @@ void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owne
   */
   if (unlikely(error))
   {
+    /*
+      We have to reset the error as otherwise we get an assert in
+      trans_rollback() when it checks if the rollback caused an error.
+    */
+    thd->clear_error();
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"

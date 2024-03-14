@@ -315,6 +315,7 @@ def	information_schema	PROCESSLIST	STATE	7	NULL	YES	varchar	64	192	NULL	NULL	NUL
 def	information_schema	PROCESSLIST	TID	19	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(10)			select		NEVER	NULL	NO	NO
 def	information_schema	PROCESSLIST	TIME	6	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)			select		NEVER	NULL	NO	NO
 def	information_schema	PROCESSLIST	TIME_MS	9	NULL	NO	decimal	NULL	NULL	22	3	NULL	NULL	NULL	decimal(22,3)			select		NEVER	NULL	NO	NO
+def	information_schema	PROCESSLIST	TMP_SPACE_USED	20	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(10)			select		NEVER	NULL	NO	NO
 def	information_schema	PROCESSLIST	USER	2	NULL	NO	varchar	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(128)			select		NEVER	NULL	NO	NO
 def	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
 def	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
@@ -909,6 +910,7 @@ NULL	information_schema	PROCESSLIST	SENT_ROWS	bigint	NULL	NULL	NULL	NULL	bigint(
 NULL	information_schema	PROCESSLIST	QUERY_ID	bigint	NULL	NULL	NULL	NULL	bigint(10)
 1.0000	information_schema	PROCESSLIST	INFO_BINARY	blob	65535	65535	NULL	NULL	blob
 NULL	information_schema	PROCESSLIST	TID	bigint	NULL	NULL	NULL	NULL	bigint(10)
+NULL	information_schema	PROCESSLIST	TMP_SPACE_USED	bigint	NULL	NULL	NULL	NULL	bigint(10)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)

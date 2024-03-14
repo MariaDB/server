@@ -3087,7 +3087,7 @@ int _ma_bitmap_create_first(MARIA_SHARE *share)
   int4store(marker, MARIA_NO_CRC_BITMAP_PAGE);
 
   if (mysql_file_chsize(file, block_size - sizeof(marker),
-                        0, MYF(MY_WME)) ||
+                        0, MYF(MY_WME)) > 0 ||
       my_pwrite(file, marker, sizeof(marker),
                 block_size - sizeof(marker),
                 MYF(MY_NABP | MY_WME)))
@@ -3335,6 +3335,10 @@ static my_bool _ma_bitmap_create_missing(MARIA_HA *info,
     goto err;
 
   share->state.state.data_file_length= (page + 1) * bitmap->block_size;
+  if (info->s->tracked &&
+      _ma_update_tmp_file_size(&share->track_data,
+                               share->state.state.data_file_length))
+    goto err;
 
  DBUG_RETURN(FALSE);
 err:

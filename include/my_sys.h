@@ -94,6 +94,8 @@ C_MODE_START
 #define MY_ROOT_USE_MPROTECT 0x20000U /* init_alloc_root: read only segments */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
+#define MY_TRACK 0x80000U             /* Track tmp usage */
+#define MY_TRACK_WITH_LIMIT 0x100000U /* Give error if over tmp_file_usage */
 
 #define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
@@ -177,6 +179,17 @@ int my_init_large_pages(my_bool super_large_pages);
 uchar *my_large_malloc(size_t *size, myf my_flags);
 void my_large_free(void *ptr, size_t size);
 void my_large_page_truncate(size_t *size);
+
+/* Tracking tmp file usage */
+
+struct tmp_file_tracking
+{
+  ulonglong previous_file_size;
+  ulonglong file_size;
+};
+
+typedef int (*TMPFILE_SIZE_CB)(struct tmp_file_tracking *track, int no_error);
+extern TMPFILE_SIZE_CB update_tmp_file_size;
 
 #ifdef _WIN32
 extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
@@ -431,6 +444,8 @@ typedef struct st_io_cache		/* Used when caching files */
   */
   IO_CACHE_SHARE *share;
 
+  /* Track tmpfile usage. Done if (myflags & MY_TRACK) is true */
+  struct tmp_file_tracking tracking;
   /*
     A caller will use my_b_read() macro to read from the cache
     if the data is already in cache, it will be simply copied with
@@ -498,6 +513,8 @@ extern PSI_file_key key_file_io_cache;
 /* inline functions for mf_iocache */
 
 extern int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock);
+extern void end_tracking_io_cache(IO_CACHE *info);
+extern void truncate_io_cache(IO_CACHE *info);
 extern int _my_b_get(IO_CACHE *info);
 extern int _my_b_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int _my_b_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
@@ -831,8 +848,10 @@ extern my_bool open_cached_file(IO_CACHE *cache,const char *dir,
 				 myf cache_myflags);
 extern my_bool real_open_cached_file(IO_CACHE *cache);
 extern void close_cached_file(IO_CACHE *cache);
-File create_temp_file(char *to, const char *dir, const char *pfx,
-		      int mode, myf MyFlags);
+extern File create_temp_file(char *to, const char *dir, const char *pfx,
+                             int mode, myf MyFlags);
+extern my_bool io_cache_tmp_file_track(IO_CACHE *info, ulonglong file_size);
+
 #define my_init_dynamic_array(A,B,C,D,E,F) init_dynamic_array2(A,B,C,NULL,D,E,F)
 #define my_init_dynamic_array2(A,B,C,D,E,F,G) init_dynamic_array2(A,B,C,D,E,F,G)
 extern my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,

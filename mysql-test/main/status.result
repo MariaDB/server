@@ -183,7 +183,7 @@ show status like 'hand%write%';
 Variable_name	Value
 Handler_tmp_write	0
 Handler_write	0
-show status like '%tmp%';
+show status like '%\_tmp%';
 Variable_name	Value
 Created_tmp_disk_tables	0
 Created_tmp_files	0
@@ -191,12 +191,13 @@ Created_tmp_tables	0
 Handler_tmp_delete	0
 Handler_tmp_update	0
 Handler_tmp_write	0
+Max_tmp_space_used	0
 Rows_tmp_read	5
 show status like 'hand%write%';
 Variable_name	Value
 Handler_tmp_write	0
 Handler_write	0
-show status like '%tmp%';
+show status like '%\_tmp%';
 Variable_name	Value
 Created_tmp_disk_tables	0
 Created_tmp_files	0
@@ -204,12 +205,13 @@ Created_tmp_tables	0
 Handler_tmp_delete	0
 Handler_tmp_update	0
 Handler_tmp_write	0
-Rows_tmp_read	14
+Max_tmp_space_used	0
+Rows_tmp_read	15
 show status like 'com_show_status';
 Variable_name	Value
 Com_show_status	8
 rnd_diff	tmp_table_diff
-30	8
+32	8
 disconnect con1;
 connection default;
 flush status;
@@ -340,7 +342,7 @@ Handler_tmp_update	2
 Handler_tmp_write	7
 Handler_update	0
 Handler_write	4
-show status like '%tmp%';
+show status like '%_tmp%';
 Variable_name	Value
 Created_tmp_disk_tables	1
 Created_tmp_files	0
@@ -348,6 +350,7 @@ Created_tmp_tables	2
 Handler_tmp_delete	0
 Handler_tmp_update	2
 Handler_tmp_write	7
+Max_tmp_space_used	32768
 Rows_tmp_read	44
 drop table t1;
 CREATE TABLE t1 (i int(11) DEFAULT NULL, KEY i (i) ) ENGINE=MyISAM;

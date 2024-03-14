@@ -737,7 +737,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
       explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
-                           DISK_CHUNK_SIZE, MYF(MY_WME)))
+                           DISK_CHUNK_SIZE,
+                           MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
         goto err;
 
       /* If quick select is used, initialize it before retrieving rows. */

@@ -1010,7 +1010,8 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
         IO_CACHE tmp_cache;
 
         // Using a tmp IO_CACHE to get the value output
-        open_cached_file(&tmp_cache, NULL, NULL, 0, MYF(MY_WME | MY_NABP));
+        open_cached_file(&tmp_cache, NULL, NULL, 0,
+                         MYF(MY_WME | MY_NABP | MY_TRACK_WITH_LIMIT));
         size= log_event_print_value(&tmp_cache, print_event_info,
                                     is_null ? NULL: value,
                                     td->type(i), td->field_metadata(i),
@@ -1831,7 +1832,8 @@ bool Log_event::print_base64(IO_CACHE* file,
         IO_CACHE tmp_cache;
 
         if (open_cached_file(&tmp_cache, NULL, NULL, 0,
-                              MYF(MY_WME | MY_NABP)))
+                              MYF(MY_WME | MY_NABP |
+                                  MY_TRACK_WITH_LIMIT)))
         {
           delete ev;
           goto err;
@@ -3719,7 +3721,7 @@ bool Ignorable_log_event::print(FILE *file,
 */
 st_print_event_info::st_print_event_info()
 {
-  myf const flags = MYF(MY_WME | MY_NABP);
+  myf const flags = MYF(MY_WME | MY_NABP | MY_TRACK_WITH_LIMIT);
   /*
     Currently we only use static PRINT_EVENT_INFO objects, so zeroed at
     program's startup, but these explicit bzero() is for the day someone
