@@ -430,8 +430,9 @@ void sys_var::do_deprecated_warning(THD *thd)
     char buf1[NAME_CHAR_LEN + 3];
     strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
 
-    if (option.comment == UNUSED_HELP)
-      my_error(ER_VARIABLE_DELETED, MYF(ME_WARNING), buf1);
+    if (option.comment == UNUSED_HELP ||
+        strcmp(option.comment, UNUSED_HELP) == 0)
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
     else
     {
       char buf2[NAME_CHAR_LEN + 3];
