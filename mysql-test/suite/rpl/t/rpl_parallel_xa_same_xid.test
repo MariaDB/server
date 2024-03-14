@@ -22,6 +22,8 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET @old_parallel_threads = @@GLOBAL.slave_parallel_threads;
 --disable_query_log
 --eval SET @@global.slave_parallel_threads  = $workers
+SET @old_slave_transaction_retries=@@GLOBAL.slave_transaction_retries;
+SET @@GLOBAL.slave_transaction_retries=100;
 --enable_query_log
 SET @old_parallel_mode               = @@GLOBAL.slave_parallel_mode;
 SET @@global.slave_parallel_mode     ='optimistic';
@@ -130,6 +132,7 @@ if ($do_drop_create)
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_transaction_retries=@old_slave_transaction_retries;
 --source include/start_slave.inc
 
 --connection master
