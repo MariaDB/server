@@ -22275,7 +22275,8 @@ bool open_tmp_table(TABLE *table)
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            HA_OPEN_INTERNAL_TABLE))))
+                                            HA_OPEN_INTERNAL_TABLE |
+                                            HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
     table->db_stat= 0;
@@ -22731,7 +22732,10 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 			        thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
-    goto err1;
+  {
+    TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
+    goto err2;
+  }
   if (table->file->indexes_are_disabled())
     new_table.file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
   table->file->ha_index_or_rnd_end();
@@ -22810,9 +22814,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   table->file->print_error(write_err, MYF(0));
 err_killed:
   (void) table->file->ha_rnd_end();
-  (void) new_table.file->ha_close();
- err1:
-  TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
+  (void) new_table.file->drop_table(new_table.s->path.str);
  err2:
   delete new_table.file;
   thd_proc_info(thd, save_proc_info);

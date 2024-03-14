@@ -434,6 +434,7 @@ C_MODE_END
   @retval
     !=0         Error
 */
+#include "my_handler_errors.h"
 
 int ha_init_errors(void)
 {
@@ -443,8 +444,11 @@ int ha_init_errors(void)
   /* Zerofill it to avoid uninitialized gaps. */
   if (! (handler_errmsgs= (const char**) my_malloc(key_memory_handler_errmsgs,
                                                    HA_ERR_ERRORS * sizeof(char*),
-                                                   MYF(MY_WME | MY_ZEROFILL))))
+                                                   MYF(MY_WME))))
     return 1;
+
+  /* Copy default handler error messages */
+  memcpy(handler_errmsgs, handler_error_messages, HA_ERR_ERRORS * sizeof(char*));
 
   /* Set the dedicated error messages. */
   SETMSG(HA_ERR_KEY_NOT_FOUND,          ER_DEFAULT(ER_KEY_NOT_FOUND));
@@ -4554,6 +4558,12 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_DISK_FULL:
     textno= ER_DISK_FULL;
     SET_FATAL_ERROR;                            // Ensure error is logged
+    break;
+  case EE_GLOBAL_TMP_SPACE_FULL:                // Safety
+  case EE_LOCAL_TMP_SPACE_FULL:                 // Safety
+  case HA_ERR_GLOBAL_TMP_SPACE_FULL:
+  case HA_ERR_LOCAL_TMP_SPACE_FULL:
+    textno= error;
     break;
   case HA_ERR_KEY_NOT_FOUND:
   case HA_ERR_NO_ACTIVE_RECORD:

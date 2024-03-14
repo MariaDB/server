@@ -104,7 +104,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
     max_elements= 1;
 
   (void) open_cached_file(&file, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
-                          MYF(MY_WME));
+                          MYF(MY_WME | MY_TRACK | MY_TRACK_WITH_LIMIT));
 }
 
 
@@ -720,7 +720,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   /* Open cached file for table records if it isn't open */
   if (! my_b_inited(outfile) &&
       open_cached_file(outfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
-                       MYF(MY_WME)))
+                       MYF(MY_WME | MY_TRACK | MY_TRACK_WITH_LIMIT)))
     return 1;
 
   bzero((char*) &sort_param,sizeof(sort_param));

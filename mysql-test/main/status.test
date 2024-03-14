@@ -244,9 +244,9 @@ let $rnd_next = `show global status like 'handler_read_rnd_next'`;
 let $tmp_table = `show global status like 'Created_tmp_tables'`;
 show status like 'com_show_status';
 show status like 'hand%write%';
-show status like '%tmp%';
+show status like '%_tmp%';
 show status like 'hand%write%';
-show status like '%tmp%';
+show status like '%_tmp%';
 show status like 'com_show_status';
 let $rnd_next2 = `show global status like 'handler_read_rnd_next'`;
 let $tmp_table2 = `show global status like 'Created_tmp_tables'`;
@@ -367,7 +367,7 @@ select b, count(*) from t1 group by b;
 select g, count(*) from t1 group by g;
 show status like 'Row%';
 show status like 'Handler%';
-show status like '%tmp%';
+show status like '%_tmp%';
 drop table t1;
 
 #

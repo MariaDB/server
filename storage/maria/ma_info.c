@@ -16,6 +16,7 @@
 /* Return useful base information for an open table */
 
 #include "maria_def.h"
+#include <mysys_err.h>
 #ifdef	_WIN32
 #include <sys/stat.h>
 #endif
@@ -217,4 +218,24 @@ void _ma_set_fatal_error_with_share(MARIA_SHARE *share, int error)
   maria_mark_crashed_share(share);
   share->state.changed|= STATE_CRASHED_PRINTED;
   DBUG_ASSERT(!maria_assert_if_crashed_table);
+}
+
+/*
+  Check quotas for internal temporary files
+*/
+
+int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
+                             ulonglong file_size)
+{
+  if (track->file_size != file_size)
+  {
+    track->file_size= file_size;
+    if (update_tmp_file_size(track, 0))
+    {
+      my_errno= (HA_ERR_LOCAL_TMP_SPACE_FULL +
+                 (my_errno - EE_LOCAL_TMP_SPACE_FULL));
+      return 1;
+    }
+  }
+  return 0;
 }

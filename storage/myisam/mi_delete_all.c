@@ -59,8 +59,8 @@ int mi_delete_all_rows(MI_INFO *info)
   if (share->file_map)
     mi_munmap_file(info);
 #endif
-  if (mysql_file_chsize(info->dfile, 0, 0, MYF(MY_WME)) ||
-      mysql_file_chsize(share->kfile, share->base.keystart, 0, MYF(MY_WME)))
+  if (mysql_file_chsize(info->dfile, 0, 0, MYF(MY_WME)> 0) ||
+      mysql_file_chsize(share->kfile, share->base.keystart, 0, MYF(MY_WME)) > 0)
     goto err;
 
   if (info->opt_flag & WRITE_CACHE_USED)
