@@ -12268,6 +12268,7 @@ void ha_partition::set_optimizer_costs(THD *thd)
 
 void ha_partition::update_optimizer_costs(OPTIMIZER_COSTS *costs)
 {
+  DBUG_ASSERT(0);
   uint i= bitmap_get_first_set(&m_part_info->read_partitions);
   m_file[i]->update_optimizer_costs(costs);
 }
