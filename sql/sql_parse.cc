@@ -2504,6 +2504,7 @@ dispatch_end:
     MYSQL_COMMAND_DONE(res);
   }
   DEBUG_SYNC(thd,"dispatch_command_end");
+  DEBUG_SYNC(thd,"dispatch_command_end2");
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);

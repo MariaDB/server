@@ -1,8 +1,15 @@
-SET DEBUG_SYNC='dispatch_command_end SIGNAL ready WAIT_FOR go';
-select 1;
+SET DEBUG_SYNC='dispatch_command_end2 SIGNAL ready EXECUTE 3';
 connect  con1,localhost,root,,;
 SET DEBUG_SYNC='now wait_for ready';
+connection default;
+SET DEBUG_SYNC='dispatch_command_end WAIT_FOR go EXECUTE 2';
+select 1;
+connection con1;
 SET DEBUG_SYNC='now signal go';
+SET DEBUG_SYNC='now wait_for ready';
+SET DEBUG_SYNC='now signal go';
+SET DEBUG_SYNC='now wait_for ready';
+SET DEBUG_SYNC='RESET';
 SHOW PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
 #	root	#	test	Sleep	#	#	NULL	0.000

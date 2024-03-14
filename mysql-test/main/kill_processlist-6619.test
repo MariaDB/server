@@ -4,13 +4,34 @@
 --source include/not_embedded.inc
 --source include/have_debug_sync.inc
 
-# This is to ensure that the following SHOW PROCESSLIST does not show the query
-SET DEBUG_SYNC='dispatch_command_end SIGNAL ready WAIT_FOR go';
---send select 1
+# Ensure no lingering connections from an earlier test run, which can very
+# rarely still be visible in SHOW PROCESSLIST here.
+--let $wait_condition= SELECT COUNT(*) = 1 from information_schema.processlist
+--source include/wait_condition.inc
 
+# This is to ensure that the following SHOW PROCESSLIST does not show the query
+#
+# The use of DEBUG_SYNC here is quite tricky, and there were several bugs in
+# this test case before. The dispatch_command_end* sync points will trigger at
+# the end of the statement that sets them, so we need to use EXECUTE 2/3 to
+# make them trigger also during the "select 1" statement. And we need to use
+# two separate sync points so that we can wait first and signal after;
+# otherwise the last wait from dispatch_command_end may time out as its signal
+# gets overridden from the later sync point "before_execute_sql_command".
+#
+SET DEBUG_SYNC='dispatch_command_end2 SIGNAL ready EXECUTE 3';
 --connect (con1,localhost,root,,)
 SET DEBUG_SYNC='now wait_for ready';
+--connection default
+SET DEBUG_SYNC='dispatch_command_end WAIT_FOR go EXECUTE 2';
+--send select 1
+
+--connection con1
 SET DEBUG_SYNC='now signal go';
+SET DEBUG_SYNC='now wait_for ready';
+SET DEBUG_SYNC='now signal go';
+SET DEBUG_SYNC='now wait_for ready';
+SET DEBUG_SYNC='RESET';
 
 --let $con_id = `SELECT CONNECTION_ID()`
 --replace_result Execute Query
@@ -36,7 +57,7 @@ SET DEBUG_SYNC='reset';
 # Wait until default connection has reset query string
 let $wait_condition=
   SELECT COUNT(*) = 1 from information_schema.processlist
-  WHERE info is NULL;
+  WHERE Command = "Sleep" AND info is NULL;
 --source include/wait_condition.inc
 
 --replace_result Execute Query
