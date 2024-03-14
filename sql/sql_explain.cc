@@ -2070,7 +2070,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (rows_set)
     writer->add_member("rows").add_ull(rows);
 
-  double r_index_rows;
+  double r_index_rows; /* protected by have_icp_or_rowid_filter */
   bool have_icp_or_rowid_filter= false;
   /* `r_index_rows` and `r_rows` */
   if (is_analyze)
@@ -2079,8 +2079,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       r_index_rows is the number of rows enumerated in the index before
       any kind of checking. The number is the average across all scans.
     */
-    double loops= rows2double(tracker.get_loops());
-    if (!loops)
+    double loops;
+    if (tracker.get_loops())
+      loops = rows2double(tracker.get_loops());
+    else
       loops= 1.0;
     handler *file= handler_for_stats;
 
