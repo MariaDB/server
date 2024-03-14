@@ -576,3 +576,17 @@ void Item_window_func::print_for_percentile_functions(String *str, enum_query_ty
   window_spec->print_partition(str,query_type);
   str->append(')');
 }
+
+bool Item_window_func::change_context_processor(void *cntx)
+{
+  List<Item_window_func> to_list= ((Name_resolution_context *) cntx)->select_lex->window_funcs;
+  List_iterator<Item_window_func> from_it(select_lex->window_funcs);
+  while (Item_window_func *window_func= from_it++)
+    if (window_func == this)
+    {
+      from_it.remove();
+      break;
+    }
+  to_list.push_back(this);
+  return FALSE;
+}

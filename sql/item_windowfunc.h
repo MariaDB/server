@@ -1060,6 +1060,7 @@ class Item_window_func : public Item_func_or_sum
   /* Window function parameters as we've got them from the parser */
 public:
   LEX_CSTRING *window_name;
+  SELECT_LEX *select_lex;
 public:
   Window_spec *window_spec;
   
@@ -1221,6 +1222,7 @@ private:
   bool force_return_blank;
   bool read_value_from_result_field;
   void print_for_percentile_functions(String *str, enum_query_type query_type);
+  bool change_context_processor(void *cntx) override;
 
 public:
   void set_phase_to_initial()

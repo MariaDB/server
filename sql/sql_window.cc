@@ -3243,6 +3243,7 @@ bool st_select_lex::add_window_func(Item_window_func *win_func)
 {
   if (parsing_place != SELECT_LIST)
     fields_in_window_functions+= win_func->window_func()->argument_count();
+  win_func->select_lex= this;
   return window_funcs.push_back(win_func);
 }
 

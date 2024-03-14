@@ -1,0 +1,8 @@
+--source include/have_innodb.inc
+CREATE TABLE t ( c INTEGER ) ENGINE = InnoDB ;
+INSERT INTO t ( c )
+  ( SELECT 2231626 <= NULL c FROM t WHERE c IN ( c ) ORDER BY c )
+  ORDER BY c , AVG ( c ) OVER ( ) DESC ;
+drop table t;
+
+(SELECT 5 d FROM dual ORDER BY d) ORDER BY  AVG(d) OVER () ;
