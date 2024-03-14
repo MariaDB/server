@@ -2869,9 +2869,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     /* The user specified fields: check that structure is ok */
-    if (check_sequence_fields(thd->lex, &alter_info->create_list,
-                              alter_info->db, alter_info->table_name))
-      DBUG_RETURN(TRUE);
+    if (!alter_info->seq_checked)
+      if (check_sequence_fields(thd->lex, &alter_info->create_list,
+                                alter_info->db, alter_info->table_name))
+        DBUG_RETURN(TRUE);
   }
 
 
@@ -8506,7 +8507,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
 
       if (likely(find && !find->field))
-	find_it.remove();
+        find_it.remove();
       else
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), def->change.str,
@@ -8597,6 +8598,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
 
   new_create_list.append(&new_create_tail);
+
+  /* When new_create_list (list that will be swaped to alter_info->create_list)
+     is created we should check the case if the table is sequence
+     and check the fields, as an early check, prior to `mysql_prepare_create_table`.
+  */
+  if (create_info->sequence)
+  {
+    if (check_sequence_fields(thd->lex, &new_create_list,
+                              table->s->db, table->s->table_name))
+      goto err;
+    alter_info->seq_checked= true;
+  }
 
   if (unlikely(alter_info->alter_list.elements))
   {
