@@ -24,6 +24,7 @@ connection node_1b;
 SET DEBUG_SYNC= 'RESET';
 connection node_2;
 connection node_1;
+Got one of the listed errors
 DROP TABLE t1;
 disconnect node_2;
 disconnect node_1;
