@@ -1126,5 +1126,12 @@ INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-22141: JSON_REMOVE returns NULL on valid arguments
+--echo #
+
+SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
