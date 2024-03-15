@@ -297,6 +297,7 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
 #endif
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+static bool ignore_max_password_errors(const ACL_USER *acl_user);
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
 static bool show_proxy_grants (THD *, const char *, const char *,
                                char *, size_t);
@@ -13023,13 +13024,12 @@ namespace Show
   {
     Column("USER", Userhost(), NOT_NULL),
     Column("PASSWORD_ERRORS", SLonglong(), NULLABLE),
-    Column("PASSWORD_EXPIRATION_TIME", SLonglong(), NULLABLE),
+    Column("PASSWORD_EXPIRATION_TIME", Datetime(0), NULLABLE),
     CEnd()
   };
 };
 
-static bool ignore_max_password_errors(const ACL_USER *acl_user);
-
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
 {
   ulonglong lifetime= user->password_lifetime < 0
@@ -13037,11 +13037,7 @@ static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
                       : user->password_lifetime;
 
   bool ignore_password_errors= ignore_max_password_errors(user);
-  bool ignore_expiration_date= lifetime == 0;
-
-  /* Skip user if nothing to show */
-  if (ignore_password_errors && ignore_expiration_date)
-    return 0;
+  bool ignore_expiration_date= lifetime == 0 && !user->password_expired;
 
   Grantee_str grantee(user->user,
                       Lex_cstring_strlen(safe_str(user->host.hostname)));
@@ -13062,12 +13058,16 @@ static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
   else
   {
     table->field[2]->set_notnull();
-    table->field[2]->store(user->password_last_changed
-                           + user->password_lifetime * 3600 * 24, true);
+    if (user->password_expired)
+      table->field[2]->store(0, true);
+    else
+      table->field[2]->store_timestamp(user->password_last_changed +
+                                       lifetime * 3600 * 24, 0);
   }
 
   return schema_table_store_record(thd, table);
 }
+#endif
 
 int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {

@@ -382,3 +382,134 @@ drop database db;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-23729 INFORMATION_SCHEMA Table info. about user locked due to
+# max_password_errors
+#
+# MDEV-32218 message to notify end-user N-days prior the password get
+# expired
+#
+set @old_max_password_errors=@@max_password_errors;
+set global max_password_errors=2;
+set timestamp= unix_timestamp('2020-01-02 2:3:4');
+create user nice_user;
+create user naughty_user identified by 'naughty_user_passwd';
+alter user naughty_user password expire interval 10 day;
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+'nice_user'@'%'	0	NULL
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+alter user nice_user password expire interval 10 day;
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+connect(localhost,naughty_user,wrong_passwd,test,MASTER_PORT,MASTER_SOCKET);
+connect con1, localhost, naughty_user, wrong_passwd;
+ERROR 28000: Access denied for user 'naughty_user'@'localhost' (using password: YES)
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	1	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+connect(localhost,naughty_user,wrong_passwd,test,MASTER_PORT,MASTER_SOCKET);
+connect con1, localhost, naughty_user, wrong_passwd;
+ERROR 28000: Access denied for user 'naughty_user'@'localhost' (using password: YES)
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	2	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+# Show all users that are blocked due to max_password_errors reached.
+select user from information_schema.users
+where password_errors >= @@global.max_password_errors;
+user
+'naughty_user'@'%'
+set global max_password_errors=3;
+connect con1, localhost, naughty_user, naughty_user_passwd;
+connection default;
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+disconnect con1;
+# test FLUSH PRIVILEGES
+connect(localhost,naughty_user,wrong_passwd,test,MASTER_PORT,MASTER_SOCKET);
+connect con1, localhost, naughty_user, wrong_passwd;
+ERROR 28000: Access denied for user 'naughty_user'@'localhost' (using password: YES)
+select * from information_schema.users where user like '''naughty%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'naughty_user'@'%'	1	2020-01-12 02:03:04
+flush privileges;
+select * from information_schema.users where user like '''naughty%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+# Test unprivileged output
+connect con2, localhost, nice_user;
+set timestamp= unix_timestamp('2020-01-02 2:3:4');
+set password= password('nice_passwd');
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'nice_user'@'%'	0	2020-01-12 02:03:04
+# Delete user while some connection is still alive, then select.
+connection default;
+drop user nice_user;
+connection con2;
+select * from information_schema.users;
+ERROR 0L000: The current user is invalid
+disconnect con2;
+connection default;
+drop user naughty_user;
+set global max_password_errors=@old_max_password_errors;
+# more password expiration tests
+set global default_password_lifetime= 2;
+create user u1@localhost password expire;
+create user u2@localhost password expire default;
+create user u3@localhost password expire interval 10 day;
+create user u4@localhost password expire interval 20 day;
+create user u5@localhost password expire never;
+set timestamp= unix_timestamp('2020-01-17 2:3:4');
+select * from information_schema.users where user like '''u_''%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'u1'@'localhost'	0	0000-00-00 00:00:00
+'u2'@'localhost'	0	2020-01-04 02:03:04
+'u3'@'localhost'	0	2020-01-12 02:03:04
+'u4'@'localhost'	0	2020-01-22 02:03:04
+'u5'@'localhost'	0	NULL
+set global default_password_lifetime= default;
+select * from information_schema.users where user like '''u_''%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'u1'@'localhost'	0	0000-00-00 00:00:00
+'u2'@'localhost'	0	NULL
+'u3'@'localhost'	0	2020-01-12 02:03:04
+'u4'@'localhost'	0	2020-01-22 02:03:04
+'u5'@'localhost'	0	NULL
+drop user u1@localhost;
+drop user u2@localhost;
+drop user u3@localhost;
+drop user u4@localhost;
+drop user u5@localhost;
+# End of 10.0 tests
