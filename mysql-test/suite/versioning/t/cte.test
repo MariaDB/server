@@ -4,6 +4,7 @@ if (`SELECT $PS_PROTOCOL != 0`)
 }
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
+--source include/word_size.inc
 --source suite/versioning/sys_time.inc
 
 --let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/

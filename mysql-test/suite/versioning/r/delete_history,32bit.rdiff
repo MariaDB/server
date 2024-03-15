@@ -1,0 +1,11 @@
+--- suite/versioning/r/delete_history.result
++++ suite/versioning/r/delete_history.reject
+@@ -167,7 +167,7 @@
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+ 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+ Warnings:
+-Note	1003	delete  from `test`.`t1` FOR SYSTEM_TIME BEFORE TIMESTAMP '2039-01-01 23:00' using dual where `test`.`t1`.`row_end` < TIMESTAMP/*WITH LOCAL TIME ZONE*/'2039-01-01 23:00:00' and is_history(`test`.`t1`.`row_end`)
++Note	1003	delete  from `test`.`t1` FOR SYSTEM_TIME BEFORE TIMESTAMP '2039-01-01 23:00' using dual where `test`.`t1`.`row_end` < '2039-01-01 23:00' and is_history(`test`.`t1`.`row_end`)
+ create or replace procedure p() delete history from t1 before system_time '2039-01-01 23:00';
+ call p;
+ select * from t1;
