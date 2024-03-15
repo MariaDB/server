@@ -6172,56 +6172,52 @@ void do_connect(struct st_command *command)
     while (*end && !my_isspace(charset_info, *end))
       end++;
     length= (size_t) (end - con_options);
-    if (length == 3 && !strncmp(con_options, "SSL", 3))
+    if (length == 3 && !strncmp(con_options, STRING_WITH_LEN("SSL")))
       con_ssl= USE_SSL_REQUIRED;
-    else if (length == 5 && !strncmp(con_options, "NOSSL", 5))
+    else if (length == 5 && !strncmp(con_options, STRING_WITH_LEN("NOSSL")))
       con_ssl= USE_SSL_FORBIDDEN;
     else if (!strncmp(con_options, "SSL-CIPHER=", 11))
     {
       con_ssl= USE_SSL_REQUIRED;
       ssl_cipher=con_options + 11;
     }
-    else if (length == 8 && !strncmp(con_options, "COMPRESS", 8))
+    else if (length == 8 && !strncmp(con_options, STRING_WITH_LEN("COMPRESS")))
       con_compress= 1;
-    else if (length == 3 && !strncmp(con_options, "TCP", 3))
+    else if (length == 3 && !strncmp(con_options, STRING_WITH_LEN("TCP")))
       protocol= MYSQL_PROTOCOL_TCP;
-    else if (length == 7 && !strncmp(con_options, "DEFAULT", 7))
+    else if (length == 7 && !strncmp(con_options, STRING_WITH_LEN("DEFAULT")))
       protocol= MYSQL_PROTOCOL_DEFAULT;
-    else if (length == 4 && !strncmp(con_options, "PIPE", 4))
+    else if (length == 4 && !strncmp(con_options, STRING_WITH_LEN("PIPE")))
     {
 #ifdef _WIN32
       protocol= MYSQL_PROTOCOL_PIPE;
 #endif
     }
-    else if (length == 6 && !strncmp(con_options, "SOCKET", 6))
+    else if (length == 6 && !strncmp(con_options, STRING_WITH_LEN("SOCKET")))
     {
 #ifndef _WIN32
       protocol= MYSQL_PROTOCOL_SOCKET;
 #endif
     }
-    else if (length == 6 && !strncmp(con_options, "MEMORY", 6))
+    else if (length == 6 && !strncmp(con_options, STRING_WITH_LEN("MEMORY")))
     {
 #ifdef _WIN32
       protocol= MYSQL_PROTOCOL_MEMORY;
 #endif
     }
-    else if (strncasecmp(con_options, "read_timeout=",
-                         sizeof("read_timeout=")-1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("read_timeout=")) == 0)
     {
       read_timeout= atoi(con_options + sizeof("read_timeout=")-1);
     }
-    else if (strncasecmp(con_options, "write_timeout=",
-                         sizeof("write_timeout=")-1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("write_timeout=")) == 0)
     {
       write_timeout= atoi(con_options + sizeof("write_timeout=")-1);
     }
-    else if (strncasecmp(con_options, "connect_timeout=",
-                         sizeof("connect_timeout=")-1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("connect_timeout=")) == 0)
     {
       connect_timeout= atoi(con_options + sizeof("connect_timeout=")-1);
     }
-    else if (strncasecmp(con_options, "CHARSET=",
-      sizeof("CHARSET=") - 1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("CHARSET=")) == 0)
     {
       csname= strdup(con_options + sizeof("CHARSET=") - 1);
     }
