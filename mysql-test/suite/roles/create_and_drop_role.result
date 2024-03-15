@@ -87,3 +87,8 @@ show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+#
+# MDEV-17943: Unfortunate error code/message upon SET DEFAULT ROLE FOR
+#
+SET DEFAULT ROLE NONE FOR foo;
+ERROR 0L000: The target user is invalid

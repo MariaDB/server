@@ -8189,8 +8189,8 @@ ER_INVALID_ROLE OP000
         rum "Rolul %`s este invalid"
 ER_INVALID_CURRENT_USER 0L000
         chi "当前用户无效"
-        eng "The current user is invalid"
-        hindi "वर्तमान यूज़र अमान्य है"
+        eng "The target user is invalid"
+        hindi "लक्षित यूज़र अमान्य है"
         rum "Utilizatorul curent este invalid"
 ER_CANNOT_GRANT_ROLE
         chi "无法将角色'%s'授予：%s"
