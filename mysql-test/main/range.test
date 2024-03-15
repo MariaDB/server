@@ -2539,3 +2539,17 @@ DROP TABLE t1;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
               @innodb_stats_persistent_sample_pages_save;
+
+
+--echo #
+--echo # MDEV-33648: range optimizer works incorrectly for date_col=expression yielding invalid_date
+--echo #
+
+CREATE TABLE t1 (a ENUM('a'), b DATE, c INT, KEY(b)) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 VALUES ('','0000-00-00',0);
+SELECT 1 as COL FROM t1 WHERE b= '';
+SELECT 1 as COL FROM t1 WHERE b IN ('','');
+SELECT 1 as COL FROM t1 WHERE b= (SELECT a FROM t1 group by c);
+--echo # Must produce one row as the previous query:
+SELECT 1 as COL FROM t1 WHERE b IN ((SELECT a FROM t1 group by c), (SELECT a FROM t1 group by c));
+DROP TABLE t1;

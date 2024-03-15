@@ -944,6 +944,8 @@ public:
   {
     reset();
   }
+  virtual int store_item_for_comparison(THD *thd, Item *item,
+                                        bool no_conversion);
   virtual int  store(const char *to, size_t length,CHARSET_INFO *cs)=0;
   /*
     This is used by engines like CSV and Federated to signal the field
@@ -3090,6 +3092,9 @@ protected:
       sql_type_comment(str, name, comment);
   }
   static const Name &type_version_mysql56();
+  int store_datetime_with_conversions(THD *thd, const Datetime &dt,
+                                      decimal_digits_t decimals,
+                                      bool no_conversions);
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -3097,6 +3102,10 @@ public:
     :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg)
     { flags|= BINARY_FLAG; }
+  virtual date_mode_t date_mode_for_datetime_comparison(THD *thd) const
+  {
+    return Datetime::Options_cmp(thd);
+  }
   int  store_hex_hybrid(const char *str, size_t length) override
   {
     return store(str, length, &my_charset_bin);
@@ -3147,6 +3156,8 @@ public:
   {
     return Data_type_compatibility::OK;
   }
+  int store_item_for_comparison(THD *thd, Item *item,
+                                bool no_conversion) override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value) override;
@@ -3208,6 +3219,10 @@ public:
 		  TABLE_SHARE *share);
   const Type_handler *type_handler() const override
   { return &type_handler_timestamp; }
+  date_mode_t date_mode_for_datetime_comparison(THD *thd) const override
+  {
+    return Timestamp::DatetimeOptions(thd);
+  }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
@@ -3634,6 +3649,11 @@ public:
                        uchar *new_null_ptr, uint new_null_bit) override;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
     override;
+  int store_item_for_comparison(THD *thd, Item *item,
+                                bool no_conversions) override
+  {
+    return Field::store_item_for_comparison(thd, item, no_conversions);
+  }
 };
 
 

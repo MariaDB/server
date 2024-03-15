@@ -1143,7 +1143,9 @@ INSERT INTO t1 VALUES
 ('A2','2005-12-01 08:00:00',1000);
 EXPLAIN SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	PRIMARY	PRIMARY	20	const	3	Using index condition
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	25	NULL	1	Using index condition; Rowid-ordered scan
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '2005-12-01 24:00:00'
 SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
 item	started	price
 Warnings:

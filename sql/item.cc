@@ -1512,7 +1512,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   Use_relaxed_field_copy urfc(table->in_use);
-  res= save_in_field(field, no_conversions);
+  res= field->store_item_for_comparison(thd, this, no_conversions);
 
   thd->count_cuted_fields= org_count_cuted_fields;
   dbug_tmp_restore_column_map(&table->write_set, old_map);

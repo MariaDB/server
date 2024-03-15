@@ -1393,6 +1393,7 @@ SELECT * FROM t1 WHERE indexed_col='10:20:30';
 indexed_col
 Warnings:
 Warning	1292	Incorrect datetime value: '10:20:30'
+Warning	1292	Incorrect datetime value: '10:20:30'
 SELECT * FROM t1 WHERE indexed_col='2001-01-01';
 indexed_col
 SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
@@ -1407,9 +1408,11 @@ SELECT * FROM t1 WHERE indexed_col=0x00;
 indexed_col
 Warnings:
 Warning	1292	Incorrect datetime value: '\x00'
+Warning	1292	Incorrect datetime value: '\x00'
 SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
 indexed_col
 Warnings:
+Warning	1292	Incorrect datetime value: '0'
 Warning	1292	Incorrect datetime value: '0'
 CREATE TABLE t2 (not_indexed_col INT);
 INSERT INTO t2 VALUES (20230101),(20230102);

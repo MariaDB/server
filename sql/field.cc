@@ -1362,6 +1362,12 @@ warn:
 }
 
 
+int Field::store_item_for_comparison(THD *thd, Item *item, bool no_conversions)
+{
+  return item->save_in_field(this, no_conversions);
+}
+
+
 /**
   If a field does not have a corresponding data, it's behavior can vary:
   - In case of the fixed file format
@@ -5943,6 +5949,42 @@ Field_temporal::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
+int Field_temporal::store_datetime_with_conversions(THD *thd,
+                                                    const Datetime &dt,
+                                                    decimal_digits_t decimals,
+                                                    bool no_conversions)
+{
+  if (!dt.is_valid_datetime())
+    return set_field_to_null_with_conversions(this, no_conversions);
+  set_notnull();
+  return store_time_dec(dt.get_mysql_time(), decimals);
+}
+
+
+int Field_temporal::store_item_for_comparison(THD *thd, Item *item,
+                                              bool no_conversions)
+{
+  if (!is_temporal_type_with_date(item->field_type()))
+  {
+    /*
+      Get a Datetime value like Field_temporal::get_equal_const_item() does.
+      This is needed to get equal behavior in statements with
+      constant vs non-constant values in the IN list:
+        SELECT * FROM t1 WHERE date_column_with_index IN ('','');
+      vs
+        SELECT * FROM t1 WHERE date_colmun_with_index IN (
+            (SELECT MIN(str_column) FROM t1),
+            (SELECT MAX(str_column) FROM t1));
+    */
+    const Datetime dt(thd, item, date_mode_for_datetime_comparison(thd));
+    return store_datetime_with_conversions(thd, dt, item->decimals,
+                                           no_conversions);
+  }
+  return item->save_in_field(this, no_conversions);
+
+}
+
+
 Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
                                                     const Context &ctx,
                                                     Item *const_item)
@@ -5967,9 +6009,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      Datetime dt= type_handler()->field_type() == MYSQL_TYPE_TIMESTAMP ?
-        Datetime(thd, const_item, Timestamp::DatetimeOptions(thd)) :
-        Datetime(thd, const_item, Datetime::Options_cmp(thd));
+      Datetime dt(thd, const_item, date_mode_for_datetime_comparison(thd));
       if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
