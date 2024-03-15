@@ -35,7 +35,9 @@ connection con_temp1;
 BEGIN;
 INSERT INTO t2 VALUES (21);
 connection server_2;
-START SLAVE;
+START SLAVE IO_THREAD;
+include/wait_for_slave_param.inc [Read_Master_Log_Pos]
+START SLAVE SQL_THREAD;
 connection con_temp2;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
