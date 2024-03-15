@@ -2,9 +2,7 @@
 # Test timestamp
 #
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+--source include/word_size.inc
 
 # Set timezone to GMT-3, to make it possible to use "interval 3 hour"
 set time_zone="+03:00";
