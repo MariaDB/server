@@ -1295,6 +1295,12 @@ static void innodb_drop_database(handlerton*, char *path)
   trx_t *trx= innobase_trx_allocate(thd);
   dberr_t err= DB_SUCCESS;
 
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
+  get_table_stats_names(path, &table_stats_name, &index_stats_name);
+
   dict_sys.lock(SRW_LOCK_CALL);
 
   for (auto i= dict_sys.table_id_hash.n_cells; i--; )
@@ -1327,7 +1333,7 @@ static void innodb_drop_database(handlerton*, char *path)
 
   dict_table_t *table_stats, *index_stats;
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
+  table_stats= dict_table_open_on_name(table_stats_name, false,
                                        DICT_ERR_IGNORE_NONE);
   if (table_stats)
   {
@@ -1336,7 +1342,7 @@ static void innodb_drop_database(handlerton*, char *path)
                                                 thd, &mdl_table);
     dict_sys.unfreeze();
   }
-  index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
+  index_stats= dict_table_open_on_name(index_stats_name, false,
                                        DICT_ERR_IGNORE_NONE);
   if (index_stats)
   {
@@ -1353,8 +1359,8 @@ static void innodb_drop_database(handlerton*, char *path)
   strconvert(&my_charset_filename, namebuf, len, system_charset_info, db,
              sizeof db, &errors);
   if (!errors && table_stats && index_stats &&
-      !strcmp(table_stats->name.m_name, TABLE_STATS_NAME()) &&
-      !strcmp(index_stats->name.m_name, INDEX_STATS_NAME()) &&
+      !strcmp(table_stats->name.m_name, table_stats_name) &&
+      !strcmp(index_stats->name.m_name, index_stats_name) &&
       lock_table_for_trx(table_stats, trx, LOCK_X) == DB_SUCCESS &&
       lock_table_for_trx(index_stats, trx, LOCK_X) == DB_SUCCESS)
   {
@@ -8516,7 +8522,7 @@ wsrep_calc_row_hash(
 @retval true on failure */
 ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table)
 {
-  char db_buf[NAME_LEN + 1];
+  char db_buf[MAX_CATALOG_NAME + 1 + NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
   ulint db_buf_len, tbl_buf_len;
 
@@ -13450,6 +13456,10 @@ int ha_innobase::delete_table(const char *name)
 
   trx_t *parent_trx= check_trx_exists(thd);
   dict_table_t *table;
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
 
   {
     char norm_name[FN_REFLEN];
@@ -13471,6 +13481,7 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unlock();
       DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
     }
+    get_table_stats_names(norm_name, &table_stats_name, &index_stats_name);
   }
 
   if (table->is_temporary())
@@ -13571,7 +13582,7 @@ int ha_innobase::delete_table(const char *name)
   if (err == DB_SUCCESS && dict_stats_is_persistent_enabled(table) &&
       !table->is_stats_table())
   {
-    table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
+    table_stats= dict_table_open_on_name(table_stats_name, false,
                                          DICT_ERR_IGNORE_NONE);
     if (table_stats)
     {
@@ -13581,7 +13592,7 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
-    index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
+    index_stats= dict_table_open_on_name(index_stats_name, false,
                                          DICT_ERR_IGNORE_NONE);
     if (index_stats)
     {
@@ -13594,8 +13605,8 @@ int ha_innobase::delete_table(const char *name)
     const bool skip_wait{table->name.is_temporary()};
 
     if (table_stats && index_stats &&
-        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME()) &&
-        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME()) &&
+        !strcmp(table_stats->name.m_name, table_stats_name) &&
+        !strcmp(index_stats->name.m_name, index_stats_name) &&
         !(err= lock_table_for_trx(table_stats, trx, LOCK_X, skip_wait)))
       err= lock_table_for_trx(index_stats, trx, LOCK_X, skip_wait);
 
@@ -13957,7 +13968,15 @@ int ha_innobase::truncate()
   if (error == DB_SUCCESS && dict_stats_is_persistent_enabled(ib_table) &&
       !ib_table->is_stats_table())
   {
-    table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
+    char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+    char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+    char *table_stats_name= table_stats_name_buf;
+    char *index_stats_name= index_stats_name_buf;
+    get_table_stats_names_catalog(table->s->catalog->name.str,
+                                  &table_stats_name,
+                                  &index_stats_name);
+
+    table_stats= dict_table_open_on_name(table_stats_name, false,
                                          DICT_ERR_IGNORE_NONE);
     if (table_stats)
     {
@@ -13966,7 +13985,7 @@ int ha_innobase::truncate()
                                                   &mdl_table);
       dict_sys.unfreeze();
     }
-    index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
+    index_stats= dict_table_open_on_name(index_stats_name, false,
                                          DICT_ERR_IGNORE_NONE);
     if (index_stats)
     {
@@ -13977,8 +13996,8 @@ int ha_innobase::truncate()
     }
 
     if (table_stats && index_stats &&
-        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME()) &&
-        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME()) &&
+        !strcmp(table_stats->name.m_name, table_stats_name) &&
+        !strcmp(index_stats->name.m_name, index_stats_name) &&
         !(error= lock_table_for_trx(table_stats, trx, LOCK_X)))
       error= lock_table_for_trx(index_stats, trx, LOCK_X);
   }
@@ -14093,7 +14112,10 @@ ha_innobase::rename_table(
 	const char*	to)	/*!< in: new name of the table */
 {
 	THD*	thd = ha_thd();
-
+        char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char *table_stats_name= table_stats_name_buf;
+        char *index_stats_name= index_stats_name_buf;
 	DBUG_ENTER("ha_innobase::rename_table");
 
 	if (high_level_read_only) {
@@ -14111,6 +14133,8 @@ ha_innobase::rename_table(
 
 	normalize_table_name(norm_from, from);
 	normalize_table_name(norm_to, to);
+
+        get_table_stats_names(norm_from, &table_stats_name, &index_stats_name);
 
 	dberr_t error = DB_SUCCESS;
 	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
@@ -14135,11 +14159,11 @@ ha_innobase::rename_table(
 		table->release();
 	}
 
-	if (strcmp(norm_from, TABLE_STATS_NAME())
-	    && strcmp(norm_from, INDEX_STATS_NAME())
-	    && strcmp(norm_to, TABLE_STATS_NAME())
-	    && strcmp(norm_to, INDEX_STATS_NAME())) {
-		table_stats = dict_table_open_on_name(TABLE_STATS_NAME(), false,
+	if (strcmp(norm_from, table_stats_name)
+	    && strcmp(norm_from, index_stats_name)
+	    && strcmp(norm_to, table_stats_name)
+	    && strcmp(norm_to, index_stats_name)) {
+		table_stats = dict_table_open_on_name(table_stats_name, false,
 						      DICT_ERR_IGNORE_NONE);
 		if (table_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
@@ -14147,7 +14171,7 @@ ha_innobase::rename_table(
 				table_stats, thd, &mdl_table);
 			dict_sys.unfreeze();
 		}
-		index_stats = dict_table_open_on_name(INDEX_STATS_NAME(), false,
+		index_stats = dict_table_open_on_name(index_stats_name, false,
 						      DICT_ERR_IGNORE_NONE);
 		if (index_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
@@ -14157,8 +14181,8 @@ ha_innobase::rename_table(
 		}
 
 		if (error == DB_SUCCESS && table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME())
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME())) {
+		    && !strcmp(table_stats->name.m_name, table_stats_name)
+		    && !strcmp(index_stats->name.m_name, index_stats_name)) {
 			error = lock_table_for_trx(table_stats, trx, LOCK_X,
 						   from_temp);
 			if (error == DB_SUCCESS) {
@@ -20143,7 +20167,7 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 		}
 	}
 
-	char	db_buf[NAME_LEN + 1];
+	char	db_buf[MAX_CATALOG_NAME + 1 + NAME_LEN + 1];
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
 
@@ -21355,6 +21379,45 @@ buf_pool_size_align(
     return (size / m + 1) * m;
   }
 }
+
+
+/*
+  Generate name for InnoDB statistics tables based on a table name
+*/
+
+void get_table_stats_names(const char *table_name,
+                           char **table_stats_name,
+                           char **index_stats_name)
+{
+  const char *ref;
+  size_t length;
+  if (!using_catalogs)
+  {
+    *table_stats_name= (char*) ORG_TABLE_STATS_NAME;
+    *index_stats_name= (char*) ORG_INDEX_STATS_NAME;
+    return;
+  }
+  ref= strchr(table_name, '/');
+  length= MY_MIN((ref-table_name)+1, MAX_CATALOG_NAME);
+  strmov(strnmov(*table_stats_name, table_name, length), ORG_TABLE_STATS_NAME);
+  strmov(strnmov(*index_stats_name, table_name, length), ORG_INDEX_STATS_NAME);
+}
+
+
+void get_table_stats_names_catalog(const char *catalog,
+                                   char **table_stats_name,
+                                   char **index_stats_name)
+{
+  if (!using_catalogs)
+  {
+    *table_stats_name= (char*) ORG_TABLE_STATS_NAME;
+    *index_stats_name= (char*) ORG_INDEX_STATS_NAME;
+    return;
+  }
+  strxmov(*table_stats_name, catalog, "/", ORG_TABLE_STATS_NAME, NullS);
+  strxmov(*index_stats_name, catalog, "/", ORG_INDEX_STATS_NAME, NullS);
+}
+
 
 const char *TABLE_STATS_NAME()
 {

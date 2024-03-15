@@ -11270,13 +11270,21 @@ err_index:
 		}
 	}
 
+	char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+	char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+	char *table_stats_name= table_stats_name_buf;
+	char *index_stats_name= index_stats_name_buf;
+	get_table_stats_names_catalog(table->s->catalog->name.str,
+                                      &table_stats_name,
+                                      &index_stats_name);
+
 	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
 	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 	dberr_t error = DB_SUCCESS;
 	if (!ctx0->old_table->is_stats_table() &&
 	    !ctx0->new_table->is_stats_table()) {
 		table_stats = dict_table_open_on_name(
-			TABLE_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
+			table_stats_name, false, DICT_ERR_IGNORE_NONE);
 		if (table_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
 			table_stats = dict_acquire_mdl_shared<false>(
@@ -11284,7 +11292,7 @@ err_index:
 			dict_sys.unfreeze();
 		}
 		index_stats = dict_table_open_on_name(
-			INDEX_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
+			index_stats_name, false, DICT_ERR_IGNORE_NONE);
 		if (index_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
 			index_stats = dict_acquire_mdl_shared<false>(
@@ -11293,8 +11301,8 @@ err_index:
 		}
 
 		if (table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME())
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME())
+		    && !strcmp(table_stats->name.m_name, table_stats_name)
+		    && !strcmp(index_stats->name.m_name, index_stats_name)
 		    && !(error = lock_table_for_trx(table_stats,
 						    trx, LOCK_X))) {
 			error = lock_table_for_trx(index_stats, trx, LOCK_X);

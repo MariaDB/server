@@ -144,8 +144,15 @@ typedef std::map<const char*, dict_index_t*, ut_strcmp_functor,
 
 bool dict_table_t::is_stats_table() const
 {
-  return !strcmp(name.m_name, TABLE_STATS_NAME()) ||
-         !strcmp(name.m_name, INDEX_STATS_NAME());
+  const char *table_name= name.m_name;
+  if (using_catalogs)
+  {
+    const char *ref= strchr(table_name, '/');
+    if (ref)
+      table_name= ref+1;
+  }
+  return (!strcmp(table_name, ORG_TABLE_STATS_NAME) ||
+          !strcmp(table_name, ORG_INDEX_STATS_NAME));
 }
 
 bool trx_t::has_stats_table_lock() const
@@ -3146,10 +3153,18 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
         char            query[2048];
+
+	char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+	char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+	char *table_stats_name= table_stats_name_buf;
+	char *index_stats_name= index_stats_name_buf;
 	ut_ad(dict_sys.locked());
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
+	get_table_stats_names(db_utf8,
+			      &table_stats_name,
+			      &index_stats_name);
 
 	pinfo = pars_info_create();
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
@@ -3171,17 +3186,17 @@ dict_stats_save_index_stat(
 	pars_info_add_str_literal(pinfo, "stat_description",
 				  stat_description);
 
-        strxnmov(query, sizeof(query)-1,
+	strxnmov(query, sizeof(query)-1,
 		"PROCEDURE INDEX_STATS_SAVE () IS\n"
 		"BEGIN\n"
 
-		"DELETE FROM \"",INDEX_STATS_NAME(), "\"\n"
+		"DELETE FROM \"",index_stats_name, "\"\n"
 		"WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name AND\n"
 		"index_name = :index_name AND\n"
 		"stat_name = :stat_name;\n"
-                "INSERT INTO \"", INDEX_STATS_NAME(), "\"\n"
+		"INSERT INTO \"", index_stats_name, "\"\n"
 		"VALUES\n"
 		"(\n"
 		":database_name,\n"
@@ -3193,7 +3208,7 @@ dict_stats_save_index_stat(
 		":sample_size,\n"
 		":stat_description\n"
 		");\n"
-                "END;", NullS);
+		"END;", NullS);
 
 	ret = dict_stats_exec_sql(pinfo, query, trx);
 
@@ -3275,8 +3290,17 @@ dict_stats_save(
 
 	THD* thd = current_thd;
 	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
+
+        char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char *table_stats_name= table_stats_name_buf;
+        char *index_stats_name= index_stats_name_buf;
+        get_table_stats_names(table_orig->name.m_name,
+                              &table_stats_name,
+                              &index_stats_name);
+
 	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
+		table_stats_name, false, DICT_ERR_IGNORE_NONE);
 	if (table_stats) {
 		dict_sys.freeze(SRW_LOCK_CALL);
 		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
@@ -3284,7 +3308,7 @@ dict_stats_save(
 		dict_sys.unfreeze();
 	}
 	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME())) {
+	    || strcmp(table_stats->name.m_name, table_stats_name)) {
 release_and_exit:
 		if (table_stats) {
 			dict_table_close(table_stats, false, thd, mdl_table);
@@ -3293,7 +3317,7 @@ release_and_exit:
 	}
 
 	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
+		index_stats_name, false, DICT_ERR_IGNORE_NONE);
 	if (index_stats) {
 		dict_sys.freeze(SRW_LOCK_CALL);
 		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
@@ -3303,7 +3327,7 @@ release_and_exit:
 	if (!index_stats) {
 		goto release_and_exit;
 	}
-	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME())) {
+	if (strcmp(index_stats->name.m_name, index_stats_name)) {
 		dict_table_close(index_stats, false, thd, mdl_index);
 		goto release_and_exit;
 	}
@@ -3365,7 +3389,7 @@ release_and_exit:
                  "END;", NullS);
 
 
-        pars_info_bind_id(pinfo, "table_stats", TABLE_STATS_NAME());
+        pars_info_bind_id(pinfo, "table_stats", table_stats_name);
         ret = dict_stats_exec_sql(pinfo, query,trx);
 
 	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
@@ -3855,8 +3879,16 @@ dict_stats_fetch_from_ps(
 
 	THD* thd = current_thd;
 	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
+        char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char *table_stats_name= table_stats_name_buf;
+        char *index_stats_name= index_stats_name_buf;
+        get_table_stats_names(table->name.m_name,
+                              &table_stats_name,
+                              &index_stats_name);
+
 	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
+		table_stats_name, false, DICT_ERR_IGNORE_NONE);
 	if (table_stats) {
 		dict_sys.freeze(SRW_LOCK_CALL);
 		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
@@ -3864,7 +3896,7 @@ dict_stats_fetch_from_ps(
 		dict_sys.unfreeze();
 	}
 	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME())) {
+	    || strcmp(table_stats->name.m_name, table_stats_name)) {
 release_and_exit:
 		if (table_stats) {
 			dict_table_close(table_stats, false, thd, mdl_table);
@@ -3873,7 +3905,7 @@ release_and_exit:
 	}
 
 	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
+		index_stats_name, false, DICT_ERR_IGNORE_NONE);
 	if (index_stats) {
 		dict_sys.freeze(SRW_LOCK_CALL);
 		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
@@ -3883,7 +3915,7 @@ release_and_exit:
 	if (!index_stats) {
 		goto release_and_exit;
 	}
-	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME())) {
+	if (strcmp(index_stats->name.m_name, index_stats_name)) {
 		dict_table_close(index_stats, false, thd, mdl_index);
 		goto release_and_exit;
 	}
@@ -3967,8 +3999,8 @@ release_and_exit:
 			   "CLOSE index_stats_cur;\n"
                            "END;", NullS);
 
-        pars_info_bind_id(pinfo, "table_stats", TABLE_STATS_NAME());
-        pars_info_bind_id(pinfo, "index_stats", INDEX_STATS_NAME());
+        pars_info_bind_id(pinfo, "table_stats", table_stats_name);
+        pars_info_bind_id(pinfo, "index_stats", index_stats_name);
 
         ret = que_eval_sql(pinfo, query, trx);
 	/* pinfo is freed by que_eval_sql() */
@@ -4311,7 +4343,15 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 		"table_name = :table_name;\n"
                  "END;\n", NullS);
 
-        pars_info_bind_id(pinfo, "table_stats", TABLE_STATS_NAME());
+        char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char *table_stats_name= table_stats_name_buf;
+        char *index_stats_name= index_stats_name_buf;
+        get_table_stats_names(database_name,
+                              &table_stats_name,
+                              &index_stats_name);
+
+        pars_info_bind_id(pinfo, "table_stats", table_stats_name);
         return dict_stats_exec_sql(pinfo, query, trx);
 }
 
@@ -4332,11 +4372,19 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 	pars_info_add_str_literal(pinfo, "database_name", database_name);
 	pars_info_add_str_literal(pinfo, "table_name", table_name);
 
+        char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char *table_stats_name= table_stats_name_buf;
+        char *index_stats_name= index_stats_name_buf;
+        get_table_stats_names(database_name,
+                              &table_stats_name,
+                              &index_stats_name);
+
         char query[2048];
         strxnmov(query, sizeof(query)-1,
 		"PROCEDURE DELETE_FROM_INDEX_STATS () IS\n"
 		"BEGIN\n"
-                "DELETE FROM \"", INDEX_STATS_NAME(), "\" WHERE\n"
+                "DELETE FROM \"", index_stats_name, "\" WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
                  "END;\n", NullS);
@@ -4365,14 +4413,23 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 	pars_info_add_str_literal(pinfo, "table_name", table_name);
 	pars_info_add_str_literal(pinfo, "index_name", index_name);
 
+        char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+        char *table_stats_name= table_stats_name_buf;
+        char *index_stats_name= index_stats_name_buf;
+        get_table_stats_names(database_name,
+                              &table_stats_name,
+                              &index_stats_name);
+
         strxnmov(query, sizeof(query)-1,
 		"PROCEDURE DELETE_FROM_INDEX_STATS () IS\n"
 		"BEGIN\n"
-                "DELETE FROM \"", INDEX_STATS_NAME(), "\" WHERE\n"
+                "DELETE FROM \"", index_stats_name, "\" WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name AND\n"
 		"index_name = :index_name;\n"
                  "END;\n",NullS);
+
        return dict_stats_exec_sql(pinfo,query, trx);
 }
 
@@ -4384,11 +4441,19 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
                                 trx_t *trx)
 {
-  /* skip the statistics tables themselves */
-  if (!strcmp(old_name, TABLE_STATS_NAME()) ||
-      !strcmp(old_name, INDEX_STATS_NAME()) ||
-      !strcmp(new_name, TABLE_STATS_NAME()) ||
-      !strcmp(new_name, INDEX_STATS_NAME()))
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
+  get_table_stats_names(old_name,
+                        &table_stats_name,
+                        &index_stats_name);
+
+    /* skip the statistics tables themselves */
+  if (!strcmp(old_name, table_stats_name) ||
+      !strcmp(old_name, index_stats_name) ||
+      !strcmp(new_name, table_stats_name) ||
+      !strcmp(new_name, index_stats_name))
     return DB_SUCCESS;
 
   char old_db[MAX_DB_UTF8_LEN];
@@ -4425,8 +4490,8 @@ dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
     "WHERE database_name=:old_db AND table_name=:old_table;\n"
      "END;\n", NullS);
 
-  pars_info_bind_id(pinfo, "table_stats", TABLE_STATS_NAME());
-  pars_info_bind_id(pinfo, "index_stats", INDEX_STATS_NAME());
+  pars_info_bind_id(pinfo, "table_stats", table_stats_name);
+  pars_info_bind_id(pinfo, "index_stats", index_stats_name);
   return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
@@ -4444,6 +4509,11 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
   if (!dict_stats_persistent_storage_check(true))
     return DB_STATS_DO_NOT_EXIST;
   pars_info_t *pinfo= pars_info_create();
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
+  get_table_stats_names(db, &table_stats_name, &index_stats_name);
 
   pars_info_add_str_literal(pinfo, "db", db);
   pars_info_add_str_literal(pinfo, "table", table);
@@ -4454,7 +4524,7 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
   strxnmov(sql, sizeof(sql)-1,
     "PROCEDURE RENAME_INDEX_IN_STATS() IS\n"
     "BEGIN\n"
-    "UPDATE \"", INDEX_STATS_NAME(), "\" SET index_name=:new\n"
+    "UPDATE \"", index_stats_name, "\" SET index_name=:new\n"
     "WHERE database_name=:db AND table_name=:table AND index_name=:old;\n"
     "END;\n",NullS);
 
@@ -4468,7 +4538,13 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
 dberr_t dict_stats_delete(const char *db, trx_t *trx)
 {
   char sql[2048];
-  strxnmov(sql, sizeof(sql)-1,
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
+  get_table_stats_names(db, &table_stats_name, &index_stats_name);
+
+   strxnmov(sql, sizeof(sql)-1,
     "PROCEDURE DROP_DATABASE_STATS () IS\n"
     "BEGIN\n"
     "DELETE FROM $table_stats WHERE database_name=:db;\n"
@@ -4477,8 +4553,8 @@ dberr_t dict_stats_delete(const char *db, trx_t *trx)
 
   pars_info_t *pinfo= pars_info_create();
   pars_info_add_str_literal(pinfo, "db", db);
-  pars_info_bind_id(pinfo, "table_stats", TABLE_STATS_NAME());
-  pars_info_bind_id(pinfo, "index_stats", INDEX_STATS_NAME());
+  pars_info_bind_id(pinfo, "table_stats", table_stats_name);
+  pars_info_bind_id(pinfo, "index_stats", index_stats_name);
   return dict_stats_exec_sql(pinfo, sql, trx);
 }
 

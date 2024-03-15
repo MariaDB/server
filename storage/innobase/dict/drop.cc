@@ -120,12 +120,19 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 @return error code */
 dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 {
+  const char *table_name= name.m_name;
   ut_ad(dict_sys.locked());
   ut_ad(dict_operation_lock_mode);
 
+  if (using_catalogs)
+  {
+    const char *ref= strchr(table_name, '/');
+    if (ref)
+      table_name= ref+1;
+  }
   if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
-      !strcmp(name.m_name, TABLE_STATS_NAME()) ||
-      !strcmp(name.m_name, INDEX_STATS_NAME()))
+      !strcmp(table_name, ORG_TABLE_STATS_NAME) ||
+      !strcmp(table_name, ORG_INDEX_STATS_NAME))
     return DB_SUCCESS;
 
   char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];

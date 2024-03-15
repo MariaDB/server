@@ -168,6 +168,15 @@ enum spatial_status_t {
 #define CAT_TABLE_STATS_NAME "def/mysql/innodb_table_stats"
 #define CAT_INDEX_STATS_NAME "def/mysql/innodb_index_stats"
 
+#define TABLE_STATS_NAME_LENGTH (sizeof(ORG_INDEX_STATS_NAME)+MAX_CATALOG_NAME+2)
+void get_table_stats_names(const char *table_name,
+                           char **table_stats_name,
+                           char **index_stats_name);
+
+void get_table_stats_names_catalog(const char *catalog,
+                                   char **table_stats_name,
+                                   char **index_stats_name);
+
 const char *TABLE_STATS_NAME();
 const char* INDEX_STATS_NAME();
 

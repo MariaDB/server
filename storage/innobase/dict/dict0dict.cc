@@ -614,7 +614,7 @@ dict_index_get_nth_field_pos(
 @param[out] tbl_name_len    table name length
 @return whether the table name is visible to SQL */
 template<bool dict_frozen>
-bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
+bool dict_table_t::parse_name(char (&db_name)[MAX_CATALOG_NAME + 1 + NAME_LEN + 1],
                               char (&tbl_name)[NAME_LEN + 1],
                               size_t *db_name_len, size_t *tbl_name_len) const
 {
@@ -655,7 +655,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
 }
 
 template bool
-dict_table_t::parse_name<>(char(&)[NAME_LEN + 1], char(&)[NAME_LEN + 1],
+dict_table_t::parse_name<>(char(&)[MAX_CATALOG_NAME + 1 + NAME_LEN + 1], char(&)[NAME_LEN + 1],
                            size_t*, size_t*) const;
 
 /** Acquire MDL shared for the table name.
@@ -700,7 +700,7 @@ dict_acquire_mdl_shared(dict_table_t *table,
     return nullptr;
 
   table_id_t table_id= table->id;
-  char db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
+  char db_buf[MAX_CATALOG_NAME + 1 + NAME_LEN + 1], db_buf1[MAX_CATALOG_NAME + 1 + NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
   size_t tbl_len;
   bool unaccessible= false;

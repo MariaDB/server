@@ -1980,7 +1980,7 @@ struct dict_table_t {
   @param[out] tbl_name_len    table name length
   @return whether the table name is visible to SQL */
   template<bool dict_frozen= false>
-  bool parse_name(char (&db_name)[NAME_LEN + 1],
+  bool parse_name(char (&db_name)[MAX_CATALOG_NAME + 1 + NAME_LEN + 1],
                   char (&tbl_name)[NAME_LEN + 1],
                   size_t *db_name_len, size_t *tbl_name_len) const;
 

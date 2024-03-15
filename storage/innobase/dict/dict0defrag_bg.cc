@@ -215,7 +215,15 @@ Save defragmentation result.
 dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
 {
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  dict_table_t *table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
+  get_table_stats_names(index->table->name.m_name,
+                        &table_stats_name,
+                        &index_stats_name);
+
+  dict_table_t *table_stats= dict_table_open_on_name(table_stats_name, false,
                                                      DICT_ERR_IGNORE_NONE);
   if (table_stats)
   {
@@ -223,7 +231,7 @@ dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
     table_stats= dict_acquire_mdl_shared<false>(table_stats, thd, &mdl_table);
     dict_sys.unfreeze();
   }
-  if (!table_stats || strcmp(table_stats->name.m_name, TABLE_STATS_NAME()))
+  if (!table_stats || strcmp(table_stats->name.m_name, table_stats_name))
   {
 release_and_exit:
     if (table_stats)
@@ -231,7 +239,7 @@ release_and_exit:
     return DB_STATS_DO_NOT_EXIST;
   }
 
-  dict_table_t *index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
+  dict_table_t *index_stats= dict_table_open_on_name(index_stats_name, false,
                                                      DICT_ERR_IGNORE_NONE);
   if (index_stats)
   {
@@ -241,7 +249,7 @@ release_and_exit:
   }
   if (!index_stats)
     goto release_and_exit;
-  if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME()))
+  if (strcmp(index_stats->name.m_name, index_stats_name))
   {
     dict_table_close(index_stats, false, thd, mdl_index);
     goto release_and_exit;
@@ -336,6 +344,14 @@ dict_stats_save_defrag_stats(
   if (!index->is_readable())
     return dict_stats_report_error(index->table, true);
 
+  char table_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char index_stats_name_buf[TABLE_STATS_NAME_LENGTH];
+  char *table_stats_name= table_stats_name_buf;
+  char *index_stats_name= index_stats_name_buf;
+  get_table_stats_names(index->table->name.m_name,
+                        &table_stats_name,
+                        &index_stats_name);
+
   const time_t now= time(nullptr);
   mtr_t mtr;
   ulint n_leaf_pages;
@@ -366,7 +382,7 @@ release_and_exit:
     return DB_STATS_DO_NOT_EXIST;
   }
 
-  dict_table_t *index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
+  dict_table_t *index_stats= dict_table_open_on_name(index_stats_name, false,
                                                      DICT_ERR_IGNORE_NONE);
   if (index_stats)
   {
@@ -377,7 +393,7 @@ release_and_exit:
   if (!index_stats)
     goto release_and_exit;
 
-  if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME()))
+  if (strcmp(index_stats->name.m_name, index_stats_name))
   {
     dict_table_close(index_stats, false, thd, mdl_index);
     goto release_and_exit;
