@@ -1141,5 +1141,12 @@ SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('
 
 
 --echo #
+--echo # MDEV-22141: JSON_REMOVE returns NULL on valid arguments
+--echo #
+
+SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

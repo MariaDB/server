@@ -1711,5 +1711,11 @@ NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
 #
+# MDEV-22141: JSON_REMOVE returns NULL on valid arguments
+#
+SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
+JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D')
+{"A": {"B": 1}}
+#
 # End of 10.5 tests
 #
