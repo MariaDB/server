@@ -6094,7 +6094,7 @@ void do_connect(struct st_command *command)
   int read_timeout= 0;
   int write_timeout= 0;
   int connect_timeout= 0;
-  char *csname=0;
+  char *csname=0, *rauth __attribute__((unused))= 0;
   struct st_connection* con_slot;
   my_bool default_db;
 
@@ -6221,6 +6221,10 @@ void do_connect(struct st_command *command)
     {
       csname= strdup(con_options + sizeof("CHARSET=") - 1);
     }
+    else if (strncasecmp(con_options, STRING_WITH_LEN("auth=")) == 0)
+    {
+      rauth= strdup(con_options + sizeof("auth=") - 1);
+    }
     else
       die("Illegal option to connect: %.*b",
           (int) (end - con_options), con_options);
@@ -6259,8 +6263,10 @@ void do_connect(struct st_command *command)
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
+#ifndef EMBEDDED_LIBRARY
+  if (rauth)
+    mysql_options(con_slot->mysql, MARIADB_OPT_RESTRICTED_AUTH, rauth);
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   set_ssl_opts(con_slot->mysql, con_ssl == USE_SSL_FORBIDDEN ? 0 :
                                 con_ssl == USE_SSL_REQUIRED ? 1 : opt_use_ssl,
                                 ssl_cipher ? ssl_cipher : opt_ssl_cipher);
@@ -6337,6 +6343,7 @@ void do_connect(struct st_command *command)
   dynstr_free(&ds_options);
   dynstr_free(&ds_default_auth);
   free(csname);
+  free(rauth);
   DBUG_VOID_RETURN;
 }
 
