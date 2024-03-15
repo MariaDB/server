@@ -5747,6 +5747,25 @@ int spider_db_mbase_util::check_item_func(
   DBUG_RETURN(0);
 }
 
+/* Create a list of items from an Item_equal. */
+static int spider_create_items_from_item_equal(THD *thd, Item_equal *item, Item ***items, uint *item_count)
+{
+  /* TODO: check whether this is the optimal expansion of an Item_equal */
+  if (likely((*items= (Item**) thd_alloc(thd, sizeof(Item*) * (item->elements_count() - 1)))))
+    *item_count= item->elements_count() - 1;
+  else
+    return HA_ERR_OUT_OF_MEM;
+  Item *lhs= item->get_const(), *rhs;
+  Item_equal_fields_iterator it(*item);
+  if (!lhs)
+    lhs= it++;
+  while ((rhs= it++))
+  {
+    *(*items++)= (Item *) new (thd->mem_root) Item_func_eq(thd, lhs, rhs);
+  }
+  return 0;
+}
+
 /**
   The function print the string corresponding to the given item_func to str.
   The function is assumed to be called only when the check by the function
@@ -5764,7 +5783,7 @@ int spider_db_mbase_util::print_item_func(
   spider_fields *fields
 ) {
   int error_num;
-  Item *item, **item_list = item_func->arguments();
+  Item *item, **item_list = item_func->arguments(), *lhs, *rhs;
   Field *field;
   spider_string tmp_str;
   uint roop_count, item_count = item_func->argument_count(), start_item = 0;
@@ -6146,7 +6165,7 @@ int spider_db_mbase_util::print_item_func(
           str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
           str->q_append(interval_str, interval_len);
           str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-          
+
           if ((error_num = spider_db_print_item_type(item_list[0], NULL, spider,
                                                      str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
@@ -6656,6 +6675,12 @@ int spider_db_mbase_util::print_item_func(
       separator_str_length = SPIDER_SQL_COMMA_LEN;
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
+      break;
+    case Item_func::MULT_EQUAL_FUNC:
+      if ((error_num= spider_create_items_from_item_equal(spider->wide_handler->trx->thd, (Item_equal *) item_func, &item_list, &item_count)))
+        DBUG_RETURN(error_num);
+      separator_str= " and ";
+      separator_str_length= strlen(" and ");
       break;
     default:
       THD *thd = spider->wide_handler->trx->thd;

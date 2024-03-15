@@ -1,0 +1,41 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE `t1` (`c` INT(10) UNSIGNED NOT NULL, `b` VARCHAR(255) NOT NULL , PRIMARY KEY (`c`) USING BTREE ) ENGINE=MYISAM;
+CREATE TABLE `t2` (`a` INT(10) UNSIGNED NOT NULL, `c` INT(10) UNSIGNED NOT NULL ) ENGINE=MYISAM;
+SET spider_same_server_link= on;
+CREATE TABLE `t1_spider` (`c` INT(10) UNSIGNED NOT NULL, `b` VARCHAR(255) NOT NULL , PRIMARY KEY (`c`) USING BTREE ) COMMENT='wrapper "mysql",srv "srv", table "t1"' ENGINE=SPIDER;
+CREATE TABLE `t2_spider` (`a` INT(10) UNSIGNED NOT NULL, `c` INT(10) UNSIGNED NOT NULL
+, PRIMARY KEY (`a`) USING BTREE
+) COMMENT='wrapper "mysql",srv "srv",table "t2"' ENGINE=SPIDER;
+INSERT INTO t1_spider VALUES(1,'oooo');
+INSERT INTO t2_spider VALUES(1,1);
+# SELECT t2.a,t1.c FRoM t2 LEFT join t1 ON (t2.c = t1.c) WHERE t2.a = 1;
+# not ok
+# select 1 from (select 1) t0 left join (select 1) t1 on () where 1;
+# ok
+# select 1 from (select 1) t0, (select 1) t1;
+SELECT t2_spider.a,t1_spider.c FRoM t2_spider LEFT join t1_spider ON (t2_spider.c = t1_spider.c) WHERE t2_spider.a = 1;
+
+drop table t1, t2, t1_spider, t2_spider;
+
+create table t1 (a INT, b INT);
+create table t2 (c INT, d INT);
+create table t1_s (a INT, b INT) engine=SPIDER COMMENT='wrapper "mysql",srv "srv",table "t1"';
+create table t2_s (c INT, d INT) engine=SPIDER COMMENT='wrapper "mysql",srv "srv",table "t2"';
+insert into t1_s values (1, 2), (5, 5), (3, 2);
+insert into t2_s values (1, 2), (5, 4), (3, 3);
+select * from t1_s JOIN t2_s on (a = c and c = b);
+drop table t1, t2, t1_s, t2_s;
+
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
