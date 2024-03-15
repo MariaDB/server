@@ -1,15 +1,25 @@
+#default is highest available version: TLSv1.2
 Variable_name	Value
 Ssl_version	TLSv1.2
+# TLSv1.2
 Variable_name	Value
 Ssl_version	TLSv1.2
+# TLSv1.1
 Variable_name	Value
 Ssl_version	TLSv1.1
+# if a gap is between TLS versions, lowest version number should be used (TLS1.1)
 Variable_name	Value
 Ssl_version	TLSv1.1
+# TLSv1.3 is not enabled, so TLSv1.2 should be used
 Variable_name	Value
 Ssl_version	TLSv1.2
+# Highest TLS version number should be used (TLSv1.2)
 Variable_name	Value
 Ssl_version	TLSv1.2
+# TLS v1.0 is no longer supported, an attempt to set it is ignored
+Variable_name	Value
+Ssl_version	TLSv1.2
+# finally list available protocols
 @@tls_version
 TLSv1.1,TLSv1.2
 call mtr.add_suppression("TLSv1.0 and TLSv1.1 are insecure");
