@@ -1845,8 +1845,8 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
     }
   }
 
-  if (tbl->on_expr)
-    tbl->on_expr->walk(&Item::mark_as_eliminated_processor, FALSE, NULL);
+  //if (tbl->on_expr)
+  //  tbl->on_expr->walk(&Item::mark_as_eliminated_processor, FALSE, NULL);
 }
 
 

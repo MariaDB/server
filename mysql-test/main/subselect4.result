@@ -2986,6 +2986,7 @@ where a >= any (select b from t2 group by (select c from t3 where c = 1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`a`,(/* select#2 */ select min(`test`.`t2`.`b`) from `test`.`t2`) <= <cache>(`test`.`t1`.`a`)))
 select a from t1
@@ -3009,6 +3010,7 @@ where a <= all (select b from t2 group by (select c from t3 where c = 1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <not>(<in_optimizer>(`test`.`t1`.`a`,(/* select#2 */ select min(`test`.`t2`.`b`) from `test`.`t2`) < <cache>(`test`.`t1`.`a`)))
 select a from t1
@@ -3021,6 +3023,7 @@ where a >= any (select b from t2 group by 1 + (select c from t3 where c = 1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`a`,(/* select#2 */ select min(`test`.`t2`.`b`) from `test`.`t2`) <= <cache>(`test`.`t1`.`a`)))
 select a from t1
@@ -3047,8 +3050,10 @@ group by (select a from t1 where a = 1) in (select d from t4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
@@ -3074,8 +3079,10 @@ any (select d from t4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) >=
@@ -3090,8 +3097,10 @@ all (select d from t4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) <
@@ -3106,8 +3115,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
 select b from t2
 where b in (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
@@ -3120,6 +3131,8 @@ group by (select a from t1 where a = 1) in
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <nop>(<in_optimizer>(`test`.`t2`.`b`,(/* select#2 */ select min(`test`.`t3`.`c`) from `test`.`t3`) <= <cache>(`test`.`t2`.`b`)))
 select b from t2
@@ -3136,6 +3149,8 @@ group by (select a from t1 where a = 1) in
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <not>(<in_optimizer>(`test`.`t2`.`b`,<min>(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3`) < <cache>(`test`.`t2`.`b`)))
 select b from t2

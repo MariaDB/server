@@ -793,7 +793,8 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
       */
       if (!ord->in_field_list)
       {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+        //psergey:
+        //(*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
         /*
           Remove from the JOIN::all_fields list any reference to the elements
           of the eliminated GROUP BY list unless it is 'in_field_list'.
