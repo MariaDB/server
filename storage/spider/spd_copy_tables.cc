@@ -1003,7 +1003,12 @@ long long spider_copy_tables_body(
   all_link_cnt =
     copy_tables->link_idx_count[0] + copy_tables->link_idx_count[1];
   if (
-    !(tmp_sql = new spider_string[all_link_cnt]) ||
+    !(tmp_sql = new spider_string[all_link_cnt])
+  ) {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    goto error;
+  }
+  if (
     !(spider = new ha_spider[all_link_cnt])
   ) {
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
