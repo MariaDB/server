@@ -5948,6 +5948,7 @@ WHERE SLEEP(0.1) OR c < 'p' OR b = ( SELECT MIN(b) FROM t2 );
 --enable_ps2_protocol
 
 --echo # The following shows that t2 was indeed scanned with a full scan.
+--sorted_result
 show table_statistics;
 show index_statistics;
 set global userstat=@tmp_mdev410;

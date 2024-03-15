@@ -9073,7 +9073,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           {
 	fk_not_found:
             my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
-                     drop->name);
+                     drop->name.str);
             goto err;
           }
           List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);

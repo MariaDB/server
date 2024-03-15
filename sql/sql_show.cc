@@ -3886,7 +3886,7 @@ static bool show_status_array(THD *thd, const char *wild,
       TODO: remove once lp:1306875 has been addressed.
      */
     if (!prefix.length &&
-        !strncasecmp(name_buffer.ptr(), "wsrep", strlen("wsrep")))
+        !strncasecmp(variables->name, STRING_WITH_LEN("wsrep")))
     {
       is_wsrep_var= TRUE;
     }

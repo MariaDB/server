@@ -57,9 +57,11 @@ DROP PROCEDURE SP;
 
 CREATE SEQUENCE t1;
 CREATE SEQUENCE T1;
+--disable_ps2_protocol
 SELECT nextval(t1), lastval(t1);
 SELECT nextval(T1), lastval(T1);
-SELECT lastval(t1), lastval(T1);
+SELECT lastval(t1), lastval(T1) l2;
+--enable_ps2_protocol
 DROP SEQUENCE t1, T1;
 
 --echo #
@@ -91,6 +93,7 @@ DROP DATABASE MYSQL;
 --echo # MDEV-33103 LOCK TABLE t1 AS t2 -- alias is not case sensitive with lower-case-table-names=0
 --echo #
 
+--disable_view_protocol
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 LOCK TABLE t1 AS t2 READ;
@@ -101,6 +104,7 @@ LOCK TABLE t1 AS t2 READ;
 SELECT * FROM t1 AS T2;
 UNLOCK TABLES;
 DROP TABLE t1;
+--enable_view_protocol
 
 
 --echo #
@@ -110,10 +114,12 @@ DROP TABLE t1;
 SET GLOBAL userstat=1;
 CREATE TABLE t1 (a INT, KEY(a));
 INSERT INTO t1 VALUES (1),(2),(3),(4);
+--disable_ps2_protocol
 SELECT * FROM t1 ORDER BY a;
 CREATE TABLE T1 (a INT, KEY(a));
 INSERT INTO T1 VALUES (1),(2),(3),(4);
 SELECT * FROM T1 ORDER BY a;
+--enable_ps2_protocol
 SELECT * FROM INFORMATION_SCHEMA.TABLE_STATISTICS ORDER BY BINARY TABLE_NAME;
 SELECT * FROM INFORMATION_SCHEMA.INDEX_STATISTICS ORDER BY BINARY TABLE_NAME;
 DROP TABLE t1;
@@ -174,3 +180,5 @@ CREATE TABLE MYSQL.transaction_registry (a INT);
 INSERT INTO MYSQL.transaction_registry VALUES (1),(2);
 DROP TABLE MYSQL.transaction_registry;
 DROP DATABASE MYSQL;
+
+--echo # End of 11.5 tests
