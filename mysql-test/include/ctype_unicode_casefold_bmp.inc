@@ -2,6 +2,8 @@
 --source include/have_ucs2.inc
 --source include/have_sequence.inc
 
+--disable_view_protocol
+
 EXECUTE IMMEDIATE SFORMAT('
 CREATE VIEW v_bmp AS
 SELECT
@@ -66,5 +68,6 @@ WHERE NOT (
   c LIKE LOWER(c)
 );
 
+--enable_view_protocol
 
 DROP VIEW v_bmp;

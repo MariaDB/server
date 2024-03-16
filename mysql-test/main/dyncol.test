@@ -3,6 +3,7 @@
 #
 
 --source include/default_charset.inc
+--disable_view_protocol
 
 --echo #
 --echo # column create
