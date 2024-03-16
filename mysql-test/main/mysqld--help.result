@@ -14,8 +14,7 @@ The following specify which files/extra groups are read (specified before remain
  function from any library, for example exit() from
  libc.so
  --alter-algorithm[=name] 
- Unused. One of: DEFAULT, COPY, INPLACE, NOCOPY, INSTANT.
- Deprecated, will be removed in a future release.
+ Unused. One of: DEFAULT, COPY, INPLACE, NOCOPY, INSTANT
  --analyze-sample-percentage=# 
  Percentage of rows from the table ANALYZE TABLE will
  sample to collect table statistics. Set to 0 to let
@@ -763,7 +762,7 @@ The following specify which files/extra groups are read (specified before remain
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
  --optimizer-adjust-secondary-key-costs=# 
- Unused, will be removed.
+ Unused
  --optimizer-disk-read-cost=# 
  Cost of reading a block of IO_SIZE (4096) from a disk (in
  usec).

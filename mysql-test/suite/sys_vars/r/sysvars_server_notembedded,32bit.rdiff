@@ -1,5 +1,5 @@
---- suite/sys_vars/r/sysvars_server_notembedded.result
-+++ suite/sys_vars/r/sysvars_server_notembedded,32bit.reject
+--- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
++++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 @@ -44,7 +44,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	ARIA_BLOCK_SIZE
@@ -729,7 +729,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Unused, will be removed.
+ VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
 @@ -2624,7 +2624,7 @@
