@@ -230,7 +230,7 @@ private:
       }
       else
       {
-        if (value + increment < min_value || value < min_value - increment)
+        if (value <= min_value || value + increment < min_value)
           value= min_value - 1;
         else
           value+= increment;
