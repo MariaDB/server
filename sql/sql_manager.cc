@@ -26,7 +26,7 @@
 #include "sql_manager.h"
 #include "sql_base.h"                           // flush_tables
 
-static bool volatile manager_thread_in_use = 0;
+static int volatile manager_thread_in_use = 0;
 static bool abort_manager = false;
 
 pthread_t manager_thread;
@@ -76,7 +76,9 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
   pthread_detach_this_thread();
   manager_thread = pthread_self();
   mysql_mutex_lock(&LOCK_manager);
-  while (!abort_manager)
+  manager_thread_in_use= 1;
+  mysql_cond_signal(&COND_manager);
+  while (!abort_manager || cb_list)
   {
     /* XXX: This will need to be made more general to handle different
      * polling needs. */
@@ -116,7 +118,7 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
     }
     mysql_mutex_lock(&LOCK_manager);
   }
-  manager_thread_in_use = 0;
+  manager_thread_in_use= -1;
   mysql_mutex_unlock(&LOCK_manager);
   mysql_mutex_destroy(&LOCK_manager);
   mysql_cond_destroy(&COND_manager);
@@ -134,14 +136,19 @@ void start_handle_manager()
   {
     pthread_t hThread;
     int err;
+    manager_thread_in_use= 0;
     DBUG_EXECUTE_IF("delay_start_handle_manager", my_sleep(1000););
-    manager_thread_in_use = 1;
     mysql_cond_init(key_COND_manager, &COND_manager,NULL);
     mysql_mutex_init(key_LOCK_manager, &LOCK_manager, NULL);
     if ((err= mysql_thread_create(key_thread_handle_manager, &hThread,
                                   &connection_attrib, handle_manager, 0)))
       sql_print_warning("Can't create handle_manager thread (errno: %M)", err);
   }
+  mysql_mutex_lock(&LOCK_manager);
+  while (!manager_thread_in_use)
+    mysql_cond_wait(&COND_manager, &LOCK_manager);
+  mysql_mutex_unlock(&LOCK_manager);
+
   DBUG_VOID_RETURN;
 }
 
@@ -150,7 +157,7 @@ void start_handle_manager()
 void stop_handle_manager()
 {
   DBUG_ENTER("stop_handle_manager");
-  if (manager_thread_in_use)
+  if (manager_thread_in_use > 0)
   {
     mysql_mutex_lock(&LOCK_manager);
     abort_manager = true;
@@ -159,6 +166,6 @@ void stop_handle_manager()
     mysql_cond_signal(&COND_manager);
     mysql_mutex_unlock(&LOCK_manager);
   }
+  abort_manager = true;
   DBUG_VOID_RETURN;
 }
-
