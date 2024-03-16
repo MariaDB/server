@@ -2,6 +2,7 @@
 --source include/have_innodb.inc
 --source include/big_test.inc
 --source include/not_valgrind.inc
+--source include/have_log_bin.inc
 
 call mtr.add_suppression("Write to binary log failed: .* temporary space limit reached. An incident event is written to binary log.*");
 
