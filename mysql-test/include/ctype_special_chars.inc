@@ -9,7 +9,7 @@
 #
 #    UTF8 now process space as PAD character correctly.
 
-
+--disable_service_connection
 
 SELECT COLLATION('a');
 
@@ -31,6 +31,7 @@ SELECT 'a\0' > 'a ' AS c;
 SELECT 'a\t' > 'a'  AS c;
 SELECT 'a\t' > 'a ' AS c;
 
+--enable_service_connection
 
 CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS a LIMIT 0;
 
