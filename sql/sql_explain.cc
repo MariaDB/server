@@ -2167,10 +2167,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
         r_filtered= tracker.get_filtered_after_where()*100.0;
       }
     }
-  }
 
-  if (is_analyze)
-  {
     /*
       Add r_total_filtered, as combined "filtered" of all kinds of filtering:
       Rowid Filter, Index Condition Pushdown, attached condition.
@@ -2186,7 +2183,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
       r_total_filtered= out_rows* 100.0 / r_index_rows;
     }
-    else
+    else if (have_r_filtered)
       r_total_filtered= r_filtered;
 
     writer->add_member("r_total_filtered");
