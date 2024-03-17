@@ -24,7 +24,9 @@ d1
 3
 ALTER TABLE t1 AUTO_INCREMENT = 3;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	167	Can not set AUTO_INCREMENT to 3 which is lower than or equal to the current max value in the table: 3
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
