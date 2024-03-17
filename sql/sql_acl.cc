@@ -14230,6 +14230,7 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
     res= my_net_write(&mpvio->auth_info.thd->net, packet, packet_len) ||
          net_flush(&mpvio->auth_info.thd->net);
   }
+  mpvio->cached_client_reply.plugin= ""_LEX_CSTRING;
   mpvio->status= MPVIO_EXT::FAILURE; // the status is no longer RESTART
   mpvio->packets_written++;
   DBUG_RETURN(res);
