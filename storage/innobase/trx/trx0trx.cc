@@ -174,7 +174,7 @@ struct TrxFactory {
 
 		new(&trx->read_view) ReadView();
 
-		trx->rw_trx_hash_pins = 0;
+//		trx->rw_trx_hash_pins = 0;
 		trx_init(trx);
 
 		trx->dict_operation_lock_mode = false;
@@ -341,7 +341,7 @@ trx_t *trx_create()
 
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(!trx->will_lock);
-	ut_ad(!trx->rw_trx_hash_pins);
+//	ut_ad(!trx->rw_trx_hash_pins);
 
 	DBUG_LOG("trx", "Create: " << trx);
 

@@ -330,10 +330,18 @@ trx_t* current_trx();
 
 struct rw_trx_hash_element_t
 {
-  rw_trx_hash_element_t()
+  explicit
+  rw_trx_hash_element_t(trx_t *trx): id{trx->id}, no{TRX_ID_MAX}, trx{trx}
   {
-    memset(reinterpret_cast<void*>(this), 0, sizeof *this);
+    memset(reinterpret_cast<void*>(&mutex), 0, sizeof mutex);
     mutex.init();
+  }
+  rw_trx_hash_element_t(const rw_trx_hash_element_t &) = delete;
+  rw_trx_hash_element_t(rw_trx_hash_element_t &&otr)
+  {
+    memcpy(reinterpret_cast<void*>(this), reinterpret_cast<void*>(&otr),
+           sizeof *this);
+    trx->rw_trx_hash_element= this;
   }
 
 
@@ -357,42 +365,24 @@ struct rw_trx_hash_element_t
 /**
   Wrapper around LF_HASH to store set of in memory read-write transactions.
 */
-
+#include <growt/data-structures/table_config.hpp>
+#include <growt/data-structures/hash_table_mods.hpp>
+#include <growt/utils/hash/xx_h3.hpp>
+#include <growt/allocator/alignedallocator.hpp>
 class rw_trx_hash_t
 {
-  LF_HASH hash;
+  using table_type=  typename growt::table_config<trx_id_t, rw_trx_hash_element_t,
+          utils_tm::hash_tm::xx_h3, growt::AlignedAllocator<>,
+          hmod::growable,
+          hmod::deletion,
+          hmod::ref_integrity>::table_type;
+
+  table_type hash_table;
+
 
 
   template <typename T>
   using walk_action= my_bool(rw_trx_hash_element_t *element, T *action);
-
-
-  /**
-    Constructor callback for lock-free allocator.
-
-    Object is just allocated and is not yet accessible via rw_trx_hash by
-    concurrent threads. Object can be reused multiple times before it is freed.
-    Every time object is being reused initializer() callback is called.
-  */
-
-  static void rw_trx_hash_constructor(uchar *arg)
-  {
-    new(arg + LF_HASH_OVERHEAD) rw_trx_hash_element_t();
-  }
-
-
-  /**
-    Destructor callback for lock-free allocator.
-
-    Object is about to be freed and is not accessible via rw_trx_hash by
-    concurrent threads.
-  */
-
-  static void rw_trx_hash_destructor(uchar *arg)
-  {
-    reinterpret_cast<rw_trx_hash_element_t*>
-      (arg + LF_HASH_OVERHEAD)->~rw_trx_hash_element_t();
-  }
 
 
   /**
@@ -436,7 +426,7 @@ class rw_trx_hash_t
     which indicates it is about to be removed from lock-free hash and become
     not accessible by concurrent threads.
   */
-
+/*
   static void rw_trx_hash_initializer(LF_HASH *,
                                       rw_trx_hash_element_t *element,
                                       trx_t *trx)
@@ -447,7 +437,7 @@ class rw_trx_hash_t
     element->no= TRX_ID_MAX;
     trx->rw_trx_hash_element= element;
   }
-
+*/
 
   /**
     Gets LF_HASH pins.
@@ -457,7 +447,7 @@ class rw_trx_hash_t
     available, we try to get it using currnet_trx(). If caller doesn't have trx
     at all, temporary pins are allocated.
   */
-
+/*
   LF_PINS *get_pins(trx_t *trx)
   {
     if (!trx->rw_trx_hash_pins)
@@ -467,7 +457,7 @@ class rw_trx_hash_t
     }
     return trx->rw_trx_hash_pins;
   }
-
+*/
 
   template <typename T> struct eliminate_duplicates_arg
   {
@@ -532,19 +522,23 @@ class rw_trx_hash_t
 public:
   void init()
   {
+    /*
     lf_hash_init(&hash, sizeof(rw_trx_hash_element_t), LF_HASH_UNIQUE, 0,
                  sizeof(trx_id_t), 0, &my_charset_bin);
     hash.alloc.constructor= rw_trx_hash_constructor;
     hash.alloc.destructor= rw_trx_hash_destructor;
     hash.initializer=
       reinterpret_cast<lf_hash_initializer>(rw_trx_hash_initializer);
+      */
   }
 
 
   void destroy()
   {
+    /*
     hash.alloc.destructor= rw_trx_hash_shutdown_destructor;
     lf_hash_destroy(&hash);
+     */
   }
 
 
@@ -559,13 +553,13 @@ public:
     initialisation thread calls this for recovered transactions.
   */
 
-  void put_pins(trx_t *trx)
+  static void put_pins(trx_t *trx)
   {
-    if (trx->rw_trx_hash_pins)
-    {
-      lf_hash_put_pins(trx->rw_trx_hash_pins);
-      trx->rw_trx_hash_pins= 0;
-    }
+//    if (trx->rw_trx_hash_pins)
+//    {
+//      lf_hash_put_pins(trx->rw_trx_hash_pins);
+//      trx->rw_trx_hash_pins= 0;
+//    }
   }
 
 
@@ -616,12 +610,12 @@ public:
     ut_ad(!caller_trx || caller_trx->id != trx_id || !do_ref_count);
 
     trx_t *trx= 0;
-    LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
-    ut_a(pins);
 
-    rw_trx_hash_element_t *element= reinterpret_cast<rw_trx_hash_element_t*>
-      (lf_hash_search(&hash, pins, reinterpret_cast<const void*>(&trx_id),
-                      sizeof(trx_id_t)));
+    auto handle= hash_table.get_handle();
+    rw_trx_hash_element_t *element= NULL;
+    auto &&iter= handle.find(trx_id);
+    if (iter != handle.end())
+      element= const_cast<rw_trx_hash_element_t*>(&iter->second);
     if (element)
     {
       /* rw_trx_hash_t::erase() sets element->trx to nullptr under
@@ -634,7 +628,11 @@ public:
       deregistered before element->mutex acquisition, element->trx is nullptr.
       It can't be deregistered while element->mutex is held. */
       trx_t *element_trx = element->trx;
-      lf_hash_search_unpin(pins);
+
+
+      //lf_hash_search_unpin(pins); // TODO
+
+
       /* The *element can be reused now, as element->trx value is stored
       locally in element_trx. */
       DEBUG_SYNC_C("after_trx_hash_find_element_mutex_enter");
@@ -666,8 +664,6 @@ public:
       worst case some thread will wait for element->mutex releasing. */
       element->mutex.wr_unlock();
     }
-    if (!caller_trx)
-      lf_hash_put_pins(pins);
     return trx;
   }
 
@@ -681,9 +677,9 @@ public:
   void insert(trx_t *trx)
   {
     ut_d(validate_element(trx));
-    int res= lf_hash_insert(&hash, get_pins(trx),
-                            reinterpret_cast<void*>(trx));
-    ut_a(res == 0);
+    auto handle= hash_table.get_handle();
+    rw_trx_hash_element_t elem(trx);
+    handle.emplace(trx->id, std::move(elem));
   }
 
 
@@ -701,10 +697,7 @@ public:
     trx->rw_trx_hash_element->mutex.wr_lock();
     trx->rw_trx_hash_element->trx= nullptr;
     trx->rw_trx_hash_element->mutex.wr_unlock();
-    int res= lf_hash_delete(&hash, get_pins(trx),
-                            reinterpret_cast<const void*>(&trx->id),
-                            sizeof(trx_id_t));
-    ut_a(res == 0);
+    hash_table.get_handle().erase(trx->id);
   }
 
 
@@ -717,7 +710,7 @@ public:
     because it may change even before this method returns.
   */
 
-  uint32_t size() { return uint32_t(lf_hash_size(&hash)); }
+  uint32_t size() { return uint32_t(hash_table.get_handle().element_count_approx()); }
 
 
   /**
@@ -751,20 +744,15 @@ public:
   template <typename T>
   int iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
   {
-    LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
-    ut_a(pins);
-#ifdef UNIV_DEBUG
-    debug_iterator_arg<T> debug_arg= { action, argument };
-    action= reinterpret_cast<decltype(action)>(debug_iterator<T>);
-    argument= reinterpret_cast<T*>(&debug_arg);
-#endif
-    int res= lf_hash_iterate(&hash, pins,
-                             reinterpret_cast<my_hash_walk_action>(action),
-                             const_cast<void*>(static_cast<const void*>
-                             (argument)));
-    if (!caller_trx)
-      lf_hash_put_pins(pins);
-    return res;
+    my_bool res= 0;
+    auto handle= hash_table.get_handle();
+    for (auto &it: handle)
+    {
+      res= action(&it.second, argument);
+      if (res)
+        break;
+    }
+    return (int)res;
   }
 
 
@@ -795,6 +783,8 @@ public:
   {
     return iterate_no_dups(current_trx(), action, argument);
   }
+
+  rw_trx_hash_t(): hash_table(10) {}
 };
 
 class thread_safe_trx_ilist_t

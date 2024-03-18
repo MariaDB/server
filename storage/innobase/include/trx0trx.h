@@ -945,7 +945,7 @@ public:
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
 	rw_trx_hash_element_t *rw_trx_hash_element;
-	LF_PINS *rw_trx_hash_pins;
+//	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */
