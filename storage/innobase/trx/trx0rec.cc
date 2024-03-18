@@ -408,13 +408,43 @@ trx_undo_page_report_insert(
 						+ undo_block->page.frame));
 	byte* ptr = undo_block->page.frame + first_free;
 
-	if (trx_undo_left(undo_block, ptr) < 2 + 1 + 11 + 11) {
+  ulint bytes_needed = 2 + 1 + 11 + 11;
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn) {
+    bytes_needed += 9;
+  }
+#endif
+	if (trx_undo_left(undo_block, ptr) < bytes_needed) {
 		/* Not enough space for writing the general parameters */
 		return(0);
 	}
 
 	/* Reserve 2 bytes for the pointer to the next undo log record */
 	ptr += 2;
+	ulint undo_start_offset = 2;
+
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn) {
+    /* Indicate it's new version, that undo log also stores header offset */
+    *ptr++ = (byte)TRX_UNDO_NEW_VERSION_TAG;
+    /* Store low-two bytes of trx id for verification */
+    mach_write_to_2(ptr, (0xFFFF & trx->id));
+    ptr += 2;
+    trx_undo_t *undo;
+    if (!index->table->is_temporary()) {
+      undo = trx->rsegs.m_redo.undo;
+    } else {
+      undo = trx->rsegs.m_noredo.undo;
+    }
+    /* Write page no of header offset */
+    mach_write_to_4(ptr, undo->hdr_page_no);
+    ptr += 4;
+    /* Write header offset */
+    mach_write_to_2(ptr, undo->hdr_offset);
+    ptr += 2;
+    undo_start_offset = 11;
+  }
+#endif
 
 	/* Store first some general parameters to the undo log */
 	*ptr++ = TRX_UNDO_INSERT_REC;
@@ -423,7 +453,7 @@ trx_undo_page_report_insert(
 
 	if (write_empty) {
 		/* Table is in bulk operation */
-		undo_block->page.frame[first_free + 2] = TRX_UNDO_EMPTY;
+		undo_block->page.frame[first_free + undo_start_offset] = TRX_UNDO_EMPTY;
 		goto done;
 	}
 
@@ -433,9 +463,9 @@ trx_undo_page_report_insert(
 	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
 		ut_ad(clust_entry->is_metadata());
 		ut_ad(index->is_instant());
-		ut_ad(undo_block->page.frame[first_free + 2]
+		ut_ad(undo_block->page.frame[first_free + undo_start_offset]
 		      == TRX_UNDO_INSERT_REC);
-		undo_block->page.frame[first_free + 2]
+		undo_block->page.frame[first_free + undo_start_offset]
 			= TRX_UNDO_INSERT_METADATA;
 		goto done;
 	}
@@ -495,8 +525,9 @@ trx_undo_rec_get_pars(
 {
 	ulint		type_cmpl;
 
-	type_cmpl = undo_rec[2];
-	const byte *ptr = undo_rec + 3;
+	ulint undo_start_offset = trx_undo_start_offset(undo_rec);
+	type_cmpl = undo_rec[undo_start_offset];
+	const byte *ptr = undo_rec + undo_start_offset + 1;
 
 	*updated_extern = !!(type_cmpl & TRX_UNDO_UPD_EXTERN);
 	type_cmpl &= ~TRX_UNDO_UPD_EXTERN;
@@ -802,8 +833,14 @@ trx_undo_page_report_modify(
 
 	const uint16_t first_free = mach_read_from_2(ptr_to_first_free);
 	byte *ptr = undo_block->page.frame + first_free;
+	ulint bytes_needed = 50;
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn) {
+	  bytes_needed += 9;
+	}
+#endif
 
-	if (trx_undo_left(undo_block, ptr) < 50) {
+	if (trx_undo_left(undo_block, ptr) < bytes_needed) {
 		/* NOTE: the value 50 must be big enough so that the general
 		fields written below fit on the undo log page */
 		return 0;
@@ -811,6 +848,28 @@ trx_undo_page_report_modify(
 
 	/* Reserve 2 bytes for the pointer to the next undo log record */
 	ptr += 2;
+
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn) {
+		/* Indicate it's new version, that undo log also stores header offset */
+		*ptr++ = (byte)TRX_UNDO_NEW_VERSION_TAG;
+		/* Store low-two bytes of trx id for verification */
+		mach_write_to_2(ptr, (0xFFFF & trx->id));
+		ptr += 2;
+		trx_undo_t *undo;
+		if (!index->table->is_temporary()) {
+			undo = trx->rsegs.m_redo.undo;
+		} else {
+			undo = trx->rsegs.m_noredo.undo;
+		}
+		/* Write page no of header offset */
+		mach_write_to_4(ptr, undo->hdr_page_no);
+		ptr += 4;
+		/* Write header offset */
+		mach_write_to_2(ptr, undo->hdr_offset);
+		ptr += 2;
+	}
+#endif
 
 	dict_table_t*	table		= index->table;
 	const byte*	field;
@@ -2106,8 +2165,21 @@ static trx_undo_rec_t *trx_undo_get_rec_if_purgeable(trx_id_t trx_id,
 {
   {
     purge_sys_t::view_guard check;
-    if (!check.view().changes_visible(trx_id))
-      return trx_undo_get_undo_rec_low(roll_ptr, heap);
+#ifdef WITH_INNODB_SCN
+    if (innodb_use_scn)
+    {
+      if (trx_id == TRX_ID_MAX || !check.view().sees_version(trx_id))
+      {
+        ut_a(trx_id == TRX_ID_MAX || SCN_Mgr::is_scn(trx_id));
+        return trx_undo_get_undo_rec_low(roll_ptr, heap);
+      }
+    }
+    else
+#endif
+    {
+      if (!check.view().changes_visible(trx_id))
+        return trx_undo_get_undo_rec_low(roll_ptr, heap);
+    }
   }
   return nullptr;
 }
@@ -2126,8 +2198,21 @@ static trx_undo_rec_t *trx_undo_get_undo_rec(trx_id_t trx_id,
 {
   {
     purge_sys_t::end_view_guard check;
-    if (!check.view().changes_visible(trx_id))
-      return trx_undo_get_undo_rec_low(roll_ptr, heap);
+#ifdef WITH_INNODB_SCN
+    if (innodb_use_scn)
+    {
+      if (trx_id == TRX_ID_MAX || !check.view().sees_version(trx_id))
+      {
+        ut_a(trx_id == TRX_ID_MAX || SCN_Mgr::is_scn(trx_id));
+        return trx_undo_get_undo_rec_low(roll_ptr, heap);
+      }
+    }
+    else
+#endif
+    {
+      if (!check.view().changes_visible(trx_id))
+        return trx_undo_get_undo_rec_low(roll_ptr, heap);
+    }
   }
   return nullptr;
 }
@@ -2197,6 +2282,11 @@ trx_undo_prev_version_build(
 
 	mariadb_increment_undo_records_read();
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn && !SCN_Mgr::is_scn(rec_trx_id)) {
+		rec_trx_id = scn_mgr.get_scn(rec_trx_id, index, roll_ptr);
+	}
+#endif
 
 	ut_ad(!index->table->skip_alter_undo);
 
@@ -2222,6 +2312,19 @@ trx_undo_prev_version_build(
 
 	ptr = trx_undo_update_rec_get_sys_cols(ptr, &trx_id, &roll_ptr,
 					       &info_bits);
+
+#ifdef WITH_INNODB_SCN
+	trx_id_t scn = trx_id;
+	if (innodb_use_scn) {
+		if(!SCN_Mgr::is_scn(trx_id)) {
+			scn = scn_mgr.get_scn(trx_id, index, roll_ptr);
+			if (scn != TRX_ID_MAX && !index->online_log) {
+				trx_id = scn;
+			}
+		}
+		ut_a(SCN_Mgr::is_scn(scn) || scn == TRX_ID_MAX);
+	}
+#endif
 
 	/* (a) If a clustered index record version is such that the
 	trx id stamp in it is bigger than purge_sys.view, then the
@@ -2266,7 +2369,13 @@ trx_undo_prev_version_build(
 		the BLOB. */
 
 		if (update->info_bits & REC_INFO_DELETED_FLAG
-		    && purge_sys.is_purgeable(trx_id)) {
+		    && purge_sys.is_purgeable(
+#ifdef WITH_INNODB_SCN
+		        innodb_use_scn ? scn : trx_id
+#else
+		        trx_id
+#endif
+		    )) {
 			return DB_SUCCESS;
 		}
 
@@ -2447,3 +2556,183 @@ trx_undo_read_v_cols(
 
 	ut_ad(ptr == end_ptr);
 }
+
+#ifdef WITH_INNODB_SCN
+bool trx_undo_rec_get_hdr(
+    trx_id_t id,
+    trx_undo_rec_t *undo_rec,
+    uint32_t &undo_hdr_no,
+    uint32_t &offset) {
+  const byte *ptr;
+
+  ptr = undo_rec + 2;
+
+  if (*ptr != TRX_UNDO_NEW_VERSION_TAG) {
+    /* old version */
+    return false;
+  }
+
+  ptr += 1;
+  uint16_t low_id = mach_read_from_2(ptr);
+  if (low_id != (id & 0xFFFF)) {
+    /* Possiblely purged */
+    return false;
+  }
+
+  ptr += 2;
+
+  undo_hdr_no = mach_read_from_4(ptr);
+  ptr += 4;
+  offset = mach_read_from_2(ptr);
+
+  return true;
+}
+
+static inline trx_id_t trx_purge_get_version()
+{
+  trx_id_t purge_version= purge_sys.version.load();
+  ut_a(purge_version > 2);
+  /* Return a safe scn which will be taken by purged transaction */
+  return purge_version - 2;
+}
+
+static inline bool trx_scn_sanity_check(trx_id_t trx_scn)
+{
+  if (!SCN_Mgr::is_scn(trx_scn))
+  {
+    return false;
+  }
+
+  if (trx_scn >= trx_sys.get_max_trx_scn())
+  {
+    return false;
+  }
+
+  if (trx_scn < scn_mgr.startup_scn())
+  {
+    return false;
+  }
+
+  return true;
+}
+
+trx_id_t trx_undo_hdr_get_scn(trx_id_t trx_id, page_id_t &page_id,
+                              uint32_t offset, mtr_t *mtr, page_t *undo_page)
+{
+  trx_id_t purge_version= trx_purge_get_version();
+
+  if (undo_page == nullptr)
+  {
+    ulint space_size= fil_space_get_size(page_id.space());
+    if (space_size <= page_id.page_no())
+    {
+      return purge_version;
+    }
+
+    dberr_t err;
+    buf_block_t *b= buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr,
+                                     BUF_GET_POSSIBLY_FREED, mtr, &err);
+    if (b == nullptr)
+    {
+      return purge_version;
+    }
+    undo_page= b->page.frame;
+  }
+
+  /* Get undo header */
+  trx_ulogf_t *undo_header= undo_page + offset;
+  trx_id_t modifier_trx_id= mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
+  if (modifier_trx_id != trx_id)
+  {
+    /* Possiblely purged */
+    return purge_version;
+  }
+
+  trx_id_t scn= mach_read_from_8(undo_header + TRX_UNDO_TRX_NO);
+
+  if (!trx_scn_sanity_check(scn))
+  {
+    return purge_version;
+  }
+
+  return scn;
+}
+
+trx_id_t trx_undo_get_scn(const dict_index_t *index, roll_ptr_t roll_ptr,
+                          trx_id_t id)
+{
+  trx_id_t purge_version= trx_purge_get_version();
+
+  /* Decode rollback pointer */
+  bool is_insert;
+  ulint rseg_id;
+  uint32_t space_id;
+  uint32_t page_no;
+  uint16_t offset;
+  trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no, &offset);
+  trx_rseg_t *rseg= &trx_sys.rseg_array[rseg_id];
+  space_id= rseg->space->id;
+
+  ulint space_size= fil_space_get_size(space_id);
+  /* out of range, it must be purged */
+  if (page_no >= space_size)
+  {
+    return purge_version;
+  }
+  /* Get the page */
+  mtr_t mtr;
+  dberr_t err;
+  mtr_start(&mtr);
+  buf_block_t *b=
+      buf_page_get_gen(page_id_t(space_id, page_no), 0, RW_S_LATCH, nullptr,
+                       BUF_GET_POSSIBLY_FREED, &mtr, &err);
+  if (b == nullptr)
+  {
+    mtr_commit(&mtr);
+    return purge_version;
+  };
+  page_t *undo_page= b->page.frame;
+
+  /* Get record */
+  trx_undo_rec_t *undo_rec= (trx_undo_rec_t *) (undo_page + offset);
+
+  uint32_t undo_hdr_no;
+  uint32_t undo_hdr_offset;
+
+  if (!trx_undo_rec_get_hdr(id, undo_rec, undo_hdr_no, undo_hdr_offset) ||
+      undo_hdr_no >= space_size)
+  {
+    /* older version or invalid undo log */
+    mtr_commit(&mtr);
+    return purge_version;
+  }
+
+  if (trx_undo_rec_get_table_id(undo_rec) != index->table->id)
+  {
+    /* Wrong undo log, possiblely purged */
+    mtr_commit(&mtr);
+    return purge_version;
+  }
+
+  page_id_t undo_hdr_id= {space_id, undo_hdr_no};
+  trx_id_t scn;
+
+  if (undo_hdr_no == page_no)
+  {
+    /* No need to read and lock page again */
+    scn= trx_undo_hdr_get_scn(id, undo_hdr_id, undo_hdr_offset, &mtr,
+                              undo_page);
+  }
+  else
+  {
+    mtr_commit(&mtr);
+    mtr_start(&mtr);
+
+    scn= trx_undo_hdr_get_scn(id, undo_hdr_id, undo_hdr_offset, &mtr, nullptr);
+  }
+
+  mtr_commit(&mtr);
+
+  return scn;
+}
+#endif /* WITH_INNODB_SCN */

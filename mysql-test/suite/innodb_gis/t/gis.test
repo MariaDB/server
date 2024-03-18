@@ -4,6 +4,10 @@
 -- source include/have_geometry.inc
 --source include/have_sequence.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 SET default_storage_engine=InnoDB;
 SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=0;

@@ -2548,6 +2548,21 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
+#ifdef WITH_INNODB_SCN
+	buf_block_t *block = btr_cur_get_block(cursor);
+	if (innodb_use_scn && index->is_clust()) {
+		if (!index->online_log)
+		{
+			scn_mgr.batch_write(block, mtr);
+		}
+		else
+		{
+			block->clear_cursor();
+		}
+	}
+  ut_ad(block->is_cursor_empty());
+#endif
+
 	if (index->page == btr_cur_get_block(cursor)->page.id().page_no()) {
 		*rec = index->is_spatial()
 			? rtr_root_raise_and_insert(flags, cursor, offsets,
@@ -2678,6 +2693,13 @@ btr_cur_upd_lock_and_undo(
 			return(err);
 		}
 	}
+
+#ifdef WITH_INNODB_SCN
+	if (thr && innodb_use_scn && !index->online_log) {
+	  scn_mgr.set_scn(thr_get_trx(thr)->id, mtr, btr_cur_get_block(cursor),
+	                  btr_cur_get_rec(cursor), index, offsets);
+	}
+#endif
 
 	/* Append the info about the update in the undo log */
 
@@ -4144,6 +4166,13 @@ btr_cur_del_mark_set_clust_rec(
 		return(DB_SUCCESS);
 	}
 
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn && !index->online_log) {
+	  scn_mgr.set_scn(thr_get_trx(thr)->id, mtr, block,
+	                  rec, index, offsets);
+	}
+#endif
+
 	err = trx_undo_report_row_operation(thr, index,
 					    entry, NULL, 0, rec, offsets,
 					    &roll_ptr);
@@ -4401,6 +4430,19 @@ btr_cur_pessimistic_delete(
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	index = btr_cur_get_index(cursor);
+
+#ifdef WITH_INNODB_SCN
+	if (innodb_use_scn && index->is_clust()) {
+		if (!index->online_log)
+		{
+			scn_mgr.batch_write(block, mtr);
+		}
+		else
+		{
+			block->clear_cursor();
+		}
+	}
+#endif
 
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
 	ut_ad(!dict_index_is_online_ddl(index)

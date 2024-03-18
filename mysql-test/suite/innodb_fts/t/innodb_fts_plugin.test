@@ -3,6 +3,8 @@
 --source include/no_valgrind_without_big.inc
 # Restart is not supported in embedded
 --source include/not_embedded.inc
+# the optimization of inserting into empty table is not supported by scn
+--source include/have_innodb_scn_off.inc
 
 # Install fts parser plugin
 INSTALL PLUGIN simple_parser SONAME 'mypluglib';

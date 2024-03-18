@@ -436,6 +436,9 @@ got_block:
 		}
 
 		block->page.zip.clear();
+#ifdef WITH_INNODB_SCN
+		block->clear_cursor();
+#endif
 		return block;
 	}
 

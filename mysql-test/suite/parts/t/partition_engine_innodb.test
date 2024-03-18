@@ -13,6 +13,10 @@
 # Change:                                                                      #
 ################################################################################
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 #
 # NOTE: PLEASE DO NOT ADD NOT INNODB SPECIFIC TESTCASES HERE !
 #       TESTCASES WHICH MUST BE APPLIED TO ALL STORAGE ENGINES MUST BE ADDED IN

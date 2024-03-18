@@ -6,6 +6,10 @@ source include/have_innodb.inc;
 source include/not_embedded.inc;
 source include/have_profiling.inc;
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 SET SQL_MODE="";
 
 SET GLOBAL EVENT_SCHEDULER = OFF;

@@ -1430,6 +1430,9 @@ public:
   {
     online_log= reinterpret_cast<row_log_t*>(this);
   }
+
+  /** SCN of the index */
+	trx_id_t trx_scn;
 };
 
 /** Detach a virtual column from an index.

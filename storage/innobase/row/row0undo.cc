@@ -145,6 +145,7 @@ row_undo_node_create(
 	btr_pcur_init(&(undo->pcur));
 
 	undo->heap = mem_heap_create(256);
+	undo->new_scn = TRX_ID_MAX;
 
 	return(undo);
 }
@@ -352,7 +353,8 @@ static buf_block_t* row_undo_rec_get(undo_node_t* node)
 		return nullptr;
 	}
 
-	switch (node->undo_rec[2] & (TRX_UNDO_CMPL_INFO_MULT - 1)) {
+	ulint undo_start_offset = trx_undo_start_offset(node->undo_rec);
+	switch (node->undo_rec[undo_start_offset] & (TRX_UNDO_CMPL_INFO_MULT - 1)) {
 	case TRX_UNDO_INSERT_METADATA:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after

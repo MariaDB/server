@@ -265,6 +265,9 @@ void page_create_low(const buf_block_t* block, bool comp)
 			    <= PAGE_DATA);
 	compile_time_assert(PAGE_BTR_IBUF_FREE_LIST_NODE + FLST_NODE_SIZE
 			    <= PAGE_DATA);
+#ifdef WITH_INNODB_SCN
+	block->clear_cursor();
+#endif
 
 	page = block->page.frame;
 
@@ -381,6 +384,10 @@ page_create_empty(
 	ut_ad(fil_page_index_page_check(block->page.frame));
 	ut_ad(!index->is_dummy);
 	ut_ad(block->page.id().space() == index->table->space->id);
+
+#ifdef WITH_INNODB_SCN
+	block->clear_cursor();
+#endif
 
 	/* Multiple transactions cannot simultaneously operate on the
 	same temp-table in parallel.
@@ -894,6 +901,9 @@ page_delete_rec_list_end(
 
   /* The page becomes invalid for optimistic searches */
   buf_block_modify_clock_inc(block);
+#ifdef WITH_INNODB_SCN
+	block->clear_cursor();
+#endif
 
   const ulint n_core= page_is_leaf(page) ? index->n_core_fields : 0;
   mem_heap_t *heap= nullptr;

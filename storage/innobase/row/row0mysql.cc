@@ -2186,6 +2186,11 @@ row_create_index_for_mysql(
 		}
 
 		trx->op_info = "";
+#ifdef WITH_INNODB_SCN
+		if (innodb_use_scn && index) {
+			trx->add_scn_index(table->id, index->id);
+		}
+#endif
 	} else {
 		dict_build_index_def(table, index, trx);
 

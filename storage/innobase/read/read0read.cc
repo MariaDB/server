@@ -30,6 +30,10 @@ Created 2/16/1997 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0purge.h"
 
+#include "trx0rec.h"
+#include "trx0rseg.h"
+#include "row0row.h"
+
 /*
 -------------------------------------------------------------------------------
 FACT A: Cursor read view on a secondary index sees only committed versions
@@ -172,22 +176,63 @@ For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
 */
 inline void ReadViewBase::snapshot(trx_t *trx)
 {
-  trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
-  if (m_ids.empty())
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn)
   {
-    m_up_limit_id= m_low_limit_id;
-    return;
-  }
+    m_low_limit_no= scn_mgr.safe_limit_no();
+    if (unlikely(m_low_limit_no == 0))
+    {
+      trx_id_t id= 0;
+      trx_id_t no= 0;
 
-  std::sort(m_ids.begin(), m_ids.end());
-  m_up_limit_id= m_ids.front();
-  ut_ad(m_up_limit_id <= m_low_limit_id);
+      trx_sys.get_min_trx_id_no(id, no);
 
-  if (m_low_limit_no == m_low_limit_id &&
-      m_low_limit_id == m_up_limit_id + m_ids.size())
-  {
+      m_up_limit_id= id;
+      m_low_limit_no= no;
+
+      ut_a(m_low_limit_no > 0);
+    }
+    else
+    {
+      m_up_limit_id= scn_mgr.min_active_id();
+    }
+
+    if (trx != nullptr && m_up_limit_id == 0)
+    {
+      m_up_limit_id= trx_sys.get_min_trx_id();
+    }
+
+    m_version= trx_sys.get_max_trx_scn();
+    m_low_limit_id= trx_sys.get_max_trx_id();
     m_ids.clear();
-    m_low_limit_id= m_low_limit_no= m_up_limit_id;
+    m_committing_scns.clear();
+    m_committing_ids.clear();
+
+    if (unlikely(m_low_limit_no > m_version))
+    {
+      m_low_limit_no= m_version;
+    }
+  }
+  else
+#endif
+  {
+    trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
+    if (m_ids.empty())
+    {
+      m_up_limit_id= m_low_limit_id;
+      return;
+    }
+
+    std::sort(m_ids.begin(), m_ids.end());
+    m_up_limit_id= m_ids.front();
+    ut_ad(m_up_limit_id <= m_low_limit_id);
+
+    if (m_low_limit_no == m_low_limit_id &&
+        m_low_limit_id == m_up_limit_id + m_ids.size())
+    {
+      m_ids.clear();
+      m_low_limit_id= m_low_limit_no= m_up_limit_id;
+    }
   }
 }
 
@@ -235,7 +280,13 @@ void ReadView::open(trx_t *trx)
   {
     m_creator_trx_id= trx->id;
     if (trx->is_autocommit_non_locking() && empty() &&
-        low_limit_id() == trx_sys.get_max_trx_id())
+        (low_limit_id() == trx_sys.get_max_trx_id()) &&
+#ifdef WITH_INNODB_SCN
+        (innodb_use_scn ? m_version == trx_sys.get_max_trx_scn() : true)
+#else
+        true
+#endif
+    )
       m_open.store(true, std::memory_order_relaxed);
     else
     {
@@ -245,6 +296,9 @@ void ReadView::open(trx_t *trx)
       m_mutex.wr_unlock();
     }
   }
+#ifdef WITH_INNODB_SCN
+  set_trx(trx);
+#endif
 }
 
 
@@ -262,4 +316,502 @@ void trx_sys_t::clone_oldest_view(ReadViewBase *view) const
   trx_list.for_each([view](const trx_t &trx) {
                       trx.read_view.append_to(view);
 		    });
+#ifdef WITH_INNODB_SCN
+  if (innodb_use_scn)
+  {
+    if (view->m_low_limit_no > view->m_version)
+    {
+      view->m_low_limit_no= view->m_version;
+    }
+    else
+    {
+      view->m_version= view->m_low_limit_no;
+    }
+  }
+#endif
 }
+
+#ifdef WITH_INNODB_SCN
+SCN_Mgr scn_mgr;
+
+bool ReadViewBase::changes_visible(const dict_index_t *index,
+                                   buf_block_t *block, const rec_t *rec,
+                                   const rec_offs *offsets,
+                                   const trx_id_t creator_trx_id) const
+{
+  ut_a(index->is_clust());
+  ut_ad(innodb_use_scn);
+
+  if (index->table->is_temporary())
+  {
+    return true;
+  }
+
+  /* Get transaction id from record */
+  ulint offset= scn_mgr.scn_offset(index, offsets);
+  trx_id_t id= mach_read_from_6(rec + offset);
+
+  /* If it's scn, direct compare*/
+  if (SCN_Mgr::is_scn(id))
+  {
+    return sees_version(id);
+  }
+
+  /* Trx itself */
+  if (id == creator_trx_id)
+  {
+    return true;
+  }
+
+  if (id < m_up_limit_id)
+  {
+    return true;
+  }
+
+  if (id >= m_low_limit_id)
+  {
+    return false;
+  }
+
+  if (m_committing_ids.find(id) != m_committing_ids.end())
+  {
+    /* Not visible to current view */
+    return false;
+  }
+
+  /* Get SCN from undo log */
+  trx_id_t committing_version= 0;
+  trx_id_t scn=
+      scn_mgr.get_scn(id, index, row_get_rec_roll_ptr(rec, index, offsets),
+                      &committing_version);
+
+  if (committing_version != 0 && committing_version < m_version)
+  {
+    /* Consider such scenario:
+    - active trx: get trx->no = 5
+    - open read view: version = 7
+    - before committing trx completely: not visible
+    - after committing trx: visible because it's deregistered
+      and scn is written to undo (5 < 7)
+
+    Problem: consistent read is broken, so we must
+    record such kind of scn and id */
+    ut_a(scn == TRX_ID_MAX);
+    m_committing_ids.insert(id);
+    m_committing_scns.insert(committing_version);
+
+    ut_a(committing_version >= m_low_limit_no);
+  }
+
+  if (scn == TRX_ID_MAX)
+  {
+    /* Still active */
+    return false;
+  }
+
+  ut_a(scn > 0);
+
+  if (!srv_read_only_mode && block != nullptr &&
+      !index->table->is_temporary() && !index->online_log)
+  {
+    /* Attch record to block */
+    scn_mgr.add_lazy_cursor(block, const_cast<rec_t *>(rec), offset, id, scn,
+                            index->table->id);
+  }
+
+  return (sees_version(scn));
+}
+
+void run_cleanout_task(void *arg);
+
+SCN_Mgr::CleanoutWorker::CleanoutWorker(uint32_t id)
+    : m_id(id), m_pages(CLEANOUT_ARRAY_MAX_SIZE),
+      m_task(run_cleanout_task, &m_id)
+{
+  m_thd= innobase_create_background_thd("SCN cleanout worker");
+}
+
+SCN_Mgr::CleanoutWorker::~CleanoutWorker()
+{
+  destroy_background_thd(m_thd);
+}
+
+void SCN_Mgr::CleanoutWorker::add_page(uint64_t compact_page_id,
+                                       table_id_t table_id)
+{
+  m_pages.add(compact_page_id, table_id);
+}
+
+void SCN_Mgr::CleanoutWorker::take_pages(PageSets &pages)
+{
+  pages.clear();
+
+  uint64_t page_id= 0;
+  table_id_t table_id= 0;
+  while ((m_pages.get(page_id, table_id)))
+  {
+    pages.insert({page_id, table_id});
+  }
+}
+
+void SCN_Mgr::init_for_background_task()
+{
+  if (m_cleanout_workers)
+  {
+    return;
+  }
+  m_cleanout_workers= new CleanoutWorker *[innodb_cleanout_threads];
+
+  for (uint32_t i= 0; i < innodb_cleanout_threads; i++)
+  {
+    m_cleanout_workers[i]= new CleanoutWorker(i);
+  }
+}
+
+trx_id_t SCN_Mgr::get_scn_fast(trx_id_t id, trx_id_t *version)
+{
+  if (id < m_startup_id)
+  {
+    /* Too old transaction */
+    return m_startup_scn;
+  }
+  else
+  {
+    trx_id_t scn= m_scn_map.read(id);
+    if (scn == 0)
+    {
+      scn= m_random_map.read(id);
+    }
+
+    if (scn != 0)
+    {
+      return scn;
+    }
+
+    trx_t *trx= trx_sys.find(nullptr, id, version != nullptr);
+
+    if (trx == nullptr)
+    {
+      /* Already committed, need to find out scn from undo log */
+      return 0;
+    }
+
+    if (version == nullptr)
+    {
+      /* Not calling from changes_visible, but from
+      trx_undo_prev_version_build, and if trx is still in
+      lf_hash, we treat it as invisible. */
+      return TRX_ID_MAX;
+    }
+
+    trx->scn_mutex.wr_lock();
+    trx_id_t target_scn= trx->scn;
+    trx->scn_mutex.wr_unlock();
+
+    trx->release_reference();
+
+    if (target_scn != TRX_ID_MAX)
+    {
+      /* This scn is not visible even it's larger than
+      current versio of read view. */
+      *version= target_scn;
+    }
+
+    return TRX_ID_MAX;
+  }
+}
+
+trx_id_t SCN_Mgr::get_scn(trx_id_t id, const dict_index_t *index,
+                          roll_ptr_t roll_ptr, trx_id_t *version)
+{
+  ut_a(innodb_use_scn);
+  trx_id_t scn= get_scn_fast(id, version);
+
+  if (scn == TRX_ID_MAX)
+  {
+    /* Transaction is still active */
+    return TRX_ID_MAX;
+  }
+
+  if (scn != 0)
+  {
+    return scn;
+  }
+
+  /* Slow path */
+  scn= trx_undo_get_scn(index, roll_ptr, id);
+  if (scn > 0)
+  {
+    m_random_map.store(id, scn);
+  }
+
+  ut_a(scn < trx_sys.get_max_trx_scn());
+
+  if (scn == 0)
+  {
+    return TRX_ID_MAX;
+  }
+
+  return scn;
+}
+
+ulint SCN_Mgr::scn_offset(const dict_index_t *index, const rec_offs *offsets)
+{
+  ulint offset= index->trx_id_offset;
+
+  if (!offset)
+  {
+    offset= row_get_trx_id_offset(index, offsets);
+  }
+
+  return offset;
+}
+
+void SCN_Mgr::set_scn(mtr_t *mtr, buf_block_t *block, rec_t *rec,
+                      ulint trx_id_offset, trx_id_t id, trx_id_t scn)
+{
+  ut_ad(innodb_use_scn);
+  byte *trx_id_ptr= rec + trx_id_offset;
+  trx_id_t stored_id= mach_read_from_6(trx_id_ptr);
+
+  if (stored_id == 0)
+  {
+    /* history purged by purge thread, visible to all transactions */
+    return;
+  }
+
+  if (is_scn(stored_id))
+  {
+    if (stored_id >= scn)
+    {
+      /* Never revert back to smaller scn */
+      return;
+    }
+  }
+  else if (stored_id != id)
+  {
+    /* don't match */
+    return;
+  }
+
+  mach_write_to_6(trx_id_ptr, scn);
+
+  if (!block->page.zip.data)
+  {
+    mtr->memcpy(*block, trx_id_ptr - block->page.frame, DATA_TRX_ID_LEN);
+  }
+  else
+  {
+    page_zip_write_scn(block, rec, trx_id_offset, mtr);
+  }
+}
+
+void SCN_Mgr::set_scn(trx_id_t current_id, mtr_t *mtr, buf_block_t *block,
+                      rec_t *rec, dict_index_t *index, const rec_offs *offsets)
+{
+  ut_a(innodb_use_scn);
+  if (index->table->is_temporary())
+  {
+    /* No need to set scn for temp table */
+    return;
+  }
+
+  ulint offset= scn_offset(index, offsets);
+
+  /* Read id */
+  trx_id_t id= mach_read_from_6(rec + offset);
+  if (id == 0)
+  {
+    /* history has been purged */
+    return;
+  }
+  if (is_scn(id) || id == current_id)
+  {
+    /* Already be filled with scn, do nothing */
+    return;
+  }
+
+  trx_id_t scn= get_scn_fast(id, nullptr);
+
+  if (scn == 0 || scn == TRX_ID_MAX)
+  {
+    return;
+  }
+
+  set_scn(mtr, block, rec, offset, id, scn);
+}
+
+void SCN_Mgr::add_lazy_cursor(buf_block_t *block, rec_t *rec,
+                              ulint trx_id_offset, trx_id_t id, trx_id_t scn,
+                              table_id_t table_id)
+{
+  ut_ad(innodb_use_scn);
+  if (fsp_is_system_temporary(block->get_space_id()))
+  {
+    return;
+  }
+
+  if (block->add_lazy_cursor(rec, trx_id_offset, id, scn) == false)
+  {
+    return;
+  }
+  ut_a(rec > block->page.frame);
+
+  /* Add page number to the set */
+  page_id_t page_id{block->get_space_id(), block->get_page_no()};
+  uint64_t compact_id= page_id.raw();
+  uint64_t slot= compact_id % innodb_cleanout_threads;
+
+  m_cleanout_workers[slot]->add_page(compact_id, table_id);
+}
+
+void SCN_Mgr::view_task()
+{
+  ut_a(innodb_use_scn);
+  trx_id_t id= 0;
+  trx_id_t no= 0;
+  trx_sys.get_min_trx_id_no(id, no);
+  m_safe_limit_no= no;
+  m_min_active_id= id;
+}
+
+void SCN_Mgr::batch_write(buf_block_t *block, mtr_t *mtr)
+{
+  ut_ad(innodb_use_scn);
+  LazyCleanoutRecs lrecs;
+  lrecs.clear();
+  block->copy_and_free(lrecs);
+
+  for (auto &lrec : lrecs)
+  {
+    rec_t *rec= lrec.first;
+    ulint trx_id_offset= std::get<0>(lrec.second);
+    trx_id_t trx_id= std::get<1>(lrec.second);
+    trx_id_t scn= std::get<2>(lrec.second);
+    set_scn(mtr, block, rec, trx_id_offset, trx_id, scn);
+  }
+}
+
+void SCN_Mgr::cleanout_task(uint32_t slot)
+{
+  ut_a(innodb_use_scn);
+  CleanoutWorker *worker= m_cleanout_workers[slot];
+  MDL_ticket *mdl_ticket;
+  THD *thd= worker->get_thd();
+  while (!m_abort.load(std::memory_order_acquire))
+  {
+    PageSets pages;
+    pages.clear();
+    worker->take_pages(pages);
+    if (pages.empty())
+    {
+      break;
+    }
+    /* Process pages that need to be modified */
+    for (auto &val : pages)
+    {
+      if (m_abort.load(std::memory_order_acquire))
+      {
+        break;
+      }
+      page_id_t page_id(val.first);
+      table_id_t table_id= val.second;
+      mdl_ticket= nullptr;
+      /* Prevents the tablespace from being dropped during the operation */
+      dict_table_t *table= dict_table_open_on_id(
+          table_id, false, DICT_TABLE_OP_NORMAL, thd, &mdl_ticket);
+      if (table == nullptr)
+      {
+        continue;
+      }
+      fil_space_t *space= fil_space_get(page_id.space());
+      mtr_t mtr;
+      buf_block_t *block= nullptr;
+      mtr_start(&mtr);
+      mtr.set_in_scn_cleanout();
+      block= buf_page_get_gen(page_id, 0, RW_X_LATCH, nullptr,
+                              BUF_GET_IF_IN_POOL, &mtr, nullptr);
+      if (block != nullptr)
+      {
+        if (!table->is_active_ddl())
+        {
+          mtr.set_named_space(space);
+          batch_write(block, &mtr);
+        }
+        else
+        {
+          block->clear_cursor();
+        }
+      }
+      mtr_commit(&mtr);
+      dict_table_close(table, false, thd, mdl_ticket);
+    }
+  }
+}
+
+void run_cleanout_task(void *arg)
+{
+  uint32_t slot= *(uint32_t *) arg;
+  scn_mgr.cleanout_task(slot);
+}
+
+void SCN_Mgr::cleanout_task_monitor()
+{
+  for (uint32_t i= 0; i < innodb_cleanout_threads; i++)
+  {
+    auto cleanout_work= m_cleanout_workers[i];
+    if (!cleanout_work->is_empty() && !cleanout_work->is_running())
+    {
+      srv_thread_pool->submit_task(cleanout_work->get_task());
+    }
+  }
+}
+
+void cleanout_task_monitor(void *) { scn_mgr.cleanout_task_monitor(); }
+
+void run_view_task(void *) { scn_mgr.view_task(); }
+
+void SCN_Mgr::start()
+{
+  if (!innodb_use_scn || !m_cleanout_workers)
+  {
+    return;
+  }
+  m_abort= false;
+
+  m_cleanout_task_timer.reset(
+      srv_thread_pool->create_timer(::cleanout_task_monitor, nullptr));
+  m_cleanout_task_timer->set_time(0, 1000);
+
+  m_view_task_timer.reset(
+      srv_thread_pool->create_timer(run_view_task, nullptr));
+  m_view_task_timer->set_time(0, 1000);
+}
+
+void SCN_Mgr::stop()
+{
+  if (!innodb_use_scn || !m_cleanout_workers)
+  {
+    return;
+  }
+  m_abort= true;
+  if (m_cleanout_task_timer.get())
+  {
+    m_cleanout_task_timer->disarm();
+    m_cleanout_task_timer.reset();
+  }
+  if (m_view_task_timer.get())
+  {
+    m_view_task_timer->disarm();
+    m_view_task_timer.reset();
+  }
+  for (uint32_t i= 0; i < innodb_cleanout_threads; i++)
+  {
+    auto task= m_cleanout_workers[i]->get_task();
+    task->wait();
+    delete m_cleanout_workers[i];
+  }
+  delete[] m_cleanout_workers;
+  m_cleanout_workers= nullptr;
+}
+#endif /* WITH_INNODB_SCN */

@@ -1,6 +1,10 @@
 --source include/no_valgrind_without_big.inc
 -- source include/have_innodb.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 SET @old_log_output=                @@global.log_output;
 SET @old_slow_query_log=            @@global.slow_query_log;
 SET @old_long_query_time=           @@session.long_query_time;
