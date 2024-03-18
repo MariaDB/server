@@ -70,7 +70,7 @@ PageBulk::init()
 			return err;
 		}
 
-		new_page = buf_block_get_frame(new_block);
+		new_page = new_block->page.frame;
 		m_page_no = new_block->page.id().page_no();
 
 		byte* index_id = my_assume_aligned<2>
@@ -87,7 +87,8 @@ PageBulk::init()
 			ut_ad(!m_index->is_spatial());
 			page_create(new_block, &m_mtr,
 				    m_index->table->not_redundant());
-			m_mtr.memset(*new_block, FIL_PAGE_PREV, 8, 0xff);
+			m_mtr.memset(*new_block, FIL_PAGE_PREV + new_page,
+				     8, 0xff);
 			m_mtr.write<2,mtr_t::MAYBE_NOP>(*new_block, PAGE_HEADER
 							+ PAGE_LEVEL
 							+ new_page, m_level);
@@ -101,11 +102,11 @@ PageBulk::init()
 			return(DB_CORRUPTION);
 		}
 
-		new_page = buf_block_get_frame(new_block);
+		new_page = new_block->page.frame;
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
-		btr_page_set_level(new_block, m_level, &m_mtr);
+		btr_page_set_level(new_block, new_page, m_level, &m_mtr);
 	}
 
 	m_page_zip = buf_block_get_page_zip(new_block);
@@ -246,7 +247,7 @@ inline void PageBulk::insertPage(rec_t *rec, rec_offs *offsets)
       if (len > 2)
       {
         memcpy(b, c, len);
-        m_mtr.memmove(*m_block, page_offset(b), page_offset(c), len);
+        m_mtr.memmove(*m_block, b, c, len);
         c= cm;
         b= bm;
         r= rm;
@@ -285,7 +286,7 @@ no_data:
         {
           m_mtr.memcpy<mtr_t::FORCED>(*m_block, b, r, m_cur_rec - c);
           memcpy(bd, cd, len);
-          m_mtr.memmove(*m_block, page_offset(bd), page_offset(cd), len);
+          m_mtr.memmove(*m_block, bd, cd, len);
           c= cdm;
           b= rdm - rd + bd;
           r= rdm;
@@ -469,7 +470,7 @@ inline void PageBulk::finishPage()
     m_mtr.memcpy(*m_block, PAGE_HEADER + m_page, page_header,
                  sizeof page_header);
     m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
-    m_mtr.memcpy(*m_block, page_offset(slot), slot0 - slot);
+    m_mtr.memcpy(*m_block, slot, slot0 - slot);
   }
   else
   {

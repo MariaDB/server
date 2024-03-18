@@ -1249,7 +1249,7 @@ re_scan:
 			&pcur->btr_cur.page_cur,
 			pcur->btr_cur.rtr_info);
 
-		if (!page_is_leaf(buf_block_get_frame(cur_block))) {
+		if (!page_is_leaf(cur_block->page.frame)) {
 			/* Page got splitted and promoted (only for
 			root page it is possible).  Release the
 			page and ask for a re-search */

@@ -792,10 +792,11 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
   ut_ad(space->referenced());
 
   const auto s= state();
+  page_t *write_frame= zip.data;
 
   const lsn_t lsn=
     mach_read_from_8(my_assume_aligned<8>
-                     (FIL_PAGE_LSN + (zip.data ? zip.data : frame)));
+                     (FIL_PAGE_LSN + (write_frame ? write_frame : frame)));
   ut_ad(lsn
         ? lsn >= oldest_modification() || oldest_modification() == 2
         : space->purpose != FIL_TYPE_TABLESPACE);
@@ -852,7 +853,6 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
                         id().space(), id().page_no()));
 
   buf_block_t *block= reinterpret_cast<buf_block_t*>(this);
-  page_t *write_frame= zip.data;
 
   space->reacquire();
   size_t size;
@@ -860,8 +860,9 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
   size_t orig_size;
 #endif
   buf_tmp_buffer_t *slot= nullptr;
+  byte *page= frame;
 
-  if (UNIV_UNLIKELY(!frame)) /* ROW_FORMAT=COMPRESSED */
+  if (UNIV_UNLIKELY(!page)) /* ROW_FORMAT=COMPRESSED */
   {
     ut_ad(!space->full_crc32());
     ut_ad(!space->is_compressed()); /* not page_compressed */
@@ -875,7 +876,6 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
   }
   else
   {
-    byte *page= frame;
     size= block->physical_size();
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
     orig_size= size;

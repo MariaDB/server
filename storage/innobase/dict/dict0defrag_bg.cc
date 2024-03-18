@@ -313,15 +313,16 @@ btr_get_size_and_reserved(
 	if (!root) {
 		return ULINT_UNDEFINED;
 	}
+	const page_t* r = root->page.frame;
 
 	mtr->x_lock_space(index->table->space);
 
 	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
-					+ root->page.frame, used, mtr);
+					+ r, used, mtr);
 	if (flag == BTR_TOTAL_SIZE) {
 		n += fseg_n_reserved_pages(*root,
 					   PAGE_HEADER + PAGE_BTR_SEG_TOP
-					   + root->page.frame, &dummy, mtr);
+					   + r, &dummy, mtr);
 		*used += dummy;
 	}
 

@@ -176,6 +176,7 @@ void
 page_set_max_trx_id(
 /*================*/
 	buf_block_t*	block,	/*!< in/out: page */
+	page_t*		page,	/*!< in/out: page frame */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
 	trx_id_t	trx_id,	/*!< in: transaction id */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction, or NULL */
@@ -183,8 +184,7 @@ page_set_max_trx_id(
   ut_ad(!mtr || mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
   ut_ad(!page_zip || page_zip == &block->page.zip);
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
-  byte *max_trx_id= my_assume_aligned<8>(PAGE_MAX_TRX_ID +
-                                         PAGE_HEADER + block->page.frame);
+  byte *max_trx_id= my_assume_aligned<8>(PAGE_MAX_TRX_ID + PAGE_HEADER + page);
 
   mtr->write<8>(*block, max_trx_id, trx_id);
   if (UNIV_LIKELY_NULL(page_zip))
@@ -194,7 +194,6 @@ page_set_max_trx_id(
 
 /** Persist the AUTO_INCREMENT value on a clustered index root page.
 @param[in,out]	block	clustered index root page
-@param[in]	index	clustered index
 @param[in]	autoinc	next available AUTO_INCREMENT value
 @param[in,out]	mtr	mini-transaction
 @param[in]	reset	whether to reset the AUTO_INCREMENT
@@ -256,8 +255,9 @@ static const byte infimum_supremum_compact[] = {
 
 /** Create an index page.
 @param[in,out]	block	buffer block
-@param[in]	comp	nonzero=compact page format */
-void page_create_low(const buf_block_t* block, bool comp)
+@param[in]	comp	nonzero=compact page format
+@return page frame */
+page_t* page_create_low(const buf_block_t* block, bool comp)
 {
 	page_t*		page;
 
@@ -301,17 +301,20 @@ void page_create_low(const buf_block_t* block, bool comp)
 		page[srv_page_size - PAGE_DIR - PAGE_DIR_SLOT_SIZE + 1]
 			= PAGE_OLD_INFIMUM;
 	}
+
+	return page;
 }
 
 /** Create an uncompressed index page.
 @param[in,out]	block	buffer block
 @param[in,out]	mtr	mini-transaction
-@param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
-void page_create(buf_block_t *block, mtr_t *mtr, bool comp)
+@param[in]	comp	set unless ROW_FORMAT=REDUNDANT
+@return page frame */
+page_t *page_create(buf_block_t *block, mtr_t *mtr, bool comp)
 {
   mtr->page_create(*block, comp);
   buf_block_modify_clock_inc(block);
-  page_create_low(block, comp);
+  return page_create_low(block, comp);
 }
 
 /**********************************************************//**
@@ -350,18 +353,16 @@ page_create_zip(
 	      || index->table->is_temporary());
 
 	buf_block_modify_clock_inc(block);
-	page_create_low(block, true);
+	page_t* page = page_create_low(block, true);
 
 	if (index->is_spatial()) {
-		mach_write_to_2(FIL_PAGE_TYPE + block->page.frame,
-				FIL_PAGE_RTREE);
-		memset(block->page.frame + FIL_RTREE_SPLIT_SEQ_NUM, 0, 8);
+		mach_write_to_2(FIL_PAGE_TYPE + page, FIL_PAGE_RTREE);
+		memset(page + FIL_RTREE_SPLIT_SEQ_NUM, 0, 8);
 		memset(block->page.zip.data + FIL_RTREE_SPLIT_SEQ_NUM, 0, 8);
 	}
 
-	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + block->page.frame, level);
-	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + block->page.frame,
-			max_trx_id);
+	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
+	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
 
 	if (!page_zip_compress(block, index, page_zip_level, mtr)) {
 		/* The compression of a newly created
@@ -376,13 +377,14 @@ void
 page_create_empty(
 /*==============*/
 	buf_block_t*	block,	/*!< in/out: B-tree block */
+	page_t*		page,	/*!< in: block page frame */
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	trx_id_t	max_trx_id;
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
-	ut_ad(fil_page_index_page_check(block->page.frame));
+	ut_ad(fil_page_index_page_check(page));
 	ut_ad(!index->is_dummy);
 	ut_ad(block->page.id().space() == index->table->space->id);
 
@@ -392,12 +394,12 @@ page_create_empty(
 	for MVCC. */
 	if (dict_index_is_sec_or_ibuf(index)
 	    && !index->table->is_temporary()
-	    && page_is_leaf(block->page.frame)) {
-		max_trx_id = page_get_max_trx_id(block->page.frame);
+	    && page_is_leaf(page)) {
+		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
 	} else if (block->page.id().page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
-		max_trx_id = page_get_max_trx_id(block->page.frame);
+		max_trx_id = page_get_max_trx_id(page);
 	} else {
 		max_trx_id = 0;
 	}
@@ -405,8 +407,7 @@ page_create_empty(
 	if (page_zip) {
 		ut_ad(!index->table->is_temporary());
 		page_create_zip(block, index,
-				page_header_get_field(block->page.frame,
-						      PAGE_LEVEL),
+				page_header_get_field(page, PAGE_LEVEL),
 				max_trx_id, mtr);
 	} else {
 		page_create(block, mtr, index->table->not_redundant());
@@ -415,18 +416,18 @@ page_create_empty(
 				       | byte(FIL_PAGE_RTREE))
 				      == FIL_PAGE_RTREE, "compatibility");
 			mtr->write<1>(*block,
-				      FIL_PAGE_TYPE + 1 + block->page.frame,
+				      FIL_PAGE_TYPE + 1 + page,
 				      byte(FIL_PAGE_RTREE));
-			if (mach_read_from_8(block->page.frame
-					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
-				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
+			if (mach_read_from_8(page + FIL_RTREE_SPLIT_SEQ_NUM)) {
+				mtr->memset(block,
+					    page + FIL_RTREE_SPLIT_SEQ_NUM,
 					    8, 0);
 			}
 		}
 
 		if (max_trx_id) {
 			mtr->write<8>(*block, PAGE_HEADER + PAGE_MAX_TRX_ID
-				      + block->page.frame, max_trx_id);
+				      + page, max_trx_id);
 		}
 	}
 }
@@ -450,7 +451,7 @@ page_copy_rec_list_end_no_locks(
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	page_t*		new_page	= buf_block_get_frame(new_block);
+	page_t*		new_page	= new_block->page.frame;
 	page_cur_t	cur1;
 	page_cur_t	cur2;
 	mem_heap_t*	heap		= NULL;
@@ -472,9 +473,7 @@ page_copy_rec_list_end_no_locks(
 		return DB_CORRUPTION;
 	}
 
-	const ulint n_core = page_is_leaf(block->page.frame)
-		? index->n_core_fields : 0;
-
+	const ulint n_core = page_rec_is_leaf(rec) ? index->n_core_fields : 0;
 	dberr_t err = DB_SUCCESS;
 	page_cur_set_before_first(new_block, &cur2);
 
@@ -526,11 +525,11 @@ page_copy_rec_list_end(
 {
 	page_t*		new_page	= new_block->page.frame;
 	page_zip_des_t*	new_page_zip	= buf_block_get_page_zip(new_block);
-	page_t*		page		= block->page.frame;
+	page_t*		page		= page_align(rec);
 	rec_t*		ret		= page_rec_get_next(
 		page_get_infimum_rec(new_page));
 	ulint		num_moved	= 0;
-	ut_ad(page_align(rec) == page);
+	ut_ad(block->page.frame == page);
 
 	if (UNIV_UNLIKELY(!ret)) {
 		*err = DB_CORRUPTION;
@@ -549,7 +548,7 @@ page_copy_rec_list_end(
 		ut_a(page_zip_validate_low(page_zip, page, index, TRUE));
 	}
 #endif /* UNIV_ZIP_DEBUG */
-	ut_ad(buf_block_get_frame(block) == page);
+	ut_ad(block->page.frame == page);
 	ut_ad(page_is_leaf(page) == page_is_leaf(new_page));
 	ut_ad(page_is_comp(page) == page_is_comp(new_page));
 	/* Here, "ret" may be pointing to a user record or the
@@ -566,8 +565,7 @@ page_copy_rec_list_end(
 	rtr_rec_move_t* rec_move = nullptr;
 
 	if (index->is_spatial()) {
-		ulint	max_to_move = page_get_n_recs(
-			buf_block_get_frame(block));
+		ulint	max_to_move = page_get_n_recs(page);
 		heap = mem_heap_create(256);
 		rec_move= static_cast<rtr_rec_move_t*>(
 			mem_heap_alloc(heap, max_to_move * sizeof *rec_move));
@@ -696,7 +694,7 @@ page_copy_rec_list_start(
 {
 	ut_ad(page_align(rec) == block->page.frame);
 
-	page_t*		new_page	= buf_block_get_frame(new_block);
+	page_t*		new_page	= new_block->page.frame;
 	page_zip_des_t*	new_page_zip	= buf_block_get_page_zip(new_block);
 	page_cur_t	cur1;
 	page_cur_t	cur2;
@@ -742,8 +740,7 @@ corrupted:
 	/* Copy records from the original page to the new page */
 	if (index->is_spatial()) {
 		ut_ad(!index->is_instant());
-		ulint		max_to_move = page_get_n_recs(
-						buf_block_get_frame(block));
+		ulint max_to_move = page_get_n_recs(page_align(rec));
 		heap = mem_heap_create(256);
 
 		rec_move = static_cast<rtr_rec_move_t*>(mem_heap_alloc(
@@ -788,7 +785,7 @@ corrupted:
 	for MVCC. */
 	if (n_core && !index->is_primary() && !index->table->is_temporary()) {
 		page_update_max_trx_id(new_block, nullptr,
-				       page_get_max_trx_id(block->page.frame),
+				       page_get_max_trx_id(page_align(rec)),
                                        mtr);
 	}
 
@@ -876,10 +873,9 @@ page_delete_rec_list_end(
 				delete, or ULINT_UNDEFINED if not known */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-  page_t * const page= block->page.frame;
-
+  page_t * const page= page_align(rec);
+  ut_ad(page == block->page.frame);
   ut_ad(size == ULINT_UNDEFINED || size < srv_page_size);
-  ut_ad(page_align(rec) == page);
   ut_ad(index->table->not_redundant() == !!page_is_comp(page));
 #ifdef UNIV_ZIP_DEBUG
   ut_a(!block->page.zip.data ||
@@ -900,7 +896,7 @@ page_delete_rec_list_end(
               : page_rec_get_next_low(page + PAGE_OLD_INFIMUM, 0)))
   {
     /* We are deleting all records. */
-    page_create_empty(block, index, mtr);
+    page_create_empty(block, page, index, mtr);
     return DB_SUCCESS;
   }
 
@@ -976,7 +972,7 @@ page_delete_rec_list_end(
       n_recs++;
 
       if (scrub)
-        mtr->memset(block, page_offset(rec2), rec_offs_data_size(offsets), 0);
+        mtr->memset(block, rec2, rec_offs_data_size(offsets), 0);
 
       rec2= page_rec_get_next(rec2);
     }
@@ -1112,7 +1108,7 @@ page_delete_rec_list_start(
 #ifdef UNIV_ZIP_DEBUG
 	{
 		page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
-		page_t*		page	= buf_block_get_frame(block);
+		page_t*		page	= page_align(rec);
 
 		/* page_zip_validate() would detect a min_rec_mark mismatch
 		in btr_page_split_and_insert()
@@ -1130,7 +1126,7 @@ page_delete_rec_list_start(
 
 	if (page_rec_is_supremum(rec)) {
 		/* We are deleting all records. */
-		page_create_empty(block, index, mtr);
+		page_create_empty(block, page_align(rec), index, mtr);
 		return;
 	}
 

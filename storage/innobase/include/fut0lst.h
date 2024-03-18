@@ -59,12 +59,11 @@ typedef	byte	flst_node_t;
 @param[in,out]	block	file page
 @param[in]	ofs	byte offset of the list base node
 @param[in,out]	mtr	mini-transaction */
-inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
+inline void flst_init(const buf_block_t* block, byte *ofs, mtr_t* mtr)
 {
-  ut_d(const page_t *page= block->page.frame);
-  ut_ad(!mach_read_from_2(FLST_LEN + ofs + page));
-  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + page));
-  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + page));
+  ut_ad(!mach_read_from_2(FLST_LEN + ofs));
+  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs));
+  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs));
   compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
   mtr->memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff);
   mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);
@@ -84,8 +83,8 @@ void flst_init(const buf_block_t &block, byte *base, mtr_t *mtr)
 @param[in]      aoffset byte offset of the node to be added
 @param[in,out]  mtr     mini-transaction
 @return error code */
-dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
-                      buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+dberr_t flst_add_last(buf_block_t *base, byte *boffset,
+                      buf_block_t *add, byte *aoffset, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Prepend a file list node to a list.
 @param[in,out]  base    base node block
@@ -94,8 +93,8 @@ dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
 @param[in]      aoffset byte offset of the node to be added
 @param[in,out]  mtr     mini-transaction
 @return error code */
-dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+dberr_t flst_add_first(buf_block_t *base, byte *boffset,
+                       buf_block_t *add, byte *aoffset, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Remove a file list node.
 @param[in,out]  base    base node block
@@ -104,8 +103,8 @@ dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
 @param[in]      coffset byte offset of the current record to be removed
 @param[in,out]  mtr     mini-transaction
 @return error code */
-dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *cur, uint16_t coffset, mtr_t *mtr)
+dberr_t flst_remove(buf_block_t *base, byte *boffset,
+                    buf_block_t *cur, byte *coffset, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** @return the length of a list */
@@ -117,11 +116,8 @@ inline uint32_t flst_get_len(const flst_base_node_t *base)
 /** @return a file address */
 inline fil_addr_t flst_read_addr(const byte *faddr)
 {
-  fil_addr_t addr= { mach_read_from_4(faddr + FIL_ADDR_PAGE),
-		     mach_read_from_2(faddr + FIL_ADDR_BYTE) };
-  ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
-  return addr;
+  return fil_addr_t{mach_read_from_4(faddr + FIL_ADDR_PAGE),
+                    mach_read_from_2(faddr + FIL_ADDR_BYTE)};
 }
 
 /** @return list first node address */

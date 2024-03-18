@@ -506,7 +506,8 @@ found:
 
 				if (block->page.id().page_no()
 				    != index->page
-				    && page_get_n_recs(block->page.frame) < 2
+				    && page_get_n_recs(
+					    btr_cur_get_page(btr_cur)) < 2
 				    && !lock_test_prdt_page_lock(
 					    btr_cur->rtr_info
 					    && btr_cur->rtr_info->thr
@@ -696,13 +697,11 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				size_t offs = page_offset(ptr);
-				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
-				offs += DATA_TRX_ID_LEN;
+				mtr->memset(block, ptr, DATA_TRX_ID_LEN, 0);
+				ptr += DATA_TRX_ID_LEN;
 				mtr->write<1,mtr_t::MAYBE_NOP>(
-					*block, block->page.frame + offs,
-					0x80U);
-				mtr->memset(block, offs + 1,
+					*block, ptr, 0x80U);
+				mtr->memset(block, ptr + 1,
 					    DATA_ROLL_PTR_LEN - 1, 0);
 			}
 		}

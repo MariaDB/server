@@ -639,7 +639,7 @@ fill_lock_data(
 		return(TRUE);
 	}
 
-	page = reinterpret_cast<const page_t*>(buf_block_get_frame(block));
+	page = block->page.frame;
 
 	rec_offs_init(offsets_onstack);
 	offsets = offsets_onstack;

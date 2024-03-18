@@ -410,7 +410,7 @@ inline trx_id_t page_get_max_trx_id(const page_t *page)
 Set the number of owned records.
 @tparam compressed    whether to update any ROW_FORMAT=COMPRESSED page as well
 @param[in,out]  block   index page
-@param[in,out]  rec     record in block.frame
+@param[in,out]  rec     record in block->page.frame
 @param[in]      n_owned number of records skipped in the sparse page directory
 @param[in]      comp    whether ROW_FORMAT is one of COMPACT,DYNAMIC,COMPRESSED
 @param[in,out]  mtr     mini-transaction */
@@ -419,7 +419,7 @@ inline void page_rec_set_n_owned(buf_block_t *block, rec_t *rec, ulint n_owned,
                                  bool comp, mtr_t *mtr)
 {
   ut_ad(block->page.frame == page_align(rec));
-  ut_ad(comp == (page_is_comp(block->page.frame) != 0));
+  ut_ad(comp == (page_rec_is_comp(rec) != 0));
 
   if (page_zip_des_t *page_zip= compressed
       ? buf_block_get_page_zip(block) : nullptr)
@@ -444,6 +444,7 @@ void
 page_set_max_trx_id(
 /*================*/
 	buf_block_t*	block,	/*!< in/out: page */
+	page_t*		page,	/*!< in/out: page frame */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
 	trx_id_t	trx_id,	/*!< in: transaction id */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction, or NULL */
@@ -525,8 +526,10 @@ Returns the pointer stored in the given header field, or NULL. */
 /**
 Reset PAGE_LAST_INSERT.
 @param[in,out]  block    file page
+@param[in,out]  page     file page frame
 @param[in,out]  mtr      mini-transaction */
-inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
+inline void page_header_reset_last_insert(buf_block_t *block, page_t *page,
+                                          mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 #define page_get_infimum_rec(page) ((page) + page_get_infimum_offset(page))
 #define page_get_supremum_rec(page) ((page) + page_get_supremum_offset(page))
@@ -870,8 +873,9 @@ page_get_instant(const page_t* page);
 /** Create an uncompressed index page.
 @param[in,out]	block	buffer block
 @param[in,out]	mtr	mini-transaction
-@param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
-void page_create(buf_block_t *block, mtr_t *mtr, bool comp);
+@param[in]	comp	set unless ROW_FORMAT=REDUNDANT
+@return page frame */
+page_t *page_create(buf_block_t *block, mtr_t *mtr, bool comp);
 /**********************************************************//**
 Create a compressed B-tree index page. */
 void
@@ -892,6 +896,7 @@ void
 page_create_empty(
 /*==============*/
 	buf_block_t*	block,	/*!< in/out: B-tree block */
+	page_t*		page,	/*!< in: block page frame */
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2)));
@@ -988,8 +993,9 @@ page_delete_rec_list_start(
 	MY_ATTRIBUTE((nonnull));
 /** Create an index page.
 @param[in,out]	block	buffer block
-@param[in]	comp	nonzero=compact page format */
-void page_create_low(const buf_block_t* block, bool comp);
+@param[in]	comp	nonzero=compact page format
+@return page frame */
+page_t *page_create_low(const buf_block_t* block, bool comp);
 
 /************************************************************//**
 Prints record contents including the data relevant only in

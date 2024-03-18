@@ -403,10 +403,12 @@ bool
 btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 {
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
+	ut_ad(info->magic_n == BTR_SEARCH_MAGIC_N);
+
+	const page_t* const page = block->page.frame;
+	ut_ad(page);
 
 	info->last_hash_succ = FALSE;
-	ut_ad(block->page.frame);
-	ut_ad(info->magic_n == BTR_SEARCH_MAGIC_N);
 
 	if ((block->n_hash_helps > 0)
 	    && (info->n_hash_potential > 0)
@@ -433,13 +435,12 @@ btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 		block->left_side = info->left_side;
 	}
 
-	if ((block->n_hash_helps > page_get_n_recs(block->page.frame)
+	if ((block->n_hash_helps > page_get_n_recs(page)
 	     / BTR_SEARCH_PAGE_BUILD_LIMIT)
 	    && (info->n_hash_potential >= BTR_SEARCH_BUILD_LIMIT)) {
 
 		if ((!block->index)
-		    || (block->n_hash_helps
-			> 2U * page_get_n_recs(block->page.frame))
+		    || (block->n_hash_helps > 2U * page_get_n_recs(page))
 		    || (block->n_fields != block->curr_n_fields)
 		    || (block->n_bytes != block->curr_n_bytes)
 		    || (block->left_side != block->curr_left_side)) {
@@ -1212,14 +1213,16 @@ retry:
 	      || !(~buf_page_t::LRU_MASK & state)
 	      || block->page.lock.have_any());
 	ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
-	ut_ad(page_is_leaf(block->page.frame));
+
+	const page_t* const page = block->page.frame;
+
+	ut_ad(page_is_leaf(page));
 
 	/* We must not dereference block->index here, because it could be freed
 	if (!index->table->get_ref_count() && !dict_sys.frozen()).
 	Determine the ahi_slot based on the block contents. */
 
-	const index_id_t	index_id
-		= btr_page_get_index_id(block->page.frame);
+	const index_id_t	index_id = btr_page_get_index_id(page);
 
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
@@ -1271,7 +1274,6 @@ retry:
 
 	ut_a(n_fields > 0 || n_bytes > 0);
 
-	const page_t* const page = block->page.frame;
 	ulint n_recs = page_get_n_recs(page);
 	if (!n_recs) {
 		ut_ad("corrupted adaptive hash index" == 0);
@@ -1461,10 +1463,12 @@ btr_search_build_page_hash_index(
 	ut_ad(index);
 	ut_ad(block->page.id().space() == index->table->space_id);
 	ut_ad(!dict_index_is_ibuf(index));
-	ut_ad(page_is_leaf(block->page.frame));
 
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
 	ut_ad(block->page.id().page_no() >= 3);
+
+	const page_t* const page = block->page.frame;
+	ut_ad(page_is_leaf(page));
 
 	ahi_latch->rd_lock(SRW_LOCK_CALL);
 
@@ -1496,7 +1500,6 @@ btr_search_build_page_hash_index(
 		return;
 	}
 
-	page_t*		page	= buf_block_get_frame(block);
 	n_recs = page_get_n_recs(page);
 
 	if (n_recs == 0) {

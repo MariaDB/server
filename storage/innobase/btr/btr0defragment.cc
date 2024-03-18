@@ -248,7 +248,7 @@ btr_defragment_calc_n_recs_for_size(
 	ulint* n_recs_size)	/*!< out: actual size of the records that fit
 				in size_limit. */
 {
-	page_t* page = buf_block_get_frame(block);
+	page_t* page = block->page.frame;
 	ulint n_recs = 0;
 	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs* offsets = offsets_;
@@ -363,8 +363,8 @@ btr_defragment_merge_pages(
 	mem_heap_t*	heap,		/*!< in/out: pointer to memory heap */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
-	page_t* from_page = buf_block_get_frame(from_block);
-	page_t* to_page = buf_block_get_frame(to_block);
+	page_t* from_page = from_block->page.frame;
+	page_t* to_page = to_block->page.frame;
 	ulint level = btr_page_get_level(from_page);
 	ulint n_recs = page_get_n_recs(from_page);
 	ulint new_data_size = page_get_data_size(to_page);
@@ -574,13 +574,13 @@ btr_defragment_n_pages(
 		n_pages = BTR_DEFRAGMENT_MAX_N_PAGES;
 	}
 
-	first_page = buf_block_get_frame(block);
+	first_page = block->page.frame;
 	const ulint zip_size = index->table->space->zip_size();
 
 	/* 1. Load the pages and calculate the total data size. */
 	blocks[0] = block;
 	for (uint i = 1; i <= n_pages; i++) {
-		page_t* page = buf_block_get_frame(blocks[i-1]);
+		page_t* page = blocks[i - 1]->page.frame;
 		uint32_t page_no = btr_page_get_next(page);
 		total_data_size += page_get_data_size(page);
 		total_n_recs += page_get_n_recs(page);
@@ -774,7 +774,7 @@ processed:
 			/* If we haven't reached the end of the index,
 			place the cursor on the last record of last page,
 			store the cursor position, and put back in queue. */
-			page_t* last_page = buf_block_get_frame(last_block);
+			page_t* last_page = last_block->page.frame;
 			rec_t* rec = page_rec_get_prev(
 				page_get_supremum_rec(last_page));
 			if (rec && page_rec_is_user_rec(rec)) {

@@ -869,7 +869,7 @@ rec_corrupted:
            rec_2_get_field_end_info(rec, 1) != 8 + 8)
     goto rec_corrupted;
 
-  const byte *p= rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__TYPE, &len);
+  byte *p= rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__TYPE, &len);
   if (len != 4)
     goto rec_corrupted;
   const uint32_t type= mach_read_from_4(p);
@@ -898,7 +898,7 @@ rec_corrupted:
       static_assert(FIL_NULL == 0xffffffff, "compatibility");
       static_assert(DICT_FLD__SYS_INDEXES__PAGE_NO ==
                     DICT_FLD__SYS_INDEXES__SPACE + 1, "compatibility");
-      mtr->memset(btr_pcur_get_block(pcur), page_offset(p + 4), 4, 0xff);
+      mtr->memset(btr_pcur_get_block(pcur), p + 4, 4, 0xff);
       btr_free_if_exists(s, root_page_no, mach_read_from_8(rec + 8), mtr);
     }
     s->release();

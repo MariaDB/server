@@ -496,7 +496,9 @@ lock_prdt_insert_check_and_lock(
 	lock_prdt_t*	prdt)	/*!< in: Predicates with Minimum Bound
 				Rectangle */
 {
-  ut_ad(block->page.frame == page_align(rec));
+  const page_t *page= page_align(rec);
+
+  ut_ad(block->page.frame == page);
   ut_ad(!index->table->is_temporary());
   ut_ad(index->is_spatial());
 
@@ -533,7 +535,7 @@ lock_prdt_insert_check_and_lock(
         trx->mutex_lock();
         /* Allocate MBR on the lock heap */
         lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
-        err= lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
+        err= lock_rec_enqueue_waiting(c_lock, mode, id, page,
                                       PRDT_HEAPNO, index, thr, prdt);
         trx->mutex_unlock();
       }

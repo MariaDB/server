@@ -26,18 +26,6 @@ Created 10/4/1994 Heikki Tuuri
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
-Gets pointer to the page frame where the cursor is positioned.
-@return page */
-UNIV_INLINE
-page_t*
-page_cur_get_page(
-/*==============*/
-	page_cur_t*	cur)	/*!< in: page cursor */
-{
-  return page_align(page_cur_get_rec(cur));
-}
-
-/*********************************************************//**
 Gets pointer to the buffer block where the cursor is positioned.
 @return page */
 UNIV_INLINE
@@ -86,7 +74,7 @@ page_cur_set_before_first(
 	page_cur_t*		cur)	/*!< in: cursor */
 {
 	cur->block = const_cast<buf_block_t*>(block);
-	cur->rec = page_get_infimum_rec(buf_block_get_frame(cur->block));
+	cur->rec = page_get_infimum_rec(block->page.frame);
 }
 
 /*********************************************************//**
@@ -100,7 +88,7 @@ page_cur_set_after_last(
 	page_cur_t*		cur)	/*!< in: cursor */
 {
 	cur->block = const_cast<buf_block_t*>(block);
-	cur->rec = page_get_supremum_rec(buf_block_get_frame(cur->block));
+	cur->rec = page_get_supremum_rec(block->page.frame);
 }
 
 /*********************************************************//**
@@ -186,7 +174,7 @@ page_cur_tuple_insert(
 		cursor->index, tuple, n_ext);
 
 	*offsets = rec_get_offsets(rec, cursor->index, *offsets,
-				   page_is_leaf(cursor->block->page.frame)
+				   page_rec_is_leaf(cursor->rec)
 				   ? cursor->index->n_core_fields : 0,
 				   ULINT_UNDEFINED, heap);
 	ut_ad(size == rec_offs_size(*offsets));

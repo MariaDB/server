@@ -65,32 +65,31 @@ dict_hdr_get_new_id(
 
 	mtr.start();
 	buf_block_t* dict_hdr = dict_hdr_get(&mtr);
+	page_t* dict = dict_hdr->page.frame;
 
 	if (table_id) {
-		id = mach_read_from_8(DICT_HDR + DICT_HDR_TABLE_ID
-				      + dict_hdr->page.frame);
+		id = mach_read_from_8(DICT_HDR + DICT_HDR_TABLE_ID + dict);
 		id++;
 		mtr.write<8>(*dict_hdr, DICT_HDR + DICT_HDR_TABLE_ID
-			     + dict_hdr->page.frame, id);
+			     + dict, id);
 		*table_id = id;
 	}
 
 	if (index_id) {
-		id = mach_read_from_8(DICT_HDR + DICT_HDR_INDEX_ID
-				      + dict_hdr->page.frame);
+		id = mach_read_from_8(DICT_HDR + DICT_HDR_INDEX_ID + dict);
 		id++;
 		mtr.write<8>(*dict_hdr, DICT_HDR + DICT_HDR_INDEX_ID
-			     + dict_hdr->page.frame, id);
+			     + dict, id);
 		*index_id = id;
 	}
 
 	if (space_id) {
 		*space_id = mach_read_from_4(DICT_HDR + DICT_HDR_MAX_SPACE_ID
-					     + dict_hdr->page.frame);
+					     + dict);
 		if (fil_assign_new_space_id(space_id)) {
 			mtr.write<4>(*dict_hdr,
 				     DICT_HDR + DICT_HDR_MAX_SPACE_ID
-				     + dict_hdr->page.frame, *space_id);
+				     + dict, *space_id);
 		}
 	}
 
@@ -125,25 +124,25 @@ dberr_t dict_create()
 	buf_block_t* d = fseg_create(fil_system.sys_space,
 				     DICT_HDR + DICT_HDR_FSEG_HEADER, &mtr,
                                      &err);
+	page_t* dict;
 	if (!d) {
 		goto func_exit;
 	}
 	ut_a(d->page.id() == hdr_page_id);
+	dict = d->page.frame;
 
 	/* Start counting row, table, index, and tree ids from
 	DICT_HDR_FIRST_ID */
-	mtr.write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->page.frame,
+	mtr.write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + dict, DICT_HDR_FIRST_ID);
+	mtr.write<8>(*d, DICT_HDR + DICT_HDR_TABLE_ID + dict,
 		     DICT_HDR_FIRST_ID);
-	mtr.write<8>(*d, DICT_HDR + DICT_HDR_TABLE_ID + d->page.frame,
-		     DICT_HDR_FIRST_ID);
-	mtr.write<8>(*d, DICT_HDR + DICT_HDR_INDEX_ID + d->page.frame,
+	mtr.write<8>(*d, DICT_HDR + DICT_HDR_INDEX_ID + dict,
 		     DICT_HDR_FIRST_ID);
 
-	ut_ad(!mach_read_from_4(DICT_HDR + DICT_HDR_MAX_SPACE_ID
-				+ d->page.frame));
+	ut_ad(!mach_read_from_4(DICT_HDR + DICT_HDR_MAX_SPACE_ID + dict));
 
 	/* Obsolete, but we must initialize it anyway. */
-	mtr.write<4>(*d, DICT_HDR + DICT_HDR_MIX_ID_LOW + d->page.frame,
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_MIX_ID_LOW + dict,
 		     DICT_HDR_FIRST_ID);
 
 	/* Create the B-tree roots for the clustered indexes of the basic
@@ -157,8 +156,7 @@ dberr_t dict_create()
 		goto func_exit;
 	}
 
-	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLES + d->page.frame,
-		     root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLES + dict, root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLE_IDS_ID,
@@ -167,7 +165,7 @@ dberr_t dict_create()
 		goto func_exit;
 	}
 
-	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLE_IDS + d->page.frame,
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLE_IDS + dict,
 		     root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
@@ -177,8 +175,7 @@ dberr_t dict_create()
 		goto func_exit;
 	}
 
-	mtr.write<4>(*d, DICT_HDR + DICT_HDR_COLUMNS + d->page.frame,
-		     root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_COLUMNS + dict, root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_INDEXES_ID,
@@ -187,8 +184,7 @@ dberr_t dict_create()
 		goto func_exit;
 	}
 
-	mtr.write<4>(*d, DICT_HDR + DICT_HDR_INDEXES + d->page.frame,
-		     root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_INDEXES + dict, root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_FIELDS_ID,
@@ -197,8 +193,7 @@ dberr_t dict_create()
 		goto func_exit;
 	}
 
-	mtr.write<4>(*d, DICT_HDR + DICT_HDR_FIELDS + d->page.frame,
-		     root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_FIELDS + dict, root_page_no);
 func_exit:
 	mtr.commit();
 	return err ? err : dict_boot();

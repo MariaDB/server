@@ -62,7 +62,6 @@ btr_pcur_store_position(
 	btr_pcur_t*	cursor, /*!< in: persistent cursor */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	page_cur_t*	page_cursor;
 	buf_block_t*	block;
 	rec_t*		rec;
 	dict_index_t*	index;
@@ -72,14 +71,12 @@ btr_pcur_store_position(
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
 	block = btr_pcur_get_block(cursor);
+	const page_t* page = btr_pcur_get_page(cursor);
 	index = btr_cur_get_index(btr_pcur_get_btr_cur(cursor));
 
-	page_cursor = btr_pcur_get_page_cur(cursor);
-
-	rec = page_cur_get_rec(page_cursor);
-	offs = rec - block->page.frame;
-	ut_ad(block->page.id().page_no()
-	      == page_get_page_no(block->page.frame));
+	rec = btr_pcur_get_rec(cursor);
+	offs = page_offset(rec);
+	ut_ad(block->page.id().page_no() == page_get_page_no(page_align(rec)));
 	ut_ad(block->page.buf_fix_count());
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
@@ -90,13 +87,13 @@ btr_pcur_store_position(
 		  && mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
 						| MTR_MEMO_SX_LOCK)));
 
-	if (page_is_empty(block->page.frame)) {
+	if (page_is_empty(page)) {
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(!page_has_siblings(block->page.frame));
-		ut_ad(page_is_leaf(block->page.frame));
+		ut_a(!page_has_siblings(page));
+		ut_ad(page_is_leaf(page));
 		ut_ad(block->page.id().page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
@@ -128,9 +125,9 @@ before_first:
 #endif
 			ut_ad(index->is_instant()
 			      || block->page.id().page_no() != index->page);
-			ut_ad(page_get_n_recs(block->page.frame) == 1);
-			ut_ad(page_is_leaf(block->page.frame));
-			ut_ad(!page_has_prev(block->page.frame));
+			ut_ad(page_get_n_recs(page) == 1);
+			ut_ad(page_is_leaf(page));
+			ut_ad(!page_has_prev(page));
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 			return;
 		}
@@ -145,7 +142,7 @@ before_first:
 		}
 
 		if (rec_is_metadata(rec, *index)) {
-			ut_ad(!page_has_prev(block->page.frame));
+			ut_ad(!page_has_prev(page));
 			rec = page_rec_get_next(rec);
 			ut_ad(rec);
 			if (!rec || page_rec_is_supremum(rec)) {
@@ -227,7 +224,7 @@ static bool btr_pcur_optimistic_latch_leaves(buf_block_t *block,
 {
   ut_ad(block->page.buf_fix_count());
   ut_ad(block->page.in_file());
-  ut_ad(block->page.frame);
+  const page_t *const page= btr_pcur_get_page(pcur);
 
   static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
   static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
@@ -253,7 +250,7 @@ static bool btr_pcur_optimistic_latch_leaves(buf_block_t *block,
         return false;
       id= block->page.id();
       zip_size= block->zip_size();
-      left_page_no= btr_page_get_prev(block->page.frame);
+      left_page_no= btr_page_get_prev(page);
     }
 
     if (left_page_no != FIL_NULL)
@@ -275,7 +272,7 @@ release_left_block:
 
     if (buf_page_optimistic_get(mode, block, pcur->modify_clock, mtr))
     {
-      if (btr_page_get_prev(block->page.frame) == left_page_no)
+      if (btr_page_get_prev(page) == left_page_no)
       {
         /* block was already buffer-fixed while entering the function and
         buf_page_optimistic_get() buffer-fixes it again. */
@@ -552,7 +549,7 @@ btr_pcur_move_to_next_page(
 		return err;
 	}
 
-	const page_t* next_page = buf_block_get_frame(next_block);
+	const page_t* next_page = next_block->page.frame;
 
 	if (UNIV_UNLIKELY(memcmp_aligned<4>(next_page + FIL_PAGE_PREV,
 					    page + FIL_PAGE_OFFSET, 4))) {
@@ -613,27 +610,24 @@ btr_pcur_move_backward_from_page(
 	}
 
 	buf_block_t* block = btr_pcur_get_block(cursor);
+	const page_t* const page = btr_pcur_get_page(cursor);
 
-	if (page_has_prev(block->page.frame)) {
+	if (page_has_prev(page)) {
 		buf_block_t* left_block
 			= mtr->at_savepoint(mtr->get_savepoint() - 1);
 		const page_t* const left = left_block->page.frame;
 		if (memcmp_aligned<4>(left + FIL_PAGE_NEXT,
-				      block->page.frame
-				      + FIL_PAGE_OFFSET, 4)) {
+				      page + FIL_PAGE_OFFSET, 4)) {
 			/* This should be the right sibling page, or
 			if there is none, the current block. */
 			ut_ad(left_block == block
-			      || !memcmp_aligned<4>(left + FIL_PAGE_PREV,
-						    block->page.frame
-						    + FIL_PAGE_OFFSET, 4));
+			      || !memcmp_aligned<4>(page + FIL_PAGE_OFFSET,
+						    left + FIL_PAGE_PREV, 4));
 			/* The previous one must be the left sibling. */
 			left_block
 				= mtr->at_savepoint(mtr->get_savepoint() - 2);
-			ut_ad(!memcmp_aligned<4>(left_block->page.frame
-						 + FIL_PAGE_NEXT,
-						 block->page.frame
-						 + FIL_PAGE_OFFSET, 4));
+			ut_ad(!memcmp_aligned<4>(left + FIL_PAGE_NEXT,
+						 page + FIL_PAGE_OFFSET, 4));
 		}
 		if (btr_pcur_is_before_first_on_page(cursor)) {
 			page_cur_set_after_last(left_block,

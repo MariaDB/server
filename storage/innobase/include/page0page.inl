@@ -45,11 +45,11 @@ page_update_max_trx_id(
 	ut_ad(block);
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(trx_id);
-	ut_ad(page_is_leaf(buf_block_get_frame(block)));
+	page_t* page = block->page.frame;
+	ut_ad(page_is_leaf(page));
 
-	if (page_get_max_trx_id(buf_block_get_frame(block)) < trx_id) {
-
-		page_set_max_trx_id(block, page_zip, trx_id, mtr);
+	if (page_get_max_trx_id(page) < trx_id) {
+		page_set_max_trx_id(block, page, page_zip, trx_id, mtr);
 	}
 }
 
@@ -118,11 +118,13 @@ page_header_get_offs(
 /**
 Reset PAGE_LAST_INSERT.
 @param[in,out]  block    file page
+@param[in,out]  page     file page frame
 @param[in,out]  mtr      mini-transaction */
-inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
+inline void page_header_reset_last_insert(buf_block_t *block, page_t *page,
+                                          mtr_t *mtr)
 {
   constexpr uint16_t field= PAGE_HEADER + PAGE_LAST_INSERT;
-  byte *b= my_assume_aligned<2>(&block->page.frame[field]);
+  byte *b= my_assume_aligned<2>(&page[field]);
   if (mtr->write<2,mtr_t::MAYBE_NOP>(*block, b, 0U) &&
       UNIV_LIKELY_NULL(block->page.zip.data))
     memset_aligned<2>(&block->page.zip.data[field], 0, 2);

@@ -1039,15 +1039,15 @@ buf_LRU_block_free_non_file_page(
 	ut_ad(!block->page.hash);
 
 	block->page.set_state(buf_page_t::NOT_USED);
+	page_t* page = block->page.frame;
 
-	MEM_UNDEFINED(block->page.frame, srv_page_size);
+	MEM_UNDEFINED(page, srv_page_size);
 	/* Wipe page_no and space_id */
 	static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
-	memset_aligned<4>(block->page.frame + FIL_PAGE_OFFSET, 0xfe, 4);
+	memset_aligned<4>(page + FIL_PAGE_OFFSET, 0xfe, 4);
 	static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
 		      "not perfect alignment");
-	memset_aligned<2>(block->page.frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-			  0xfe, 4);
+	memset_aligned<2>(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xfe, 4);
 	data = block->page.zip.data;
 
 	if (data != NULL) {
@@ -1077,7 +1077,7 @@ buf_LRU_block_free_non_file_page(
 		pthread_cond_broadcast(&buf_pool.done_free);
 	}
 
-	MEM_NOACCESS(block->page.frame, srv_page_size);
+	MEM_NOACCESS(page, srv_page_size);
 }
 
 /** Release a memory block to the buffer pool. */
@@ -1115,13 +1115,15 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 	buf_pool.freed_page_clock += 1;
 
+	page_t *page = bpage->frame;
+
 	if (UNIV_LIKELY(!bpage->zip.data)) {
 		MEM_CHECK_ADDRESSABLE(bpage, sizeof(buf_block_t));
-		MEM_CHECK_ADDRESSABLE(bpage->frame, srv_page_size);
+		MEM_CHECK_ADDRESSABLE(page, srv_page_size);
 		buf_block_modify_clock_inc((buf_block_t*) bpage);
-	} else if (const page_t *page = bpage->frame) {
+	} else if (UNIV_LIKELY(page != nullptr)) {
 		MEM_CHECK_ADDRESSABLE(bpage, sizeof(buf_block_t));
-		MEM_CHECK_ADDRESSABLE(bpage->frame, srv_page_size);
+		MEM_CHECK_ADDRESSABLE(page, srv_page_size);
 		buf_block_modify_clock_inc((buf_block_t*) bpage);
 
 		ut_a(!zip || !bpage->oldest_modification());
@@ -1174,7 +1176,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 	buf_pool.page_hash.remove(chain, bpage);
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 
-	if (UNIV_UNLIKELY(!bpage->frame)) {
+	if (UNIV_UNLIKELY(!page)) {
 		ut_ad(!bpage->in_free_list);
 		ut_ad(!bpage->in_LRU_list);
 		ut_a(bpage->zip.data);
@@ -1193,12 +1195,12 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 	} else {
 		static_assert(FIL_NULL == 0xffffffffU, "fill pattern");
 		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
-		memset_aligned<4>(bpage->frame + FIL_PAGE_OFFSET, 0xff, 4);
+		memset_aligned<4>(page + FIL_PAGE_OFFSET, 0xff, 4);
 		static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
 			      "not perfect alignment");
-		memset_aligned<2>(bpage->frame
+		memset_aligned<2>(page
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		MEM_UNDEFINED(bpage->frame, srv_page_size);
+		MEM_UNDEFINED(page, srv_page_size);
 		bpage->set_state(buf_page_t::REMOVE_HASH);
 
 		if (!zip) {
@@ -1473,9 +1475,10 @@ void buf_LRU_print()
 				bpage->zip_size(),
 				btr_page_get_index_id(frame));
 		} else {
+			const page_t* page = bpage->frame;
 			fprintf(stderr, "\ntype %u index id " IB_ID_FMT "\n",
-				fil_page_get_type(bpage->frame),
-				btr_page_get_index_id(bpage->frame));
+				fil_page_get_type(page),
+				btr_page_get_index_id(page));
 		}
 	}
 

@@ -101,6 +101,7 @@ rtr_latch_leaves(
 	switch (latch_mode) {
 		uint32_t	left_page_no;
 		uint32_t	right_page_no;
+                const page_t*	page;
 	default:
 		ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
 		break;
@@ -111,7 +112,8 @@ rtr_latch_leaves(
 						 MTR_MEMO_X_LOCK
 						 | MTR_MEMO_SX_LOCK));
 		/* x-latch also siblings from left to right */
-		left_page_no = btr_page_get_prev(block->page.frame);
+		page = block->page.frame;
+		left_page_no = btr_page_get_prev(page);
 
 		if (left_page_no != FIL_NULL) {
 			btr_block_get(*cursor->index(), left_page_no, RW_X_LATCH,
@@ -120,7 +122,7 @@ rtr_latch_leaves(
 
 		mtr->upgrade_buffer_fix(block_savepoint, RW_X_LATCH);
 
-		right_page_no = btr_page_get_next(block->page.frame);
+		right_page_no = btr_page_get_next(page);
 
 		if (right_page_no != FIL_NULL) {
 			btr_block_get(*cursor->index(), right_page_no,
@@ -306,7 +308,7 @@ rtr_pcur_getnext_from_path(
 
 		buf_page_make_young_if_needed(&block->page);
 
-		page = buf_block_get_frame(block);
+		page = block->page.frame;
 		page_ssn = page_get_ssn_id(page);
 
 		/* If there are splits, push the splitted page.
@@ -687,7 +689,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
   buf_page_make_young_if_needed(&block->page);
 
-  const page_t *page= buf_block_get_frame(block);
+  const page_t *page= block->page.frame;
 #ifdef UNIV_ZIP_DEBUG
   if (rw_latch != RW_NO_LATCH) {
     const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
@@ -1710,7 +1712,7 @@ corrupted:
 	buf_page_make_young_if_needed(&page_cursor->block->page);
 
 	/* Get the page SSN */
-	page = buf_block_get_frame(page_cursor->block);
+	page = page_cur_get_page(page_cursor);
 	page_ssn = page_get_ssn_id(page);
 
 	if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
@@ -2066,7 +2068,7 @@ rtr_cur_search_with_match(
 
 	ut_ad(dict_index_is_spatial(index));
 
-	page = buf_block_get_frame(block);
+	page = block->page.frame;
 
 	const ulint level = btr_page_get_level(page);
 	const ulint n_core = level ? 0 : index->n_fields;
