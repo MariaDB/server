@@ -2408,12 +2408,6 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
-  /*
-    If Item_field is wrapped in Item_direct_wrep remove this Item_direct_ref
-    wrapper.
-  */
-  virtual Item *remove_item_direct_ref() { return this; }
-	
 
   void register_in(THD *thd);	 
   
@@ -5663,11 +5657,6 @@ public:
   With_sum_func_cache* get_with_sum_func_cache() { return this; }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
-  Item *remove_item_direct_ref()
-  {
-    *ref= (*ref)->remove_item_direct_ref();
-    return this;
-  }
 };
 
 
@@ -5715,8 +5704,6 @@ public:
   virtual Ref_Type ref_type() { return DIRECT_REF; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_ref>(thd, this); }
-  Item *remove_item_direct_ref()
-  { return (*ref)->remove_item_direct_ref(); }
 };
 
 
@@ -6101,7 +6088,6 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
-  Item *remove_item_direct_ref() { return this; }
 };
 
 

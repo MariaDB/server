@@ -4101,4 +4101,21 @@ eval $q;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-32395: update_depend_map_for_order: SEGV at
+--echo #             /mariadb-11.3.0/sql/sql_select.cc:16583
+--echo #
+
+create table t1 (c1 int);
+insert into t1 values (1), (2);
+create table t2 (c2 int);
+insert into t2 values (1), (2);
+create table t3 (c3 int);
+insert into t3 values (1), (2);
+
+set statement optimizer_switch='condition_pushdown_for_derived=off,condition_pushdown_for_subquery=off,condition_pushdown_from_having=off' for
+select t1.c1 as a from t2, t1 where t1.c1=t2.c2
+  order by (select c3 from t3 group by a having a=2);
+drop table if exists t1, t2, t3;
+
 --echo # End of 10.4 tests
