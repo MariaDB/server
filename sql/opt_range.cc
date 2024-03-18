@@ -3120,6 +3120,8 @@ SQL_SELECT::test_quick_select(THD *thd,
   }
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););
+  if (thd->is_error())
+    returnval= ERROR;
 
   /*
     Assume that if the user is using 'limit' we will only need to scan
