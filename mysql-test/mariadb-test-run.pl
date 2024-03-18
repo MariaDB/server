@@ -2267,6 +2267,14 @@ sub environment_setup {
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
 
   # ----------------------------------------------------
+  # mariadb-upgrade-config-file
+  # ----------------------------------------------------
+  my $exe_mariadb_upgrade_config_file=
+    mtr_exe_exists("$bindir/extra$multiconfig/mariadb-upgrade-config-file",
+		   "$path_client_bindir/mariadb-upgrade-config-file");
+  $ENV{'MARIADB_UPGRADE_CONFIG_FILE'}= native_path($exe_mariadb_upgrade_config_file);
+
+  # ----------------------------------------------------
   # myisam tools
   # ----------------------------------------------------
   $ENV{'MYISAMLOG'}= tool_arguments("storage/myisam", "myisamlog", );

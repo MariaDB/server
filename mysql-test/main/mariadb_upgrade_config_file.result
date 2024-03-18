@@ -1,0 +1,106 @@
+Testing --edit=remove
+[mysqld]
+key_buffer_size=20M
+Testing --edit=comment
+[mysqld]
+#invalid=true
+#alter_algorithm=invalid
+#plugin_load_add=audit_log
+Testing --edit=inline-old-version
+[mysql-5.7]
+invalid=true
+
+[mariadbd]
+key_buffer_size=20M
+#key_buffer_size=64K
+
+[mysql-5.7]
+alter_algorithm=invalid
+
+key_buffer_size=20M
+Testing --edit=last-old-version
+[mariadbd]
+key_buffer_size=64K
+
+[mysql-5.7]
+invalid=true
+key_buffer_size=64K
+alter_algorithm=invalid
+Testing mariadbd section additions
+[mariadbd]
+join_buffer_size=5K
+key_buffer_size=20M
+#key_buffer_size=64K
+
+[mysql-5.7]
+invalid1=true
+invalid2=true
+key_buffer_size=20M
+alter_algorithm=invalid
+Testing key_buffer_size in mariadbd section
+[mariadbd]
+key_buffer_size=20M
+Testing --no-myisam-files
+[mariadbd]
+key_buffer_size=64K
+aria_pagecache_buffer_size=20M
+
+[mysql-5.7]
+key_buffer_size=20M
+Testing --add-skip-start-slave
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+skip_slave_start
+Testing --add-skip-slave-start with skip_start_slave already present
+[mariadbd]
+skip_slave_start
+Testing --fix-all
+[mariadbd]
+key_buffer_size=64K
+aria_pagecache_buffer_size=20M
+skip_slave_start
+
+[mysql-5.7]
+key_buffer_size=20M
+Testing path copying
+[mariadbd]
+innodb_data_file_path=/var/mysql/test
+
+[mysql-5.7]
+innodb_data_file_path=/var/mysql/test
+Testing path conversion
+[mariadbd]
+innodb_data_file_path=/var/mariadb/test
+
+[mysql-5.7]
+innodb_data_file_path=/var/mysql/test
+Testing path conversion not affecting logs by default
+[mariadbd]
+log_bin=/var/mysql/test
+
+[mysql-5.7]
+log_bin=/var/mysql/test
+Testing --convert-mysql-paths-to-mariadb=all modifying log paths
+[mariadbd]
+log_bin=/var/mariadb/test
+
+[mysql-5.7]
+log_bin=/var/mysql/test
+Testing printing suggestions
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+# Suggested options to improve MariaDB performance
+# thread_handling=pool_of_threads # For setups with a lot of concurrent queries
+# slave-parallel-threads=8 # For slaves with a lot of replicated queries
+Testing suggestions not getting added if already present
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+# Suggested options to improve MariaDB performance
+# thread_handling=pool_of_threads # For setups with a lot of concurrent queries
+# slave-parallel-threads=8 # For slaves with a lot of replicated queries
