@@ -133,7 +133,11 @@ public:
   }
   bool is_prefix(uint prefix_size) const
   {
-    DBUG_ASSERT(prefix_size <= width);
+    // if prefix_size is larger than width, the function would return false
+    // to indicate that the prefix is not fully set,
+    // as it exceeds the total number of bits in the bitmap.
+    if(prefix_size > width)
+      return false;
 
     size_t idx= prefix_size / BITS_PER_ELEMENT;
 
