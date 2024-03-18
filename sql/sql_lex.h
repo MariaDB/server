@@ -3260,7 +3260,7 @@ public:
   Table_type table_type;                        /* Used for SHOW CREATE */
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
-  List<Item>          *insert_list,field_list,value_list,update_list;
+  List<Item>          *insert_list= nullptr,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
