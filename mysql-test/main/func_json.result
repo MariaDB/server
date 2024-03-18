@@ -1690,5 +1690,13 @@ select json_arrayagg('ä'), json_objectagg(1, 'ä');
 json_arrayagg('ä')	json_objectagg(1, 'ä')
 ["ä"]	{"1":"ä"}
 #
+# MDEV-19487: JSON_TYPE doesnt detect the type of String Values (returns NULL) and for Date/DateTime returns "INTEGER"
+#
+SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date'));
+JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date'))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
+#
 # End of 10.5 tests
 #

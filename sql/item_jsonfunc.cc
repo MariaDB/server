@@ -2971,6 +2971,12 @@ String *Item_func_json_type::val_str(String *str)
     break;
   }
 
+  /* ensure the json is at least valid. */
+  while(json_scan_next(&je) == 0) {}
+
+  if (je.s.error)
+    goto error;
+
   str->set(type, strlen(type), &my_charset_utf8mb3_general_ci);
   return str;
 
