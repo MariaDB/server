@@ -1244,12 +1244,14 @@ public:
 
   bool val_native(THD *thd, Native *to) override
   {
+    DBUG_ASSERT(is_initialized());
     if (null_value)
       return true;
     return to->copy(m_value.ptr(), m_value.length());
   }
   String *val_str(String *to) override
   {
+    DBUG_ASSERT(is_initialized());
     if (null_value)
       return NULL;
     Inet6_null tmp(m_value.ptr(), m_value.length());
@@ -1257,19 +1259,23 @@ public:
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
+    DBUG_ASSERT(is_initialized());
     my_decimal_set_zero(to);
     return to;
   }
   double val_real() override
   {
+    DBUG_ASSERT(is_initialized());
     return 0;
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(is_initialized());
     return 0;
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
+    DBUG_ASSERT(is_initialized());
     set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
     return null_value;
   }
@@ -1277,9 +1283,13 @@ public:
   {
     null_value= item->val_native(current_thd, &m_value);
     DBUG_ASSERT(null_value == item->null_value);
+#ifndef DBUG_OFF
+    set_initialized();
+#endif
   }
   int save_in_field(Field *field, bool no_conversions) override
   {
+    DBUG_ASSERT(is_initialized());
     return Item::save_in_field(field, no_conversions);
   }
   Item *get_copy(THD *thd) override

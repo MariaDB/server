@@ -2873,3 +2873,14 @@ create table t1 (a int);
 insert into t1 values (1),(2),(3);
 SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NULL);
 drop table t1;
+
+--echo #
+--echo # MDEV-32302: Window functions operate on uninitialized Item_copy objects
+--echo #
+SELECT CONVERT('2607:f0d0:1002:0051:0000:0000:0000:0004', INET6) x,
+       ROW_NUMBER() OVER (ORDER BY avg(1), x LIKE '1');
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

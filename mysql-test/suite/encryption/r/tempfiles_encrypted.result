@@ -4398,6 +4398,16 @@ row_number() OVER (order by a)
 3
 drop table t1;
 #
+# MDEV-32302: Window functions operate on uninitialized Item_copy objects
+#
+SELECT CONVERT('2607:f0d0:1002:0051:0000:0000:0000:0004', INET6) x,
+ROW_NUMBER() OVER (ORDER BY avg(1), x LIKE '1');
+x	ROW_NUMBER() OVER (ORDER BY avg(1), x LIKE '1')
+2607:f0d0:1002:51::4	1
+#
+# End of 10.5 tests
+#
+#
 # MDEV-23867: select crash in compute_window_func
 #
 set @save_sort_buffer_size=@@sort_buffer_size;

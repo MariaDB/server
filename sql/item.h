@@ -6250,6 +6250,17 @@ protected:
   /** The original item that is copied */
   Item *item;
 
+#ifndef DBUG_OFF
+  /**
+    Item_copy objects are valid only after the copy() call which effectively
+    initializes the object. This method is used to check whether the object is
+    valid (sane) or not
+  */
+  bool is_initialized() const { return initialized; }
+
+  void set_initialized() { initialized= true; }
+ #endif
+
   /**
     Constructor of the Item_copy class
 
@@ -6315,6 +6326,11 @@ public:
     return (item->walk(processor, walk_subquery, args)) ||
       (this->*processor)(args);
   }
+
+private:
+#ifndef DBUG_OFF
+  bool initialized= false;
+#endif
 };
 
 /**
@@ -6361,10 +6377,13 @@ public:
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
+#ifndef DBUG_OFF
+  set_initialized();
+#endif
   }
   int save_in_field(Field *field, bool) override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     if (null_value)
       return set_field_to_null(field);
     Timestamp_or_zero_datetime_native native(m_value, decimals);
@@ -6372,38 +6391,38 @@ public:
   }
   longlong val_int() override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     return null_value ? 0 :
            m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real() override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     return null_value ? 0e0 :
            m_value.to_datetime(current_thd).to_double();
   }
   String *val_str(String *to) override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_decimal(to);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     bool res= m_value.to_TIME(thd, ltime, fuzzydate);
     DBUG_ASSERT(!res);
     return null_value || res;
   }
   bool val_native(THD *thd, Native *to) override
   {
-    DBUG_ASSERT(sane());
+    DBUG_ASSERT(is_initialized() && sane());
     return null_value || m_value.to_native(to, decimals);
   }
   Item *get_copy(THD *thd) override
