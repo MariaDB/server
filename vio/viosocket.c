@@ -657,7 +657,6 @@ my_socket vio_fd(Vio* vio)
   @param src_length [in] length of the src.
   @param dst        [out] a buffer to store normalized IP address
                           (sockaddr_storage).
-  @param dst_length [out] optional - actual length of the normalized IP address.
 */
 
 void vio_get_normalized_ip(const struct sockaddr *src, size_t src_length,
