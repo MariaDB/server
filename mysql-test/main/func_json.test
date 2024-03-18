@@ -1126,5 +1126,12 @@ INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-19487: JSON_TYPE doesnt detect the type of String Values (returns NULL) and for Date/DateTime returns "INTEGER"
+--echo #
+
+SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date'));
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

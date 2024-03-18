@@ -1697,5 +1697,13 @@ INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [
 ERROR 22001: Data too long for column 'id' at row 1
 DROP TABLE t;
 #
+# MDEV-19487: JSON_TYPE doesnt detect the type of String Values (returns NULL) and for Date/DateTime returns "INTEGER"
+#
+SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date'));
+JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date'))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
+#
 # End of 10.5 tests
 #
