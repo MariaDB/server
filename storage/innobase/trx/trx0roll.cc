@@ -205,7 +205,7 @@ trx_rollback_for_mysql_low(
 /** Rollback a transaction used in MySQL
 @param[in, out]	trx	transaction
 @return error code or DB_SUCCESS */
-dberr_t trx_rollback_for_mysql(trx_t* trx)
+dberr_t trx_rollback_for_mysql(trx_t* trx, bool fast_rollback)
 {
 	/* We are reading trx->state without holding trx->mutex
 	here, because the rollback should be invoked for a running
@@ -267,9 +267,12 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 			change will be durable as well. */
 			mtr.commit();
 			ut_ad(mtr.commit_lsn() > 0);
+			if (fast_rollback) {
+				log_write_up_to(mtr.commit_lsn(), true);
+				return(DB_SUCCESS);
+			}
 		}
 		return(trx_rollback_for_mysql_low(trx));
-
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		ut_ad(!trx->is_autocommit_non_locking());
 		break;
@@ -776,13 +779,18 @@ discard:
         before trx_sys.deregister_rw(trx). */
         trx_sys.deregister_rw(trx);
         trx_free_at_shutdown(trx);
-      }
-      else
+      } else {
         trx->free();
+        DBUG_EXECUTE_IF("print_log_after_rollback_on_recovery", {
+          ib::info() << "One trx rollback by recovery_rollback_thread "
+                     << current_thd << "\n";
+          });
+      }
     }
   }
 }
 
+extern std::atomic_bool ddl_recovery_done;
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
@@ -796,7 +804,23 @@ void trx_rollback_all_recovered(void*)
 	if (trx_sys.rw_trx_hash.size()) {
 		ib::info() << "Starting in background the rollback of"
 			" recovered transactions";
-		trx_rollback_recovered(true);
+
+		DBUG_EXECUTE_IF("block_rollback_thread",
+			std::this_thread::sleep_for(std::chrono::hours(100)););
+
+		bool finished = false;
+		do {
+			/* trx_rollback_all_recovered is called after finished is tested,
+			it guarantees that all active transactions are handled. */
+			finished = ddl_recovery_done || srv_shutdown_state != SRV_SHUTDOWN_NONE;
+
+			trx_rollback_recovered(true);
+
+			/* Sleep 10ms to wait for MySQL recover to revert some prepared
+			transactions to active state. */
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		} while (!finished);
+
 		ib::info() << "Rollback of non-prepared transactions"
 			" completed";
 	}

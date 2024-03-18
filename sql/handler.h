@@ -1406,6 +1406,17 @@ struct handlerton
    int  (*commit_by_xid)(handlerton *hton, XID *xid);
    int  (*rollback_by_xid)(handlerton *hton, XID *xid);
    /*
+     recover_rollback_by_xid is optional. If set, it will be called instead
+     of rollback_by_xid when transactions should be rollback at server startup.
+     This function should do a asynchronously rollback, thus rolling back a long
+     transaction will not block server startup.
+
+     The rollback status should be persisted after this call, it should
+     continue to rollback after server restart automatically independent
+     on binlog recovery process.
+    */
+   int  (*recover_rollback_by_xid)(handlerton *hton, XID *xid);
+   /*
      The commit_checkpoint_request() handlerton method is used to checkpoint
      the XA recovery process for storage engines that support two-phase
      commit.

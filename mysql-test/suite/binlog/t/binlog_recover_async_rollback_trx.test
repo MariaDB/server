@@ -1,0 +1,82 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+CREATE TABLE t1 (id int primary key, data int) ENGINE = InnoDB;
+INSERT INTO t1 VALUES (0, 1);
+
+--echo #
+--echo # 1. Check DML in prepared state can rollback correctly.
+--echo #
+
+--source include/expect_crash.inc
+SET debug = "d,crash_before_writing_xid";
+--error 2013
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+
+--let $restart_parameters= --debug=d,print_log_after_rollback_on_recovery
+--source include/start_mysqld.inc
+
+--echo # Check whether the prepared transaction of UPDATE has been rollback.
+--echo # Expect (0,1)
+SELECT * FROM t1;
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+# Expect (0,2)
+SELECT * FROM t1;
+
+# Check whether the DML trx has been rolled back asynchronously.
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text= Server reported: recovery_rollback_thread
+--let $assert_select= recovery_rollback_thread
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--echo #
+--echo # 2. Check DML can rollback automatically after second crash.
+--echo #
+
+--source include/expect_crash.inc
+SET debug = "d,crash_before_writing_xid";
+--error 2013
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+
+# Restart the server.
+--let $restart_parameters= --debug=d,print_log_after_rollback_on_recovery,block_rollback_thread
+--source include/start_mysqld.inc
+
+SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_state = "RUNNING";
+# Expect(0,2)
+SELECT * FROM t1;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+# Expect(0,3)
+SELECT * FROM t1;
+
+# Crash again.
+--source include/expect_crash.inc
+SET debug = "d,crash_dispatch_command_before";
+--error 2013
+SELECT 1;
+
+# Restart the server.
+--let $restart_parameters = --debug=d,print_log_after_rollback_on_recovery
+--source include/start_mysqld.inc
+
+# Check whether the prepared transaction has been rollback.
+# Expect(0,2)
+SELECT * FROM t1;
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+# Expect(0,3)
+SELECT * FROM t1;
+
+# Check whether the DML trx have been rollback asynchronously.
+# For the first crash recovery, prepare transaction become
+# active, no log print because rollback not finish.
+# For the second crash recovery, rollback active trx asynchronously.
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text= Server reported: recovery_rollback_thread
+--let $assert_select= recovery_rollback_thread
+--let $assert_count= 2
+--source include/assert_grep.inc
+
+# Cleanup.
+DROP TABLE t1;

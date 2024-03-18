@@ -32,6 +32,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /* Include necessary SQL headers */
 #include "ha_prototypes.h"
+#include <atomic>
 #include <debug_sync.h>
 #include <gstream.h>
 #include <log.h>
@@ -1890,10 +1891,8 @@ ulonglong ha_innobase::table_version() const
   return m_prebuilt->trx_id;
 }
 
-#ifdef UNIV_DEBUG
 /** whether the DDL log recovery has been completed */
-static bool ddl_recovery_done;
-#endif
+std::atomic_bool ddl_recovery_done { false };
 
 static int innodb_check_version(handlerton *hton, const char *path,
                                 const LEX_CUSTRING *version,
@@ -2040,8 +2039,7 @@ all_fail:
 
 static int innodb_ddl_recovery_done(handlerton*)
 {
-  ut_ad(!ddl_recovery_done);
-  ut_d(ddl_recovery_done= true);
+  ddl_recovery_done = true;
   if (!srv_read_only_mode && srv_operation <= SRV_OPERATION_EXPORT_RESTORED &&
       srv_force_recovery < SRV_FORCE_NO_BACKGROUND)
   {
@@ -4053,6 +4051,8 @@ static int innodb_init(void* p)
 	innobase_hton->recover = innobase_xa_recover;
 	innobase_hton->commit_by_xid = innobase_commit_by_xid;
 	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
+	innobase_hton->recover_rollback_by_xid =
+		innobase_recover_rollback_by_xid;
 	innobase_hton->commit_checkpoint_request = innodb_log_flush_request;
 	innobase_hton->create = innobase_create_handler;
 
@@ -17096,6 +17096,52 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 	} else {
 		return(XAER_NOTA);
 	}
+}
+
+/**
+This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state asynchronously.
+
+It only set the transaction's status to ACTIVE and persist the status.
+The transaction will be rolled back by background rollback thread.
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_recover_rollback_by_xid(handlerton *hton, XID *xid)
+{
+	DBUG_ASSERT(hton == innodb_hton_ptr);
+	DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
+	DBUG_EXECUTE_IF("crash_before_async_binlog_recovery", DBUG_SUICIDE(););
+
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
+
+	trx_t *trx = trx_get_trx_by_xid(xid);
+	if (trx == NULL) {
+		return(XAER_RMFAIL);
+	}
+
+  // ddl should not be rolled back through recovery
+  ut_ad(!trx->dict_operation);
+
+#ifdef WITH_WSREP
+	/* If a wsrep transaction is being rolled back during
+	the recovery, we must clear the xid in order to avoid
+	writing serialisation history for rolled back transaction. */
+	if (wsrep_is_wsrep_xid(&trx->xid)) {
+		trx->xid.null();
+	}
+#endif /* WITH_WSREP */
+
+	trx_rollback_for_mysql(trx, true /* fast_rollback */);
+
+	/* Change the trx state to TRX_STATE_ACTIVE. Background rollback thread
+	will rollback this trx later. */
+	trx->state = TRX_STATE_ACTIVE;
+	return 0;
 }
 
 bool
