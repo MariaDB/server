@@ -183,7 +183,7 @@ ENDMACRO(SETA)
 IF (CMAKE_VERSION VERSION_GREATER 3.10.0)
   # cmake bug #14362
   SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST}
-      "%caps(cap_ipc_lock=pe) %{_sbindir}/mysqld"
+      "%caps(cap_ipc_lock=pe) %{_sbindir}/mariadbd"
       )
 ENDIF()
 
