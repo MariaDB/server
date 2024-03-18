@@ -76,6 +76,8 @@ protected:
   {
     ulonglong end= measure();
     cycles += end - last_start;
+    if (unlikely(end < last_start))
+      cycles += ULONGLONG_MAX;
 
     process_gap_time_tracker(thd, end);
     if (my_gap_tracker)
