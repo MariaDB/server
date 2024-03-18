@@ -161,3 +161,20 @@ DELIMITER ;$$
 --echo #
 --echo # End of 10.5 tests
 --echo #
+--echo # MDEV-32919: Cannot select particular field from IS.tables
+--echo #             in case table needs upgrade from MySQL 5.7
+--echo #
+--source include/have_innodb.inc
+
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+explain select table_type from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+select table_type from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+select table_comment from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+
+explain select * from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+--vertical_results
+select * from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+--horizontal_results
+drop table mysql_json_test;

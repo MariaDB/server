@@ -239,3 +239,51 @@ ERROR HY000: 'MYSQL_JSON' is not allowed in this context
 #
 # End of 10.5 tests
 #
+# MDEV-32919: Cannot select particular field from IS.tables
+#             in case table needs upgrade from MySQL 5.7
+#
+explain select table_type from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tables	ALL	NULL	NULL	NULL	NULL	NULL	Using where; Open_frm_only; Scanned all databases
+select table_type from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+table_type
+BASE TABLE
+Warnings:
+Warning	1707	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+select table_comment from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+table_comment
+Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+Warnings:
+Warning	1707	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+explain select * from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tables	ALL	NULL	NULL	NULL	NULL	NULL	Using where; Open_full_table; Scanned all databases
+select * from information_schema.tables where table_comment LIKE 'Table rebuild required. Please do "ALTER TABLE %';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	mysql_json_test
+TABLE_TYPE	BASE TABLE
+ENGINE	NULL
+VERSION	NULL
+ROW_FORMAT	NULL
+TABLE_ROWS	NULL
+AVG_ROW_LENGTH	NULL
+DATA_LENGTH	NULL
+MAX_DATA_LENGTH	NULL
+INDEX_LENGTH	NULL
+DATA_FREE	NULL
+AUTO_INCREMENT	NULL
+CREATE_TIME	NULL
+UPDATE_TIME	NULL
+CHECK_TIME	NULL
+TABLE_COLLATION	NULL
+CHECKSUM	NULL
+CREATE_OPTIONS	NULL
+TABLE_COMMENT	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+MAX_INDEX_LENGTH	NULL
+TEMPORARY	NULL
+Warnings:
+Level	Warning
+Code	1707
+Message	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+drop table mysql_json_test;
