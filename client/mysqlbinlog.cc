@@ -3477,6 +3477,7 @@ struct encryption_service_st encryption_handler=
 #include "my_decimal.cc"
 #include "../sql-common/my_time.c"
 #include "password.c"
+#include "bufcursor.c"
 #include "log_event.cc"
 #include "log_event_client.cc"
 #include "rpl_utility.cc"
