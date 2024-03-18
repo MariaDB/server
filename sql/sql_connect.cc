@@ -52,7 +52,8 @@ extern mysql_mutex_t LOCK_global_user_client_stats;
 extern mysql_mutex_t LOCK_global_table_stats;
 extern mysql_mutex_t LOCK_global_index_stats;
 extern vio_keepalive_opts opt_vio_keepalive;
-
+PSI_stage_info stage_waiting_in_login_failed_delay= {
+    0, "Waiting in delay failed login response stage", 0};;
 /*
   Get structure for logging connection data for the current user
 */
@@ -253,6 +254,98 @@ void time_out_user_resource_limits(THD *thd, USER_CONN *uc)
   }
 
   DBUG_VOID_RETURN;
+}
+
+static uint64 get_connection_delay_time(uint32 failed_count)
+{
+  /*
+  Connect_timeout is designed to limit the connect time, every single network read and
+  write is limited by it. Thus we'll say here that the maximal delay is limited by the
+  connect_timeout too. As a bonus it reduces the number of degrees of freedom, independent variables to
+  configure. So,
+  step = connect_timeout/(max_password_errors - password_errors_before_delay)
+  delay = step *(failed_count  -password_errors_before_delay)
+*/
+  /* Time unit for delay step is seconds, convert to nanoseconds*/
+  uint64 timeout_nano= connect_timeout * 1000 * 1000000;
+  uint64 step= timeout_nano / (max_password_errors - password_errors_before_delay);
+  DBUG_PRINT("info",
+             ("The step for connection delay is %llu nanoseconds", step));
+  /* Max delay time is connect_timeout*/
+  return MY_MIN(step * (failed_count - password_errors_before_delay), timeout_nano);
+}
+
+/**
+ * @brief  Use conditional variables to implement delay
+ *
+ * @param thd
+ * @param time
+ */
+static void condition_wait(THD* thd, uint64 time)
+{
+  /** mysql_cond_timedwait requires wait time in timespec format */
+  struct timespec abstime;
+  /** Since we get wait_time is nanoseconds, just use it */
+  set_timespec_nsec(abstime, time);
+
+  /** PSI_stage_info for thd_enter_cond/thd_exit_cond */
+  PSI_stage_info old_stage;
+  /** Use mutex in thd context  */
+  mysql_mutex_t *p_delay_mutex= &thd->mysys_var->mutex;
+  mysql_cond_t *p_delay_wait_condition= &thd->mysys_var->suspend;
+
+  mysql_mutex_lock(p_delay_mutex);
+
+  THD_ENTER_COND(thd, p_delay_wait_condition, p_delay_mutex,
+                 &stage_waiting_in_login_failed_delay, &old_stage);
+
+  /*
+    At this point, thread is essentially going to sleep till
+    timeout. If admin issues KILL statement for this THD,
+    there is no point keeping this thread in sleep mode only
+    to wake up to be terminated. Hence, in case of KILL,
+    we will return control to server without worrying about
+    wait_time.
+  */
+  mysql_cond_timedwait(p_delay_wait_condition, p_delay_mutex, &abstime);
+
+  /**
+   * @brief Exit_cond will release mutex
+   *
+   */
+  THD_EXIT_COND(thd, &stage_waiting_in_login_failed_delay);
+}
+
+static int delay_response(THD *thd, const char *user, const char *hostname,
+                          uint32 failed_count)
+{
+  uint64 wait_time= get_connection_delay_time(failed_count);
+  DBUG_PRINT("info",
+             ("%s@%s wait %llu nanoseconds", user, hostname, wait_time));
+  if (!DBUG_IF("skip_connection_delay"))
+  {
+    condition_wait(thd, wait_time);
+  }
+  return 0;
+}
+
+/**
+ * @brief If a user login  failed , check if delay response
+ *
+ * @return int
+ */
+int connection_delay_for_user(THD *thd, const char *user, const char *hostname,
+                              uint failed_count)
+{
+  DBUG_ENTER("connection_delay_for_user");
+  DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
+                      failed_count));
+  if (password_errors_before_delay > 0 &&
+      failed_count > password_errors_before_delay)
+  {
+    delay_response(thd, user, hostname, failed_count);
+  }
+  DBUG_RETURN(0);
 }
 
 /*

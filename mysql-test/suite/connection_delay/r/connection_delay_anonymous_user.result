@@ -1,0 +1,53 @@
+# Connection delay tests for valid user accounts
+
+# ----------------------------------------------------------------------
+
+# Setup
+# Create anonymous user
+CREATE USER ''@'localhost';
+# Save original values of connection_delay variables
+SET @saved_connections_threshold = @@global.password_errors_before_delay;
+SET @saved_max_password_errors = @@global.max_password_errors;
+SET @saved_timeout=@@global.connect_timeout;
+SET @old_debug=@@global.debug_dbug;
+SET @@global.debug_dbug="+d,skip_connection_delay";
+# Set small values for connection_delay variables
+SET @@global.password_errors_before_delay = 3;
+
+# ----------------------------------------------------------------------
+
+# First round , following attempts will not experience any delay in server response
+connection default;
+# Connection attempt should fail.
+connection default;
+# Connection attempt should fail.
+connection default;
+# Connection attempt should fail.
+
+# Following attempts will experience delay in server response
+connection default;
+# Connection attempt should fail.
+FOUND 1 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /@localhost wait 13 nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should fail.
+FOUND 2 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /@localhost wait 26 nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should fail.
+FOUND 3 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /@localhost wait 39 nanoseconds/ in mysqld.1.err
+
+# ----------------------------------------------------------------------
+
+# Cleanup
+connection default;
+# Restore original values of connection delay variables
+SET @@global.password_errors_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.connect_timeout = @saved_timeout;
+SET @@global.debug_dbug=@old_debug;
+# Drop anonymous user
+DROP USER ''@'localhost';
+
+# ----------------------------------------------------------------------

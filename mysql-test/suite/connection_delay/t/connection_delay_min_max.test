@@ -1,0 +1,148 @@
+
+
+--source include/have_debug.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo # Connection delay tests for valid user accounts
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Setup
+
+--echo # Create user account for testing
+CREATE USER u1 IDENTIFIED BY 'abcd';
+
+--source ../inc/save_variables.inc
+
+--source ../inc/skip_connection_delay.inc
+
+--echo # Set max values for max_password_errors
+SET @@global.password_errors_before_delay = 3;
+#Set to 20_0000_0000
+SET @@global.max_password_errors=2000000000;
+let $failed_count=0;
+--echo # Make enough failed attempts to trigger delays
+
+disable_result_log;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+enable_result_log;
+let $failed_count=3;
+
+inc $failed_count;
+--let USER=u1
+--let HOST=%
+--source ../inc/check_delay.inc
+
+--echo
+--echo # Following attempts will experience delay in server response
+inc $failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--source ../inc/check_delay.inc
+
+inc $failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--source ../inc/check_delay.inc
+
+inc $failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--source ../inc/check_delay.inc
+
+
+
+#Reset statistics
+FLUSH PRIVILEGES;
+let $failed_count=0;
+--echo # Set small values for max_password_errors
+SET @@global.password_errors_before_delay = 3;
+SET @@global.max_password_errors=6;
+# We don't need to use client side authentication plugin for this test.
+let $USE_AUTH_PLUGIN= 0;
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Make enough failed attempts to trigger delays
+
+disable_result_log;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+enable_result_log;
+let $failed_count=3;
+--let USER=u1
+--let HOST=%
+--echo
+--echo # Following attempts will experience delay in server response
+inc $failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--source ../inc/check_delay.inc
+
+inc $failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--source ../inc/check_delay.inc
+
+inc $failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--source ../inc/check_delay.inc
+
+inc $failed_count;
+--echo #Failed login reach max password errors, this login would reject directly
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_USER_IS_BLOCKED
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Cleanup
+
+connection default;
+
+--source ../inc/restore_variables.inc
+
+
+--echo # Remove user account created for the test
+DROP USER u1;
+
+
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+
+--echo
+--echo # ----------------------------------------------------------------------

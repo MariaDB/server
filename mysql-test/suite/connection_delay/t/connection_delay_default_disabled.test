@@ -1,0 +1,143 @@
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo # Connection delay tests for valid user accounts
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Setup
+
+--echo # Create user accounts for testing
+CREATE USER u1@localhost IDENTIFIED BY 'abcd';
+CREATE USER u2@localhost IDENTIFIED BY 'abcd';
+CREATE USER u3@localhost IDENTIFIED BY 'abcd';
+
+let $failed_count=0;
+# We don't need to use client side authentication plugin for this test.
+let $USE_AUTH_PLUGIN= 0;
+--source ../inc/save_variables.inc
+--source ../inc/skip_connection_delay.inc
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Make enough failed attempts to trigger delays
+
+disable_result_log;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,efgh,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,haha,,,,);
+
+
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+enable_result_log;
+
+--echo
+--echo # Following attempts will not experience delay in server response , because connection delay is disabled by default
+let $failed_count=3;
+let $HOST=localhost;
+
+# Trying with invalid passwords
+inc $failed_count;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+# Trying with valid passwords
+let $failed_count=0;
+
+let $USER=u3;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+let $USER=u2;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+let $USER=u1;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Cleanup
+
+connection default;
+
+--echo # Remove user accounts created for the test
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP USER u3@localhost;
+
+--source ../inc/restore_variables.inc
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+
+--echo
+--echo # ----------------------------------------------------------------------

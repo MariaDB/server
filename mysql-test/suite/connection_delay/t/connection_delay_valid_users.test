@@ -1,0 +1,200 @@
+--source include/have_debug.inc
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo # Connection delay tests for valid user accounts
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Setup
+
+--echo # Create user accounts for testing
+CREATE USER u1 IDENTIFIED BY 'abcd';
+CREATE USER u2 IDENTIFIED BY 'abcd';
+CREATE USER u3 IDENTIFIED BY 'abcd';
+
+--source ../inc/save_variables.inc
+let $failed_count=0;
+-- echo # Set small values for connection_delay variables
+SET @@global.password_errors_before_delay = 3;
+--source ../inc/skip_connection_delay.inc
+--echo # Current max password errors and timeout config
+select @@global.connect_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
+select @@debug_dbug;
+
+# We don't need to use client side authentication plugin for this test.
+let $USE_AUTH_PLUGIN= 0;
+
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Make enough failed attempts to trigger delays
+
+disable_result_log;
+
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,haha,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,haha,,,,);
+
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+enable_result_log;
+let $failed_count=3;
+
+--echo
+--echo # Following attempts will experience delay in server response
+
+let $HOST=%;
+
+# Trying with invalid passwords
+inc $failed_count;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+# Trying with valid passwords
+let $failed_count=0;
+
+let $USER=u3;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+let $USER=u2;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+let $USER=u1;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+--echo
+--echo # Following attempts will not experience any delay in server response
+--echo # Failed login after a successful login
+inc $failed_count;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+--echo # Successful login will not get delay response
+let $failed_count=0;
+let $USER=u1;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+
+let $USER=u2;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u3;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Cleanup
+
+connection default;
+
+--source ../inc/restore_variables.inc
+--echo # Remove user accounts created for the test
+DROP USER u1;
+DROP USER u2;
+DROP USER u3;
+
+
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+
+--echo
+--echo # ----------------------------------------------------------------------

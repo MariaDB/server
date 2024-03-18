@@ -230,6 +230,8 @@ extern MYSQL_PLUGIN_IMPORT ulong max_connections;
 extern uint max_digest_length;
 extern ulong max_connect_errors, connect_timeout;
 extern uint max_password_errors;
+extern uint password_errors_before_delay;
+extern uint max_nonexistent_user_store_size;
 extern my_bool slave_allow_batching;
 extern my_bool allow_slave_start;
 extern LEX_CSTRING reason_slave_blocked;

@@ -1,0 +1,88 @@
+--source include/have_debug.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo # Connection delay tests for valid user accounts
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Setup
+
+--echo # Create user accounts for testing
+CREATE USER u1@santa.claus.ipv4.example.com IDENTIFIED BY 'abcd';
+CREATE USER u1@localhost IDENTIFIED BY 'abcd';
+CREATE USER u1 IDENTIFIED BY 'abcd';
+--source ../inc/save_variables.inc
+
+-- echo # Set small values for connection_delay variables
+SET @@global.password_errors_before_delay = 3;
+--source ../inc/skip_connection_delay.inc
+# We don't need to use client side authentication plugin for this test.
+let $USE_AUTH_PLUGIN= 0;
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Make enough failed attempts to trigger delays
+
+FLUSH HOSTS;
+
+SET @saved_debug=@@global.debug_dbug;
+--echo # Test by using the same user with  different fake host  
+SET GLOBAL DEBUG_DBUG="+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4:+f,login_connection,ip_to_hostname";
+select @@debug_dbug;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con4,"127.0.0.1",u1,'111');
+
+FLUSH HOSTS;
+SET GLOBAL DEBUG_DBUG=@saved_debug;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR 
+connect (con5,"127.0.0.1",u1,'111');
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo # Connection delay will influence most matched acl user
+
+let $USER=u1;
+let $HOST=santa.claus.ipv4.example.com;
+let $count=1;
+
+--echo # Search user@santa.claus.ipv4.example.com failed count
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=$USER@$HOST have login failed $count times
+--source include/search_pattern_in_file.inc
+
+
+let $HOST=localhost;
+--echo # Search user@localhost failed count
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=$USER@$HOST have login failed $count times
+--source include/search_pattern_in_file.inc
+
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Cleanup
+
+connection default;
+
+--echo # Restore original values of connection delay variables
+SET @@global.password_errors_before_delay = @saved_connections_threshold;
+--source ../inc/restore_variables.inc
+--echo # Remove user accounts created for the test
+DROP USER u1;
+DROP USER u1@localhost;
+DROP USER u1@santa.claus.ipv4.example.com;
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+
+--echo
+--echo # ----------------------------------------------------------------------

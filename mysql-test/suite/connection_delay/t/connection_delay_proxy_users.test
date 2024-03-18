@@ -1,0 +1,170 @@
+--source include/have_debug.inc
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo #-----------------------------------------------------------------------
+--echo # Setup
+
+--echo # Do proxy setup
+--source ../inc/setup_proxy_accounts.inc
+
+# Official builds include separate debug enabled plugins to be used by
+# the debug enabled server. But the non-debug *client* should not use them.
+
+# Suppress error messages from test_plugin_server
+CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
+
+--source ../inc/save_variables.inc
+
+# Set a small values for connection_delay variables
+SET @@global.password_errors_before_delay = 3;
+let $failed_count=0;
+--source ../inc/skip_connection_delay.inc
+# We will use client side authentication plugin for this test.
+let $USE_AUTH_PLUGIN= 1;
+
+--echo #-----------------------------------------------------------------------
+
+--echo # Case 1 : Tests for valid user accounts
+
+--echo # Make enough failed attempts to trigger delays
+
+disable_result_log;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u1, localhost, u1,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u3, localhost, u3,efgh,,,,);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,haha,,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,efgh,,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(fail_con_u2, localhost, u2,haha,,,,);
+
+enable_result_log;
+
+let $HOST=localhost;
+let $failed_count=3;
+
+# Even though u1@localhost, u2@localhost and u3@localhost are
+# proxying same user - proxied@localhost, we will not use
+# proxied@localhost for recording failed attempts information.
+# Rather, we will rely on proxying users' data.
+# So each of the following should get delay of 1 seconds
+# or more.
+
+--echo
+--echo # Following attempts will experience delay in server response
+# Trying with invalid passwords
+inc $failed_count;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+--echo #---------------------------Trying with valid passwords--------------------------------
+let $failed_count=0;
+let $USER=u3;
+let $PASSWORD=proxied;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u2;
+let $PASSWORD=proxied;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u1;
+let $PASSWORD=proxied;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+--echo # Following attempts will not experience any delay in server response
+inc $failed_count;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+--echo #--------------------------------------------Successful login----------------------------------
+let $USER=u1;
+let $PASSWORD=proxied;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u2;
+let $PASSWORD=proxied;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+let $USER=u3;
+let $PASSWORD=proxied;
+let $SUCCESS=1;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
+
+--echo #-----------------------------------------------------------------------
+--echo # Cleanup
+
+connection default;
+
+--source ../inc/restore_variables.inc
+
+--echo # Remove user accounts
+--source ../inc/cleanup_proxy_accounts.inc
+
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+--echo #-----------------------------------------------------------------------
