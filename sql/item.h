@@ -1883,7 +1883,8 @@ public:
     return type_handler()->charset_for_protocol(this);
   };
 
-  virtual bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  virtual bool walk(Item_processor processor, bool walk_subquery,
+      void *arg, uint depth= 0)
   {
     return (this->*processor)(arg);
   }
@@ -2623,15 +2624,17 @@ protected:
   Item **args, *tmp_arg[2];
   uint arg_count;
   void set_arguments(THD *thd, List<Item> &list);
-  bool walk_args(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk_args(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth )
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (args[i]->walk(processor, walk_subquery, arg))
+      if (args[i]->walk(processor, walk_subquery, arg, depth+1))
         return true;
     }
     return false;
   }
+
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
   bool excl_dep_on_table(table_map tab_map)
@@ -5345,12 +5348,20 @@ public:
   Item_func_or_sum(THD *thd, List<Item> &list):
     Item_result_field(thd), Item_args(thd, list) { }
   bool with_subquery() const { DBUG_ASSERT(fixed); return m_with_subquery; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+
+#define MAX_WALK_DEPTH 70
+  bool walk(Item_processor processor, bool walk_subquery, void *arg, uint depth)
   {
-    if (walk_args(processor, walk_subquery, arg))
+    if (depth > MAX_WALK_DEPTH)
+    {
+      my_error( ER_DERIVED_RECURSION_LIMIT, MYF(0), MAX_WALK_DEPTH, "derived limit" );
+      return true;
+    }
+    if (walk_args(processor, walk_subquery, arg, depth+1))
       return true;
     return (this->*processor)(arg);
   }
+
   /*
     Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema
   */
@@ -5547,10 +5558,11 @@ public:
   }
 
   bool is_json_type() { return (*ref)->is_json_type(); }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0)
   { 
     if (ref && *ref)
-      return (*ref)->walk(processor, walk_subquery, arg) ||
+      return (*ref)->walk(processor, walk_subquery, arg, depth+1) ||
              (this->*processor)(arg); 
     else
       return FALSE;
@@ -5847,9 +5859,10 @@ public:
   }
   bool const_item() const { return orig_item->const_item(); }
   table_map not_null_tables() const { return orig_item->not_null_tables(); }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0)
   {
-    return orig_item->walk(processor, walk_subquery, arg) ||
+    return orig_item->walk(processor, walk_subquery, arg, depth+1) ||
       (this->*processor)(arg);
   }
   bool enumerate_field_refs_processor(void *arg)
@@ -5958,9 +5971,10 @@ public:
     return (*ref)->const_item() && (null_ref_table == NO_NULL_TABLE);
   }
   TABLE *get_null_ref_table() const { return null_ref_table; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0)
   { 
-    return (*ref)->walk(processor, walk_subquery, arg) ||
+    return (*ref)->walk(processor, walk_subquery, arg, depth+1) ||
            (this->*processor)(arg);
   }
   bool view_used_tables_processor(void *arg) 
@@ -6336,9 +6350,10 @@ public:
   virtual double val_real() = 0;
   virtual longlong val_int() = 0;
   virtual int save_in_field(Field *field, bool no_conversions) = 0;
-  bool walk(Item_processor processor, bool walk_subquery, void *args)
+  bool walk(Item_processor processor, bool walk_subquery, void *args,
+      uint depth= 0)
   {
-    return (item->walk(processor, walk_subquery, args)) ||
+    return (item->walk(processor, walk_subquery, args, depth+1)) ||
       (this->*processor)(args);
   }
 };
@@ -6609,9 +6624,10 @@ public:
   bool update_func_default_processor(void *arg);
   bool register_field_in_read_map(void *arg);
 
-  bool walk(Item_processor processor, bool walk_subquery, void *args)
+  bool walk(Item_processor processor, bool walk_subquery, void *args,
+      uint depth= 0)
   {
-    return (arg && arg->walk(processor, walk_subquery, args)) ||
+    return (arg && arg->walk(processor, walk_subquery, args, depth+1)) ||
       (this->*processor)(args);
   }
 
@@ -6786,9 +6802,10 @@ public:
 
   Item_field *field_for_view_update() { return 0; }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *args)
+  bool walk(Item_processor processor, bool walk_subquery, void *args,
+      uint depth= 0)
   {
-    return arg->walk(processor, walk_subquery, args) ||
+    return arg->walk(processor, walk_subquery, args, depth+1) ||
 	    (this->*processor)(args);
   }
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
@@ -7044,11 +7061,12 @@ public:
     return example->is_expensive_processor(arg);
   }
   virtual void set_null();
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0)
   {
     if (arg == STOP_PTR)
       return FALSE;
-    if (example && example->walk(processor, walk_subquery, arg))
+    if (example && example->walk(processor, walk_subquery, arg, depth+1))
       return TRUE;
     return (this->*processor)(arg);
   }
@@ -7754,9 +7772,10 @@ public:
   { m_item->update_used_tables(); }
   bool const_item() const { return m_item->const_item(); }
   table_map not_null_tables() const { return m_item->not_null_tables(); }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0)
   {
-    return m_item->walk(processor, walk_subquery, arg) ||
+    return m_item->walk(processor, walk_subquery, arg, depth+1) ||
       (this->*processor)(arg);
   }
   bool enumerate_field_refs_processor(void *arg)

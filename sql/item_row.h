@@ -113,9 +113,10 @@ public:
   table_map not_null_tables() const { return not_null_tables_cache; }
   virtual void print(String *str, enum_query_type query_type);
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg, 
+      uint depth= 0)
   {
-    if (walk_args(processor, walk_subquery, arg))
+    if (walk_args(processor, walk_subquery, arg, depth+1))
       return true;
     return (this->*processor)(arg);
   }
