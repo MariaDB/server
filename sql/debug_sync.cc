@@ -1008,7 +1008,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   st_debug_sync_action  *action= NULL;
   const char            *errmsg;
   char                  *ptr;
-  char                  *token;
+  char                  *token= nullptr;
   uint                  token_length= 0;
   DBUG_ENTER("debug_sync_eval_action");
   DBUG_ASSERT(thd);
