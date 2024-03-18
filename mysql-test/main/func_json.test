@@ -1115,6 +1115,14 @@ set names latin1;
 select json_arrayagg('ä'), json_objectagg(1, 'ä');
 --enable_service_connection
 
+
+--echo #
+--echo # MDEV-32287: JSON_EXTRACT not returning multiple values for same path
+--echo #
+
+select JSON_EXTRACT("[1, 2, [30, 40]]", '$[2][1]', '$[2][1]');
+
+
 --echo #
 --echo # MDEV-31402: SIGSEGV in json_get_path_next | Item_func_json_extract::read_json
 --echo #
