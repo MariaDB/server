@@ -77,6 +77,8 @@ struct set_numa_interleave_t
 		if (srv_numa_interleave) {
 
 			struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
+			MEM_MAKE_DEFINED(numa_mems_allowed,
+					 sizeof *numa_mems_allowed);
 			ib::info() << "Setting NUMA memory policy to"
 				" MPOL_INTERLEAVE";
 			if (set_mempolicy(MPOL_INTERLEAVE,
@@ -874,6 +876,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
   if (srv_numa_interleave)
   {
     struct bitmask *numa_mems_allowed= numa_get_mems_allowed();
+    MEM_MAKE_DEFINED(numa_mems_allowed, sizeof *numa_mems_allowed);
     if (mbind(mem, mem_size(), MPOL_INTERLEAVE,
               numa_mems_allowed->maskp, numa_mems_allowed->size,
               MPOL_MF_MOVE))

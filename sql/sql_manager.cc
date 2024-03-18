@@ -76,7 +76,9 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
   pthread_detach_this_thread();
   manager_thread = pthread_self();
   mysql_mutex_lock(&LOCK_manager);
-  while (!abort_manager)
+  manager_thread_in_use = 1;
+  mysql_cond_signal(&COND_manager);
+  while (!abort_manager || cb_list)
   {
     /* XXX: This will need to be made more general to handle different
      * polling needs. */
@@ -116,6 +118,7 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
     }
     mysql_mutex_lock(&LOCK_manager);
   }
+  DBUG_ASSERT(cb_list == NULL);
   manager_thread_in_use = 0;
   mysql_mutex_unlock(&LOCK_manager);
   mysql_mutex_destroy(&LOCK_manager);
@@ -135,12 +138,19 @@ void start_handle_manager()
     pthread_t hThread;
     int err;
     DBUG_EXECUTE_IF("delay_start_handle_manager", my_sleep(1000););
-    manager_thread_in_use = 1;
     mysql_cond_init(key_COND_manager, &COND_manager,NULL);
     mysql_mutex_init(key_LOCK_manager, &LOCK_manager, NULL);
     if ((err= mysql_thread_create(key_thread_handle_manager, &hThread,
                                   &connection_attrib, handle_manager, 0)))
+    {
       sql_print_warning("Can't create handle_manager thread (errno: %M)", err);
+      DBUG_VOID_RETURN;
+    }
+
+    mysql_mutex_lock(&LOCK_manager);
+    while (!manager_thread_in_use)
+      mysql_cond_wait(&COND_manager, &LOCK_manager);
+    mysql_mutex_unlock(&LOCK_manager);
   }
   DBUG_VOID_RETURN;
 }

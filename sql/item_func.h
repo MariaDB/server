@@ -89,7 +89,7 @@ public:
   static void wrong_param_count_error(const LEX_CSTRING &schema_name,
                                       const LEX_CSTRING &func_name);
 
-  table_map not_null_tables_cache;
+  table_map not_null_tables_cache= 0;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
