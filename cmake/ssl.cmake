@@ -40,8 +40,6 @@ SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, yes (prefer os library if present, otherwise use bundled)")
 SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, system (use os library)")
-SET(WITH_SSL_DOC
-  "${WITH_SSL_DOC}, </path/to/custom/installation>")
 
 MACRO (CHANGE_SSL_SETTINGS string)
   SET(WITH_SSL ${string} CACHE STRING ${WITH_SSL_DOC} FORCE)
@@ -78,19 +76,9 @@ MACRO (MYSQL_CHECK_SSL)
    ENDIF()
   ENDIF()
 
-  # See if WITH_SSL is of the form </path/to/custom/installation>
-  FILE(GLOB WITH_SSL_HEADER ${WITH_SSL}/include/openssl/ssl.h)
-  IF (WITH_SSL_HEADER)
-    SET(WITH_SSL_PATH ${WITH_SSL} CACHE PATH "path to custom SSL installation")
-  ENDIF()
-
   IF(WITH_SSL STREQUAL "bundled")
     MYSQL_USE_BUNDLED_SSL()
     # Reset some variables, in case we switch from /path/to/ssl to "bundled".
-    IF (WITH_SSL_PATH)
-      UNSET(WITH_SSL_PATH)
-      UNSET(WITH_SSL_PATH CACHE)
-    ENDIF()
     IF (OPENSSL_ROOT_DIR)
       UNSET(OPENSSL_ROOT_DIR)
       UNSET(OPENSSL_ROOT_DIR CACHE)
@@ -108,28 +96,14 @@ MACRO (MYSQL_CHECK_SSL)
       UNSET(OPENSSL_SSL_LIBRARY CACHE)
     ENDIF()
   ELSEIF(WITH_SSL STREQUAL "system" OR
-         WITH_SSL STREQUAL "yes" OR
-         WITH_SSL_PATH
+         WITH_SSL STREQUAL "yes"
          )
-    IF(NOT OPENSSL_ROOT_DIR)
-      IF(WITH_SSL_PATH)
-        # workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/22945
-        SET(OPENSSL_ROOT_DIR ${WITH_SSL_PATH} ${WITH_SSL_PATH}/lib64)
-      ENDIF()
-    ENDIF()
     FIND_PACKAGE(OpenSSL)
     SET_PACKAGE_PROPERTIES(OpenSSL PROPERTIES TYPE RECOMMENDED)
     IF(OPENSSL_FOUND)
       SET(OPENSSL_LIBRARY ${OPENSSL_SSL_LIBRARY})
-      INCLUDE(CheckSymbolExists)
       SET(SSL_SOURCES "")
-      SET(SSL_LIBRARIES ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
-      IF(CMAKE_SYSTEM_NAME MATCHES "SunOS")
-        SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${LIBSOCKET})
-      ENDIF()
-      IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
-        SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${CMAKE_DL_LIBS})
-      ENDIF()
+      SET(SSL_LIBRARIES ${OPENSSL_LIBRARIES})
 
       MESSAGE_ONCE(OPENSSL_INCLUDE_DIR "OPENSSL_INCLUDE_DIR = ${OPENSSL_INCLUDE_DIR}")
       MESSAGE_ONCE(OPENSSL_SSL_LIBRARY "OPENSSL_SSL_LIBRARY = ${OPENSSL_SSL_LIBRARY}")
@@ -150,6 +124,7 @@ MACRO (MYSQL_CHECK_SSL)
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
       SET(CMAKE_REQUIRED_LIBRARIES ${SSL_LIBRARIES})
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
+      INCLUDE(CheckSymbolExists)
       CHECK_SYMBOL_EXISTS(ERR_remove_thread_state "openssl/err.h"
                           HAVE_ERR_remove_thread_state)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_ctr "openssl/evp.h"
@@ -169,7 +144,9 @@ MACRO (MYSQL_CHECK_SSL)
     ENDIF()
   ELSE()
     MESSAGE(FATAL_ERROR
-      "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}")
+      "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}."
+      "For custom location of OpenSSL library, use WITH_SSL=system and OPENSSL_ROOT_DIR pointing to the library."
+    )
   ENDIF()
 ENDMACRO()
 
