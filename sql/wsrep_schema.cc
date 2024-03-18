@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2021 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,6 +34,16 @@
 
 #include <string>
 #include <sstream>
+
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+
+LEX_CSTRING WSREP_LEX_SCHEMA= {STRING_WITH_LEN(WSREP_SCHEMA)};
+LEX_CSTRING WSREP_LEX_STREAMING= {STRING_WITH_LEN(WSREP_STREAMING_TABLE)};
+LEX_CSTRING WSREP_LEX_CLUSTER= {STRING_WITH_LEN(WSREP_CLUSTER_TABLE)};
+LEX_CSTRING WSREP_LEX_MEMBERS= {STRING_WITH_LEN(WSREP_MEMBERS_TABLE)};
 
 const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
