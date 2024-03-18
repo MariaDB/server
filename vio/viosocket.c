@@ -560,8 +560,7 @@ vio_should_retry(Vio *vio)
   DBUG_ENTER("vio_should_retry");
   DBUG_PRINT("info", ("vio_errno: %d  state: %d",
                       vio_errno(vio), (int) vio->state));
-  DBUG_RETURN(vio_errno(vio) == SOCKET_EINTR &&
-              vio->state < VIO_STATE_SHUTDOWN);
+  DBUG_RETURN(vio_errno(vio) == SOCKET_EINTR);
 }
 
 
@@ -931,14 +930,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
                        (int) mysql_socket_getfd(vio->mysql_socket),
                        timeout));
 
-  if (vio->state >= VIO_STATE_SHUTDOWN)
-  {
-    DBUG_PRINT("info", ("vio deactivated. state: %ld", (int) vio->state));
-    /* Socket is shutdown or closed */
-    errno= EIO;
-    DBUG_RETURN(-1);
-  }
-
+  DBUG_ASSERT(vio->state != VIO_STATE_CLOSED);
   memset(&pfd, 0, sizeof(pfd));
 
   pfd.fd= sd;
@@ -999,14 +991,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   fd_set readfds, writefds, exceptfds;
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
-
-  if (vio->state >= VIO_STATE_SHUTDOWN)
-  {
-    DBUG_PRINT("info", ("vio deactive. state: %ld", (int) vio->state));
-    /* Socket is shutdown or closed */
-    errno= EIO;
-    DBUG_RETURN(-1);
-  }
+  DBUG_ASSERT(vio->state != VIO_STATE_CLOSED);
 
   /* Convert the timeout, in milliseconds, to seconds and microseconds. */
   if (timeout >= 0)
@@ -1180,9 +1165,7 @@ my_bool vio_is_connected(Vio *vio)
 {
   uint bytes= 0;
   DBUG_ENTER("vio_is_connected");
-
-  if (vio->state >= VIO_STATE_SHUTDOWN)
-    DBUG_RETURN(FALSE);
+  DBUG_ASSERT(vio->state != VIO_STATE_CLOSED);
 
   /*
     The first step of detecting an EOF condition is verifying
