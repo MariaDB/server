@@ -83,7 +83,6 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t2 drop constraint c;
-ERROR 42000: Can't DROP CONSTRAINT `c`; check that it exists
 alter table t2 drop constraint if exists c;
 Warnings:
 Note	1091	Can't DROP CONSTRAINT `c`; check that it exists
@@ -93,7 +92,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL CHECK (`a` > 10),
   `b` int(11) DEFAULT NULL CHECK (`b` > 20),
-  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  `c` int(11) DEFAULT 0,
   CONSTRAINT `max` CHECK (`a` + `b` < 500),
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
@@ -317,6 +316,109 @@ insert t1 (a) values (1);
 insert t1 (a) values (-1);
 ERROR 23000: CONSTRAINT `t1.b` failed for `test`.`t1`
 drop table t1;
+# MDEV-30899: Fail to drop CHECK constraint
+#
+CREATE TABLE t0 (c1 INT CHECK ( c1 > 0 ),
+constraint checkme check(c1>3),
+constraint checkme2 check (c1<21) );
+show create table t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `c1` int(11) DEFAULT NULL CHECK (`c1` > 0),
+  CONSTRAINT `checkme` CHECK (`c1` > 3),
+  CONSTRAINT `checkme2` CHECK (`c1` < 21)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * from INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
+def	test	c1	test	t0	CHECK
+def	test	checkme	test	t0	CHECK
+def	test	checkme2	test	t0	CHECK
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	c1	`c1` > 0
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+ALTER TABLE t0 DROP CONSTRAINT c1;
+show create table t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `c1` int(11) DEFAULT NULL,
+  CONSTRAINT `checkme` CHECK (`c1` > 3),
+  CONSTRAINT `checkme2` CHECK (`c1` < 21)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+alter table t0 add c2 int check (c2 < 3.14);
+show create table t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL CHECK (`c2` < 3.14),
+  CONSTRAINT `checkme` CHECK (`c1` > 3),
+  CONSTRAINT `checkme2` CHECK (`c1` < 21)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	c2	`c2` < 3.14
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	c2	`c2` < 3.14
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+ALTER TABLE t0 DROP CONSTRAINT IF EXISTS c2;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+ALTER TABLE t0 DROP CONSTRAINT IF EXISTS c2;
+Warnings:
+Note	1091	Can't DROP CONSTRAINT `c2`; check that it exists
+ALTER TABLE t0 MODIFY COLUMN c1 INT;
+show create table t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  CONSTRAINT `checkme` CHECK (`c1` > 3),
+  CONSTRAINT `checkme2` CHECK (`c1` < 21)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ALTER TABLE t0 ADD CONSTRAINT CHECK (c1<0);
+show create table t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  CONSTRAINT `checkme` CHECK (`c1` > 3),
+  CONSTRAINT `checkme2` CHECK (`c1` < 21),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`c1` < 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	test	t0	checkme	`c1` > 3
+def	test	t0	checkme2	`c1` < 21
+def	test	t0	CONSTRAINT_1	`c1` < 0
+drop table t0;
 #
 # End of 10.4 tests
 #

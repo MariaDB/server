@@ -6500,7 +6500,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::CHECK_CONSTRAINT)
       {
-        for (uint i=table->s->field_check_constraints;
+        for (uint i=0;
              i < table->s->table_check_constraints;
              i++)
         {
@@ -8363,7 +8363,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                         create_info->option_list, thd->mem_root);
 
   /*
-    First collect all fields from table which isn't in drop_list
+    First collect all fields from table which aren't in drop_list
   */
   bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
@@ -8373,16 +8373,26 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
-    /* Check if field should be dropped */
+    /* Check if field should be dropped.
+       Check if there is field check constraint that should be dropped*/
     drop_it.rewind();
     while ((drop=drop_it++))
     {
       if (drop->type == Alter_drop::COLUMN &&
           !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
         break;
+      if (drop->type == Alter_drop::CHECK_CONSTRAINT && field->check_constraint)
+      {
+        if (!my_strcasecmp(system_charset_info, field->check_constraint->name.str,
+                           drop->name))
+        {
+          field->check_constraint= NULL;
+          drop_it.remove();
+        }
+      }
     }
     /*
-      DROP COLULMN xxx
+      DROP COLUMN xxx
       1. it does not see INVISIBLE_SYSTEM columns
       2. otherwise, normally a column is dropped
       3. unless it's a system versioning column (but see below).
@@ -8439,7 +8449,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       // Force reopen because new column name is on thd->mem_root
       table->mark_table_for_reopen();
     }
-
     /* Check if field is changed */
     def_it.rewind();
     while ((def=def_it++))
@@ -8721,7 +8730,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
 
   /*
-    Collect all keys which isn't in drop list. Add only those
+    Collect all keys which aren't in drop list. Add only those
     for which some fields exists.
   */
   for (uint i=0 ; i < table->s->keys ; i++,key_info++)

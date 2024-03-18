@@ -45,7 +45,6 @@ select * from t1;
 
 create table t2 like t1;
 show create table t2;
---error ER_CANT_DROP_FIELD_OR_KEY
 alter table t2 drop constraint c;
 alter table t2 drop constraint if exists c;
 alter table t2 drop constraint min;
@@ -243,6 +242,52 @@ insert t1 (a) values (1);
 --error ER_CONSTRAINT_FAILED
 insert t1 (a) values (-1);
 drop table t1;
+--echo # MDEV-30899: Fail to drop CHECK constraint
+--echo #
+--source include/have_innodb.inc
+
+CREATE TABLE t0 (c1 INT CHECK ( c1 > 0 ),
+                constraint checkme check(c1>3),
+                constraint checkme2 check (c1<21) );
+show create table t0;
+SELECT * from INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+
+# Drop field constraint
+ALTER TABLE t0 DROP CONSTRAINT c1;
+show create table t0;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+
+# Add new field check constraint and drop it and drop it if exists
+alter table t0 add c2 int check (c2 < 3.14);
+show create table t0;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+ALTER TABLE t0 DROP CONSTRAINT IF EXISTS c2;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+ALTER TABLE t0 DROP CONSTRAINT IF EXISTS c2;
+
+# Before only way to drop column constraint is to modify column without constraint
+ALTER TABLE t0 MODIFY COLUMN c1 INT;
+show create table t0;
+
+# Add constraints, adds table constraints.
+ALTER TABLE t0 ADD CONSTRAINT CHECK (c1<0);
+show create table t0;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t0;
+
 
 --echo #
 --echo # End of 10.4 tests
