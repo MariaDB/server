@@ -6506,7 +6506,7 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
   }
   /* Copy data */
   int2store(dir+2, data_length);
-  memcpy(buff + rec_offset, data, data_length);
+  memcpy_dec_ext(buff + rec_offset, data, data_length);
   empty_space-= (uint) data_length;
   int2store(buff + EMPTY_SPACE_OFFSET, empty_space);
 
@@ -7193,7 +7193,7 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
        column < end_column;
        column++)
   {
-    memcpy(record + column->offset, header, column->length);
+    memcpy_dec_ext(record + column->offset, header, column->length);
     header+= column->length;
   }
 
@@ -7224,7 +7224,7 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
     case FIELD_SKIP_ZERO:                       /* Fixed length field */
       row.normal_length+= column->length;
       *null_field_lengths= column->length;
-      memcpy(record + column->offset, header, column->length);
+      memcpy_dec_ext(record + column->offset, header, column->length);
       header+= column->length;
       break;
     case FIELD_SKIP_ENDSPACE:                   /* CHAR */
@@ -7239,7 +7239,7 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
       }
       row.char_length+= length;
       *null_field_lengths= length;
-      memcpy(record + column->offset, header, length);
+      memcpy_dec_ext(record + column->offset, header, length);
       if (share->calc_checksum)
         bfill(record + column->offset + length, (column->length - length),
               ' ');
@@ -7267,7 +7267,7 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
       field_pos+= column->fill_length;
       row.varchar_length+= length;
       *null_field_lengths= length;
-      memcpy(field_pos, header, length);
+      memcpy_dec_ext(field_pos, header, length);
       header+= length;
       break;
     }
@@ -7419,7 +7419,7 @@ my_bool _ma_apply_undo_row_update(MARIA_HA *info, LSN undo_lsn,
   {
     /* Bitmap changed */
     field_length_data++;
-    memcpy(orig_record, header, share->base.null_bytes);
+    memcpy_dec_ext(orig_record, header, share->base.null_bytes);
     header+= share->base.null_bytes;
   }
   else
@@ -7451,14 +7451,14 @@ my_bool _ma_apply_undo_row_update(MARIA_HA *info, LSN undo_lsn,
     case FIELD_NORMAL:                          /* Fixed length field */
     case FIELD_ZERO:
     case FIELD_SKIP_PRESPACE:                   /* Not packed */
-      memcpy(orig_field_pos, header, column->length);
+      memcpy_dec_ext(orig_field_pos, header, column->length);
       header+= column->length;
       break;
     case FIELD_SKIP_ZERO:                       /* Number */
     case FIELD_SKIP_ENDSPACE:                   /* CHAR */
     {
       uint diff;
-      memcpy(orig_field_pos, header, field_length);
+      memcpy_dec_ext(orig_field_pos, header, field_length);
       if ((diff= (column->length - field_length)))
         bfill(orig_field_pos + column->length - diff, diff,
               column->type == FIELD_SKIP_ENDSPACE ? ' ' : 0);
@@ -7475,7 +7475,7 @@ my_bool _ma_apply_undo_row_update(MARIA_HA *info, LSN undo_lsn,
         int2store(orig_field_pos, field_length);
         orig_field_pos+= 2;
       }
-      memcpy(orig_field_pos, header, field_length);
+      memcpy_dec_ext(orig_field_pos, header, field_length);
       header+= field_length;
       break;
     case FIELD_BLOB:

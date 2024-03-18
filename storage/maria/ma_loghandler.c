@@ -421,6 +421,17 @@ struct st_translog_descriptor
 
 static struct st_translog_descriptor log_descriptor;
 
+
+struct st_translog_crypt_data
+{
+  struct st_encryption_scheme scheme;
+  uint space;
+  mysql_mutex_t lock;
+};
+
+struct st_translog_crypt_data * translog_crypt = NULL;
+
+
 ulong log_purge_type= TRANSLOG_PURGE_IMMIDIATE;
 ulong log_file_size= TRANSLOG_FILE_SIZE;
 /* sync() of log files directory mode */
@@ -570,232 +581,259 @@ void check_translog_description_table(int num)
 
 static LOG_DESC INIT_LOGREC_RESERVED_FOR_CHUNKS23=
 {LOGRECTYPE_NOT_ALLOWED, 0, 0, NULL, NULL, NULL, 0,
- "reserved", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL };
+ "reserved", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL };
 
 static LOG_DESC INIT_LOGREC_REDO_INSERT_ROW_HEAD=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE, NULL,
  write_hook_for_redo, NULL, 0,
- "redo_insert_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_insert_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_INSERT_ROW_TAIL=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE, NULL,
  write_hook_for_redo, NULL, 0,
- "redo_insert_row_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_insert_row_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_NEW_ROW_HEAD=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE, NULL,
  write_hook_for_redo, NULL, 0,
- "redo_new_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_new_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_NEW_ROW_TAIL=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE, NULL,
  write_hook_for_redo, NULL, 0,
- "redo_new_row_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_new_row_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_INSERT_ROW_BLOBS=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, FILEID_STORE_SIZE, NULL,
  write_hook_for_redo, NULL, 0,
- "redo_insert_row_blobs", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_insert_row_blobs", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_PURGE_ROW_HEAD=
 {LOGRECTYPE_FIXEDLENGTH,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  NULL, write_hook_for_redo, NULL, 0,
- "redo_purge_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_purge_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_PURGE_ROW_TAIL=
 {LOGRECTYPE_FIXEDLENGTH,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  NULL, write_hook_for_redo, NULL, 0,
- "redo_purge_row_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_purge_row_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_FREE_BLOCKS=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  FILEID_STORE_SIZE + PAGERANGE_STORE_SIZE,
  NULL, write_hook_for_redo, NULL, 0,
- "redo_free_blocks", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_free_blocks", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_FREE_HEAD_OR_TAIL=
 {LOGRECTYPE_FIXEDLENGTH,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE,
  NULL, write_hook_for_redo, NULL, 0,
- "redo_free_head_or_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_free_head_or_tail", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 /* not yet used; for when we have versioning */
 static LOG_DESC INIT_LOGREC_REDO_DELETE_ROW=
 {LOGRECTYPE_FIXEDLENGTH, 16, 16, NULL, write_hook_for_redo, NULL, 0,
- "redo_delete_row", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_delete_row", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 /** @todo RECOVERY BUG unused, remove? */
 static LOG_DESC INIT_LOGREC_REDO_UPDATE_ROW_HEAD=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 9, NULL, write_hook_for_redo, NULL, 0,
- "redo_update_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_update_row_head", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_INDEX=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 9, NULL, write_hook_for_redo, NULL, 0,
- "redo_index", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_index", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_INDEX_NEW_PAGE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE * 2 + KEY_NR_STORE_SIZE + 1,
  NULL, write_hook_for_redo, NULL, 0,
- "redo_index_new_page", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_index_new_page", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_INDEX_FREE_PAGE=
 {LOGRECTYPE_FIXEDLENGTH, FILEID_STORE_SIZE + PAGE_STORE_SIZE * 2,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE * 2,
  NULL, write_hook_for_redo, NULL, 0,
- "redo_index_free_page", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_index_free_page", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_UNDELETE_ROW=
 {LOGRECTYPE_FIXEDLENGTH, 16, 16, NULL, write_hook_for_redo, NULL, 0,
- "redo_undelete_row", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL};
+ "redo_undelete_row", LOGREC_NOT_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_CLR_END=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, LSN_STORE_SIZE + FILEID_STORE_SIZE +
  CLR_TYPE_STORE_SIZE, NULL, write_hook_for_clr_end, NULL, 1,
- "clr_end", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "clr_end", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_PURGE_END=
 {LOGRECTYPE_PSEUDOFIXEDLENGTH, 5, 5, NULL, NULL, NULL, 1,
- "purge_end", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "purge_end", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_ROW_INSERT=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  NULL, write_hook_for_undo_row_insert, NULL, 1,
- "undo_row_insert", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_row_insert", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_ROW_DELETE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  NULL, write_hook_for_undo_row_delete, NULL, 1,
- "undo_row_delete", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_row_delete", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_ROW_UPDATE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + PAGE_STORE_SIZE + DIRPOS_STORE_SIZE,
  NULL, write_hook_for_undo_row_update, NULL, 1,
- "undo_row_update", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_row_update", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_KEY_INSERT=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + KEY_NR_STORE_SIZE,
  NULL, write_hook_for_undo_key_insert, NULL, 1,
- "undo_key_insert", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_key_insert", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 /* This will never be in the log, only in the clr */
 static LOG_DESC INIT_LOGREC_UNDO_KEY_INSERT_WITH_ROOT=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + KEY_NR_STORE_SIZE + PAGE_STORE_SIZE,
  NULL, write_hook_for_undo_key, NULL, 1,
- "undo_key_insert_with_root", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_key_insert_with_root", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_KEY_DELETE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + KEY_NR_STORE_SIZE,
  NULL, write_hook_for_undo_key_delete, NULL, 1,
- "undo_key_delete", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_key_delete", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_KEY_DELETE_WITH_ROOT=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE + KEY_NR_STORE_SIZE + PAGE_STORE_SIZE,
  NULL, write_hook_for_undo_key_delete, NULL, 1,
- "undo_key_delete_with_root", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_key_delete_with_root", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_PREPARE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 0, NULL, NULL, NULL, 0,
- "prepare", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "prepare", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_PREPARE_WITH_UNDO_PURGE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, LSN_STORE_SIZE, NULL, NULL, NULL, 1,
- "prepare_with_undo_purge", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "prepare_with_undo_purge", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_COMMIT=
 {LOGRECTYPE_FIXEDLENGTH, 0, 0, NULL,
  write_hook_for_commit, NULL, 0, "commit", LOGREC_IS_GROUP_ITSELF, NULL,
- NULL};
+ NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_COMMIT_WITH_UNDO_PURGE=
 {LOGRECTYPE_PSEUDOFIXEDLENGTH, 5, 5, NULL, write_hook_for_commit, NULL, 1,
- "commit_with_undo_purge", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "commit_with_undo_purge", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_CHECKPOINT=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 0, NULL, NULL, NULL, 0,
- "checkpoint", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "checkpoint", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_CREATE_TABLE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 1 + 2, NULL, NULL, NULL, 0,
-"redo_create_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+"redo_create_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_RENAME_TABLE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 0, NULL, NULL, NULL, 0,
- "redo_rename_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "redo_rename_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_DROP_TABLE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 0, NULL, NULL, NULL, 0,
- "redo_drop_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "redo_drop_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_DELETE_ALL=
 {LOGRECTYPE_FIXEDLENGTH, FILEID_STORE_SIZE, FILEID_STORE_SIZE,
  NULL, write_hook_for_redo_delete_all, NULL, 0,
- "redo_delete_all", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "redo_delete_all", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_REPAIR_TABLE=
 {LOGRECTYPE_FIXEDLENGTH, FILEID_STORE_SIZE + 8 + 8, FILEID_STORE_SIZE + 8 + 8,
  NULL, NULL, NULL, 0,
- "redo_repair_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "redo_repair_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_FILE_ID=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 2, NULL, write_hook_for_file_id, NULL, 0,
- "file_id", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "file_id", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_LONG_TRANSACTION_ID=
 {LOGRECTYPE_FIXEDLENGTH, 6, 6, NULL, NULL, NULL, 0,
- "long_transaction_id", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "long_transaction_id", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_INCOMPLETE_LOG=
 {LOGRECTYPE_FIXEDLENGTH, FILEID_STORE_SIZE, FILEID_STORE_SIZE,
  NULL, NULL, NULL, 0,
- "incomplete_log", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "incomplete_log", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_INCOMPLETE_GROUP=
 {LOGRECTYPE_FIXEDLENGTH, 0, 0,
  NULL, NULL, NULL, 0,
- "incomplete_group", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "incomplete_group", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_UNDO_BULK_INSERT=
 {LOGRECTYPE_VARIABLE_LENGTH, 0,
  LSN_STORE_SIZE + FILEID_STORE_SIZE,
  NULL, write_hook_for_undo_bulk_insert, NULL, 1,
- "undo_bulk_insert", LOGREC_LAST_IN_GROUP, NULL, NULL};
+ "undo_bulk_insert", LOGREC_LAST_IN_GROUP, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_REDO_BITMAP_NEW_PAGE=
 {LOGRECTYPE_FIXEDLENGTH, FILEID_STORE_SIZE + PAGE_STORE_SIZE * 2,
  FILEID_STORE_SIZE + PAGE_STORE_SIZE * 2,
  NULL, NULL, NULL, 0,
- "redo_create_bitmap", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "redo_create_bitmap", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_IMPORTED_TABLE=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 0, NULL, NULL, NULL, 0,
- "imported_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "imported_table", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 static LOG_DESC INIT_LOGREC_DEBUG_INFO=
 {LOGRECTYPE_VARIABLE_LENGTH, 0, 0, NULL, NULL, NULL, 0,
- "info", LOGREC_IS_GROUP_ITSELF, NULL, NULL};
+ "info", LOGREC_IS_GROUP_ITSELF, NULL, NULL, NULL, NULL};
 
 const myf log_write_flags= MY_WME | MY_NABP | MY_WAIT_IF_FULL;
+
+
+static void log_desc_encrypt_init()
+{
+    INIT_LOGREC_REDO_INSERT_ROW_HEAD.encrypt_hook = pre_write_encrypt_data_e;
+    INIT_LOGREC_REDO_INSERT_ROW_HEAD.post_write_encrypt_hook = post_write_encrypt_data_e;
+
+    INIT_LOGREC_REDO_NEW_ROW_HEAD.encrypt_hook = pre_write_encrypt_data_e;
+    INIT_LOGREC_REDO_NEW_ROW_HEAD.post_write_encrypt_hook = post_write_encrypt_data_e;
+
+    INIT_LOGREC_UNDO_ROW_DELETE.encrypt_hook = pre_write_encrypt_data_b7e;
+    INIT_LOGREC_UNDO_ROW_DELETE.post_write_encrypt_hook = post_write_encrypt_data_b7e;
+
+    INIT_LOGREC_UNDO_ROW_UPDATE.encrypt_hook = pre_write_encrypt_data_b5e;
+    INIT_LOGREC_UNDO_ROW_UPDATE.post_write_encrypt_hook = post_write_encrypt_data_b5e;
+
+    INIT_LOGREC_FILE_ID.encrypt_hook = pre_write_encrypt_data_e;
+    INIT_LOGREC_FILE_ID.post_write_encrypt_hook = post_write_encrypt_data_e;
+
+    INIT_LOGREC_IMPORTED_TABLE.encrypt_hook = pre_write_encrypt_data_e;
+    INIT_LOGREC_IMPORTED_TABLE.post_write_encrypt_hook = post_write_encrypt_data_e;
+}
+
 
 void translog_table_init()
 {
   int i;
+
+  if (aria_encrypt_translog)
+	  log_desc_encrypt_init();
+
   log_record_type_descriptor[LOGREC_RESERVED_FOR_CHUNKS23]=
     INIT_LOGREC_RESERVED_FOR_CHUNKS23;
   log_record_type_descriptor[LOGREC_REDO_INSERT_ROW_HEAD]=
@@ -3593,6 +3631,81 @@ static my_bool translog_is_LSN_chunk(uchar type)
 
 
 /**
+
+
+*/
+
+static void translog_crypt_data_scheme_locker(struct st_encryption_scheme *scheme, int unlock)
+{
+	struct st_translog_crypt_data *crypt_data = (struct st_translog_crypt_data*)scheme;
+  if (unlock)
+    mysql_mutex_unlock(&crypt_data->lock);
+  else
+    mysql_mutex_lock(&crypt_data->lock);
+}
+
+/**
+
+
+*/
+
+int translog_init_crypt()
+{
+    uchar global_key[MY_AES_MAX_KEY_LENGTH];
+    uint  global_key_len= sizeof(global_key), key_len;
+    struct st_encryption_scheme_key key;
+    uint key_version = 1;
+    uint rc = 1;
+
+	translog_crypt = (struct st_translog_crypt_data*)my_malloc(PSI_INSTRUMENT_ME, sizeof(struct st_translog_crypt_data), MYF(MY_ZEROFILL));
+
+    if (translog_crypt)
+    {
+        translog_crypt->scheme.type= 1;
+        translog_crypt->scheme.locker = translog_crypt_data_scheme_locker;
+        rc = mysql_mutex_init(key_CRYPT_DATA_lock, &translog_crypt->lock, MY_MUTEX_INIT_FAST);
+
+        if (!rc)
+        {
+            translog_crypt->scheme.key_id = ENCRYPTION_KEY_SYSTEM_DATA;
+            memset( translog_crypt->scheme.iv, 'a', sizeof(translog_crypt->scheme.iv));
+            translog_crypt->space = 1235695567;
+
+            encryption_key_get(translog_crypt->scheme.key_id, key_version, global_key, & global_key_len);
+            my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+                         translog_crypt->scheme.iv, sizeof(translog_crypt->scheme.iv), key.key, &key_len,
+                         global_key, global_key_len, NULL, 0);
+
+            translog_crypt->scheme.key[0]= key;
+            translog_crypt->scheme.key[0].version = key_version;
+        }
+        else
+        {
+            my_free(translog_crypt);
+            translog_crypt = NULL;
+        }
+    }
+
+return rc;
+}
+
+
+/**
+
+
+*/
+
+static void translog_destroy_crypt()
+{
+    if (translog_crypt != NULL)
+    {
+        mysql_mutex_destroy(&translog_crypt->lock);
+        my_free(translog_crypt);
+        translog_crypt = NULL;
+    }
+}
+
+/**
   @brief Initialize transaction log
 
   @param directory       Directory where log files are put
@@ -3677,6 +3790,9 @@ my_bool translog_init_with_table(const char *directory,
   log_descriptor.min_need_file= 0;
   log_descriptor.min_file_number= 0;
   log_descriptor.last_lsn_checked= LSN_IMPOSSIBLE;
+
+  if (aria_encrypt_translog && translog_init_crypt())
+    goto err;
 
   /* Directory to store files */
   unpack_dirname(log_descriptor.directory, directory);
@@ -4356,6 +4472,10 @@ void translog_destroy()
     mysql_file_close(log_descriptor.directory_fd, MYF(MY_WME));
   if (id_to_share != NULL)
     my_free(id_to_share + 1);
+
+  if (translog_crypt != NULL)
+	  translog_destroy_crypt();
+
   DBUG_VOID_RETURN;
 }
 
@@ -6525,20 +6645,27 @@ my_bool translog_write_record(LSN *lsn,
                                                                tbl_info,
                                                                hook_arg))))
   {
-    switch (log_record_type_descriptor[type].rclass) {
-    case LOGRECTYPE_VARIABLE_LENGTH:
-      rc= translog_write_variable_record(lsn, type, tbl_info,
-                                         short_trid, &parts, trn, hook_arg);
-      break;
-    case LOGRECTYPE_PSEUDOFIXEDLENGTH:
-    case LOGRECTYPE_FIXEDLENGTH:
-      rc= translog_write_fixed_record(lsn, type, tbl_info,
-                                      short_trid, &parts, trn, hook_arg);
-      break;
-    case LOGRECTYPE_NOT_ALLOWED:
-    default:
-      DBUG_ASSERT(0);
-      rc= 1;
+    if ( !(rc= (log_record_type_descriptor[type].encrypt_hook &&
+               (*log_record_type_descriptor[type].encrypt_hook)(parts_data, part_no)  ) ) )
+    {
+        switch (log_record_type_descriptor[type].rclass) {
+        case LOGRECTYPE_VARIABLE_LENGTH:
+          rc= translog_write_variable_record(lsn, type, tbl_info,
+                                             short_trid, &parts, trn, hook_arg);
+          break;
+        case LOGRECTYPE_PSEUDOFIXEDLENGTH:
+        case LOGRECTYPE_FIXEDLENGTH:
+          rc= translog_write_fixed_record(lsn, type, tbl_info,
+                                          short_trid, &parts, trn, hook_arg);
+          break;
+        case LOGRECTYPE_NOT_ALLOWED:
+        default:
+          DBUG_ASSERT(0);
+          rc= 1;
+        }
+
+        if( log_record_type_descriptor[type].post_write_encrypt_hook )
+            (*log_record_type_descriptor[type].post_write_encrypt_hook)(parts_data, part_no);
     }
   }
 
@@ -7522,6 +7649,164 @@ static void translog_destroy_reader_data(TRANSLOG_READER_DATA *data)
   translog_free_record_header(&data->header);
 }
 
+
+static int enrypt_part_i(LEX_CUSTRING *parts_data, uint idx)
+{
+    uint32 dstlen = 0;
+    uchar * crypt_buf;
+    uint key_version = 1;
+    int rc = 1;
+    DBUG_ENTER("enrypt_part_i");
+    DBUG_PRINT("my",("parts_data: %p  idx: %u", parts_data, idx));
+    crypt_buf = my_malloc(PSI_INSTRUMENT_ME, parts_data[idx].length, MYF(0));
+    if (crypt_buf)
+    {
+        rc = encryption_scheme_encrypt(parts_data[idx].str, parts_data[idx].length,
+                                  crypt_buf, &dstlen,
+                                  &translog_crypt->scheme,
+                                  key_version,
+                                  translog_crypt->space, 0, 0);
+
+        if (rc)
+        {
+            my_free(crypt_buf);
+            DBUG_RETURN(rc);
+        }
+
+        parts_data[idx].str = crypt_buf;
+    }
+
+    DBUG_RETURN(rc);
+}
+
+
+static void free_encrypt_part_i (LEX_CUSTRING *parts_data, uint idx)
+{
+    uchar* crypt_buf;
+    DBUG_ENTER("free_encrypt_part_i");
+    DBUG_PRINT("my",("parts_data: %p  idx: %u", parts_data, idx));
+    crypt_buf = (uchar*)parts_data[idx].str;
+    if (crypt_buf)
+    {
+        my_free(crypt_buf);
+        parts_data[idx].str = NULL;
+        parts_data[idx].length = 0;
+    }
+    DBUG_VOID_RETURN;
+}
+
+
+static void free_encrypt_last_parts (LEX_CUSTRING *parts_data, uint begin, uint end);
+static int enrypt_last_parts(LEX_CUSTRING *parts_data, uint begin, uint end)
+{
+    uint i;
+    int rc = 1;
+    DBUG_ENTER("enrypt_last_parts");
+    DBUG_PRINT("my",("parts_data: %p  begin: %u end: %u", parts_data, begin, end));
+
+    for (i=begin; i<end; i++)
+    {
+        rc = enrypt_part_i(parts_data, i);
+        if (rc)
+        {
+            free_encrypt_last_parts (parts_data, begin, i);
+            break;
+        }
+    }
+
+    DBUG_RETURN(rc);
+}
+
+
+static void free_encrypt_last_parts (LEX_CUSTRING *parts_data, uint begin, uint end)
+{
+	uint i;
+    DBUG_ENTER("free_encrypt_last_parts");
+    DBUG_PRINT("my",("parts_data: %p  begin: %u  end: %u", parts_data, begin, end));
+
+    for (i=begin; i<end; i++)
+        free_encrypt_part_i(parts_data, i);
+
+    DBUG_VOID_RETURN;
+}
+
+
+int pre_write_encrypt_data_e(LEX_CUSTRING *parts_data, uint part_no)
+{
+    int rc = 1;
+    DBUG_ENTER("pre_write_encrypt_data_e");
+    DBUG_PRINT("my",("parts_data: %p  part_no: %u", parts_data, part_no));
+    rc = enrypt_part_i(parts_data, part_no-1);
+    DBUG_RETURN(rc);
+}
+
+
+void post_write_encrypt_data_e (LEX_CUSTRING *parts_data, uint part_no)
+{
+    DBUG_ENTER("post_write_encrypt_data_E");
+    free_encrypt_part_i(parts_data, part_no-1);
+    DBUG_VOID_RETURN;
+}
+
+int pre_write_encrypt_data_b5e(LEX_CUSTRING *parts_data, uint part_no)
+{
+    int rc = 1;
+    DBUG_ENTER("post_write_encrypt_data_e");
+    DBUG_PRINT("my",("parts_data: %p  part_no: %u", parts_data, part_no));
+    rc = enrypt_last_parts(parts_data, 5, part_no);
+    DBUG_RETURN(rc);
+}
+
+void post_write_encrypt_data_b5e (LEX_CUSTRING *parts_data, uint part_no)
+{
+    DBUG_ENTER("post_write_encrypt_data_b5e");
+    DBUG_PRINT("my",("parts_data: %p  part_no: %u", parts_data, part_no));
+    free_encrypt_last_parts (parts_data, 5, part_no);
+    DBUG_VOID_RETURN;
+}
+
+int pre_write_encrypt_data_b7e(LEX_CUSTRING *parts_data, uint part_no)
+{
+    int rc = 1;
+    DBUG_ENTER("post_write_encrypt_data_b5e");
+    DBUG_PRINT("my",("parts_data: %p  part_no: %u", parts_data, part_no));
+    rc = enrypt_last_parts(parts_data, 7, part_no);
+    DBUG_RETURN(rc);
+}
+
+void post_write_encrypt_data_b7e (LEX_CUSTRING *parts_data, uint part_no)
+{
+    DBUG_ENTER("post_write_encrypt_data_b7e");
+    DBUG_PRINT("my",("parts_data: %p  part_no: %u", parts_data, part_no));
+    free_encrypt_last_parts (parts_data, 7, part_no);
+    DBUG_VOID_RETURN;
+}
+
+
+int decrypt_data(uchar* dst, const uchar* src, uint length)
+{
+    uint dlen;
+    uint key_version = 1;
+    int rc;
+
+    DBUG_ENTER("decrypt_data");
+    rc = encryption_scheme_decrypt(src, length, dst, &dlen,
+                              &translog_crypt->scheme, key_version,
+                              translog_crypt->space, 0, 0);
+    DBUG_RETURN(rc);
+}
+
+int memcpy_dec_ext(uchar* dst, const uchar* src, uint length)
+{
+    int rc = 0;
+     DBUG_ENTER("decrypt_data");
+    if ( aria_encrypt_translog )
+        decrypt_data(dst, src, length);
+    else
+        memcpy(dst, src, length);
+
+    DBUG_RETURN(rc);
+}
 
 /*
   Read a part of the record.

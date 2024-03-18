@@ -158,6 +158,25 @@ static void enlarge_buffer(const TRANSLOG_HEADER_BUFFER *rec)
                                       MYF(MY_WME | MY_ALLOW_ZERO_PTR));
   }
 }
+/** @brief global [out] buffer for prototype_redo_exec_hook(E); never shrinks */
+static struct
+{
+  /*
+    see log_record_buffer
+  */
+  uchar *str;
+  size_t length;
+} log_record_dec_buffer;
+static void enlarge_dec_buffer(const TRANSLOG_HEADER_BUFFER *rec)
+{
+  if (log_record_dec_buffer.length < rec->record_length)
+  {
+    log_record_dec_buffer.length= rec->record_length;
+    log_record_dec_buffer.str= my_realloc(PSI_INSTRUMENT_ME, log_record_dec_buffer.str,
+                                      rec->record_length,
+                                      MYF(MY_WME | MY_ALLOW_ZERO_PTR));
+  }
+}
 /** @brief Tells what kind of progress message was printed to the error log */
 static enum recovery_message_type
 {
@@ -524,6 +543,9 @@ end:
   my_free(log_record_buffer.str);
   log_record_buffer.str= NULL;
   log_record_buffer.length= 0;
+  my_free(log_record_dec_buffer.str);
+  log_record_dec_buffer.str= NULL;
+  log_record_dec_buffer.length= 0;
   ma_checkpoint_end();
   *warnings_count= recovery_warnings + recovery_found_crashed_tables;
   if (recovery_message_printed != REC_MSG_NONE)
@@ -1361,6 +1383,22 @@ prototype_redo_exec_hook(FILE_ID)
     }
     all_tables[sid].info= NULL;
   }
+
+  if (aria_encrypt_translog)
+  {
+      enlarge_dec_buffer(rec);
+      if (log_record_dec_buffer.str == NULL)
+      {
+        eprint(tracef, "Failed to read allocate buffer for decrypted record");
+        goto end;
+      }
+
+      if (decrypt_data( log_record_dec_buffer.str, log_record_buffer.str + FILEID_STORE_SIZE, rec->record_length - FILEID_STORE_SIZE  ) )
+    	  goto end;
+
+      memcpy(log_record_buffer.str + FILEID_STORE_SIZE, log_record_dec_buffer.str, rec->record_length - FILEID_STORE_SIZE);
+  }
+
   name= (char *)log_record_buffer.str + FILEID_STORE_SIZE;
   if (new_table(sid, name, rec->lsn))
     goto end;
@@ -2135,7 +2173,24 @@ prototype_redo_exec_hook(IMPORTED_TABLE)
     eprint(tracef, "Failed to read record");
     return 1;
   }
-  name= (char *)log_record_buffer.str;
+
+  if (aria_encrypt_translog)
+  {
+      enlarge_dec_buffer(rec);
+      if (log_record_dec_buffer.str == NULL)
+      {
+        eprint(tracef, "Failed to read allocate buffer for decrypted record");
+        return 1;
+      }
+
+      if (decrypt_data(log_record_dec_buffer.str, log_record_buffer.str, rec->record_length))
+          return 1;
+
+      name= (char *)log_record_dec_buffer.str;
+  }
+  else
+      name= (char *)log_record_buffer.str;
+
   tprint(tracef, "Table '%s' was imported (auto-zerofilled) in this Aria instance\n", name);
   return 0;
 }
