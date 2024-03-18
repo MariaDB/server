@@ -754,6 +754,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     cleanup_items(cursor_lex->free_list);
     cursor_free_list= &cursor_lex->free_list;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
+    lex_start(thd);
   }
 
   thd->lex->sphead= sp;
