@@ -3620,7 +3620,10 @@ bool Item_in_subselect::setup_mat_engine()
   if (mat_engine->prepare(thd) ||
       mat_engine->init(&select_engine->join->fields_list,
                        engine->get_identifier()))
+  {
+    delete mat_engine;
     DBUG_RETURN(TRUE);
+  }
 
   engine= mat_engine;
   DBUG_RETURN(FALSE);
