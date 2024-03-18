@@ -17,3 +17,6 @@
 [submodule "storage/columnstore/columnstore"]
 	path = storage/columnstore/columnstore
 	url = https://github.com/mariadb-corporation/mariadb-columnstore-engine.git
+[submodule "extra/growt"]
+	path = extra/growt
+	url = https://github.com/FooBarrior/growt
