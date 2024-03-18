@@ -52,7 +52,7 @@ select a , invisible from t1;
 ##set
 set @a=(select invisible from t1 limit 1);
 select @a from dual;
---error ER_BAD_FIELD_ERROR
+--error ER_DUP_CONSTRAINT_NAME
 alter table t1 add constraint a check (invisible > 2);
 set debug_dbug= "+d,test_pseudo_invisible";
 --error ER_BAD_FIELD_ERROR

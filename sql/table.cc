@@ -6009,18 +6009,8 @@ int TABLE::verify_constraints(bool ignore_failure)
       if (((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value) ||
           in_use->is_error())
       {
-        StringBuffer<MAX_FIELD_WIDTH> field_error(system_charset_info);
-        enum_vcol_info_type vcol_type= (*chk)->get_vcol_type();
-        DBUG_ASSERT(vcol_type == VCOL_CHECK_TABLE ||
-                    vcol_type == VCOL_CHECK_FIELD);
-        if (vcol_type == VCOL_CHECK_FIELD)
-        {
-          field_error.append(s->table_name.str);
-          field_error.append(".");
-        }
-        field_error.append((*chk)->name.str);
         my_error(ER_CONSTRAINT_FAILED,
-                 MYF(ignore_failure ? ME_WARNING : 0), field_error.c_ptr(),
+                 MYF(ignore_failure ? ME_WARNING : 0), (*chk)->name.str,
                  s->db.str, s->table_name.str);
         return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
       }

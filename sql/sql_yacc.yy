@@ -6615,6 +6615,12 @@ column_def:
           { $$= $1; }
         | field_spec references
           { $$= $1; }
+        | field_spec constraint check_constraint
+          {
+            $$= $1;
+            $$->check_constraint= $3;
+            $$->check_constraint->name= $2;
+          }
         ;
 
 key_def:
@@ -8481,7 +8487,7 @@ alter_list_item:
         | ADD constraint_def
           {
             Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
-	  }
+          }
         | ADD CONSTRAINT IF_SYM not EXISTS field_ident check_constraint
          {
            Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
@@ -8496,7 +8502,7 @@ alter_list_item:
             $5->after= $6;
           }
         | MODIFY_SYM opt_column opt_if_exists_table_element
-          field_spec opt_place
+          column_def opt_place
           {
             Lex->alter_info.flags|= ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();

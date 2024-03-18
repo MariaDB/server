@@ -69,7 +69,7 @@ select @a from dual;
 @a
 9
 alter table t1 add constraint a check (invisible > 2);
-ERROR 42S22: Unknown column 'invisible' in 'CHECK'
+ERROR HY000: Duplicate CHECK constraint name 'a'
 set debug_dbug= "+d,test_pseudo_invisible";
 create table t2(a int, b int as (invisible +2) virtual);
 ERROR 42S22: Unknown column 'invisible' in 'GENERATED ALWAYS AS'

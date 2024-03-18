@@ -138,7 +138,7 @@ create table t1 (a int, b int generated always as (a % 2) stored references t2(a
 show create table t1;
 drop table t1;
 create table t1 (a int, b int generated always as (a % 2) virtual);
---error ER_PARSE_ERROR
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t1 modify b int generated always as (a % 2) stored references t2(a);
 show create table t1;
 drop table t1;
