@@ -1,0 +1,28 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+
+if (!$EXAMPLE_KEYMGT_SQL_SERVICE_SO) {
+  skip No example_keymgt_sql_service plugin;
+}
+eval install soname '$EXAMPLE_KEYMGT_SQL_SERVICE_SO';
+
+SET @saved_encrypt_tables = @@global.innodb_encrypt_tables;
+SET @saved_encryption_threads = @@global.innodb_encryption_threads;
+
+SET SESSION innodb_default_encryption_key_id=1;
+
+SET GLOBAL innodb_encrypt_tables=ON;
+SET GLOBAL innodb_encryption_threads=1;
+
+--echo We didn't crash
+
+--let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+--source include/wait_condition.inc
+
+SET GLOBAL innodb_encrypt_tables = @saved_encrypt_tables;
+SET GLOBAL innodb_encryption_threads = @saved_encryption_threads;
+
+# warning expected, crypt thread holds reference until it shuts down.
+eval uninstall soname '$EXAMPLE_KEYMGT_SQL_SERVICE_SO';
+
+-- echo # End of 10.4 tests
