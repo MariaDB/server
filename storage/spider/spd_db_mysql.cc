@@ -5566,6 +5566,17 @@ int spider_db_mbase_util::check_item_func(
       if (spider_db_check_ft_idx(item_func, spider) == MAX_KEY)
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       break;
+    case Item_func::MULT_EQUAL_FUNC:
+      /* If there is still Item_equal by the time of
+      JOIN::make_aggr_tables_info() where the spider group by handler
+      is created, it indicates a bug in the optimizer, because there
+      shouldn't be any. */
+      push_warning_printf(
+        spider->trx->thd, SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
+        ER_THD(spider->trx->thd, ER_INTERNAL_ERROR),
+        "Spider group by handler: Encountered multiple equalities, likely "
+        "an optimizer bug");
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
       break;
   }
@@ -6492,6 +6503,17 @@ int spider_db_mbase_util::print_item_func(
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
+    case Item_func::MULT_EQUAL_FUNC:
+      /* If there is still Item_equal by the time of
+      JOIN::make_aggr_tables_info() where the spider group by handler
+      is created, it indicates a bug in the optimizer, because there
+      shouldn't be any. */
+      push_warning_printf(
+        spider->trx->thd, SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
+        ER_THD(spider->trx->thd, ER_INTERNAL_ERROR),
+        "Spider group by handler: Encountered multiple equalities, likely "
+        "an optimizer bug");
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
       THD *thd = spider->trx->thd;
       SPIDER_SHARE *share = spider->share;
