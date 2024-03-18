@@ -1912,6 +1912,7 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 
 
 void Explain_rowid_filter::print_explain_json(Explain_query *query,
+					      double loops,
                                               Json_writer *writer,
                                               bool is_analyze)
 {
@@ -1923,7 +1924,9 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_rows").add_double(tracker->get_container_elements());
-    writer->add_member("r_lookups").add_ll(tracker->get_container_lookups());
+    double r_lookups = tracker->get_container_lookups();
+    r_lookups = loops ? r_lookups / loops : r_lookups;
+    writer->add_member("r_lookups").add_ll(r_lookups);
     writer->add_member("r_selectivity_pct").
       add_double(tracker->get_r_selectivity_pct() * 100.0);
     writer->add_member("r_buffer_size").
@@ -1951,6 +1954,24 @@ static void trace_engine_stats(handler *file, Json_writer *writer)
         add_double(hs->pages_read_time / 1000.0);
     if (hs->undo_records_read)
       writer->add_member("old_rows_read").add_ull(hs->undo_records_read);
+    writer->end_object();
+  }
+}
+
+static void trace_pushed_condition(handler *file, Table_access_tracker tracker,
+				   Json_writer *writer)
+{
+  if (file && file->handler_stats && file->pushed_idx_cond)
+  {
+    ha_handler_stats *hs= file->handler_stats;
+    writer->add_member("r_index_condition").start_object();
+    double r_rows_idx = tracker.r_scans ?
+      (double)(hs->icp_attempts) / (double)(tracker.r_scans) :
+      (double)(hs->icp_attempts);
+    writer->add_member("r_rows_idx").add_double(r_rows_idx);
+    double r_icp_filtered = hs->icp_attempts ?
+      (double)(hs->icp_match) / (double)(hs->icp_attempts) : 0;
+    writer->add_member("r_icp_filtered").add_double(r_icp_filtered * 100);
     writer->end_object();
   }
 }
@@ -2054,7 +2075,8 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
   if (rowid_filter)
   {
-    rowid_filter->print_explain_json(query, writer, is_analyze);
+    rowid_filter->print_explain_json(query, tracker.get_loops(), writer,
+                                     is_analyze);
   }
 
   if (loops != 0.0)
@@ -2113,6 +2135,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
     trace_engine_stats(handler_for_stats, writer);
+    trace_pushed_condition(handler_for_stats, tracker, writer);
   }
 
   /* `filtered` */
