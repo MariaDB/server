@@ -893,6 +893,8 @@ public:
 
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) rw_trx_hash_t rw_trx_hash;
 
+  /** Total row operation counts; @see trx_t::row_ops */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_relaxed<size_t> row_ops[3];
 
 #ifdef WITH_WSREP
   /** Latest recovered XID during startup */
