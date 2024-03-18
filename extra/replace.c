@@ -973,7 +973,7 @@ static void free_buffer()
 
 static int fill_buffer_retaining(File fd, int n)
 {
-  int i;
+  size_t bytes_read;
 
   /* See if we need to grow the buffer. */
   if ((int) bufalloc - n <= bufread)
@@ -996,19 +996,20 @@ static int fill_buffer_retaining(File fd, int n)
     return 0;
 
   /* Read in new stuff. */
-  if ((i=(int) my_read(fd, (uchar*) buffer + bufbytes,
-                       (size_t) bufread, MYF(MY_WME))) < 0)
+  bytes_read= my_read(fd, (uchar*) buffer + bufbytes, (size_t) bufread, MYF(MY_WME));
+  if (bytes_read == MY_FILE_ERROR)
     return -1;
 
   /* Kludge to pretend every nonempty file ends with a newline. */
-  if (i == 0 && bufbytes > 0 && buffer[bufbytes - 1] != '\n')
+  if (bytes_read == 0 && bufbytes > 0 && buffer[bufbytes - 1] != '\n')
   {
-    my_eof = i = 1;
+    bytes_read = 1;
+    my_eof = 1;
     buffer[bufbytes] = '\n';
   }
 
-  bufbytes += i;
-  return i;
+  bufbytes += (int) bytes_read;
+  return (int) bytes_read;
 }
 
 	/* Return 0 if convert is ok */

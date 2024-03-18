@@ -3189,7 +3189,8 @@ int ha_partition::read_par_file(const char *name)
     LEX_CSTRING connect_string;
     uchar buffer[4];
     char *tmp;
-    if (my_read(file, buffer, 4, MYF(MY_NABP)))
+    size_t bytes_read= my_read(file, buffer, 4, MYF(MY_NABP));
+    if (bytes_read != MY_FILE_ERROR && bytes_read > 0 )
     {
       /* No extra options; Probably not a federatedx engine */
       break;
@@ -3197,9 +3198,12 @@ int ha_partition::read_par_file(const char *name)
     connect_string.length= uint4korr(buffer);
     connect_string.str= tmp= (char*) alloc_root(&m_mem_root,
                                                 connect_string.length+1);
-    if (my_read(file, (uchar*) connect_string.str, connect_string.length,
-                MYF(MY_NABP)))
+
+    bytes_read= my_read(file, (uchar*) connect_string.str, connect_string.length, MYF(MY_NABP));
+    if (bytes_read != MY_FILE_ERROR && bytes_read > 0 )
+    {
       break;
+    }
     tmp[connect_string.length]= 0;
     m_connect_string[i]= connect_string;
   }
