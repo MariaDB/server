@@ -108,6 +108,12 @@ public:
   // Number of partitions.
   uint                          num_parts;
 private:
+#ifdef WITH_WSREP
+  /* wsrep patch needs to peak the algorithm clause used in ALTER statement
+     in order to see if ALTER statement needs to be rewritten for replication
+  */
+public:
+#endif /* WITH_WSREP */
   // Type of ALTER TABLE algorithm.
   enum_alter_table_algorithm    requested_algorithm;
 
