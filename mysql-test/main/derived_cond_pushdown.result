@@ -18559,3 +18559,26 @@ valdouble	valint1
 5	3289988
 DROP TABLE t1,t2;
 # End of 10.4 tests
+#
+# MDEV-32297: pushed condition into context with empty table list crashes
+#
+SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as 'x') dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1;
+x
+1
+# End of 10.6 tests

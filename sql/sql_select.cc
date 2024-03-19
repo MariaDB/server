@@ -24843,13 +24843,14 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
   }
   /* Lookup the current GROUP/ORDER field in the SELECT clause. */
   select_item= find_item_in_list(order_item, fields, &counter,
-                                 REPORT_EXCEPT_NOT_FOUND, &resolution);
+                                 REPORT_EXCEPT_NOT_FOUND, &resolution, 0, true);
   if (!select_item)
     return TRUE; /* The item is not unique, or some other error occurred. */
 
 
   /* Check whether the resolved field is not ambiguos. */
-  if (select_item != not_found_item)
+  if ((select_item != not_found_item) &&
+      (resolution < RESOLVED_FIELD_IN_FUNCTION))
   {
     Item *view_ref= NULL;
     /*
@@ -24927,7 +24928,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     }
   }
 
-  order->in_field_list=0;
+  /*
+    if we found this buried in a function, do not set this flag to false
+    it could cause optimisation routines to remove that which shouldn't be
+    removed
+  */
+  order->in_field_list= 0;
+  if(resolution >= RESOLVED_FIELD_IN_FUNCTION)
+    order->in_field_list= 2;
+
   /*
     The call to order_item->fix_fields() means that here we resolve
     'order_item' to a column from a table in the list 'tables', or to
@@ -25214,7 +25223,7 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
   prev= &group;  group=0;
   for (order=order_list ; order; order=order->next)
   {
-    if (order->in_field_list)
+    if (order->in_field_list == 1)
     {
       ORDER *ord=(ORDER*) thd->memdup((char*) order,sizeof(ORDER));
       if (!ord)

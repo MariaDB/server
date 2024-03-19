@@ -4102,3 +4102,27 @@ eval $q;
 DROP TABLE t1,t2;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-32297: pushed condition into context with empty table list crashes
+--echo #
+
+SELECT * FROM
+(
+  SELECT * FROM
+  (
+    SELECT * FROM
+      (SELECT 1 as 'x') dt2
+  ) dt1
+  WHERE
+  (
+    SELECT x+1 ORDER BY
+    (
+      SELECT 1 GROUP BY
+        (1 IN (SELECT x))
+    )
+  )
+) dt
+WHERE x = 1;
+
+--echo # End of 10.6 tests

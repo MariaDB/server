@@ -245,7 +245,7 @@ typedef struct st_order {
   };
 
   enum_order direction;                 /* Requested direction of ordering */
-  bool	 in_field_list;			/* true if in select field list */
+  ushort in_field_list;			/* lexical depth if in field list */
   bool   counter_used;                  /* parameter was counter of columns */
   Field  *field;			/* If tmp-table group */
   char	 *buff;				/* If tmp-table group */

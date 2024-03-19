@@ -6626,6 +6626,63 @@ find_field_in_tables(THD *thd, Item_ident *item,
 }
 
 
+/**
+  @brief
+    perform a search for an Item_field of the correct field/table name in
+    a tree of Items.
+
+  @param haystack       root of the search tree
+  @param fieldname      search subject field name
+  @param table_name     search subject table name, may be null
+
+  @details
+    as per brief, if we find a function, recursively search through it's
+    arguments for the search subject
+*/
+
+Item **recursive_ident_search( Item *haystack,
+                               const LEX_CSTRING *fieldname,
+                               const char *table_name)
+{
+  Item **retval= NULL;
+
+  // loop through args if this is a function
+  if (haystack->type() == Item::FUNC_ITEM)
+  {
+    Item_func *f= (Item_func *)haystack;
+    for (uint j= 0; j < f->argument_count(); j++)
+    {
+      // looking for an identifier
+      if ((f->arguments()[j]->type() == Item::REF_ITEM &&
+          ((Item_ref *)f->arguments()[j])->ref_type() == Item_ref::VIEW_REF) ||
+          (f->arguments()[j]->real_item()->type() == Item::FIELD_ITEM))
+      {
+        Item_ident *id= (Item_ident *)f->arguments()[j];
+        if (id->real_item()->name.str &&
+            fieldname &&
+            !lex_string_cmp(system_charset_info,
+                            &id->real_item()->name,
+                            fieldname) &&
+            (table_name && id->table_name?
+              !my_strcasecmp(table_alias_charset, id->table_name,
+                             table_name)
+             :true)
+            )
+          return &f->arguments()[j];
+      }
+      // if we find an embedded function, look through this
+      if (f->arguments()[j]->type() == Item::FUNC_ITEM)
+      {
+        Item_func *subf= (Item_func*)(f->arguments()[j]);
+        if ((retval= recursive_ident_search( subf, fieldname, table_name)))
+           return retval;
+      }
+    }
+  }
+  return (Item **)NULL;
+}
+
+
 /*
   Find Item in list of items (find_field_in_tables analog)
 
@@ -6664,15 +6721,15 @@ find_field_in_tables(THD *thd, Item_ident *item,
 /* Special Item pointer to serve as a return value from find_item_in_list(). */
 Item **not_found_item= (Item**) 0x1;
 
-
 Item **
 find_item_in_list(Item *find, List<Item> &items, uint *counter,
                   find_item_error_report_type report_error,
-                  enum_resolution_type *resolution, uint limit)
+                  enum_resolution_type *resolution, uint limit,
+                  bool recursive_search)
 {
   List_iterator<Item> li(items);
   uint n_items= limit == 0 ? items.elements : limit;
-  Item **found=0, **found_unaliased= 0, *item;
+  Item **found=0, **found_unaliased= 0, **found_in_function= 0, *item;
   const char *db_name=0;
   const LEX_CSTRING *field_name= 0;
   const char *table_name=0;
@@ -6698,13 +6755,16 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
   for (uint i= 0; i < n_items; i++)
   {
     item= li++;
+    Item_ident *item_field= NULL;
+
     if (field_name && field_name->str &&
         (item->real_item()->type() == Item::FIELD_ITEM ||
          ((item->type() == Item::REF_ITEM) &&
           (((Item_ref *)item)->ref_type() == Item_ref::VIEW_REF))))
-    {
-      Item_ident *item_field= (Item_ident*) item;
+      item_field= (Item_ident *)item;
 
+    if (item_field)
+    {
       /*
 	In case of group_concat() with ORDER BY condition in the QUERY
 	item_field can be field of temporary table without item name 
@@ -6833,6 +6893,61 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
   if (likely(found))
     return found;
 
+  if (recursive_search && !found_unaliased)
+  {
+    li.rewind();
+    // similar code block to above, same comments apply
+    for (uint i= 0; i < n_items; i++)
+    {
+      item= li++;
+      Item_ident *item_field= NULL;
+      if ((found_in_function= recursive_ident_search(item, field_name,
+                                                     table_name)))
+        item_field= (Item_ident*)(*found_in_function);
+
+      if (item_field)
+      {
+        if (unlikely(!item_field->name.str))
+          continue;
+
+        if (table_name)
+        {
+          if (item_field->field_name.str && item_field->table_name &&
+              !lex_string_cmp(system_charset_info, &item_field->field_name,
+                              field_name) &&
+              !my_strcasecmp(table_alias_charset, item_field->table_name, 
+                             table_name) &&
+              (!db_name || (item_field->db_name &&
+                            !strcmp(item_field->db_name, db_name))))
+          {
+            found_unaliased= li.ref();
+            unaliased_counter= i;
+            *resolution= RESOLVED_TABLE_FIELD_IN_FUNCTION;
+          }
+        }
+        else
+        {
+          bool fname_cmp= lex_string_cmp(system_charset_info,
+                                         &item_field->field_name,
+                                         field_name);
+          if (!lex_string_cmp(system_charset_info,
+                              &item_field->name, field_name))
+          {
+            *counter= i;
+             found= found_in_function;
+             *resolution= RESOLVED_FIELD_IN_FUNCTION;
+          }
+          else if (!fname_cmp)
+          {
+            found_unaliased= li.ref();
+            unaliased_counter= i;
+          }
+        }
+        break;
+      }
+    }
+  }
+
   if (unlikely(found_unaliased_non_uniq))
   {
     if (report_error != IGNORE_ERRORS)
@@ -6845,6 +6960,12 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
     found= found_unaliased;
     *counter= unaliased_counter;
     *resolution= RESOLVED_BEHIND_ALIAS;
+  }
+
+  if (found_in_function)
+  {
+    found= found_in_function;
+    *resolution= RESOLVED_FIELD_IN_FUNCTION;
   }
 
   if (found)
