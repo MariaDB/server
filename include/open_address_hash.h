@@ -49,7 +49,7 @@ public:
 private:
   Hash_value_type to_index(const Hash_value_type &hash_value) const
   {
-    return hash_value & ((1 << capacity_power) - 1);
+    return hash_value & ((1UL << capacity_power) - 1);
   }
 
   Hash_value_type hash_from_value(const Value &value) const
@@ -102,11 +102,11 @@ private:
     return false;
   }
 
-  bool grow(const uint64 new_capacity_power)
+  bool grow(const uint new_capacity_power)
   {
     DBUG_ASSERT(new_capacity_power > capacity_power);
-    uint64 past_capacity= 1 << capacity_power;
-    uint64 capacity= 1 << new_capacity_power;
+    size_t past_capacity= 1UL << capacity_power;
+    size_t capacity= 1UL << new_capacity_power;
     capacity_power= new_capacity_power;
     hash_array= (Value *) realloc(hash_array, capacity * sizeof(Value));
     if (!hash_array)
@@ -114,7 +114,7 @@ private:
     bzero(hash_array + past_capacity,
           (capacity - past_capacity) * sizeof(Value*));
 
-    for (uint i= 0; i < capacity; i++)
+    for (size_t i= 0; i < capacity; i++)
     {
       if (hash_array[i] && i != to_index(hash_from_value(hash_array[i])))
       {
@@ -126,14 +126,14 @@ private:
     return true;
   }
 
-  void shrink(const uint64 new_capacity_power)
+  void shrink(const uint new_capacity_power)
   {
     DBUG_ASSERT(new_capacity_power < capacity_power);
-    uint64 past_capacity= 1 << capacity_power;
-    uint64 capacity= 1 << new_capacity_power;
+    size_t past_capacity= 1UL << capacity_power;
+    size_t capacity= 1UL << new_capacity_power;
     capacity_power= new_capacity_power;
 
-    for (uint i= capacity; i < past_capacity; i++)
+    for (size_t i= capacity; i < past_capacity; i++)
     {
       if (hash_array[i])
       {
@@ -152,7 +152,7 @@ private:
     Value _second= second;
 
     capacity_power= CAPACITY_POWER_INITIAL;
-    hash_array= (Value*)calloc(1 << capacity_power, sizeof (Value*));
+    hash_array= (Value*)calloc(1UL << capacity_power, sizeof (Value*));
     _size= 0;
 
     if (!insert_into_bucket(_first))
@@ -212,7 +212,7 @@ public:
       return false;
     }
 
-    const uint64_t capacity= 1 << capacity_power;
+    const size_t capacity= 1UL << capacity_power;
     if (unlikely(capacity > 7 && (_size - 1) * LOW_LOAD_FACTOR < capacity))
       shrink(capacity_power - 1);
 
@@ -248,12 +248,12 @@ public:
       }
     }
 
-    if (unlikely(_size == UINT32_MAX))
+    if (unlikely(_size == TABLE_SIZE_MAX))
       return false;
 
     bool res= true;
-    const uint64 capacity= 1 << capacity_power;
-    if (unlikely((_size + 1) * MAX_LOAD_FACTOR > capacity))
+    const size_t capacity= 1UL << capacity_power;
+    if (unlikely(((ulonglong)_size + 1) * MAX_LOAD_FACTOR > capacity))
       res= grow(capacity_power + 1);
 
     res= res && insert_into_bucket(value);
@@ -283,11 +283,11 @@ public:
     return true;
   }
 
-  uint32 size() const
+  size_t size() const
   { 
     if (first.mark())
     {
-      uint32 ret_size= 0;
+      size_t ret_size= 0;
       if (!is_empty(first.ptr()))
         ret_size++;
       if (!is_empty(second))
@@ -299,7 +299,8 @@ public:
       return _size; 
     }
   }
-  uint32 buffer_size() const { return first.mark() ? 0 : 1 << capacity_power; }
+  size_t buffer_size() const { return first.mark() ? 0 :
+                                      1UL << capacity_power; }
 
   Open_address_hash &operator=(const Open_address_hash&)
   {
@@ -308,14 +309,16 @@ public:
   }
 private:
   static constexpr uint CAPACITY_POWER_INITIAL= 3;
-  static constexpr int MAX_LOAD_FACTOR= 2;
-  static constexpr int LOW_LOAD_FACTOR= 10;
+  static constexpr ulong MAX_LOAD_FACTOR= 2;
+  static constexpr ulong LOW_LOAD_FACTOR= 10;
+  static constexpr size_t SIZE_BITS= SIZEOF_VOIDP >= 8 ? 58 : 32;
+  static constexpr size_t TABLE_SIZE_MAX= 1L << SIZE_BITS;
 
   class markable_reference
   {
   public:
     static constexpr uint MARK_SHIFT = 63;
-    static constexpr uintptr_t MARK_MASK = 1ULL << MARK_SHIFT;
+    static constexpr uintptr_t MARK_MASK = 1UL << MARK_SHIFT;
 
     void set_ptr(Value ptr)
     {
@@ -352,8 +355,8 @@ private:
     struct
     {
       Value *hash_array;
-      uint64 capacity_power: 6;
-      uint64 _size: 58;
+      uint capacity_power: 6;
+      size_t _size: SIZE_BITS;
     };
   };
 };
