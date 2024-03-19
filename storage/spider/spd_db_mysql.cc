@@ -5533,14 +5533,6 @@ int spider_db_mbase_util::open_item_func(
     alias_length, use_fields, fields));
 }
 
-static bool item_func_is_timestampdiff(
-  const char *func_name,
-  int func_name_length
-) {
-  return func_name_length == 13 &&
-    !strncasecmp("timestampdiff", func_name, func_name_length);
-}
-
 static bool not_func_should_be_skipped(
   Item_func *item_func
 ){
@@ -5610,10 +5602,6 @@ int spider_db_mbase_util::check_item_func(
   Item_func::Functype func_type = item_func->functype();
   DBUG_PRINT("info",("spider functype = %d", func_type));
 
-  const char *func_name = (char*) item_func->func_name();
-  int func_name_length = strlen(func_name);
-  DBUG_PRINT("info",("spider func_name = %s", func_name));
-
   /* The blacklist of the functions that cannot be pushed down */
   switch (func_type)
   {
@@ -5628,14 +5616,6 @@ int spider_db_mbase_util::check_item_func(
       break;
     case Item_func::FUNC_SP:
     case Item_func::UDF_FUNC:
-      /* Notes on merging regarding MDEV-29447: please refer to the
-      following commits for build error or merge conflicts:
-      10.5: d7b564da2a634dcf86798d6b86bd127e7eef9286
-      10.6: 1ed20b993b0dd4e95450cab2e8347e5bf4617a69
-      10.9: dd316b6e20265cfd832bb5585cb4c96e716387c8
-      10.10-11: 3f67f110ba1b23a89c5ede0fbeeb203cf5e164f4
-      11.0-1: 17ba6748afa8834df5658361088e6c8e65aca16f
-      Please remove this comment after merging. */
       use_pushdown_udf= spider_param_use_pushdown_udf(
           spider->trx->thd, spider->share->use_pushdown_udf);
       if (!use_pushdown_udf)
@@ -5645,12 +5625,6 @@ int spider_db_mbase_util::check_item_func(
       if (spider_db_check_ft_idx(item_func, spider) == MAX_KEY)
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       break;
-#ifndef ITEM_FUNC_TIMESTAMPDIFF_ARE_PUBLIC
-    case Item_func::UNKNOWN_FUNC:
-      if (item_func_is_timestampdiff(func_name, func_name_length))
-        DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-      break;
-#endif
     default:
       break;
   }
@@ -6015,12 +5989,11 @@ int spider_db_mbase_util::print_item_func(
             alias, alias_length, dbton_id, use_fields, fields));
         } else if (!strncasecmp("timestampdiff", func_name, func_name_length))
         {
-#ifdef ITEM_FUNC_TIMESTAMPDIFF_ARE_PUBLIC
           Item_func_timestamp_diff *item_func_timestamp_diff =
             (Item_func_timestamp_diff *) item_func;
           const char *interval_str;
           uint interval_len;
-          switch (item_func_timestamp_diff->int_type)
+          switch (item_func_timestamp_diff->get_int_type())
           {
           case INTERVAL_YEAR:
             interval_str = SPIDER_SQL_YEAR_STR;
@@ -6071,7 +6044,7 @@ int spider_db_mbase_util::print_item_func(
           str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
           str->q_append(interval_str, interval_len);
           str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-          
+
           if ((error_num = spider_db_print_item_type(item_list[0], NULL, spider,
                                                      str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
@@ -6092,9 +6065,6 @@ int spider_db_mbase_util::print_item_func(
                           SPIDER_SQL_CLOSE_PAREN_LEN);
           }
           DBUG_RETURN(0);
-#else
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
         }
       } else if (func_name_length == 14)
       {
