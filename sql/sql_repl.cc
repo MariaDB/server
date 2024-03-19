@@ -222,7 +222,7 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
   char* p = info->log_file_name+dirname_length(info->log_file_name);
   uint ident_len = (uint) strlen(p);
   String *packet= info->packet;
-  ha_checksum crc;
+  ha_checksum crc= 0;
 
   /* reset transmit packet for the fake rotate event below */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
@@ -263,7 +263,7 @@ static int fake_gtid_list_event(binlog_send_info *info,
 {
   my_bool do_checksum;
   int err;
-  ha_checksum crc;
+  ha_checksum crc= 0;
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
   String* packet= info->packet;
