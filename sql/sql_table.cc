@@ -12304,8 +12304,7 @@ bool check_engine(THD *thd, const char *db_name,
   {
     if (no_substitution)
     {
-      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;
