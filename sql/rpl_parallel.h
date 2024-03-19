@@ -466,6 +466,12 @@ struct rpl_parallel_entry {
                                       Gtid_log_event *gtid_ev);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
+  /*
+    the initial size of maybe_ array corresponds to the case of
+    each worker receives perhaps unlikely XA-PREPARE and XA-COMMIT within
+    the same generation.
+  */
+  inline uint active_xid_init_alloc() { return 3 * 2 * rpl_thread_max; }
 };
 struct rpl_parallel {
   HASH domain_hash;

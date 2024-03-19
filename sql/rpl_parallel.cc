@@ -2389,6 +2389,11 @@ rpl_parallel_entry::check_xa_xid_dependency(xid_t *xid)
     }
     ++i;
   }
+  /* try to keep allocated memory in the range of [2,10] * initial_chunk_size */
+  if (maybe_active_xid.elements <= 2 * active_xid_init_alloc() &&
+      maybe_active_xid.max_element > 10 * active_xid_init_alloc())
+    freeze_size(&maybe_active_xid);
+
   /* No matching XID conflicts. */
   return nullptr;
 }
@@ -2632,7 +2637,7 @@ rpl_parallel::find(uint32 domain_id)
     e->current_generation_idx = 0;
     init_dynamic_array2(PSI_INSTRUMENT_ME, &e->maybe_active_xid,
                         sizeof(rpl_parallel_entry::xid_active_generation),
-                        0, count, 0, MYF(0));
+                        0, e->active_xid_init_alloc(), 0, MYF(0));
     e->domain_id= domain_id;
     e->stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
