@@ -1071,6 +1071,9 @@ class User_table_tabular: public User_table
     if (access & REPL_SLAVE_ACL)
       access|= SLAVE_MONITOR_ACL;
 
+    if ((access & ALL_KNOWN_ACL_100304) == ALL_KNOWN_ACL_100304)
+      access|= SHOW_CREATE_ROUTINE_ACL;
+
     return access & GLOBAL_ACLS;
   }
 
@@ -1584,6 +1587,11 @@ class User_table_json: public User_table
       print_warning_bad_access(version_id, mask, orig_access);
       return NO_ACL;
     }
+
+    // ALL PRIVILEGES always means ALL PRIVILEGES
+    if ((orig_access & mask) == mask)
+      access= ALL_KNOWN_ACL;
+
     return access & ALL_KNOWN_ACL;
   }
 
@@ -2785,6 +2793,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
     }
 #endif
+    if (db_table.num_fields() <= 23)
+      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+        db.access|= SHOW_CREATE_ROUTINE_ACL;
     acl_dbs.push(db);
   }
   end_read_record(&read_record_info);
@@ -5039,6 +5050,9 @@ static int replace_db_table(TABLE *table, const char *db,
   }
   rights=get_access(table,3);
   rights=fix_rights_for_db(rights);
+  if (table->s->fields <= 23)
+    if ((rights | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+      rights|= SHOW_CREATE_ROUTINE_ACL;
 
   if (old_row_exists)
   {
