@@ -2071,6 +2071,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->add_member("rows").add_ull(rows);
 
   double r_index_rows; /* protected by have_icp_or_rowid_filter */
+  bool r_index_rows_is_zero; /* also protected by have_icp_or_rowid_filter */
   bool have_icp_or_rowid_filter= false;
   /* `r_index_rows` and `r_rows` */
   if (is_analyze)
@@ -2092,13 +2093,17 @@ void Explain_table_access::print_explain_json(Explain_query *query,
         Pushed Index Condition is checked before checking the Rowid Filter, 
         so try getting it first.
       */
-      r_index_rows= file->handler_stats->icp_attempts / loops;
+      ulonglong val= file->handler_stats->icp_attempts;
+      r_index_rows_is_zero= (val == 0);
+      r_index_rows= val / loops;
       have_icp_or_rowid_filter= true;
     }
     else if (rowid_filter)
     {
       /* If ICP wasn't used, get the number from Rowid Filter */
-      r_index_rows= rowid_filter->tracker->get_container_lookups() / loops;
+      uint val= rowid_filter->tracker->get_container_lookups();
+      r_index_rows_is_zero= (val == 0);
+      r_index_rows= val / loops;
       have_icp_or_rowid_filter= true;
     }
 
@@ -2181,7 +2186,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       else
         out_rows= tracker.get_avg_rows_after_where();
 
-      r_total_filtered= out_rows* 100.0 / r_index_rows;
+      if (r_index_rows_is_zero)
+        r_total_filtered= 100.0;
+      else
+        r_total_filtered= out_rows* 100.0 / r_index_rows;
     }
     else if (have_r_filtered)
       r_total_filtered= r_filtered;
