@@ -5420,12 +5420,9 @@ fts_free(
 	dict_table_t*	table)	/*!< in/out: table with FTS indexes */
 {
 	fts_t*	fts = table->fts;
-
-	fts->~fts_t();
-
-	mem_heap_free(fts->fts_heap);
-
 	table->fts = NULL;
+	mem_heap_free(fts->fts_heap);
+	fts->~fts_t();
 }
 
 /*********************************************************************//**

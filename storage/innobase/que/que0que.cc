@@ -450,15 +450,12 @@ que_graph_free_recursive(
 		ins = static_cast<ins_node_t*>(node);
 
 		que_graph_free_recursive(ins->select);
-		ins->select = NULL;
-
-		ins->~ins_node_t();
 
 		if (ins->entry_sys_heap != NULL) {
 			mem_heap_free(ins->entry_sys_heap);
-			ins->entry_sys_heap = NULL;
 		}
 
+		ins->~ins_node_t();
 		break;
 	case QUE_NODE_PURGE:
 		purge = static_cast<purge_node_t*>(node);
