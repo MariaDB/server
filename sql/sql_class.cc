@@ -5065,6 +5065,9 @@ MYSQL_THD create_background_thd()
   thd->real_id= 0;
   thd->thread_id= 0;
   thd->query_id= 0;
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= FALSE;
+#endif /* WITH_WSREP */
   return thd;
 }
 

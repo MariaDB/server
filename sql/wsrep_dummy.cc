@@ -53,9 +53,6 @@ void wsrep_lock_rollback()
 my_bool wsrep_on(const THD *)
 { return 0; }
 
-void wsrep_thd_off(THD *)
-{ }
-
 void wsrep_thd_LOCK(const THD *)
 { }
 
