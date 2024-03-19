@@ -610,7 +610,7 @@ protected:
 
 		if (m_xdes != 0) {
 			const xdes_t*	xdesc = xdes(page_no, m_xdes);
-			ulint		pos = page_no % FSP_EXTENT_SIZE;
+			uint32_t	pos = page_no % FSP_EXTENT_SIZE;
 
 			return xdes_is_free(xdesc, pos);
 		}
