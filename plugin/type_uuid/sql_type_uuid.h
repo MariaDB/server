@@ -344,5 +344,7 @@ public:
   }
 };
 
+#include "sql_type_uuid_v4.h"
+
 
 #endif // SQL_TYPE_UUID_INCLUDED
