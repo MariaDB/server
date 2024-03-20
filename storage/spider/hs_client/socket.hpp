@@ -11,13 +11,8 @@
 #define DENA_SOCKET_HPP
 
 #include "mysql_version.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
-#endif
 
 #include "auto_addrinfo.hpp"
 #include "auto_file.hpp"

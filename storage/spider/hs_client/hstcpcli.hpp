@@ -13,13 +13,8 @@
 #define HANDLERSOCKET_MYSQL_UTIL 1
 
 #include "mysql_version.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
-#endif
 
 #include "config.hpp"
 #include "socket.hpp"

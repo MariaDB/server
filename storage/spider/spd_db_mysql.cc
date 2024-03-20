@@ -17,10 +17,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -30,7 +26,6 @@
 #include "tztime.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "sql_common.h"
 #include <mysql.h>
@@ -811,11 +806,7 @@ int spider_db_mbase_result::fetch_table_status(
   int error_num;
   MYSQL_ROW mysql_row;
   MYSQL_TIME mysql_time;
-#ifdef MARIADB_BASE_VERSION
   uint not_used_uint;
-#else
-  my_bool not_used_my_bool;
-#endif
 #ifdef SPIDER_HAS_TIME_STATUS
   MYSQL_TIME_STATUS time_status;
 #else
@@ -893,13 +884,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.create_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -918,13 +904,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -943,13 +924,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.check_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -1022,13 +998,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[6], strlen(mysql_row[6]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.create_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -1047,13 +1018,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[7], strlen(mysql_row[7]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.update_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -1072,13 +1038,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[8], strlen(mysql_row[8]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.check_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -2391,11 +2352,7 @@ int spider_db_mbase::next_result()
   strmov(db_conn->net.sqlstate, "00000");
   db_conn->affected_rows = ~(my_ulonglong) 0;
 
-#if MYSQL_VERSION_ID < 50500
-  if (db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS)
-#else
   if (db_conn->server_status & SERVER_MORE_RESULTS_EXISTS)
-#endif
   {
     if ((status = db_conn->methods->read_query_result(db_conn)) > 0)
       DBUG_RETURN(spider_db_errorno(conn));
@@ -2409,11 +2366,7 @@ uint spider_db_mbase::affected_rows()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mbase::affected_rows");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   DBUG_RETURN((uint) last_used_con->affected_rows);
 }
 
@@ -2422,11 +2375,7 @@ uint spider_db_mbase::matched_rows()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mysql::matched_rows");
   DBUG_PRINT("info", ("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   /* Rows matched: 65 Changed: 65 Warnings: 0 */
   const char *info = last_used_con->info;
   if (!info)
@@ -2451,11 +2400,7 @@ bool spider_db_mbase::inserted_info(
   {
     DBUG_RETURN(TRUE);
   }
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   /* Records: 10  Duplicates: 4  Warnings: 0 */
   const char *info = last_used_con->info;
   if (!info)
@@ -2497,11 +2442,7 @@ ulonglong spider_db_mbase::last_insert_id()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mbase::last_insert_id");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   DBUG_RETURN((uint) last_used_con->insert_id);
 }
 
@@ -12891,11 +12832,7 @@ int spider_mbase_handler::bulk_tmp_table_rnd_next()
   int error_num;
   DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_rnd_next");
   DBUG_PRINT("info",("spider this=%p", this));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   error_num = upd_tmp_tbl->file->ha_rnd_next(upd_tmp_tbl->record[0]);
-#else
-  error_num = upd_tmp_tbl->file->rnd_next(upd_tmp_tbl->record[0]);
-#endif
   if (!error_num)
   {
     error_num = restore_sql_from_bulk_tmp_table(&insert_sql, upd_tmp_tbl);

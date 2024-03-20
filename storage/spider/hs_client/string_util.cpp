@@ -10,13 +10,8 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "hs_compat.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
-#endif
 
 #include "string_util.hpp"
 
