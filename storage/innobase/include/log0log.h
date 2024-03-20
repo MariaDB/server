@@ -179,10 +179,8 @@ private:
 #if defined(__aarch64__)
   /* On ARM, we do more spinning */
   typedef srw_spin_lock log_rwlock;
-  typedef pthread_mutex_wrapper<true> log_lsn_lock;
 #else
   typedef srw_lock log_rwlock;
-  typedef srw_mutex log_lsn_lock;
 #endif
 
 public:
@@ -191,7 +189,7 @@ public:
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
 private:
   /** mutex protecting buf_free et al, together with latch */
-  log_lsn_lock lsn_lock;
+  std::atomic<bool> lsn_lock;
 public:
   /** first free offset within buf use; protected by lsn_lock */
   Atomic_relaxed<size_t> buf_free;
@@ -229,10 +227,8 @@ private:
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
 
-  void init_lsn_lock() {lsn_lock.init(); }
-  void lock_lsn() { lsn_lock.wr_lock(); }
-  void unlock_lsn() {lsn_lock.wr_unlock(); }
-  void destroy_lsn_lock() { lsn_lock.destroy(); }
+  void lock_lsn();
+  void unlock_lsn() { lsn_lock.store(false, std::memory_order_release); }
 
 public:
   /** recommended maximum size of buf, after which the buffer is flushed */

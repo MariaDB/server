@@ -37,6 +37,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "log.h"
 #include "mariadb_stats.h"
+#include "my_cpu.h"
 
 void mtr_memo_slot_t::release() const
 {
@@ -873,6 +874,32 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   lsn_t{log_sys.last_checkpoint_lsn}, lsn,
                   srv_shutdown_state != SRV_SHUTDOWN_INITIATED
                   ? ". Shutdown is in progress" : "");
+}
+
+static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
+{
+  delay*= mult * 2; // GCC 13.2.0 -O2 targeting AMD64 wants to unroll twice
+  HMT_low();
+  while (delay--)
+    MY_RELAX_CPU();
+  HMT_medium();
+}
+
+__attribute__((noinline))
+void log_t::lock_lsn()
+{
+  const size_t m= my_cpu_relax_multiplier * srv_spin_wait_delay / 32;
+  constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
+
+  for (size_t delay_count= DELAY, delay_iterations= 1;
+       lsn_lock.load(std::memory_order_relaxed) ||
+         lsn_lock.exchange(true, std::memory_order_acquire);
+       lsn_delay(delay_iterations, m))
+    if (!delay_count);
+    else if (delay_iterations < MAX_ITERATIONS)
+      delay_count= DELAY, delay_iterations++;
+    else
+      delay_count--;
 }
 
 /** Wait in append_prepare() for buffer to become available
