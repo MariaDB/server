@@ -17,7 +17,6 @@
 #include "mariadb.h"
 #include "item_uuidfunc.h"
 #include "sql_type_uuid.h"
-#include "my_uuid_v4.c"
 
 String *Item_func_sys_guid::val_str(String *str)
 {

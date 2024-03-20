@@ -13,8 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/mysys)
-
 MYSQL_ADD_PLUGIN(type_uuid
                  plugin.cc item_uuidfunc.cc
+                 LINK_LIBRARIES mysys
                  MANDATORY RECOMPILE_FOR_EMBEDDED)

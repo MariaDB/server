@@ -136,12 +136,6 @@ protected:
   virtual ~Create_func_sys_guid() {}
 };
 
-Create_func_uuid Create_func_uuid::s_singleton;
-Create_func_sys_guid Create_func_sys_guid::s_singleton;
-
-static Plugin_function
-  plugin_descriptor_function_uuid(&Create_func_uuid::s_singleton),
-  plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton);
 class Create_func_uuid_v4 : public Create_func_arg0
 {
 public:
@@ -166,7 +160,7 @@ Create_func_uuid_v4 Create_func_uuid_v4::s_singleton;
 static Plugin_function
   plugin_descriptor_function_uuid(&Create_func_uuid::s_singleton),
   plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton),
-  plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton),
+  plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton);
 
 static constexpr Name type_name={STRING_WITH_LEN("uuid")};
 
