@@ -18,16 +18,11 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "tztime.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -733,12 +728,8 @@ SPIDER_CONN *spider_create_conn(
   else
     conn->need_mon = need_mon;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&conn->mta_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mta_conn, &conn->mta_conn_mutex,
     MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_mta_conn_mutex_init;
@@ -1883,43 +1874,27 @@ int spider_create_conn_thread(
   DBUG_ENTER("spider_create_conn_thread");
   if (conn && !conn->bg_init)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&conn->bg_conn_chain_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_bg_conn_chain,
       &conn->bg_conn_chain_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_chain_mutex_init;
     }
     conn->bg_conn_chain_mutex_ptr = NULL;
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&conn->bg_conn_sync_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_bg_conn_sync,
       &conn->bg_conn_sync_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_sync_mutex_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&conn->bg_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_bg_conn, &conn->bg_conn_mutex,
       MY_MUTEX_INIT_FAST))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_mutex_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&conn->bg_job_stack_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_bg_job_stack, &conn->bg_job_stack_mutex,
       MY_MUTEX_INIT_FAST))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_job_stack_mutex_init;
@@ -1936,36 +1911,22 @@ int spider_create_conn_thread(
       conn->bg_job_stack.max_element *
       conn->bg_job_stack.size_of_element);
     conn->bg_job_stack_cur_pos = 0;
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&conn->bg_conn_sync_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_conn_sync,
       &conn->bg_conn_sync_cond, NULL))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_sync_cond_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&conn->bg_conn_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_conn,
       &conn->bg_conn_cond, NULL))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_cond_init;
     }
     pthread_mutex_lock(&conn->bg_conn_mutex);
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_create(&conn->bg_thread, &spider_pt_attr,
-      spider_bg_conn_action, (void *) conn)
-    )
-#else
     if (mysql_thread_create(spd_key_thd_bg, &conn->bg_thread,
       &spider_pt_attr, spider_bg_conn_action, (void *) conn)
     )
-#endif
     {
       pthread_mutex_unlock(&conn->bg_conn_mutex);
       error_num = HA_ERR_OUT_OF_MEM;
@@ -2936,35 +2897,21 @@ int spider_create_sts_thread(
   DBUG_ENTER("spider_create_sts_thread");
   if (!share->bg_sts_init)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&share->bg_sts_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_sts,
       &share->bg_sts_cond, NULL))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_cond_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&share->bg_sts_sync_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_sts_sync,
       &share->bg_sts_sync_cond, NULL))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_sync_cond_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_create(&share->bg_sts_thread, &spider_pt_attr,
-      spider_bg_sts_action, (void *) share)
-    )
-#else
     if (mysql_thread_create(spd_key_thd_bg_sts, &share->bg_sts_thread,
       &spider_pt_attr, spider_bg_sts_action, (void *) share)
     )
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_thread_create;
@@ -3301,35 +3248,21 @@ int spider_create_crd_thread(
   DBUG_ENTER("spider_create_crd_thread");
   if (!share->bg_crd_init)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&share->bg_crd_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_crd,
       &share->bg_crd_cond, NULL))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_cond_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&share->bg_crd_sync_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_crd_sync,
       &share->bg_crd_sync_cond, NULL))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_sync_cond_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_create(&share->bg_crd_thread, &spider_pt_attr,
-      spider_bg_crd_action, (void *) share)
-    )
-#else
     if (mysql_thread_create(spd_key_thd_bg_crd, &share->bg_crd_thread,
       &spider_pt_attr, spider_bg_crd_action, (void *) share)
     )
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_thread_create;
@@ -3743,13 +3676,8 @@ int spider_create_mon_threads(
       {
         if (
           share->monitoring_bg_kind[roop_count] &&
-#if MYSQL_VERSION_ID < 50500
-          pthread_mutex_init(&share->bg_mon_mutexes[roop_count],
-            MY_MUTEX_INIT_FAST)
-#else
           mysql_mutex_init(spd_key_mutex_bg_mon,
             &share->bg_mon_mutexes[roop_count], MY_MUTEX_INIT_FAST)
-#endif
         ) {
           error_num = HA_ERR_OUT_OF_MEM;
           my_afree(buf);
@@ -3761,12 +3689,8 @@ int spider_create_mon_threads(
       {
         if (
           share->monitoring_bg_kind[roop_count] &&
-#if MYSQL_VERSION_ID < 50500
-          pthread_cond_init(&share->bg_mon_conds[roop_count], NULL)
-#else
           mysql_cond_init(spd_key_cond_bg_mon,
             &share->bg_mon_conds[roop_count], NULL)
-#endif
         ) {
           error_num = HA_ERR_OUT_OF_MEM;
           my_afree(buf);
@@ -3778,12 +3702,8 @@ int spider_create_mon_threads(
       {
         if (
           share->monitoring_bg_kind[roop_count] &&
-#if MYSQL_VERSION_ID < 50500
-          pthread_cond_init(&share->bg_mon_sleep_conds[roop_count], NULL)
-#else
           mysql_cond_init(spd_key_cond_bg_mon_sleep,
             &share->bg_mon_sleep_conds[roop_count], NULL)
-#endif
         ) {
           error_num = HA_ERR_OUT_OF_MEM;
           my_afree(buf);
@@ -3798,16 +3718,10 @@ int spider_create_mon_threads(
         {
           link_pack.link_idx = roop_count;
           pthread_mutex_lock(&share->bg_mon_mutexes[roop_count]);
-#if MYSQL_VERSION_ID < 50500
-          if (pthread_create(&share->bg_mon_threads[roop_count],
-            &spider_pt_attr, spider_bg_mon_action, (void *) &link_pack)
-          )
-#else
           if (mysql_thread_create(spd_key_thd_bg_mon,
             &share->bg_mon_threads[roop_count], &spider_pt_attr,
             spider_bg_mon_action, (void *) &link_pack)
           )
-#endif
           {
             error_num = HA_ERR_OUT_OF_MEM;
             my_afree(buf);
@@ -4061,17 +3975,9 @@ int spider_conn_first_link_idx(
     my_afree(link_idxs);
     DBUG_RETURN(-1);
   }
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
   DBUG_PRINT("info",("spider server_id=%lu", thd->variables.server_id));
-#else
-  DBUG_PRINT("info",("spider server_id=%u", thd->server_id));
-#endif
   DBUG_PRINT("info",("spider thread_id=%lu", thd_get_thread_id(thd)));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
   rand_val = spider_rand(thd->variables.server_id + thd_get_thread_id(thd));
-#else
-  rand_val = spider_rand(thd->server_id + thd_get_thread_id(thd));
-#endif
   DBUG_PRINT("info",("spider rand_val=%f", rand_val));
   balance_val = (longlong) (rand_val * balance_total);
   DBUG_PRINT("info",("spider balance_val=%lld", balance_val));
@@ -4597,21 +4503,13 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
       goto err_return_direct;
     }
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&ret->mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_conn_i, &ret->mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       //error
       goto err_malloc_key;
     }
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&ret->cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_conn_i, &ret->cond, NULL))
-#endif
     {
       pthread_mutex_destroy(&ret->mutex);
       goto err_malloc_key;

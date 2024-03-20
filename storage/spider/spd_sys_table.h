@@ -67,24 +67,6 @@ public:
   uint link_id_length;
 };
 
-#if MYSQL_VERSION_ID < 50500
-TABLE *spider_open_sys_table(
-  THD *thd,
-  const char *table_name,
-  int table_name_length,
-  bool write,
-  Open_tables_state *open_tables_backup,
-  bool need_lock,
-  int *error_num
-);
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  Open_tables_state *open_tables_backup,
-  bool need_lock
-);
-#else
 TABLE *spider_open_sys_table(
   THD *thd,
   const char *table_name,
@@ -118,7 +100,6 @@ void spider_sys_close_table(
   THD *thd,
   Open_tables_backup *open_tables_backup
 );
-#endif
 
 int spider_sys_index_init(
   TABLE *table,

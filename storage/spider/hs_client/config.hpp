@@ -11,14 +11,9 @@
 #define DENA_CONFIG_HPP
 
 #include "mysql_version.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
-#endif
 
 #define DENA_VERBOSE(lv, x) if (dena::verbose_level >= (lv)) { (x); }
 
