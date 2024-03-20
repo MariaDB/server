@@ -5547,10 +5547,6 @@ int spider_db_mbase_util::check_item_func(
   switch (func_type)
   {
     case Item_func::TRIG_COND_FUNC:
-    case Item_func::CASE_SEARCHED_FUNC:
-#ifndef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
-    case Item_func::CASE_SIMPLE_FUNC:
-#endif
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     case Item_func::NOT_FUNC:
       /* Why the following check is necessary? */
@@ -5609,15 +5605,15 @@ int spider_db_mbase_util::print_item_func(
   Item *item, **item_list = item_func->arguments();
   Field *field;
   spider_string tmp_str;
-  uint roop_count, item_count = item_func->argument_count(), start_item = 0;
+  uint i, item_count = item_func->argument_count(), start_item = 0;
   const char *func_name = SPIDER_SQL_NULL_CHAR_STR,
     *separator_str = SPIDER_SQL_NULL_CHAR_STR,
     *last_str = SPIDER_SQL_NULL_CHAR_STR;
   int func_name_length = SPIDER_SQL_NULL_CHAR_LEN,
     separator_str_length = SPIDER_SQL_NULL_CHAR_LEN,
     last_str_length = SPIDER_SQL_NULL_CHAR_LEN;
-  int use_pushdown_udf;
-  bool merge_func = FALSE;
+  int use_pushdown_udf, case_when_start, case_when_count;
+  bool merge_func = FALSE, case_with_else;
   DBUG_ENTER("spider_db_mbase_util::print_item_func");
   DBUG_ASSERT(!check_item_func(item_func, spider, alias, alias_length,
                                use_fields, fields));
@@ -6479,23 +6475,39 @@ int spider_db_mbase_util::print_item_func(
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     case Item_func::CASE_SEARCHED_FUNC:
     case Item_func::CASE_SIMPLE_FUNC:
-#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
-      Item_func_case *item_func_case = (Item_func_case *) item_func;
+      /*
+        Arrangement of arguments:
+        - Item_func_case_searched:
+          when1 when2 ... whenk then1 then2 .. thenk [else]
+        - Item_func_case_simple:
+          value when1 when2 ... whenk then1 then2 .. thenk [else]
+      */
+      if (item_func->functype() == Item_func::CASE_SEARCHED_FUNC)
+      {
+        case_when_start= 0;
+        case_when_count= item_count / 2;
+        case_with_else= item_count % 2;
+      }
+      else
+      {
+        case_when_start= 1;
+        case_when_count= (item_count - 1) / 2;
+        case_with_else= item_count % 2 == 0;
+      }
       if (str)
       {
         if (str->reserve(SPIDER_SQL_CASE_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_CASE_STR, SPIDER_SQL_CASE_LEN);
       }
-      if (item_func_case->first_expr_num != -1)
+      if (case_when_start > 0)
       {
         if ((error_num = spider_db_print_item_type(
-          item_list[item_func_case->first_expr_num], NULL, spider, str,
+          item_list[0], NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields)))
           DBUG_RETURN(error_num);
       }
-      for (roop_count = 0; roop_count < item_func_case->ncases;
-        roop_count += 2)
+      for (i = 0; i < (uint) case_when_count; i++)
       {
         if (str)
         {
@@ -6504,7 +6516,7 @@ int spider_db_mbase_util::print_item_func(
           str->q_append(SPIDER_SQL_WHEN_STR, SPIDER_SQL_WHEN_LEN);
         }
         if ((error_num = spider_db_print_item_type(
-          item_list[roop_count], NULL, spider, str,
+          item_list[i + case_when_start], NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields)))
           DBUG_RETURN(error_num);
         if (str)
@@ -6514,11 +6526,11 @@ int spider_db_mbase_util::print_item_func(
           str->q_append(SPIDER_SQL_THEN_STR, SPIDER_SQL_THEN_LEN);
         }
         if ((error_num = spider_db_print_item_type(
-          item_list[roop_count + 1], NULL, spider, str,
+          item_list[i + case_when_start + case_when_count], NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields)))
           DBUG_RETURN(error_num);
       }
-      if (item_func_case->else_expr_num != -1)
+      if (case_with_else)
       {
         if (str)
         {
@@ -6527,7 +6539,7 @@ int spider_db_mbase_util::print_item_func(
           str->q_append(SPIDER_SQL_ELSE_STR, SPIDER_SQL_ELSE_LEN);
         }
         if ((error_num = spider_db_print_item_type(
-          item_list[item_func_case->else_expr_num], NULL, spider, str,
+          item_list[item_count - 1], NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields)))
           DBUG_RETURN(error_num);
       }
@@ -6540,9 +6552,6 @@ int spider_db_mbase_util::print_item_func(
           SPIDER_SQL_CLOSE_PAREN_LEN);
       }
       DBUG_RETURN(0);
-#else
-      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
     case Item_func::JSON_EXTRACT_FUNC:
       func_name = (char*) item_func->func_name();
       func_name_length = strlen(func_name);
@@ -6585,13 +6594,13 @@ int spider_db_mbase_util::print_item_func(
       Loop through the items of the current function expression to
       print its portion of the statement
     */
-    for (roop_count = start_item; roop_count < item_count; roop_count++)
+    for (i = start_item; i < item_count; i++)
     {
-      item = item_list[roop_count];
+      item = item_list[i];
       if ((error_num = spider_db_print_item_type(item, field, spider, str,
         alias, alias_length, dbton_id, use_fields, fields)))
         DBUG_RETURN(error_num);
-      if (roop_count == 1)
+      if (i == 1)
       {
         /* Remaining operands need to be preceded by the separator */
         func_name = separator_str;
@@ -6605,7 +6614,7 @@ int spider_db_mbase_util::print_item_func(
     }
 
     /* Print the last operand value */
-    item = item_list[roop_count];
+    item = item_list[i];
     if ((error_num = spider_db_print_item_type(item, field, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
       DBUG_RETURN(error_num);
