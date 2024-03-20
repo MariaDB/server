@@ -5548,7 +5548,9 @@ int spider_db_mbase_util::check_item_func(
   {
     case Item_func::TRIG_COND_FUNC:
     case Item_func::CASE_SEARCHED_FUNC:
+#ifndef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
     case Item_func::CASE_SIMPLE_FUNC:
+#endif
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     case Item_func::NOT_FUNC:
       /* Why the following check is necessary? */
@@ -6488,7 +6490,70 @@ int spider_db_mbase_util::print_item_func(
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     case Item_func::CASE_SEARCHED_FUNC:
     case Item_func::CASE_SIMPLE_FUNC:
+#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
+      Item_func_case *item_func_case = (Item_func_case *) item_func;
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_CASE_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_CASE_STR, SPIDER_SQL_CASE_LEN);
+      }
+      if (item_func_case->first_expr_num != -1)
+      {
+        if ((error_num = spider_db_print_item_type(
+          item_list[item_func_case->first_expr_num], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      for (roop_count = 0; roop_count < item_func_case->ncases;
+        roop_count += 2)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_WHEN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_WHEN_STR, SPIDER_SQL_WHEN_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[roop_count], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_THEN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_THEN_STR, SPIDER_SQL_THEN_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[roop_count + 1], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      if (item_func_case->else_expr_num != -1)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_ELSE_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_ELSE_STR, SPIDER_SQL_ELSE_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[item_func_case->else_expr_num], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_END_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_END_STR, SPIDER_SQL_END_LEN);
+        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+          SPIDER_SQL_CLOSE_PAREN_LEN);
+      }
+      DBUG_RETURN(0);
+#else
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
     case Item_func::JSON_EXTRACT_FUNC:
       func_name = (char*) item_func->func_name();
       func_name_length = strlen(func_name);
