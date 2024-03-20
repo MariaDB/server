@@ -1061,6 +1061,8 @@ void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid_end(void);
 
+int my_uuid_v4(uchar *guid);
+
 static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
 {
   int i;

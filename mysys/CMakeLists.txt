@@ -42,7 +42,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				lf_alloc-pin.c lf_dynarray.c lf_hash.cc
                                 safemalloc.c my_new.cc
 				my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
-                                my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
+                                my_uuid.c wqueue.c my_uuid_v4.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
                                 file_logger.c my_dlerror.c   crc32/crc32c.cc
