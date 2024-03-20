@@ -17,14 +17,9 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_analyse.h"
-#endif
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #include "spd_err.h"
@@ -3297,11 +3292,7 @@ int spider_db_handlersocket_util::open_item_func(
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
             }
-#if MYSQL_VERSION_ID < 50500
-            item_func->print(tmp_str.get_str(), QT_IS);
-#else
             item_func->print(tmp_str.get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
             tmp_str.mem_calc();
             if (tmp_str.reserve(1))
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3431,11 +3422,7 @@ int spider_db_handlersocket_util::open_item_func(
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
             }
-#if MYSQL_VERSION_ID < 50500
-            item_func->print(tmp_str.get_str(), QT_IS);
-#else
             item_func->print(tmp_str.get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
             tmp_str.mem_calc();
             if (tmp_str.reserve(1))
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3585,11 +3572,7 @@ int spider_db_handlersocket_util::open_item_func(
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
             str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
           }
-#if MYSQL_VERSION_ID < 50500
-          item_func->print(tmp_str.get_str(), QT_IS);
-#else
           item_func->print(tmp_str.get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
           tmp_str.mem_calc();
           if (tmp_str.reserve(1))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3720,11 +3703,7 @@ int spider_db_handlersocket_util::open_item_func(
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
-#ifdef MARIADB_BASE_VERSION
     case Item_func::XOR_FUNC:
-#else
-    case Item_func::COND_XOR_FUNC:
-#endif
       if (str)
         str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
       DBUG_RETURN(

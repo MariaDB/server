@@ -18,16 +18,11 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "records.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -1194,13 +1189,8 @@ SPIDER_TRX *spider_get_trx(
       roop_count < (int) spider_param_udf_table_lock_mutex_count();
       roop_count++)
     {
-#if MYSQL_VERSION_ID < 50500
-      if (pthread_mutex_init(&trx->udf_table_mutexes[roop_count],
-        MY_MUTEX_INIT_FAST))
-#else
       if (mysql_mutex_init(spd_key_mutex_udf_table,
         &trx->udf_table_mutexes[roop_count], MY_MUTEX_INIT_FAST))
-#endif
         goto error_init_udf_table_mutex;
     }
 
@@ -1898,17 +1888,10 @@ int spider_internal_start_trx(
           (trx->xid.data, "%lx%016llx", thd_get_thread_id(thd),
             thd->query_id));
       }
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
       trx->xid.bqual_length
         = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
         (trx->xid.data + trx->xid.gtrid_length, "%lx",
         thd->variables.server_id));
-#else
-      trx->xid.bqual_length
-        = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
-        (trx->xid.data + trx->xid.gtrid_length, "%x",
-        thd->server_id));
-#endif
 
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;
@@ -2018,11 +2001,7 @@ int spider_internal_xa_commit(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
   Open_tables_backup open_tables_backup;
-#endif
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_commit");
@@ -2206,11 +2185,7 @@ int spider_internal_xa_rollback(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
   Open_tables_backup open_tables_backup;
-#endif
   bool server_lost = FALSE;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
@@ -2448,11 +2423,7 @@ int spider_internal_xa_prepare(
   int error_num;
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
   Open_tables_backup open_tables_backup;
-#endif
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_prepare");
@@ -2623,11 +2594,7 @@ int spider_internal_xa_recover(
   int cnt = 0;
   char xa_key[MAX_KEY_LENGTH];
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
   Open_tables_backup open_tables_backup;
-#endif
   DBUG_ENTER("spider_internal_xa_recover");
   /*
     select
@@ -2685,21 +2652,13 @@ int spider_initinal_xa_recover(
   static THD *thd = NULL;
   static TABLE *table_xa = NULL;
   static READ_RECORD *read_record = NULL;
-#if MYSQL_VERSION_ID < 50500
-  static Open_tables_state *open_tables_backup = NULL;
-#else
   static Open_tables_backup *open_tables_backup = NULL;
-#endif
   int cnt = 0;
   MEM_ROOT mem_root;
   DBUG_ENTER("spider_initinal_xa_recover");
   if (!open_tables_backup)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (!(open_tables_backup = new Open_tables_state))
-#else
     if (!(open_tables_backup = new Open_tables_backup))
-#endif
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_create_state;
@@ -2810,11 +2769,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
   Open_tables_backup open_tables_backup;
-#endif
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_commit_by_xid");
@@ -3045,11 +3000,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
   Open_tables_backup open_tables_backup;
-#endif
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_rollback_by_xid");
@@ -4109,19 +4060,8 @@ THD *spider_create_tmp_thd()
   DBUG_ENTER("spider_create_tmp_thd");
   if (!(thd = SPIDER_new_THD((my_thread_id) 0)))
     DBUG_RETURN(NULL);
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->killed = NOT_KILLED;
-#else
-  thd->killed = THD::NOT_KILLED;
-#endif
-#if MYSQL_VERSION_ID < 50500
-  thd->locked_tables = FALSE;
-#endif
   thd->proc_info = "";
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100200
-#else
-  thd->thread_id = thd->variables.pseudo_thread_id = 0;
-#endif
   thd->thread_stack = (char*) &thd;
   if (thd->store_globals())
     DBUG_RETURN(NULL);
@@ -4134,11 +4074,7 @@ void spider_free_tmp_thd(
 ) {
   DBUG_ENTER("spider_free_tmp_thd");
   thd->cleanup();
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->reset_globals();
-#else
-  thd->restore_globals();
-#endif
   delete thd;
   DBUG_VOID_RETURN;
 }
