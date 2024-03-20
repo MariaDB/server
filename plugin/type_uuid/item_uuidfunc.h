@@ -64,4 +64,20 @@ public:
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 
+class Item_func_uuid_v4: public Item_func_sys_guid
+{
+public:
+  Item_func_uuid_v4(THD *thd): Item_func_sys_guid(thd) { with_dashes= true; }
+  const Type_handler *type_handler() const override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("uuidv4") };
+    return name;
+  }
+  String *val_str(String *) override;
+  bool val_native(THD *thd, Native *to) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_uuid_v4>(thd, this); }
+};
+
 #endif // ITEM_UUIDFUNC_INCLUDED
