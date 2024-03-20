@@ -9,7 +9,7 @@ for slave1_1
 connection slave1_1;
 SHOW VARIABLES LIKE 'slave_transaction_retry_errors';
 Variable_name	Value
-slave_transaction_retry_errors	1158,1159,1160,1161,1205,1213,1429,2013,12701,10000,20000,30000
+slave_transaction_retry_errors	1158,1159,1160,1161,1205,1213,1020,1429,2013,12701,10000,20000,30000
 connection slave1_1;
 for slave1_1
 for master_1

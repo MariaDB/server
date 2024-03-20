@@ -881,6 +881,10 @@ static MYSQL_THDVAR_BOOL(table_locks, PLUGIN_VAR_OPCMDARG,
   /* check_func */ NULL, /* update_func */ NULL,
   /* default */ TRUE);
 
+static MYSQL_THDVAR_BOOL(snapshot_isolation, PLUGIN_VAR_OPCMDARG,
+  "Use snapshot isolation (write-write conflict detection).",
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_BOOL(strict_mode, PLUGIN_VAR_OPCMDARG,
   "Use strict mode when evaluating create options.",
   NULL, NULL, TRUE);
@@ -2238,6 +2242,9 @@ convert_error_code_to_mysql(
 
 		return(HA_ERR_LOCK_DEADLOCK);
 
+	case DB_RECORD_CHANGED:
+		return HA_ERR_RECORD_CHANGED;
+
 	case DB_LOCK_WAIT_TIMEOUT:
 		/* Starting from 5.0.13, we let MySQL just roll back the
 		latest SQL statement in a lock wait timeout. Previously, we
@@ -2881,6 +2888,8 @@ innobase_trx_init(
 
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
+	trx->snapshot_isolation = THDVAR(thd, snapshot_isolation) & 1;
+
 #ifdef WITH_WSREP
 	trx->wsrep = wsrep_on(thd);
 #endif
@@ -4431,7 +4440,7 @@ innobase_start_trx_and_assign_read_view(
 	Do this only if transaction is using REPEATABLE READ isolation
 	level. */
 	trx->isolation_level = innobase_map_isolation_level(
-		thd_get_trx_isolation(thd));
+		thd_get_trx_isolation(thd)) & 3;
 
 	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
 		trx->read_view.open(trx);
@@ -15376,7 +15385,7 @@ ha_innobase::check(
 	}
 
 	/* Restore the original isolation level */
-	m_prebuilt->trx->isolation_level = old_isolation_level;
+	m_prebuilt->trx->isolation_level = old_isolation_level & 3;
 #ifdef BTR_CUR_HASH_ADAPT
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	/* We validate the whole adaptive hash index for all tables
@@ -16431,7 +16440,7 @@ ha_innobase::store_lock(
 	if (lock_type != TL_IGNORE
 	    && trx->n_mysql_tables_in_use == 0) {
 		trx->isolation_level = innobase_map_isolation_level(
-			(enum_tx_isolation) thd_tx_isolation(thd));
+			(enum_tx_isolation) thd_tx_isolation(thd)) & 3;
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 
@@ -19802,6 +19811,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_server_stopword_table),
   MYSQL_SYSVAR(ft_user_stopword_table),
   MYSQL_SYSVAR(disable_sort_file_cache),
+  MYSQL_SYSVAR(snapshot_isolation),
   MYSQL_SYSVAR(stats_on_metadata),
   MYSQL_SYSVAR(stats_transient_sample_pages),
   MYSQL_SYSVAR(stats_persistent),
