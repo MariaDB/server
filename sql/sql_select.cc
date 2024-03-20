@@ -1876,6 +1876,26 @@ JOIN::init_range_rowid_filters()
 
 int JOIN::init_join_caches()
 {
+  bool init_for_explain= false;
+
+  /*
+    Can we use lightweight initalization mode just for EXPLAINs? We can if
+    we're certain that the optimizer will not execute the subquery.
+    The optimzier will not execute the subquery if it's too expensive. For
+    the exact criteria, see Item_subselect::is_expensive(). 
+    Note that the subquery might be a UNION and we might not yet know if it is
+    expensive.
+    What we do know is that if this SELECT is too expensive, then the whole 
+    subquery will be too expensive as well.
+    So, we can use lightweight initialization (init_for_explain=true) if this
+    SELECT examines more than @@expensive_subquery_limit rows.
+  */
+  if ((select_options & SELECT_DESCRIBE) &&
+      get_examined_rows() >= thd->variables.expensive_subquery_limit)
+  {
+    init_for_explain= true;
+  }
+
   JOIN_TAB *tab;
 
   for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -1895,7 +1915,8 @@ int JOIN::init_join_caches()
     {
       table->prepare_for_keyread(tab->index, table->read_set);
     }
-    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+
+    if (tab->cache && tab->cache->init(init_for_explain))
       revise_cache_usage(tab);
     else
       tab->remove_redundant_bnl_scan_conds();
