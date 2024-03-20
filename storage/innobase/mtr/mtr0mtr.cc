@@ -37,6 +37,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "log.h"
 #include "mariadb_stats.h"
+#include "my_cpu.h"
 
 void mtr_memo_slot_t::release() const
 {
@@ -320,7 +321,7 @@ inline lsn_t log_t::get_write_target() const
 #ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_locked());
 #endif
-  if (UNIV_LIKELY(buf_free < max_buf_free))
+  if (UNIV_LIKELY(buf_free_ok()))
     return 0;
   ut_ad(!is_pmem());
   /* The LSN corresponding to the end of buf is
@@ -875,13 +876,50 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
-/** Wait in append_prepare() for buffer to become available
-@param lsn  log sequence number to write up to
-@param ex   whether log_sys.latch is exclusively locked */
-ATTRIBUTE_COLD void log_t::append_prepare_wait(lsn_t lsn, bool ex) noexcept
+static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
+{
+  delay*= mult * 2; // GCC 13.2.0 -O2 targeting AMD64 wants to unroll twice
+  HMT_low();
+  do
+    MY_RELAX_CPU();
+  while (--delay)
+  HMT_medium();
+}
+
+ATTRIBUTE_NOINLINE
+size_t log_t::lock_lsn()
+{
+  size_t b;
+#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
+  /* On IA-32 and AMD64, the following shortcut would translate into
+  an utterly inefficient loop around LOCK CMPXCHG. */
+#else
+  b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
+  if (!(b & buf_free_LOCK))
+    return b;
+#endif
+  const size_t m= my_cpu_relax_multiplier * srv_spin_wait_delay / 32;
+  constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
+  for (size_t delay_count= DELAY, delay_iterations= 1;
+       ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
+         !buf_free.compare_exchange_strong(b, b | buf_free_LOCK,
+                                           std::memory_order_acquire,
+                                           std::memory_order_relaxed);
+       lsn_delay(delay_iterations, m))
+    if (!delay_count);
+    else if (delay_iterations < MAX_ITERATIONS)
+      delay_count= DELAY, delay_iterations++;
+    else
+      delay_count--;
+  return b;
+}
+
+ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
+  noexcept
 {
   waits++;
-  unlock_lsn();
+  ut_ad(buf_free.load(std::memory_order_relaxed) == (b | buf_free_LOCK));
+  buf_free.store(b, std::memory_order_release);
 
   if (ex)
     latch.wr_unlock();
@@ -895,7 +933,7 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(lsn_t lsn, bool ex) noexcept
   else
     latch.rd_lock(SRW_LOCK_CALL);
 
-  lock_lsn();
+  return lock_lsn();
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -914,27 +952,23 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 # endif
 #endif
   ut_ad(pmem == is_pmem());
-  lock_lsn();
+  size_t b{lock_lsn()};
   write_to_buf++;
 
   const lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
-  size_t b{buf_free};
 
   if (UNIV_UNLIKELY(pmem
                     ? (end_lsn -
                        get_flushed_lsn(std::memory_order_relaxed)) > capacity()
                     : b + size >= buf_size))
-  {
-    append_prepare_wait(l, ex);
-    b= buf_free;
-  }
+    b= append_prepare_wait(b, ex, l);
 
   lsn.store(end_lsn, std::memory_order_relaxed);
   size_t new_buf_free= b + size;
   if (pmem && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
-  buf_free= new_buf_free;
-  unlock_lsn();
+
+  buf_free.store(new_buf_free, std::memory_order_release);
 
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
     set_check_for_checkpoint();

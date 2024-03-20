@@ -4732,7 +4732,7 @@ err_exit:
 				 PROT_READ | PROT_WRITE);
 #endif
 		}
-		log_sys.buf_free = recv_sys.offset;
+		log_sys.set_buf_free(recv_sys.offset);
 		if (recv_needed_recovery
 	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

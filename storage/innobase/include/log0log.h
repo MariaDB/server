@@ -179,10 +179,8 @@ private:
 #if defined(__aarch64__)
   /* On ARM, we do more spinning */
   typedef srw_spin_lock log_rwlock;
-  typedef pthread_mutex_wrapper<true> log_lsn_lock;
 #else
   typedef srw_lock log_rwlock;
-  typedef srw_mutex log_lsn_lock;
 #endif
 
 public:
@@ -190,14 +188,16 @@ public:
   outside any log checkpoint is covered by a shared latch */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
 private:
-  /** mutex protecting buf_free et al, together with latch */
-  log_lsn_lock lsn_lock;
+  /** the lock bit in buf_free */
+  static constexpr size_t buf_free_LOCK= ~(~size_t{0} >> 1);
+  /** first free offset within buf used;
+  the most significant bit is a lock that protects this
+  as well as write_to_buf, waits */
+  std::atomic<size_t> buf_free;
 public:
-  /** first free offset within buf use; protected by lsn_lock */
-  Atomic_relaxed<size_t> buf_free;
-  /** number of write requests (to buf); protected by lsn_lock */
+  /** number of write requests (to buf); protected by MSB of buf_free */
   size_t write_to_buf;
-  /** number of append_prepare_wait(); protected by lsn_lock */
+  /** number of append_prepare_wait(); protected by MSB of buf_free */
   size_t waits;
 private:
   /** Last written LSN */
@@ -229,10 +229,9 @@ private:
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
 
-  void init_lsn_lock() {lsn_lock.init(); }
-  void lock_lsn() { lsn_lock.wr_lock(); }
-  void unlock_lsn() {lsn_lock.wr_unlock(); }
-  void destroy_lsn_lock() { lsn_lock.destroy(); }
+  /** Acquire a lock for updating buf_free and related fields.
+  @return the value of buf_free */
+  size_t lock_lsn();
 
 public:
   /** recommended maximum size of buf, after which the buffer is flushed */
@@ -294,6 +293,16 @@ public:
 
   bool is_initialised() const noexcept { return max_buf_free != 0; }
 
+  /** whether there is capacity in the log buffer */
+  bool buf_free_ok() const noexcept
+  {
+    return (buf_free.load(std::memory_order_relaxed) & ~buf_free_LOCK) <
+      max_buf_free;
+  }
+
+  void set_buf_free(size_t f) noexcept
+  { ut_ad(f < buf_free_LOCK); buf_free.store(f, std::memory_order_relaxed); }
+
 #ifdef HAVE_PMEM
   bool is_pmem() const noexcept { return !flush_buf; }
 #else
@@ -302,7 +311,7 @@ public:
 
   bool is_opened() const noexcept { return log.is_opened(); }
 
-  /** @return target write LSN to react on buf_free >= max_buf_free */
+  /** @return target write LSN to react on !buf_free_ok() */
   inline lsn_t get_write_target() const;
 
   /** @return LSN at which log resizing was started and is still in progress
@@ -444,9 +453,12 @@ public:
 
 private:
   /** Wait in append_prepare() for buffer to become available
+  @param b    the value of buf_free
+  @param ex   whether log_sys.latch is exclusively locked
   @param lsn  log sequence number to write up to
-  @param ex   whether log_sys.latch is exclusively locked */
-  ATTRIBUTE_COLD void append_prepare_wait(lsn_t lsn, bool ex) noexcept;
+  @return the new value of buf_free */
+  ATTRIBUTE_COLD size_t append_prepare_wait(size_t b, bool ex, lsn_t lsn)
+    noexcept;
 public:
   /** Reserve space in the log buffer for appending data.
   @tparam pmem  log_sys.is_pmem()

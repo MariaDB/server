@@ -134,7 +134,6 @@ bool log_t::create()
 #endif
 
   latch.SRW_LOCK_INIT(log_latch_key);
-  init_lsn_lock();
 
   last_checkpoint_lsn= FIRST_LSN;
   log_capacity= 0;
@@ -143,7 +142,7 @@ bool log_t::create()
   next_checkpoint_lsn= 0;
   checkpoint_pending= false;
 
-  buf_free= 0;
+  set_buf_free(0);
 
   ut_ad(is_initialised());
 #ifndef HAVE_PMEM
@@ -332,12 +331,12 @@ void log_t::create(lsn_t lsn) noexcept
   {
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
     memset_aligned<4096>(buf, 0, 4096);
-    buf_free= START_OFFSET;
+    set_buf_free(START_OFFSET);
   }
   else
 #endif
   {
-    buf_free= 0;
+    set_buf_free(0);
     memset_aligned<4096>(flush_buf, 0, buf_size);
     memset_aligned<4096>(buf, 0, buf_size);
   }
@@ -931,7 +930,7 @@ wait and check if an already running write is covering the request.
 void log_write_up_to(lsn_t lsn, bool durable,
                      const completion_callback *callback)
 {
-  ut_ad(!srv_read_only_mode || (log_sys.buf_free < log_sys.max_buf_free));
+  ut_ad(!srv_read_only_mode || log_sys.buf_free_ok());
   ut_ad(lsn != LSN_MAX);
   ut_ad(lsn != 0);
 
@@ -1292,6 +1291,7 @@ log_print(
 void log_t::close()
 {
   ut_ad(this == &log_sys);
+  ut_ad(!(buf_free & buf_free_LOCK));
   if (!is_initialised()) return;
   close_file();
 
@@ -1309,7 +1309,6 @@ void log_t::close()
 #endif
 
   latch.destroy();
-  destroy_lsn_lock();
 
   recv_sys.close();
 
