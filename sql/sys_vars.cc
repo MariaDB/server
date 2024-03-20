@@ -7217,3 +7217,36 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+std::atomic<ulonglong> lf_insert_time{0};
+std::atomic<ulonglong> lf_erase_time{0};
+std::atomic<ulonglong> lf_insert_count{0};
+std::atomic<ulonglong> lf_erase_count{0};
+std::atomic<ulonglong> lf_start_counts{0};
+
+static Sys_var_ulonglong Sys_lf_start_counts(
+        "lf_start_counts", "",
+        GLOBAL_VAR(lf_start_counts), CMD_LINE(NO_ARG),
+        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulonglong Sys_lf_insert_time(
+        "lf_insert_time", "",
+        GLOBAL_VAR(lf_insert_time), CMD_LINE(NO_ARG),
+        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulonglong Sys_lf_erase_time(
+        "lf_erase_time", "",
+        GLOBAL_VAR(lf_erase_time), CMD_LINE(NO_ARG),
+        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulonglong Sys_lf_insert_count(
+        "lf_insert_count", "",
+        GLOBAL_VAR(lf_insert_count), CMD_LINE(NO_ARG),
+        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulonglong Sys_lf_erase_count(
+        "lf_erase_count", "",
+        GLOBAL_VAR(lf_erase_count), CMD_LINE(NO_ARG),
+        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+

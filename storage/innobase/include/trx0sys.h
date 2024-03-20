@@ -360,7 +360,11 @@ struct rw_trx_hash_element_t
   trx_t *trx;
   srw_mutex mutex;
 };
-
+extern std::atomic<ulonglong> lf_insert_time;
+extern std::atomic<ulonglong> lf_erase_time;
+extern std::atomic<ulonglong> lf_insert_count;
+extern std::atomic<ulonglong> lf_start_counts;
+extern std::atomic<ulonglong> lf_erase_count;
 
 /**
   Wrapper around LF_HASH to store set of in memory read-write transactions.
@@ -520,7 +524,7 @@ class rw_trx_hash_t
 
 
 public:
-  void init()
+  void __attribute__((optimize("O0"))) init()
   {
     /*
     lf_hash_init(&hash, sizeof(rw_trx_hash_element_t), LF_HASH_UNIQUE, 0,
@@ -530,6 +534,23 @@ public:
     hash.initializer=
       reinterpret_cast<lf_hash_initializer>(rw_trx_hash_initializer);
       */
+
+//    const int numo= 65536;
+//    trx_t *trx= (trx_t*) malloc(numo * sizeof (trx_t));
+//    trx[0].rw_trx_hash_pins=0;
+//    get_pins(trx);
+//    for (int i = 0; i < numo; i++)
+//    {
+//      trx[i].rw_trx_hash_pins=trx[0].rw_trx_hash_pins;
+//      trx[i].id= i + 1;
+//      insert(trx + i);
+//    }
+//    for (int i = 0; i < numo; i++)
+//    {
+//      erase(trx+i);
+//    }
+//    put_pins(trx);
+//    free(trx);
   }
 
 
@@ -676,10 +697,17 @@ public:
 
   void insert(trx_t *trx)
   {
+    clock_t start= clock();
     ut_d(validate_element(trx));
     auto handle= hash_table.get_handle();
     rw_trx_hash_element_t elem(trx);
     handle.emplace(trx->id, std::move(elem));
+    volatile clock_t measured_time= clock() - start;
+    if (lf_start_counts)
+    {
+      lf_insert_time+= measured_time;
+      lf_insert_count++;
+    }
   }
 
 
@@ -693,11 +721,18 @@ public:
 
   void erase(trx_t *trx)
   {
+    clock_t start= clock();
     ut_d(validate_element(trx));
     trx->rw_trx_hash_element->mutex.wr_lock();
     trx->rw_trx_hash_element->trx= nullptr;
     trx->rw_trx_hash_element->mutex.wr_unlock();
     hash_table.get_handle().erase(trx->id);
+    volatile clock_t measured_time= clock() - start;
+    if (lf_start_counts)
+    {
+      lf_erase_time+= measured_time;
+      lf_erase_count++;
+    }
   }
 
 
@@ -742,7 +777,7 @@ public:
   */
 
   template <typename T>
-  int iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
+  int __attribute__((optimize("O0"))) iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
   {
     my_bool res= 0;
     auto handle= hash_table.get_handle();
