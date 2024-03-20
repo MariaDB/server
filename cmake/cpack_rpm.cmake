@@ -164,7 +164,6 @@ SET(CPACK_RPM_server_USER_FILELIST
     "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
     "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
     )
-
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
 SET(CPACK_RPM_client_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
@@ -179,13 +178,6 @@ MACRO(SETA var)
     SET(${var} "${${var}} ${v}")
   ENDFOREACH()
 ENDMACRO(SETA)
-
-IF (CMAKE_VERSION VERSION_GREATER 3.10.0)
-  # cmake bug #14362
-  SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST}
-      "%caps(cap_ipc_lock=pe) %{_sbindir}/mariadbd"
-      )
-ENDIF()
 
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
   "mysql-client"
