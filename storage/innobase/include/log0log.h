@@ -165,60 +165,71 @@ struct log_t
   static constexpr lsn_t FIRST_LSN= START_OFFSET;
 
 private:
-  /** The log sequence number of the last change of durable InnoDB files */
+  /** the lock bit in buf_free */
+  static constexpr size_t buf_free_LOCK= ~(~size_t{0} >> 1);
   alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  /** first free offset within buf used;
+  the most significant bit is set by lock_lsn() to protect this field
+  as well as write_to_buf, waits */
+  std::atomic<size_t> buf_free;
+public:
+  /** number of write requests (to buf); protected by lock_lsn() */
+  size_t write_to_buf;
+  /** log record buffer, written to by mtr_t::commit() */
+  byte *buf;
+private:
+  /** The log sequence number of the last change of durable InnoDB files;
+  protected by lock_lsn() or exclusive latch */
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
-  /** log sequence number when log resizing was initiated, or 0 */
-  std::atomic<lsn_t> resize_lsn;
-  /** set when there may be need to initiate a log checkpoint.
-  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
-  std::atomic<bool> need_checkpoint;
+public:
+  /** number of append_prepare_wait(); protected by lock_lsn() */
+  size_t waits;
+  /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
+  size_t buf_size;
+  /** log file size in bytes, including the header */
+  lsn_t file_size;
 
 #if defined(__aarch64__)
-  /* On ARM, we do more spinning */
+  /* On ARM, we spin more */
   typedef srw_spin_lock log_rwlock;
 #else
   typedef srw_lock log_rwlock;
 #endif
-
-public:
-  /** rw-lock protecting writes to buf; normal mtr_t::commit()
-  outside any log checkpoint is covered by a shared latch */
+  /** exclusive latch for checkpoint, shared for mtr_t::commit() to buf */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
-private:
-  /** the lock bit in buf_free */
-  static constexpr size_t buf_free_LOCK= ~(~size_t{0} >> 1);
-  /** first free offset within buf used;
-  the most significant bit is a lock that protects this
-  as well as write_to_buf, waits */
-  std::atomic<size_t> buf_free;
-public:
-  /** number of write requests (to buf); protected by MSB of buf_free */
-  size_t write_to_buf;
-  /** number of append_prepare_wait(); protected by MSB of buf_free */
-  size_t waits;
-private:
-  /** Last written LSN */
-  lsn_t write_lsn;
-public:
-  /** log record buffer, written to by mtr_t::commit() */
-  byte *buf;
-  /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
-  In write_buf(), buf and flush_buf are swapped */
-  byte *flush_buf;
+
   /** number of std::swap(buf, flush_buf) and writes from buf to log;
   protected by latch.wr_lock() */
   ulint write_to_log;
 
+  /** Last written LSN */
+  lsn_t write_lsn;
+  /** recommended maximum buf_free size, after which the buffer is flushed */
+  size_t max_buf_free;
+
+  /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
+  In write_buf(), buf and flush_buf are swapped */
+  byte *flush_buf;
+  /** set when there may be need to initiate a log checkpoint.
+  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
+  std::atomic<bool> need_checkpoint;
+  /** whether a checkpoint is pending; protected by latch.wr_lock() */
+  Atomic_relaxed<bool> checkpoint_pending;
   /** Log sequence number when a log file overwrite (broken crash recovery)
   was noticed. Protected by latch.wr_lock(). */
   lsn_t overwrite_warned;
 
-  /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
-  size_t buf_size;
+  /** latest completed checkpoint (protected by latch.wr_lock()) */
+  Atomic_relaxed<lsn_t> last_checkpoint_lsn;
+  /** next checkpoint LSN (protected by latch.wr_lock()) */
+  lsn_t next_checkpoint_lsn;
+  /** next checkpoint number (protected by latch.wr_lock()) */
+  ulint next_checkpoint_no;
 
+  /** Log file */
+  log_file_t log;
 private:
   /** Log file being constructed during resizing; protected by latch */
   log_file_t resize_log;
@@ -229,17 +240,14 @@ private:
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
 
+  /** Special implementation of lock_lsn() for IA-32 and AMD64 */
+  void lsn_lock_bts() noexcept;
   /** Acquire a lock for updating buf_free and related fields.
   @return the value of buf_free */
-  size_t lock_lsn();
+  size_t lock_lsn() noexcept;
 
-public:
-  /** recommended maximum size of buf, after which the buffer is flushed */
-  size_t max_buf_free;
-
-  /** log file size in bytes, including the header */
-  lsn_t file_size;
-private:
+  /** log sequence number when log resizing was initiated, or 0 */
+  std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
 #if defined __linux__ || defined _WIN32
@@ -249,8 +257,6 @@ private:
 public:
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
-  /** Log file */
-  log_file_t log;
 #if defined __linux__ || defined _WIN32
   /** whether file system caching is enabled for the log */
   my_bool log_buffered;
@@ -278,14 +284,6 @@ public:
 					/*!< this is the maximum allowed value
 					for lsn - last_checkpoint_lsn when a
 					new query step is started */
-  /** latest completed checkpoint (protected by latch.wr_lock()) */
-  Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-  /** next checkpoint LSN (protected by log_sys.latch) */
-  lsn_t next_checkpoint_lsn;
-  /** next checkpoint number (protected by latch.wr_lock()) */
-  ulint next_checkpoint_no;
-  /** whether a checkpoint is pending */
-  Atomic_relaxed<bool> checkpoint_pending;
 
   /** buffer for checkpoint header */
   byte *checkpoint_buf;

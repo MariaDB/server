@@ -886,32 +886,88 @@ static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
   HMT_medium();
 }
 
-ATTRIBUTE_NOINLINE
-size_t log_t::lock_lsn()
-{
-  size_t b;
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
-  /* On IA-32 and AMD64, the following shortcut would translate into
-  an utterly inefficient loop around LOCK CMPXCHG. */
-#else
-  b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
-  if (!(b & buf_free_LOCK))
-    return b;
+#if defined __clang_major__ && __clang_major__ < 10
+/* Only clang-10 introduced support for asm goto */
+#elif defined __APPLE__
+/* At least some versions of Apple Xcode do not support asm goto */
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+# if SIZEOF_SIZE_T == 8
+#  define LOCK_TSET                                             \
+  __asm__ goto("lock btsq $63, %0\n\t" "jnc %l1"                \
+               : : "m"(buf_free) : "cc", "memory" : got)
+# else
+#  define LOCK_TSET                                             \
+  __asm__ goto("lock btsl $31, %0\n\t" "jnc %l1"                \
+               : : "m"(buf_free) : "cc", "memory" : got)
+# endif
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+# if SIZEOF_SIZE_T == 8
+#  define LOCK_TSET                                                     \
+  if (!_interlockedbittestandset64                                      \
+      (reinterpret_cast<volatile LONG64*>(&buf_free), 63)) return
+# else
+#  define LOCK_TSET                                                     \
+  if (!_interlockedbittestandset                                        \
+      (reinterpret_cast<volatile long*>(&buf_free), 31)) return
+# endif
 #endif
-  const size_t m= my_cpu_relax_multiplier * srv_spin_wait_delay / 32;
-  constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
-  for (size_t delay_count= DELAY, delay_iterations= 1;
-       ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
-         !buf_free.compare_exchange_strong(b, b | buf_free_LOCK,
-                                           std::memory_order_acquire,
-                                           std::memory_order_relaxed);
-       lsn_delay(delay_iterations, m))
-    if (!delay_count);
-    else if (delay_iterations < MAX_ITERATIONS)
-      delay_count= DELAY, delay_iterations++;
-    else
-      delay_count--;
+
+#ifdef LOCK_TSET
+ATTRIBUTE_NOINLINE
+void log_t::lsn_lock_bts() noexcept
+{
+  LOCK_TSET;
+  {
+    const size_t m= my_cpu_relax_multiplier * srv_spin_wait_delay / 32;
+    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
+    for (size_t delay_count= DELAY, delay_iterations= 1;;
+         lsn_delay(delay_iterations, m))
+    {
+      if (!(buf_free.load(std::memory_order_relaxed) & buf_free_LOCK))
+        LOCK_TSET;
+      if (!delay_count);
+      else if (delay_iterations < MAX_ITERATIONS)
+        delay_count= DELAY, delay_iterations++;
+      else
+        delay_count--;
+    }
+  }
+
+# ifdef __GNUC__
+ got:
+  return;
+# endif
+}
+
+inline
+#else
+ATTRIBUTE_NOINLINE
+#endif
+size_t log_t::lock_lsn() noexcept
+{
+#ifdef LOCK_TSET
+  lsn_lock_bts();
+  return ~buf_free_LOCK & buf_free.load(std::memory_order_relaxed);
+# undef LOCK_TSET
+#else
+  size_t b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
+  if (b & buf_free_LOCK)
+  {
+    const size_t m= my_cpu_relax_multiplier * srv_spin_wait_delay / 32;
+    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
+    for (size_t delay_count= DELAY, delay_iterations= 1;
+         ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
+           (buf_free_LOCK & (b= buf_free.fetch_or(buf_free_LOCK,
+                                                  std::memory_order_acquire)));
+         lsn_delay(delay_iterations, m))
+      if (!delay_count);
+      else if (delay_iterations < MAX_ITERATIONS)
+        delay_count= DELAY, delay_iterations++;
+      else
+        delay_count--;
+  }
   return b;
+#endif
 }
 
 ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
@@ -963,17 +1019,19 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
                     : b + size >= buf_size))
     b= append_prepare_wait(b, ex, l);
 
-  lsn.store(end_lsn, std::memory_order_relaxed);
   size_t new_buf_free= b + size;
   if (pmem && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
 
-  buf_free.store(new_buf_free, std::memory_order_release);
+  lsn.store(end_lsn, std::memory_order_relaxed);
 
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
-    set_check_for_checkpoint();
+    set_check_for_checkpoint(true);
 
-  return {l, &buf[b]};
+  byte *our_buf= buf;
+  buf_free.store(new_buf_free, std::memory_order_release);
+
+  return {l, our_buf + b};
 }
 
 /** Finish appending data to the log.
