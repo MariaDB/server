@@ -1371,7 +1371,7 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
   char buff2[MAX_FIELD_WIDTH];
   String tmp0(buff0,sizeof(buff0),&my_charset_bin);
   String tmp2(buff2,sizeof(buff2),&my_charset_bin);
-  String *source, *replace;
+  String *source, *replace= 0;
   LEX_CSTRING src, rpl;
   size_t startoffset= 0;
 
@@ -1566,7 +1566,7 @@ String *Item_str_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
-  size_t alloced_length, len;
+  size_t alloced_length= 0, len;
 
   if ((null_value= (!(res= args[0]->val_str(&tmp_value)) ||
                     str->alloc((alloced_length= res->length() * multiply)))))

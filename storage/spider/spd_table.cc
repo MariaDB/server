@@ -4514,12 +4514,12 @@ SPIDER_SHARE *spider_create_share(
   share->table.read_set = &table_share->all_set;
 #endif
 
-  if (table_share->keys > 0 &&
-    !(share->key_hint = new spider_string[table_share->keys])
-  ) {
-    *error_num = HA_ERR_OUT_OF_MEM;
-    goto error_init_hint_string;
-  }
+  if (table_share->keys > 0)
+    if (!(share->key_hint = new spider_string[table_share->keys]))
+    {
+      *error_num = HA_ERR_OUT_OF_MEM;
+      goto error_init_hint_string;
+    }
   for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
     share->key_hint[roop_count].init_calc_mem(SPD_MID_CREATE_SHARE_2);
   DBUG_PRINT("info",("spider share->key_hint=%p", share->key_hint));
