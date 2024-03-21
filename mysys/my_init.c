@@ -183,8 +183,9 @@ my_bool my_init(void)
 
   if (my_progname)
   {
-    char link_name[FN_REFLEN];
     my_progname_short= my_progname + dirname_length(my_progname);
+#ifdef NDEBUG
+    char link_name[FN_REFLEN];
     /*
       if my_progname_short doesn't start from "mariadb", but it's
       a symlink to an actual executable, that does - warn the user.
@@ -201,6 +202,7 @@ my_bool my_init(void)
            strncmp(link_name + dirname_length(link_name), "mariadb", 7) == 0)
       my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
     }
+#endif /* NDEBUG */
   }
 
 #if defined(SAFEMALLOC) && !defined(DBUG_OFF)
