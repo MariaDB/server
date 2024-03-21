@@ -8205,8 +8205,10 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 #endif
     break;
   case OPT_REMOVED_OPTION:
+#ifdef DBUG_OFF
     sql_print_warning("'%s' was removed. It does nothing now and exists only "
                       "for compatibility with old my.cnf files.", opt->name);
+#endif
     /* Restore default value (to show that the option cannot be used) */
     my_getopt_init_one_value(opt, opt->value, opt->def_value);
     break;
