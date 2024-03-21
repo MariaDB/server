@@ -1142,7 +1142,10 @@ static int remove_fragment(THD*                  thd,
                  seqno.get(),
                  error);
     }
-    ret= error;
+    else
+    {
+      ret= error;
+    }
   }
   else if (Wsrep_schema_impl::delete_row(frag_table))
   {
