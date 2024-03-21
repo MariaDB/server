@@ -18,12 +18,7 @@
 # - "bundled" uses source code in <source dir>/extra/wolfssl
 # - "system"  (typically) uses headers/libraries in /usr/lib and /usr/lib64
 # - a custom installation of openssl can be used like this
-#     - cmake -DCMAKE_PREFIX_PATH=</path/to/custom/openssl> -DWITH_SSL="system"
-#   or
-#     - cmake -DWITH_SSL=</path/to/custom/openssl>
-#
-# The default value for WITH_SSL is "bundled"
-# set in cmake/build_configurations/feature_set.cmake
+#     - cmake -DOPENSSL_ROOT_DIR=</path/to/custom/openssl>
 #
 # For custom build/install of openssl, see the accompanying README and
 # INSTALL* files. When building with gcc, you must build the shared libraries
@@ -40,6 +35,7 @@ SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, yes (prefer os library if present, otherwise use bundled)")
 SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, system (use os library)")
+SET(WITH_SSL yes CACHE STRING ${WITH_SSL_DOC})
 
 MACRO (CHANGE_SSL_SETTINGS string)
   SET(WITH_SSL ${string} CACHE STRING ${WITH_SSL_DOC} FORCE)
@@ -71,9 +67,16 @@ MACRO (MYSQL_CHECK_SSL)
   IF(NOT WITH_SSL)
    IF(WIN32)
      CHANGE_SSL_SETTINGS("bundled")
-   ELSE()
-     SET(WITH_SSL "yes")
    ENDIF()
+  ENDIF()
+
+  IF (NOT WITH_SSL MATCHES "^(yes|system|bundled)$" AND EXISTS "${WITH_SSL}")
+    IF (CMAKE_VERSION VERSION_LESS 3.24)
+      # workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/22945
+      SET(OPENSSL_ROOT_DIR "${WITH_SSL}" "${WITH_SSL}/lib64")
+    ELSE()
+      SET(OPENSSL_ROOT_DIR "${WITH_SSL}")
+    ENDIF()
   ENDIF()
 
   IF(WITH_SSL STREQUAL "bundled")
@@ -96,8 +99,8 @@ MACRO (MYSQL_CHECK_SSL)
       UNSET(OPENSSL_SSL_LIBRARY CACHE)
     ENDIF()
   ELSEIF(WITH_SSL STREQUAL "system" OR
-         WITH_SSL STREQUAL "yes"
-         )
+         WITH_SSL STREQUAL "yes"    OR
+         OPENSSL_ROOT_DIR)
     FIND_PACKAGE(OpenSSL)
     SET_PACKAGE_PROPERTIES(OpenSSL PROPERTIES TYPE RECOMMENDED)
     IF(OPENSSL_FOUND)
@@ -145,7 +148,7 @@ MACRO (MYSQL_CHECK_SSL)
   ELSE()
     MESSAGE(FATAL_ERROR
       "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}."
-      "For custom location of OpenSSL library, use WITH_SSL=system and OPENSSL_ROOT_DIR pointing to the library."
+      "For custom location of OpenSSL library, use OPENSSL_ROOT_DIR pointing to the library."
     )
   ENDIF()
 ENDMACRO()
