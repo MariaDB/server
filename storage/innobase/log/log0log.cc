@@ -243,6 +243,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
 # endif
       log_maybe_unbuffered= true;
       log_buffered= false;
+      mtr_t::pmem_init(true);
       return true;
     }
   }
@@ -280,6 +281,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
 #ifdef HAVE_PMEM
   checkpoint_buf= static_cast<byte*>(aligned_malloc(block_size, block_size));
   memset_aligned<64>(checkpoint_buf, 0, block_size);
+  mtr_t::pmem_init(false);
   return true;
 #endif
 }

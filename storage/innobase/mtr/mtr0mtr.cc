@@ -1273,50 +1273,50 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
   }
 }
 
+template<bool pmem>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
-mtr_t::finish_write(size_t len)
+mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
   ut_ad(!recv_no_log_write);
-  ut_ad(is_logged());
+  ut_ad(mtr->is_logged());
 #ifndef SUX_LOCK_GENERIC
 # ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
   ut_ad(m_latch_ex == log_sys.latch.is_write_locked());
 # endif
 #endif
 
-  const size_t size{m_commit_lsn ? 5U + 8U : 5U};
-  std::pair<lsn_t, byte*> start;
+  const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
+  std::pair<lsn_t, byte*> start=
+    log_sys.append_prepare<pmem>(len, mtr->m_latch_ex);
 
-  if (!log_sys.is_pmem())
+  if (!pmem)
   {
-    start= log_sys.append_prepare<false>(len, m_latch_ex);
-    m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     { log_sys.append(start.second, b->begin(), b->used()); return true; });
 
 #ifdef HAVE_PMEM
   write_trailer:
 #endif
     *start.second++= log_sys.get_sequence_bit(start.first + len - size);
-    if (m_commit_lsn)
+    if (mtr->m_commit_lsn)
     {
-      mach_write_to_8(start.second, m_commit_lsn);
-      m_crc= my_crc32c(m_crc, start.second, 8);
+      mach_write_to_8(start.second, mtr->m_commit_lsn);
+      mtr->m_crc= my_crc32c(mtr->m_crc, start.second, 8);
       start.second+= 8;
     }
-    mach_write_to_4(start.second, m_crc);
+    mach_write_to_4(start.second, mtr->m_crc);
     start.second+= 4;
   }
 #ifdef HAVE_PMEM
   else
   {
-    start= log_sys.append_prepare<true>(len, m_latch_ex);
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
     {
-      m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+      mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
       { log_sys.append(start.second, b->begin(), b->used()); return true; });
       goto write_trailer;
     }
-    m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     {
       size_t size{b->used()};
       const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
@@ -1339,14 +1339,14 @@ mtr_t::finish_write(size_t len)
     byte tail[5 + 8];
     tail[0]= log_sys.get_sequence_bit(start.first + len - size);
 
-    if (m_commit_lsn)
+    if (mtr->m_commit_lsn)
     {
-      mach_write_to_8(tail + 1, m_commit_lsn);
-      m_crc= my_crc32c(m_crc, tail + 1, 8);
-      mach_write_to_4(tail + 9, m_crc);
+      mach_write_to_8(tail + 1, mtr->m_commit_lsn);
+      mtr->m_crc= my_crc32c(mtr->m_crc, tail + 1, 8);
+      mach_write_to_4(tail + 9, mtr->m_crc);
     }
     else
-      mach_write_to_4(tail + 1, m_crc);
+      mach_write_to_4(tail + 1, mtr->m_crc);
 
     ::memcpy(start.second, tail, size_left);
     ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
@@ -1355,13 +1355,25 @@ mtr_t::finish_write(size_t len)
       ((size >= size_left) ? log_sys.START_OFFSET : log_sys.file_size) +
       (size - size_left);
   }
+#else
+  static_assert(!pmem, "");
 #endif
 
   log_sys.resize_write(start.first, start.second, len, size);
 
-  m_commit_lsn= start.first + len;
-  return {start.first, log_close(m_commit_lsn)};
+  mtr->m_commit_lsn= start.first + len;
+  return {start.first, log_close(mtr->m_commit_lsn)};
 }
+
+#ifdef HAVE_PMEM
+std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
+
+void mtr_t::pmem_init(bool pmem)
+{
+  finisher=
+    pmem ? mtr_t::finish_writer<true> : mtr_t::finish_writer<false>;
+}
+#endif
 
 bool mtr_t::have_x_latch(const buf_block_t &block) const
 {

@@ -173,18 +173,18 @@ private:
   as well as write_to_buf, waits */
   std::atomic<size_t> buf_free;
 public:
-  /** number of write requests (to buf); protected by lock_lsn() */
+  /** number of write requests (to buf); protected by lock_lsn() or lsn_lock */
   size_t write_to_buf;
   /** log record buffer, written to by mtr_t::commit() */
   byte *buf;
 private:
   /** The log sequence number of the last change of durable InnoDB files;
-  protected by lock_lsn() or exclusive latch */
+  protected by lock_lsn() or lsn_lock or latch.wr_lock() */
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
 public:
-  /** number of append_prepare_wait(); protected by lock_lsn() */
+  /** number of append_prepare_wait(); protected by lock_lsn() or lsn_lock */
   size_t waits;
   /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
   size_t buf_size;
@@ -194,8 +194,10 @@ public:
 #if defined(__aarch64__)
   /* On ARM, we spin more */
   typedef srw_spin_lock log_rwlock;
+  typedef pthread_mutex_wrapper<true> log_lsn_lock;
 #else
   typedef srw_lock log_rwlock;
+  typedef srw_mutex log_lsn_lock;
 #endif
   /** exclusive latch for checkpoint, shared for mtr_t::commit() to buf */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
@@ -288,6 +290,13 @@ public:
   /** buffer for checkpoint header */
   byte *checkpoint_buf;
 	/* @} */
+
+private:
+  /** A lock when the spin-only lock_lsn() is not being used */
+  log_lsn_lock lsn_lock;
+  /** Pointer to the applicable append_prepare() function */
+  std::pair<lsn_t,byte*> (*append_prep)(size_t, bool);
+public:
 
   bool is_initialised() const noexcept { return max_buf_free != 0; }
 
@@ -464,7 +473,7 @@ public:
   @param ex     whether log_sys.latch is exclusively locked
   @return the start LSN and the buffer position for append() */
   template<bool pmem>
-  inline std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
+  std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
 
   /** Append a string of bytes to the redo log.
   @param d     destination

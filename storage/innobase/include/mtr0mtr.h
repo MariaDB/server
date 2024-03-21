@@ -700,9 +700,27 @@ private:
   std::pair<lsn_t,page_flush_ahead> do_write();
 
   /** Append the redo log records to the redo log buffer.
+  @tparam pmem log_sys.is_pmem()
+  @param mtr   mini-transaction
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
+  template<bool pmem> static
+  std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
+
+#ifdef HAVE_PMEM
+  /** The applicable variant of finish_writer() */
+  static std::pair<lsn_t,page_flush_ahead> (*finisher)(mtr_t *, size_t);
+public:
+  /** Assign finisher in log_t::attach() */
+  static void pmem_init(bool pmem);
+private:
+
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len)
+  { return finisher(this, len); }
+#else
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len)
+  { return finish_writer<false>(this, len); }
+#endif
 
   /** Release all latches. */
   void release();
