@@ -182,6 +182,7 @@ my_bool my_init(void)
   if (my_thread_global_init())
     return 1;
 
+#ifndef WITHOUT_DEPRECATED_WARNING
   if (my_progname)
   {
     char link_name[FN_REFLEN];
@@ -203,6 +204,7 @@ my_bool my_init(void)
       my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
     }
   }
+#endif /* !WITHOUT_DEPRECATED_WARNING */
 
 #if defined(SAFEMALLOC) && !defined(DBUG_OFF)
   dbug_sanity= sf_sanity;
