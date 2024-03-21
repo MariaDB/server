@@ -746,6 +746,8 @@ public:
   uint8 uncacheable;
   bool distinct:1;
   bool no_table_names_allowed:1; /* used for global order by */
+  bool eliminate:1;
+  bool eliminated:1;
   /*
     result of this query can't be cached, bit field, can be :
       UNCACHEABLE_DEPENDENT_GENERATED

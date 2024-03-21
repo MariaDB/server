@@ -332,7 +332,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
       res= TRUE;
       goto end;
     }
-    if (fix_length_and_dec())
+    if (!unit->eliminated && fix_length_and_dec())
     {
       res= TRUE;
       goto end;
@@ -374,7 +374,8 @@ bool Item_subselect::enumerate_field_refs_processor(void *arg)
 
 bool Item_subselect::mark_as_eliminated_processor(void *arg)
 {
-  eliminated= TRUE;
+  //eliminated= TRUE;
+  unit->eliminate= TRUE;     // only mark as eliminated for now
   return FALSE;
 }
 
@@ -392,9 +393,7 @@ bool Item_subselect::mark_as_eliminated_processor(void *arg)
 bool Item_subselect::eliminate_subselect_processor(void *arg)
 {
   unit->item= NULL;
-  if (!unit->is_excluded())
-    unit->exclude();
-  eliminated= TRUE;
+  unit->eliminate= TRUE;     // only mark as eliminated for now
   return FALSE;
 }
 
@@ -577,6 +576,12 @@ bool Item_subselect::is_expensive()
   bool all_are_simple= true;
 
   if (!expensive_fl && is_evaluated())
+    return false;
+
+  if (unit->eliminate)
+    unit->eliminate= false;       // force remove this flag in case it is set
+
+  if (unit->eliminated)
     return false;
 
   /* check extremely simple select */
@@ -784,6 +789,10 @@ bool Item_subselect::exec()
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(thd);
   DBUG_ASSERT(!eliminated);
+
+  // ps-protocol + test main.subselect_innodb shows this can happen
+  if (unit->eliminated)
+    DBUG_RETURN(true);
 
   DBUG_EXECUTE_IF("Item_subselect",
     Item::Print print(this,
@@ -4021,6 +4030,9 @@ int subselect_single_select_engine::exec()
   if (join->optimization_state == JOIN::NOT_OPTIMIZED)
   {
     SELECT_LEX_UNIT *unit= select_lex->master_unit();
+
+    if (unit->eliminated)
+      DBUG_RETURN(1);
 
     unit->set_limit(unit->global_parameters());
     if (join->optimize())

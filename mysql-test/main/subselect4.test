@@ -2671,3 +2671,25 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1,t2,t3;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-28621 group by optimization incorrectly removing subquery where
+--echo # subject buried in a function
+--echo #
+
+CREATE TABLE t1 (i int) ;
+
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 FROM t1
+WHERE i in
+(
+  SELECT  a+1
+  FROM (SELECT (SELECT 1 FROM t1) AS a FROM t1) dt2
+  GROUP BY a
+);
+
+DROP TABLE t1;
+
+--echo # End of 10.6 tests

@@ -1212,7 +1212,8 @@ retry:
       Try to fix by materializing the derived table
     */
     TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived() && !derived->derived->is_excluded())
+    if (derived->is_merged_derived() && !derived->derived->is_excluded() &&
+        derived->table  /* it's not been removed */)
     {
       DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));

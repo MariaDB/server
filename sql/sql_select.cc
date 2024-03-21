@@ -850,6 +850,9 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   enum_parsing_place save_place;
   st_select_lex *const select= thd->lex->current_select;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
+
+  if (select->master_unit()->eliminated)
+    return 0;
   /* 
     Need to stave the value, so we can turn off only any new non_agg_field_used
     additions coming from the WHERE
@@ -1335,6 +1338,9 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   select_lex= select_lex_arg;
   DBUG_PRINT("info", ("select %p (%u) = JOIN %p",
                       select_lex, select_lex->select_number, this));
+  if (select_lex->master_unit()->eliminated)
+    DBUG_RETURN(0);
+
   select_lex->join= this;
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_unit_op();
@@ -1890,10 +1896,39 @@ int JOIN::optimize()
   if (!with_two_phase_optimization ||
       init_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
   {
-    if (!res && have_query_plan != QEP_DELETED)
+    if (!res && have_query_plan != QEP_DELETED &&
+        !select_lex->master_unit()->eliminate)
       res= build_explain();
     optimization_state= JOIN::OPTIMIZATION_DONE;
   }
+
+  if (select_lex == thd->lex->first_select_lex())
+  {
+    // top level optimize
+    // loop though all the units looking for something to remove
+    for (st_select_lex *sl=thd->lex->all_selects_list;
+       sl;
+       sl= sl->next_select_in_list())
+    {
+      st_select_lex_unit *unit= sl->first_inner_unit();
+      if (unit && unit->eliminate)
+      {
+        unit->cleanup();
+        if (!unit->is_excluded())
+          unit->exclude();
+        unit->eliminate= false;
+        unit->eliminated= true;
+        Item_subselect *item= dynamic_cast<Item_subselect *>(unit->item);
+        if (item)
+        {
+          item->unit->item= NULL;
+          unit->item= NULL;
+        }
+      }
+
+    }
+  }
+
   return res;
 }
 

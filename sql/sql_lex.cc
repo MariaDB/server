@@ -2999,6 +2999,8 @@ void st_select_lex_unit::init_query()
   derived= 0;
   with_clause= 0;
   with_element= 0;
+  eliminate= 0;
+  eliminated= 0;
 
   /* reset all bit fields */
   prepared= 0;
@@ -3143,6 +3145,8 @@ void st_select_lex::init_select()
   is_tvc_wrapper= false;
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
+  eliminate= 0;
+  eliminated= 0;
 }
 
 /*
@@ -5006,10 +5010,13 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         save_options= inner_join->select_options;
         if (options & SELECT_DESCRIBE)
         {
-          /* Optimize the subquery in the context of EXPLAIN. */
-          sl->set_explain_type(FALSE);
-          sl->options|= SELECT_DESCRIBE;
-          inner_join->select_options|= SELECT_DESCRIBE;
+          if (!sl->master_unit()->eliminate)
+          {
+            /* Optimize the subquery in the context of EXPLAIN. */
+            sl->set_explain_type(FALSE);
+            sl->options|= SELECT_DESCRIBE;
+            inner_join->select_options|= SELECT_DESCRIBE;
+          }
         }
         if ((res= inner_join->optimize()))
           return TRUE;
@@ -5594,94 +5601,101 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       using_materialization= TRUE;
   }
 
-  if (master_unit()->thd->lex->first_select_lex() == this)
+  if (master_unit()->eliminate)
   {
-    if (pushdown_select)
-      type= pushed_select_text;
-    else
-      type= is_primary ? "PRIMARY" : "SIMPLE";
+    type= "SUBQUERY MARKED FOR ELIMINATION";
   }
   else
   {
-    if (this == first)
+    if (master_unit()->thd->lex->first_select_lex() == this)
     {
-      /* If we're a direct child of a UNION, we're the first sibling there */
-      if (linkage == DERIVED_TABLE_TYPE)
-      {
-        bool is_pushed_master_unit= master_unit()->derived &&
-	                            master_unit()->derived->pushdown_derived;
-        if (is_pushed_master_unit)
-          type= pushed_derived_text;
-        else if (is_uncacheable & UNCACHEABLE_DEPENDENT)
-          type= "LATERAL DERIVED";
-        else
-          type= "DERIVED";
-      }
-      else if (using_materialization)
-        type= "MATERIALIZED";
+      if (pushdown_select)
+        type= pushed_select_text;
       else
-      {
-         if (is_uncacheable & UNCACHEABLE_DEPENDENT)
-           type= "DEPENDENT SUBQUERY";
-         else
-         {
-           type= is_uncacheable? "UNCACHEABLE SUBQUERY" :
-                                 "SUBQUERY";
-         }
-      }
+        type= is_primary ? "PRIMARY" : "SIMPLE";
     }
     else
     {
-      switch (linkage)
+      if (this == first)
       {
-      case INTERSECT_TYPE:
-        type= "INTERSECT";
-        break;
-      case EXCEPT_TYPE:
-        type= "EXCEPT";
-        break;
-      default:
-        /* This a non-first sibling in UNION */
-        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
-          type= "DEPENDENT UNION";
+        /* If we're a direct child of a UNION, we're the first sibling there */
+        if (linkage == DERIVED_TABLE_TYPE)
+        {
+          bool is_pushed_master_unit= master_unit()->derived &&
+                                      master_unit()->derived->pushdown_derived;
+          if (is_pushed_master_unit)
+            type= pushed_derived_text;
+          else if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+            type= "LATERAL DERIVED";
+          else
+            type= "DERIVED";
+        }
         else if (using_materialization)
-          type= "MATERIALIZED UNION";
+          type= "MATERIALIZED";
         else
         {
-          type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
-          if (this == master_unit()->fake_select_lex)
-            type= unit_operation_text[master_unit()->common_op()];
-          /*
-            join below may be =NULL when this functions is called at an early
-            stage. It will be later called again and we will set the correct
-            value.
-          */
-          if (join)
-          {
-            bool uses_cte= false;
-            for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
-                                                       WITH_CONST_TABLES);
-                 tab;
-                 tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
-            {
-              /*
-                pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
-              */
-              if (!(tab->table && tab->table->pos_in_table_list))
-	        continue;
-              TABLE_LIST *tbl= tab->table->pos_in_table_list;
-              if (tbl->with && tbl->with->is_recursive &&
-                  tbl->is_with_table_recursive_reference())
-              {
-                uses_cte= true;
-                break;
-              }
-            }
-            if (uses_cte)
-              type= "RECURSIVE UNION";
-          }
+           if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+             type= "DEPENDENT SUBQUERY";
+           else
+           {
+             type= is_uncacheable? "UNCACHEABLE SUBQUERY" :
+                                   "SUBQUERY";
+           }
         }
-        break;
+      }
+      else
+      {
+        switch (linkage)
+        {
+        case INTERSECT_TYPE:
+          type= "INTERSECT";
+          break;
+        case EXCEPT_TYPE:
+          type= "EXCEPT";
+          break;
+        default:
+          /* This a non-first sibling in UNION */
+          if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+            type= "DEPENDENT UNION";
+          else if (using_materialization)
+            type= "MATERIALIZED UNION";
+          else
+          {
+            type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
+            if (this == master_unit()->fake_select_lex)
+              type= unit_operation_text[master_unit()->common_op()];
+            /*
+              join below may be =NULL when this functions is called at an early
+              stage. It will be later called again and we will set the correct
+              value.
+            */
+            if (join)
+            {
+              bool uses_cte= false;
+              for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
+                                                         WITH_CONST_TABLES);
+                   tab;
+                   tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
+              {
+                /*
+                  pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
+                */
+                if (!(tab->table && tab->table->pos_in_table_list))
+                  continue;
+                TABLE_LIST *tbl= tab->table->pos_in_table_list;
+                if (tbl->with && tbl->with->is_recursive &&
+                    tbl->is_with_table_recursive_reference())
+                {
+                  uses_cte= true;
+                  break;
+                }
+              }
+              if (uses_cte)
+                type= "RECURSIVE UNION";
+            }
+          }
+          break;
+        }
       }
     }
   }

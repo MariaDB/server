@@ -3048,7 +3048,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
@@ -3075,7 +3075,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) >=
@@ -3091,7 +3091,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) <
@@ -3107,7 +3107,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
 select b from t2
 where b in (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
@@ -3304,3 +3304,19 @@ a
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1,t2,t3;
 # End of 10.4 tests
+#
+# MDEV-28621 group by optimization incorrectly removing subquery where
+# subject buried in a function
+#
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT 1 FROM t1
+WHERE i in
+(
+SELECT  a+1
+FROM (SELECT (SELECT 1 FROM t1) AS a FROM t1) dt2
+GROUP BY a
+);
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
+# End of 10.6 tests
