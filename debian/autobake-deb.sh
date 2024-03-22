@@ -170,7 +170,20 @@ BUILDPACKAGE_DPKGCMD=()
 # Fakeroot test
 if fakeroot true; then
   BUILDPACKAGE_DPKGCMD+=( "fakeroot" "--" )
+
+  echo "Testing if 'fakeroot' command is working with '/usr/bin/true'"
+
+  BUILDPACKAGE_FAKEROOTTEST=("${BUILDPACKAGE_DPKGCMD[@]}")
+  BUILDPACKAGE_FAKEROOTTEST+=("/bin/true")
+  if ! "${BUILDPACKAGE_FAKEROOTTEST[@]}";
+  then
+    echo "Fakeroot not working correctly exiting with error"
+    exit 1
+  fi
 fi
+
+
+
 
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
