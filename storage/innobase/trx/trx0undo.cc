@@ -755,7 +755,13 @@ trx_undo_free_page(
 	const fil_addr_t last_addr = flst_get_last(
 		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
 		+ header_block->page.frame);
-	if (UNIV_UNLIKELY(last_addr.page == page_no)) {
+	if (UNIV_UNLIKELY(last_addr.page == page_no)
+	    || UNIV_UNLIKELY(last_addr.page != FIL_NULL
+			     && last_addr.page >= rseg->space->size)
+	    || UNIV_UNLIKELY(last_addr.boffset < TRX_UNDO_PAGE_HDR
+			     + TRX_UNDO_PAGE_NODE)
+	    || UNIV_UNLIKELY(last_addr.boffset >= srv_page_size
+			     - TRX_UNDO_LOG_OLD_HDR_SIZE)) {
 		*err = DB_CORRUPTION;
 		return FIL_NULL;
 	}
@@ -1075,6 +1081,15 @@ corrupted_type:
 	fil_addr_t	last_addr = flst_get_last(
 		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->page.frame);
 
+	if (last_addr.page >= rseg->space->size
+	    || last_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE
+	    || last_addr.boffset >= srv_page_size
+	    - TRX_UNDO_LOG_OLD_HDR_SIZE) {
+	corrupted_undo:
+		ut_free(undo);
+		goto corrupted;
+	}
+
 	undo->last_page_no = last_addr.page;
 	undo->top_page_no = last_addr.page;
 
@@ -1083,8 +1098,7 @@ corrupted_type:
 		RW_X_LATCH, &mtr);
 
 	if (UNIV_UNLIKELY(!last)) {
-		ut_free(undo);
-		goto corrupted;
+		goto corrupted_undo;
         }
 
 	if (const trx_undo_rec_t* rec = trx_undo_page_get_last_rec(

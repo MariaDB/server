@@ -117,11 +117,8 @@ inline uint32_t flst_get_len(const flst_base_node_t *base)
 /** @return a file address */
 inline fil_addr_t flst_read_addr(const byte *faddr)
 {
-  fil_addr_t addr= { mach_read_from_4(faddr + FIL_ADDR_PAGE),
-		     mach_read_from_2(faddr + FIL_ADDR_BYTE) };
-  ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
-  return addr;
+  return fil_addr_t{mach_read_from_4(faddr + FIL_ADDR_PAGE),
+                    mach_read_from_2(faddr + FIL_ADDR_BYTE)};
 }
 
 /** @return list first node address */

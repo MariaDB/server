@@ -951,7 +951,11 @@ corrupted:
 		first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE
 				       + header->page.frame);
 
-		if (first.page == FIL_NULL) {
+		if (first.page >= space->size) {
+			if (first.page != FIL_NULL) {
+				goto flst_corrupted;
+			}
+
 			*err = fsp_fill_free_list(false, space, header, mtr);
 			if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 				goto corrupted;
@@ -962,6 +966,16 @@ corrupted:
 			if (first.page == FIL_NULL) {
 				return nullptr;	/* No free extents left */
 			}
+			if (first.page >= space->size) {
+				goto flst_corrupted;
+			}
+		}
+
+		if (first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE
+		    || first.boffset >= space->physical_size() - XDES_SIZE) {
+		flst_corrupted:
+			*err = DB_CORRUPTION;
+			goto corrupted;
 		}
 
 		descr = xdes_lst_get_descriptor(*space, first, mtr,
@@ -1079,8 +1093,11 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
     /* Else take the first extent in free_frag list */
     fil_addr_t first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE_FRAG +
                                       block->page.frame);
-    if (first.page == FIL_NULL)
+    if (first.page >= space->size)
     {
+      if (first.page != FIL_NULL)
+        goto flst_corrupted;
+
       /* There are no partially full fragments: allocate a free extent
       and add it to the FREE_FRAG list. NOTE that the allocation may
       have as a side-effect that an extent containing a descriptor
@@ -1098,6 +1115,14 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
     }
     else
     {
+      if (first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE ||
+          first.boffset >= space->physical_size() - XDES_SIZE)
+      {
+      flst_corrupted:
+        *err= DB_CORRUPTION;
+        goto err_exit;
+      }
+
       descr= xdes_lst_get_descriptor(*space, first, mtr, &xdes, err);
       if (!descr)
         return nullptr;
@@ -1885,11 +1910,24 @@ fseg_alloc_free_extent(
   ut_ad(!memcmp(FSEG_MAGIC_N_BYTES, FSEG_MAGIC_N + inode, 4));
   ut_d(space->modify_check(*mtr));
 
+  if (UNIV_UNLIKELY(page_offset(inode) < FSEG_ARR_OFFSET))
+  {
+  corrupted:
+    *err= DB_CORRUPTION;
+    space->set_corrupted();
+    return nullptr;
+  }
+
   if (flst_get_len(inode + FSEG_FREE))
   {
+    const fil_addr_t first= flst_get_first(inode + FSEG_FREE);
+    if (first.page >= space->size ||
+        first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE ||
+        first.boffset >= space->physical_size() - XDES_SIZE)
+      goto corrupted;
+
     /* Segment free list is not empty, allocate from it */
-    return xdes_lst_get_descriptor(*space, flst_get_first(inode + FSEG_FREE),
-                                   mtr, xdes, err);
+    return xdes_lst_get_descriptor(*space, first, mtr, xdes, err);
   }
 
   xdes_t* descr= fsp_alloc_free_extent(space, 0, xdes, mtr, err);
@@ -2085,6 +2123,13 @@ take_hinted_page:
 			first = flst_get_first(seg_inode + FSEG_FREE);
 		} else {
 			ut_ad(!has_done_reservation);
+			return nullptr;
+		}
+
+		if (first.page >= space->size
+		    || first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE
+		    || first.boffset >= space->physical_size() - XDES_SIZE) {
+			*err= DB_CORRUPTION;
 			return nullptr;
 		}
 
@@ -2962,7 +3007,9 @@ fseg_get_first_extent(
     return nullptr;
   }
 
-  if (first.page == FIL_NULL)
+  if (first.page >= space->size ||
+      first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE ||
+      first.boffset >= space->physical_size() - XDES_SIZE)
     goto corrupted;
 
   return xdes_lst_get_descriptor(*space, first, mtr, nullptr, err);

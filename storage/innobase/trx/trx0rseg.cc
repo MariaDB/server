@@ -518,6 +518,11 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 
     fil_addr_t node_addr= flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY +
                                         rseg_hdr->page.frame);
+    if (node_addr.page >= rseg->space->size ||
+        node_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+        node_addr.boffset >= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE)
+      return DB_CORRUPTION;
+
     node_addr.boffset= static_cast<uint16_t>(node_addr.boffset -
                                              TRX_UNDO_HISTORY_NODE);
     rseg->last_page_no= node_addr.page;

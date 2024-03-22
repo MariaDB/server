@@ -434,6 +434,8 @@ inline dberr_t purge_sys_t::iterator::free_history_rseg(trx_rseg_t &rseg) const
   mtr_t mtr;
   bool freed= false;
   uint32_t rseg_ref= 0;
+  const auto last_boffset= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE;
+  const auto last_page= rseg.space->size;
 
   mtr.start();
 
@@ -449,13 +451,23 @@ func_exit:
   }
 
   hdr_addr= flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY + rseg_hdr->page.frame);
+
+  if (hdr_addr.page == FIL_NULL)
+    goto func_exit;
+
+  if (hdr_addr.page >= last_page ||
+      hdr_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+      hdr_addr.boffset >= last_boffset)
+  {
+  corrupted:
+    err= DB_CORRUPTION;
+    goto func_exit;
+  }
+
   hdr_addr.boffset= static_cast<uint16_t>(hdr_addr.boffset -
                                           TRX_UNDO_HISTORY_NODE);
 
 loop:
-  if (hdr_addr.page == FIL_NULL)
-    goto func_exit;
-
   buf_block_t *b=
     buf_page_get_gen(page_id_t(rseg.space->id, hdr_addr.page),
                      0, RW_X_LATCH, nullptr, BUF_GET_POSSIBLY_FREED,
@@ -504,6 +516,12 @@ loop:
   fil_addr_t prev_hdr_addr=
     flst_get_prev_addr(b->page.frame + hdr_addr.boffset +
                        TRX_UNDO_HISTORY_NODE);
+  if (prev_hdr_addr.page == FIL_NULL);
+  else if (prev_hdr_addr.page >= last_page ||
+           prev_hdr_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+           prev_hdr_addr.boffset >= last_boffset)
+    goto corrupted;
+
   prev_hdr_addr.boffset= static_cast<uint16_t>(prev_hdr_addr.boffset -
                                                TRX_UNDO_HISTORY_NODE);
 
@@ -567,6 +585,9 @@ loop:
   rseg_hdr->page.lock.x_lock();
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
   mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
+
+  if (hdr_addr.page == FIL_NULL)
+    goto func_exit;
 
   goto loop;
 }
@@ -885,21 +906,24 @@ void purge_sys_t::rseg_get_next_history_log()
   {
     const byte *log_hdr= undo_page->page.frame + rseg->last_offset();
     prev_log_addr= flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE);
+    if (prev_log_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+        prev_log_addr.boffset >= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE)
+      goto corrupted;
     prev_log_addr.boffset = static_cast<uint16_t>(prev_log_addr.boffset -
                                                   TRX_UNDO_HISTORY_NODE);
   }
   else
-    prev_log_addr.page= FIL_NULL;
+    goto corrupted;
 
-  if (prev_log_addr.page == FIL_NULL)
+  if (prev_log_addr.page >= rseg->space->size)
+  corrupted:
     rseg->last_page_no= FIL_NULL;
   else
   {
     /* Read the previous log header. */
     trx_id_t trx_no= 0;
     if (const buf_block_t* undo_page=
-        get_page(page_id_t(rseg->space->id,
-                                     prev_log_addr.page)))
+        get_page(page_id_t(rseg->space->id, prev_log_addr.page)))
     {
       const byte *log_hdr= undo_page->page.frame + prev_log_addr.boffset;
       trx_no= mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
