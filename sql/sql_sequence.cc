@@ -349,6 +349,12 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields,
     reason= my_get_err_msg(ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS);
     goto err;
   }
+  if (!sequence_definition::is_allowed_value_type(
+        fields->head()->type_handler()->field_type()))
+  {
+    reason= fields->head()->field_name.str;
+    goto err;
+  }
   row_structure= sequence_structure(fields->head()->type_handler());
   if (field_count != array_elements(row_structure.fields)-1)
   {

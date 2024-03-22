@@ -410,6 +410,18 @@ alter sequence s maxvalue 9432738420582397432;
 show create sequence s;
 select next value for s;
 drop sequence s;
+
+--echo #
+--echo # MDEV-33739 Assertion `0' failed in Type_handler_typelib::max_display_length_for_field
+--echo #
+
+CREATE SEQUENCE s1 ;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER table s1 CHANGE `next_not_cached_value` next_not_cached_value SET('1','2','3','4','5','6','7','8','9','10');
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER table s1 CHANGE `next_not_cached_value` next_not_cached_value bool;
+drop sequence s1;
+
 --enable_ps2_protocol
 
 --echo #

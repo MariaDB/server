@@ -739,5 +739,14 @@ next value for s
 1001
 drop sequence s;
 #
+# MDEV-33739 Assertion `0' failed in Type_handler_typelib::max_display_length_for_field
+#
+CREATE SEQUENCE s1 ;
+ALTER table s1 CHANGE `next_not_cached_value` next_not_cached_value SET('1','2','3','4','5','6','7','8','9','10');
+ERROR HY000: Sequence 'test.s1' table structure is invalid (next_not_cached_value)
+ALTER table s1 CHANGE `next_not_cached_value` next_not_cached_value bool;
+ERROR HY000: Sequence 'test.s1' table structure is invalid (next_not_cached_value)
+drop sequence s1;
+#
 # End of 11.5 test
 #
