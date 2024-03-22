@@ -183,4 +183,19 @@ rarely invoked function for size instead for speed. */
 
 #include <my_attribute.h>
 
+/*
+  _Thread_local is standardized in C11,
+  otherwise use compiler-specific keywords.
+*/
+#if __STDC_VERSION__ >= 201112
+#define TLS_VAR _Thread_local
+#elif defined _MSC_VER
+#define TLS_VAR __declspec(thread)
+/* note that ICC (linux) and Clang are covered by __GNUC__ */
+#elif defined __GNUC__ || defined __SUNPRO_C || defined __xlC__
+#define TLS_VAR __thread
+#else
+#error "Cannot define TLS_VAR"
+#endif
+
 #endif /* MY_COMPILER_INCLUDED */

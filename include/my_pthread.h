@@ -109,14 +109,6 @@ int pthread_cancel(pthread_t thread);
 #define HAVE_PTHREAD_ATTR_SETSTACKSIZE	1
 
 #undef SAFE_MUTEX				/* This will cause conflicts */
-#define pthread_key(T,V)  DWORD V
-#define pthread_key_create(A,B) ((*A=TlsAlloc())==0xFFFFFFFF)
-#define pthread_key_delete(A) TlsFree(A)
-#define my_pthread_setspecific_ptr(T,V) (!TlsSetValue((T),(V)))
-#define pthread_setspecific(A,B) (!TlsSetValue((A),(LPVOID)(B)))
-#define pthread_getspecific(A) (TlsGetValue(A))
-#define my_pthread_getspecific(T,A) ((T) TlsGetValue(A))
-#define my_pthread_getspecific_ptr(T,V) ((T) TlsGetValue(V))
 
 #define pthread_equal(A,B) ((A) == (B))
 #define pthread_mutex_init(A,B)  (InitializeCriticalSection(A),0)
@@ -154,9 +146,6 @@ int pthread_cancel(pthread_t thread);
 #include <synch.h>
 #endif
 
-#define pthread_key(T,V) pthread_key_t V
-#define my_pthread_getspecific_ptr(T,V) my_pthread_getspecific(T,(V))
-#define my_pthread_setspecific_ptr(T,V) pthread_setspecific(T,(void*) (V))
 #define pthread_detach_this_thread()
 #define pthread_handler_t EXTERNC void *
 typedef void *(* pthread_handler)(void *);
@@ -232,8 +221,6 @@ int sigwait(sigset_t *setp, int *sigp);		/* Use our implementation */
 #undef	HAVE_GETHOSTBYADDR_R			/* No definition */
 #endif
 
-#define my_pthread_getspecific(A,B) ((A) pthread_getspecific(B))
-
 #ifndef HAVE_LOCALTIME_R
 struct tm *localtime_r(const time_t *clock, struct tm *res);
 #endif
@@ -248,17 +235,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #define pthread_condattr_destroy pthread_condattr_delete
 #endif
 
-/* FSU THREADS */
-#if !defined(HAVE_PTHREAD_KEY_DELETE) && !defined(pthread_key_delete)
-#define pthread_key_delete(A) pthread_dummy(0)
-#endif
-
 #if defined(HAVE_PTHREAD_ATTR_CREATE) && !defined(HAVE_SIGWAIT)
-/* This is set on AIX_3_2 and Siemens unix (and DEC OSF/1 3.2 too) */
-#define pthread_key_create(A,B) \
-		pthread_keycreate(A,(B) ?\
-				  (pthread_destructor_t) (B) :\
-				  (pthread_destructor_t) pthread_dummy)
 #define pthread_attr_init(A) pthread_attr_create(A)
 #define pthread_attr_destroy(A) pthread_attr_delete(A)
 #define pthread_attr_setdetachstate(A,B) pthread_dummy(0)

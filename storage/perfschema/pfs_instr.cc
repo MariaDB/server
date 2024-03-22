@@ -434,7 +434,7 @@ void destroy_cond(PFS_cond *pfs)
 
 PFS_thread* PFS_thread::get_current_thread()
 {
-  return static_cast<PFS_thread*>(my_get_thread_local(THR_PFS));
+  return THR_PFS;
 }
 
 void PFS_thread::reset_session_connect_attrs()

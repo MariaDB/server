@@ -5151,23 +5151,22 @@ void destroy_thd(MYSQL_THD thd)
   like for example, evaluation of virtual function in innodb
   purge.
 */
-extern "C" pthread_key(struct st_my_thread_var *, THR_KEY_mysys);
 MYSQL_THD create_background_thd()
 {
   auto save_thd = current_thd;
   set_current_thd(nullptr);
 
-  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  auto save_mysysvar= my_thread_var;
 
   /*
     Allocate new mysys_var specifically new THD,
     so that e.g safemalloc, DBUG etc are happy.
   */
-  pthread_setspecific(THR_KEY_mysys, 0);
+  set_mysys_var(nullptr);
   my_thread_init();
-  auto thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  auto thd_mysysvar= my_thread_var;
   auto thd= new THD(0);
-  pthread_setspecific(THR_KEY_mysys, save_mysysvar);
+  set_mysys_var(save_mysysvar);
   thd->set_psi(nullptr);
   set_current_thd(save_thd);
 
@@ -5200,8 +5199,8 @@ void *thd_attach_thd(MYSQL_THD thd)
   DBUG_ASSERT(!current_thd);
   DBUG_ASSERT(thd && thd->mysys_var);
 
-  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
-  pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
+  auto save_mysysvar= my_thread_var;
+  set_mysys_var(thd->mysys_var);
   thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
@@ -5214,7 +5213,7 @@ void *thd_attach_thd(MYSQL_THD thd)
 void thd_detach_thd(void *mysysvar)
 {
   /* Restore mysys_var that is changed when THD was attached.*/
-  pthread_setspecific(THR_KEY_mysys, mysysvar);
+  set_mysys_var((st_my_thread_var *)mysysvar);
   /* Restore the THD (we assume it was NULL during attach).*/
   set_current_thd(0);
 }
@@ -5227,7 +5226,7 @@ void destroy_background_thd(MYSQL_THD thd)
 {
   DBUG_ASSERT(!current_thd);
   auto thd_mysys_var= thd->mysys_var;
-  auto save_mysys_var= thd_attach_thd(thd);
+  auto save_mysys_var= (st_my_thread_var *)thd_attach_thd(thd);
   DBUG_ASSERT(thd_mysys_var != save_mysys_var);
   /*
     Workaround the adverse effect decrementing thread_count on THD()
@@ -5249,9 +5248,9 @@ void destroy_background_thd(MYSQL_THD thd)
   auto save_psi_thread= PSI_CALL_get_thread();
 #endif
   PSI_CALL_set_thread(0);
-  pthread_setspecific(THR_KEY_mysys, thd_mysys_var);
+  set_mysys_var(thd_mysys_var);
   my_thread_end();
-  pthread_setspecific(THR_KEY_mysys, save_mysys_var);
+  set_mysys_var(save_mysys_var);
   PSI_CALL_set_thread(save_psi_thread);
 }
 

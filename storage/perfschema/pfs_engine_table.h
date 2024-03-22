@@ -47,15 +47,15 @@ using PFS_ident_table = Lex_ident_i_s_table;
 */
 
 #include "pfs_instr_class.h"
-extern pthread_key_t THR_PFS_VG;   // global_variables
-extern pthread_key_t THR_PFS_SV;   // session_variables
-extern pthread_key_t THR_PFS_VBT;  // variables_by_thread
-extern pthread_key_t THR_PFS_SG;   // global_status
-extern pthread_key_t THR_PFS_SS;   // session_status
-extern pthread_key_t THR_PFS_SBT;  // status_by_thread
-extern pthread_key_t THR_PFS_SBU;  // status_by_user
-extern pthread_key_t THR_PFS_SBH;  // status_by_host
-extern pthread_key_t THR_PFS_SBA;  // status_by_account
+extern thread_local void* THR_PFS_VG;   // global_variables
+extern thread_local void* THR_PFS_SV;   // session_variables
+extern thread_local void* THR_PFS_VBT;  // variables_by_thread
+extern thread_local void* THR_PFS_SG;   // global_status
+extern thread_local void* THR_PFS_SS;   // session_status
+extern thread_local void* THR_PFS_SBT;  // status_by_thread
+extern thread_local void* THR_PFS_SBU;  // status_by_user
+extern thread_local void* THR_PFS_SBH;  // status_by_host
+extern thread_local void* THR_PFS_SBA;  // status_by_account
 
 class Field;
 struct PFS_engine_table_share;
@@ -72,8 +72,8 @@ struct time_normalizer;
 class PFS_table_context
 {
 public:
-  PFS_table_context(ulonglong current_version, bool restore, pthread_key_t key);
-  PFS_table_context(ulonglong current_version, ulong map_size, bool restore, pthread_key_t key);
+  PFS_table_context(ulonglong current_version, bool restore, void** thr_var_ptr);
+  PFS_table_context(ulonglong current_version, ulong map_size, bool restore, void** thr_var_ptr);
 ~PFS_table_context(void);
 
   bool initialize(void);
@@ -83,7 +83,7 @@ public:
   bool versions_match(void) { return m_last_version == m_current_version; }
   void set_item(ulong n);
   bool is_item_set(ulong n);
-  pthread_key_t m_thr_key;
+  void** m_thr_varptr;
 
 private:
   ulonglong m_current_version;
