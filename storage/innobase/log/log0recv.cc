@@ -2518,11 +2518,9 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
 restart:
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked() ||
+  ut_ad(log_sys.latch_have_wr() ||
         srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
-#endif
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
@@ -4050,9 +4048,7 @@ static bool recv_scan_log(bool last_phase)
   lsn_t rewound_lsn= 0;
   for (ut_d(lsn_t source_offset= 0);;)
   {
-#ifndef SUX_LOCK_GENERIC
-    ut_ad(log_sys.latch.is_write_locked());
-#endif
+    ut_ad(log_sys.latch_have_wr());
 #ifdef UNIV_DEBUG
     const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
@@ -4447,9 +4443,7 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
 
   dberr_t err= DB_SUCCESS;
 
@@ -4732,7 +4726,7 @@ err_exit:
 				 PROT_READ | PROT_WRITE);
 #endif
 		}
-		log_sys.buf_free = recv_sys.offset;
+		log_sys.set_buf_free(recv_sys.offset);
 		if (recv_needed_recovery
 	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

@@ -5320,9 +5320,10 @@ fail:
 	}
 	/* get current checkpoint_lsn */
 	{
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 		mysql_mutex_lock(&recv_sys.mutex);
-
 		dberr_t err = recv_sys.find_checkpoint();
+		log_sys.latch.wr_unlock();
 
 		if (err != DB_SUCCESS) {
 			msg("Error: cannot read redo log header");

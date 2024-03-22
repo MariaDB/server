@@ -1915,7 +1915,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       {
         my_munmap(buf, file_size);
         buf= resize_buf;
-        buf_free= START_OFFSET + (get_lsn() - resizing);
+        set_buf_free(START_OFFSET + (get_lsn() - resizing));
       }
       else
 #endif
@@ -1957,9 +1957,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 {
   ut_ad(!srv_read_only_mode);
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
 

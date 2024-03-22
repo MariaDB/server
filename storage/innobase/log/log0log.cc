@@ -69,9 +69,7 @@ log_t	log_sys;
 
 void log_t::set_capacity()
 {
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked());
-#endif
+	ut_ad(log_sys.latch_have_wr());
 	/* Margin for the free space in the smallest log, before a new query
 	step which modifies the database, is started */
 
@@ -134,7 +132,6 @@ bool log_t::create()
 #endif
 
   latch.SRW_LOCK_INIT(log_latch_key);
-  init_lsn_lock();
 
   last_checkpoint_lsn= FIRST_LSN;
   log_capacity= 0;
@@ -143,7 +140,7 @@ bool log_t::create()
   next_checkpoint_lsn= 0;
   checkpoint_pending= false;
 
-  buf_free= 0;
+  set_buf_free(0);
 
   ut_ad(is_initialised());
 #ifndef HAVE_PMEM
@@ -244,6 +241,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
 # endif
       log_maybe_unbuffered= true;
       log_buffered= false;
+      mtr_t::finisher_update();
       return true;
     }
   }
@@ -278,6 +276,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
                         block_size);
 #endif
 
+  mtr_t::finisher_update();
 #ifdef HAVE_PMEM
   checkpoint_buf= static_cast<byte*>(aligned_malloc(block_size, block_size));
   memset_aligned<64>(checkpoint_buf, 0, block_size);
@@ -313,9 +312,7 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
 
 void log_t::create(lsn_t lsn) noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch_have_wr());
   ut_ad(!recv_no_log_write);
   ut_ad(is_latest());
   ut_ad(this == &log_sys);
@@ -332,12 +329,12 @@ void log_t::create(lsn_t lsn) noexcept
   {
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
     memset_aligned<4096>(buf, 0, 4096);
-    buf_free= START_OFFSET;
+    set_buf_free(START_OFFSET);
   }
   else
 #endif
   {
-    buf_free= 0;
+    set_buf_free(0);
     memset_aligned<4096>(flush_buf, 0, buf_size);
     memset_aligned<4096>(buf, 0, buf_size);
   }
@@ -813,9 +810,7 @@ ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
 @return the current log sequence number */
 template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch_have_wr());
   ut_ad(!is_pmem());
   ut_ad(!srv_read_only_mode);
 
@@ -931,7 +926,7 @@ wait and check if an already running write is covering the request.
 void log_write_up_to(lsn_t lsn, bool durable,
                      const completion_callback *callback)
 {
-  ut_ad(!srv_read_only_mode || (log_sys.buf_free < log_sys.max_buf_free));
+  ut_ad(!srv_read_only_mode || log_sys.buf_free_ok());
   ut_ad(lsn != LSN_MAX);
   ut_ad(lsn != 0);
 
@@ -1292,6 +1287,7 @@ log_print(
 void log_t::close()
 {
   ut_ad(this == &log_sys);
+  ut_ad(!(buf_free & buf_free_LOCK));
   if (!is_initialised()) return;
   close_file();
 
@@ -1309,7 +1305,6 @@ void log_t::close()
 #endif
 
   latch.destroy();
-  destroy_lsn_lock();
 
   recv_sys.close();
 

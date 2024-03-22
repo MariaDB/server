@@ -927,9 +927,7 @@ bool fil_space_free(uint32_t id, bool x_latched)
 
 			log_sys.latch.wr_unlock();
 		} else {
-#ifndef SUX_LOCK_GENERIC
-			ut_ad(log_sys.latch.is_write_locked());
-#endif
+			ut_ad(log_sys.latch_have_wr());
 			if (space->max_lsn) {
 				ut_d(space->max_lsn = 0);
 				fil_system.named_spaces.remove(*space);
@@ -3036,9 +3034,7 @@ void
 fil_names_dirty(
 	fil_space_t*	space)
 {
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked());
-#endif
+	ut_ad(log_sys.latch_have_wr());
 	ut_ad(recv_recovery_is_on());
 	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
@@ -3052,9 +3048,7 @@ fil_names_dirty(
 tablespace was modified for the first time since fil_names_clear(). */
 ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
   ut_d(fil_space_validate_for_mtr_commit(m_user_space));
   ut_ad(!m_user_space->max_lsn);
   m_user_space->max_lsn= log_sys.get_lsn();
@@ -3078,9 +3072,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked());
-#endif
+	ut_ad(log_sys.latch_have_wr());
 	ut_ad(lsn);
 	ut_ad(log_sys.is_latest());
 

@@ -18478,6 +18478,24 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+static void innodb_log_spin_wait_delay_update(THD *thd, st_mysql_sys_var*,
+                                              void *var, const void *save)
+{
+  ut_ad(var == &mtr_t::spin_wait_delay);
+
+  unsigned delay= *static_cast<const unsigned*>(save);
+
+  if (!delay != !mtr_t::spin_wait_delay)
+  {
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    mtr_t::spin_wait_delay= delay;
+    mtr_t::finisher_update();
+    log_sys.latch.wr_unlock();
+  }
+  else
+    mtr_t::spin_wait_delay= delay;
+}
+
 /** Update innodb_status_output or innodb_status_output_locks,
 which control InnoDB "status monitor" output to the error log.
 @param[out]	var	current value
@@ -19312,6 +19330,12 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
+static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
+  PLUGIN_VAR_OPCMDARG,
+  "Delay between log buffer spin lock polls (0 to use a blocking latch)",
+  nullptr, innodb_log_spin_wait_delay_update,
+  0, 0, 6000, 0);
+
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of the buffer pool to reserve for 'old' blocks.",
@@ -19771,6 +19795,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_buffering),
 #endif
   MYSQL_SYSVAR(log_file_size),
+  MYSQL_SYSVAR(log_spin_wait_delay),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),
