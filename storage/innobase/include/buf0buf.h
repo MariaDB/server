@@ -766,17 +766,16 @@ public:
   @retval DB_FAIL              if the page contains the wrong ID */
   dberr_t read_complete(const fil_node_t &node);
 
-  /** Note that a block is no longer dirty, while not removing
-  it from buf_pool.flush_list
-  @param temporary   whether the page belongs to the temporary tablespace
-  @param error       whether an error may have occurred while writing */
-  inline void write_complete(bool temporary, bool error);
+  /** Release a write fix after a page write was completed.
+  @param persistent  whether the page belongs to a persistent tablespace
+  @param error       whether an error may have occurred while writing
+  @param state       recently read state() value with the correct io-fix */
+  void write_complete(bool persistent, bool error, uint32_t state);
 
   /** Write a flushable page to a file or free a freeable block.
-  @param evict       whether to evict the page on write completion
   @param space       tablespace
   @return whether a page write was initiated and buf_pool.mutex released */
-  bool flush(bool evict, fil_space_t *space);
+  bool flush(fil_space_t *space);
 
   /** Notify that a page in a temporary tablespace has been modified. */
   void set_temp_modified()
@@ -1740,10 +1739,6 @@ public:
   /** Decrement the number of pending LRU flush */
   inline void n_flush_dec();
 
-  /** Decrement the number of pending LRU flush
-  while holding flush_list_mutex */
-  inline void n_flush_dec_holding_mutex();
-
   /** @return whether flush_list flushing is active */
   bool flush_list_active() const
   {
@@ -1892,6 +1887,9 @@ public:
 
   /** Free a page whose underlying file page has been freed. */
   ATTRIBUTE_COLD void release_freed_page(buf_page_t *bpage);
+
+  /** Issue a warning that we could not free up buffer pool pages. */
+  ATTRIBUTE_COLD void LRU_warn();
 
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
