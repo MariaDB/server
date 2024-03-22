@@ -1078,9 +1078,8 @@ static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 {
 	void *ptr = my_large_malloc(&n_bytes, MYF(0));
 
-	ut_dontdump(ptr, n_bytes, true);
-
 	if (ptr) {
+		ut_dontdump(ptr, n_bytes, true);
 		os_total_large_mem_allocated += n_bytes;
 	}
 	return ptr;
