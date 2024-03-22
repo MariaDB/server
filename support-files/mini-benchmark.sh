@@ -1,6 +1,6 @@
 #!/bin/bash
 # Abort on errors
-set -e
+set -ex
 
 display_help() {
   echo "Usage: $(basename "$0") [-h] [--perf] [--perf-flamegraph]"
@@ -121,6 +121,12 @@ then
   exit 1
 fi
 
+if [ "$PERF" == true ] && [ "$PERF_RECORD" == true ]
+then
+  echo "ERROR: Cannot select both --perf and --perf-flamegraph options simultaneously. Please choose one or the other."
+  exit 1
+fi
+
 if [ "$PERF" == true ] || [ "$PERF_RECORD" == true ]
 then
   if [ ! -e /usr/bin/perf ]
@@ -158,28 +164,26 @@ then
   # shellcheck disable=SC2046
   debuginfo-install -y mariadb-server $(cat mariadbd-dependencies.txt)
 
-  perf record echo "testing perf" > /dev/null 2>&1
-  if [ $? -ne 0 ]
+  if ! (perf record echo "testing perf") > /dev/null 2>&1
   then
     echo "perf does not have permission to run on this system. Skipping."
-    PERF=""
+    PERF_COMMAND=""
   else
     echo "Using 'perf' to record performance counters in perf.data files"
-    PERF="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
+    PERF_COMMAND="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
   fi
 
-elif [ -e /usr/bin/perf ]
+elif [ "$PERF" == true ]
 then
   # If flamegraphs were not requested, log normal perf counters if possible
 
-  perf stat echo "testing perf" > /dev/null 2>&1
-  if [ $? -ne 0 ]
+  if ! (perf stat echo "testing perf") > /dev/null 2>&1
   then
     echo "perf does not have permission to run on this system. Skipping."
-    PERF=""
+    PERF_COMMAND=""
   else
     echo "Using 'perf' to log basic performance counters for benchmark"
-    PERF="perf stat -p $MARIADB_SERVER_PID --"
+    PERF_COMMAND="perf stat -p $MARIADB_SERVER_PID --"
   fi
 fi
 
@@ -222,7 +226,7 @@ do
   # Prepend command with perf if defined
   # Output stderr to stdout as perf outputs everything in stderr
   # shellcheck disable=SC2086
-  $PERF $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --time=$DURATION --report-interval=10 2>&1 | tee sysbench-run-$t.log
+  $PERF_COMMAND $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --time=$DURATION --report-interval=10 2>&1 | tee sysbench-run-$t.log
 done
 
 sysbench "$WORKLOAD" cleanup --tables=20 | tee sysbench-cleanup.log
