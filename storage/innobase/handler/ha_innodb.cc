@@ -1631,6 +1631,9 @@ innobase_create_background_thd(const char* name)
 	MYSQL_THD thd= create_thd();
 	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
+#ifdef WITH_WSREP
+	wsrep_thd_off(thd);
+#endif /* WITH_WSREP */
 	return thd;
 }
 
