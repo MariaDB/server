@@ -10,7 +10,7 @@ DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 
 BUILDDIR := builddir
-DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
+DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/.*[~-]\(.*\)/\1/')
 RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
 TMP:=$(CURDIR)/debian/tmp
 
