@@ -9407,11 +9407,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           else if (alter_ctx->fk_added.push_back({Table_name(), fk}))
             goto err;
         }
-        else
-        {
-          if (alter_ctx->fk_added.push_back({Table_name(), fk}))
-            goto err;
-        }
         if (key->name.str)
         {
           for (const Key &k: new_key_list)
