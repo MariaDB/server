@@ -5218,11 +5218,29 @@ public:
   {
     if (global_system_variables.log_warnings > threshold)
     {
+      char real_ip_str[64];
+      real_ip_str[0]= 0;
+
+      /* For proxied connections, add the real IP to the warning message */
+      if (net.using_proxy_protocol && net.vio)
+      {
+        if(net.vio->localhost)
+          snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
+        else
+        {
+          char buf[INET6_ADDRSTRLEN];
+          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+              sizeof(buf),NULL, 0, NI_NUMERICHOST))
+          {
+            snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
+          }
+        }
+      }
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
-                        sctx->host_or_ip, reason);
+                        sctx->host_or_ip, real_ip_str, reason);
     }
   }
 
