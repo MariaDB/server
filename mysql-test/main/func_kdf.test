@@ -52,6 +52,13 @@ select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65536));
 select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65537));
 
 --echo #
+--echo # MDEV-33659 Test kdf() without parameters
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select kdf();
+
+--echo #
 --echo # End of 11.3 tests
 --echo #
 
