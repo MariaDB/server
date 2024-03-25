@@ -18,8 +18,6 @@ INSERT INTO t2_spider VALUES(1,1);
 SELECT t2_spider.a,t1_spider.c FRoM t2_spider LEFT join t1_spider ON (t2_spider.c = t1_spider.c) WHERE t2_spider.a = 1;
 a	c
 1	1
-Warnings:
-Warning	1815	Internal error: Spider group by handler: Encountered multiple equalities, likely an optimizer bug
 drop table t1, t2, t1_spider, t2_spider;
 drop server srv;
 for master_1
