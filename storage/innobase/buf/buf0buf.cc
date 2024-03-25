@@ -1397,17 +1397,14 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			buf_flush_LRU(
-				std::max<ulint>(withdraw_target
-						- UT_LIST_GET_LEN(withdraw),
-						srv_LRU_scan_depth),
-				true);
-			mysql_mutex_unlock(&buf_pool.mutex);
-			buf_dblwr.flush_buffered_writes();
-			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-			buf_flush_wait_LRU_batch_end();
-			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-			mysql_mutex_lock(&buf_pool.mutex);
+			try_LRU_scan = false;
+			mysql_mutex_unlock(&mutex);
+			mysql_mutex_lock(&flush_list_mutex);
+			page_cleaner_wakeup(true);
+			my_cond_wait(&done_flush_list,
+				     &flush_list_mutex.m_mutex);
+			mysql_mutex_unlock(&flush_list_mutex);
+			mysql_mutex_lock(&mutex);
 		}
 
 		/* relocate blocks/buddies in withdrawn area */
@@ -2003,7 +2000,10 @@ buf_page_t *buf_pool_t::watch_set(const page_id_t id,
 got_block:
     bpage->fix();
     if (watch_is_sentinel(*bpage))
+    {
+      ut_ad(!bpage->oldest_modification());
       bpage= nullptr;
+    }
     page_hash.lock_get(chain).unlock();
     return bpage;
   }
@@ -2075,6 +2075,7 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
     }
     else
     {
+      ut_ad(!w->oldest_modification());
       const auto state= w->state();
       ut_ad(~buf_page_t::LRU_MASK & state);
       ut_ad(state >= buf_page_t::UNFIXED + 1);
