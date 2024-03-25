@@ -5594,5 +5594,12 @@ aes_encrypt(a,a) is null
 1
 0
 #
+# MDEV-33659: Server crashed at Create_func_aes_decrypt::create_native
+#
+select aes_encrypt();
+ERROR 42000: Incorrect parameter count in the call to native function 'aes_encrypt'
+select aes_decrypt();
+ERROR 42000: Incorrect parameter count in the call to native function 'aes_decrypt'
+#
 # End of 11.2 tests
 #

@@ -2523,5 +2523,14 @@ set @@block_encryption_mode=default;
 select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
 
 --echo #
+--echo # MDEV-33659: Server crashed at Create_func_aes_decrypt::create_native
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_decrypt();
+
+--echo #
 --echo # End of 11.2 tests
 --echo #
