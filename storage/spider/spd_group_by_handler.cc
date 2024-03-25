@@ -1433,38 +1433,32 @@ group_by_handler *spider_create_group_by_handler(
       break;
   }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   from = query->from;
   do {
     DBUG_PRINT("info",("spider from=%p", from));
     ++table_count;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       DBUG_PRINT("info",("spider partition handler"));
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
       partition_info *part_info = from->table->part_info;
       uint bits = bitmap_bits_set(&part_info->read_partitions);
       DBUG_PRINT("info",("spider bits=%u", bits));
       if (bits != 1)
       {
         DBUG_PRINT("info",("spider using multiple partitions is not supported by this feature yet"));
-#else
-        DBUG_PRINT("info",("spider partition is not supported by this feature yet"));
-#endif
         DBUG_RETURN(NULL);
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
       }
-#endif
     }
-  } while ((from = from->next_local));
 #endif
+  } while ((from = from->next_local));
 
   if (!(table_holder= spider_create_table_holder(table_count)))
     DBUG_RETURN(NULL);
 
   table_idx = 0;
   from = query->from;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (from->table->part_info)
   {
     partition_info *part_info = from->table->part_info;
@@ -1473,9 +1467,7 @@ group_by_handler *spider_create_group_by_handler(
     handler **handlers = partition->get_child_handlers();
     spider = (ha_spider *) handlers[part];
   } else {
-#endif
     spider = (ha_spider *) from->table->file;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
   }
 #endif
   share = spider->share;
@@ -1499,7 +1491,7 @@ group_by_handler *spider_create_group_by_handler(
   }
   while ((from = from->next_local))
   {
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1508,9 +1500,7 @@ group_by_handler *spider_create_group_by_handler(
       handler **handlers = partition->get_child_handlers();
       spider = (ha_spider *) handlers[part];
     } else {
-#endif
       spider = (ha_spider *) from->table->file;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
     }
 #endif
     share = spider->share;
@@ -1541,7 +1531,7 @@ group_by_handler *spider_create_group_by_handler(
 
   from = query->from;
   do {
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1550,9 +1540,7 @@ group_by_handler *spider_create_group_by_handler(
       handler **handlers = partition->get_child_handlers();
       spider = (ha_spider *) handlers[part];
     } else {
-#endif
       spider = (ha_spider *) from->table->file;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
     }
 #endif
     share = spider->share;
@@ -1684,7 +1672,7 @@ group_by_handler *spider_create_group_by_handler(
     goto skip_free_table_holder;
 
   from = query->from;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (from->table->part_info)
   {
     partition_info *part_info = from->table->part_info;
@@ -1693,9 +1681,7 @@ group_by_handler *spider_create_group_by_handler(
     handler **handlers = partition->get_child_handlers();
     spider = (ha_spider *) handlers[part];
   } else {
-#endif
     spider = (ha_spider *) from->table->file;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
   }
 #endif
   share = spider->share;
@@ -1758,7 +1744,7 @@ group_by_handler *spider_create_group_by_handler(
   {
     fields->clear_conn_holder_from_conn();
 
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1767,9 +1753,7 @@ group_by_handler *spider_create_group_by_handler(
       handler **handlers = partition->get_child_handlers();
       spider = (ha_spider *) handlers[part];
     } else {
-#endif
       spider = (ha_spider *) from->table->file;
-#if defined(PARTITION_HAS_GET_CHILD_HANDLERS)
     }
 #endif
     share = spider->share;
