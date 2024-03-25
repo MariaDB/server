@@ -89,6 +89,11 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
   IF(CMAKE_COMPILER_IS_GNUCC)
     include(CheckCXXSourceCompiles)
 
+    # Check if NEON intrinsics are available and does not
+    # print error 'NEON intrinsics not available with the soft-float ABI.
+    # Please use -mfloat-abi=softfp or -mfloat-abi=hard'
+    CHECK_INCLUDE_FILES(arm_neon.h HAVE_ARMV8_NEON)
+
     CHECK_CXX_SOURCE_COMPILES("
     #define CRC32CX(crc, value) __asm__(\"crc32cx %w[c], %w[c], %x[v]\":[c]\"+r\"(crc):[v]\"r\"(value))
     asm(\".arch_extension crc\");
@@ -135,9 +140,21 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       IF(HAVE_ARMV8_CRYPTO)
         ADD_DEFINITIONS(-DHAVE_ARMV8_CRYPTO)
       ENDIF()
+      IF(NOT HAVE_ARMV8_NEON)
+        set(CMAKE_REQUIRED_FLAGS "-mfpu=neon -mfloat-abi=softfp")
+        CHECK_INCLUDE_FILES(arm_neon.h HAVE_ARMV8_NEON_SOFTFP)
+        set(CMAKE_REQUIRED_FLAGS "")
+      ENDIF()
       SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
+
+      IF(HAVE_ARMV8_NEON_SOFTFP)
+        SET(CRC32_ARM64_FLAGS "-mfpu=neon -mfloat-abi=softfp -march=armv8-a+crc+crypto")
+      ELSE()
+        SET(CRC32_ARM64_FLAGS "-march=armv8-a+crc+crypto")
+      ENDIF()
+
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32_arm64.c PROPERTIES
-        COMPILE_FLAGS "-march=armv8-a+crc+crypto")
+        COMPILE_FLAGS ${CRC32_ARM64_FLAGS})
     ENDIF()
   ENDIF()
 ENDIF()
