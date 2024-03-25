@@ -793,20 +793,58 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
       */
       if (!ord->in_field_list)
       {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
-        /*
-          Remove from the JOIN::all_fields list any reference to the elements
-          of the eliminated GROUP BY list unless it is 'in_field_list'.
-          This is needed in order not to confuse JOIN::make_aggr_tables_info()
-          when it constructs different structure for execution phase.
-	*/
-        List_iterator<Item> li(subq_select_lex->join->all_fields);
-	Item *item;
-        while ((item= li++))
-	{
-          if (item == *ord->item)
-	    li.remove();
-	}
+        bool used_somewhere=false;
+        List<Item_subselect> subqs;
+        (*ord->item)->walk(&Item::collect_subselects_processor, FALSE, &subqs);
+        {
+          List_iterator<Item_subselect> it(subqs);
+          Item_subselect *subq_item;
+          while ((subq_item= it++))
+          {
+            if (subq_item->unit->get_master() != subq_select_lex)
+            {
+              // This is some kind of non-local case where we've got a subquery
+              // from some other select?
+              used_somewhere=true;
+            }
+            else
+            {
+              // Check how much it is used here (IN->EXISTS can create multiple
+              // uses)
+              std::pair<Item_subselect*, uint> local_use_counter= {subq_item, 0};
+              (*ord->item)->walk(&Item::count_item_use_processor, FALSE,
+                                &local_use_counter);
+
+              // Check if item is there
+              Item *item;
+              List_iterator<Item> li(subq_select_lex->join->all_fields);
+              std::pair<Item_subselect*, uint> counter= {subq_item, 0};
+              while ((item= li++))
+                item->walk(&Item::count_item_use_processor, FALSE, &counter);
+
+              if (counter.second > local_use_counter.second)
+                used_somewhere= true;
+            }
+          }
+        }
+        
+        if (!used_somewhere)
+        {
+          (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+          /*
+            Remove from the JOIN::all_fields list any reference to the elements
+            of the eliminated GROUP BY list unless it is 'in_field_list'.
+            This is needed in order not to confuse JOIN::make_aggr_tables_info()
+            when it constructs different structure for execution phase.
+          */
+          List_iterator<Item> li(subq_select_lex->join->all_fields);
+          Item *item;
+          while ((item= li++))
+          {
+            if (item == *ord->item)
+              li.remove();
+          }
+        }
       }
     }
     subq_select_lex->join->group_list= NULL;

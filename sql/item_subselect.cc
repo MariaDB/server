@@ -398,6 +398,20 @@ bool Item_subselect::eliminate_subselect_processor(void *arg)
   return FALSE;
 }
 
+bool Item_subselect::collect_subselects_processor(void *arg)
+{
+  List<Item_subselect> *plist=(List<Item_subselect>*)arg;
+  plist->push_back(this);
+  return false;
+}
+
+bool Item_subselect::count_item_use_processor(void *arg) 
+{
+  auto *data= (std::pair<Item_subselect*, uint>*)arg;
+  if (this == data->first)
+    data->second++;
+  return false;
+}
 
 bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select, 
                                        Item *item)
