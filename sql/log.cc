@@ -9767,6 +9767,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   THD *thd= 0;
   size_t tag_length= 0;
   char tag[NAME_LEN];
+  int len= 0;
   DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
 
@@ -9791,7 +9792,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(stderr, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+  len= fprintf(stderr, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
           start->tm_year + 1900,
           start->tm_mon+1,
           start->tm_mday,
@@ -9807,6 +9808,25 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   fflush(stderr);
 
 #ifdef WITH_WSREP
+  if (wsrep_buffered_error_log_size)
+  {
+    char *buf = (char *)my_malloc(PSI_INSTRUMENT_ME, len+1, MYF(MY_WME));
+    snprintf(buf, len, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+          start->tm_year + 1900,
+          start->tm_mon+1,
+          start->tm_mday,
+          start->tm_hour,
+          start->tm_min,
+          start->tm_sec,
+          (unsigned long) (thd ? thd->thread_id : 0),
+          (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
+           "Warning" : "Note"),
+          (int) tag_length, tag,
+	  (int) length, buffer);
+    wsrep_buffered_error_log.log(buf, len);
+    my_free(buf);
+  }
+
   if (level <= WARNING_LEVEL)
   {
     wsrep::reporter::log_level const lvl = (level <= ERROR_LEVEL ?

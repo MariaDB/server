@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2024 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1121,3 +1121,67 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   return false;
 }
 
+bool wsrep_buffered_error_log_size_update(sys_var *, THD *, enum_var_type)
+{
+  wsrep_buffered_error_log.resize(wsrep_buffered_error_log_size * 1024);
+  return false;
+}
+
+bool wsrep_buffered_error_log_size_check(sys_var *self, THD* thd, set_var *var)
+{
+  const longlong new_log_size= (longlong)var->save_result.ulonglong_value;
+
+  if (!new_log_size)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_size' to a value other than "
+                  "0 because wsrep is switched off.");
+    return true;
+  }
+
+  return false;
+}
+
+extern bool check_log_path(sys_var *self, THD *thd, set_var *var); // sys_var.cc
+
+bool wsrep_buffered_error_log_filename_check(sys_var *self, THD* thd, set_var *var)
+{
+  // Allow empty
+  if (!var->value ||
+      !var->save_result.string_value.str ||
+      strlen(var->save_result.string_value.str) == 0)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_filename' "
+                  "because wsrep is switched off.");
+    return true;
+  }
+
+  if (!wsrep_buffered_error_log_size)
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_filename' "
+                  "because wsrep_buffered_error_log_size is 0.");
+    return true;
+  }
+
+  if (check_log_path(self, thd, var))
+  {
+    push_warning_printf (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_filename' to %s",
+                  var->save_result.string_value.str);
+    return true;
+  }
+
+  return false;
+}

@@ -1,0 +1,8 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep-debug=1
+
+[mysqld.2]
+wsrep_buffered_error_log_size=100
+wsrep_buffered_error_log_filename="galera_buffered_error_log.err"

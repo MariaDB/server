@@ -24,10 +24,13 @@
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
 extern ulong wsrep_debug; // wsrep_mysqld.cc
+extern long long wsrep_buffered_error_log_size; // wsrep_buffered_error_log.cc
 extern void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
 #define WSREP_DEBUG(...)                                                \
-    if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
+    if (wsrep_debug || wsrep_buffered_error_log_size)                   \
+      WSREP_LOG(sql_print_information, ##__VA_ARGS__)
+
 #define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
 #define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
 #define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)

@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2024 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
 #include <map>
+#include "wsrep_buffered_error_log.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -159,6 +160,9 @@ extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 extern char*       wsrep_provider_capabilities;
 extern char*       wsrep_cluster_capabilities;
+extern long long   wsrep_buffered_error_log_size;
+extern const char* wsrep_buffered_error_log_filename;
+extern Buffered_error_logger wsrep_buffered_error_log;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
                        system_status_var *status_var, enum_var_type scope);

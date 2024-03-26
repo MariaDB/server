@@ -1,0 +1,30 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET @start_value = @@global.wsrep_buffered_error_log_filename;
+SELECT @start_value;
+@start_value
+galera_buffered_error_log.err
+SET @size_start_value = @@global.wsrep_buffered_error_log_size;
+SELECT @size_start_value;
+@size_start_value
+100
+SELECT @@global.wsrep_buffered_error_log_size;
+@@global.wsrep_buffered_error_log_size
+100
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+/home/jan/work/mariadb/11.5/mysql-test/var/mysqld.2/galera_buffered_error_log.err
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+INSERT INTO t1 SELECT * FROM seq_1_to_1000;
+Sending kill signal 11 to mysqld ...
+Testing that buffered_error_log log contains something logged
+FOUND 1 /Server socket created on IP/ in galera_buffered_error_log.err
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+galera_buffered_error_log.err
+SELECT @@global.wsrep_buffered_error_log_size;
+@@global.wsrep_buffered_error_log_size
+100
+call mtr.add_suppression("mysqld got signal 11.*");
+call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");

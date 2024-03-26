@@ -2056,6 +2056,10 @@ static void clean_up(bool print_message)
   free_error_messages();
   /* Tell main we are ready */
   logger.cleanup_end();
+#ifdef WITH_WSREP
+  wsrep_buffered_error_log.write_to_disk();
+  wsrep_buffered_error_log.close();
+#endif /* WITH_WSREP */
   sys_var_end();
   free_charsets();
 
@@ -5009,6 +5013,10 @@ static int init_server_components()
   /* set up the hook before initializing plugins which may use it */
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
+
+#ifdef WITH_WSREP
+  wsrep_buffered_error_log.resize(wsrep_buffered_error_log_size * 1024);
+#endif
 
   /* Set up hook to handle disk full */
   my_sleep_for_space= mariadb_sleep_for_space;

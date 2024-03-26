@@ -1,0 +1,30 @@
+SET @start_value = @@global.wsrep_buffered_error_log_filename;
+SELECT @start_value;
+@start_value
+NULL
+SET @size_start_value = @@global.wsrep_buffered_error_log_size;
+SELECT @size_start_value;
+@size_start_value
+0
+SET @@global.wsrep_buffered_error_log_filename = "/tmp/bar.txt";
+ERROR 42000: Variable 'wsrep_buffered_error_log_filename' can't be set to the value of '/tmp/bar.txt'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_buffered_error_log_filename' because wsrep is switched off.
+Error	1231	Variable 'wsrep_buffered_error_log_filename' can't be set to the value of '/tmp/bar.txt'
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+NULL
+SET @@global.wsrep_buffered_error_log_filename = '';
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+
+SET @@session.wsrep_buffered_error_log_filename = OFF;
+ERROR HY000: Variable 'wsrep_buffered_error_log_filename' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@session.wsrep_buffered_error_log_filename;
+ERROR HY000: Variable 'wsrep_buffered_error_log_filename' is a GLOBAL variable
+SET @@global.wsrep_buffered_error_log_filename = @start_value;
+SET @@global.wsrep_buffered_error_log_size = @size_start_value;
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+NULL

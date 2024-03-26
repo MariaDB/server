@@ -1,0 +1,42 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+--source include/not_valgrind.inc
+
+--connection node_2
+SET @start_value = @@global.wsrep_buffered_error_log_filename;
+SELECT @start_value;
+SET @size_start_value = @@global.wsrep_buffered_error_log_size;
+SELECT @size_start_value;
+
+--disable_query_log
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/mysqld.2/galera_buffered_error_log.err
+--eval SET GLOBAL wsrep_buffered_error_log_filename="$SEARCH_FILE"
+--enable_query_log
+
+SELECT @@global.wsrep_buffered_error_log_size;
+SELECT @@global.wsrep_buffered_error_log_filename;
+
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+INSERT INTO t1 SELECT * FROM seq_1_to_1000;
+
+# Send a kill -11 to mysqld, should cause logging to buffered error log
+--let $_kill_signal = 11
+--source include/send_kill_to_mysqld.inc
+
+# Is there better way to wait until server is crashed?
+--sleep 2
+
+--let $restart_parameters=restart:
+--source include/start_mysqld.inc
+
+--echo Testing that buffered_error_log log contains something logged
+--let ABORT_ON = NOT_FOUND
+--let SEARCH_PATTERN=Server socket created on IP
+--source include/search_pattern_in_file.inc
+
+SELECT @@global.wsrep_buffered_error_log_filename;
+SELECT @@global.wsrep_buffered_error_log_size;
+call mtr.add_suppression("mysqld got signal 11.*");
+call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+DROP TABLE t1;
