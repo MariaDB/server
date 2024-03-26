@@ -9877,11 +9877,21 @@ commit_set_autoinc(
 				: 0;
 
 			if (autoinc <= max_in_table) {
+				push_warning_printf(
+					ctx->trx->mysql_thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_AUTOINC_ERANGE,
+					"Can not set AUTO_INCREMENT to %d which is lower than"
+          " or equal to the current max value in the table: %d",
+					autoinc,
+					max_in_table);
+
 				ctx->new_table->autoinc = innobase_next_autoinc(
 					max_in_table, 1,
 					ctx->prebuilt->autoinc_increment,
 					ctx->prebuilt->autoinc_offset,
 					innobase_get_int_col_max_value(ai));
+
 				/* Persist the maximum value as the
 				last used one. */
 				autoinc = max_in_table;

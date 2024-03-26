@@ -2,6 +2,8 @@ create table t1(a int(10)unsigned not null auto_increment primary key,
 b varchar(255) not null) engine=innodb default charset=utf8;
 insert into t1 values(1,'aaa'),(2,'bbb');
 alter table t1 auto_increment=1;
+Warnings:
+Warning	167	Can not set AUTO_INCREMENT to 1 which is lower than or equal to the current max value in the table: 2
 insert into t1 values(NULL, 'ccc');
 select * from t1;
 a	b
