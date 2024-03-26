@@ -421,13 +421,6 @@ static bool update_neighbours(TABLE *graph,
     DBUG_ASSERT(c_e);
     if (c_e)
       graph->file->ha_delete_row(graph->record[0]);
-
-    c_e= connection_exists(graph, key, layer_number, node, source_node);
-    if (c_e < 0)
-      return true;
-    DBUG_ASSERT(c_e);
-    if (c_e)
-      graph->file->ha_delete_row(graph->record[0]);
   }
 
   //TODO(cvicentiu) error checking...
@@ -551,16 +544,19 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
                       MAX_INSERT_NEIGHBOUR_CONNECTIONS, &neighbours);
     insert_node_connections_on_layer(graph, cur_layer, target, neighbours);
 
+    uint m_max= (cur_layer == 0) ?
+        (MAX_NEIGHBORS_PER_LAYER * 2) : MAX_NEIGHBORS_PER_LAYER;
+
     for (const auto& neigh : neighbours)
     {
       List<FVector> second_degree_neigh;
       get_neighbours(table, vec_field, graph, cur_layer, neigh,
                      &second_degree_neigh);
-      if (second_degree_neigh.elements > MAX_NEIGHBORS_PER_LAYER)
+      if (second_degree_neigh.elements > m_max)
       {
         List<FVector> remaining_second_degree_neigh;
         select_neighbours(table, graph, neigh, second_degree_neigh,
-                          MAX_NEIGHBORS_PER_LAYER,
+                          m_max,
                           &remaining_second_degree_neigh);
         update_neighbours(graph, cur_layer, neigh,
                           second_degree_neigh,
