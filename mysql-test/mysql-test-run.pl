@@ -4472,8 +4472,6 @@ sub extract_warning_lines ($$) {
      qr/Dump thread [0-9]+ last sent to server [0-9]+ binlog file:pos .+/,
      qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
 
-     # for UBSAN
-     qr/decimal\.c.*: runtime error: signed integer overflow/,
      # Disable test for UBSAN on dynamically loaded objects
      qr/runtime error: member call.*object.*'Handler_share'/,
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
