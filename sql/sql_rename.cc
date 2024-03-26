@@ -189,9 +189,6 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     thd->binlog_xid= 0;
     thd->variables.option_bits= save_option_bits;
     debug_crash_here("ddl_log_rename_after_binlog");
-
-    if (likely(!binlog_error))
-      my_ok(thd);
   }
 
   if (likely(!error))
@@ -206,6 +203,8 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
 
   if (likely(!error))
   {
+    if (!silent)
+      my_ok(thd);
     query_cache_invalidate3(thd, table_list, 0);
     ddl_log_complete(&ddl_log_state);
   }
