@@ -23,12 +23,25 @@
 #include <my_global.h>
 #include <my_sys.h>
 #include <pfs_global.h>
+#ifdef HAVE_MEMALIGN
+# include <malloc.h>
+#endif
 
 bool pfs_initialized= false;
 
 void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf flags)
 {
+#ifndef PFS_ALIGNEMENT
   void *ptr= malloc(size);
+#elif defined HAVE_MEMALIGN
+  void *ptr= memalign(PFS_ALIGNEMENT, size);
+#elif defined HAVE_ALIGNED_MALLOC
+  void *ptr= _aligned_malloc(size, PFS_ALIGNEMENT);
+#else
+  void *ptr;
+  if (posix_memalign(&ptr, PFS_ALIGNEMENT, size))
+    ptr= NULL;
+#endif
   if (ptr && (flags & MY_ZEROFILL))
     memset(ptr, 0, size);
   return ptr;
