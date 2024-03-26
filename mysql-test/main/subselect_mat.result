@@ -634,7 +634,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`>(<in_optimizer>(`test`.`t1_16`.`a1`,<exists>(/* select#2 */ select `test`.`t2_16`.`b1` from `test`.`t2_16` where `test`.`t2_16`.`b1` > '0' and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <in_optimizer>(`test`.`t1_16`.`a1`,<exists>(/* select#2 */ select `test`.`t2_16`.`b1` from `test`.`t2_16` where `test`.`t2_16`.`b1` > '0' and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1`))
 select left(a1,7), left(a2,7)
 from t1_16
 where a1 in (select b1 from t2_16 where b1 > '0');
@@ -648,7 +648,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`>(<in_optimizer>((`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`),<exists>(/* select#2 */ select `test`.`t2_16`.`b1`,`test`.`t2_16`.`b2` from `test`.`t2_16` where `test`.`t2_16`.`b1` > '0' and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1` and <cache>(`test`.`t1_16`.`a2`) = `test`.`t2_16`.`b2`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <in_optimizer>((`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`),<exists>(/* select#2 */ select `test`.`t2_16`.`b1`,`test`.`t2_16`.`b2` from `test`.`t2_16` where `test`.`t2_16`.`b1` > '0' and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1` and <cache>(`test`.`t1_16`.`a2`) = `test`.`t2_16`.`b2`))
 select left(a1,7), left(a2,7)
 from t1_16
 where (a1,a2) in (select b1, b2 from t2_16 where b1 > '0');
@@ -662,7 +662,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`>(<in_optimizer>(`test`.`t1_16`.`a1`,`test`.`t1_16`.`a1` in ( <materialize> (/* select#2 */ select substr(`test`.`t2_16`.`b1`,1,16) from `test`.`t2_16` where `test`.`t2_16`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1_16`.`a1` in <temporary table> on distinct_key where `test`.`t1_16`.`a1` = `<subquery2>`.`substring(b1,1,16)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <in_optimizer>(`test`.`t1_16`.`a1`,`test`.`t1_16`.`a1` in ( <materialize> (/* select#2 */ select substr(`test`.`t2_16`.`b1`,1,16) from `test`.`t2_16` where `test`.`t2_16`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1_16`.`a1` in <temporary table> on distinct_key where `test`.`t1_16`.`a1` = `<subquery2>`.`substring(b1,1,16)`)))
 select left(a1,7), left(a2,7)
 from t1_16
 where a1 in (select substring(b1,1,16) from t2_16 where b1 > '0');
@@ -676,7 +676,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`>(<in_optimizer>(`test`.`t1_16`.`a1`,<exists>(/* select#2 */ select group_concat(`test`.`t2_16`.`b1` separator ',') from `test`.`t2_16` group by `test`.`t2_16`.`b2` having <cache>(`test`.`t1_16`.`a1`) = <ref_null_helper>(group_concat(`test`.`t2_16`.`b1` separator ',')))))
+Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <in_optimizer>(`test`.`t1_16`.`a1`,<exists>(/* select#2 */ select group_concat(`test`.`t2_16`.`b1` separator ',') from `test`.`t2_16` group by `test`.`t2_16`.`b2` having <cache>(`test`.`t1_16`.`a1`) = <ref_null_helper>(group_concat(`test`.`t2_16`.`b1` separator ','))))
 select left(a1,7), left(a2,7)
 from t1_16
 where a1 in (select group_concat(b1) from t2_16 group by b2);
@@ -691,7 +691,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`>(<in_optimizer>(`test`.`t1_16`.`a1`,`test`.`t1_16`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_16`.`b1` separator ',') from `test`.`t2_16` group by `test`.`t2_16`.`b2` ), <primary_index_lookup>(`test`.`t1_16`.`a1` in <temporary table> on distinct_key where `test`.`t1_16`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from `test`.`t1_16` where <in_optimizer>(`test`.`t1_16`.`a1`,`test`.`t1_16`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_16`.`b1` separator ',') from `test`.`t2_16` group by `test`.`t2_16`.`b2` ), <primary_index_lookup>(`test`.`t1_16`.`a1` in <temporary table> on distinct_key where `test`.`t1_16`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_16
 where a1 in (select group_concat(b1) from t2_16 group by b2);
@@ -713,7 +713,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	99.22	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><concat(`test`.`t1`.`a1`,'x')>(<in_optimizer>(concat(`test`.`t1`.`a1`,'x'),<exists>(/* select#2 */ select left(`test`.`t1_16`.`a1`,8) from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`>(<in_optimizer>((`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`),<exists>(/* select#3 */ select `test`.`t2_16`.`b1`,`test`.`t2_16`.`b2` from `test`.`t2_16` join `test`.`t2` where `test`.`t2`.`b2` = substr(`test`.`t2_16`.`b2`,1,6) and <expr_cache><`test`.`t2`.`b1`>(<in_optimizer>(`test`.`t2`.`b1`,`test`.`t2`.`b1` in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1` from `test`.`t3` where `test`.`t3`.`c2` > '0' ), <primary_index_lookup>(`test`.`t2`.`b1` in <temporary table> on distinct_key where `test`.`t2`.`b1` = `<subquery4>`.`c1`)))) and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1` and <cache>(`test`.`t1_16`.`a2`) = `test`.`t2_16`.`b2`))) and <cache>(concat(`test`.`t1`.`a1`,'x')) = left(`test`.`t1_16`.`a1`,8))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><concat(`test`.`t1`.`a1`,'x')>(<in_optimizer>(concat(`test`.`t1`.`a1`,'x'),<exists>(/* select#2 */ select left(`test`.`t1_16`.`a1`,8) from `test`.`t1_16` where <in_optimizer>((`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`),<exists>(/* select#3 */ select `test`.`t2_16`.`b1`,`test`.`t2_16`.`b2` from `test`.`t2_16` join `test`.`t2` where `test`.`t2`.`b2` = substr(`test`.`t2_16`.`b2`,1,6) and <expr_cache><`test`.`t2`.`b1`>(<in_optimizer>(`test`.`t2`.`b1`,`test`.`t2`.`b1` in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1` from `test`.`t3` where `test`.`t3`.`c2` > '0' ), <primary_index_lookup>(`test`.`t2`.`b1` in <temporary table> on distinct_key where `test`.`t2`.`b1` = `<subquery4>`.`c1`)))) and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1` and <cache>(`test`.`t1_16`.`a2`) = `test`.`t2_16`.`b2`)) and <cache>(concat(`test`.`t1`.`a1`,'x')) = left(`test`.`t1_16`.`a1`,8))))
 drop table t1_16, t2_16, t3_16;
 set @blob_len = 512;
 set @suffix_len = @blob_len - @prefix_len;
@@ -747,7 +747,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <expr_cache><`test`.`t1_512`.`a1`>(<in_optimizer>(`test`.`t1_512`.`a1`,<exists>(/* select#2 */ select `test`.`t2_512`.`b1` from `test`.`t2_512` where `test`.`t2_512`.`b1` > '0' and <cache>(`test`.`t1_512`.`a1`) = `test`.`t2_512`.`b1`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <in_optimizer>(`test`.`t1_512`.`a1`,<exists>(/* select#2 */ select `test`.`t2_512`.`b1` from `test`.`t2_512` where `test`.`t2_512`.`b1` > '0' and <cache>(`test`.`t1_512`.`a1`) = `test`.`t2_512`.`b1`))
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select b1 from t2_512 where b1 > '0');
@@ -761,7 +761,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <expr_cache><`test`.`t1_512`.`a1`,`test`.`t1_512`.`a2`>(<in_optimizer>((`test`.`t1_512`.`a1`,`test`.`t1_512`.`a2`),<exists>(/* select#2 */ select `test`.`t2_512`.`b1`,`test`.`t2_512`.`b2` from `test`.`t2_512` where `test`.`t2_512`.`b1` > '0' and <cache>(`test`.`t1_512`.`a1`) = `test`.`t2_512`.`b1` and <cache>(`test`.`t1_512`.`a2`) = `test`.`t2_512`.`b2`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <in_optimizer>((`test`.`t1_512`.`a1`,`test`.`t1_512`.`a2`),<exists>(/* select#2 */ select `test`.`t2_512`.`b1`,`test`.`t2_512`.`b2` from `test`.`t2_512` where `test`.`t2_512`.`b1` > '0' and <cache>(`test`.`t1_512`.`a1`) = `test`.`t2_512`.`b1` and <cache>(`test`.`t1_512`.`a2`) = `test`.`t2_512`.`b2`))
 select left(a1,7), left(a2,7)
 from t1_512
 where (a1,a2) in (select b1, b2 from t2_512 where b1 > '0');
@@ -775,7 +775,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <expr_cache><`test`.`t1_512`.`a1`>(<in_optimizer>(`test`.`t1_512`.`a1`,`test`.`t1_512`.`a1` in ( <materialize> (/* select#2 */ select substr(`test`.`t2_512`.`b1`,1,512) from `test`.`t2_512` where `test`.`t2_512`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1_512`.`a1` in <temporary table> on distinct_key where `test`.`t1_512`.`a1` = `<subquery2>`.`substring(b1,1,512)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <in_optimizer>(`test`.`t1_512`.`a1`,`test`.`t1_512`.`a1` in ( <materialize> (/* select#2 */ select substr(`test`.`t2_512`.`b1`,1,512) from `test`.`t2_512` where `test`.`t2_512`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1_512`.`a1` in <temporary table> on distinct_key where `test`.`t1_512`.`a1` = `<subquery2>`.`substring(b1,1,512)`)))
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select substring(b1,1,512) from t2_512 where b1 > '0');
@@ -789,7 +789,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <expr_cache><`test`.`t1_512`.`a1`>(<in_optimizer>(`test`.`t1_512`.`a1`,`test`.`t1_512`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2` ), <primary_index_lookup>(`test`.`t1_512`.`a1` in <temporary table> on distinct_key where `test`.`t1_512`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <in_optimizer>(`test`.`t1_512`.`a1`,`test`.`t1_512`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2` ), <primary_index_lookup>(`test`.`t1_512`.`a1` in <temporary table> on distinct_key where `test`.`t1_512`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
@@ -806,7 +806,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <expr_cache><`test`.`t1_512`.`a1`>(<in_optimizer>(`test`.`t1_512`.`a1`,`test`.`t1_512`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2` ), <primary_index_lookup>(`test`.`t1_512`.`a1` in <temporary table> on distinct_key where `test`.`t1_512`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` where <in_optimizer>(`test`.`t1_512`.`a1`,`test`.`t1_512`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2` ), <primary_index_lookup>(`test`.`t1_512`.`a1` in <temporary table> on distinct_key where `test`.`t1_512`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
@@ -848,7 +848,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <expr_cache><`test`.`t1_1024`.`a1`>(<in_optimizer>(`test`.`t1_1024`.`a1`,<exists>(/* select#2 */ select `test`.`t2_1024`.`b1` from `test`.`t2_1024` where `test`.`t2_1024`.`b1` > '0' and <cache>(`test`.`t1_1024`.`a1`) = `test`.`t2_1024`.`b1`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <in_optimizer>(`test`.`t1_1024`.`a1`,<exists>(/* select#2 */ select `test`.`t2_1024`.`b1` from `test`.`t2_1024` where `test`.`t2_1024`.`b1` > '0' and <cache>(`test`.`t1_1024`.`a1`) = `test`.`t2_1024`.`b1`))
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select b1 from t2_1024 where b1 > '0');
@@ -862,7 +862,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <expr_cache><`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a2`>(<in_optimizer>((`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a2`),<exists>(/* select#2 */ select `test`.`t2_1024`.`b1`,`test`.`t2_1024`.`b2` from `test`.`t2_1024` where `test`.`t2_1024`.`b1` > '0' and <cache>(`test`.`t1_1024`.`a1`) = `test`.`t2_1024`.`b1` and <cache>(`test`.`t1_1024`.`a2`) = `test`.`t2_1024`.`b2`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <in_optimizer>((`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a2`),<exists>(/* select#2 */ select `test`.`t2_1024`.`b1`,`test`.`t2_1024`.`b2` from `test`.`t2_1024` where `test`.`t2_1024`.`b1` > '0' and <cache>(`test`.`t1_1024`.`a1`) = `test`.`t2_1024`.`b1` and <cache>(`test`.`t1_1024`.`a2`) = `test`.`t2_1024`.`b2`))
 select left(a1,7), left(a2,7)
 from t1_1024
 where (a1,a2) in (select b1, b2 from t2_1024 where b1 > '0');
@@ -876,7 +876,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <expr_cache><`test`.`t1_1024`.`a1`>(<in_optimizer>(`test`.`t1_1024`.`a1`,<exists>(/* select#2 */ select substr(`test`.`t2_1024`.`b1`,1,1024) from `test`.`t2_1024` where `test`.`t2_1024`.`b1` > '0' and <cache>(`test`.`t1_1024`.`a1`) = substr(`test`.`t2_1024`.`b1`,1,1024))))
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <in_optimizer>(`test`.`t1_1024`.`a1`,<exists>(/* select#2 */ select substr(`test`.`t2_1024`.`b1`,1,1024) from `test`.`t2_1024` where `test`.`t2_1024`.`b1` > '0' and <cache>(`test`.`t1_1024`.`a1`) = substr(`test`.`t2_1024`.`b1`,1,1024)))
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select substring(b1,1,1024) from t2_1024 where b1 > '0');
@@ -890,7 +890,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <expr_cache><`test`.`t1_1024`.`a1`>(<in_optimizer>(`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2` ), <primary_index_lookup>(`test`.`t1_1024`.`a1` in <temporary table> on distinct_key where `test`.`t1_1024`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <in_optimizer>(`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2` ), <primary_index_lookup>(`test`.`t1_1024`.`a1` in <temporary table> on distinct_key where `test`.`t1_1024`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
@@ -907,7 +907,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <expr_cache><`test`.`t1_1024`.`a1`>(<in_optimizer>(`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2` ), <primary_index_lookup>(`test`.`t1_1024`.`a1` in <temporary table> on distinct_key where `test`.`t1_1024`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1024` where <in_optimizer>(`test`.`t1_1024`.`a1`,`test`.`t1_1024`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2` ), <primary_index_lookup>(`test`.`t1_1024`.`a1` in <temporary table> on distinct_key where `test`.`t1_1024`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
@@ -949,7 +949,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <expr_cache><`test`.`t1_1025`.`a1`>(<in_optimizer>(`test`.`t1_1025`.`a1`,<exists>(/* select#2 */ select `test`.`t2_1025`.`b1` from `test`.`t2_1025` where `test`.`t2_1025`.`b1` > '0' and <cache>(`test`.`t1_1025`.`a1`) = `test`.`t2_1025`.`b1`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <in_optimizer>(`test`.`t1_1025`.`a1`,<exists>(/* select#2 */ select `test`.`t2_1025`.`b1` from `test`.`t2_1025` where `test`.`t2_1025`.`b1` > '0' and <cache>(`test`.`t1_1025`.`a1`) = `test`.`t2_1025`.`b1`))
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select b1 from t2_1025 where b1 > '0');
@@ -963,7 +963,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <expr_cache><`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a2`>(<in_optimizer>((`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a2`),<exists>(/* select#2 */ select `test`.`t2_1025`.`b1`,`test`.`t2_1025`.`b2` from `test`.`t2_1025` where `test`.`t2_1025`.`b1` > '0' and <cache>(`test`.`t1_1025`.`a1`) = `test`.`t2_1025`.`b1` and <cache>(`test`.`t1_1025`.`a2`) = `test`.`t2_1025`.`b2`)))
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <in_optimizer>((`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a2`),<exists>(/* select#2 */ select `test`.`t2_1025`.`b1`,`test`.`t2_1025`.`b2` from `test`.`t2_1025` where `test`.`t2_1025`.`b1` > '0' and <cache>(`test`.`t1_1025`.`a1`) = `test`.`t2_1025`.`b1` and <cache>(`test`.`t1_1025`.`a2`) = `test`.`t2_1025`.`b2`))
 select left(a1,7), left(a2,7)
 from t1_1025
 where (a1,a2) in (select b1, b2 from t2_1025 where b1 > '0');
@@ -977,7 +977,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <expr_cache><`test`.`t1_1025`.`a1`>(<in_optimizer>(`test`.`t1_1025`.`a1`,<exists>(/* select#2 */ select substr(`test`.`t2_1025`.`b1`,1,1025) from `test`.`t2_1025` where `test`.`t2_1025`.`b1` > '0' and <cache>(`test`.`t1_1025`.`a1`) = substr(`test`.`t2_1025`.`b1`,1,1025))))
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <in_optimizer>(`test`.`t1_1025`.`a1`,<exists>(/* select#2 */ select substr(`test`.`t2_1025`.`b1`,1,1025) from `test`.`t2_1025` where `test`.`t2_1025`.`b1` > '0' and <cache>(`test`.`t1_1025`.`a1`) = substr(`test`.`t2_1025`.`b1`,1,1025)))
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select substring(b1,1,1025) from t2_1025 where b1 > '0');
@@ -991,7 +991,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <expr_cache><`test`.`t1_1025`.`a1`>(<in_optimizer>(`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2` ), <primary_index_lookup>(`test`.`t1_1025`.`a1` in <temporary table> on distinct_key where `test`.`t1_1025`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <in_optimizer>(`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2` ), <primary_index_lookup>(`test`.`t1_1025`.`a1` in <temporary table> on distinct_key where `test`.`t1_1025`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
@@ -1008,7 +1008,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	MATERIALIZED	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <expr_cache><`test`.`t1_1025`.`a1`>(<in_optimizer>(`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2` ), <primary_index_lookup>(`test`.`t1_1025`.`a1` in <temporary table> on distinct_key where `test`.`t1_1025`.`a1` = `<subquery2>`.`group_concat(b1)`))))
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from `test`.`t1_1025` where <in_optimizer>(`test`.`t1_1025`.`a1`,`test`.`t1_1025`.`a1` in ( <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2` ), <primary_index_lookup>(`test`.`t1_1025`.`a1` in <temporary table> on distinct_key where `test`.`t1_1025`.`a1` = `<subquery2>`.`group_concat(b1)`)))
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
@@ -1056,7 +1056,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1bb	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	DEPENDENT SUBQUERY	t2bb	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select conv(`test`.`t1bb`.`a1`,10,2) AS `bin(a1)`,`test`.`t1bb`.`a2` AS `a2` from `test`.`t1bb` where <expr_cache><`test`.`t1bb`.`a1`,`test`.`t1bb`.`a2`>(<in_optimizer>((`test`.`t1bb`.`a1`,`test`.`t1bb`.`a2`),<exists>(/* select#2 */ select `test`.`t2bb`.`b1`,`test`.`t2bb`.`b2` from `test`.`t2bb` where <cache>(`test`.`t1bb`.`a1`) = `test`.`t2bb`.`b1` and <cache>(`test`.`t1bb`.`a2`) = `test`.`t2bb`.`b2`)))
+Note	1003	/* select#1 */ select conv(`test`.`t1bb`.`a1`,10,2) AS `bin(a1)`,`test`.`t1bb`.`a2` AS `a2` from `test`.`t1bb` where <in_optimizer>((`test`.`t1bb`.`a1`,`test`.`t1bb`.`a2`),<exists>(/* select#2 */ select `test`.`t2bb`.`b1`,`test`.`t2bb`.`b2` from `test`.`t2bb` where <cache>(`test`.`t1bb`.`a1`) = `test`.`t2bb`.`b1` and <cache>(`test`.`t1bb`.`a2`) = `test`.`t2bb`.`b2`))
 select bin(a1), a2
 from t1bb
 where (a1, a2) in (select b1, b2 from t2bb);
