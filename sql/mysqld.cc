@@ -557,6 +557,7 @@ ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
 my_bool opt_gtid_ignore_duplicates= FALSE;
 uint opt_gtid_cleanup_batch_size= 64;
+ulonglong non_blocking_binlog_threshold= ULONGLONG_MAX;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -1059,7 +1060,8 @@ PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial,
   key_rwlock_LOCK_ssl_refresh,
   key_rwlock_THD_list,
-  key_rwlock_LOCK_all_status_vars;
+  key_rwlock_LOCK_all_status_vars,
+  key_rwlock_binlog_checksum;
 
 static PSI_rwlock_info all_server_rwlocks[]=
 {
@@ -1077,7 +1079,8 @@ static PSI_rwlock_info all_server_rwlocks[]=
   { &key_rwlock_LOCK_stat_serial, "TABLE_SHARE::LOCK_stat_serial", 0},
   { &key_rwlock_LOCK_ssl_refresh, "LOCK_ssl_refresh", PSI_FLAG_GLOBAL },
   { &key_rwlock_THD_list, "THD_list::lock", PSI_FLAG_GLOBAL },
-  { &key_rwlock_LOCK_all_status_vars, "LOCK_all_status_vars", PSI_FLAG_GLOBAL }
+  { &key_rwlock_LOCK_all_status_vars, "LOCK_all_status_vars", PSI_FLAG_GLOBAL },
+  { &key_rwlock_binlog_checksum, "binlog_checksum_rwlock", PSI_FLAG_GLOBAL }
 };
 
 #ifdef HAVE_MMAP
@@ -2105,6 +2108,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_start_thread);
   mysql_mutex_destroy(&LOCK_status);
   mysql_rwlock_destroy(&LOCK_all_status_vars);
+  mysql_rwlock_destroy(&binlog_checksum_rwlock);
   mysql_mutex_destroy(&LOCK_delayed_insert);
   mysql_mutex_destroy(&LOCK_delayed_status);
   mysql_mutex_destroy(&LOCK_delayed_create);
@@ -4428,6 +4432,7 @@ static int init_thread_environment()
   mysql_rwlock_init(key_rwlock_LOCK_ssl_refresh, &LOCK_ssl_refresh);
   mysql_rwlock_init(key_rwlock_LOCK_grant, &LOCK_grant);
   mysql_rwlock_init(key_rwlock_LOCK_all_status_vars, &LOCK_all_status_vars);
+  mysql_rwlock_init(key_rwlock_binlog_checksum, &binlog_checksum_rwlock);
   mysql_cond_init(key_COND_start_thread, &COND_start_thread, NULL);
 #ifdef HAVE_REPLICATION
   mysql_mutex_init(key_LOCK_rpl_status, &LOCK_rpl_status, MY_MUTEX_INIT_FAST);

@@ -19,6 +19,7 @@
 
 #include "handler.h"                            /* my_xid */
 #include "rpl_constants.h"
+#include <string>
 
 class Relay_log_info;
 class Gtid_index_writer;
@@ -406,7 +407,8 @@ public:
   void set_write_error(THD *thd, bool is_transactional);
   static bool check_write_error(THD *thd);
   static bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
-  int write_cache(THD *thd, binlog_cache_data *cache_data);
+  int write_cache(THD *thd, binlog_cache_data *cache_data,
+                  IO_CACHE *f= nullptr);
   int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
   void cleanup()
@@ -650,6 +652,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
     bool queued_by_other;
     ulong binlog_id;
     bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
+    bool non_blocking_log;
   };
 
   /*
@@ -986,7 +989,10 @@ public:
 	    enum cache_type io_cache_type_arg,
 	    ulong max_size,
             bool null_created,
-            bool need_mutex);
+            bool need_mutex,
+            const char *file_to_rename= nullptr,
+            my_off_t file_size= 0,
+            group_commit_entry *entry= nullptr);
   bool open_index_file(const char *index_file_name_arg,
                        const char *log_name, bool need_mutex);
   /* Use this to start writing a new log file */
@@ -1177,6 +1183,24 @@ public:
   */
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
+
+private:
+  // reserved size for format_description_log_event, gtid_list_log_event ...
+  static const my_off_t non_blocking_binlog_reserved_size= 10 * 1024 * 1024;
+  bool can_use_non_blocking_binlog(group_commit_entry *entry);
+  std::string generate_random_file_name();
+  void generate_skip_event(uchar *buf, size_t buf_len, my_off_t pos, THD *thd);
+  /*
+    write gtid_log_event and ignorable_log_event(skip event) to binlog
+    @returns if a problem occurs, false otherwise
+  */
+  bool write_gtid_and_skip_event(my_off_t file_size,
+                                 group_commit_entry *entry);
+  /*
+    write non-blocking binlog for big transaction
+    @returns true if a problem occurs, false otherwise
+  */
+  bool write_non_blocking_binlog(group_commit_entry *entry);
 };
 
 class Log_event_handler
@@ -1476,4 +1500,6 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
+
+extern mysql_rwlock_t binlog_checksum_rwlock;
 #endif /* LOG_H */

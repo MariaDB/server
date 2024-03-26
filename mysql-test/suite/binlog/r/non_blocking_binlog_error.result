@@ -1,0 +1,36 @@
+call mtr.add_suppression(".*");
+reset master;
+create table t1(id int, c1 int) engine=innodb;
+insert into t1 values(1,1);
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='+d,non_blocking_binlog_open_file_failed';
+update t1 set c1=2;
+set debug_dbug='-d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='-d,non_blocking_binlog_open_file_failed';
+insert into t1 values(3,3);
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000001	#		
+include/assert_grep.inc [Open file failed should be logged]
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='+d,non_blocking_binlog_write_cache_failed';
+update t1 set c1=3;
+set debug_dbug='-d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='-d,non_blocking_binlog_write_cache_failed';
+insert into t1 values(4,4);
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000001	#		
+set debug_dbug='+d,non_blocking_binlog_ignore_cache_size';
+set debug_dbug='+d,non_blocking_binlog_write_gtid_failed';
+update t1 set c1=5;
+ERROR HY000: Lost connection to server during query
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000002	#		
+select * from t1;
+id	c1
+1	3
+3	3
+4	4
+drop table t1;
