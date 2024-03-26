@@ -2288,13 +2288,13 @@ fil_check_pending_operations(
 	fil_space_t* sp = fil_space_get_by_id(id);
 
 	if (sp) {
+		sp->set_stopping(true);
 		if (sp->crypt_data && sp->acquire()) {
 			mutex_exit(&fil_system.mutex);
 			fil_space_crypt_close_tablespace(sp);
 			mutex_enter(&fil_system.mutex);
 			sp->release();
 		}
-		sp->set_stopping(true);
 	}
 
 	/* Check for pending operations. */

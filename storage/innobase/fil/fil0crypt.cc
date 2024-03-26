@@ -2755,7 +2755,7 @@ fil_space_crypt_close_tablespace(
 				   << " seconds to drop space: "
 				   << space->name << " ("
 				   << space->id << ") active threads "
-				   << cnt << "flushing="
+				   << cnt << " flushing="
 				   << flushing << ".";
 			last = now;
 		}
