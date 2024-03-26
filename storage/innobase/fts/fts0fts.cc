@@ -5421,8 +5421,8 @@ fts_free(
 {
 	fts_t*	fts = table->fts;
 	table->fts = NULL;
-	mem_heap_free(fts->fts_heap);
 	fts->~fts_t();
+	mem_heap_free(fts->fts_heap);
 }
 
 /*********************************************************************//**

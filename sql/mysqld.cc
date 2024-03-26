@@ -6390,7 +6390,7 @@ void create_new_thread(CONNECT *connect)
 void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 {
   CONNECT *connect;
-  bool is_unix_sock;
+  bool is_unix_sock= false;
 
 #ifdef FD_CLOEXEC
   (void) fcntl(mysql_socket_getfd(new_sock), F_SETFD, FD_CLOEXEC);
