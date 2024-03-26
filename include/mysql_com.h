@@ -456,6 +456,7 @@ typedef struct st_net {
   my_bool thread_specific_malloc;
   unsigned char compress;
   my_bool unused3; /* Please remove with the next incompatible ABI change. */
+  my_bool using_proxy_protocol;
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet

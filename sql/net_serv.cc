@@ -151,6 +151,7 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   net->where_b = net->remain_in_buf=0;
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
+  net->using_proxy_protocol= 0;
   net->thread_specific_malloc= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
   net->thd= 0;
 #ifdef MYSQL_SERVER
@@ -192,6 +193,7 @@ void net_end(NET *net)
   DBUG_ENTER("net_end");
   my_free(net->buff);
   net->buff=0;
+  net->using_proxy_protocol= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -908,6 +910,7 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
     return RETRY;
   /* Change peer address in THD and ACL structures.*/
   uint host_errors;
+  net->using_proxy_protocol= 1;
   return (handle_proxy_header_result)thd_set_peer_addr(thd,
                          &(peer_info.peer_addr), NULL, peer_info.port,
                          false, &host_errors);
