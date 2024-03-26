@@ -82,20 +82,20 @@ ALTER TABLE help_keyword ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
 
-ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user add if not exists File_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
 
 # Detect whether or not we had the Grant_priv column
 SET @hadGrantPriv:=0;
 SELECT @hadGrantPriv:=1 FROM user WHERE Grant_priv IS NOT NULL;
 
-ALTER TABLE user add Grant_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-                 add References_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-                 add Index_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-                 add Alter_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
-ALTER TABLE db add Grant_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-               add References_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-               add Index_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-               add Alter_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user add if not exists Grant_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+                 add if not exists References_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+                 add if not exists Index_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+                 add if not exists Alter_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE db add if not exists Grant_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+               add if not exists References_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+               add if not exists Index_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+               add if not exists Alter_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
 
 # Fix privileges for old tables
 UPDATE user SET Grant_priv=File_priv,References_priv=Create_priv,Index_priv=Create_priv,Alter_priv=Create_priv WHERE @hadGrantPriv = 0;
@@ -105,17 +105,17 @@ UPDATE db SET References_priv=Create_priv,Index_priv=Create_priv,Alter_priv=Crea
 # Adding columns needed by GRANT .. REQUIRE (openssl)
 
 ALTER TABLE user
-ADD ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL,
-ADD ssl_cipher BLOB NOT NULL,
-ADD x509_issuer BLOB NOT NULL,
-ADD x509_subject BLOB NOT NULL;
+ADD IF NOT EXISTS ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL,
+ADD IF NOT EXISTS ssl_cipher BLOB NOT NULL,
+ADD IF NOT EXISTS x509_issuer BLOB NOT NULL,
+ADD IF NOT EXISTS x509_subject BLOB NOT NULL;
 ALTER TABLE user MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL;
 
 #
 # tables_priv
 #
 ALTER TABLE tables_priv
-  ADD KEY Grantor (Grantor);
+  ADD KEY IF NOT EXISTS Grantor (Grantor);
 
 ALTER TABLE tables_priv
   MODIFY Host char(255) NOT NULL default '',
@@ -163,7 +163,7 @@ ALTER TABLE columns_priv
 #  Add the new 'type' column to the func table.
 #
 
-ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8mb3_general_ci NOT NULL;
+ALTER TABLE func add if not exists type enum ('function','aggregate') COLLATE utf8mb3_general_ci NOT NULL;
 
 #
 #  Change the user,db and host tables to current format
@@ -174,13 +174,13 @@ SET @hadShowDbPriv:=0;
 SELECT @hadShowDbPriv:=1 FROM user WHERE Show_db_priv IS NOT NULL;
 
 ALTER TABLE user
-ADD Show_db_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_priv,
-ADD Super_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_db_priv,
-ADD Create_tmp_table_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Super_priv,
-ADD Lock_tables_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_tmp_table_priv,
-ADD Execute_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Lock_tables_priv,
-ADD Repl_slave_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Execute_priv,
-ADD Repl_client_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Repl_slave_priv;
+ADD IF NOT EXISTS Show_db_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_priv,
+ADD IF NOT EXISTS Super_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_db_priv,
+ADD IF NOT EXISTS Create_tmp_table_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Super_priv,
+ADD IF NOT EXISTS Lock_tables_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_tmp_table_priv,
+ADD IF NOT EXISTS Execute_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Lock_tables_priv,
+ADD IF NOT EXISTS Repl_slave_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Execute_priv,
+ADD IF NOT EXISTS Repl_client_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Repl_slave_priv;
 
 # Convert privileges so that users have similar privileges as before
 
@@ -191,9 +191,9 @@ UPDATE user SET Show_db_priv= Select_priv, Super_priv=Process_priv, Execute_priv
 #  for some users.
 
 ALTER TABLE user
-ADD max_questions int(11) NOT NULL DEFAULT 0 AFTER x509_subject,
-ADD max_updates   int(11) unsigned NOT NULL DEFAULT 0 AFTER max_questions,
-ADD max_connections int(11) unsigned NOT NULL DEFAULT 0 AFTER max_updates;
+ADD IF NOT EXISTS max_questions int(11) NOT NULL DEFAULT 0 AFTER x509_subject,
+ADD IF NOT EXISTS max_updates   int(11) unsigned NOT NULL DEFAULT 0 AFTER max_questions,
+ADD IF NOT EXISTS max_connections int(11) unsigned NOT NULL DEFAULT 0 AFTER max_updates;
 
 
 #
@@ -201,8 +201,8 @@ ADD max_connections int(11) unsigned NOT NULL DEFAULT 0 AFTER max_updates;
 #
 
 ALTER TABLE db
-ADD Create_tmp_table_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
-ADD Lock_tables_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ADD IF NOT EXISTS Create_tmp_table_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL,
+ADD IF NOT EXISTS Lock_tables_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
 
 alter table user change max_questions max_questions int(11) unsigned DEFAULT 0  NOT NULL;
 
@@ -221,7 +221,7 @@ ALTER TABLE user
 # In MySQL 5.7.6 the Password column is removed. Recreate it to preserve the number
 # of columns MariaDB expects in the user table.
 ALTER TABLE user
-  ADD Password char(41) character set latin1 collate latin1_bin NOT NULL default '' AFTER User;
+  ADD IF NOT EXISTS Password char(41) character set latin1 collate latin1_bin NOT NULL default '' AFTER User;
 
 # In MySQL the Unix socket authentication plugin has a different name. Thus the
 # references to it need to be renamed in the user table. Thanks to the WHERE
@@ -304,9 +304,9 @@ SET GLOBAL general_log = @old_log_state;
 SET @old_log_state = @@global.log_slow_query;
 SET GLOBAL log_slow_query = 'OFF';
 ALTER TABLE slow_log
-  ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
+  ADD COLUMN IF NOT EXISTS thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
 ALTER TABLE slow_log
-  ADD COLUMN rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
+  ADD COLUMN IF NOT EXISTS rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
 ALTER TABLE slow_log
   MODIFY start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
@@ -336,20 +336,20 @@ SELECT @hadCreateViewPriv:=1 FROM user WHERE Create_view_priv IS NOT NULL;
 #
 # Create VIEWs privileges (v5.0)
 #
-ALTER TABLE db ADD Create_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Lock_tables_priv;
+ALTER TABLE db ADD IF NOT EXISTS Create_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Lock_tables_priv;
 ALTER TABLE db MODIFY Create_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Lock_tables_priv;
 
 
-ALTER TABLE user ADD Create_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Repl_client_priv;
+ALTER TABLE user ADD IF NOT EXISTS Create_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Repl_client_priv;
 ALTER TABLE user MODIFY Create_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Repl_client_priv;
 
 #
 # Show VIEWs privileges (v5.0)
 #
-ALTER TABLE db ADD Show_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_view_priv;
+ALTER TABLE db ADD IF NOT EXISTS Show_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_view_priv;
 ALTER TABLE db MODIFY Show_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_view_priv;
 
-ALTER TABLE user ADD Show_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_view_priv;
+ALTER TABLE user ADD IF NOT EXISTS Show_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_view_priv;
 ALTER TABLE user MODIFY Show_view_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_view_priv;
 
 #
@@ -366,22 +366,22 @@ SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv IS NOT NULL;
 #
 # Create PROCEDUREs privileges (v5.0)
 #
-ALTER TABLE db ADD Create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv;
+ALTER TABLE db ADD IF NOT EXISTS Create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv;
 ALTER TABLE db MODIFY Create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv;
 
-ALTER TABLE user ADD Create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv;
+ALTER TABLE user ADD IF NOT EXISTS Create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv;
 ALTER TABLE user MODIFY Create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv;
 
 #
 # Alter PROCEDUREs privileges (v5.0)
 #
-ALTER TABLE db ADD Alter_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_routine_priv;
+ALTER TABLE db ADD IF NOT EXISTS Alter_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_routine_priv;
 ALTER TABLE db MODIFY Alter_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_routine_priv;
 
-ALTER TABLE user ADD Alter_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_routine_priv;
+ALTER TABLE user ADD IF NOT EXISTS Alter_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_routine_priv;
 ALTER TABLE user MODIFY Alter_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_routine_priv;
 
-ALTER TABLE db ADD Execute_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
+ALTER TABLE db ADD IF NOT EXISTS Execute_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 ALTER TABLE db MODIFY Execute_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 
 #
@@ -395,7 +395,7 @@ UPDATE db SET Create_routine_priv=Create_priv, Alter_routine_priv=Alter_priv, Ex
 # this is signed in MariaDB so that if one sets it's to -1 then the user
 # can't connect anymore.
 #
-ALTER TABLE user ADD max_user_connections int(11) DEFAULT '0' NOT NULL AFTER max_connections;
+ALTER TABLE user ADD IF NOT EXISTS max_user_connections int(11) DEFAULT '0' NOT NULL AFTER max_connections;
 ALTER TABLE user MODIFY max_user_connections int(11) DEFAULT '0' NOT NULL AFTER max_connections;
 
 #
@@ -405,7 +405,7 @@ ALTER TABLE user MODIFY max_user_connections int(11) DEFAULT '0' NOT NULL AFTER 
 SET @hadCreateUserPriv:=0;
 SELECT @hadCreateUserPriv:=1 FROM user WHERE Create_user_priv IS NOT NULL;
 
-ALTER TABLE user ADD Create_user_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
+ALTER TABLE user ADD IF NOT EXISTS Create_user_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 ALTER TABLE user MODIFY Create_user_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 UPDATE user LEFT JOIN db USING (Host,User) SET Create_user_priv='Y'
   WHERE @hadCreateUserPriv = 0 AND
@@ -428,7 +428,7 @@ ALTER IGNORE TABLE procs_priv
     COLLATE utf8mb3_general_ci DEFAULT '' NOT NULL;
 
 ALTER TABLE procs_priv
-  ADD Routine_type enum('FUNCTION','PROCEDURE')
+  ADD IF NOT EXISTS Routine_type enum('FUNCTION','PROCEDURE')
     COLLATE utf8mb3_general_ci NOT NULL AFTER Routine_name;
 
 ALTER TABLE procs_priv
@@ -495,7 +495,7 @@ ALTER TABLE proc CONVERT TO CHARACTER SET utf8mb3,
                   MODIFY definer varchar(384) binary DEFAULT '' NOT NULL,
                   MODIFY comment text binary NOT NULL;
 
-ALTER TABLE proc ADD character_set_client
+ALTER TABLE proc ADD IF NOT EXISTS character_set_client
                      char(32) collate utf8mb3_bin DEFAULT NULL
                      AFTER comment;
 ALTER TABLE proc MODIFY character_set_client
@@ -520,7 +520,7 @@ AS value FROM proc WHERE character_set_client IS NULL;
 UPDATE proc SET character_set_client = @@character_set_client 
                      WHERE character_set_client IS NULL;
 
-ALTER TABLE proc ADD collation_connection
+ALTER TABLE proc ADD IF NOT EXISTS collation_connection
                      char(64) collate utf8mb3_bin DEFAULT NULL
                      AFTER character_set_client;
 ALTER TABLE proc MODIFY collation_connection
@@ -535,7 +535,7 @@ AS value FROM proc WHERE collation_connection IS NULL;
 UPDATE proc SET collation_connection = @@collation_connection
                      WHERE collation_connection IS NULL;
 
-ALTER TABLE proc ADD db_collation
+ALTER TABLE proc ADD IF NOT EXISTS db_collation
                      char(64) collate utf8mb3_bin DEFAULT NULL
                      AFTER collation_connection;
 ALTER TABLE proc MODIFY db_collation
@@ -553,7 +553,7 @@ UPDATE proc AS p SET db_collation  =
                        WHERE SCHEMA_NAME = p.db)
                      WHERE db_collation IS NULL;
 
-ALTER TABLE proc ADD body_utf8 longblob DEFAULT NULL
+ALTER TABLE proc ADD IF NOT EXISTS body_utf8 longblob DEFAULT NULL
                      AFTER db_collation;
 ALTER TABLE proc MODIFY body_utf8 longblob DEFAULT NULL;
 
@@ -562,7 +562,7 @@ ALTER TABLE proc MODIFY comment
                         text collate utf8mb3_bin NOT NULL;
 
 # MDEV-7773: Stored Aggregate Functions
-ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
+ALTER TABLE proc ADD IF NOT EXISTS aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
                      AFTER body_utf8;
 
 # Update definer of Add/DropGeometryColumn procedures to 'mariadb.sys'
@@ -576,12 +576,12 @@ UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhos
 SET @hadEventPriv := 0;
 SELECT @hadEventPriv :=1 FROM user WHERE Event_priv IS NOT NULL;
 
-ALTER TABLE user ADD Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
+ALTER TABLE user ADD IF NOT EXISTS Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
 ALTER TABLE user MODIFY Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
 
 UPDATE user SET Event_priv=Super_priv WHERE @hadEventPriv = 0;
 
-ALTER TABLE db ADD Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL;
+ALTER TABLE db ADD IF NOT EXISTS Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL;
 ALTER TABLE db MODIFY Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N' NOT NULL;
 
 #
@@ -589,7 +589,7 @@ ALTER TABLE db MODIFY Event_priv enum('N','Y') character set utf8mb3 DEFAULT 'N'
 #
 ALTER TABLE event DROP PRIMARY KEY, ADD PRIMARY KEY(db, name);
 # Add sql_mode column just in case.
-ALTER TABLE event ADD sql_mode set ('IGNORE_BAD_TABLE_OPTIONS') AFTER on_completion;
+ALTER TABLE event ADD IF NOT EXISTS sql_mode set ('IGNORE_BAD_TABLE_OPTIONS') AFTER on_completion;
 # Update list of sql_mode values.
 ALTER TABLE event MODIFY sql_mode
                         set('REAL_AS_FLOAT',
@@ -633,33 +633,33 @@ ALTER TABLE event MODIFY db  CHAR(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin 
 ALTER TABLE event MODIFY comment CHAR(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '';
 
 
-ALTER TABLE event ADD COLUMN originator INT UNSIGNED NOT NULL AFTER comment;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS originator INT UNSIGNED NOT NULL AFTER comment;
 ALTER TABLE event MODIFY COLUMN originator INT UNSIGNED NOT NULL;
 
 ALTER TABLE event MODIFY COLUMN status ENUM('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL default 'ENABLED';
 
-ALTER TABLE event ADD COLUMN time_zone char(64) CHARACTER SET latin1
+ALTER TABLE event ADD COLUMN IF NOT EXISTS time_zone char(64) CHARACTER SET latin1
         NOT NULL DEFAULT 'SYSTEM' AFTER originator;
 
-ALTER TABLE event ADD character_set_client
+ALTER TABLE event ADD IF NOT EXISTS character_set_client
                       char(32) collate utf8mb3_bin DEFAULT NULL
                       AFTER time_zone;
 ALTER TABLE event MODIFY character_set_client
                          char(32) collate utf8mb3_bin DEFAULT NULL;
 
-ALTER TABLE event ADD collation_connection
+ALTER TABLE event ADD IF NOT EXISTS collation_connection
                       char(64) collate utf8mb3_bin DEFAULT NULL
                       AFTER character_set_client;
 ALTER TABLE event MODIFY collation_connection
                          char(64) collate utf8mb3_bin DEFAULT NULL;
 
-ALTER TABLE event ADD db_collation
+ALTER TABLE event ADD IF NOT EXISTS db_collation
                       char(64) collate utf8mb3_bin DEFAULT NULL
                       AFTER collation_connection;
 ALTER TABLE event MODIFY db_collation
                          char(64) collate utf8mb3_bin DEFAULT NULL;
 
-ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
+ALTER TABLE event ADD IF NOT EXISTS body_utf8 longblob DEFAULT NULL
                       AFTER db_collation;
 ALTER TABLE event MODIFY body_utf8 longblob DEFAULT NULL;
 
@@ -675,10 +675,10 @@ set global event_scheduler=original;
 SET @hadTriggerPriv := 0;
 SELECT @hadTriggerPriv :=1 FROM user WHERE Trigger_priv IS NOT NULL;
 
-ALTER TABLE user ADD Trigger_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
+ALTER TABLE user ADD IF NOT EXISTS Trigger_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
 ALTER TABLE user MODIFY Trigger_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
 
-ALTER TABLE db ADD Trigger_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE db ADD IF NOT EXISTS Trigger_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE db MODIFY Trigger_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
 
 UPDATE user SET Trigger_priv=Super_priv WHERE @hadTriggerPriv = 0;
@@ -690,7 +690,7 @@ UPDATE user SET Trigger_priv=Super_priv WHERE @hadTriggerPriv = 0;
 SET @hadCreateTablespacePriv := 0;
 SELECT @hadCreateTablespacePriv :=1 FROM user WHERE Create_tablespace_priv IS NOT NULL;
 
-ALTER TABLE user ADD Create_tablespace_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
+ALTER TABLE user ADD IF NOT EXISTS Create_tablespace_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
 ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
 
 UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePriv = 0;
@@ -705,27 +705,27 @@ ALTER TABLE db change Truncate_versioning_priv Delete_history_priv enum('N','Y')
 SET @had_user_delete_history_priv := 0;
 SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv IS NOT NULL;
 
-ALTER TABLE user add Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+ALTER TABLE user add if not exists Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
 ALTER TABLE user modify Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
-ALTER TABLE db add Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
+ALTER TABLE db add if not exists Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
 ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 
 UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
 
-ALTER TABLE db ADD    Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' AFTER Delete_history_priv;
+ALTER TABLE db ADD IF NOT EXISTS    Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' AFTER Delete_history_priv;
 ALTER TABLE db MODIFY Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 
-ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
-                 ADD authentication_string TEXT NOT NULL AFTER plugin;
+ALTER TABLE user ADD IF NOT EXISTS plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
+                 ADD IF NOT EXISTS authentication_string TEXT NOT NULL AFTER plugin;
 ALTER TABLE user CHANGE auth_string authentication_string TEXT NOT NULL;
 
-ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;
-ALTER TABLE user ADD password_last_changed timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP after password_expired;
-ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
-ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
-ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
-ALTER TABLE user ADD default_role char(128) binary DEFAULT '' NOT NULL AFTER is_role;
-ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role;
+ALTER TABLE user ADD IF NOT EXISTS password_expired ENUM('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;
+ALTER TABLE user ADD IF NOT EXISTS password_last_changed timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP after password_expired;
+ALTER TABLE user ADD IF NOT EXISTS password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
+ALTER TABLE user ADD IF NOT EXISTS account_locked enum('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
+ALTER TABLE user ADD IF NOT EXISTS is_role enum('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
+ALTER TABLE user ADD IF NOT EXISTS default_role char(128) binary DEFAULT '' NOT NULL AFTER is_role;
+ALTER TABLE user ADD IF NOT EXISTS max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role;
 
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_bin.
 -- we want password_expired column to have collation utf8mb3_general_ci.
