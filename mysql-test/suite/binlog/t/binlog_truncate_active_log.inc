@@ -42,7 +42,7 @@ SELECT @@global.gtid_binlog_pos as 'Before the crash and never logged trx';
 #
 # Server restart
 #
---let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+--let $restart_parameters= --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 --source include/start_mysqld.inc
 
 # Check error log for a successful truncate message.

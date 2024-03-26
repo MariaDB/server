@@ -92,7 +92,7 @@ SELECT @@global.gtid_binlog_state;
 #
 --echo # Failed restart as the semisync slave
 --error 1
---exec $MYSQLD_LAST_CMD  --rpl-semi-sync-slave-enabled=1 >> $MYSQLTEST_VARDIR/log/mysqld.1.err 2>&1
+--exec $MYSQLD_LAST_CMD  --init-rpl-role=SLAVE >> $MYSQLTEST_VARDIR/log/mysqld.1.err 2>&1
 
 --echo # Normal restart
 --source include/start_mysqld.inc
