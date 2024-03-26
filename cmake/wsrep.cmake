@@ -58,6 +58,7 @@ Then restart the build.
   endif()
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep-lib/include)
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep-lib/wsrep-API/v26)
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep-lib/wsrep-API/ps)
 
   SET(old_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
   SET(BUILD_SHARED_LIBS OFF)
