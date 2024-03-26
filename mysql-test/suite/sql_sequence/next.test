@@ -462,12 +462,8 @@ select next value for t1;
 alter sequence t1 cycle;
 select next value for t1;
 
-# This overflow caused by the first disjunction bleow is unavoidable and
-# taken care of by the second disjunction:
-# if (value + increment < min_value || value < min_value - increment)
-call mtr.add_suppression("signed integer overflow: -9223372036854775807 \\+ -1000 cannot be represented in type 'long long int'");
-
 create or replace sequence t1 as bigint start with -9223372036854775807 increment -1;
+
 select next value for t1;
 --error ER_SEQUENCE_RUN_OUT
 select next value for t1;

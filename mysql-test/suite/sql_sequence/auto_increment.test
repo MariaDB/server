@@ -34,16 +34,19 @@ set global auto_increment_increment= default, auto_increment_offset= default;
 --echo # MDEV-28152 Features for sequence
 --echo #
 
-# These overflows of signed long long are ok because we are using them
-# to represent unsigned long long:
-call mtr.add_suppression("signed integer overflow: 42 \\+ 9223372036854775800 cannot be represented in type 'long long int'");
-call mtr.add_suppression("signed integer overflow: 9223372036854775800 \\+ 100000 cannot be represented in type 'long long int'");
 set global auto_increment_increment= 100;
 set global auto_increment_offset= 42;
 create sequence s as bigint unsigned start with 9223372036854775800 increment 0;
 select next value for s;
 select next value for s;
 drop sequence s;
+
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 5;
+# Test underflow
+create sequence s as bigint start with -9223372036854775805 minvalue -9223372036854775807 maxvalue -9223372036854775800 increment 0;
+drop sequence s;
+
 set global auto_increment_increment= default, auto_increment_offset= default;
 --enable_ps2_protocol
 

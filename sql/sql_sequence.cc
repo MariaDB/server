@@ -743,8 +743,11 @@ void sequence_definition::adjust_values(longlong next_value)
                global_system_variables.auto_increment_increment);
 
     /*
-      Ensure that next_free_value has the right offset, so that we
-      can generate a serie by just adding real_increment.
+      Ensure that next_free_value has the right offset, so that we can
+      generate a serie by just adding real_increment. The goal is to
+      adjust next_free_value upwards such that
+
+      next_free_value % real_increment == offset
     */
     off= next_free_value % real_increment;
     if (off < 0)
@@ -760,15 +763,18 @@ void sequence_definition::adjust_values(longlong next_value)
       need to cast to_add.
     */
     if ((is_unsigned &&
-         (ulonglong) next_free_value > (ulonglong) max_value - to_add) ||
-        (is_unsigned &&
-         (ulonglong) next_free_value + to_add > (ulonglong) max_value) ||
-        (!is_unsigned && next_free_value > max_value - to_add) ||
-        (!is_unsigned && next_free_value + to_add > max_value))
+         ((ulonglong) next_free_value > (ulonglong) max_value - to_add ||
+          (ulonglong) next_free_value + to_add > (ulonglong) max_value ||
+          (ulonglong) next_free_value > (ulonglong) max_value)) ||
+        (!is_unsigned &&
+         (next_free_value > (longlong) ((ulonglong) max_value - to_add) ||
+          (longlong) ((ulonglong) next_free_value + to_add) > max_value ||
+          next_free_value > max_value)))
       next_free_value= max_value+1;
     else
     {
-      next_free_value+= to_add;
+      next_free_value=
+        (longlong) ((ulonglong) next_free_value + (ulonglong) to_add);
       if (is_unsigned)
         DBUG_ASSERT((ulonglong) next_free_value % real_increment ==
                     (ulonglong) offset);
@@ -898,7 +904,7 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
   next_free_value= increment_value(next_free_value, real_increment);
 
   if (within_bound(res_value, reserved_until, reserved_until,
-                    real_increment > 0)) 
+                    real_increment > 0))
   {
     write_unlock(table);
     DBUG_RETURN(res_value);
