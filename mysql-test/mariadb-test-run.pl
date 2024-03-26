@@ -4551,8 +4551,6 @@ sub extract_warning_lines ($$) {
      qr/WSREP: Failed to guess base node address/,
      qr/WSREP: Guessing address for incoming client/,
 
-     # for UBSAN
-     qr/decimal\.c.*: runtime error: signed integer overflow/,
      # Disable test for UBSAN on dynamically loaded objects
      qr/runtime error: member call.*object.*'Handler_share'/,
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
