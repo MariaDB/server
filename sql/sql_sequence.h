@@ -205,32 +205,48 @@ private:
               (ulonglong) max_value - (ulonglong) increment ||
               /* in case max_value - increment underflows */
               (ulonglong) value + (ulonglong) increment >
-              (ulonglong) max_value)
-            value= max_value + 1;
+              (ulonglong) max_value ||
+              /* in case both overflow and underflow happens (very
+              rarely, if not impossible) */
+              (ulonglong) value > (ulonglong) max_value)
+            /* Cast to ulonglong then back, in case max_value ==
+            LONGLONG_MAX as a ulonglong */
+            value= (longlong) ((ulonglong) max_value + 1);
           else
-            value+= increment;
+            value = (longlong) ((ulonglong) value + (ulonglong) increment);
         }
       else
       {
         if ((ulonglong) value - (ulonglong) (-increment) <
             (ulonglong) min_value ||
             (ulonglong) value <
-            (ulonglong) min_value + (ulonglong) (-increment))
-          value= min_value - 1;
+            (ulonglong) min_value + (ulonglong) (-increment) ||
+            (ulonglong) value < (ulonglong) min_value)
+          /* Cast to ulonglong then back, in case min_value ==
+          LONGLONG_MAX + 1 as a ulonglong */
+          value= (longlong) ((ulonglong) min_value - 1);
         else
-          value+= increment;
+          value = (longlong) ((ulonglong) value - (ulonglong) (-increment));
       }
     } else
       if (increment > 0)
       {
-        if (value > max_value - increment || value + increment > max_value)
+        if (value >
+              (longlong) ((ulonglong) max_value - (ulonglong) increment) ||
+            (longlong) ((ulonglong) value + (ulonglong) increment) >
+              max_value ||
+            value > max_value)
           value= max_value + 1;
         else
           value+= increment;
       }
       else
       {
-        if (value + increment < min_value || value < min_value - increment)
+        if ((longlong) ((ulonglong) value + (ulonglong) increment) <
+              min_value ||
+            value <
+              (longlong) ((ulonglong) min_value - (ulonglong) increment) ||
+            value < min_value)
           value= min_value - 1;
         else
           value+= increment;
