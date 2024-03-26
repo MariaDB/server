@@ -26,12 +26,12 @@
 */
 #define _GNU_SOURCE 1 /* for struct ucred */
 
+#include <my_global.h>
+#include <m_string.h>
 #include <mysql/plugin_auth.h>
-#include <string.h>
 #include <pwd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-
 #ifdef HAVE_PEERCRED
 #define level SOL_SOCKET
 
@@ -119,13 +119,19 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   u = cred.uid;
 #endif
 
-  /* and find the username for this uid */
+  /* and find the socket user name for this uid */
   getpwuid_r(u, &pwd_buf, buf, sizeof(buf), &pwd);
   if (pwd == NULL)
     return CR_ERROR;
 
-  /* now it's simple as that */
-  return strcmp(pwd->pw_name, info->user_name) ? CR_ERROR : CR_OK;
+  /* fill in the external user name used */
+  safe_strcpy(info->external_user, sizeof(info->external_user), pwd->pw_name);
+
+  /* compare with auth_string if it's defined, otherwise compare with DB user name*/
+  if (info->auth_string && info->auth_string[0])
+    return !strcmp(pwd->pw_name, info->auth_string) ? CR_OK : CR_ERROR;
+  else
+    return !strcmp(pwd->pw_name, info->user_name) ? CR_OK : CR_ERROR;
 }
 
 static struct st_mysql_auth socket_auth_handler=
@@ -146,10 +152,10 @@ maria_declare_plugin(auth_socket)
   PLUGIN_LICENSE_GPL,
   NULL,
   NULL,
-  0x0100,
+  0x0101,
   NULL,
   NULL,
-  "1.0",
+  "1.1",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
