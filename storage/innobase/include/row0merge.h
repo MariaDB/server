@@ -416,6 +416,15 @@ row_merge_read_rec(
 	ulint			space)	   /*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));
 
+/* Report an InnoDB error to the client by invoking my_error(). */
+ATTRIBUTE_COLD __attribute__((nonnull))
+void
+my_error_innodb(
+/*============*/
+        dberr_t         error,  /*!< in: InnoDB error code */
+        const char*     table,  /*!< in: table name */
+        ulint           flags);  /*!< in: table flags */
+
 /** Buffer for bulk insert */
 class row_merge_bulk_t
 {

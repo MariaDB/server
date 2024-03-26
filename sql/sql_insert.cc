@@ -4315,7 +4315,17 @@ bool select_insert::prepare_eof()
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
-  table->file->extra(HA_EXTRA_END_ALTER_COPY);
+  int create_err= table->file->extra(HA_EXTRA_END_ALTER_COPY);
+  if (error <= 0)
+  {
+    if (create_err == HA_ERR_FOUND_DUPP_KEY)
+    {
+      uint key_nr= table->file->get_dup_key(create_err);
+      if ((int)key_nr >= 0 && key_nr < table->s->keys)
+        print_keydup_error(table, &table->key_info[key_nr], MYF(0));
+    }
+    error= create_err;
+  }
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 

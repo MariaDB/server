@@ -846,7 +846,7 @@ inline void dict_table_t::rollback_instant(
 }
 
 /* Report an InnoDB error to the client by invoking my_error(). */
-static ATTRIBUTE_COLD __attribute__((nonnull))
+ATTRIBUTE_COLD __attribute__((nonnull))
 void
 my_error_innodb(
 /*============*/

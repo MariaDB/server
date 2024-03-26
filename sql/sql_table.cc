@@ -12085,9 +12085,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     error= 1;
   }
   bulk_insert_started= 0;
-  if (!ignore)
-    to->file->extra(HA_EXTRA_END_ALTER_COPY);
-
+  if (!ignore && error <= 0)
+  {
+    int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    if (alt_error == HA_ERR_FOUND_DUPP_KEY)
+    {
+      uint key_nr= to->file->get_dup_key(alt_error);
+      if ((int)key_nr >= 0 && key_nr < to->s->keys)
+        print_keydup_error(to, &to->key_info[key_nr], MYF(0));
+    }
+    error= alt_error;
+  }
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 

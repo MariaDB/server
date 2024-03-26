@@ -1282,6 +1282,10 @@ o_orderkey	l_linenumber	l_shipdate	o_totalprice
 # MDEV-18413: find constraint correlated indexes
 #
 ALTER TABLE lineitem ADD CONSTRAINT l_date CHECK(l_shipdate < l_receiptdate);
+ANALYZE TABLE lineitem;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.lineitem	analyze	status	Engine-independent statistics collected
+dbt3_s001.lineitem	analyze	status	OK
 # Filter on l_shipdate is not used because it participates in
 # the same constraint as l_receiptdate.
 # Access is made on l_receiptdate.
@@ -1567,6 +1571,14 @@ ALTER TABLE orders ADD COLUMN o_totaldiscount double;
 UPDATE orders SET o_totaldiscount = o_totalprice*(o_custkey/1000);
 CREATE INDEX i_o_totaldiscount on orders(o_totaldiscount);
 ALTER TABLE orders ADD CONSTRAINT o_price CHECK(o_totalprice > o_totaldiscount);
+analyze table lineitem;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.lineitem	analyze	status	Engine-independent statistics collected
+dbt3_s001.lineitem	analyze	status	OK
+analyze table orders;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.orders	analyze	status	Engine-independent statistics collected
+dbt3_s001.orders	analyze	status	OK
 # Filter on o_totalprice is not used because it participates in
 # the same constraint as o_discount.
 # Access is made on o_discount.
@@ -1986,7 +1998,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 3
+            "pages_accessed": 2
           },
           "filtered": "REPLACED",
           "r_filtered": 66.66666667,
@@ -2140,7 +2152,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 3
+            "pages_accessed": 2
           },
           "filtered": "REPLACED",
           "r_filtered": 66.66666667,

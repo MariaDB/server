@@ -1871,6 +1871,10 @@ trx_undo_report_row_operation(
 			    *clust_entry, *index, trx)) {
 			return err;
 		}
+
+		if (index->table->skip_alter_undo) {
+			return DB_SUCCESS;
+		}
 	} else {
 		bulk = false;
 	}

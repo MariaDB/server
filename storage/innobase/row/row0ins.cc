@@ -2717,6 +2717,13 @@ err_exit:
 
 	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
 
+	if (index->table->skip_alter_undo
+	    && !index->table->versioned()
+	    && index->table->foreign_set.empty()) {
+		trx_start_if_not_started(trx, true);
+		goto bulk_insert;
+	}
+
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->page.frame)
 	    && !entry->is_metadata() && !trx->duplicates
@@ -2730,7 +2737,7 @@ err_exit:
 	    && !index->table->versioned()
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
-
+bulk_insert:
 		trx->bulk_insert = true;
 
 		if (!index->table->is_temporary()) {
@@ -3400,7 +3407,8 @@ row_ins_index_entry(
 		if (auto t= trx->check_bulk_buffer(index->table)) {
 			/* MDEV-25036 FIXME: check also foreign key
 			constraints */
-			ut_ad(!trx->check_foreigns);
+			ut_ad(index->table->skip_alter_undo
+			      || !trx->check_foreigns);
 			return t->bulk_insert_buffered(*entry, *index, trx);
 		}
 	}

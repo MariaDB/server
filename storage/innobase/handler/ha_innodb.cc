@@ -15735,6 +15735,16 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		trx = check_trx_exists(ha_thd());
+		if (m_prebuilt->table->skip_alter_undo) {
+			if (dberr_t err= trx->bulk_insert_apply()) {
+				if (err == DB_DUPLICATE_KEY) {
+					return HA_ERR_FOUND_DUPP_KEY;
+				}
+				return 1;
+			}
+			trx->end_bulk_insert(*m_prebuilt->table);
+			trx->bulk_insert = false;
+		}
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {

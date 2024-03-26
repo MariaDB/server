@@ -44,15 +44,18 @@ ALTER TABLE t1 ADD PARTITION (PARTITION part2);
 #
 --echo #  1.1.2 Assign HASH partitioning
 ALTER TABLE t1 PARTITION BY HASH(YEAR(f_date));
+ANALYZE TABLE t1;
 --source suite/parts/inc/partition_layout.inc
 --source suite/parts/inc/partition_check_read1.inc
 #
 --echo #  1.1.3 Assign other HASH partitioning to already partitioned table
 --echo #        + test and switch back + test
 ALTER TABLE t1 PARTITION BY HASH(DAYOFYEAR(f_date));
+ANALYZE TABLE t1;
 --source suite/parts/inc/partition_layout.inc
 --source suite/parts/inc/partition_check_read1.inc
 ALTER TABLE t1 PARTITION BY HASH(YEAR(f_date));
+ANALYZE TABLE t1;
 --source suite/parts/inc/partition_layout.inc
 --source suite/parts/inc/partition_check_read1.inc
 #
@@ -64,6 +67,7 @@ ALTER TABLE t1 ADD PARTITION (PARTITION part2 VALUES LESS THAN (0));
 #
 --echo #  1.1.5 Add two named partitions + test
 ALTER TABLE t1 ADD PARTITION (PARTITION part1, PARTITION part7);
+ANALYZE TABLE t1;
 --source suite/parts/inc/partition_layout.inc
 --source suite/parts/inc/partition_check_read1.inc
 #
@@ -111,6 +115,7 @@ ALTER TABLE t1 COALESCE PARTITION 1;
 #
 --echo #  1.2.6 Remove partitioning
 ALTER TABLE t1 REMOVE PARTITIONING;
+ANALYZE TABLE t1;
 --source suite/parts/inc/partition_layout.inc
 --source suite/parts/inc/partition_check_read1.inc
 #
@@ -154,6 +159,7 @@ ALTER TABLE t1 ADD PARTITION (PARTITION part2 VALUES LESS THAN (0));
 #
 --echo #  2.1.3 Add two named partitions + test
 ALTER TABLE t1 ADD PARTITION (PARTITION part1, PARTITION part7);
+ANALYZE TABLE t1;
 --source suite/parts/inc/partition_layout.inc
 --source suite/parts/inc/partition_check_read2.inc
 #
@@ -180,6 +186,7 @@ let $loop= 7;
 while ($loop)
 {
    ALTER TABLE t1 COALESCE PARTITION 1;
+   ANALYZE TABLE t1;
    --source suite/parts/inc/partition_layout.inc
    --source suite/parts/inc/partition_check_read2.inc
    dec $loop;

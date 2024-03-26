@@ -143,6 +143,8 @@ eval $without_filter $q4;
 
 ALTER TABLE lineitem ADD CONSTRAINT l_date CHECK(l_shipdate < l_receiptdate);
 
+ANALYZE TABLE lineitem;
+
 --echo # Filter on l_shipdate is not used because it participates in
 --echo # the same constraint as l_receiptdate.
 --echo # Access is made on l_receiptdate.
@@ -175,6 +177,9 @@ UPDATE orders SET o_totaldiscount = o_totalprice*(o_custkey/1000);
 CREATE INDEX i_o_totaldiscount on orders(o_totaldiscount);
 
 ALTER TABLE orders ADD CONSTRAINT o_price CHECK(o_totalprice > o_totaldiscount);
+
+analyze table lineitem;
+analyze table orders;
 
 --echo # Filter on o_totalprice is not used because it participates in
 --echo # the same constraint as o_discount.
