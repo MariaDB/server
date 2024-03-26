@@ -5996,6 +5996,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
 void THD::store_slow_query_state(Sub_statement_state *backup)
 {
   backup->affected_rows=           affected_rows;
+  backup->max_tmp_space_used=      max_tmp_space_used;
   backup->bytes_sent_old=          bytes_sent_old;
   backup->examined_row_count=      m_examined_row_count;
   backup->examined_row_count_for_statement= examined_row_count_for_statement;
@@ -6015,6 +6016,7 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
 void THD::reset_slow_query_state(Sub_statement_state *backup)
 {
   affected_rows=                0;
+  max_tmp_space_used=           0;
   bytes_sent_old=               status_var.bytes_sent;
   m_examined_row_count=         0;
   m_sent_row_count=             0;
@@ -6055,6 +6057,7 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
   tmp_tables_size+=              backup->tmp_tables_size;
   tmp_tables_used+=              backup->tmp_tables_used;
+  max_tmp_space_used= MY_MAX(max_tmp_space_used, backup->max_tmp_space_used);
   if (backup->in_stored_procedure)
   {
     /*

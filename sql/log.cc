@@ -3262,15 +3262,22 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
       goto err;
     }
 
-    if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
-        thd->tmp_tables_used &&
-        my_b_printf(&log_file,
-                    "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
-                    "Tmp_table_sizes: %s\n",
-                    (ulong) thd->tmp_tables_used,
-                    (ulong) thd->tmp_tables_disk_used,
-                    llstr(thd->tmp_tables_size, llbuff)))
-      goto err;
+    if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN))
+    {
+      if (thd->tmp_tables_used &&
+          my_b_printf(&log_file,
+                      "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
+                      "Tmp_table_sizes: %s\n",
+                      (ulong) thd->tmp_tables_used,
+                      (ulong) thd->tmp_tables_disk_used,
+                      llstr(thd->tmp_tables_size, llbuff)))
+        goto err;
+      if (thd->max_tmp_space_used &&
+          my_b_printf(&log_file,
+                      "# Max_tmp_disk_space_used: %s\n",
+                      llstr(thd->max_tmp_space_used, llbuff)))
+        goto err;
+    }
 
     if (thd->spcont &&
         my_b_printf(&log_file, "# Stored_routine: %s\n",

@@ -3767,7 +3767,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
     DBUG_ASSERT(thd->status_var.tmp_space_used >= track->last_position);
 
     global_tmp_space_used+= size_change;
-    if (size_change > 0)
+    if (likely(size_change > 0))
     {
       /* Cache to avoid reading global_tmp_space_used too many times */
       ulonglong cached_space= global_tmp_space_used;
@@ -3786,10 +3786,19 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
         DBUG_RETURN(my_errno= EE_LOCAL_TMP_SPACE_FULL);
       }
       set_if_bigger(global_status_var.max_tmp_space_used, cached_space);
+      thd->status_var.tmp_space_used+= size_change;
+      if (thd->max_tmp_space_used < thd->status_var.tmp_space_used)
+      {
+        /* Max value for query */
+        thd->max_tmp_space_used= thd->status_var.tmp_space_used;
+        /* Max value for connection */
+        if (thd->status_var.max_tmp_space_used < thd->status_var.tmp_space_used)
+          thd->status_var.max_tmp_space_used= thd->status_var.tmp_space_used;
+      }
     }
-    thd->status_var.tmp_space_used+= size_change;
-    set_if_bigger(thd->status_var.max_tmp_space_used,
-                  thd->status_var.tmp_space_used);
+    else
+      thd->status_var.tmp_space_used+= size_change;
+    /* Max value for the connection */
     DBUG_ASSERT((longlong) global_tmp_space_used >= 0);
     DBUG_ASSERT((longlong) thd->status_var.tmp_space_used >= 0);
 

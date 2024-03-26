@@ -2112,6 +2112,7 @@ public:
   ulonglong sent_row_count_for_statement, examined_row_count_for_statement;
   ulonglong affected_rows;
   ulonglong bytes_sent_old;
+  ulonglong max_tmp_space_used;
   ha_handler_stats handler_stats;
   ulong     tmp_tables_used;
   ulong     tmp_tables_disk_used;
@@ -3805,6 +3806,7 @@ public:
   ulonglong  tmp_tables_size;
   ulonglong  bytes_sent_old;
   ulonglong  affected_rows;                     /* Number of changed rows */
+  ulonglong  max_tmp_space_used;
 
   Opt_trace_context opt_trace;
   pthread_t  real_id;                           /* For debugging */
