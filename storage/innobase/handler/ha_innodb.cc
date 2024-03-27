@@ -18478,22 +18478,13 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-static void innodb_log_spin_wait_delay_update(THD *thd, st_mysql_sys_var*,
-                                              void *var, const void *save)
+static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
+                                              void *, const void *save)
 {
-  ut_ad(var == &mtr_t::spin_wait_delay);
-
-  unsigned delay= *static_cast<const unsigned*>(save);
-
-  if (!delay != !mtr_t::spin_wait_delay)
-  {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    mtr_t::spin_wait_delay= delay;
-    mtr_t::finisher_update();
-    log_sys.latch.wr_unlock();
-  }
-  else
-    mtr_t::spin_wait_delay= delay;
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  mtr_t::spin_wait_delay= *static_cast<const unsigned*>(save);
+  mtr_t::finisher_update();
+  log_sys.latch.wr_unlock();
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,

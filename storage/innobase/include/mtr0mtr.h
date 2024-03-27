@@ -715,8 +715,7 @@ private:
   { return finisher(this, len); }
 public:
   /** Poll interval in log_sys.lock_lsn(); 0 to use log_sys.lsn_lock.
-  Protected by LOCK_global_system_variables; changes to and from 0
-  are additionally protected by exclusive log_sys.latch. */
+  Protected by LOCK_global_system_variables and log_sys.latch. */
   static unsigned spin_wait_delay;
   /** Update finisher when spin_wait_delay is changing to or from 0. */
   static void finisher_update();

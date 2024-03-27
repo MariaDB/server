@@ -962,7 +962,7 @@ size_t log_t::lock_lsn() noexcept
   size_t b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
   if (b & buf_free_LOCK)
   {
-    const size_t m= my_cpu_relax_multiplier * srv_spin_wait_delay / 32;
+    const size_t m= mtr_t::spin_wait_delay;
     constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
     for (size_t delay_count= DELAY, delay_iterations= 1;
          ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
