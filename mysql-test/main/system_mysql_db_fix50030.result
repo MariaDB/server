@@ -39,6 +39,25 @@ CREATE TABLE proc ( db char(64) collate utf8_bin DEFAULT '' NOT NULL, name char(
 CREATE TABLE procs_priv ( Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Routine_name char(64) binary DEFAULT '' NOT NULL, Routine_type enum('FUNCTION','PROCEDURE') NOT NULL, Grantor char(77) DEFAULT '' NOT NULL, Proc_priv set('Execute','Alter Routine','Grant') COLLATE utf8_general_ci DEFAULT '' NOT NULL, Timestamp timestamp, PRIMARY KEY (Host,Db,User,Routine_name,Routine_type), KEY Grantor (Grantor) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Procedure privileges';
 CREATE TABLE servers ( Server_name char(64) NOT NULL DEFAULT '', Host char(64) NOT NULL DEFAULT '', Db char(64) NOT NULL DEFAULT '', Username char(64) NOT NULL DEFAULT '', Password char(64) NOT NULL DEFAULT '', Port INT(4) NOT NULL DEFAULT '0', Socket char(64) NOT NULL DEFAULT '', Wrapper char(64) NOT NULL DEFAULT '', Owner char(64) NOT NULL DEFAULT '', PRIMARY KEY (Server_name)) CHARACTER SET utf8 comment='MySQL Foreign Servers table';
 INSERT INTO servers VALUES ('test','localhost','test','root','', 0,'','mysql','root');
+SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type
+WHERE object_schema='test';
+object_type	object_schema	object_name
+TABLE	test	column_stats
+TABLE	test	event
+TABLE	test	general_log
+TABLE	test	global_priv
+TABLE	test	gtid_slave_pos
+TABLE	test	host
+TABLE	test	index_stats
+TABLE	test	innodb_index_stats
+TABLE	test	innodb_table_stats
+TABLE	test	plugin
+TABLE	test	proxies_priv
+TABLE	test	roles_mapping
+TABLE	test	slow_log
+TABLE	test	table_stats
+TABLE	test	tables_priv
+TABLE	test	transaction_registry
 show tables;
 Tables_in_db
 column_stats

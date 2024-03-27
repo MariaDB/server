@@ -39,6 +39,24 @@ CREATE TABLE IF NOT EXISTS ndb_binlog_index (Position BIGINT UNSIGNED NOT NULL, 
 CREATE TABLE IF NOT EXISTS proxies_priv (Host char(60) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Proxied_host char(60) binary DEFAULT '' NOT NULL, Proxied_user char(16) binary DEFAULT '' NOT NULL, With_grant BOOL DEFAULT 0 NOT NULL, Grantor char(77) DEFAULT '' NOT NULL, Timestamp timestamp, PRIMARY KEY Host (Host,User,Proxied_host,Proxied_user), KEY Grantor (Grantor) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='User proxy privileges';
 Warnings:
 Warning	1280	Name 'Host' ignored for PRIMARY key.
+SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type
+WHERE object_schema='test';
+object_type	object_schema	object_name
+TABLE	test	column_stats
+TABLE	test	general_log
+TABLE	test	global_priv
+TABLE	test	gtid_slave_pos
+TABLE	test	host
+TABLE	test	index_stats
+TABLE	test	innodb_index_stats
+TABLE	test	innodb_table_stats
+TABLE	test	ndb_binlog_index
+TABLE	test	proxies_priv
+TABLE	test	roles_mapping
+TABLE	test	slow_log
+TABLE	test	table_stats
+TABLE	test	tables_priv
+TABLE	test	transaction_registry
 show tables;
 Tables_in_db
 column_stats

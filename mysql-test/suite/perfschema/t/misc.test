@@ -12,7 +12,7 @@
 # Rename table leaves old tables names behind in
 # performance_schema.objects_summary_global_by_type
 #
-SELECT object_schema, object_name FROM performance_schema.objects_summary_global_by_type
+SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type
   WHERE object_schema='test';
 
 CREATE TABLE test.t_before(a INT);

@@ -1,6 +1,6 @@
-SELECT object_schema, object_name FROM performance_schema.objects_summary_global_by_type
+SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type
 WHERE object_schema='test';
-object_schema	object_name
+object_type	object_schema	object_name
 CREATE TABLE test.t_before(a INT);
 INSERT INTO test.t_before VALUES (1);
 SELECT object_schema, object_name FROM performance_schema.objects_summary_global_by_type

@@ -1,6 +1,9 @@
 #
 # This test must examine structure of current system database
 #
+--sorted_result
+SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type
+  WHERE object_schema='test';
 
 -- replace_result Tables_in_mysql Tables_in_db Tables_in_test Tables_in_db
 show tables;
