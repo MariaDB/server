@@ -972,3 +972,12 @@ h time references t1(a)) engine innodb;
 drop tables if exists t2, t1;
 Warnings:
 Note	1051	Unknown table 'test.t2'
+#
+# MDEV-33780 Server crashes on renaming of table if table is locked
+#
+create table t1 (pk int primary key, f int);
+create table t2 (a int, foreign key (a) references t1 (pk));
+lock tables t1 write;
+alter table t1 rename to t3;
+unlock tables;
+drop tables t2, t3;
