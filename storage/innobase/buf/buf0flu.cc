@@ -1378,10 +1378,12 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
     space->release();
 
   if (scanned)
+  {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_BATCH_SCANNED,
                                  MONITOR_LRU_BATCH_SCANNED_NUM_CALL,
                                  MONITOR_LRU_BATCH_SCANNED_PER_CALL,
                                  scanned);
+  }
 }
 
 /** Flush and move pages from LRU or unzip_LRU list to the free list.
@@ -1526,10 +1528,13 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
     space->release();
 
   if (scanned)
+  {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BATCH_SCANNED,
                                  MONITOR_FLUSH_BATCH_SCANNED_NUM_CALL,
                                  MONITOR_FLUSH_BATCH_SCANNED_PER_CALL,
                                  scanned);
+  }
+
   return count;
 }
 
