@@ -1105,4 +1105,20 @@ set group_concat_max_len=default;
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-33772 Bad SEPARATOR value in GROUP_CONCAT on character set conversion
+--echo #
+
+SET NAMES utf8, @@collation_connection=latin1_swedish_ci;
+CREATE TABLE t1 (c VARCHAR(10)) CHARACTER SET latin1;
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE OR REPLACE VIEW v1 AS
+  SELECT GROUP_CONCAT(c SEPARATOR 'ß') AS c1 FROM t1 GROUP BY c;
+SELECT * FROM v1;
+SELECT HEX(c1) FROM v1;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+DROP TABLE t1;
+SET NAMES latin1;
+
 --echo # End of 10.5 tests

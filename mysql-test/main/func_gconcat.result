@@ -1517,4 +1517,24 @@ deallocate prepare stmt;
 set join_cache_level=default;
 set group_concat_max_len=default;
 drop table t1,t2;
+#
+# MDEV-33772 Bad SEPARATOR value in GROUP_CONCAT on character set conversion
+#
+SET NAMES utf8, @@collation_connection=latin1_swedish_ci;
+CREATE TABLE t1 (c VARCHAR(10)) CHARACTER SET latin1;
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE OR REPLACE VIEW v1 AS
+SELECT GROUP_CONCAT(c SEPARATOR 'ß') AS c1 FROM t1 GROUP BY c;
+SELECT * FROM v1;
+c1
+aßA
+SELECT HEX(c1) FROM v1;
+HEX(c1)
+61DF41
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select group_concat(`t1`.`c` separator 'ß') AS `c1` from `t1` group by `t1`.`c`	utf8	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;
+SET NAMES latin1;
 # End of 10.5 tests
