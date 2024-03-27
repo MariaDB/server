@@ -4,14 +4,7 @@
 --source include/not_embedded.inc
 --source include/have_debug_sync.inc
 
-# This is to ensure that the following SHOW PROCESSLIST does not show the query
-SET DEBUG_SYNC='dispatch_command_end SIGNAL ready WAIT_FOR go';
---send select 1
-
 --connect (con1,localhost,root,,)
-SET DEBUG_SYNC='now wait_for ready';
-SET DEBUG_SYNC='now signal go';
-
 --let $con_id = `SELECT CONNECTION_ID()`
 --replace_result Execute Query
 --replace_column 1 # 3 # 6 # 7 #
@@ -19,8 +12,6 @@ SHOW PROCESSLIST;
 SET DEBUG_SYNC='before_execute_sql_command SIGNAL ready WAIT_FOR go';
 send SHOW PROCESSLIST;
 --connection default
---reap
-
 # We must wait for the SHOW PROCESSLIST query to have started before sending
 # the kill. Otherwise, the KILL may be lost since it is reset at the start of
 # query execution.
