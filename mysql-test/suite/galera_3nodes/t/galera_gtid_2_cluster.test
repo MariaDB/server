@@ -11,6 +11,7 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
 --connection node_1
 --echo cluster 1 node 1
@@ -135,6 +136,19 @@ select @@gtid_binlog_state;
 --source include/sync_with_master_gtid.inc
 select * from t1 order by 1, 2, 3;
 
+--echo # check other nodes are consistent
+--connection node_2
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_3
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_5
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_6
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 1 node 1
 --connection node_1
@@ -291,6 +305,19 @@ select @@gtid_binlog_state;
 --source include/sync_with_master_gtid.inc
 select * from t1 order by 1, 2, 3;
 
+--echo # check other nodes are consistent
+--connection node_2
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_3
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_5
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_6
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 1 node 1
 --connection node_1
