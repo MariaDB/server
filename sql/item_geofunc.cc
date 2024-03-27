@@ -2656,6 +2656,136 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
 }
 
 
+String *Item_func_geohash::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  int64 geohash_length_arg= -1;
+  String *result= NULL;
+
+  if (arg_count == 2)
+  {
+    String bak1;
+    String *arg1= args[0]->val_str(&bak1);
+    geohash_length_arg= args[1]->val_int();
+
+    null_value= (args[0]->null_value || args[1]->null_value);
+    if (null_value)
+      goto exit_error;
+
+    Geometry_buffer buffer1;
+    Geometry *g1;
+    if (!(g1= Geometry::construct(&buffer1, arg1->ptr(), arg1->length())))
+    {
+      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeoHash");
+      goto exit_error;
+    }
+    else if (g1->get_class_info()->m_type_id != Geometry::wkb_point || 
+             g1->get_x(&longitude) || g1->get_y(&latitude))
+    {
+      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeoHash");
+      goto exit_error;
+    }
+  }
+  else if (arg_count == 3)
+  {
+    null_value= (args[0]->null_value || args[1]->null_value || args[2]->null_value);
+    if (null_value)
+      goto exit_error;
+
+    longitude= args[0]->val_real();
+    latitude= args[1]->val_real();
+    geohash_length_arg= args[2]->val_int();
+  }
+  else
+  {
+    DBUG_ASSERT(0);  // Should never happen
+    goto exit_error;
+  }
+
+  if (longitude > max_longitude || longitude < min_longitude)
+  {
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0), "Longitude should be [-180,180]", "ST_GeoHash");
+    goto exit_error;
+  }
+  else if (latitude > max_latitude || latitude < min_latitude)
+  {
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0), "Latitude should be [-90,90]", "ST_GeoHash");
+    goto exit_error;
+  }
+
+  if (geohash_length_arg <= 0 || geohash_length_arg > upper_limit_output_length) 
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeoHash");
+    goto exit_error;
+  }
+
+  str->length(0);
+  str->set_charset(&my_charset_latin1);
+  if (str->reserve(geohash_length_arg, 512))
+    goto exit_error;
+
+  geohash_max_output_length= static_cast<uint>(geohash_length_arg);
+  encode_geohash(str);
+
+  result= str;
+  return result;
+
+exit_error:
+  null_value= 1;
+  return 0;
+}
+
+
+void Item_func_geohash::encode_geohash(String *str)
+{
+  std::bitset<8> base_set;
+  double tmp_max_latitude= max_latitude;
+  double tmp_min_latitude= min_latitude;
+  double tmp_max_longitude= max_longitude;
+  double tmp_min_longitude= min_longitude;
+  bool switch_bit= true;
+
+  for (uint i=0; i<geohash_max_output_length; ++i)
+  {
+    for (uint bit_index=0; bit_index<5; ++bit_index)
+    {
+      if (switch_bit)
+        set_bit(tmp_max_longitude, tmp_min_longitude, longitude, base_set, bit_index);
+      else
+        set_bit(tmp_max_latitude, tmp_min_latitude, latitude, base_set, bit_index);
+      switch_bit= !switch_bit;
+    }
+
+    uint char_index= base_set.to_ulong();
+    DBUG_ASSERT(char_index <= 31);
+    str->append(BASE32[char_index]);
+
+    if (latitude == ((tmp_max_latitude + tmp_min_latitude) / 2.0) &&
+        longitude == ((tmp_max_longitude + tmp_min_longitude) / 2.0))
+      break;
+  }
+}
+
+
+void Item_func_geohash::set_bit(double &max_value, double &min_value, const double &target_value,
+                                std::bitset<8> &base_set, const uint &bit_index)
+{
+  DBUG_ASSERT(bit_index <= 4);
+
+  double mid_value= (max_value + min_value) / 2.0;
+  if (target_value >= mid_value)
+  {
+    base_set[4 - bit_index]= 1;
+    min_value= mid_value;
+  }
+  else
+  {
+    base_set[4 - bit_index]= 0;
+    max_value= mid_value;
+  }
+}
+
+
 String *Item_func_pointonsurface::val_str(String *str)
 {
   Gcalc_operation_transporter trn(&func, &collector);
@@ -3014,6 +3144,57 @@ Create_func_distance_sphere::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
   return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
+}
+
+
+class Create_func_geohash : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_geohash s_singleton;
+
+protected:
+  Create_func_geohash() = default;
+  virtual ~Create_func_geohash() = default;
+};
+
+
+Item*
+Create_func_geohash::create_native(THD *thd, const LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 2:
+  {
+    Item *point= item_list->pop();
+    Item *max_length= item_list->pop();
+    func= new (thd->mem_root) Item_func_geohash(thd, point, max_length);
+    break;
+  }
+  case 3:
+  {
+    Item *longitude= item_list->pop();
+    Item *latitude= item_list->pop();
+    Item *max_length= item_list->pop();
+    func= new (thd->mem_root) Item_func_geohash(thd, longitude, latitude, max_length);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
 }
 
 
@@ -3868,6 +4049,7 @@ Create_func_dimension Create_func_dimension::s_singleton;
 Create_func_disjoint Create_func_disjoint::s_singleton;
 Create_func_distance Create_func_distance::s_singleton;
 Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
+Create_func_geohash Create_func_geohash::s_singleton;
 Create_func_endpoint Create_func_endpoint::s_singleton;
 Create_func_envelope Create_func_envelope::s_singleton;
 Create_func_equals Create_func_equals::s_singleton;
@@ -4068,6 +4250,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
+  { { STRING_WITH_LEN("ST_GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
   { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
