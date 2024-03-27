@@ -8976,8 +8976,7 @@ ha_innobase::index_read(
 	mariadb_set_stats set_stats_temporary(handler_stats);
 	DEBUG_SYNC_C("ha_innobase_index_read_begin");
 
-	ut_a(m_prebuilt->trx == thd_to_trx(m_user_thd));
-	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
+	ut_ad(m_prebuilt->trx == thd_to_trx(m_user_thd));
 
 	dict_index_t*	index = m_prebuilt->index;
 
@@ -9013,7 +9012,7 @@ ha_innobase::index_read(
 		build_template(false);
 	}
 
-	if (key_ptr != NULL) {
+	if (key_len) {
 		/* Convert the search key value to InnoDB format into
 		m_prebuilt->search_tuple */
 
@@ -9023,42 +9022,66 @@ ha_innobase::index_read(
 			m_prebuilt->srch_key_val_len,
 			index,
 			(byte*) key_ptr,
-			(ulint) key_len);
+			key_len);
 
 		DBUG_ASSERT(m_prebuilt->search_tuple->n_fields > 0);
 	} else {
+		ut_ad(find_flag != HA_READ_KEY_EXACT);
 		/* We position the cursor to the last or the first entry
 		in the index */
 
 		dtuple_set_n_fields(m_prebuilt->search_tuple, 0);
 	}
 
-	page_cur_mode_t	mode = convert_search_mode_to_innobase(find_flag);
+	page_cur_mode_t	mode = PAGE_CUR_LE;
+	m_last_match_mode = 0;
 
-	ulint	match_mode = 0;
-
-	if (find_flag == HA_READ_KEY_EXACT) {
-
-		match_mode = ROW_SEL_EXACT;
-
-	} else if (find_flag == HA_READ_PREFIX_LAST) {
-
-		match_mode = ROW_SEL_EXACT_PREFIX;
+	switch (find_flag) {
+	case HA_READ_KEY_EXACT:
+		/* this does not require the index to be UNIQUE */
+		m_last_match_mode = ROW_SEL_EXACT;
+		/* fall through */
+	case HA_READ_KEY_OR_NEXT:
+		mode = PAGE_CUR_GE;
+		break;
+	case HA_READ_AFTER_KEY:
+		mode = PAGE_CUR_G;
+		break;
+	case HA_READ_BEFORE_KEY:
+		mode = PAGE_CUR_L;
+		break;
+	case HA_READ_PREFIX_LAST:
+		m_last_match_mode = ROW_SEL_EXACT_PREFIX;
+		break;
+	case HA_READ_KEY_OR_PREV:
+	case HA_READ_PREFIX_LAST_OR_PREV:
+		break;
+	case HA_READ_MBR_CONTAIN:
+		mode = PAGE_CUR_CONTAIN;
+		break;
+	case HA_READ_MBR_INTERSECT:
+		mode = PAGE_CUR_INTERSECT;
+		break;
+	case HA_READ_MBR_WITHIN:
+		mode = PAGE_CUR_WITHIN;
+		break;
+	case HA_READ_MBR_DISJOINT:
+		mode = PAGE_CUR_DISJOINT;
+		break;
+	case HA_READ_MBR_EQUAL:
+		mode = PAGE_CUR_MBR_EQUAL;
+		break;
+	case HA_READ_PREFIX:
+		table->status = STATUS_NOT_FOUND;
+		DBUG_RETURN(HA_ERR_UNSUPPORTED);
 	}
 
-	m_last_match_mode = (uint) match_mode;
-
-	dberr_t ret = mode == PAGE_CUR_UNSUPP ? DB_UNSUPPORTED
-		: row_search_mvcc(buf, mode, m_prebuilt, match_mode, 0);
+	dberr_t ret =
+		row_search_mvcc(buf, mode, m_prebuilt, m_last_match_mode, 0);
 
 	DBUG_EXECUTE_IF("ib_select_query_failure", ret = DB_ERROR;);
 
-	int	error;
-
-	switch (ret) {
-	case DB_SUCCESS:
-		error = 0;
-		table->status = 0;
+	if (UNIV_LIKELY(ret == DB_SUCCESS)) {
 		if (m_prebuilt->table->is_system_db) {
 			srv_stats.n_system_rows_read.add(
 				thd_get_thread_id(m_prebuilt->trx->mysql_thd), 1);
@@ -9066,48 +9089,33 @@ ha_innobase::index_read(
 			srv_stats.n_rows_read.add(
 				thd_get_thread_id(m_prebuilt->trx->mysql_thd), 1);
 		}
-		break;
+		table->status = 0;
+		DBUG_RETURN(0);
+	}
 
-	case DB_RECORD_NOT_FOUND:
-		error = HA_ERR_KEY_NOT_FOUND;
-		table->status = STATUS_NOT_FOUND;
-		break;
+	table->status = STATUS_NOT_FOUND;
 
-	case DB_END_OF_INDEX:
-		error = HA_ERR_KEY_NOT_FOUND;
-		table->status = STATUS_NOT_FOUND;
-		break;
-
+	switch (ret) {
 	case DB_TABLESPACE_DELETED:
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_DISCARDED,
 			table->s->table_name.str);
-
-		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_TABLESPACE_MISSING;
-		break;
-
+		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
+	case DB_RECORD_NOT_FOUND:
+	case DB_END_OF_INDEX:
+		DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
 	case DB_TABLESPACE_NOT_FOUND:
-
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_MISSING,
 			table->s->table_name.str);
-
-		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_TABLESPACE_MISSING;
-		break;
-
+		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
 	default:
-		error = convert_error_code_to_mysql(
-			ret, m_prebuilt->table->flags, m_user_thd);
-
-		table->status = STATUS_NOT_FOUND;
-		break;
+		DBUG_RETURN(convert_error_code_to_mysql(
+				    ret, m_prebuilt->table->flags,
+				    m_user_thd));
 	}
-
-	DBUG_RETURN(error);
 }
 
 /*******************************************************************//**
@@ -9540,8 +9548,6 @@ ha_innobase::rnd_pos(
 {
 	DBUG_ENTER("rnd_pos");
 	DBUG_DUMP("key", pos, ref_length);
-
-	ut_a(m_prebuilt->trx == thd_to_trx(ha_thd()));
 
 	/* Note that we assume the length of the row reference is fixed
 	for the table, and it is == ref_length */
