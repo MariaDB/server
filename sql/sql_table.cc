@@ -5861,7 +5861,8 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     if (!check)                                 // Found unique name
     {
       name->length= (size_t) (real_end - buff);
-      name->str= strmake_root(thd->stmt_arena->mem_root, buff, name->length);
+      name->str= thd->strmake(buff, name->length);
+
       return (name->str == NULL);
     }
   }
