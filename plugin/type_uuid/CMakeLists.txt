@@ -15,4 +15,5 @@
 
 MYSQL_ADD_PLUGIN(type_uuid
                  plugin.cc item_uuidfunc.cc
+                 LINK_LIBRARIES mysys
                  MANDATORY RECOMPILE_FOR_EMBEDDED)

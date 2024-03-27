@@ -136,12 +136,31 @@ protected:
   virtual ~Create_func_sys_guid() {}
 };
 
+class Create_func_uuid_v4 : public Create_func_arg0
+{
+public:
+  Item *create_builder(THD *thd) override
+  {
+    DBUG_ENTER("Create_func_uuid_v4::create");
+    thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+    thd->lex->safe_to_cache_query= 0;
+    DBUG_RETURN(new (thd->mem_root) Item_func_uuid_v4(thd));
+  }
+  static Create_func_uuid_v4 s_singleton;
+
+protected:
+  Create_func_uuid_v4() {}
+  virtual ~Create_func_uuid_v4() {}
+};
+
 Create_func_uuid Create_func_uuid::s_singleton;
 Create_func_sys_guid Create_func_sys_guid::s_singleton;
+Create_func_uuid_v4 Create_func_uuid_v4::s_singleton;
 
 static Plugin_function
   plugin_descriptor_function_uuid(&Create_func_uuid::s_singleton),
-  plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton);
+  plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton),
+  plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton);
 
 static constexpr Name type_name={STRING_WITH_LEN("uuid")};
 
@@ -199,5 +218,20 @@ maria_declare_plugin(type_uuid)
   NULL,                         // System variables
   "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_uuid_v4, // pointer to type-specific plugin descriptor
+  "uuidv4",                     // plugin name
+  "Stefano Petrilli",           // plugin author
+  "Function UUIDv4()",          // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL// Maturity(see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;
