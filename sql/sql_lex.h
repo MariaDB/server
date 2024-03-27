@@ -878,6 +878,14 @@ protected:
 public:
   bool join_union_item_types(THD *thd, List<Item> &types, uint count);
 public:
+  /*
+    This value is true whenever we're withing the
+    subselect_union_engine::exec() method call, to
+    indicate that the current execution context for
+    this unit is a subselect.
+  */
+  bool in_subselect{false};
+
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
     : union_result(NULL), table(NULL), result(NULL),
@@ -1081,6 +1089,17 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 class st_select_lex: public st_select_lex_node
 {
 public:
+  /*
+    When true, don't invoke ha_end_keyread for a given table
+    during JOIN cleanup (but only when that cleanup happens
+    during a subselect), avoiding a premature reset of the
+    corresponding handler's keyread value.  Other parts of
+    the query may not yet be done reading from the table
+    and we don't want to call ha_end_keyread until all parts
+    of the query have finished executing.
+  */
+  bool delay_keyread_end{false};
+
   /*
     Currently the field first_nested is used only by parser.
     It containa either a reference to the first select

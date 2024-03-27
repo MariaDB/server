@@ -4096,7 +4096,9 @@ int subselect_single_select_engine::exec()
 int subselect_union_engine::exec()
 {
   char const *save_where= thd->where;
+  unit->in_subselect= true;
   int res= unit->exec();
+  unit->in_subselect= false;
   thd->where= save_where;
   return res;
 }

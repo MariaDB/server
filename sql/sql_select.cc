@@ -13803,6 +13803,28 @@ bool JOIN_TAB::build_range_rowid_filter_if_needed()
 }
 
 
+static bool should_invoke_end_keyread(JOIN *join)
+{
+  DBUG_ASSERT(join);
+  /*
+    - If there's no unit associated with the join, then we
+    cannot be within a subselect, so it's okay to call
+    ha_end_keyread().
+    - If we have a unit but we're not within a subselect,
+    then it's okay to call ha_end_keyread().
+    - If we have a unit and we're within a subselect and
+    delay_keyread_end is false, then it's okay to call
+    ha_end_keyread().
+
+    Put another way, do not call ha_end_keyread() when
+    we're in a subselect and delay_keyread_end is true.
+  */
+  return !join->unit ||
+         !join->unit->in_subselect ||
+         !join->select_lex->delay_keyread_end;
+}
+
+
 /**
   cleanup JOIN_TAB.
 
@@ -13842,12 +13864,14 @@ void JOIN_TAB::cleanup()
   if (table &&
       (table->s->tmp_table != INTERNAL_TMP_TABLE || table->is_created()))
   {
-    table->file->ha_end_keyread();
+    if (should_invoke_end_keyread(join))
+      table->file->ha_end_keyread();
     table->file->ha_index_or_rnd_end();
   }
   if (table)
   {
-    table->file->ha_end_keyread();
+    if (should_invoke_end_keyread(join))
+      table->file->ha_end_keyread();
     if (type == JT_FT)
       table->file->ha_ft_end();
     else

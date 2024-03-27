@@ -9957,15 +9957,42 @@ void st_select_lex_unit::fix_distinct()
 }
 
 
+/*
+  If the table list of previous_sel has any tables found in the table
+  list of sel, then mark both previous_sel and sel such that the call
+  to ha_end_keyread() during JOIN cleanup may be delayed.  However,
+  delaying the call to ha_end_keyread() only be be considered when
+  we're executing within the context of a subquery.  The call will
+  be delayed until the end of the parent query and its corresponding
+  JOIN cleanup.
+*/
+static void mark_for_delayed_end_keyread(SELECT_LEX *previous_sel,
+                                         SELECT_LEX *sel)
+{
+  if (!previous_sel)
+    return;
+  DBUG_ASSERT(previous_sel && sel);
+  for (auto tlm= previous_sel->table_list.first; tlm; tlm= tlm->next_local)
+    for (auto tlm2= sel->table_list.first; tlm2; tlm2= tlm2->next_local)
+      if (!cmp(tlm2->db, tlm->db) && !cmp(tlm2->table_name, tlm->table_name)) {
+        previous_sel->delay_keyread_end= true;
+        sel->delay_keyread_end= true;
+      }
+}
+
+
 void st_select_lex_unit::register_select_chain(SELECT_LEX *first_sel)
 {
   DBUG_ASSERT(first_sel != 0);
   slave= first_sel;
   first_sel->prev= &slave;
+  SELECT_LEX *previous_sel= nullptr;
   for(SELECT_LEX *sel=first_sel; sel; sel= sel->next_select())
   {
     sel->master= (st_select_lex_node *)this;
     uncacheable|= sel->uncacheable;
+    mark_for_delayed_end_keyread(previous_sel, sel);
+    previous_sel= sel;
   }
 }
 
