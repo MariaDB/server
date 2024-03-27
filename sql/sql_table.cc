@@ -14597,7 +14597,11 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const Lex_ident_db *new_d
   if (tables.empty())
     return false;
 
-  if (thd->mdl_context.upgrade_shared_lock(
+  DBUG_ASSERT(old_table->mdl_request.ticket ||
+              thd->locked_tables_mode == LTM_LOCK_TABLES);
+
+  if (old_table->mdl_request.ticket &&
+      thd->mdl_context.upgrade_shared_lock(
              old_table->mdl_request.ticket, MDL_EXCLUSIVE,
              thd->variables.lock_wait_timeout))
     return true;
