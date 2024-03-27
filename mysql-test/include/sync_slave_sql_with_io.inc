@@ -25,11 +25,8 @@
 let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
-  let $_slave_timeout= 300;
-  if ($VALGRIND_TEST)
-  {
-    let $_slave_timeout= 1500;
-  }
+  source include/slow_environ.inc;
+  let $_slave_timeout= 300$_timeout_adjustment;
 }
 
 --let $_master_log_file= query_get_value(SHOW SLAVE STATUS, Master_Log_File, 1)

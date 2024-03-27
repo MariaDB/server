@@ -49,11 +49,8 @@
 let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
-  let $_slave_timeout= 300;
-  if ($VALGRIND_TEST)
-  {
-    let $_slave_timeout= 1500;
-  }
+  source include/slow_environ.inc;
+  let $_slave_timeout= 300$_timeout_adjustment;
 }
 
 let $_slave_param_comparison= $slave_param_comparison;

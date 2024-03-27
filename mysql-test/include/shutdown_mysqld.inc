@@ -31,11 +31,8 @@ if ($rpl_inited)
 set @@global.log_warnings=0;
 --enable_query_log
 
---let $server_shutdown_timeout= 60
-if ($VALGRIND_TEST)
-{
-  --let $server_shutdown_timeout= 300
-}
+--source include/slow_environ.inc
+--let $server_shutdown_timeout= 60$_timeout_adjustment
 
 if ($shutdown_timeout)
 {

@@ -33,11 +33,8 @@
 let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
-  let $_slave_timeout= 120;
-  if ($VALGRIND_TEST)
-  {
-    let $_slave_timeout= 1200;
-  }
+  source include/slow_environ.inc;
+  let $_slave_timeout= 120$_timeout_adjustment;
 }
 
 --let $_result= `SELECT master_gtid_wait('$master_pos', $_slave_timeout)`
