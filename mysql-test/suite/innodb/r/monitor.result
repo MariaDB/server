@@ -627,7 +627,7 @@ set global innodb_monitor_reset_all = default;
 # MONITORS
 #
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*1*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
@@ -635,13 +635,13 @@ SET GLOBAL innodb_monitor_enable='module_buffer_page';
 INSERT INTO t1 VALUES (1), (2), (3), (4);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*2*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*3*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
@@ -651,13 +651,13 @@ ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value o
 INSERT INTO t1 VALUES (5), (6), (7), (8);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*4*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
 SET GLOBAL innodb_monitor_disable='%';
 SET GLOBAL innodb_monitor_reset_all='%';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*5*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
@@ -665,7 +665,7 @@ SET GLOBAL innodb_monitor_enable='ALL';
 INSERT INTO t1 VALUES (9), (10), (11), (12);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*6*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
