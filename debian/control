@@ -87,7 +87,6 @@ Description: MariaDB database development files
 
 Package: libmariadb-dev-compat
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Depends: libmariadb-dev (= ${binary:Version}),
          ${misc:Depends}
@@ -840,7 +839,7 @@ Description: Amazon S3 archival storage engine for MariaDB
  them accessible in MariaDB in read-only mode.
 
 Package: mariadb-plugin-rocksdb
-Architecture: amd64 arm64 mips64el ppc64el
+Architecture: amd64 arm64 mips64el ppc64el riscv64
 Depends: mariadb-server (= ${server:Version}),
          python3:any,
          rocksdb-tools,
@@ -950,7 +949,6 @@ Description: GSSAPI authentication plugin for MariaDB server
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
-Multi-Arch: same
 Depends: libgssapi-krb5-2,
          mariadb-client (= ${binary:Version}),
          ${misc:Depends},
