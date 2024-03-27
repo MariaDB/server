@@ -4,8 +4,6 @@
 #
 # Set up the test with a procedure and a function.
 #
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency= 1;
 CREATE PROCEDURE insert_n(start int, end int)
 BEGIN
 DECLARE i INT DEFAULT start;
@@ -84,7 +82,6 @@ test.t1	check	status	OK
 #
 disconnect con2;
 disconnect con3;
-SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 DROP TABLE t1;
 DROP PROCEDURE insert_n;
 DROP FUNCTION num_pages_get;

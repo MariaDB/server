@@ -60,9 +60,6 @@ namespace oqgraph3
     edge_iterator(const graph_ptr& graph, size_t offset=0)
       : _graph(graph)
       , _offset(offset) { }
-    edge_iterator(const edge_iterator& pos)
-      : _graph(pos._graph)
-      , _offset(pos._offset) { }
     value_type operator*();
     self& operator+=(size_t n) { _offset+= n; return *this; }
     self& operator++() { ++_offset; return *this; }

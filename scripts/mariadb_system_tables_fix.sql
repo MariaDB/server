@@ -25,6 +25,7 @@
 # adding a 'SHOW WARNINGS' after the statement.
 
 set sql_mode='';
+set sql_safe_updates='OFF';
 set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 set alter_algorithm='DEFAULT';
@@ -229,6 +230,11 @@ UPDATE user
   SET plugin='unix_socket' WHERE plugin='auth_socket';
 DELETE FROM plugin
   WHERE name='auth_socket';
+# Delete plugins that are now inbuilt but might not have been before (MDEV-32043)
+DELETE plugin
+  FROM information_schema.PLUGINS is_p
+  JOIN plugin ON plugin.name = is_p.PLUGIN_NAME
+  WHERE is_p.PLUGIN_LIBRARY IS NULL;
 
 ALTER TABLE user
   MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',
@@ -300,14 +306,14 @@ SET GLOBAL log_slow_query = 'OFF';
 ALTER TABLE slow_log
   ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
 ALTER TABLE slow_log
-  ADD COLUMN rows_affected INTEGER NOT NULL AFTER thread_id;
+  ADD COLUMN rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
 ALTER TABLE slow_log
   MODIFY start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY query_time TIME(6) NOT NULL,
   MODIFY lock_time TIME(6) NOT NULL,
-  MODIFY rows_sent INTEGER NOT NULL,
-  MODIFY rows_examined INTEGER NOT NULL,
+  MODIFY rows_sent BIGINT UNSIGNED NOT NULL,
+  MODIFY rows_examined BIGINT UNSIGNED NOT NULL,
   MODIFY db VARCHAR(512) NOT NULL,
   MODIFY last_insert_id INTEGER NOT NULL,
   MODIFY insert_id INTEGER NOT NULL,

@@ -1,4 +1,5 @@
-CREATE TABLE t (pk int PRIMARY KEY, c varchar(10)) ENGINE=InnoDB;
+CREATE TABLE t (pk int PRIMARY KEY, c varchar(10))
+STATS_PERSISTENT=0 ENGINE=InnoDB;
 INSERT INTO t VALUES (10, "0123456789");
 connection default;
 BEGIN;

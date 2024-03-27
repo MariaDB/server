@@ -1,0 +1,83 @@
+--source include/master-slave.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_statement.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1(a INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--let $save_transaction_retries= `SELECT @@global.slave_transaction_retries`
+--let $save_slave_parallel_threads= `SELECT @@global.slave_parallel_threads`
+--let $save_slave_parallel_mode= `SELECT @@global.slave_parallel_mode`
+set @@global.slave_parallel_threads= 2;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+set @@global.slave_transaction_retries= 2;
+
+--echo *** MDEV-28776: rpl.rpl_mark_optimize_tbl_ddl fails with timeout on sync_with_master
+# This was a failure where a transaction T1 could deadlock multiple times
+# with T2, eventually exceeding the default --slave-transaction-retries=10.
+# Root cause was MDEV-31655, causing InnoDB to wrongly choose T1 as deadlock
+# victim over T2. If thread scheduling is right, it was possible for T1 to
+# repeatedly deadlock, roll back, and have time to grab an S lock again before
+# T2 woke up and got its waiting X lock, thus repeating the same deadlock over
+# and over.
+# Once the bug is fixed, it is not possible to re-create the same execution
+# and thread scheduling. Instead we inject small sleeps in a way that
+# triggered the problem when the bug was there, to demonstrate that the
+# problem no longer occurs.
+
+--connection master
+# T1
+SET @@gtid_seq_no= 100;
+INSERT INTO t1  SELECT 1+a FROM t1;
+# T2
+SET @@gtid_seq_no= 200;
+INSERT INTO t1  SELECT 2+a FROM t1;
+
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+SET @save_dbug= @@GLOBAL.debug_dbug;
+
+# Inject various delays to hint thread scheduling to happen in the way that
+# triggered MDEV-28776.
+
+# Small delay starting T1 so it will be the youngest trx and be chosen over
+# T2 as the deadlock victim by default in InnoDB.
+SET GLOBAL debug_dbug="+d,rpl_parallel_delay_gtid_0_x_100_start";
+
+# Small delay before taking insert X lock to give time for both T1 and T2 to
+# get the S lock first and cause a deadlock.
+SET GLOBAL debug_dbug="+d,rpl_write_record_small_sleep_gtid_100_200";
+
+# Small delay after T2's wait on the X lock, to give time for T1 retry to
+# re-aquire the T1 S lock first.
+SET GLOBAL debug_dbug="+d,small_sleep_after_lock_wait";
+
+# Delay deadlock kill of T2.
+SET GLOBAL debug_dbug="+d,rpl_delay_deadlock_kill";
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug= @save_dbug;
+SELECT * FROM t1 ORDER BY a;
+
+# Cleanup.
+--connection slave
+--source include/stop_slave.inc
+eval SET @@global.slave_parallel_threads= $save_slave_parallel_threads;
+eval SET @@global.slave_parallel_mode= $save_slave_parallel_mode;
+eval SET @@global.slave_transaction_retries= $save_transaction_retries;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

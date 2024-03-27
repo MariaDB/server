@@ -33,9 +33,9 @@ static TREE *stopwords3=NULL;
 static int FT_STOPWORD_cmp(void* cmp_arg __attribute__((unused)),
 			   FT_STOPWORD *w1, FT_STOPWORD *w2)
 {
-  return ha_compare_text(ft_stopword_cs,
-			 (uchar *)w1->pos,w1->len,
-			 (uchar *)w2->pos,w2->len,0);
+  return ha_compare_word(ft_stopword_cs,
+                         (uchar *) w1->pos, w1->len,
+                         (uchar *) w2->pos, w2->len);
 }
 
 static int FT_STOPWORD_free(FT_STOPWORD *w, TREE_FREE action,

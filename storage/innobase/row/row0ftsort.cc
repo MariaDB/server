@@ -489,7 +489,10 @@ row_merge_fts_doc_tokenize(
 
 	/* Tokenize the data and add each word string, its corresponding
 	doc id and position to sort buffer */
-	while (t_ctx->processed_len < doc->text.f_len) {
+	while (parser
+               ? (!t_ctx->processed_len
+                  || UT_LIST_GET_LEN(t_ctx->fts_token_list))
+               : t_ctx->processed_len < doc->text.f_len) {
 		ulint		idx = 0;
 		ulint		cur_len;
 		doc_id_t	write_doc_id;
@@ -829,7 +832,8 @@ loop:
 			/* Not yet finish processing the "doc" on hand,
 			continue processing it */
 			ut_ad(doc.text.f_str);
-			ut_ad(t_ctx.processed_len < doc.text.f_len);
+			ut_ad(buf[0]->index->parser
+			      || t_ctx.processed_len < doc.text.f_len);
 		}
 
 		processed = row_merge_fts_doc_tokenize(
@@ -839,7 +843,8 @@ loop:
 
 		/* Current sort buffer full, need to recycle */
 		if (!processed) {
-			ut_ad(t_ctx.processed_len < doc.text.f_len);
+			ut_ad(buf[0]->index->parser
+			      || t_ctx.processed_len < doc.text.f_len);
 			ut_ad(t_ctx.rows_added[t_ctx.buf_used]);
 			break;
 		}
@@ -1625,9 +1630,6 @@ row_fts_merge_insert(
 	/* We should set the flags2 with aux_table_name here,
 	in order to get the correct aux table names. */
 	index->table->flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME
-			& ((1U << DICT_TF2_BITS) - 1););
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table->id;

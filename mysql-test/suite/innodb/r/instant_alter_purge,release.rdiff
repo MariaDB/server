@@ -1,6 +1,6 @@
 --- instant_alter_purge.result
 +++ instant_alter_purge,release.result
-@@ -32,16 +32,11 @@
+@@ -32,15 +32,10 @@
  START TRANSACTION WITH CONSISTENT SNAPSHOT;
  connection default;
  DELETE FROM t1;
@@ -16,4 +16,3 @@
  connection default;
 -SET DEBUG_SYNC=RESET;
  DROP TABLE t1;
- SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -1,0 +1,10 @@
+--echo #
+--echo # MDEV-28218 Spider: thread hang/deadlock as result of INSTALL PLUGIN and DROP TABLE
+--echo #
+INSTALL SONAME 'ha_spider.so';
+DROP TABLE IF EXISTS mysql.spider_tables;
+--error ER_NO_SUCH_TABLE
+show create table mysql.spider_tables;
+
+--disable_query_log
+--source ../../include/clean_up_spider.inc

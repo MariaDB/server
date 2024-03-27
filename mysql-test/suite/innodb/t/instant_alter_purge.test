@@ -4,8 +4,6 @@ if ($have_debug) {
 --source include/have_debug_sync.inc
 }
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 --source include/wait_all_purged.inc
 
 --echo #
@@ -16,7 +14,7 @@ connect (prevent_purge,localhost,root);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 connection default;
-CREATE TABLE t1 (f1 INT, f2 INT) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT, f2 INT) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 () VALUES ();
 ALTER TABLE t1 DROP f2, ADD COLUMN f2 INT;
 ALTER TABLE t1 DROP f1;
@@ -34,4 +32,3 @@ disconnect prevent_purge;
 let $wait_all_purged= 0;
 --source include/wait_all_purged.inc
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

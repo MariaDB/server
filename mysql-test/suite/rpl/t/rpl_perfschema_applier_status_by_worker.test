@@ -227,6 +227,7 @@ select Last_Error_Message from performance_schema.replication_applier_status_by_
 #let $assert_cond= "$sss_value" = "$ps_value_in_sss_format";
 #source include/assert.inc;
 
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 RESET SLAVE;
 --connection master

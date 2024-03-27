@@ -272,10 +272,6 @@ int main(int argc __attribute__((unused)),
     exit(1);
   }
 
-#ifdef HAVE_THR_SETCONCURRENCY
-  thr_setconcurrency(2);
-#endif
-
   if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
                              TEST_PAGE_SIZE, 0, 0)) == 0)
   {

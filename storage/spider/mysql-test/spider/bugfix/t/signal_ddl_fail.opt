@@ -1,0 +1,2 @@
+--plugin-load-add=ha_spider
+--debug-dbug=d,fail_spider_ddl_recovery_done

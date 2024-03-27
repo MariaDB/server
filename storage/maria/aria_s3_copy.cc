@@ -89,7 +89,9 @@ static struct my_option my_long_options[] =
    &opt_block_size, &opt_block_size, 0, GET_ULONG, REQUIRED_ARG,
    4*1024*1024, 64*1024, 16*1024*1024, MALLOC_OVERHEAD, 1024, 0 },
   {"s3_protocol_version", 'L',
-   "Protocol used to communication with S3. One of \"Auto\", \"Amazon\" or \"Original\".",
+   "Protocol used to communication with S3. One of \"Auto\", \"Legacy\", "
+   "\"Original\", \"Amazon\", \"Path\" or \"Domain\". "
+   "Note: \"Legacy\", \"Original\" and \"Amazon\" are deprecated.",
    &opt_protocol_version, &opt_protocol_version, &s3_protocol_typelib,
    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force copy even if target exists",
@@ -191,7 +193,7 @@ static void get_options(int *argc, char ***argv)
     my_exit(-1);
   }
   if (opt_s3_debug)
-    ms3_debug();
+    ms3_debug(1);
 
 } /* get_options */
 
@@ -214,9 +216,20 @@ int main(int argc, char** argv)
 
   ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
 
-  if (opt_protocol_version)
+  if (opt_protocol_version > 2)
   {
-    uint8_t protocol_version= (uint8_t) opt_protocol_version;
+    uint8_t protocol_version;
+    switch (opt_protocol_version)
+    {
+      case 3: /* Legacy means v1 */
+      case 4: /* Path means v1 */
+        protocol_version= 1;
+        break;
+      case 5: /* Domain means v2 */
+        protocol_version= 2;
+        break;
+    }
+
     ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
                    &protocol_version);
   }

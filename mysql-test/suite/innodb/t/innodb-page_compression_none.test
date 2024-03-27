@@ -1,0 +1,26 @@
+-- source include/innodb_checksum_algorithm.inc
+
+--echo #
+--echo # MDEV-30825 innodb_compression_algorithm=0 (none) increments Innodb_num_pages_page_compression_error
+--echo #
+
+SET @save_compression_algorithm=@@GLOBAL.innodb_compression_algorithm;
+SET GLOBAL innodb_compression_algorithm=0;
+SELECT VARIABLE_VALUE INTO @compress_errors FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Innodb_num_pages_page_compression_error';
+
+
+CREATE TABLE t (c INT) page_compressed=1 page_compression_level=4 ENGINE=InnoDB;
+INSERT INTO t VALUES (1);
+
+FLUSH TABLES t FOR EXPORT;
+UNLOCK TABLES;
+
+SELECT VARIABLE_VALUE - @compress_errors AS NUMBER_OF_ERRORS FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Innodb_num_pages_page_compression_error';
+
+DROP TABLE t;
+SET GLOBAL innodb_compression_algorithm=@save_compression_algorithm;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+

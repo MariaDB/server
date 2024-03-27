@@ -2911,5 +2911,19 @@ DROP FUNCTION f;
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-31296: Crash in Item_func::fix_fields when prepared statement
+--echo #             with subqueries and window function is executed with
+--echo #             sql_mode = ONLY_FULL_GROUP_BY
+--echo #
+CREATE TABLE t1 ( a INT, i INT) ;
+CREATE TABLE t2 ( a INT);
+INSERT INTO t2 VALUES (4000);
+SET SESSION sql_mode = "ONLY_FULL_GROUP_BY";
+EXECUTE IMMEDIATE "SELECT SUM(i) OVER (ORDER BY i) FROM t1 NATURAL JOIN t2";
+
+--echo # Clean up
+DROP TABLE t1, t2;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

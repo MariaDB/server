@@ -29,6 +29,14 @@ class THD;
 class my_decimal;
 class sp_condition_value;
 
+/* Types of LOG warnings, used by note_verbosity */
+
+#define NOTE_VERBOSITY_NORMAL             (1U << 0)
+/* Show warnings about keys parts that cannot be used */
+#define NOTE_VERBOSITY_UNUSABLE_KEYS      (1U << 1)
+/* Show warnings in explain for key parts that cannot be used */
+#define NOTE_VERBOSITY_EXPLAIN            (1U << 2)
+
 ///////////////////////////////////////////////////////////////////////////
 
 class Sql_state
@@ -595,6 +603,16 @@ private:
   bool has_sql_condition(const char *message_str, size_t message_length) const;
 
   /**
+    Checks if Warning_info contains SQL-condition with the given error id
+
+    @param sql_errno SQL-condition error number
+
+    @return true if the Warning_info contains an SQL-condition with the given
+    error id.
+  */
+  bool has_sql_condition(uint sql_errno) const;
+
+  /**
     Reset the warning information. Clear all warnings,
     the number of warnings, reset current row counter
     to point to the first row.
@@ -1073,6 +1091,11 @@ public:
     return m_statement_warn_count;
   }
 
+  uint unsafe_statement_warn_count() const
+  {
+    return m_statement_warn_count;
+  }
+
   /**
     Get the current errno, state and id of the user defined condition
     and return them as Sql_condition_identity.
@@ -1134,6 +1157,9 @@ public:
 
   bool has_sql_condition(const char *message_str, size_t message_length) const
   { return get_warning_info()->has_sql_condition(message_str, message_length); }
+
+  bool has_sql_condition(uint sql_errno) const
+  { return get_warning_info()->has_sql_condition(sql_errno); }
 
   void reset_for_next_command()
   { get_warning_info()->reset_for_next_command(); }

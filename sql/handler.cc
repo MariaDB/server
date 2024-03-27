@@ -658,6 +658,7 @@ static bool update_optimizer_costs(handlerton *hton)
 }
 
 const char *hton_no_exts[]= { 0 };
+static bool ddl_recovery_done= false;
 
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
@@ -810,6 +811,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
+
+  if (ddl_recovery_done && hton->signal_ddl_recovery_done)
+    hton->signal_ddl_recovery_done(hton);
 
   DBUG_RETURN(ret);
 
@@ -997,7 +1001,8 @@ static my_bool signal_ddl_recovery_done(THD *, plugin_ref plugin, void *)
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->signal_ddl_recovery_done)
-    (hton->signal_ddl_recovery_done)(hton);
+	  if ((hton->signal_ddl_recovery_done)(hton))
+		  plugin_ref_to_int(plugin)->state= PLUGIN_IS_DELETED;
   return 0;
 }
 
@@ -1007,6 +1012,7 @@ void ha_signal_ddl_recovery_done()
   DBUG_ENTER("ha_signal_ddl_recovery_done");
   plugin_foreach(NULL, signal_ddl_recovery_done, MYSQL_STORAGE_ENGINE_PLUGIN,
                  NULL);
+  ddl_recovery_done= true;
   DBUG_VOID_RETURN;
 }
 
@@ -1763,8 +1769,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
   /* rw_trans is TRUE when we in a transaction changing data */
-  bool rw_trans= is_real_trans &&
-                 (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+  bool rw_trans= is_real_trans && rw_ha_count > 0;
   MDL_request mdl_backup;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
@@ -1846,6 +1851,7 @@ int ha_commit_trans(THD *thd, bool all)
         (void) trans_rollback_stmt(thd);
         goto err;
       }
+      trt.table->file->extra(HA_EXTRA_RESET_STATE);
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
@@ -7431,6 +7437,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   KEY *key_info= table->key_info + key_no;
   Field *hash_field= key_info->key_part->field;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+  String *blob_storage;
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
 
   DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
@@ -7445,9 +7452,11 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   result= lookup_handler->ha_index_init(key_no, 0);
   if (result)
     DBUG_RETURN(result);
+  blob_storage= (String*)alloca(sizeof(String)*table->s->virtual_not_stored_blob_fields);
+  table->remember_blob_values(blob_storage);
   store_record(table, file->lookup_buffer);
-  result= lookup_handler->ha_index_read_map(table->record[0],
-                               ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+  result= lookup_handler->ha_index_read_map(table->record[0], ptr,
+                                            HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (!result)
   {
     bool is_same;
@@ -7455,6 +7464,13 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
     Item_func_hash * temp= (Item_func_hash *)hash_field->vcol_info->expr;
     Item ** arguments= temp->arguments();
     uint arg_count= temp->argument_count();
+    // restore pointers after swap_values in TABLE::update_virtual_fields()
+    for (Field **vf= table->vfield; *vf; vf++)
+    {
+      if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
+          bitmap_is_set(table->read_set, (*vf)->field_index))
+        ((Field_blob*)*vf)->swap_value_and_read_value();
+    }
     do
     {
       my_ptrdiff_t diff= table->file->lookup_buffer - new_rec;
@@ -7502,6 +7518,7 @@ exit:
     }
   }
   restore_record(table, file->lookup_buffer);
+  table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();
   DBUG_RETURN(error);
 }
@@ -7805,7 +7822,12 @@ int handler::ha_write_row(const uchar *buf)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
+    {
+      if (table->next_number_field && buf == table->record[0])
+        if (int err= update_auto_increment())
+          error= err;
       DBUG_RETURN(error);
+    }
   }
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);

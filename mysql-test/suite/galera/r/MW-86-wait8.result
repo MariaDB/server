@@ -4,7 +4,7 @@ SET @orig_debug=@@debug_dbug;
 connection node_2;
 SELECT @@debug_sync;
 @@debug_sync
-ON - current signal: ''
+ON - current signals: ''
 SET SESSION wsrep_sync_wait = 8;
 SET GLOBAL debug_dbug = "+d,sync.wsrep_apply_cb";
 connection node_1;
@@ -46,4 +46,4 @@ SET SESSION wsrep_sync_wait = default;
 DROP TABLE t_wait8;
 SELECT @@debug_sync;
 @@debug_sync
-ON - current signal: ''
+ON - current signals: ''

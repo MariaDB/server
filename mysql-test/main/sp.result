@@ -8923,6 +8923,46 @@ CREATE TABLE t1 (a INT);
 CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
 ERROR 42000: PROCEDURE does not support subqueries or stored functions
 DROP TABLE t1;
+#
+# MDEV-23902: MariaDB crash on calling function
+#
+CREATE FUNCTION f2 () RETURNS VARCHAR(1)
+BEGIN
+DECLARE rec1 ROW TYPE OF v1;
+SELECT z INTO rec1 FROM v1;
+RETURN 1;
+END|
+CREATE FUNCTION f1 () RETURNS VARCHAR(1) RETURN f2() ;
+CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN f_not_exist();
+CREATE VIEW v1 AS SELECT f3() z;
+SELECT f1();
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+# Check that crash doen't happen in case f3 completes with success.
+DROP FUNCTION f3;
+CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN '!';
+SELECT f1();
+f1()
+1
+# Clean up
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP VIEW v1;
+#
+# MDEV-33270: Call of SP invoking another SP with a parameter
+#             requiring type conversion
+#
+SET NAMES latin1;
+CREATE PROCEDURE p1 (a text) BEGIN SELECT a; END |
+CREATE PROCEDURE p2 () CALL p1(concat('x',_utf8'x')) |
+CALL p2();
+a
+xx
+CALL p2();
+a
+xx
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
 # End of 10.4 tests
 #
 #
@@ -8976,6 +9016,79 @@ BEGIN NOT ATOMIC DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1); SELECT r.a
 r.a
 1
 SET SESSION log_slow_verbosity= @tmp;
+# 
+# MDEV-31616 Problems with a stored function EMPTY() on upgrade to 10.6.
+# 
+CREATE OR REPLACE FUNCTION empty(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'empty' has the same name as a native function
+SELECT empty('1');
+empty('1')
+0
+Warnings:
+Note	1585	This function 'empty' has the same name as a native function
+DROP FUNCTION empty;
+CREATE OR REPLACE FUNCTION json_table(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'json_table' has the same name as a native function
+SELECT json_table('1');
+json_table('1')
+0
+Warnings:
+Note	1585	This function 'json_table' has the same name as a native function
+DROP FUNCTION json_table;
+CREATE OR REPLACE FUNCTION nested(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'nested' has the same name as a native function
+SELECT nested('1');
+nested('1')
+0
+Warnings:
+Note	1585	This function 'nested' has the same name as a native function
+DROP FUNCTION nested;
+CREATE OR REPLACE FUNCTION ordinality(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'ordinality' has the same name as a native function
+SELECT ordinality('1');
+ordinality('1')
+0
+Warnings:
+Note	1585	This function 'ordinality' has the same name as a native function
+DROP FUNCTION ordinality;
+CREATE OR REPLACE FUNCTION path(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'path' has the same name as a native function
+SELECT path('1');
+path('1')
+0
+Warnings:
+Note	1585	This function 'path' has the same name as a native function
+DROP FUNCTION path;
+CREATE OR REPLACE FUNCTION fast(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'fast' has the same name as a native function
+SELECT fast('1');
+fast('1')
+0
+Warnings:
+Note	1585	This function 'fast' has the same name as a native function
+DROP FUNCTION fast;
+CREATE OR REPLACE FUNCTION relay(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+Warnings:
+Note	1585	This function 'relay' has the same name as a native function
+SELECT relay('1');
+relay('1')
+0
+Warnings:
+Note	1585	This function 'relay' has the same name as a native function
+DROP FUNCTION relay;
+CREATE OR REPLACE FUNCTION database() RETURNS int RETURN 333;
+Warnings:
+Note	1585	This function 'database' has the same name as a native function
+SELECT database();
+database()
+test
+DROP FUNCTION database;
 DROP TABLE t1;
 #
 # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)

@@ -5,3 +5,49 @@ ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
 INSERT INTO t1 VALUES ('',2);
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 DROP TABLE t1;
+#
+# MDEV-26743 InnoDB: CHAR+nopad does not work well
+#
+#
+# Basic Latin letter vs equal accented letter
+#
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a CHAR(2), PRIMARY KEY(a)) COLLATE utf8_unicode_nopad_ci ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES ('a'),('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'PRIMARY'
+DROP TABLE t1;
+#
+# Two letters vs equal (but space padded) expansion
+#
+CREATE TABLE t1 (a CHAR(2), PRIMARY KEY(a)) COLLATE utf8_unicode_nopad_ci ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES ('ss'),('ß');
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+SELECT HEX(a) FROM t1;
+HEX(a)
+7373
+C39F20
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# Basic Latin letter (but followed by an ignorable character) vs equal accented letter
+#
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a CHAR(3), PRIMARY KEY(a)) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (CONCAT('a',_utf8mb3 0x01)),('ä');
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+SELECT HEX(a) FROM t1 ORDER BY HEX(a);
+HEX(a)
+610120
+C3A42020
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a CHAR(2), PRIMARY KEY(a)) COLLATE utf8_unicode_nopad_ci ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (CONCAT('a',_utf8mb3 0x01)),('ä');
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+SELECT HEX(a) FROM t1 ORDER BY HEX(a);
+HEX(a)
+6101
+C3A420
+SET sql_mode=DEFAULT;
+DROP TABLE t1;

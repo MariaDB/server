@@ -446,6 +446,19 @@ public:
     float8store(Ptr + str_length, *d);
     str_length += 8;
   }
+  /*
+    Append a wide character.
+    The caller must have allocated at least cs->mbmaxlen bytes.
+  */
+  int q_append_wc(my_wc_t wc, CHARSET_INFO *cs)
+  {
+    int mblen;
+    if ((mblen= cs->cset->wc_mb(cs, wc,
+                                (uchar *) end(),
+                                (uchar *) end() + cs->mbmaxlen)) > 0)
+      str_length+= (uint32) mblen;
+    return mblen;
+  }
   void q_append(const char *data, size_t data_len)
   {
     ASSERT_LENGTH(data_len);
@@ -1082,8 +1095,6 @@ public:
       (quot && append(quot));
   }
   bool append(const char *s, size_t size);
-  bool append_with_prefill(const char *s, uint32 arg_length,
-			   uint32 full_length, char fill_char);
   bool append_parenthesized(long nr, int radix= 10);
 
   // Append with optional character set conversion from cs to charset()
@@ -1091,6 +1102,31 @@ public:
   bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
   {
     return append(s.str, s.length, cs);
+  }
+
+  // Append a wide character
+  bool append_wc(my_wc_t wc)
+  {
+    if (reserve(mbmaxlen()))
+      return true;
+    int mblen= q_append_wc(wc, charset());
+    if (mblen > 0)
+      return false;
+    else if (mblen == MY_CS_ILUNI && wc != '?')
+      return q_append_wc('?', charset()) <= 0;
+    return true;
+  }
+
+  // Append a number with zero prefilling
+  bool append_zerofill(uint num, uint width)
+  {
+    static const char zeros[15]= "00000000000000";
+    char intbuff[15];
+    uint length= (uint) (int10_to_str(num, intbuff, 10) - intbuff);
+    if (length < width &&
+        append(zeros, width - length, &my_charset_latin1))
+      return true;
+    return append(intbuff, length, &my_charset_latin1);
   }
 
   /*

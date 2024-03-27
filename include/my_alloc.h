@@ -25,6 +25,8 @@
 #define ALLOC_MAX_BLOCK_TO_DROP			4096
 #define ALLOC_MAX_BLOCK_USAGE_BEFORE_DROP	10
 
+#define ROOT_FLAG_READ_ONLY       4
+
 #ifdef __cplusplus
 extern "C" {
 #endif

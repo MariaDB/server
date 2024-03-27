@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -162,7 +162,8 @@ extern char*       wsrep_cluster_capabilities;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
                        system_status_var *status_var, enum_var_type scope);
-int  wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff);
+int  wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
+                      system_status_var *, enum_var_type);
 void wsrep_free_status(THD *thd);
 void wsrep_update_cluster_state_uuid(const char* str);
 
@@ -503,17 +504,10 @@ void wsrep_init_gtid();
 bool wsrep_check_gtid_seqno(const uint32&, const uint32&, uint64&);
 bool wsrep_get_binlog_gtid_seqno(wsrep_server_gtid_t&);
 
-typedef struct wsrep_key_arr
-{
-    wsrep_key_t* keys;
-    size_t       keys_len;
-} wsrep_key_arr_t;
-bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                      const char*       db,
-                                      const char*       table,
-                                      const TABLE_LIST* table_list,
-                                      wsrep_key_arr_t*  ka);
-void wsrep_keys_free(wsrep_key_arr_t* key_arr);
+int wsrep_append_table_keys(THD* thd,
+                            TABLE_LIST* first_table,
+                            TABLE_LIST* table_list,
+                            Wsrep_service_key_type key_type);
 
 extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
@@ -598,6 +592,8 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
                                      enum wsrep::key::type type);
 
+void wsrep_wait_ready(THD *thd);
+void wsrep_ready_set(bool ready_value);
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

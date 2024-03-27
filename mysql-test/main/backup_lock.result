@@ -1,6 +1,7 @@
 #
 # Testing which locks we get from all stages
 #
+InnoDB		0 transactions not purged
 BACKUP STAGE START;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
 WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
@@ -34,7 +35,8 @@ connection default;
 #
 # testing if BACKUP STAGE FLUSH causes deadlocks with ALTER TABLE
 #
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent= 0, engine=innodb;
+InnoDB		0 transactions not purged
 connection con2;
 backup stage start;
 connection default;
@@ -104,7 +106,8 @@ drop table t1;
 #
 # testing if BACKUP STAGE FLUSH causes deadlocks with DROP TABLE
 #
-create table t1 (a int) engine=innodb;
+create table t1 (a int)stats_persistent=0, engine=innodb;
+InnoDB		0 transactions not purged
 start transaction;
 insert into t1 values (1);
 connection con1;
@@ -132,6 +135,7 @@ connection default;
 # Check if backup stage block_dll + concurrent drop table blocks select
 #
 create table t1 (a int) engine=innodb;
+InnoDB		0 transactions not purged
 backup stage start;
 backup stage block_ddl;
 connection con1;

@@ -51,12 +51,15 @@
 # Created: 2011-11-11 mleich
 #
 
+--error 0,1
 perl;
     use strict;
     die "SEARCH_FILE not set" unless $ENV{SEARCH_FILE};
     my @search_files= glob($ENV{SEARCH_FILE});
     my $search_pattern= $ENV{SEARCH_PATTERN} or die "SEARCH_PATTERN not set";
     my $search_range=   $ENV{SEARCH_RANGE};
+    my $silent=         $ENV{SEARCH_SILENT};
+    my $search_result= 0;
     my $content;
     foreach my $search_file (@search_files) {
         open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
@@ -89,16 +92,39 @@ perl;
     {
       @matches=($content =~ /$search_pattern/gm);
     }
-    my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
+    my $res;
+    if (@matches)
+    {
+        $res="FOUND " . scalar(@matches);
+        $search_result= 1;
+    }
+    else
+    {
+        $res= "NOT FOUND";
+    }
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 
-    if ($ENV{SEARCH_OUTPUT} eq "matches") {
-      foreach (@matches) {
-        print $_ . "\n";
-      }
-    } else {
-      print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    if (!$silent || $search_result)
+    {
+        if ($ENV{SEARCH_OUTPUT} eq "matches")
+        {
+            foreach (@matches)
+            {
+                print $_ . "\n";
+            }
+        }
+        else
+        {
+            print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+        }
     }
     die "$ENV{SEARCH_ABORT}\n"
       if $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
+   exit($search_result != 1);
 EOF
+
+let $SEARCH_RESULT= 1;          # Found pattern
+if ($errno)
+{
+    let $SEARCH_RESULT= 0;      # Did not find pattern
+}

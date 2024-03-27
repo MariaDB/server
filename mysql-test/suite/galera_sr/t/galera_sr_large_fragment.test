@@ -6,6 +6,8 @@
 --source include/have_innodb.inc
 --source include/big_test.inc
 
+--disable_ps2_protocol
+
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 
@@ -56,3 +58,4 @@ CALL mtr.add_suppression('InnoDB: Resizing redo log from');
 CALL mtr.add_suppression('InnoDB: Starting to delete and rewrite log files');
 CALL mtr.add_suppression('InnoDB: New log files created, LSN=');
 
+--enable_ps2_protocol

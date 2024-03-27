@@ -36,6 +36,8 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1
+set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+set spider_direct_aggregate=1;
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
 Spider_direct_aggregate	0
@@ -44,19 +46,25 @@ COUNT(*)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	2
+Spider_direct_aggregate	4
+SELECT SUM(a) FROM ta_l2;
+SUM(a)
+15
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	8
 SELECT MAX(a) FROM ta_l2;
 MAX(a)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	4
+Spider_direct_aggregate	8
 SELECT MIN(a) FROM ta_l2;
 MIN(a)
 1
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	6
+Spider_direct_aggregate	8
 SELECT MAX(a) FROM ta_l2 WHERE a < 5;
 MAX(a)
 4
@@ -68,7 +76,30 @@ MIN(a)
 2
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	10
+Spider_direct_aggregate	8
+SET spider_direct_aggregate=0;
+SELECT COUNT(*) FROM ta_l2;
+COUNT(*)
+5
+SELECT SUM(a) FROM ta_l2;
+SUM(a)
+15
+SELECT MAX(a) FROM ta_l2;
+MAX(a)
+5
+SELECT MIN(a) FROM ta_l2;
+MIN(a)
+1
+SELECT MAX(a) FROM ta_l2 WHERE a < 5;
+MAX(a)
+4
+SELECT MIN(a) FROM ta_l2 WHERE a > 1;
+MIN(a)
+2
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	8
+set spider_direct_aggregate=@old_spider_direct_aggregate;
 
 deinit
 connection master_1;

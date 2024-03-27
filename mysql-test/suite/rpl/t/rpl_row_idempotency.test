@@ -139,7 +139,9 @@ select * from ti1 order by b /* must be (2),(3) */;
 
 --echo *** slave must stop (Trying to delete a referenced foreing key)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_ROW_IS_REFERENCED_2 # Cannot add or update a child row: a foreign key constraint fails 
+--let slave_sql_errno= 1451
+source include/wait_for_slave_sql_error.inc;
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;
@@ -173,7 +175,9 @@ insert into ti2 set a=3, b=3 /* offending write event */;
 
 --echo *** slave must stop (Trying to insert an invalid foreign key)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_NO_REFERENCED_ROW_2 # Cannot add or update a parent row: a foreign key constraint fails
+--let slave_sql_errno= 1452
+source include/wait_for_slave_sql_error.inc;
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;
@@ -210,9 +214,11 @@ insert into ti1 set b=1;
 connection master;
 insert into ti1 set b=1 /* offending write event */;
 
---echo *** slave must stop (Trying to insert a dupliacte key)
+--echo *** slave must stop (Trying to insert a duplicate key)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_DUP_ENTRY # Duplicate entry for key
+--let slave_sql_errno= 1062
+source include/wait_for_slave_sql_error.inc;
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;
@@ -247,7 +253,10 @@ DELETE FROM t1 WHERE a = -2;
 
 --echo *** slave must stop (Key was not found)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_KEY_NOT_FOUND # Can't find record
+--let slave_sql_errno= 1032
+source include/wait_for_slave_sql_error.inc;
+
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;
@@ -265,7 +274,9 @@ connection master;
 DELETE FROM t2 WHERE a = -2; 
 --echo *** slave must stop (Key was not found)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_KEY_NOT_FOUND # Can't find record
+--let slave_sql_errno= 1032
+source include/wait_for_slave_sql_error.inc;
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;
@@ -287,7 +298,9 @@ UPDATE t1 SET a = 1 WHERE a = -1;
 
 --echo *** slave must stop (Key was not found)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_KEY_NOT_FOUND # Can't find record
+--let slave_sql_errno= 1032
+source include/wait_for_slave_sql_error.inc;
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;
@@ -307,7 +320,9 @@ UPDATE t2 SET a = 1 WHERE a = -1;
 
 --echo *** slave must stop (Key was not found)
 connection slave;
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_KEY_NOT_FOUND # Can't find record
+--let slave_sql_errno= 1032
+source include/wait_for_slave_sql_error.inc;
 
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 disable_query_log;

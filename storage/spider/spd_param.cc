@@ -109,59 +109,61 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
       MYSQL_SYSVAR_NAME(param_name).def_val;                            \
   }
 
-static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
+extern handlerton *spider_hton_ptr;
+static void spider_trx_status_var(THD *thd, SHOW_VAR *var, void *buff,
+                                 ulonglong SPIDER_TRX::*counter)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_update");
   var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_update_count;
-  DBUG_RETURN(error_num);
+  var->value= buff;
+  if (thd != current_thd)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+  SPIDER_TRX *trx = (SPIDER_TRX*)thd_get_ha_data(thd, spider_hton_ptr);
+  *(ulonglong*)buff= trx ? trx->*counter : 0;
+  if (thd != current_thd)
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  DBUG_VOID_RETURN;
 }
 
-static int spider_direct_delete(THD *thd, SHOW_VAR *var, char *buff)
+
+static int spider_direct_update(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
+  DBUG_ENTER("spider_direct_update");
+  spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_update_count);
+  DBUG_RETURN(0);
+}
+
+static int spider_direct_delete(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type)
+{
   DBUG_ENTER("spider_direct_delete");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_delete_count;
-  DBUG_RETURN(error_num);
+  spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_delete_count);
+  DBUG_RETURN(0);
 }
 
-static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, void *buff,
+                                     system_status_var *, enum_var_type)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_order_limit");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_order_limit_count;
-  DBUG_RETURN(error_num);
+  spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_order_limit_count);
+  DBUG_RETURN(0);
 }
 
-static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_direct_aggregate(THD *thd, SHOW_VAR *var, void *buff,
+                                   system_status_var *, enum_var_type)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_direct_aggregate");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->direct_aggregate_count;
-  DBUG_RETURN(error_num);
+  spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_aggregate_count);
+  DBUG_RETURN(0);
 }
 
-static int spider_parallel_search(THD *thd, SHOW_VAR *var, char *buff)
+static int spider_parallel_search(THD *thd, SHOW_VAR *var, void *buff,
+                                  system_status_var *, enum_var_type)
 {
-  int error_num = 0;
-  SPIDER_TRX *trx;
   DBUG_ENTER("spider_parallel_search");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->parallel_search_count;
-  DBUG_RETURN(error_num);
+  spider_trx_status_var(thd, var, buff, &SPIDER_TRX::parallel_search_count);
+  DBUG_RETURN(0);
 }
 
 struct st_mysql_show_var spider_status_variables[] =
@@ -2217,7 +2219,7 @@ static MYSQL_SYSVAR_UINT(
   "Static thread count of table sts",
   NULL,
   NULL,
-  10,
+  1,
   1,
   4294967295U,
   0
@@ -2236,7 +2238,7 @@ static MYSQL_SYSVAR_UINT(
   "Static thread count of table crd",
   NULL,
   NULL,
-  10,
+  1,
   1,
   4294967295U,
   0
@@ -2350,6 +2352,33 @@ static MYSQL_THDVAR_INT(
 );
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
+
+/*
+ -1 : use table parameter
+  0 : do not strict
+  1 : do strict
+ */
+static MYSQL_THDVAR_BOOL(
+  direct_aggregate, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Whether to enable direct aggregate",
+  NULL, /* check */
+  NULL, /* update */
+  TRUE /* def */
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, direct_aggregate)
+
+static MYSQL_THDVAR_BOOL(
+  disable_group_by_handler, /* name */
+  PLUGIN_VAR_OPCMDARG, /* opt */
+  "Disables the group by handler", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  FALSE /* def */
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, disable_group_by_handler)
 
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
@@ -2465,6 +2494,8 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
   MYSQL_SYSVAR(strict_group_by),
+  MYSQL_SYSVAR(direct_aggregate),
+  MYSQL_SYSVAR(disable_group_by_handler),
   NULL
 };
 

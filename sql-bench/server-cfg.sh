@@ -37,7 +37,7 @@ sub get_server
 {
   my ($name,$host,$database,$odbc,$machine,$socket,$connect_options)=@_;
   my ($server);
-  if ($name =~ /mysql/i)
+  if ($name =~ /mysql/i || $name =~ /mariadb/i)
   { $server=new db_MySQL($host, $database, $machine, $socket,$connect_options); }
   elsif ($name =~ /pg/i)
   { $server= new db_Pg($host,$database); }
@@ -77,7 +77,7 @@ sub get_server
   { $server= new db_interbase($host,$database); }
   else
   {
-      die "Unknown sql server name used: $name\nUse one of: Access, Adabas, AdabasD, Empress, FrontBase, Oracle, Informix, InterBase, DB2, mSQL, Mimer, MS-SQL, MySQL, Pg, Solid, SAPDB or Sybase.\nIf the connection is done trough ODBC the name must end with _ODBC\n";
+      die "Unknown sql server name used: $name\nUse one of: Access, Adabas, AdabasD, Empress, FrontBase, Oracle, Informix, InterBase, DB2, mSQL, MariaDB, Mimer, MS-SQL, MySQL, Pg, Solid, SAPDB or Sybase.\nIf the connection is done trough ODBC the name must end with _ODBC\n";
   }
   if ($name =~ /_ODBC$/i || defined($odbc) && $odbc)
   {
@@ -98,12 +98,12 @@ sub get_server
 sub all_servers
 {
   return ["Access", "Adabas", "DB2", "Empress", "FrontBase", "Oracle",
-	  "Informix", "InterBase", "Mimer", "mSQL", "MS-SQL", "MySQL", "Pg","SAPDB",
-	  "Solid", "Sybase"];
+	  "Informix", "InterBase", "MariaDB", "Mimer", "mSQL", "MS-SQL", "MySQL",
+          "Pg","SAPDB", "Solid", "Sybase"];
 }
 
 #############################################################################
-#	     First the configuration for MySQL off course :-)
+#	     First the configuration for MariaDB / MySQL off course :-)
 #############################################################################
 
 package db_MySQL;
@@ -165,6 +165,7 @@ sub new
   $limits{'max_text_size'}	= 1000000; # Good enough for tests
   $limits{'multi_drop'}		= 1; # Drop table can take many tables
   $limits{'order_by_position'}  = 1; # Can use 'ORDER BY 1'
+  $limits{'order_by_null'}      = 1; # Can use 'ORDER BY NULL'
   $limits{'order_by_unused'}	= 1;
   $limits{'query_size'}		= 1000000; # Max size with default buffers.
   $limits{'select_without_from'}= 1; # Can do 'select 1';
@@ -224,7 +225,7 @@ sub version
   if ($sth->execute && (@row = $sth->fetchrow_array))
   {
     $row[0] =~ s/-/ /g;			# To get better tables with long names
-    $version="MySQL $row[0]";
+    $version="$row[0]";
   }
   $sth->finish;
 
@@ -283,7 +284,6 @@ sub create
   }
   foreach $field (@$fields)
   {
-#    $field =~ s/ decimal/ double(10,2)/i;
     $field =~ s/ big_decimal/ double(10,2)/i;
     $query.= $field . ',';
   }
@@ -604,12 +604,14 @@ sub new
   $self->{'transactions'}	= 1; # Transactions enabled
   $self->{"vacuum"}		= 1;
   $limits{'join_optimizer'}	= 1;		# Can optimize FROM tables
+  # load_data_infile could use function 'insert_file', but I could not get it to
+  # work because of permissions problems. Disabling for now.
   $limits{'load_data_infile'}	= 0;
-
   $limits{'NEG'}		= 1;
-  $limits{'alter_add_multi_col'}= 0;		# alter_add_multi_col ?
+  $limits{'alter_add_multi_col'}= 1;
   $limits{'alter_table'}	= 1;
-  $limits{'alter_table_dropcol'}= 0;
+  $limits{'alter_table_dropcol'}= 1;
+  $limits{'alter_table_after'}  = 0;   # Have ALTER TABLE .. AFTER other_column
   $limits{'column_alias'}	= 1;
   $limits{'func_extra_%'}	= 1;
   $limits{'func_extra_if'}	= 0;
@@ -649,7 +651,7 @@ sub new
   $limits{'working_all_fields'} = 1;
   $limits{'working_blobs'}	= 1; # If big varchar/blobs works
   $limits{'multi_distinct'}     = 1; # allows select count(distinct a),count(distinct b).. 
-
+  $limits{'insert_multi_value'} = 1; # Have INSERT ... values (1,2),(3,4)
   return $self;
 }
 
@@ -657,21 +659,20 @@ sub new
 
 sub version
 {
-  my ($version,$dir);
-  $version = "PostgreSQL version ???";
-  foreach $dir ($ENV{'PGDATA'},"/usr/local/pgsql/data", "/usr/local/pg/data")
+  my ($self)=@_;
+  my ($dbh,$sth,$version,@row);
+
+  $dbh=$self->connect();
+  $sth = $dbh->prepare("select VERSION()") or die $DBI::errstr;
+  $version="PostgreSQL ?";
+  if ($sth->execute && (@row = $sth->fetchrow_array))
   {
-    if ($dir && -e "$dir/PG_VERSION")
-    {
-      $version= `cat $dir/PG_VERSION`;
-      if ($? == 0)
-      {
-	chomp($version);
-	$version .= "/ODBC" if ($self->{'data_source'} =~ /:ODBC:/);
-	return "PostgreSQL $version";
-      }
-    }
+    $row[0] =~ s/-/ /g;			# To get better tables with long names
+    $version="PostgreSQL $row[0]";
   }
+  $sth->finish;
+
+  $dbh->disconnect;
   $version .= "/ODBC" if ($self->{'data_source'} =~ /:ODBC:/);
   return $version;
 }
@@ -707,9 +708,6 @@ sub create
     $field =~ s/int\(\d*\)/int/;
     $field =~ s/float\(\d*,\d*\)/float/;
     $field =~ s/ double/ float/;
-#    $field =~ s/ decimal/ float/i;
-#    $field =~ s/ big_decimal/ float/i;
-#    $field =~ s/ date/ int/i;
     # Pg doesn't have blob, it has text instead
     $field =~ s/ blob/ text/;
     $query.= $field . ',';
@@ -718,13 +716,14 @@ sub create
   push(@queries,$query);
   foreach $index (@$index)
   {
-    $index =~ s/primary key/unique index primary_key/i;
-    if ($index =~ /^unique.*\(([^\(]*)\)$/i)
+    if ($index =~ /primary key/ || $index =~ /PRIMARY KEY/)
     {
-      # original: $indfield="using btree (" .$1.")";
-      # using btree doesn´t seem to work with Postgres anymore; it creates
-      # the table and adds the index, but it isn´t unique
-      $indfield=" (" .$1.")";	
+      $query= substr($query, 0, length($query)-1) . ", $index )";
+      next;
+    }
+    elsif ($index =~ /^unique.*\(([^\(]*)\)$/i)
+    {
+      $indfield=" (" .$1.")";
       $in="unique index";
       $table="index_$nr"; $nr++;
     }
@@ -752,52 +751,14 @@ sub insert_file {
 # Syntax:
 # copy [binary] <class_name> [with oids]
 #      {to|from} {<filename>|stdin|stdout} [using delimiters <delim>]
-  print "The ascii files aren't correct for postgres ....!!!\n";
-  $command = "copy $dbname from '$file' using delimiters ','";
+  $command = "copy $dbname from '$file' using delimiters ',' QUOTE ''''";
   print "$command\n";
   $sth = $dbh->do($command) or die $DBI::errstr;
   return $sth;
 }
 
-#
-# As postgreSQL wants A % B instead of standard mod(A,B) we have to map
-# This will not handle all cases, but as the benchmarks doesn't use functions
-# inside MOD() the following should work
-#
-# PostgreSQL cant handle count(*) or even count(1), but it can handle
-# count(1+1) sometimes. ==> this is solved in PostgreSQL 6.3
-#
-# PostgreSQL 6.5 is supporting MOD.
-
 sub query {
   my($self,$sql) = @_;
-  my(@select,$change);
-# if you use PostgreSQL 6.x and x is lower as 5 then uncomment the line below.
-#  $sql =~ s/mod\(([^,]*),([^\)]*)\)/\($1 % $2\)/gi;
-#
-# if you use PostgreSQL 6.1.x uncomment the lines below
-#  if ($sql =~ /select\s+count\(\*\)\s+from/i) {
-#  }
-#  elsif ($sql =~ /count\(\*\)/i)
-#  {
-#    if ($sql =~ /select\s+(.*)\s+from/i)
-#    {
-#      @select = split(/,/,$1);
-#      if ($select[0] =~ /(.*)\s+as\s+\w+$/i)
-#      {
-# 	$change = $1;
-#      }
-#      else
-#      {
-#	$change = $select[0];
-#      }
-#    }
-#    if (($change =~ /count/i) || ($change eq "")) {
-#      $change = "1+1";
-#    }
-#    $sql =~ s/count\(\*\)/count($change)/gi;
-#  }
-# till here.
   return $sql;
 }
 
@@ -849,10 +810,8 @@ sub vacuum
   }
   else
   {
-#    $dbh->do("vacuum pg_attributes") || die "Got error: $DBI::errstr when executing 'vacuum'\n";
-#    $dbh->do("vacuum pg_index") || die "Got error: $DBI::errstr when executing 'vacuum'\n";
-    $dbh->do("vacuum analyze") || die "Got error: $DBI::errstr when executing 'vacuum analyze'\n";
-    $dbh->do("vacuum") || die "Got error: $DBI::errstr when executing 'vacuum'\n";
+     $dbh->do("vacuum analyze") || die "Got error: $DBI::errstr when executing 'vacuum analyze'\n";
+     $dbh->do("vacuum") || die "Got error: $DBI::errstr when executing 'vacuum'\n";
   }
   $end_time=new Benchmark;
   print "Time for book-keeping (1): " .

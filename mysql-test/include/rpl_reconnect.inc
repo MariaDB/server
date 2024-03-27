@@ -72,11 +72,6 @@ if (!$_rpl_server_number)
 --source include/rpl_connection.inc
 --enable_reconnect
 
---let $_rpl_one= _1
---let $rpl_connection_name= server_$rpl_server_number$_rpl_one
---source include/rpl_connection.inc
---enable_reconnect
-
 if ($rpl_debug)
 {
   --echo ---- Wait for reconnect and disable reconnect on all connections ----
@@ -121,12 +116,6 @@ if (!$_rpl_server_number)
 --source include/rpl_connection.inc
 --source include/wait_until_connected_again.inc
 --disable_reconnect
-
---let $rpl_connection_name= server_$rpl_server_number$_rpl_one
---source include/rpl_connection.inc
---source include/wait_until_connected_again.inc
---disable_reconnect
-
 
 --let $include_filename= rpl_reconnect.inc
 --source include/end_include_file.inc

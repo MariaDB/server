@@ -1,2 +1,3 @@
 --innodb-checksum-algorithm=crc32
 --innodb-undo-tablespaces=0
+--skip-innodb-buffer-pool-dump-at-shutdown

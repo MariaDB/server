@@ -28,21 +28,16 @@
 #undef EXTRA_DEBUG
 #define EXTRA_DEBUG
 
-#ifndef DBUG_OFF
-/* Put a protected barrier after every element when using multi_alloc_root() */
-#define ALLOC_BARRIER
-#endif
+#define ROOT_FLAG_THREAD_SPECIFIC 1
+#define ROOT_FLAG_MPROTECT        2
+#define ROOT_FLAG_READ_ONLY       4
 
 /* data packed in MEM_ROOT -> min_malloc */
 
 /* Don't allocate too small blocks */
 #define ROOT_MIN_BLOCK_SIZE 256
 
-/* bits in MEM_ROOT->flags */
-#define ROOT_FLAG_THREAD_SPECIFIC 1
-#define ROOT_FLAG_MPROTECT        2
-
-#define MALLOC_FLAG(R) MYF((R)->flags & ROOT_FLAG_THREAD_SPECIFIC ? THREAD_SPECIFIC : 0)
+#define MALLOC_FLAG(root) (((root)->flags & ROOT_FLAG_THREAD_SPECIFIC) ? MY_THREAD_SPECIFIC : 0)
 
 #define TRASH_MEM(X) TRASH_FREE(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
@@ -69,8 +64,7 @@ static void *root_alloc(MEM_ROOT *root, size_t size, size_t *alloced_size,
 #endif /* HAVE_MMAP */
 
   return my_malloc(root->psi_key, size,
-		   my_flags | MYF(root->flags & ROOT_FLAG_THREAD_SPECIFIC ?
-				  MY_THREAD_SPECIFIC : 0));
+		   my_flags | MALLOC_FLAG(root));
 }
 
 static void root_free(MEM_ROOT *root, void *ptr, size_t size)
@@ -278,6 +272,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p", mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
+  DBUG_ASSERT((mem_root->flags & ROOT_FLAG_READ_ONLY) == 0);
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
 		  {
@@ -293,9 +288,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     length+= ALIGN_SIZE(sizeof(USED_MEM));
     if (!(next = (USED_MEM*) my_malloc(mem_root->psi_key, length,
 				       MYF(MY_WME | ME_FATAL |
-					   (mem_root->flags &
-                                            ROOT_FLAG_THREAD_SPECIFIC ?
-                                           MY_THREAD_SPECIFIC : 0)))))
+					   MALLOC_FLAG(mem_root)))))
     {
       if (mem_root->error_handler)
 	(*mem_root->error_handler)();
@@ -403,7 +396,7 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   {
     length= va_arg(args, uint);
     tot_length+= ALIGN_SIZE(length);
-#ifdef ALLOC_BARRIER
+#ifndef DBUG_OFF
     tot_length+= ALIGN_SIZE(1);
 #endif
   }
@@ -419,7 +412,7 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
     *ptr= res;
     length= va_arg(args, uint);
     res+= ALIGN_SIZE(length);
-#ifdef ALLOC_BARRIER
+#ifndef DBUG_OFF
     TRASH_FREE(res, ALIGN_SIZE(1));
     res+= ALIGN_SIZE(1);
 #endif
@@ -553,6 +546,67 @@ void set_prealloc_root(MEM_ROOT *root, char *ptr)
   }
 }
 
+/*
+  Move allocated objects from one root to another.
+
+  Notes:
+  We do not increase 'to->block_num' here as the variable isused to
+  increase block sizes in case of many allocations. This is special
+  case where this is not needed to take into account
+*/
+
+void move_root(MEM_ROOT *to, MEM_ROOT *from)
+{
+  USED_MEM *block, *next;
+  for (block= from->used; block ; block= next)
+  {
+    next= block->next;
+    block->next= to->used;
+    to->used= block;
+  }
+  from->used= 0;
+}
+
+
+
+/*
+  Remember last MEM_ROOT block.
+
+  This allows one to free all new allocated blocks.
+*/
+
+USED_MEM *get_last_memroot_block(MEM_ROOT* root)
+{
+  return root->used ? root->used : root->pre_alloc;
+}
+
+/*
+  Free all newly allocated blocks
+*/
+
+void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block)
+{
+  USED_MEM *old, *next;
+  if (!root->used)
+    return;                                     /* Nothing allocated */
+  return;
+  /*
+    Free everying allocated up to, but not including, last_block.
+    However do not go past pre_alloc as we do not want to free
+    that one. This should not be a problem as in almost all normal
+    usage pre_alloc is last in the list.
+  */
+
+  for (next= root->used ;
+       next && next != last_block && next != root->pre_alloc ; )
+  {
+    old= next; next= next->next;
+    root_free(root, old, old->size);
+  }
+  root->used= next;
+  root->block_num= 4;
+  root->first_block_usage= 0;
+}
 
 /**
    Change protection for all blocks in the mem root

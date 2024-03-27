@@ -1,0 +1,72 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # Check that ANALYZE TABLE is remembered by MyISAM and Aria
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 select seq from seq_0_to_99;
+analyze table t1 persistent for all;
+flush tables;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=1;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=2;
+flush tables;
+analyze table t1 persistent for all;
+
+--echo # Aria transactional=0
+ALTER TABLE t1 ENGINE=aria transactional=0;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=10;
+analyze table t1 persistent for all;
+analyze table t1 persistent for all;
+flush tables;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=11;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=12;
+flush tables;
+analyze table t1 persistent for all;
+
+--echo # Aria transactional=1
+
+ALTER TABLE t1 ENGINE=aria transactional=1;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=20;
+analyze table t1 persistent for all;
+analyze table t1 persistent for all;
+flush tables;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=21;
+analyze table t1 persistent for all;
+update t1 set a=100 where a=22;
+flush tables;
+analyze table t1 persistent for all;
+drop table t1;
+
+--echo #
+--echo # Test that histograms are read after flush
+--echo #
+
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_10;
+
+insert into t1 select A.seq from seq_10_to_20 A, seq_1_to_9 B;
+analyze table t1 persistent for all;
+
+explain format=json select * from t1 where a between 2 and 5;
+explain format=json select * from t1 where a between 12 and 15;
+
+flush tables;
+set @@optimizer_use_condition_selectivity=3;
+explain format=json select * from t1 where a between 2 and 5;
+set @@optimizer_use_condition_selectivity=4;
+explain format=json select * from t1 where a between 2 and 5;
+
+drop table t1;
+set @@optimizer_use_condition_selectivity=default;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

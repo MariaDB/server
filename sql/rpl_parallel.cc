@@ -221,6 +221,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     waiting for this). In most cases (normal DML), it will be a no-op.
   */
   rgi->mark_start_commit_no_lock();
+  rgi->commit_orderer.wakeup_blocked= false;
 
   if (entry->last_committed_sub_id < sub_id)
   {
@@ -852,6 +853,10 @@ do_retry:
   event_count= 0;
   err= 0;
   errmsg= NULL;
+#ifdef WITH_WSREP
+  thd->wsrep_cs().reset_error();
+  WSREP_DEBUG("retrying async replication event");
+#endif /* WITH_WSREP */
 
   /*
     If we already started committing before getting the deadlock (or other
@@ -890,8 +895,7 @@ do_retry:
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate that we get deadlock killed at this exact point. */
-      rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-      thd->set_killed(KILL_CONNECTION);
+      slave_background_kill_request(thd);
   });
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
@@ -949,6 +953,7 @@ do_retry:
       err= rgi->worker_error= 1;
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
       mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+
       goto err;
     }
     mysql_mutex_unlock(&entry->LOCK_parallel_entry);
@@ -990,7 +995,17 @@ do_retry:
     possibility of an old deadlock kill lingering on beyond this point.
   */
   thd->reset_killed();
+#ifdef WITH_WSREP
+  if (wsrep_before_command(thd))
+  {
+    WSREP_WARN("Parallel slave worker failed at wsrep_before_command() hook");
+    err= 1;
+    goto err;
+  }
+  wsrep_start_trx_if_not_started(thd);
+  WSREP_DEBUG("parallel slave retry, after trx start");
 
+#endif /* WITH_WSREP */
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
   {
@@ -1331,6 +1346,11 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("rpl_parallel_delay_gtid_0_x_100_start", {
+            if (rgi->current_gtid.domain_id==0 &&
+                rgi->current_gtid.seq_no == 100)
+              my_sleep(10000);
+          });
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
             if (rgi->current_gtid.domain_id == 0 &&
@@ -1467,7 +1487,22 @@ handle_rpl_parallel_thread(void *arg)
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
-          rgi->mark_start_commit();
+          if (thd->lex->stmt_accessed_temp_table())
+          {
+            /*
+              Temporary tables are special, they require strict
+              single-threaded use as they have no locks protecting concurrent
+              access. Therefore, we cannot safely use the optimization of
+              overlapping the commit of this transaction with the start of the
+              following.
+              So we skip the early mark_start_commit() and also block any
+              wakeup_subsequent_commits() until this event group is fully
+              done, inside finish_event_group().
+            */
+            rgi->commit_orderer.wakeup_blocked= true;
+          }
+          else
+            rgi->mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
         }
       }
@@ -1510,8 +1545,13 @@ handle_rpl_parallel_thread(void *arg)
                         err= dbug_simulate_tmp_error(rgi, thd););
         if (unlikely(err))
         {
+          ulong max_retries= slave_trans_retries;
           convert_kill_to_deadlock_error(rgi);
-          if (has_temporary_error(thd) && slave_trans_retries > 0)
+          DBUG_EXECUTE_IF("rpl_mdev31655_zero_retries",
+                          if ((rgi->current_gtid.seq_no % 1000) == 0)
+                            max_retries= 0;
+                          );
+          if (has_temporary_error(thd) && max_retries > 0)
             err= retry_event_group(rgi, rpt, qev);
         }
       }
@@ -2538,21 +2578,6 @@ rpl_parallel_thread * rpl_parallel_entry::choose_thread_internal(uint idx,
         /* The thread is ready to queue into. */
         break;
       }
-      else if (unlikely(rli->sql_driver_thd->check_killed(1)))
-      {
-        unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
-                            did_enter_cond, old_stage);
-        my_error(ER_CONNECTION_KILLED, MYF(0));
-#ifdef ENABLED_DEBUG_SYNC
-        DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
-          {
-            debug_sync_set_action(rli->sql_driver_thd,
-                      STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
-          };);
-#endif
-        slave_output_error_info(rgi, rli->sql_driver_thd);
-        return NULL;
-      }
       else
       {
         /*
@@ -2580,6 +2605,23 @@ rpl_parallel_thread * rpl_parallel_entry::choose_thread_internal(uint idx,
                                           old_stage);
           *did_enter_cond= true;
         }
+
+        if (unlikely(rli->sql_driver_thd->check_killed(1)))
+        {
+          unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
+                              did_enter_cond, old_stage);
+          my_error(ER_CONNECTION_KILLED, MYF(0));
+#ifdef ENABLED_DEBUG_SYNC
+          DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
+            {
+              debug_sync_set_action(rli->sql_driver_thd,
+                        STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
+            };);
+#endif
+          slave_output_error_info(rgi, rli->sql_driver_thd);
+          return NULL;
+        }
+
         mysql_cond_wait(&thr->COND_rpl_thread_queue, &thr->LOCK_rpl_thread);
       }
     }
@@ -2834,23 +2876,12 @@ rpl_parallel::stop_during_until()
 
 
 bool
-rpl_parallel::workers_idle()
+rpl_parallel::workers_idle(Relay_log_info *rli)
 {
-  struct rpl_parallel_entry *e;
-  uint32 i, max_i;
-
-  max_i= domain_hash.records;
-  for (i= 0; i < max_i; ++i)
-  {
-    bool active;
-    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
-    mysql_mutex_lock(&e->LOCK_parallel_entry);
-    active= e->current_sub_id > e->last_committed_sub_id;
-    mysql_mutex_unlock(&e->LOCK_parallel_entry);
-    if (active)
-      break;
-  }
-  return (i == max_i);
+  mysql_mutex_assert_owner(&rli->data_lock);
+  return !rli->last_inuse_relaylog ||
+    rli->last_inuse_relaylog->queued_count ==
+    rli->last_inuse_relaylog->dequeued_count;
 }
 
 

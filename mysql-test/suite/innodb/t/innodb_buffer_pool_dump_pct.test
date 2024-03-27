@@ -35,49 +35,44 @@ SET GLOBAL innodb_buffer_pool_dump_pct=100;
 # - The granularity of the timestamp is one second.
 # - There could have been some dump caused by some previous test
 #   just a few milliseconds before.
-# In order to avoid conflict with previous tests, read the current value
-# of INNODB_BUFFER_POOL_DUMP_STATUS
-# and confirm that the timestamp is different after the dump
 #***********************************************************
 
-# Read the current value to compare with the new value.
-SELECT variable_value INTO @IBPDS
-FROM information_schema.global_status
-WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
+--error 0,1
+--remove_file $MYSQLD_DATADIR/ib_buffer_pool
+
 SET GLOBAL innodb_buffer_pool_dump_now=ON;
-
-# Sleep one second in order to ensure that the time stamp is
-# different at next dump
---sleep 1
-
+perl;
+my $f="$ENV{MYSQLD_DATADIR}/ib_buffer_pool";
+my $count=300;
+until (-e $f)
+{
+  select(undef, undef, undef, .1);
+  die "File $f was not created\n" if (0 > --$count);
+}
+EOF
 let $wait_condition = SELECT count(*) = 1
 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS'
-AND variable_value != @IBPDS
 AND variable_value like 'Buffer pool(s) dump completed at%';
 --source include/wait_condition.inc
 
 --move_file $MYSQLD_DATADIR/ib_buffer_pool $MYSQLD_DATADIR/ib_buffer_pool100
 SET GLOBAL innodb_buffer_pool_dump_pct=1;
-SELECT @@global.innodb_buffer_pool_dump_pct;
-
-# Read the current value to compare with the new value.
---disable_warnings
-SELECT variable_value INTO @IBPDS
-FROM information_schema.global_status
-WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
---enable_warnings
-
 SET GLOBAL innodb_buffer_pool_dump_now=ON;
 
-# Sleep one second in order to ensure that the time stamp is
-# different at next dump
---sleep 1
+perl;
+my $f="$ENV{MYSQLD_DATADIR}/ib_buffer_pool";
+my $count=300;
+until (-e $f)
+{
+  select(undef, undef, undef, .1);
+  die "File $f was not created\n" if (0 > --$count);
+}
+EOF
 
 let $wait_condition = SELECT count(*) = 1
 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS'
-AND variable_value != @IBPDS
 AND variable_value like 'Buffer pool(s) dump completed at%';
 --source include/wait_condition.inc
 

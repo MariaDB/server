@@ -1,0 +1,58 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+# Case 1 : MariaBackup SST
+connection node_1;
+CREATE TABLE t(i INT NOT NULL PRIMARY KEY) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+# Restart node_2, force SST.
+connection node_2;
+connection node_1;
+connection node_2;
+Starting server ...
+connection node_1;
+# Both should return FOUND 2 as we have bootstrap and SST
+FOUND 2 /Desyncing and pausing the provider/ in mysqld.1.err
+FOUND 2 /Resuming and resyncing the provider/ in mysqld.1.err
+connection node_1;
+SET GLOBAL wsrep_mode = "BF_ABORT_MARIABACKUP";
+# Restart node_2, force SST.
+connection node_2;
+connection node_1;
+INSERT INTO t VALUES(2);
+connection node_2;
+Starting server ...
+connection node_2;
+connection node_1;
+# Both should return FOUND 3 as we have 1 new SST
+FOUND 3 /Desyncing and pausing the provider/ in mysqld.1.err
+FOUND 3 /Resuming and resyncing the provider/ in mysqld.1.err
+SET GLOBAL wsrep_mode = "";
+DROP TABLE t;
+# Case 2: MariaBackup backup from node_2
+connection node_1;
+CREATE TABLE t(i INT NOT NULL PRIMARY KEY) ENGINE INNODB;
+INSERT INTO t VALUES(1),(2),(3),(4),(5);
+connection node_2;
+SET GLOBAL wsrep_mode = "";
+SELECT @@wsrep_mode;
+@@wsrep_mode
+
+# Both should return FOUND 1 as we have backup
+FOUND 1 /Desyncing and pausing the provider/ in mysqld.2.err
+FOUND 1 /Resuming and resyncing the provider/ in mysqld.2.err
+SET GLOBAL wsrep_mode = "BF_ABORT_MARIABACKUP";
+SELECT @@wsrep_mode;
+@@wsrep_mode
+BF_ABORT_MARIABACKUP
+# Both should return FOUND 1 as node should not desync
+FOUND 1 /Desyncing and pausing the provider/ in mysqld.2.err
+FOUND 1 /Resuming and resyncing the provider/ in mysqld.2.err
+# Should return FOUND 1 because only last backup does not desync
+FOUND 1 /Server not desynched from group because WSREP_MODE_BF_MARIABACKUP used./ in mysqld.2.err
+SET GLOBAL wsrep_mode = "";
+connection node_1;
+DROP TABLE t;
+disconnect node_2;
+disconnect node_1;

@@ -743,7 +743,6 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
 
 bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
                               const char *table_name, Field *field,
-                              Histogram_type type_arg,
                               const char *hist_data, size_t hist_data_len)
 {
   json_engine_t je;
@@ -753,7 +752,6 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
   int end_element;
   bool end_assigned;
   DBUG_ENTER("Histogram_json_hb::parse");
-  DBUG_ASSERT(type_arg == JSON_HB);
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,
                   (const uchar*)hist_data,

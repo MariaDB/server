@@ -58,11 +58,6 @@ DROP TABLE t1;
 
 # CHAR
 
-# MyISAM is buggy on CHAR+BTREE+UNIQUE+PREFIX (see MDEV-30048), disable for now
-# Other engines work fine
-
-if (`SELECT UPPER(@@storage_engine) != 'MYISAM'`)
-{
 EXECUTE IMMEDIATE REPLACE(
   'CREATE TABLE t1 ( '
   ' a CHAR(20) COLLATE <COLLATION>,'
@@ -72,7 +67,6 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
-}
 
 EXECUTE IMMEDIATE REPLACE(
   'CREATE TABLE t1 ( '

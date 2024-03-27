@@ -37,6 +37,7 @@ class THD;
 
 int wsrep_init_vars();
 void wsrep_set_wsrep_on(THD *thd);
+void wsrep_free_status_vars();
 bool wsrep_refresh_provider_options();
 
 #define CHECK_ARGS   (sys_var *self, THD* thd, set_var *var)

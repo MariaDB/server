@@ -440,3 +440,42 @@ ANALYZE
   }
 }
 DROP TABLE t1;
+#
+# MDEV-31432 tmp_table field accessed after free
+# testing for the above (MDEV-28201) caused use after free error
+#
+create table t1 (x int) engine=myisam;
+insert into t1 values(1);
+set @tmp=@@optimizer_trace;
+set @@optimizer_trace=1;
+SELECT
+1 IN
+((
+SELECT
+1 IN (SELECT 1 AS x0
+FROM
+(
+SELECT *
+FROM (SELECT 1 AS x) AS x5
+GROUP BY x,x
+HAVING
+x IN (
+SELECT *
+FROM t1 AS x1
+WHERE
+x IN (SELECT 1 AS x
+FROM t1 AS x3
+GROUP BY x
+HAVING
+x IN (SELECT 0 FROM t1 AS x4)
+)
+)
+) AS x6
+)
+FROM
+t1
+)) as VAL;
+VAL
+0
+set optimizer_trace=@tmp;
+drop table t1;

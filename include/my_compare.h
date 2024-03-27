@@ -110,8 +110,135 @@ static inline void set_rec_bits(uint16 bits, uchar *ptr, uchar ofs, uint len)
 #define clr_rec_bits(bit_ptr, bit_ofs, bit_len) \
   set_rec_bits(0, bit_ptr, bit_ofs, bit_len)
 
-extern int ha_compare_text(CHARSET_INFO *, const uchar *, size_t,
-                           const uchar *, size_t , my_bool);
+
+/*
+  Compare two VARCHAR values.
+  @param charset_info  - The character set and collation
+  @param a             - The pointer to the first string
+  @param a_length      - The length of the first string
+  @param b             - The pointer to the second string
+  @param b_length      - The length of the second string
+  @param b_is_prefix   - Whether "b" is a prefix of "a",
+                         e.g. in a prefix key (partial length key).
+  @returns             - The result of comparison
+
+  - If "b_is_prefix" is FALSE, then the two strings are compared
+    taking into account the PAD SPACE/NO PAD attribute of the collation.
+
+  - If "b_is_prefix" is TRUE, then trailing spaces are compared in NO PAD style.
+    This is done e.g. when we compare a column value to its prefix key value
+    (the value of "a" to the value of "key_a"):
+      CREATE TABLE t1 (a VARCHAR(10), KEY(key_a(5));
+*/
+static inline int ha_compare_char_varying(CHARSET_INFO *charset_info,
+                                          const uchar *a, size_t a_length,
+                                          const uchar *b, size_t b_length,
+                                          my_bool b_is_prefix)
+{
+  if (!b_is_prefix)
+    return charset_info->coll->strnncollsp(charset_info, a, a_length,
+                                                         b, b_length);
+  return charset_info->coll->strnncoll(charset_info,
+                                       a, a_length,
+                                       b, b_length, TRUE/*prefix*/);
+}
+
+
+/*
+  Compare two CHAR values of the same declared character length,
+  e.g. CHAR(5) to CHAR(5).
+
+  @param charset_info  - The character set and collation
+  @param a             - The pointer to the first string
+  @param a_length      - The length of the first string
+  @param b             - The pointer to the second string
+  @param b_length      - The length of the second string
+  @param nchars        - The declared length (in characters)
+  @param b_is_prefix   - Whether "b" is a prefix of "a",
+                         e.g. in a prefix key (partial length key).
+  @returns             - The result of comparison
+
+  - If "b_is_prefix" is FALSE, then the two strings are compared
+    taking into account the PAD SPACE/NO PAD attribute of the collation.
+    Additionally, this function assumes that the underlying storage could
+    optionally apply trailing space compression, so values can come into this
+    comparison function in different states:
+    - all trailing spaces removed
+    - some trailing spaced removed
+    - no trailing spaces removed (exactly "nchars" characters on the two sides)
+    This function virtually reconstructs trailing spaces up to the defined
+    length specified in "nchars".
+    If either of the sides have more than "nchar" characters,
+    then only leftmost "nchar" characters are compared.
+
+  - If "b_is_prefix" is TRUE, then trailing spaces are compared in NO PAD style.
+    This is done e.g. when we compare a column value to its prefix key value
+    (the value of "a" to the value of "key_a"):
+      CREATE TABLE t1 (a CHAR(10), KEY(key_a(5));
+*/
+static inline int ha_compare_char_fixed(CHARSET_INFO *charset_info,
+                                        const uchar *a, size_t a_length,
+                                        const uchar *b, size_t b_length,
+                                        size_t nchars,
+                                        my_bool b_is_prefix)
+{
+  if (!b_is_prefix)
+    return charset_info->coll->strnncollsp_nchars(charset_info,
+                                                  a, a_length,
+                                                  b, b_length,
+                                                  nchars,
+         MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
+  return charset_info->coll->strnncoll(charset_info,
+                                       a, a_length,
+                                       b, b_length, TRUE/*prefix*/);
+}
+
+
+/*
+  A function to compare words of a text.
+  This is a common operation in full-text search:
+    SELECT MATCH (title) AGAINST ('word') FROM t1;
+*/
+static inline int ha_compare_word(CHARSET_INFO *charset_info,
+                                  const uchar *a, size_t a_length,
+                                  const uchar *b, size_t b_length)
+{
+  return charset_info->coll->strnncollsp(charset_info,
+                                         a, a_length,
+                                         b, b_length);
+}
+
+
+/*
+  A function to compare a word of a text to a word prefix.
+  This is a common operation in full-text search:
+    SELECT MATCH (title) AGAINST ('wor*' IN BOOLEAN MODE) FROM t1;
+*/
+static inline int ha_compare_word_prefix(CHARSET_INFO *charset_info,
+                                        const uchar *a, size_t a_length,
+                                        const uchar *b, size_t b_length)
+{
+  return charset_info->coll->strnncoll(charset_info,
+                                       a, a_length,
+                                       b, b_length,
+                                       TRUE/*b_is_prefix*/);
+}
+
+
+/*
+  Compare words (full match or prefix match), e.g. for full-text search.
+*/
+static inline int ha_compare_word_or_prefix(CHARSET_INFO *charset_info,
+                                            const uchar *a, size_t a_length,
+                                            const uchar *b, size_t b_length,
+                                            my_bool b_is_prefix)
+{
+  if (!b_is_prefix)
+    return ha_compare_word(charset_info, a, a_length, b, b_length);
+  return ha_compare_word_prefix(charset_info, a, a_length, b, b_length);
+}
+
+
 extern int ha_key_cmp(HA_KEYSEG *keyseg, const uchar *a,
 		      const uchar *b, uint key_length, uint nextflag,
 		      uint *diff_pos);

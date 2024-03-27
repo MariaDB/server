@@ -1,0 +1,10 @@
+--source include/have_debug.inc
+--echo #
+--echo # MDEV-32559 Move alter table statements in spider init queries to be executed in the signal_ddl_recovery_done callback
+--echo #
+# This test tests that failure in ddl_recovery callback causes the
+# plugin to be deinitialized.
+select * from mysql.plugin;
+--echo #
+--echo # end of test signal_ddl_fail
+--echo #

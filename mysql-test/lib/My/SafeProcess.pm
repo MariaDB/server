@@ -102,7 +102,7 @@ else
 
 # Find the safe process binary or script
 sub find_bin {
-  if (IS_WIN32PERL or IS_CYGWIN)
+  if (IS_WINDOWS)
   {
     # Use my_safe_process.exe
     my $exe= my_find_bin($bindir, ["lib/My/SafeProcess", "My/SafeProcess"],

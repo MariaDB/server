@@ -6,8 +6,8 @@
 # GTID slave state, then the slave should immediately quit in error, without
 # retry.
 #
-#   This tests validates the above behavior by simulating a deadlock on the
-# GTID slave state table during the second part of XA PREPARE's commit, to
+#   This tests validates the above behavior by forcing a lock-wait timeout on
+# the GTID slave state table during the second part of XA PREPARE's commit, to
 # ensure that the appropriate error is reported and the transaction was never
 # retried.
 #
@@ -23,23 +23,19 @@ source include/have_innodb.inc;
 --connection slave
 --source include/stop_slave.inc
 
---let $save_par_thds= `SELECT @@global.slave_parallel_threads`
---let $save_strict_mode= `SELECT @@global.gtid_strict_mode`
---let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+set @save_par_thds= @@global.slave_parallel_threads;
+set @save_strict_mode= @@global.gtid_strict_mode;
+set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
 
 change master to master_use_gtid=slave_pos;
 set @@global.slave_parallel_threads= 4;
 set @@global.slave_parallel_mode= optimistic;
 set @@global.gtid_strict_mode=ON;
 
-set sql_log_bin= 0;
-alter table mysql.gtid_slave_pos engine=innodb;
-call mtr.add_suppression("Deadlock found.*");
-set sql_log_bin= 1;
+set statement sql_log_bin=0 for alter table mysql.gtid_slave_pos engine=innodb;
 --source include/start_slave.inc
 
 --connection master
-let $datadir= `select @@datadir`;
 create table t1 (a int primary key, b int) engine=innodb;
 insert t1 values (1,1);
 --source include/save_master_gtid.inc
@@ -64,11 +60,6 @@ xa prepare '1';
 xa commit '1';
 --source include/save_master_gtid.inc
 
-
---connection slave
-
-#--eval set statement sql_log_bin=0 for insert into mysql.gtid_slave_pos values ($gtid_domain_id, 5, $gtid_server_id, $xap_seq_no)
-
 --connection slave1
 BEGIN;
 --eval SELECT * FROM mysql.gtid_slave_pos WHERE seq_no=$xap_seq_no FOR UPDATE
@@ -76,8 +67,13 @@ BEGIN;
 --connection slave
 --source include/start_slave.inc
 
---let $slave_sql_errno= 1942,1213
+--let $slave_sql_errno= 1942
 --source include/wait_for_slave_sql_error.inc
+
+# TODO: Remove after fixing MDEV-21777
+# Stop the IO thread too, so the existing relay logs are force purged on slave
+# restart, as to not re-execute the already-prepared transaction
+--source include/stop_slave_io.inc
 
 --let $retried_tx_test= query_get_value(SHOW ALL SLAVES STATUS, Retried_transactions, 1)
 if ($retried_tx_initial != $retried_tx_test)
@@ -95,11 +91,11 @@ ROLLBACK;
 drop table t1;
 
 --connection slave
---source include/stop_slave.inc
+--echo # TODO: Remove after fixing MDEV-21777
 --eval set @@global.gtid_slave_pos= "$new_gtid"
---eval set @@global.slave_parallel_threads= $save_par_thds
---eval set @@global.gtid_strict_mode= $save_strict_mode
---eval set @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout
+set @@global.slave_parallel_threads= @save_par_thds;
+set @@global.gtid_strict_mode= @save_strict_mode;
+set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
 --source include/start_slave.inc
 
 --source include/rpl_end.inc

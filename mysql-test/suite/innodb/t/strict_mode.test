@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 
 --echo #
 --echo # Bug #17852083 PRINT A WARNING WHEN DDL HAS AN ERROR IN
@@ -401,3 +402,21 @@ set innodb_strict_mode = 1;
 alter table t1 engine=InnoDB;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-32128 wrong table name in innodb's "row too big" errors
+--echo #
+--error ER_TOO_BIG_ROWSIZE
+create temporary table t1 (
+  c1 char(255), c2 char(255), c3 char(255), c4 char(255),
+  c5 char(255), c6 char(255), c7 char(255), c8 char(255),
+  c9 char(255), c10 char(255), c11 char(255), c12 char(255),
+  c13 char(255), c14 char(255), c15 char(255), c16 char(255),
+  c17 char(255), c18 char(255), c19 char(255), c20 char(255),
+  c21 char(255), c22 char(255), c23 char(255), c24 char(255),
+  c25 char(255), c26 char(255), c27 char(255), c28 char(255),
+  c29 char(255), c30 char(255), c31 char(255), c32 char(255)
+) engine=innodb;
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Cannot add field `c32` in table `test`.`t1` because;
+source include/search_pattern_in_file.inc;

@@ -556,6 +556,26 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (
+  indexed_col ENUM('2001','2002','2003','2004','2005','2006','2007','2008','2009','2010'),
+  KEY(indexed_col)
+);
+DELIMITER $$;
+FOR i IN 1..10
+DO
+  INSERT INTO t1 VALUES (i);
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
 
 --echo #
 --echo # MDEV-29062 Wrong result set metadata for a mix of INT+ENUM

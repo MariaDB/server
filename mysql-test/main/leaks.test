@@ -1,0 +1,22 @@
+#
+# Collection of small tests that finds leaks and does not fit in any other
+# tests
+#
+
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-32476 LeakSanitizer errors in get_quick_select or
+--echo # Assertion `status_var.local_memory_used == 0
+--echo #
+
+CREATE TABLE t1 (pk INT AUTO_INCREMENT, f INT, PRIMARY KEY (pk), KEY(f))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,10),(2,20);
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 (f) SELECT t2.f FROM t1 t2, t1 t3 WHERE t2.f = 10 AND t3.pk > 'foo';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

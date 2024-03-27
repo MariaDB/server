@@ -6,7 +6,7 @@ let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 
-create table t1(f1 int not null)engine=innodb;
+create table t1(f1 int not null)engine=innodb stats_persistent=0;
 insert into t1 values(1), (2), (3);
 let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
 
@@ -63,7 +63,6 @@ let SEARCH_PATTERN=page id mismatch;
 --remove_file $resultlog
 let $restart_parameters=--innodb-force-recovery=1;
 --source include/start_mysqld.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 --source include/wait_all_purged.inc
 drop table t1;
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd': Page read from tablespace is corrupted\\.");

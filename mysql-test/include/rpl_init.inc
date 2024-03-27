@@ -3,18 +3,16 @@
 # Set up replication on several servers in a specified topology.
 #
 # By default, this script does the following:
-#  - Creates the connections server_1, server_2, ..., server_N, as
-#    well as extra connections server_1_1, server_2_1, ...,
-#    server_N_1. server_I and server_I_1 are connections to the same
-#    server.
-#  - Verifies that @@server_id of all servers are different.
+#  - Creates the connections server_1, server_2, ..., server_N.
 #  - Calls RESET MASTER, RESET SLAVE, USE test, CHANGE MASTER, START SLAVE.
 #  - Sets the connection to server_1 before exiting.
+# With $rpl_check_server_ids parameter, the script does the following:
+#  - Verifies that @@server_id of all servers are different.
 #
 # ==== Usage ====
 #
 # 1. If you are going to use more than two servers, create
-#    rpl_test.cfg with the following contents:
+#    rpl_test.cnf with the following contents:
 #
 #    !include ../my.cnf
 #    [mysqld.1]
@@ -34,8 +32,9 @@
 #
 #    (It is allowed, but not required, to configure SERVER_MYPORT_1
 #    and SERVER_MYPORT_2 too. If these variables are not set, the
-#    variables MASTER_MYPORT and SLAVE_MYPORT, configured in the
-#    default my.cnf used by the rpl suite, are used instead.)
+#    variables MASTER_MYPORT and SLAVE_MYPORT are used instead.
+#    These variables are configured in the rpl_1slave_base.cnf,
+#    that is used in the default my.cnf, which is used by the rpl suite.)
 #
 # 2. Execute the following near the top of the test:
 #
@@ -147,17 +146,14 @@ if (!$rpl_debug)
 }
 
 
-# Create two connections to each server; reset master/slave, select
+# Create connection to the server; reset master/slave, select
 # database, set autoinc variables.
 --let $_rpl_server= $rpl_server_count
---let $_rpl_one= _1
 while ($_rpl_server)
 {
   # Connect.
   --let $rpl_server_number= $_rpl_server
   --let $rpl_connection_name= server_$_rpl_server
-  --source include/rpl_connect.inc
-  --let $rpl_connection_name= server_$_rpl_server$_rpl_one
   --source include/rpl_connect.inc
 
   # Configure server.
@@ -203,7 +199,7 @@ if ($rpl_check_server_ids)
     while ($_rpl_server2)
     {
       --let $assert_text= Servers $_rpl_server and $_rpl_server2 should have different @@server_id
-      --let $assert_condition= [$_rpl_server:SELECT @@server_id AS i, i, 1] != [$_rpl_server2:SELECT @@server_id AS i, i, 1]
+      --let $assert_cond= [SELECT @@server_id AS i, i, 1] != $_rpl_server
 
       --source include/assert.inc
       --dec $_rpl_server2
@@ -212,18 +208,30 @@ if ($rpl_check_server_ids)
   }
 }
 
-# $rpl_master_list must be set so that include/rpl_change_topology.inc
-# knows which servers are initialized and not.
+if ($rpl_debug)
+{
+  --echo ---- Check the topology and call CHANGE MASTER ----
+}
+
+# $rpl_master_list must be set so that include/rpl_change_topology.inc and later
+# include/rpl_for_each_slave.inc knows which servers are initialized and not.
 --let $rpl_master_list= `SELECT REPEAT('x', $rpl_server_count * LENGTH($rpl_server_count))`
 --source include/rpl_change_topology.inc
 
 
 if (!$rpl_skip_start_slave)
 {
+  if ($rpl_debug)
+  {
+    --echo ---- Start slaves ----
+  }
   --source include/rpl_start_slaves.inc
 }
 
-
+if ($rpl_debug)
+{
+  --echo ---- Set connection to the server_1 ----
+}
 --let $rpl_connection_name= server_1
 --source include/rpl_connection.inc
 

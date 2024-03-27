@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 SET innodb_strict_mode=OFF;
 CREATE TABLE test_tab (
 a_str_18 mediumtext,
@@ -141,8 +144,6 @@ SELECT COUNT(*) FROM test_tab;
 CHECK TABLE test_tab;
 DROP TABLE test_tab;
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 CREATE TEMPORARY TABLE t2(i INT)ENGINE=InnoDB;
 CREATE TABLE t1(i TEXT NOT NULL) ENGINE=INNODB;
 BEGIN;
@@ -153,4 +154,5 @@ ROLLBACK;
 --source include/wait_all_purged.inc
 DROP TABLE t1;
 DROP TABLE t2;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

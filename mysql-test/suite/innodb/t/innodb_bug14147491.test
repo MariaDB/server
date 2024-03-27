@@ -16,7 +16,6 @@ call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 --enable_query_log
 
 --echo # Ensure that purge will not crash on the table after we corrupt it.
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET GLOBAL innodb_fast_shutdown=0;
 
 --echo # Create and populate the table to be corrupted

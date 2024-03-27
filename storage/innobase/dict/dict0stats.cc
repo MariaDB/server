@@ -34,6 +34,8 @@ Created Jan 06, 2010 Vasil Dimov
 #include "log.h"
 #include "btr0btr.h"
 #include "que0que.h"
+#include "scope.h"
+#include "debug_sync.h"
 
 #include <algorithm>
 #include <map>
@@ -731,10 +733,10 @@ static void dict_stats_empty_index(dict_index_t *index)
 	index->stat_n_leaf_pages = 1;
 }
 
-/*********************************************************************//**
-Write all zeros (or 1 where it makes sense) into a table and its indexes'
-statistics members. The resulting stats correspond to an empty table. */
-static void dict_stats_empty_table(dict_table_t *table)
+/** Write all zeros (or 1 where it makes sense) into a table and its indexes'
+statistics members. The resulting stats correspond to an empty table.
+@param table  table statistics to be emptied */
+void dict_stats_empty_table(dict_table_t *table)
 {
 	/* Initialize table/index level stats is now protected by
 	table level lock_mutex.*/
@@ -3182,6 +3184,15 @@ dict_stats_save(
 	pars_info_t*	pinfo;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("dict_stats_save_exit_notify",
+	   SCOPE_EXIT([] {
+	       debug_sync_set_action(current_thd,
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
+	    });
+	);
+#endif /* ENABLED_DEBUG_SYNC */
 
 	if (high_level_read_only) {
 		return DB_READ_ONLY;

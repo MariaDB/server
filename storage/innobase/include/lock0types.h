@@ -232,6 +232,11 @@ struct ib_lock_t
 		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
 	}
 
+        bool is_rec_granted_exclusive_not_gap() const
+        {
+          return (type_mode & (LOCK_MODE_MASK | LOCK_GAP)) == LOCK_X;
+        }
+
 	/** Print the lock object into the given output stream.
 	@param[in,out]	out	the output stream
 	@return the given output stream. */

@@ -10,8 +10,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <security/pam_modules.h>
 #include <security/pam_appl.h>
+#include <security/pam_modules.h>
 
 #define N 3
 

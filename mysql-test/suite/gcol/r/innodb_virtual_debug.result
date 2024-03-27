@@ -1,4 +1,6 @@
 set default_storage_engine=innodb;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 CREATE TABLE `t` (
 `a` VARCHAR(100),
 `b` VARCHAR(100),
@@ -145,3 +147,4 @@ DROP TABLE t1;
 disconnect con1;
 connection default;
 SET DEBUG_SYNC=RESET;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

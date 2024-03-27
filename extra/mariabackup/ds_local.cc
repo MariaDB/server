@@ -28,6 +28,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <winioctl.h>
 #endif
 
+#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
+#include <linux/falloc.h>
+#endif
+
 typedef struct {
 	File fd;
 	my_bool init_ibd_done;
@@ -160,9 +164,18 @@ static int write_compressed(File fd,  uchar *data, size_t len, size_t pagesize)
 		if (datasize < n_bytes) {
 			/* This punches a "hole" in the file. */
 			size_t hole_bytes = n_bytes - datasize;
-			if (my_seek(fd, hole_bytes, MY_SEEK_CUR, MYF(MY_WME | MY_NABP))
-				== MY_FILEPOS_ERROR)
-			 return 1;
+                       my_off_t off = my_seek(fd, hole_bytes, MY_SEEK_CUR, MYF(MY_WME | MY_NABP));
+                       if (off == MY_FILEPOS_ERROR)
+                         return 1;
+#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
+                       /* punch holes harder for filesystems (like XFS) that
+                          heuristically decide whether leave a hole after the
+                          above or not based on the current access pattern
+                          (which is sequential write and not at all typical for
+                          what InnoDB will be doing with the file later */
+                       fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                                 off - hole_bytes, hole_bytes);
+#endif
 		}
 		written += n_bytes;
 		ptr += n_bytes;

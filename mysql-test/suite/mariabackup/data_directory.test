@@ -21,4 +21,19 @@ rmdir $table_data_dir;
 SELECT * FROM t;
 DROP TABLE t;
 rmdir $targetdir;
+
+--echo #
+--echo # MDEV-18200 MariaBackup full backup failed with InnoDB: Failing assertion: success
+--echo #
+let $DATADIR= `select @@datadir`;
+chmod 0000 $DATADIR/ibdata1;
+--disable_result_log
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+chmod 0755 $DATADIR/ibdata1;
 rmdir $table_data_dir;
+rmdir $targetdir;
+--echo #
+--echo # End of 10.4 tests
+--echo #

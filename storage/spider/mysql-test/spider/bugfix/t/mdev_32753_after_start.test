@@ -1,0 +1,20 @@
+--echo #
+--echo # MDEV-32753 Spider engine does not load in ORACLE mode
+--echo #
+
+# This test tests spider init after startup under global ORACLE mode
+install soname 'ha_spider';
+--replace_regex /\.dll/.so/
+select * from mysql.plugin;
+create table t (c int) Engine=SPIDER;
+drop table t;
+
+--disable_query_log
+--disable_result_log
+--source ../../include/clean_up_spider.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # end of test mdev_32753_after_start
+--echo #

@@ -88,22 +88,3 @@ ut_bit_get_nth(
 	ut_ad(n < 8 * sizeof(ulint));
 	return(1 & (a >> n));
 }
-
-/*****************************************************************//**
-Sets the nth bit of a ulint.
-@return the ulint with the bit set as requested */
-UNIV_INLINE
-ulint
-ut_bit_set_nth(
-/*===========*/
-	ulint	a,	/*!< in: ulint */
-	ulint	n,	/*!< in: nth bit requested */
-	ibool	val)	/*!< in: value for the bit to set */
-{
-	ut_ad(n < 8 * sizeof(ulint));
-	if (val) {
-		return(((ulint) 1 << n) | a);
-	} else {
-		return(~((ulint) 1 << n) & a);
-	}
-}

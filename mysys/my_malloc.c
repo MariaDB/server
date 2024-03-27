@@ -45,7 +45,11 @@ typedef struct my_memory_header my_memory_header;
           1 - failure, abort the allocation
 */
 
-static MALLOC_SIZE_CB update_malloc_size= 0;
+static void dummy(long long size __attribute__((unused)),
+                  my_bool is_thread_specific __attribute__((unused)))
+{}
+
+MALLOC_SIZE_CB update_malloc_size= dummy;
 
 void set_malloc_size_cb(MALLOC_SIZE_CB func)
 {

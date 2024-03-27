@@ -2877,6 +2877,13 @@ dynamic_column_update_move_left(DYNAMIC_COLUMN *str, PLAN *plan,
 
   write= (uchar *)str->str + FIXED_HEADER_SIZE;
   set_fixed_header(str, (uint)new_offset_size, new_column_count);
+  if (!new_column_count)
+  {
+    // No records left
+    DBUG_ASSERT(new_header_size == 0);
+    str->length= FIXED_HEADER_SIZE;
+    return ER_DYNCOL_OK;
+  }
 
   /*
     Move headers first.

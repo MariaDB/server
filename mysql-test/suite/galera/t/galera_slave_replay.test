@@ -17,6 +17,8 @@
 --connection node_2a
 --source include/galera_cluster.inc
 
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
 #
 # node 3 is native MariaDB server operating as async replication master
 #

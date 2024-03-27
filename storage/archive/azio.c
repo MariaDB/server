@@ -197,7 +197,7 @@ int write_header(azio_stream *s)
 
   /* Write a very simple .az header: */
   memset(buffer, 0, AZHEADER_SIZE + AZMETA_BUFFER_SIZE);
-  *(ptr + AZ_MAGIC_POS)= az_magic[0];
+  *(ptr + AZ_MAGIC_POS)= (char) az_magic[0];
   *(ptr + AZ_VERSION_POS)= (unsigned char)s->version;
   *(ptr + AZ_MINOR_VERSION_POS)= (unsigned char)s->minor_version;
   *(ptr + AZ_BLOCK_POS)= (unsigned char)(s->block_size/1024); /* Reserved for block size */

@@ -121,20 +121,25 @@ bool check_eits_preferred(THD *thd)
 }
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
-int read_statistics_for_tables(THD *thd, TABLE_LIST *tables);
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables,
+                               bool force_reload);
 int collect_statistics_for_table(THD *thd, TABLE *table);
-void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
-int alloc_statistics_for_table(THD *thd, TABLE *table);
-void free_statistics_for_table(THD *thd, TABLE *table);
+int alloc_statistics_for_table(THD *thd, TABLE *table, MY_BITMAP *stat_fields);
+void free_statistics_for_table(TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
-int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
 int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
                                 bool ext_prefixes_only);
-int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
-                                const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab);
-int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
-                                  const char *new_name);
+int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab,
+                                const LEX_CSTRING *new_db,
+                                const LEX_CSTRING *new_tab);
+int rename_columns_in_stat_table(THD *thd, TABLE *tab,
+                                 List<Alter_info::RENAME_COLUMN_STAT_PARAMS> *fields);
+int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
+                                 List<Alter_info::RENAME_INDEX_STAT_PARAMS> *indexes);
 void set_statistics_for_table(THD *thd, TABLE *table);
 
 double get_column_avg_frequency(Field * field);
@@ -151,13 +156,16 @@ class Histogram_builder;
 /*
   Common base for all histograms
 */
-class Histogram_base
+class Histogram_base :public Sql_alloc
 {
 public:
+  Histogram_base() {}
+  virtual ~Histogram_base()= default;
+
   virtual bool parse(MEM_ROOT *mem_root,
                      const char *db_name, const char *table_name,
-                     Field *field, Histogram_type type_arg,
-                     const char *hist_data, size_t hist_data_len)= 0;
+                     Field *field, const char *hist_data,
+                     size_t hist_data_len)= 0;
   virtual void serialize(Field *to_field)= 0;
 
   virtual Histogram_type get_type()=0;
@@ -191,7 +199,6 @@ public:
                                    double avg_sel)=0;
   virtual double range_selectivity(Field *field, key_range *min_endp,
                                    key_range *max_endp, double avg_sel)=0;
-
   /*
     Legacy: return the size of the histogram on disk.
 
@@ -200,19 +207,6 @@ public:
     LENGTH(mysql.column_stats.histogram) directly.
   */
   virtual uint get_size()=0;
-  virtual ~Histogram_base()= default;
-
-  Histogram_base() : owner(NULL) {}
-
-  /*
-    Memory management: a histogram may be (exclusively) "owned" by a particular
-    thread (done for histograms that are being collected).  By default, a
-    histogram has owner==NULL and is not owned by any particular thread.
-  */
-  THD *get_owner() { return owner; }
-  void set_owner(THD *thd) { owner=thd; }
-private:
-  THD *owner;
 };
 
 
@@ -220,11 +214,11 @@ private:
   A Height-balanced histogram that stores numeric fractions
 */
 
-class Histogram_binary : public Histogram_base
+class Histogram_binary final : public Histogram_base
 {
 private:
   Histogram_type type;
-  uint8 size; /* Size of values array, in bytes */
+  size_t size; /* Size of values array, in bytes */
   uchar *values;
 
   uint prec_factor()
@@ -241,13 +235,16 @@ private:
   }
 
 public:
+  Histogram_binary(Histogram_type type_arg) : type(type_arg)
+  {}
+
   uint get_width() override
   {
     switch (type) {
     case SINGLE_PREC_HB:
-      return size;
+      return (uint) size;
     case DOUBLE_PREC_HB:
-      return size / 2;
+      return (uint) (size / 2);
     default:
       DBUG_ASSERT(0);
     }
@@ -271,7 +268,7 @@ private:
   /* Find the bucket which value 'pos' falls into. */
   uint find_bucket(double pos, bool first)
   {
-    uint val= (uint) (pos * prec_factor());
+    size_t val= (size_t) (pos * prec_factor());
     int lp= 0;
     int rp= get_width() - 1;
     int d= get_width() / 2;
@@ -313,8 +310,7 @@ public:
   Histogram_type get_type() override { return type; }
 
   bool parse(MEM_ROOT *mem_root, const char*, const char*, Field*,
-             Histogram_type type_arg, const char *hist_data,
-             size_t hist_data_len) override;
+             const char *hist_data, size_t hist_data_len) override;
   void serialize(Field *to_field) override;
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
@@ -408,7 +404,7 @@ public:
   Do not create directly, call Histogram->get_builder(...);
 */
 
-class Histogram_builder
+class Histogram_builder: public Sql_alloc
 {
 protected:
   Field *column;           /* table field for which the histogram is built */
@@ -429,16 +425,16 @@ public:
 };
 
 
-class Columns_statistics;
+class Column_statistics;
 class Index_statistics;
 
 /* Statistical data on a table */
 
 class Table_statistics
 {
-
 public:
   my_bool cardinality_is_null;      /* TRUE if the cardinality is unknown */
+  uint  columns;                    /* Number of columns in table */
   ha_rows cardinality;              /* Number of rows in the table        */
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
@@ -446,6 +442,7 @@ public:
 
   /* Array of records per key for index prefixes */
   ulonglong *idx_avg_frequency;
+  uchar *histograms;                /* Sequence of histograms */
 };
 
 
@@ -458,7 +455,7 @@ public:
   objects are allocated in alloc_statistics_for_table[_share].
 */
 
-class Column_statistics
+class Column_statistics :public Sql_alloc
 {
 
 private:
@@ -467,6 +464,10 @@ private:
   static const uint Scale_factor_avg_frequency= 100000;
 
 public:
+  ~Column_statistics()
+  {
+    delete histogram;
+  }
   /* 
     Bitmap indicating  what statistical characteristics
     are available for the column
@@ -507,10 +508,8 @@ private:
   ulonglong avg_frequency;
 
 public:
-  /* Histogram type as specified in mysql.column_stats.hist_type */
-  Histogram_type histogram_type_on_disk;
-
   Histogram_base *histogram;
+  bool histogram_exists;
 
   uint32 no_values_provided_bitmap()
   {
@@ -527,6 +526,11 @@ public:
   void set_not_null(uint stat_field_no)
   {
     column_stat_nulls&= ~(1 << stat_field_no);
+  }
+
+  void set_null(uint stat_field_no)
+  {
+    column_stat_nulls|= (1 << stat_field_no);
   }
 
   bool is_null(uint stat_field_no)
@@ -579,9 +583,7 @@ public:
   */
   bool no_stat_values_provided()
   {
-    if (column_stat_nulls == no_values_provided_bitmap())
-      return true;
-    return false;
+    return (column_stat_nulls == no_values_provided_bitmap());
   }
 };
 

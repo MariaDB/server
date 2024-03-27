@@ -1,13 +1,12 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 --disable_query_log
 call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
 --enable_query_log
-
-# Ensure that the history list length will actually be decremented by purge.
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 CREATE TABLE t1 (
   a SERIAL, b CHAR(255) NOT NULL DEFAULT '', c BOOLEAN DEFAULT false,
@@ -175,4 +174,6 @@ DROP TABLE t1;
 
 --echo # End of 10.3 tests
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+
+--echo # End of 10.6 tests

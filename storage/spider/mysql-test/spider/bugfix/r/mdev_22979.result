@@ -1,0 +1,5 @@
+MDEV-22979 "mysqld --bootstrap" / mysql_install_db hangs when Spider is installed
+# Kill the server
+# restart
+Warnings:
+Note	1305	SONAME ha_spider.so does not exist

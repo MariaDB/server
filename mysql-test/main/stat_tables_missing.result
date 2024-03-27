@@ -2,6 +2,9 @@ create table t1 (a int);
 alter table mysql.column_stats rename to mysql.column_stats1;
 flush tables;
 alter table t1 change a b varchar(100);
+Warnings:
+Warning	1177	Got error 1146 when trying to open statistics table `table_stats` for updating statistics
+Warning	1177	Got error 1146 when trying to open statistics table `table_stats` for updating statistics
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

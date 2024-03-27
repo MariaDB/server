@@ -60,25 +60,45 @@ MAX(a)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	1
+Spider_direct_aggregate	0
 SELECT MIN(a) FROM ta_l;
 MIN(a)
 1
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	2
+Spider_direct_aggregate	0
 SELECT MAX(a) FROM ta_l WHERE a < 5;
 MAX(a)
 4
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	3
+Spider_direct_aggregate	0
 SELECT MIN(a) FROM ta_l WHERE a > 1;
 MIN(a)
 2
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	4
+Spider_direct_aggregate	0
+SET spider_direct_aggregate=0;
+SELECT COUNT(*) FROM ta_l;
+COUNT(*)
+5
+SELECT MAX(a) FROM ta_l;
+MAX(a)
+5
+SELECT MIN(a) FROM ta_l;
+MIN(a)
+1
+SELECT MAX(a) FROM ta_l WHERE a < 5;
+MAX(a)
+4
+SELECT MIN(a) FROM ta_l WHERE a > 1;
+MIN(a)
+2
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	0
+SET spider_direct_aggregate=1;
 
 deinit
 connection master_1;

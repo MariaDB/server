@@ -251,6 +251,24 @@ public:
   {
     m_aio.reset();
   }
+
+  /**
+  Tweaks how fast worker threads are created, or how often they are signaled.
+
+  @param threads - desired number of concurrently active threads
+  Special value 0 means default. Not the same as max number of threads
+  in the pool - oversubscription is allowed and stalls are still detected
+
+  @note
+  It is designed to use with "batch" operations, where huge number
+  of tasks is submitted in rapid succession. In this case, it is
+  better to temporarily restrict concurrency, which will make thread
+  creation throttling more aggressive.
+  Once the batch is over, restore default concurrency
+  by calling set_concurrency(0).
+  */
+  virtual void set_concurrency(unsigned int threads=0){}
+
   int bind(native_file_handle &fd) { return m_aio->bind(fd); }
   void unbind(const native_file_handle &fd) { if (m_aio) m_aio->unbind(fd); }
   int submit_io(aiocb *cb) { return m_aio->submit_io(cb); }

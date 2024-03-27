@@ -606,24 +606,32 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t1 WHERE s2='a' COLLATE latin1_german1_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	s2	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1105	Cannot use key `s2` part[0] for lookup: `test`.`t1`.`s2` of collation `latin1_swedish_ci` = "'a' collate latin1_german1_ci" of collation `latin1_german1_ci`
 EXPLAIN SELECT * FROM t1 WHERE s1 BETWEEN 'a' AND 'b' COLLATE latin1_german1_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	s1	s1	11	NULL	2	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE s2 BETWEEN 'a' AND 'b' COLLATE latin1_german1_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	s2	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1105	Cannot use key `s2` part[0] for lookup: `test`.`t1`.`s2` of collation `latin1_swedish_ci` >= "'a'" of collation `latin1_german1_ci`
 EXPLAIN SELECT * FROM t1 WHERE s1 IN  ('a','b' COLLATE latin1_german1_ci);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	s1	s1	11	NULL	2	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE s2 IN  ('a','b' COLLATE latin1_german1_ci);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	s2	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1105	Cannot use key `s2` part[0] for lookup: `test`.`t1`.`s2` of collation `latin1_swedish_ci` = "'a'" of collation `latin1_german1_ci`
 EXPLAIN SELECT * FROM t1 WHERE s1 LIKE 'a' COLLATE latin1_german1_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	s1	s1	11	NULL	1	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE s2 LIKE 'a' COLLATE latin1_german1_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	s2	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1105	Cannot use key `s2` part[0] for lookup: `test`.`t1`.`s2` of collation `latin1_swedish_ci` like "'a' collate latin1_german1_ci" of collation `latin1_german1_ci`
 DROP TABLE t1;
 create table t1(f1 varchar(10) character set latin2 collate latin2_hungarian_ci, key(f1));
 insert into t1 set f1=0x3F3F9DC73F;
@@ -641,8 +649,8 @@ check table t1 extended;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
-select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci);
-least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci)
+select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as f1;
+f1
 a
 create table t1
 select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as f1;
@@ -653,12 +661,11 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select case _latin1'a' when _latin2'b' then 1 when _latin5'c' collate
-latin5_turkish_ci then 2 else 3 end;
-case _latin1'a' when _latin2'b' then 1 when _latin5'c' collate
-latin5_turkish_ci then 2 else 3 end
+latin5_turkish_ci then 2 else 3 end as exp;
+exp
 3
-select concat(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci);
-concat(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci)
+select concat(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as exp;
+exp
 abc
 #
 # Bug#11765016 57926: ILLEGAL MIX OF COLLATIONS FOR OPERATION 'UNION' .. USING CONCAT/FUNCTION/

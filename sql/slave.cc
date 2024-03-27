@@ -46,7 +46,7 @@
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
-
+#include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
 #include "tztime.h"                             // struct Time_zone
 #include "log_event.h"                          // Rotate_log_event,
@@ -63,7 +63,6 @@ Master_info_index *master_info_index;
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
-#include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
 #include "semisync_slave.h"
@@ -505,6 +504,7 @@ static void bg_rpl_load_gtid_slave_state(void *)
 static void bg_slave_kill(void *victim)
 {
   THD *to_kill= (THD *)victim;
+  DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
   to_kill->awake(KILL_CONNECTION);
   mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
   to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
@@ -3178,6 +3178,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     mysql_mutex_lock(&mi->err_lock);
     /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
+
+    DBUG_EXECUTE_IF("hold_sss_with_err_lock", {
+      DBUG_ASSERT(!debug_sync_set_action(
+          thd, STRING_WITH_LEN("now SIGNAL sss_got_err_lock "
+                               "WAIT_FOR sss_continue")));
+      DBUG_SET("-d,hold_sss_with_err_lock");
+    });
+
     protocol->store_string_or_null(mi->host, &my_charset_bin);
     protocol->store_string_or_null(mi->user, &my_charset_bin);
     protocol->store((uint32) mi->port);
@@ -3257,7 +3265,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
           while the slave is processing ignored events, such as those skipped
           due to slave_skip_counter.
         */
-        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle &&
+            !rpl_parallel::workers_idle(&mi->rli))
           idle= false;
       }
       if (idle)
@@ -3902,9 +3911,19 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       default:
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
-          rli->abort_slave= 1;
-          rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                      "Node has dropped from cluster");
+          /*
+            async replication thread should be stopped, if failure was
+            not due to optimistic parallel applying or if node
+            has dropped from cluster
+           */
+          if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
+              ((rli->mi->using_parallel() &&
+                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
+               wsrep_ready == 0)) {
+            rli->abort_slave= 1;
+            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                        "Node has dropped from cluster");
+          }
           break;
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -4370,8 +4389,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
-          rli->sql_thread_caught_up= false;
         }
+        rli->sql_thread_caught_up= false;
       }
 
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
@@ -4413,6 +4432,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if (typ == GTID_EVENT)
     {
       Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
+
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "pause_sql_thread_on_relay_fde_after_trans",
+        {
+          DBUG_SET("-d,pause_sql_thread_on_relay_fde_after_trans");
+          DBUG_SET("+d,pause_sql_thread_on_next_relay_fde");
+        });
+#endif
 
       /*
         For GTID, allocate a new sub_id for the given domain_id.
@@ -4566,12 +4594,14 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
 #ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF(
-        "pause_sql_thread_on_fde",
-        if (ev && typ == FORMAT_DESCRIPTION_EVENT) {
+        "pause_sql_thread_on_next_relay_fde",
+        if (ev && typ == FORMAT_DESCRIPTION_EVENT &&
+            ((Format_description_log_event *) ev)->is_relay_log_event()) {
           DBUG_ASSERT(!debug_sync_set_action(
               thd,
               STRING_WITH_LEN(
                   "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
+          DBUG_SET("-d,pause_sql_thread_on_next_relay_fde");
         });
 #endif
 
@@ -4688,6 +4718,7 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
       sql_print_information("%s", messages[SLAVE_RECON_MSG_KILLED_AFTER]);
     return 1;
   }
+  repl_semisync_slave.slave_reconnect(mi);
   return 0;
 }
 
@@ -4776,14 +4807,7 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
   thd->variables.wsrep_on= 0;
-  if (DBUG_IF("failed_slave_start")
-      || repl_semisync_slave.slave_start(mi))
-  {
-    mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-               ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-               "Failed to run 'thread_start' hook");
-    goto err;
-  }
+  repl_semisync_slave.slave_start(mi);
 
   if (!(mi->mysql = mysql = mysql_init(NULL)))
   {
@@ -4877,6 +4901,7 @@ connected:
     if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
                              reconnect_messages[SLAVE_RECON_ACT_REG]))
       goto err;
+
     goto connected;
   } 
 
@@ -4898,7 +4923,13 @@ connected:
       goto err;
     goto connected;
   }
-  DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
+  DBUG_EXECUTE_IF("fail_com_register_slave",
+                  {
+                    mi->report(ERROR_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
+                    ER(ER_SLAVE_MASTER_COM_FAILURE), "COM_REGISTER_SLAVE",
+                    "Debug Induced Error");
+                    goto err;
+                  });
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
   thd->set_command(COM_SLAVE_IO);
@@ -4931,6 +4962,15 @@ connected:
          we're in fact receiving nothing.
       */
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
+
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("pause_before_io_read_event",
+                      {
+                        DBUG_ASSERT(!debug_sync_set_action( thd, STRING_WITH_LEN(
+     "now signal io_thread_at_read_event wait_for io_thread_continue_read_event")));
+                        DBUG_SET("-d,pause_before_io_read_event");
+                      };);
+#endif
       event_len= read_event(mysql, mi, &suppress_warnings, &network_read_len);
       if (check_io_slave_killed(mi, NullS))
         goto err;
@@ -5030,17 +5070,36 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK))
+      if (repl_semisync_slave.get_slave_enabled() &&
+          mi->semi_sync_reply_enabled &&
+          (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
-        /*
-          We deliberately ignore the error in slave_reply, such error should
-          not cause the slave IO thread to stop, and the error messages are
-          already reported.
-        */
-        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply", my_sleep(800000););
-        (void)repl_semisync_slave.slave_reply(mi);
-      }
+        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply",
+                        my_sleep(800000););
+        if (repl_semisync_slave.slave_reply(mi))
+        {
+          /*
+            Master is not responding (gone away?) or it has turned semi sync
+            off. Turning off semi-sync responses as there is no point in sending
+            data to the master if the master not receiving the messages.
+            This also stops the logs from getting filled with
+            "Semi-sync slave net_flush() reply failed" messages.
+            On reconnect semi sync will be turned on again, if the
+            master has semi-sync enabled.
 
+            We check mi->abort_slave to see if the io thread was
+            killed and in this case we do not need an error message as
+            we know what is going on.
+           */
+          if (!mi->abort_slave)
+            sql_print_error("Master server does not read semi-sync messages "
+                            "last_error: %s (%d). "
+                            "Fallback to asynchronous replication",
+                            mi->mysql->net.last_error,
+                            mi->mysql->net.last_errno);
+          mi->semi_sync_reply_enabled= 0;
+        }
+      }
       if (mi->using_gtid == Master_info::USE_GTID_NO &&
           /*
             If rpl_semi_sync_slave_delay_master is enabled, we will flush
@@ -5356,6 +5415,19 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
+
+  /*
+    Reset errors for a clean start (otherwise, if the master is idle, the SQL
+    thread may execute no Query_log_event, so the error will remain even
+    though there's no problem anymore). Do not reset the master timestamp
+    (imagine the slave has caught everything, the STOP SLAVE and START SLAVE:
+    as we are not sure that we are going to receive a query, we want to
+    remember the last master timestamp (to say how many seconds behind we are
+    now.
+    But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
+  */
+  rli->clear_error();
+
   mysql_mutex_lock(&rli->run_lock);
   DBUG_ASSERT(!rli->slave_running);
   errmsg= 0;
@@ -5432,17 +5504,16 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->run_lock);
   mysql_cond_broadcast(&rli->start_cond);
 
-  /*
-    Reset errors for a clean start (otherwise, if the master is idle, the SQL
-    thread may execute no Query_log_event, so the error will remain even
-    though there's no problem anymore). Do not reset the master timestamp
-    (imagine the slave has caught everything, the STOP SLAVE and START SLAVE:
-    as we are not sure that we are going to receive a query, we want to
-    remember the last master timestamp (to say how many seconds behind we are
-    now.
-    But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
-  */
-  rli->clear_error();
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("delay_sql_thread_after_release_run_lock", {
+    const char act[]= "now "
+                      "signal sql_thread_run_lock_released "
+                      "wait_for sql_thread_continue";
+    DBUG_ASSERT(debug_sync_service);
+    DBUG_ASSERT(!debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+  };);
+#endif
+
   rli->parallel.reset();
 
   //tell the I/O thread to take relay_log_space_limit into account from now on
@@ -5466,19 +5537,25 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   else
     rli->gtid_skip_flag = GTID_SKIP_NOT;
+  mysql_mutex_lock(&rli->data_lock);
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
-                         1 /*need data lock*/, &errmsg,
+                         0 /*need data lock*/, &errmsg,
                          1 /*look for a description_event*/))
   { 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                 "Error initializing relay log position: %s", errmsg);
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
   }
   rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+  {
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
+  }
+  mysql_mutex_unlock(&rli->data_lock);
 
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);
@@ -5608,6 +5685,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->data_lock);
 #ifdef WITH_WSREP
   wsrep_open(thd);
+  if (WSREP_ON_)
+    wsrep_wait_ready(thd);
   if (wsrep_before_command(thd))
   {
     WSREP_WARN("Slave SQL wsrep_before_command() failed");
@@ -6564,7 +6643,7 @@ dbug_gtid_accept:
     */
     mi->do_accept_own_server_id=
       (s_id == global_system_variables.server_id &&
-       rpl_semi_sync_slave_enabled && opt_gtid_strict_mode &&
+       repl_semisync_slave.get_slave_enabled() && opt_gtid_strict_mode &&
        mi->using_gtid != Master_info::USE_GTID_NO &&
         !mysql_bin_log.check_strict_gtid_sequence(event_gtid.domain_id,
                                                   event_gtid.server_id,

@@ -6,7 +6,7 @@ Acl_function_grants	0
 Acl_procedure_grants	0
 Acl_package_spec_grants	0
 Acl_package_body_grants	0
-Acl_proxy_users	2
+Acl_proxy_users	4
 Acl_role_grants	0
 Acl_roles	0
 Acl_table_grants	1
@@ -25,7 +25,7 @@ PROCEDURE_GRANTS
 0
 SELECT count(*) PROXY_USERS from mysql.proxies_priv;
 PROXY_USERS
-2
+4
 SELECT count(*) ROLE_GRANTS from mysql.roles_mapping;
 ROLE_GRANTS
 0
@@ -71,7 +71,7 @@ Acl_function_grants	3
 Acl_procedure_grants	2
 Acl_package_spec_grants	0
 Acl_package_body_grants	0
-Acl_proxy_users	3
+Acl_proxy_users	5
 Acl_role_grants	4
 Acl_roles	2
 Acl_table_grants	3
@@ -90,7 +90,7 @@ PROCEDURE_GRANTS
 2
 SELECT count(*) PROXY_USERS from mysql.proxies_priv;
 PROXY_USERS
-3
+5
 SELECT count(*) ROLE_GRANTS from mysql.roles_mapping;
 ROLE_GRANTS
 4

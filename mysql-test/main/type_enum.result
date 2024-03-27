@@ -1903,6 +1903,8 @@ EXPLAIN SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `enum` = "`t1`.`c1`" of type `date`
 SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 c1
 2001-01-01
@@ -1912,6 +1914,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `enum` = "`t1`.`c1`" of type `date`
 DROP TABLE t1, t2;
 #
 # MDEV-6978 Bad results with join comparing case insensitive VARCHAR/ENUM/SET expression to a _bin ENUM column
@@ -1942,6 +1946,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1969,6 +1975,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1996,6 +2004,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6991 GROUP_MIN_MAX optimization is erroneously applied in some cases
@@ -2353,6 +2363,208 @@ a	FLOOR(a)	CEILING(a)	TRUNCATE(a,0)	ROUND(a)
 999999999999999999999999999999999999999999999999999999999999	1	1	1	1
 DROP TABLE t2;
 DROP TABLE t1;
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (
+indexed_col ENUM('2001','2002','2003','2004','2005','2006','2007','2008','2009','2010'),
+KEY(indexed_col)
+);
+FOR i IN 1..10
+DO
+INSERT INTO t1 VALUES (i);
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `enum` = "DATE'2001-01-01'" of type `date`
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `enum` = "TIME'10:20:30'" of type `time`
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `enum` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = _utf8mb3'0' collate utf8mb3_bin`
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `enum` = "`t2`.`not_indexed_col`" of type `date`
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `enum` = "`t2`.`not_indexed_col`" of type `datetime`
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `enum` = "`t2`.`not_indexed_col`" of type `timestamp`
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Truncated incorrect datetime value: '2001'
+Warning	1292	Truncated incorrect datetime value: '2002'
+Warning	1292	Truncated incorrect datetime value: '2003'
+Warning	1292	Truncated incorrect datetime value: '2004'
+Warning	1292	Truncated incorrect datetime value: '2005'
+Warning	1292	Truncated incorrect datetime value: '2006'
+Warning	1292	Truncated incorrect datetime value: '2007'
+Warning	1292	Truncated incorrect datetime value: '2008'
+Warning	1292	Truncated incorrect datetime value: '2009'
+Warning	1292	Truncated incorrect datetime value: '2010'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of collation `latin1_swedish_ci` = "`t2`.`not_indexed_col`" of collation `binary`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = ``t2``.``not_indexed_col```
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
 #
 # MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
 #

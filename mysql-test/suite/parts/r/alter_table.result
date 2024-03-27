@@ -344,3 +344,17 @@ connection default;
 drop database EXISTENT;
 drop user alan;
 drop tables t1, tp1, tp2, tp4;
+#
+# MDEV-31014 Database privileges are insufficient for CONVERT TABLE TO PARTITION
+#
+create database db;
+create user u@localhost;
+grant all on db.* to u@localhost;
+connect  con1,localhost,u,,db;
+create table t1 (a int) partition by range(a) (p1 values less than (100), p2 values less than (1000));
+alter table t1 convert partition p2 to table tp;
+alter table t1 convert table tp to partition p2 values less than (1000);
+disconnect con1;
+connection default;
+drop user u@localhost;
+drop database db;

@@ -1977,8 +1977,7 @@ ALTER TABLE ti1 DROP FOREIGN KEY fi1;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tm1 DROP FOREIGN KEY fm1;
-affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+ERROR 42000: Can't DROP FOREIGN KEY `fm1`; check that it exists
 ALTER TABLE ti1 RENAME TO ti3;
 affected rows: 0
 ALTER TABLE tm1 RENAME TO tm3;
@@ -3070,6 +3069,40 @@ delete from t1 where a = 11;
 drop table t1;
 #
 # End of 10.5 tests
+#
+#
+# MDEV-32449 Server crashes in Alter_info::add_stat_drop_index upon CREATE TABLE
+#
+CREATE TABLE t1 (
+`altcol1` blob DEFAULT '',
+KEY `altcol1` (`altcol1`(2300))
+) ROW_FORMAT=PAGE, ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY h (`altcol1`) REFERENCES t1 (`altcol1`) ON UPDATE SET DEFAULT, ALGORITHM=COPY;
+Warnings:
+Note	1071	Specified key was too long; max key length is 2300 bytes
+create or replace table t2 like t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `altcol1` blob DEFAULT '',
+  KEY `altcol1` (`altcol1`(2300)),
+  KEY `h` (`altcol1`(2300))
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `altcol1` blob DEFAULT '',
+  KEY `altcol1` (`altcol1`(2300))
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+drop table t1,t2;
+# Another test for MDEV-32449
+CREATE TABLE t1 (a POINT, b POINT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t (b);
+CREATE TEMPORARY TABLE t2 LIKE t1;
+DROP TEMPORARY TABLE t2;
+DROP TABLE t1;
+#
+# End of 10.6 tests
 #
 #
 # MDEV-26767 Server crashes when rename table and alter storage engine

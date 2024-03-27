@@ -107,7 +107,6 @@ namespace open_query
       size_type n;
     };
 
-    reference operator[](size_type n) { return reference(*this, n); }
     bool operator[](size_type n) const { return test(n); }
 
     size_type find_first() const;

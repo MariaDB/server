@@ -141,7 +141,6 @@ typedef unsigned long long my_ulonglong;
 #define ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
 #define ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 #define ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
-#define ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT ER_QUERY_RESULT_INCOMPLETE
 #define ER_KEY_COLUMN_DOES_NOT_EXITS ER_KEY_COLUMN_DOES_NOT_EXIST
 #define ER_DROP_PARTITION_NON_EXISTENT ER_PARTITION_DOES_NOT_EXIST
 
@@ -269,7 +268,6 @@ typedef struct st_mysql
   char		*host,*user,*passwd,*unix_socket,*server_version,*host_info;
   char          *info, *db;
   const struct charset_info_st *charset;
-  MYSQL_FIELD	*fields;
   MEM_ROOT	field_alloc;
   my_ulonglong affected_rows;
   my_ulonglong insert_id;		/* id if insert on table with NEXTNR */
@@ -291,7 +289,8 @@ typedef struct st_mysql
   /* session-wide random string */
   char	        scramble[SCRAMBLE_LENGTH+1];
   my_bool       auto_local_infile;
-  void *unused2, *unused3, *unused4, *unused5;
+  void *unused2, *unused3, *unused4;
+  MYSQL_FIELD	*fields;
 
   LIST  *stmts;                     /* list of all statements */
   const struct st_mysql_methods *methods;

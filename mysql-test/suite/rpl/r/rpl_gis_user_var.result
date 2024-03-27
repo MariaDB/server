@@ -1,0 +1,21 @@
+include/master-slave.inc
+[connection master]
+#
+#
+#
+connection master;
+SET @p=POINT(1,1);
+CREATE TABLE t1 AS SELECT @p AS p;
+connection slave;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `p` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT ST_AsWKT(p) FROM t1;
+ST_AsWKT(p)
+POINT(1 1)
+connection master;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

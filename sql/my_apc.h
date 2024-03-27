@@ -70,10 +70,10 @@ public:
     bool process= !--enabled && have_apc_requests();
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
     if (unlikely(process))
-      process_apc_requests();
+      process_apc_requests(true);
   }
 
-  void process_apc_requests();
+  void process_apc_requests(bool force);
   /* 
     A lightweight function, intended to be used in frequent checks like this:
 

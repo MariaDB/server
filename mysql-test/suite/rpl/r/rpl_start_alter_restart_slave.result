@@ -79,7 +79,9 @@ domain_id	seq_no
 0	5
 include/start_slave.inc
 connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 # Everything from the master binlog must have been applied now:
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 domain_id	seq_no

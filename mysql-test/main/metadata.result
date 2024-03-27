@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 select 1, 1.0, -1, "hello", NULL;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					1	3	1	1	N	32897	0	63
@@ -222,6 +221,9 @@ def		v3	v3	renamed	renamed	8	12	0	Y	32896	0	63
 renamed
 drop table t1;
 drop view v1,v2,v3;
+#
+# End of 4.1 tests
+#
 select a.* from (select 2147483648 as v_large) a;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def			a	v_large	v_large	8	10	10	N	32769	0	63
@@ -301,7 +303,9 @@ def	test	va	va	f1	f1	3	11	0	Y	32768	0	63
 f1
 DROP VIEW v1;
 DROP TABLE t1;
-End of 5.0 tests
+#
+# End of 5.0 tests
+#
 create table t1(
 # numeric types
 bool_col bool,
@@ -802,3 +806,6 @@ t1	CREATE TABLE `t1` (
   `@b2:=111111111111` bigint(12) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

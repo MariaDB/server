@@ -8,6 +8,8 @@ SELECT @@GLOBAL.secure_auth;
 1 / ON Expected
 '#--------------------FN_DYNVARS_144_02-------------------------#'
 SET GLOBAL secure_auth = OFF;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 CREATE USER 'testUser'@'localhost' IDENTIFIED BY 'newpass';
 connect  con_user1,localhost,testUser,newpass,;
 connection default;
@@ -16,6 +18,8 @@ connect  con_user2,localhost,testUser,newpass,;
 connection default;
 '#--------------------FN_DYNVARS_144_03-------------------------#'
 SET GLOBAL secure_auth = ON;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 SET PASSWORD FOR 'testUser'@'localhost' = PASSWORD('newpass');
 connect  con_user3,localhost,testUser,newpass,;
 connection default;
@@ -27,6 +31,8 @@ SET PASSWORD FOR 'testUser'@'localhost' = PASSWORD('newpass');
 connect  con_user4,localhost,testUser,newpass,;
 connection default;
 SET GLOBAL secure_auth = @old_secure_auth;
+Warnings:
+Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 disconnect con_user1;
 disconnect con_user2;
 disconnect con_user3;

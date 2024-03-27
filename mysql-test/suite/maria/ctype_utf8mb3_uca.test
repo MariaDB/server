@@ -1,0 +1,12 @@
+--source include/have_maria.inc
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+SET default_storage_engine=Aria;
+--source include/ctype_utf8mb3_uca_char.inc
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

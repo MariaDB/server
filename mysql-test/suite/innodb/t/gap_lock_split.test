@@ -3,9 +3,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
-SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 CREATE TABLE t1(id INT PRIMARY key, val VARCHAR(16000))
   ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 (id,val) SELECT 2*seq,'x' FROM seq_0_to_1023;
@@ -44,4 +41,3 @@ disconnect con1;
 connection default;
 COMMIT;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

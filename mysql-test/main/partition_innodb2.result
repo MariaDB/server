@@ -18,7 +18,7 @@ mod(seq, 10), seq from seq_1_to_50;
 explain
 delete t1, t2 from t1, t2 where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	#	
 delete t1, t2 from t1, t2 where t1.a=t2.a;
 drop table t1,t2;

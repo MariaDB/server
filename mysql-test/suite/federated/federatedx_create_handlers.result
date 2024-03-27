@@ -1140,6 +1140,111 @@ t3_myisam2
 t3_myisam3
 SELECT * FROM federated.t1 UNION SELECT * FROM t3 ORDER BY 2;
 ERROR 42S22: Unknown column '2' in 'order clause'
+#
+# MDEV-32382 FederatedX error on pushdown of statement having CTE
+#
+# Single SELECT with CTE
+WITH cte AS (SELECT * FROM federated.t1)
+SELECT * FROM cte;
+a
+bcd
+abc
+cde
+explain extended WITH cte AS (SELECT * FROM federated.t1)
+SELECT * FROM cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Note	1003	with cte as (/* select#2 */ select `federated`.`t1`.`a` AS `a` from `federated`.`t1`)/* select#1 */ select `cte`.`a` AS `a` from `cte`
+# Pushdown of a UNION having CTE's
+WITH cte AS (SELECT * FROM federated.t1),
+cte2 AS (SELECT * FROM federated.t2)
+SELECT * FROM cte
+UNION
+SELECT * FROM cte2;
+a
+abc
+bcd
+cde
+def
+efg
+explain extended WITH cte AS (SELECT * FROM federated.t1),
+cte2 AS (SELECT * FROM federated.t2)
+SELECT * FROM cte
+UNION
+SELECT * FROM cte2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Note	1003	with cte as (/* select#2 */ select `federated`.`t1`.`a` AS `a` from `federated`.`t1`), cte2 as (/* select#3 */ select `federated`.`t2`.`a` AS `a` from `federated`.`t2`)/* select#1 */ select `cte`.`a` AS `a` from `cte` union /* select#4 */ select `cte2`.`a` AS `a` from `cte2`
+# Partial pushdown is not allowed for unions with CTE's, however a CTE
+# may be pushed down a derived table
+WITH cte AS (SELECT * FROM federated.t1)
+SELECT * FROM cte
+UNION ALL
+SELECT * FROM t3;
+a
+abc
+bcd
+cde
+t3_myisam1
+t3_myisam2
+t3_myisam3
+explain extended WITH cte AS (SELECT * FROM federated.t1)
+SELECT * FROM cte
+UNION ALL
+SELECT * FROM t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	with cte as (/* select#2 */ select `federated`.`t1`.`a` AS `a` from `federated`.`t1`)/* select#1 */ select `cte`.`a` AS `a` from `cte` union all /* select#3 */ select `federated`.`t3`.`a` AS `a` from `federated`.`t3`
+WITH cte AS (SELECT * FROM federated.t1 UNION SELECT * FROM t3)
+SELECT * FROM cte;
+a
+abc
+bcd
+cde
+t3_myisam1
+t3_myisam2
+t3_myisam3
+explain extended WITH cte AS (SELECT * FROM federated.t1 UNION SELECT * FROM t3)
+SELECT * FROM cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+3	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with cte as (/* select#2 */ select `federated`.`t1`.`a` AS `a` from `federated`.`t1` union /* select#3 */ select `federated`.`t3`.`a` AS `a` from `federated`.`t3`)/* select#1 */ select `cte`.`a` AS `a` from `cte`
+# Two CTE's where one CTE refers to another
+WITH cte AS (SELECT * FROM federated.t1),
+cte2 AS (SELECT * FROM t3
+WHERE t3.a NOT IN (SELECT * FROM cte))
+SELECT * FROM cte JOIN cte2;
+a	a
+abc	t3_myisam1
+abc	t3_myisam2
+abc	t3_myisam3
+bcd	t3_myisam1
+bcd	t3_myisam2
+bcd	t3_myisam3
+cde	t3_myisam1
+cde	t3_myisam2
+cde	t3_myisam3
+explain extended WITH cte AS (SELECT * FROM federated.t1),
+cte2 AS (SELECT * FROM t3
+WHERE t3.a NOT IN (SELECT * FROM cte))
+SELECT * FROM cte JOIN cte2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived5>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+5	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+4	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Note	1003	with cte as (/* select#2 */ select `federated`.`t1`.`a` AS `a` from `federated`.`t1`), cte2 as (/* select#3 */ select `federated`.`t3`.`a` AS `a` from `federated`.`t3` where !<expr_cache><`federated`.`t3`.`a`>(<in_optimizer>(`federated`.`t3`.`a`,`federated`.`t3`.`a` in ( <materialize> (/* select#4 */ select `cte`.`a` from `cte` ), <primary_index_lookup>(`federated`.`t3`.`a` in <temporary table> on distinct_key where `federated`.`t3`.`a` = `<subquery4>`.`a`)))))/* select#1 */ select `cte`.`a` AS `a`,`federated`.`t3`.`a` AS `a` from `cte` join `federated`.`t3` where !<expr_cache><`federated`.`t3`.`a`>(<in_optimizer>(`federated`.`t3`.`a`,`federated`.`t3`.`a` in ( <materialize> (/* select#4 */ select `cte`.`a` from `cte` ), <primary_index_lookup>(`federated`.`t3`.`a` in <temporary table> on distinct_key where `federated`.`t3`.`a` = `<subquery4>`.`a`))))
 connection master;
 DROP TABLES federated.t1, federated.t2, t3, t4, t5, t6, federated.t11,
 federated.t12, federated.t13, federated.t14;

@@ -1583,3 +1583,18 @@ select * from t1 left join (t3 join t2) on (t1.a=t3.a and t3.a=t2.b and t3.part_
 
 drop table t0,t1,t2,t3;
 
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-24283 Assertion `bitmap_is_set(&m_part_info->read_partitions, m_part_spec.start_part)' failed in ha_partition::handle_ordered_index_scan
+--echo #
+
+create table t1 (c int key) partition by list (c) (partition p values in (0));
+select max(c) from t1 where c>0;
+drop table t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

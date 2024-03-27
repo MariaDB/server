@@ -210,14 +210,11 @@ extern unsigned long long	srv_max_undo_log_size;
 extern uint	srv_n_fil_crypt_threads;
 extern uint	srv_n_fil_crypt_threads_started;
 
-/** Rate at which UNDO records should be purged. */
-extern ulong	srv_purge_rseg_truncate_frequency;
-
 /** Enable or Disable Truncate of UNDO tablespace. */
 extern my_bool	srv_undo_log_truncate;
 
 /** Default size of UNDO tablespace (10MiB for innodb_page_size=16k) */
-constexpr ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
+constexpr uint32_t SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
   UNIV_PAGE_SIZE_DEF;
 
 extern char*	srv_log_group_home_dir;
@@ -501,10 +498,6 @@ Frees the data structures created in srv_init(). */
 void
 srv_free(void);
 
-/** Wake up the purge if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active();
-
 /******************************************************************//**
 Outputs to a file the output of the InnoDB Monitor.
 @return FALSE if not all information printed
@@ -544,16 +537,6 @@ void
 srv_que_task_enqueue_low(
 /*=====================*/
 	que_thr_t*	thr);	/*!< in: query thread */
-
-/**
-Flag which is set, whenever innodb_purge_threads changes.
-It is read and reset in srv_do_purge().
-
-Thus it is Atomic_counter<int>, not bool, since unprotected
-reads are used. We just need an atomic with relaxed memory
-order, to please Thread Sanitizer.
-*/
-extern Atomic_counter<int> srv_purge_thread_count_changed;
 
 #ifdef UNIV_DEBUG
 /** @return whether purge or master task is active */

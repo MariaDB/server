@@ -593,32 +593,16 @@ int HCData::curl_run (const char *url, std::string *response,
   {
     const char *res = response->c_str();
     /*
-      Error 404 requires special handling - in case the server
-      returned an empty array of error strings (the value of the
-      "error" object in JSON is equal to an empty array), we should
-      ignore this error at this level, since this means the missing
-      key (this problem is handled at a higher level), but if the
-      error object contains anything other than empty array, then
-      we need to print the error message to the log:
+      Error 404 requires special handling - we should ignore this
+      error at this level, since this means the missing key (this
+      problem is handled at a higher level)
     */
     if (http_code == 404)
     {
-      const char *err;
-      int err_len;
-      if (json_get_object_key(res, res + response->size(),
-                              "errors", &err, &err_len) == JSV_ARRAY)
-      {
-        const char *ev;
-        int ev_len;
-        if (json_get_array_item(err, err + err_len, 0, &ev, &ev_len) ==
-            JSV_NOTHING)
-        {
-          *response = std::string("");
-          is_error = false;
-        }
-      }
+      *response = std::string("");
+      is_error = false;
     }
-    if (is_error)
+    else if (is_error)
     {
       my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                       "Hashicorp server error: %d, response: %s",

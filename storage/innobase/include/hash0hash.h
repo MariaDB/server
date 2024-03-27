@@ -47,25 +47,6 @@ struct hash_cell_t
     insert.*next= nullptr;
     *after= &insert;
   }
-
-  /** Insert an element after another.
-  @tparam T  type of the element
-  @param after   the element after which to insert
-  @param insert  the being-inserted element
-  @param next    the next-element pointer in T */
-  template<typename T>
-  void insert_after(T &after, T &insert, T *T::*next)
-  {
-#ifdef UNIV_DEBUG
-    for (const T *c= static_cast<const T*>(node); c; c= c->*next)
-      if (c == &after)
-        goto found;
-    ut_error;
-  found:
-#endif
-    insert.*next= after.*next;
-    after.*next= &insert;
-  }
 };
 
 /*******************************************************************//**

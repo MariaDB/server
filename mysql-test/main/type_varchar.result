@@ -612,6 +612,8 @@ EXPLAIN SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	22	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `varchar` = "`t1`.`c1`" of type `date`
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
 c1
 2001-01-01
@@ -621,6 +623,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	22	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `varchar` = "`t1`.`c1`" of type `date`
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6989 BINARY and COLLATE xxx_bin comparisions are not used for optimization in some cases
@@ -767,3 +771,411 @@ DROP TABLE vchar;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col VARCHAR(32), KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (20230100+i);
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+20230101
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101" of type `int`
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101102030" of type `bigint`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101102030.1" of type `decimal`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "20230101102030.1e0" of type `double`
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "DATE'2001-01-01'" of type `date`
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "TIME'10:20:30'" of type `time`
+Warning	1292	Truncated incorrect time value: '20230101'
+Warning	1292	Truncated incorrect time value: '20230102'
+Warning	1292	Truncated incorrect time value: '20230103'
+Warning	1292	Truncated incorrect time value: '20230104'
+Warning	1292	Truncated incorrect time value: '20230105'
+Warning	1292	Truncated incorrect time value: '20230106'
+Warning	1292	Truncated incorrect time value: '20230107'
+Warning	1292	Truncated incorrect time value: '20230108'
+Warning	1292	Truncated incorrect time value: '20230109'
+Warning	1292	Truncated incorrect time value: '20230110'
+Warning	1292	Truncated incorrect time value: '20230111'
+Warning	1292	Truncated incorrect time value: '20230112'
+Warning	1292	Truncated incorrect time value: '20230113'
+Warning	1292	Truncated incorrect time value: '20230114'
+Warning	1292	Truncated incorrect time value: '20230115'
+Warning	1292	Truncated incorrect time value: '20230116'
+Warning	1292	Truncated incorrect time value: '20230117'
+Warning	1292	Truncated incorrect time value: '20230118'
+Warning	1292	Truncated incorrect time value: '20230119'
+Warning	1292	Truncated incorrect time value: '20230120'
+Warning	1292	Truncated incorrect time value: '20230121'
+Warning	1292	Truncated incorrect time value: '20230122'
+Warning	1292	Truncated incorrect time value: '20230123'
+Warning	1292	Truncated incorrect time value: '20230124'
+Warning	1292	Truncated incorrect time value: '20230125'
+Warning	1292	Truncated incorrect time value: '20230126'
+Warning	1292	Truncated incorrect time value: '20230127'
+Warning	1292	Truncated incorrect time value: '20230128'
+Warning	1292	Truncated incorrect time value: '20230129'
+Warning	1292	Truncated incorrect time value: '20230130'
+Warning	1292	Truncated incorrect time value: '20230131'
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = _utf8mb3'0' collate utf8mb3_bin`
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `int`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `int unsigned`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `bigint`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `bigint unsigned`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `decimal`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `float`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `double`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01
+20230102	2023-01-02
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `date`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `datetime`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `varchar` = "`t2`.`not_indexed_col`" of type `timestamp`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = ``t2``.``not_indexed_col```
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
+#
+# MDEV-32957 Unusable key notes report wrong predicates for > and >=
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (a INT, i CHAR(32), KEY(i));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (i, 10+i);
+END FOR;
+$$
+EXPLAIN SELECT * FROM t1 WHERE i>30 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	i	i	33	NULL	5	Using where
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "30" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` > "30" of type `int`
+EXPLAIN SELECT * FROM t1 WHERE i>=30 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	i	i	33	NULL	5	Using where
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "30" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "30" of type `int`
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
+#
+# MDEV-32958 Unusable key notes do not get reported for some operations
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (c1 varchar(10), KEY(c1)) CHARACTER SET latin1;
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t1 VALUES ('c');
+INSERT INTO t1 VALUES ('d');
+INSERT INTO t1 VALUES ('e');
+INSERT INTO t1 VALUES ('f');
+INSERT INTO t1 VALUES ('g');
+INSERT INTO t1 VALUES ('h');
+INSERT INTO t1 VALUES ('i');
+INSERT INTO t1 VALUES ('j');
+EXPLAIN SELECT * FROM t1 WHERE c1=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` = "10" of type `int`
+SELECT * FROM t1 WHERE c1=10;
+c1
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` = "10" of type `int`
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'e'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'g'
+Warning	1292	Truncated incorrect DECIMAL value: 'h'
+Warning	1292	Truncated incorrect DECIMAL value: 'i'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+EXPLAIN SELECT * FROM t1 WHERE c1<10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` < "10" of type `int`
+SELECT * FROM t1 WHERE c1<10;
+c1
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` < "10" of type `int`
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'e'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'g'
+Warning	1292	Truncated incorrect DECIMAL value: 'h'
+Warning	1292	Truncated incorrect DECIMAL value: 'i'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+EXPLAIN SELECT * FROM t1 WHERE c1 BETWEEN 10 AND 11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` >= "10" of type `int`
+SELECT * FROM t1 WHERE c1 BETWEEN 10 AND 11;
+c1
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` >= "10" of type `int`
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'e'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'g'
+Warning	1292	Truncated incorrect DECIMAL value: 'h'
+Warning	1292	Truncated incorrect DECIMAL value: 'i'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+EXPLAIN SELECT * FROM t1 WHERE c1 BETWEEN 10 AND '11';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` >= "10" of type `int`
+SELECT * FROM t1 WHERE c1 BETWEEN 10 AND '11';
+c1
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` >= "10" of type `int`
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DOUBLE value: 'c'
+Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DOUBLE value: 'e'
+Warning	1292	Truncated incorrect DOUBLE value: 'f'
+Warning	1292	Truncated incorrect DOUBLE value: 'g'
+Warning	1292	Truncated incorrect DOUBLE value: 'h'
+Warning	1292	Truncated incorrect DOUBLE value: 'i'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+EXPLAIN SELECT * FROM t1 WHERE c1 IN (10,20);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` = "10" of type `int`
+SELECT * FROM t1 WHERE c1 IN (10,20);
+c1
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of type `varchar` = "10" of type `int`
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'e'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'g'
+Warning	1292	Truncated incorrect DECIMAL value: 'h'
+Warning	1292	Truncated incorrect DECIMAL value: 'i'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+EXPLAIN SELECT * FROM t1 WHERE c1 IN (_latin1'a' COLLATE latin1_german2_ci,'b');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of collation `latin1_swedish_ci` = "_latin1'a' collate latin1_german2_ci" of collation `latin1_german2_ci`
+SELECT * FROM t1 WHERE c1 IN (_latin1'a' COLLATE latin1_german2_ci,'b');
+c1
+a
+b
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of collation `latin1_swedish_ci` = "_latin1'a' collate latin1_german2_ci" of collation `latin1_german2_ci`
+EXPLAIN SELECT * FROM t1 WHERE c1 IN ('a',_latin1'b' COLLATE latin1_german2_ci);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	13	NULL	10	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of collation `latin1_swedish_ci` = "'a'" of collation `latin1_german2_ci`
+SELECT * FROM t1 WHERE c1 IN ('a',_latin1'b' COLLATE latin1_german2_ci);
+c1
+a
+b
+Warnings:
+Note	1105	Cannot use key `c1` part[0] for lookup: `test`.`t1`.`c1` of collation `latin1_swedish_ci` = "'a'" of collation `latin1_german2_ci`
+DROP TABLE t1;
+CREATE TABLE t1(a INT, i CHAR(2), INDEX(i(1)));
+INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
+(20),(21),(22),(23),(24),(25),(26),(27),(28),(29),
+(30),(31),(32),(33),(34),(35);
+EXPLAIN SELECT * FROM t1 WHERE i >= 10 ORDER BY i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i	NULL	NULL	NULL	26	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+SELECT * FROM t1 WHERE i >= 10 ORDER BY i LIMIT 5;
+a	i
+NULL	10
+NULL	11
+NULL	12
+NULL	13
+NULL	14
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` >= "10" of type `int`
+EXPLAIN UPDATE t1 SET a = 1 WHERE i = 10 ORDER BY a, i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` = "10" of type `int`
+EXPLAIN UPDATE t1 SET a = 1 WHERE i < 10 ORDER BY a, i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "10" of type `int`
+EXPLAIN DELETE FROM t1 WHERE i = 10 ORDER BY a, i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` = "10" of type `int`
+EXPLAIN DELETE FROM t1 WHERE i < 10 ORDER BY a, i LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "10" of type `int`
+EXPLAIN UPDATE t1 SET a = 1 WHERE i = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` = "10" of type `int`
+EXPLAIN UPDATE t1 SET a = 1 WHERE i < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "10" of type `int`
+EXPLAIN DELETE FROM t1 WHERE i = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` = "10" of type `int`
+EXPLAIN DELETE FROM t1 WHERE i < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using where
+Warnings:
+Note	1105	Cannot use key `i` part[0] for lookup: `test`.`t1`.`i` of type `char` < "10" of type `int`
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

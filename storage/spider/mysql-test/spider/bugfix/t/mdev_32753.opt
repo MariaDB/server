@@ -1,0 +1,2 @@
+--sql-mode=oracle
+--plugin-load-add=ha_spider

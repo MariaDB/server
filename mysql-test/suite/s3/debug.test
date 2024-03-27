@@ -1,0 +1,34 @@
+--source include/have_s3.inc
+--source include/have_sequence.inc
+
+#
+# Create unique database for running the tests
+#
+--source create_database.inc
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--echo #
+--echo # MDEV-32884 Make s3_debug dynamic
+--echo #
+
+create or replace table t1 (a int, b int, c varchar(1000), key (a), key(c)) engine=aria;
+insert into t1 select seq, seq+10, repeat(char(65+ mod(seq, 20)),mod(seq,1000)) from seq_1_to_100;
+alter table t1 engine=s3;
+show create table t1;
+select count(*) from t1;
+flush table t1;
+
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=s3_test_
+--source include/search_pattern_in_file.inc
+set @@global.s3_debug=1;
+select count(*) from t1;
+set @@global.s3_debug=0;
+--source include/search_pattern_in_file.inc
+select count(*) from t1;
+drop table t1;
+--source include/search_pattern_in_file.inc
+
+--source drop_database.inc

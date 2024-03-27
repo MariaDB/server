@@ -14,7 +14,7 @@ let MYSQLD_DATADIR=`select @@datadir`;
 --echo #
 
 CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE)
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=REDUNDANT;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t1 VALUES(0,2);
 INSERT INTO t2 VALUES(2,1);
@@ -36,7 +36,6 @@ COMMIT;
 disconnect ddl;
 --source include/start_mysqld.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
 SELECT * FROM t2;
 BEGIN;
@@ -64,9 +63,6 @@ COMMIT;
 disconnect ddl;
 --source include/start_mysqld.inc
 
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 SELECT * FROM t1;
 SELECT * FROM t2;
 BEGIN;
@@ -93,8 +89,6 @@ COMMIT;
 --source include/kill_mysqld.inc
 disconnect ddl;
 --source include/start_mysqld.inc
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN= \[Note\] InnoDB: Rolled back recovered transaction ;

@@ -109,8 +109,10 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
   {
 
     if (keylen &&
-        ha_compare_text(aio->charset,info->lastkey+1,
-                        info->lastkey_length-extra-1, keybuff+1,keylen-1,0))
+        ha_compare_word(aio->charset,
+                        info->lastkey + 1,
+                        info->lastkey_length - extra - 1,
+                        keybuff + 1, keylen - 1))
      break;
 
     if (subkeys.i < 0)

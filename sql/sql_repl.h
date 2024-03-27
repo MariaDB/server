@@ -43,7 +43,7 @@ void adjust_linfo_offsets(my_off_t purge_offset);
 void show_binlogs_get_fields(THD *thd, List<Item> *field_list);
 bool show_binlogs(THD* thd);
 extern int init_master_info(Master_info* mi);
-void kill_zombie_dump_threads(uint32 slave_server_id);
+bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);
 int compare_log_name(const char *log_1, const char *log_2);
 

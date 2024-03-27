@@ -75,8 +75,6 @@ Warning	1287	'@@spider_load_crd_at_startup' is deprecated and will be removed in
 SHOW VARIABLES LIKE "spider_load_crd_at_startup";
 Variable_name	Value
 spider_load_crd_at_startup	0
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
 # MDEV-28008 Deprecate spider_crd_mode and spider_sts_mode
 SET spider_crd_mode = 1;
 Warnings:

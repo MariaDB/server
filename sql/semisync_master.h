@@ -633,8 +633,6 @@ class Repl_semi_sync_master
   /*called before reset master*/
   int before_reset_master();
 
-  void check_and_switch();
-
   /*
     Determines if the given thread is currently awaiting a semisync_ack. Note
     that the thread's value is protected by this class's LOCK_binlog, so this

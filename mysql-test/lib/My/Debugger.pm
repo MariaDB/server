@@ -94,7 +94,7 @@ py
 import subprocess,shlex,time
 valg=subprocess.Popen(shlex.split("""valgrind --tool=memcheck --show-reachable=yes --leak-check=yes --num-callers=16 --quiet --suppressions=valgrind.supp --vgdb-error=0 {exe} {args} --loose-wait-for-pos-timeout=1500"""))
 time.sleep(2)
-gdb.execute("target remote | /usr/lib64/valgrind/../../bin/vgdb --pid=" + str(valg.pid))
+gdb.execute("target remote | vgdb --pid=" + str(valg.pid))
 EEE
     pre => sub {
       my $debug_libraries_path= "/usr/lib/debug";

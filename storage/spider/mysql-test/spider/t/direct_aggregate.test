@@ -139,6 +139,16 @@ eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
 SELECT MIN(a) FROM ta_l WHERE a > 1;
 eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
 --enable_ps2_protocol
+
+SET spider_direct_aggregate=0;
+SELECT COUNT(*) FROM ta_l;
+SELECT MAX(a) FROM ta_l;
+SELECT MIN(a) FROM ta_l;
+SELECT MAX(a) FROM ta_l WHERE a < 5;
+SELECT MIN(a) FROM ta_l WHERE a > 1;
+eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
+SET spider_direct_aggregate=1;
+
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)

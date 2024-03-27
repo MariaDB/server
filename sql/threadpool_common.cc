@@ -133,12 +133,17 @@ static void re_init_net_server_extension(THD *thd)
 
 #endif /* HAVE_PSI_INTERFACE */
 
+static inline bool has_unread_compressed_data(const NET *net)
+{
+  return net->compress && net->remain_in_buf;
+}
 
 static inline void set_thd_idle(THD *thd)
 {
   thd->net.reading_or_writing= 1;
 #ifdef HAVE_PSI_INTERFACE
-  net_before_header_psi(&thd->net, thd, 0);
+  if (!has_unread_compressed_data(&thd->net))
+    net_before_header_psi(&thd->net, thd, 0);
 #endif
 }
 
@@ -199,7 +204,6 @@ static void thread_attach(THD* thd)
   DBUG_ASSERT(thd->mysys_var == my_thread_var);
   thd->mysys_var->stack_ends_here= thd->thread_stack + tinfo->stack_size;
   PSI_CALL_set_thread(thd->get_psi());
-  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
 }
 
 /*
@@ -313,6 +317,7 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
 
   /* Login. */
   thread_attach(thd);
+  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
   re_init_net_server_extension(thd);
   ulonglong now= microsecond_interval_timer();
   thd->prior_thr_create_utime= now;
@@ -381,10 +386,8 @@ static void handle_wait_timeout(THD *thd)
 static bool has_unread_data(THD* thd)
 {
   NET *net= &thd->net;
-  if (net->compress && net->remain_in_buf)
-    return true;
   Vio *vio= net->vio;
-  return vio->has_data(vio);
+  return vio->has_data(vio) || has_unread_compressed_data(net);
 }
 
 

@@ -155,12 +155,11 @@ public:
   {
     mysql_mutex_lock(&m_mtx);
     assert(!is_full());
+    const bool was_empty= is_empty();
     // put element to the logical end of the array
     m_cache[--m_pos] = ele;
 
-    /* Notify waiters  when the cache becomes
-     not empty, or when it becomes full */
-    if (m_pos == 1 || (m_waiters && is_full()))
+    if (was_empty || (is_full() && m_waiters))
       pthread_cond_broadcast(&m_cv);
     mysql_mutex_unlock(&m_mtx);
   }

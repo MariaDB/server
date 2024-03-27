@@ -25,6 +25,7 @@ class Explain_query;
 class Item_func_in;
 class st_select_lex_unit;
 typedef class st_select_lex SELECT_LEX;
+class Type_holder;
 
 /**
   @class table_value_constr
@@ -39,6 +40,7 @@ public:
   List<List_item> lists_of_values;
   select_result *result;
   SELECT_LEX *select_lex;
+  Type_holder *type_holders;
 
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE} have_query_plan;
 
@@ -47,7 +49,7 @@ public:
   
   table_value_constr(List<List_item> tvc_values, SELECT_LEX *sl,
 		     ulonglong select_options_arg) :
-    lists_of_values(tvc_values), result(0), select_lex(sl),
+    lists_of_values(tvc_values), result(0), select_lex(sl), type_holders(0),
     have_query_plan(QEP_NOT_PRESENT_YET), explain(0),
     select_options(select_options_arg)
   { };

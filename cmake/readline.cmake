@@ -114,6 +114,9 @@ MACRO (MYSQL_FIND_SYSTEM_READLINE)
     {
       rl_completion_func_t *func1= (rl_completion_func_t*)0;
       rl_compentry_func_t *func2= (rl_compentry_func_t*)0;
+      rl_on_new_line();
+      rl_replace_line(\"\", 0);
+      rl_redisplay();
     }"
     NEW_READLINE_INTERFACE)
 

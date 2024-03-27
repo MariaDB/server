@@ -395,7 +395,15 @@ int _ma_mark_file_changed(register MARIA_SHARE *share)
   if (!share->base.born_transactional)
   {
     if (!_MA_ALREADY_MARKED_FILE_CHANGED)
-      return _ma_mark_file_changed_now(share);
+    {
+      int res= _ma_mark_file_changed_now(share);
+      /*
+        Ensure that STATE_NOT_ANALYZED is reset on table changes
+      */
+      share->state.changed|= (STATE_CHANGED | STATE_NOT_ANALYZED |
+                              STATE_NOT_OPTIMIZED_KEYS);
+      return res;
+    }
   }
   else
   {
@@ -409,10 +417,10 @@ int _ma_mark_file_changed(register MARIA_SHARE *share)
                         (STATE_CHANGED | STATE_NOT_ANALYZED |
                          STATE_NOT_OPTIMIZED_KEYS)))
     {
-      mysql_mutex_lock(&share->intern_lock);    
+      mysql_mutex_lock(&share->intern_lock);
       share->state.changed|=(STATE_CHANGED | STATE_NOT_ANALYZED |
-                             STATE_NOT_OPTIMIZED_KEYS);
-      mysql_mutex_unlock(&share->intern_lock);    
+                            STATE_NOT_OPTIMIZED_KEYS);
+      mysql_mutex_unlock(&share->intern_lock);
     }
   }
   return 0;
@@ -430,7 +438,7 @@ int _ma_mark_file_changed_now(register MARIA_SHARE *share)
   if (! _MA_ALREADY_MARKED_FILE_CHANGED)
   {
     share->state.changed|=(STATE_CHANGED | STATE_NOT_ANALYZED |
-			   STATE_NOT_OPTIMIZED_KEYS);
+                           STATE_NOT_OPTIMIZED_KEYS);
     if (!share->global_changed)
     {
       share->changed= share->global_changed= 1;

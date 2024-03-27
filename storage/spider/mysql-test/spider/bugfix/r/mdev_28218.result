@@ -1,0 +1,9 @@
+#
+# MDEV-28218 Spider: thread hang/deadlock as result of INSTALL PLUGIN and DROP TABLE
+#
+INSTALL SONAME 'ha_spider.so';
+DROP TABLE IF EXISTS mysql.spider_tables;
+show create table mysql.spider_tables;
+ERROR 42S02: Table 'mysql.spider_tables' doesn't exist
+Warnings:
+Note	1051	Unknown table 'mysql.spider_tables'

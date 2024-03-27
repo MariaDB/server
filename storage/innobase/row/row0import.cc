@@ -29,6 +29,7 @@ Created 2012-02-08 by Sunny Bains.
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "buf0flu.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -116,7 +117,6 @@ struct row_import {
 	row_import() UNIV_NOTHROW
 		:
 		m_table(NULL),
-		m_version(0),
 		m_hostname(NULL),
 		m_table_name(NULL),
 		m_autoinc(0),
@@ -194,8 +194,6 @@ struct row_import {
 
 
 	dict_table_t*	m_table;		/*!< Table instance */
-
-	ulint		m_version;		/*!< Version of config file */
 
 	byte*		m_hostname;		/*!< Hostname where the
 						tablespace was exported */
@@ -2073,7 +2071,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	/* If we already had an old page with matching number
 	in the buffer pool, evict it now, because
 	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
+	buf_page_get_gen(block->page.id(), get_zip_size(), RW_NO_LATCH,
 			 nullptr, BUF_PEEK_IF_IN_POOL,
 			 nullptr, nullptr);
 
@@ -2962,17 +2960,13 @@ row_import_read_meta_data(
 		return(DB_IO_ERROR);
 	}
 
-	cfg.m_version = mach_read_from_4(row);
-
 	/* Check the version number. */
-	switch (cfg.m_version) {
+	switch (mach_read_from_4(row)) {
 	case IB_EXPORT_CFG_VERSION_V1:
-
 		return(row_import_read_v1(file, thd, &cfg));
 	default:
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			"Unsupported meta-data version number (" ULINTPF "), "
-			"file ignored", cfg.m_version);
+		ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_NOT_SUPPORTED_YET,
+			    "meta-data version");
 	}
 
 	return(DB_ERROR);

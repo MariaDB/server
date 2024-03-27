@@ -20,9 +20,10 @@ package My::Platform;
 use strict;
 use File::Basename;
 use File::Path;
+use Carp;
 
 use base qw(Exporter);
-our @EXPORT= qw(IS_CYGWIN IS_WINDOWS IS_WIN32PERL IS_AIX
+our @EXPORT= qw(IS_CYGWIN IS_MSYS IS_WINDOWS IS_WIN32PERL IS_AIX
 		native_path posix_path mixed_path
                 check_socket_path_length process_alive open_for_append);
 
@@ -33,9 +34,15 @@ BEGIN {
       die "Could not execute 'cygpath': $!";
     }
     eval 'sub IS_CYGWIN { 1 }';
+    eval 'sub IS_MSYS { 0 }';
+  }
+  elsif ($^O eq "msys") {
+    eval 'sub IS_CYGWIN { 1 }';
+    eval 'sub IS_MSYS { 1 }';
   }
   else {
     eval 'sub IS_CYGWIN { 0 }';
+    eval 'sub IS_MSYS { 0 }';
   }
   if ($^O eq "MSWin32") {
     eval 'sub IS_WIN32PERL { 1 }';
@@ -95,8 +102,13 @@ sub mixed_path {
 
 sub native_path {
   my ($path)= @_;
-  $path=~ s/\//\\/g
-    if (IS_CYGWIN or IS_WIN32PERL);
+  if (IS_CYGWIN) {
+    # \\\\ protects against 2 expansions (just for the case)
+    $path=~ s/\/+|\\+/\\\\\\\\/g;
+  }
+  elsif (IS_WINDOWS) {
+    $path=~ s/\/+/\\/g;
+  }
   return $path;
 }
 
@@ -216,6 +228,71 @@ sub open_for_append
   
   open($fh,">>",$file) or return undef;
   return $fh;
+}
+
+
+sub check_cygwin_subshell
+{
+  # Only pipe (or sh-expansion) is fed to /bin/sh
+  my $out= `echo %comspec%|cat`;
+  return ($out =~ /\bcmd.exe\b/) ? 0 : 1;
+}
+
+sub install_shell_wrapper()
+{
+  system("rm -f /bin/sh.exe") and die $!;
+  my $wrapper= <<'EOF';
+#!/bin/bash
+if [[ -n "$MTR_PERL" && "$1" = "-c" ]]; then
+ shift
+ exec $(cygpath -m "$COMSPEC") /C "$@"
+fi
+exec /bin/bash "$@"
+EOF
+  open(OUT, '>', "/bin/sh") or die "/bin/sh: $!\n";
+  print OUT $wrapper;
+  close(OUT);
+  system("chmod +x /bin/sh") and die $!;
+  print "Cygwin subshell wrapper /bin/sh was installed, please restart MTR!\n";
+  exit(0);
+}
+
+sub uninstall_shell_wrapper()
+{
+  system("rm -f /bin/sh") and die $!;
+  system("cp /bin/bash.exe /bin/sh.exe") and die $!;
+}
+
+sub cygwin_subshell_fix
+{
+  my ($opt_name, $opt_value)= @_;
+  if ($opt_name ne "cygwin-subshell-fix") {
+    confess "Wrong option name: ${opt_name}";
+  }
+  if ($opt_value eq "do") {
+    if (check_cygwin_subshell()) {
+      install_shell_wrapper();
+    } else {
+      print "Cygwin subshell fix was already installed, skipping...\n";
+    }
+  } elsif ($opt_value eq "remove") {
+    if (check_cygwin_subshell()) {
+      print "Cygwin subshell fix was already uninstalled, skipping...\n";
+    } else {
+      uninstall_shell_wrapper();
+    }
+  } else {
+    die "Wrong --cygwin-subshell-fix value: ${opt_value} (expected do/remove)";
+  }
+}
+
+sub options
+{
+  if (IS_CYGWIN) {
+    return ('cygwin-subshell-fix=s'         => \&cygwin_subshell_fix);
+  } else {
+    return ();
+  }
 }
 
 

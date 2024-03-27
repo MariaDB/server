@@ -64,7 +64,7 @@
   are not mapped to any UTF8 character.
 */
 
-class Histogram_json_hb : public Histogram_base
+class Histogram_json_hb final : public Histogram_base
 {
   size_t size; /* Number of elements in the histogram */
 
@@ -93,8 +93,8 @@ public:
   static constexpr const char* JSON_NAME="histogram_hb";
 
   bool parse(MEM_ROOT *mem_root, const char *db_name, const char *table_name,
-             Field *field, Histogram_type type_arg,
-             const char *hist_data, size_t hist_data_len) override;
+             Field *field, const char *hist_data,
+             size_t hist_data_len) override;
 
   void serialize(Field *field) override;
 
@@ -121,7 +121,6 @@ public:
   {
     return (uint)size;
   }
-
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
 

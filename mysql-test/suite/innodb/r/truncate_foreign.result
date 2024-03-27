@@ -77,25 +77,26 @@ DROP TABLE t1;
 call mtr.add_suppression("InnoDB: In ALTER TABLE `test`\\.`t1` has or is");
 CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a)) ENGINE=InnoDB;
 SET FOREIGN_KEY_CHECKS=0;
-ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a), ALGORITHM=COPY;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (a), ALGORITHM=COPY;
 INSERT INTO t1 VALUES (1,1);
+CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 LOCK TABLES t1 WRITE;
 SET FOREIGN_KEY_CHECKS=1;
 TRUNCATE t1;
 ERROR HY000: Cannot add foreign key constraint for `t1`
 INSERT INTO t1 VALUES (2,2);
-ERROR HY000: Table 't1' was not locked with LOCK TABLES
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 SELECT * FROM t1;
 pk	a
 1	1
 UNLOCK TABLES;
 INSERT INTO t1 VALUES (2,2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;
 pk	a
 1	1
 2	2
-DROP TABLE t1;
+DROP TABLE t2, t1;
 # End of 10.6 tests

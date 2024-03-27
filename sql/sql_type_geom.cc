@@ -918,11 +918,14 @@ bool Field_geom::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_geom::can_optimize_range(const Item_bool_func *cond,
-                                    const Item *item,
-                                    bool is_eq_func) const
+Data_type_compatibility
+Field_geom::can_optimize_range(const Item_bool_func *cond,
+                               const Item *item,
+                               bool is_eq_func) const
 {
-  return item->cmp_type() == STRING_RESULT;
+  return item->cmp_type() == STRING_RESULT ?
+         Data_type_compatibility::OK :
+         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE;
 }
 
 

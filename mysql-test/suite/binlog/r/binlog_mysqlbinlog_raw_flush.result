@@ -1,3 +1,4 @@
+RESET MASTER;
 #
 # MDEV-30698 Cover missing test cases for mariadb-binlog options
 #            --raw [and] --flashback

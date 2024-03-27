@@ -121,5 +121,3 @@ MYSQL *mysql_real_connect_local(MYSQL *mysql);
 #endif
 
 #endif /*MYSQL_SERVICE_SQL */
-
-

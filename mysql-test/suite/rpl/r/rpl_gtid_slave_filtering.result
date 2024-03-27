@@ -1,0 +1,78 @@
+include/rpl_init.inc [topology=1->2->3]
+*** Test GTID master switch in a topology with filtered events.
+*** With --gtid-ignore-duplicate and --gtid-strict-mode, should allow
+*** GTID connect at a GTID position that is filtered on the new master.
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1);
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t3 VALUES (2,1);
+include/save_master_gtid.inc
+connection server_2;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,2);
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+*** Promote 3 as new master, demote 2 as slave of 3.
+*** GTID position of 2 in domain 0 is filtered on 3.
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
+MASTER_USE_GTID=SLAVE_POS;
+connection server_2;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3,
+MASTER_USE_GTID=SLAVE_POS;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (3,1);
+INSERT INTO t3 VALUES (3,1);
+include/save_master_gtid.inc
+connection server_3;
+INSERT INTO t2 VALUES (2,2);
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+SELECT * FROM t3 ORDER BY a;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	2
+2	2
+*** Restore original topology.
+connection server_3;
+include/stop_slave.inc
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
+MASTER_USE_GTID=SLAVE_POS;
+include/start_slave.inc
+connection server_3;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
+MASTER_USE_GTID=SLAVE_POS;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+DROP TABLE t3;
+include/save_master_gtid.inc
+connection server_2;
+DROP TABLE t2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

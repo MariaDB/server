@@ -1,0 +1,4 @@
+[on]
+--innodb-stats-persistent=1
+[off]
+--innodb-stats-persistent=0

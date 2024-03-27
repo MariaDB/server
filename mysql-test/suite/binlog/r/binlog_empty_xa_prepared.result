@@ -217,3 +217,11 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tm VALUES (1),(1)
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE tm;
+connection default;
+SET pseudo_slave_mode=1;
+XA START 'a';
+XA END 'a';
+XA PREPARE 'a';
+XA ROLLBACK 'a';
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/show_binlog_events.inc
