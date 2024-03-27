@@ -208,12 +208,13 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+set sql_mode= default;
 #
 # MDEV-33460 select '123' 'x'; unexpected result
 #
 SELECT '';
-NULL
-NULL
+
+
 SELECT '' 'b' 'c';
 bc
 bc
