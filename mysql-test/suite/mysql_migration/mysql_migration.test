@@ -1,0 +1,201 @@
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_innodb.inc
+-- source include/have_partition.inc
+
+# This test is to simulate the usual migration procedure from MySQL to MariaDB,
+# and highlight the incompatibilities that are either not documented before or
+# documented but the detailed scenario are not clarified
+#
+# These test cases can serve as a reference for future to improve these
+# incompatibilities. It is currently skipped, but can be re-enabled as incompatibilities being fixed.
+
+# When migrating from MySQL to MariaDB, optimally user simply need to:
+#   1. Properly shut down the existing MySQL server
+#   2. Start MariaDB from the same data directory created in MySQL
+#   3. Run mariadb-upgrade (aka. mysql_upgrade)
+#   4. Done. User should be able to access any table as they want as usual
+#
+# The mariadb-upgrade script is used here as a placeholder where the fix for the
+# incompatibilities will be implemented. It doesn't mean any of these cannot be
+# repaired via an external script. Then simply modify this test to run the repair
+# script in addition to mariadb-upgrade.
+
+# The pseudo MySQL data directory is populated via populate_mysql_datadir.sh and
+# feeding in mysql_migration.sql. These scripts can be found in mysql-test/lib
+# and a copy of data directory are stored in  mysql-test/std_data/mysql_upgrade
+
+--echo #
+--echo # Prepare a pseudo MySQL data directory
+--echo #
+
+
+let $MYSQLD_DATADIR= `select @@datadir`; # For clean up
+
+# Restart the server from the pseudo MySQL data directory
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/mysql;
+--exec cp -r std_data/mysql_upgrade/mysql $MYSQLTEST_VARDIR/tmp/mysql;
+let $restart_parameters=--datadir=$MYSQLTEST_VARDIR/tmp/mysql;
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # Run mariadb-upgrade
+--echo #
+
+# In fact some incompatibility errors may already appear during the upgrade run
+--exec $MYSQL_UPGRADE --force 2>&1
+
+# Restart the server and run mariadb-upgrade one more time to make sure that errors appeared
+# in the last run are resolved (e.g. column number mismatch for mysql sys.xxx views)
+--source include/restart_mysqld.inc
+
+
+--echo #
+--echo # Test that MariaDB can access tables partitioned with "native" InnoDb partition handler
+--echo #
+
+#
+# MariDB doc:
+#   MariaDB 10.3 does not support MySQL 5.7's “native” InnoDB partitioning handler.
+#
+# Please make sure the coresponding data exists in MySQL datadir via $POPULATE_MYSQL_DATADIR script
+#
+
+use idb_partition_db1;
+
+SHOW TABLES;
+
+select * from idb_partition_t1;
+
+# Confirm that MariaDB can still apply partitioning to the table as usual
+ALTER TABLE idb_partition_t1
+    PARTITION BY HASH(id)
+    PARTITIONS 8;
+
+select * from idb_partition_t1;
+
+--echo #
+--echo # Test that MariaDB can access tables compressed using MySQL punch-hole compression
+--echo #
+#
+# Note:
+#   The practicality of supporting this compression format in MariaDB is in
+#   doubt. Therefore this incompatibility is unlikely to be fixed in future.
+#
+# Please make sure the corresponding data exists in MySQL datadir via $POPULATE_MYSQL_DATADIR script
+#
+
+use idb_page_comp_db1;
+
+SHOW TABLES;
+
+select count(*) as EXPECT_3000 from idb_page_comp_t1;
+
+--echo #
+--echo # Test that stored procedure are not changed after upgrade
+--echo # This does not cover all format of stored procedure
+--echo #
+
+SHOW CREATE PROCEDURE idb_page_comp_db1.populatePageCompTable;
+
+--echo #
+--echo # Test that MariaDB can access tables encrypted in MySQL with keyring_file plug-in
+--echo #
+
+#
+# MariDB doc:
+#   MariaDB 10.3 implements InnoDB encryption in a different way to MySQL 5.7
+#
+# Please make sure the corresponding data exists in MySQL datadir via $POPULATE_MYSQL_DATADIR script
+#
+
+use idb_encryption_db1;
+
+SHOW TABLES;
+
+select * from idb_encryption_t1;
+
+
+--echo #
+--echo # Test that table in tablespace created by MySQL CREATE TABLESPACE command is still accessible
+--echo #
+
+#
+# There is no plan to support CREATE TABLESPACE in near future, but at least mariadb-upgrade should
+# detect whether there is any custom table space in use, and either:
+#   1. Remove them so SHOW TABLES will not see them
+#   2. Convert them to File-Per-Table tablespaces so that it's fully accessible
+# This test assumes the second approach has been taken
+#
+# Please make sure the corresponding data exists in MySQL datadir via $POPULATE_MYSQL_DATADIR script
+#
+
+use idb_tablespace_db1;
+
+SHOW TABLES;
+
+select * from idb_tablespace_t1;
+
+
+--echo #
+--echo # Test that undo logs in MariaDB still work
+--echo #
+
+#
+# Because undo logs are implemented differently in MariDB and MySQL. This test is necessary to verify
+# that MariaDB undo logs works well with MySQL datadir
+#
+
+use test;
+
+CREATE TABLE test_t1
+    (id INT,
+    year INT)
+    ENGINE=InnoDB;
+
+COMMIT;
+
+SET autocommit=0;
+
+START TRANSACTION;
+
+INSERT INTO test_t1(id, year)
+VALUES
+    (0,2001),
+    (1,2002),
+    (2,2003),
+    (3,2004);
+
+select count(*) as EXPECT_4 from test_t1;
+
+ROLLBACK;
+
+select count(*) as EXPECT_0 from test_t1;
+
+--echo #
+--echo # Tested that MariaDB can access normal table created from MySQL
+--echo #
+
+#
+# This is important and even more important to keep at end because it proofs that if any of the preceding
+# tests fail, they failed due to real incompatibilities not broken test environment.
+#
+# Please make sure the corresponding data exists in MySQL datadir via $POPULATE_MYSQL_DATADIR script
+#
+
+use normal_db1;
+
+SHOW TABLES;
+
+select * from normal_t1;
+
+
+--echo #
+--echo # Clean up
+--echo #
+
+# Restart the server from the default data directory
+# No need to drop the tables as we were using a independent datadir in /tmp folder
+use test;
+let $restart_parameters=--datadir=$MYSQLD_DATADIR;
+--source include/restart_mysqld.inc
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/mysql;
