@@ -3042,8 +3042,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   }
   else
     dynstr_set_checked(&select_field_names, "");
-  insert_option= ((delayed && opt_ignore) ? " DELAYED IGNORE " :
-                  delayed ? " DELAYED " : opt_ignore ? " IGNORE " : "");
+
+  insert_option= ((delayed && opt_ignore) ? "DELAYED IGNORE " :
+                  delayed ? "DELAYED " : opt_ignore ? "IGNORE " : "");
 
   verbose_msg("-- Retrieving table structure for table %s...\n", table);
 
