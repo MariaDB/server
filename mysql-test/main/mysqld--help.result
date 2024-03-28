@@ -1880,7 +1880,7 @@ slave-run-triggers-for-rbr NO
 slave-skip-errors OFF
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
-slave-transaction-retry-errors 1158,1159,1160,1161,1205,1213,1429,2013,12701
+slave-transaction-retry-errors 1158,1159,1160,1161,1205,1213,1020,1429,2013,12701
 slave-transaction-retry-interval 0
 slave-type-conversions 
 slow-launch-time 2

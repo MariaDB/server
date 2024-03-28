@@ -1293,6 +1293,7 @@ template<bool spin,bool pmem>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
 mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
+  ut_ad(log_sys.is_latest());
   ut_ad(!recv_no_log_write);
   ut_ad(mtr->is_logged());
   ut_ad(mtr->m_latch_ex ? log_sys.latch_have_wr() : log_sys.latch_have_rd());

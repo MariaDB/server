@@ -364,11 +364,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_LRU_GET_FREE_LOOPS},
 
-	{"buffer_LRU_get_free_waits", "buffer",
-	 "Total sleep waits in LRU get free.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_GET_FREE_WAITS},
-
 	{"buffer_flush_avg_page_rate", "buffer",
 	 "Average number of pages at which flushing is happening",
 	 MONITOR_NONE,
@@ -471,11 +466,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE},
-
-	{"buffer_LRU_single_flush_failure_count", "Buffer",
-	 "Number of times attempt to flush a single page from LRU failed",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT},
 
 	{"buffer_LRU_get_free_search", "Buffer",
 	 "Number of searches performed for a clean page",

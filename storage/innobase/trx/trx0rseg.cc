@@ -210,6 +210,11 @@ bool trx_rseg_read_wsrep_checkpoint(const buf_block_t *rseg_header, XID &xid)
 @return	whether the WSREP XID is present */
 static bool trx_rseg_init_wsrep_xid(const page_t* page, XID& xid)
 {
+	if (memcmp(TRX_SYS + TRX_SYS_WSREP_XID_INFO + page,
+		           field_ref_zero, TRX_SYS_WSREP_XID_LEN) == 0) {
+		return false;
+	}
+
 	if (mach_read_from_4(TRX_SYS + TRX_SYS_WSREP_XID_INFO
 			     + TRX_SYS_WSREP_XID_MAGIC_N_FLD
 			     + page)
@@ -567,10 +572,6 @@ static void trx_rseg_init_binlog_info(const page_t* page)
 			+ TRX_SYS + page);
 		trx_sys.recovered_binlog_is_legacy_pos= true;
 	}
-
-#ifdef WITH_WSREP
-	trx_rseg_init_wsrep_xid(page, trx_sys.recovered_wsrep_xid);
-#endif
 }
 
 /** Initialize or recover the rollback segments at startup. */
@@ -602,7 +603,11 @@ dberr_t trx_rseg_array_init()
 					+ sys->page.frame);
 				trx_rseg_init_binlog_info(sys->page.frame);
 #ifdef WITH_WSREP
-				wsrep_sys_xid.set(&trx_sys.recovered_wsrep_xid);
+				if (trx_rseg_init_wsrep_xid(
+					    sys->page.frame, trx_sys.recovered_wsrep_xid)) {
+					wsrep_sys_xid.set(
+						&trx_sys.recovered_wsrep_xid);
+				}
 #endif
 			}
 
@@ -667,7 +672,7 @@ dberr_t trx_rseg_array_init()
 	}
 
 #ifdef WITH_WSREP
-	if (!wsrep_sys_xid.is_null()) {
+	if (srv_operation == SRV_OPERATION_NORMAL && !wsrep_sys_xid.is_null()) {
 		/* Upgrade from a version prior to 10.3.5,
 		where WSREP XID was stored in TRX_SYS page.
 		If no rollback segment has a WSREP XID set,

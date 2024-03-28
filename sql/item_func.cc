@@ -1917,6 +1917,18 @@ void Item_func_abs::fix_length_and_dec_int()
   set_handler(type_handler_long_or_longlong());
 }
 
+void Item_func_abs::fix_length_and_dec_sint_ge0()
+{
+  /*
+    We're converting slong_ge0 to slong/slonglong.
+    Add one character for the sign into max_length.
+  */
+  max_length= args[0]->decimal_precision() + 1/*sign*/;
+  DBUG_ASSERT(!args[0]->unsigned_flag);
+  unsigned_flag= false;
+  set_handler(type_handler_long_or_longlong());
+}
+
 
 void Item_func_abs::fix_length_and_dec_double()
 {
@@ -2591,6 +2603,22 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred,
     else
       set_handler(type_handler_long_or_longlong());
   }
+}
+
+
+void Item_func_round::fix_arg_slong_ge0()
+{
+  DBUG_ASSERT(!args[0]->unsigned_flag);
+  DBUG_ASSERT(args[0]->decimals == 0);
+  Type_std_attributes::set(args[0]);
+  /*
+    We're converting the data type from slong_ge0 to slong/slonglong.
+    Add one character for the sign,
+    to change max_length notation from "max_length digits" to
+    "max_length-1 digits and the sign".
+  */
+  max_length+= 1/*sign*/ + test_if_length_can_increase();
+  set_handler(type_handler_long_or_longlong());
 }
 
 
@@ -4794,7 +4822,9 @@ Item_func_set_user_var::fix_length_and_dec(THD *thd)
   if (args[0]->collation.derivation == DERIVATION_NUMERIC)
   {
     collation.set(DERIVATION_NUMERIC);
-    fix_length_and_charset(args[0]->max_char_length(), &my_charset_numeric);
+    uint sign_length= args[0]->type_handler() == &type_handler_slong_ge0 ? 1: 0;
+    fix_length_and_charset(args[0]->max_char_length() + sign_length,
+                           &my_charset_numeric);
   }
   else
   {

@@ -9,9 +9,6 @@
 #
 #    The environment variables SEARCH_FILE and SEARCH_PATTERN must be set
 #    before sourcing this routine.
-#    SEARCH_TYPE can also be set to either NULL(default) or _gm_
-#    NULL is equivalent of using m/SEARCH_PATTERN/gs
-#    _gm_ is equivalent of using m/SEARCH_RANGE/gm
 #
 #    Optionally, SEARCH_RANGE can be set to the max number of bytes of the file
 #    to search. If negative, it will search that many bytes at the end of the
@@ -52,15 +49,12 @@
 # Created: 2011-11-11 mleich
 #
 
---error 0,1
 perl;
     use strict;
     die "SEARCH_FILE not set" unless $ENV{SEARCH_FILE};
     my @search_files= glob($ENV{SEARCH_FILE});
     my $search_pattern= $ENV{SEARCH_PATTERN} or die "SEARCH_PATTERN not set";
     my $search_range=   $ENV{SEARCH_RANGE};
-    my $silent=         $ENV{SEARCH_SILENT};
-    my $search_result= 0;
     my $content;
     foreach my $search_file (@search_files) {
         open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
@@ -84,52 +78,23 @@ perl;
         close(FILE);
         $content.= $file_content;
     }
-    my @matches;
-    if (not defined($ENV{SEARCH_TYPE}))
-    {
-      @matches=($content =~ /$search_pattern/gs);
-    }
-    elsif($ENV{SEARCH_TYPE} == "_gm_")
-    {
-      @matches=($content =~ /$search_pattern/gm);
-    }
-    my $res;
-    if (@matches)
-    {
-        $res="FOUND " . scalar(@matches);
-        $search_result= 1;
-    }
-    else
-    {
-        $res= "NOT FOUND";
-    }
+    my @matches= ($content =~ /$search_pattern/gs);
+    my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
+
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 
-    if (!$silent || $search_result)
-    {
-        if ($ENV{SEARCH_OUTPUT} eq "matches")
-        {
-            foreach (@matches)
-            {
-                print $_ . "\n";
-            }
-        }
-        elsif ($ENV{SEARCH_OUTPUT} eq "count")
-        {
-            print "$res matches in $ENV{SEARCH_FILE}\n";
-        }
-        else
-        {
-            print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    if ($ENV{SEARCH_OUTPUT} eq "matches") {
+        foreach (@matches) {
+            print $_ . "\n";
         }
     }
-    die "$ENV{SEARCH_ABORT}\n"
-      if $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
-   exit($search_result != 1);
+    elsif ($ENV{SEARCH_OUTPUT} eq "count")
+    {
+        print "$res matches in $ENV{SEARCH_FILE}\n";
+    }
+    elsif ($ENV{SEARCH_ABORT} and $res =~ /^$ENV{SEARCH_ABORT}/) {
+        die "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    } else {
+        print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    }
 EOF
-
-let $SEARCH_RESULT= 1;          # Found pattern
-if ($errno)
-{
-    let $SEARCH_RESULT= 0;      # Did not find pattern
-}

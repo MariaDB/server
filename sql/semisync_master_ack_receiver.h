@@ -228,6 +228,11 @@ public:
     return m_fds[slave->m_fds_index].revents & POLLIN;
   }
 
+  bool is_socket_hangup(const Slave *slave)
+  {
+    return m_fds[slave->m_fds_index].revents & POLLHUP;
+  }
+
   void clear_socket_info(const Slave *slave)
   {
     m_fds[slave->m_fds_index].fd= -1;
@@ -294,6 +299,11 @@ public:
   bool is_socket_active(const Slave *slave)
   {
     return FD_ISSET(slave->sock_fd(), &m_fds);
+  }
+
+  bool is_socket_hangup(const Slave *slave)
+  {
+    return 0;
   }
 
   bool has_signal_data() override

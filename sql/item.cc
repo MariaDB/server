@@ -27,6 +27,7 @@
 #include "sp_rcontext.h"
 #include "sp_head.h"
 #include "sql_trigger.h"
+#include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_show.h"                           // append_identifier
 #include "sql_view.h"                           // VIEW_ANY_SQL
@@ -494,7 +495,10 @@ void Item::print_parenthesised(String *str, enum_query_type query_type,
   bool need_parens= precedence() < parent_prec;
   if (need_parens)
     str->append('(');
-  print(str, query_type);
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+    str->append(STRING_WITH_LEN("<STACK OVERRUN>"));
+  else
+    print(str, query_type);
   if (need_parens)
     str->append(')');
 }
@@ -5188,9 +5192,19 @@ bool Item_param::assign_default(Field *field)
   }
 
   if (m_default_field->default_value)
-    m_default_field->set_default();
-
-  return field_conv(field, m_default_field);
+  {
+    return m_default_field->default_value->expr->save_in_field(field, 0);
+  }
+  else if (m_default_field->is_null())
+  {
+    field->set_null();
+    return false;
+  }
+  else
+  {
+    field->set_notnull();
+    return field_conv(field, m_default_field);
+  }
 }
 
 
@@ -7001,6 +7015,7 @@ Item_basic_constant *
 Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 {
   append(str->str, (uint32) str->length);
+  set_name(thd, &str_value);
   if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
   {
     // If the string has been pure ASCII so far, check the new part.

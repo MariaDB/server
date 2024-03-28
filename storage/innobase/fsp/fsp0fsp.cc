@@ -269,7 +269,7 @@ inline void xdes_init(const buf_block_t &block, xdes_t *descr, mtr_t *mtr)
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 fseg_mark_page_used(fseg_inode_t *seg_inode, buf_block_t *iblock,
-                    ulint page, xdes_t *descr, buf_block_t *xdes, mtr_t *mtr)
+                    uint32_t page, xdes_t *descr, buf_block_t *xdes, mtr_t *mtr)
 {
   ut_ad(fil_page_get_type(iblock->page.frame) == FIL_PAGE_INODE);
   ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
@@ -988,7 +988,7 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 @return error code */
 static dberr_t
 fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
-			 ulint bit, mtr_t *mtr)
+			 uint32_t bit, mtr_t *mtr)
 {
   if (UNIV_UNLIKELY(xdes_get_state(descr) != XDES_FREE_FRAG ||
                     !xdes_is_free(descr, bit)))
@@ -1978,29 +1978,42 @@ fseg_alloc_free_page_low(
 		}
 	}
 
-	/* In the big if-else below we look for ret_page and ret_descr */
-	/*-------------------------------------------------------------*/
-	if ((xdes_get_state(descr) == XDES_FSEG)
-	    && mach_read_from_8(descr + XDES_ID) == seg_id
-	    && xdes_is_free(descr, hint % FSP_EXTENT_SIZE)) {
+	const uint32_t extent_size = FSP_EXTENT_SIZE;
+	ret_descr = descr;
+	/* Try to get the page from extent which belongs to segment */
+	if (xdes_get_state(descr) == XDES_FSEG
+	    && mach_read_from_8(descr + XDES_ID) == seg_id) {
+		/* Get the page from the segment extent */
+		if (xdes_is_free(descr, hint % extent_size)) {
 take_hinted_page:
-		/* 1. We can take the hinted page
-		=================================*/
-		ret_descr = descr;
-		ret_page = hint;
-		/* Skip the check for extending the tablespace. If the
-		page hint were not within the size of the tablespace,
-		we would have got (descr == NULL) above and reset the hint. */
-		goto got_hinted_page;
-		/*-----------------------------------------------------------*/
-	} else if (xdes_get_state(descr) == XDES_FREE
-		   && reserved - used < reserved / FSEG_FILLFACTOR
-		   && used >= FSEG_FRAG_LIMIT) {
+			ret_page = hint;
+			goto got_hinted_page;
+		} else if (!xdes_is_full(descr)) {
+			/* Take the page from the same extent as the
+			hinted page (and the extent already belongs to
+			the segment) */
+			ret_page = xdes_find_free(descr, hint % extent_size);
+			if (ret_page == FIL_NULL) {
+				ut_ad(!has_done_reservation);
+				return nullptr;
+			}
+			ret_page += xdes_get_offset(ret_descr);
+			goto alloc_done;
+		}
+	}
 
-		/* 2. We allocate the free extent from space and can take
-		=========================================================
-		the hinted page
-		===============*/
+	/** If the number of unused but reserved pages in a segment is
+	esser than minimum value of 1/8 of reserved pages or
+	4 * FSP_EXTENT_SIZE and there are at least half of extent size
+	used pages, then we allow a new empty extent to be added to
+	the segment in fseg_alloc_free_page_general(). Otherwise, we use
+	unused pages of the segment. */
+	if (used < extent_size / 2 ||
+            reserved - used >= reserved / 8 ||
+            reserved - used >= extent_size * 4) {
+	} else if (xdes_get_state(descr) == XDES_FREE) {
+		/* Allocate the free extent from space and can
+		take the hinted page */
 		ret_descr = fsp_alloc_free_extent(space, hint, &xdes,
 						  mtr, err);
 
@@ -2027,54 +2040,34 @@ take_hinted_page:
 
 		/* Try to fill the segment free list */
 		*err = fseg_fill_free_list(seg_inode, iblock, space,
-					   hint + FSP_EXTENT_SIZE, mtr);
+					   hint + extent_size, mtr);
 		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 			return nullptr;
 		}
 		goto take_hinted_page;
-		/*-----------------------------------------------------------*/
-	} else if ((direction != FSP_NO_DIR)
-		   && ((reserved - used) < reserved / FSEG_FILLFACTOR)
-		   && (used >= FSEG_FRAG_LIMIT)
-		   && (ret_descr = fseg_alloc_free_extent(seg_inode, iblock,
-							  &xdes, space,
-							  mtr, err))) {
-		/* 3. We take any free extent (which was already assigned above
-		===============================================================
-		in the if-condition to ret_descr) and take the lowest or
-		========================================================
-		highest page in it, depending on the direction
-		==============================================*/
+	} else if (direction != FSP_NO_DIR) {
+
+		ret_descr = fseg_alloc_free_extent(seg_inode, iblock,
+						   &xdes, space, mtr, err);
+
+		if (!ret_descr) {
+			ut_ad(*err != DB_SUCCESS);
+			return nullptr;
+		}
+		/* Take any free extent (which was already assigned
+		above in the if-condition to ret_descr) and take the
+		lowest or highest page in it, depending on the direction */
 		ret_page = xdes_get_offset(ret_descr);
 
 		if (direction == FSP_DOWN) {
-			ret_page += FSP_EXTENT_SIZE - 1;
+			ret_page += extent_size - 1;
 		}
-		ut_ad(!has_done_reservation || ret_page != FIL_NULL);
-		/*-----------------------------------------------------------*/
-	} else if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
-		return nullptr;
-	} else if ((xdes_get_state(descr) == XDES_FSEG)
-		   && mach_read_from_8(descr + XDES_ID) == seg_id
-		   && (!xdes_is_full(descr))) {
+		goto alloc_done;
+	}
 
-		/* 4. We can take the page from the same extent as the
-		======================================================
-		hinted page (and the extent already belongs to the
-		==================================================
-		segment)
-		========*/
-		ret_descr = descr;
-		ret_page = xdes_find_free(ret_descr, hint % FSP_EXTENT_SIZE);
-		if (ret_page == FIL_NULL) {
-			ut_ad(!has_done_reservation);
-		} else {
-			ret_page += xdes_get_offset(ret_descr);
-		}
-		/*-----------------------------------------------------------*/
-	} else if (reserved - used > 0) {
-		/* 5. We take any unused page from the segment
-		==============================================*/
+	/* Try to take individual page from the segment	or tablespace */
+	if (reserved - used > 0) {
+		/* Take any unused page from the segment */
 		fil_addr_t	first;
 
 		if (flst_get_len(seg_inode + FSEG_NOT_FULL) > 0) {
@@ -2083,7 +2076,7 @@ take_hinted_page:
 			first = flst_get_first(seg_inode + FSEG_FREE);
 		} else {
 			ut_ad(!has_done_reservation);
-			return(NULL);
+			return nullptr;
 		}
 
 		ret_descr = xdes_lst_get_descriptor(*space, first, mtr, &xdes);
@@ -2097,10 +2090,9 @@ take_hinted_page:
 		} else {
 			ret_page += xdes_get_offset(ret_descr);
 		}
-		/*-----------------------------------------------------------*/
-	} else if (used < FSEG_FRAG_LIMIT) {
-		/* 6. We allocate an individual page from the space
-		===================================================*/
+
+	} else if (used < extent_size / 2) {
+		/* Allocate an individual page from the space */
 		buf_block_t* block = fsp_alloc_free_page(
 			space, hint, mtr, init_mtr, err);
 
@@ -2123,13 +2115,11 @@ take_hinted_page:
 		/* fsp_alloc_free_page() invoked fsp_init_file_page()
 		already. */
 		return(block);
-		/*-----------------------------------------------------------*/
 	} else {
-		/* 7. We allocate a new extent and take its first page
-		======================================================*/
+		/* In worst case, try to allocate a new extent
+		and take its first page */
 		ret_descr = fseg_alloc_free_extent(seg_inode, iblock, &xdes,
 						   space, mtr, err);
-
 		if (!ret_descr) {
 			ut_ad(!has_done_reservation || *err);
 			return nullptr;
@@ -2142,14 +2132,13 @@ take_hinted_page:
 		/* Page could not be allocated */
 
 		ut_ad(!has_done_reservation);
-		return(NULL);
+		return nullptr;
 	}
-
+alloc_done:
 	if (space->size <= ret_page && !is_predefined_tablespace(space->id)) {
 		/* It must be that we are extending a single-table
 		tablespace whose size is still < 64 pages */
-
-		if (ret_page >= FSP_EXTENT_SIZE) {
+		if (ret_page >= extent_size) {
 			sql_print_error("InnoDB: Trying to extend '%s'"
 					" by single page(s) though the"
 					" space size " UINT32PF "."
@@ -2157,30 +2146,31 @@ take_hinted_page:
 					space->chain.start->name, space->size,
 					ret_page);
 			ut_ad(!has_done_reservation);
-			return(NULL);
+			return nullptr;
 		}
 
 		if (!fsp_try_extend_data_file_with_pages(
 			    space, ret_page, header, mtr)) {
 			/* No disk space left */
 			ut_ad(!has_done_reservation);
-			return(NULL);
+			return nullptr;
 		}
 	}
 
-got_hinted_page:
-	/* ret_descr == NULL if the block was allocated from free_frag
-	(XDES_FREE_FRAG) */
+	/* Skip the check for extending the tablespace.
+	If the page hint were not within the size of the tablespace,
+	descr set to nullptr above and reset the hint and the block
+	was allocated from free_frag (XDES_FREE_FRAG) */
 	if (ret_descr != NULL) {
+got_hinted_page:
 		/* At this point we know the extent and the page offset.
 		The extent is still in the appropriate list (FSEG_NOT_FULL
 		or FSEG_FREE), and the page is not yet marked as used. */
-
 		ut_d(buf_block_t* xxdes);
 		ut_ad(xdes_get_descriptor(space, ret_page, mtr, err, &xxdes)
 		      == ret_descr);
 		ut_ad(xdes == xxdes);
-		ut_ad(xdes_is_free(ret_descr, ret_page % FSP_EXTENT_SIZE));
+		ut_ad(xdes_is_free(ret_descr, ret_page % extent_size));
 
 		*err = fseg_mark_page_used(seg_inode, iblock, ret_page,
                                            ret_descr, xdes, mtr);

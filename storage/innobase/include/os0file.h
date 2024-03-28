@@ -187,14 +187,10 @@ public:
     WRITE_ASYNC= WRITE_SYNC | 1,
     /** A doublewrite batch */
     DBLWR_BATCH= WRITE_ASYNC | 8,
-    /** Write data; evict the block on write completion */
-    WRITE_LRU= WRITE_ASYNC | 32,
     /** Write data and punch hole for the rest */
-    PUNCH= WRITE_ASYNC | 64,
-    /** Write data and punch hole; evict the block on write completion */
-    PUNCH_LRU= PUNCH | WRITE_LRU,
+    PUNCH= WRITE_ASYNC | 16,
     /** Zero out a range of bytes in fil_space_t::io() */
-    PUNCH_RANGE= WRITE_SYNC | 128,
+    PUNCH_RANGE= WRITE_SYNC | 32,
   };
 
   constexpr IORequest(buf_page_t *bpage, buf_tmp_buffer_t *slot,
@@ -207,7 +203,6 @@ public:
 
   bool is_read() const { return (type & READ_SYNC) != 0; }
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
-  bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
 
   void write_complete(int io_error) const;

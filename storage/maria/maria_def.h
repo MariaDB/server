@@ -754,6 +754,11 @@ typedef struct st_maria_share
   ulong max_pack_length;
   ulong state_diff_length;
   uint rec_reflength;			/* rec_reflength in use now */
+  /*
+    Extra flag to use for my_malloc(); set to MY_THREAD_SPECIFIC for temporary
+    tables whose memory allocation should be accounted to the current THD.
+  */
+  uint malloc_flag;
   uint keypage_header;
   uint32 ftkeys;			/* Number of distinct full-text keys
 						   + 1 */

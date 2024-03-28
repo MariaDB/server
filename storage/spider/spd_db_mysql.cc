@@ -3266,110 +3266,6 @@ int spider_db_mbase::set_time_zone(
   DBUG_RETURN(0);
 }
 
-bool spider_db_mbase::set_loop_check_in_bulk_sql()
-{
-  DBUG_ENTER("spider_db_mbase::set_loop_check_in_bulk_sql");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(TRUE);
-}
-
-int spider_db_mbase::set_loop_check(
-  int *need_mon
-) {
-  SPIDER_CONN_LOOP_CHECK *lcptr;
-  char sql_buf[MAX_FIELD_WIDTH];
-  spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
-  DBUG_ENTER("spider_db_mbase::set_loop_check");
-  DBUG_PRINT("info",("spider this=%p", this));
-  sql_str.init_calc_mem(SPD_MID_DB_MBASE_SET_LOOP_CHECK_1);
-  while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
-    &conn->loop_check_queue, 0)))
-  {
-    sql_str.length(0);
-    if (sql_str.reserve(SPIDER_SQL_SET_USER_VAL_LEN +
-      SPIDER_SQL_LOP_CHK_PRM_PRF_LEN + lcptr->to_name.length +
-      SPIDER_SQL_NAME_QUOTE_LEN + SPIDER_SQL_EQUAL_LEN +
-      SPIDER_SQL_VALUE_QUOTE_LEN +
-      lcptr->merged_value.length + SPIDER_SQL_VALUE_QUOTE_LEN))
-    {
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    }
-    sql_str.q_append(SPIDER_SQL_SET_USER_VAL_STR, SPIDER_SQL_SET_USER_VAL_LEN);
-    sql_str.q_append(SPIDER_SQL_LOP_CHK_PRM_PRF_STR,
-      SPIDER_SQL_LOP_CHK_PRM_PRF_LEN);
-    sql_str.q_append(lcptr->to_name.str, lcptr->to_name.length);
-    sql_str.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
-    sql_str.q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-    sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-    sql_str.q_append(lcptr->merged_value.str, lcptr->merged_value.length);
-    sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-
-    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-    pthread_mutex_lock(&conn->mta_conn_mutex);
-    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    conn->need_mon = need_mon;
-    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = TRUE;
-    conn->mta_conn_mutex_unlock_later = TRUE;
-    if (spider_db_query(
-      conn,
-      sql_str.ptr(),
-      sql_str.length(),
-      -1,
-      need_mon)
-    ) {
-      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = FALSE;
-      conn->mta_conn_mutex_unlock_later = FALSE;
-      DBUG_RETURN(spider_db_errorno(conn));
-    }
-    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = FALSE;
-    conn->mta_conn_mutex_unlock_later = FALSE;
-    SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    pthread_mutex_unlock(&conn->mta_conn_mutex);
-
-    my_hash_delete(&conn->loop_check_queue, (uchar*) lcptr);
-  }
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase::fin_loop_check()
-{
-  st_spider_conn_loop_check *lcptr;
-  DBUG_ENTER("spider_db_mbase::fin_loop_check");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (conn->loop_check_queue.records)
-  {
-    uint l = 0;
-    while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
-      &conn->loop_check_queue, l)))
-    {
-      lcptr->flag = 0;
-      ++l;
-    }
-    my_hash_reset(&conn->loop_check_queue);
-  }
-  lcptr = conn->loop_check_ignored_first;
-  while (lcptr)
-  {
-    lcptr->flag = 0;
-    lcptr = lcptr->next;
-  }
-  conn->loop_check_ignored_first = NULL;
-  lcptr = conn->loop_check_meraged_first;
-  while (lcptr)
-  {
-    lcptr->flag = 0;
-    lcptr = lcptr->next;
-  }
-  conn->loop_check_meraged_first = NULL;
-  DBUG_RETURN(0);
-}
-
 int spider_db_mbase::exec_simple_sql_with_result(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
@@ -8360,7 +8256,7 @@ int spider_mbase_handler::init()
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
       &minimum_select_bitmap,
-        table ? sizeof(uchar) * no_bytes_in_map(table->read_set) : 0,
+        table ? sizeof(uchar) * my_bitmap_buffer_size(table->read_set) : 0,
       NullS))
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -14829,7 +14725,7 @@ void spider_mbase_handler::minimum_select_bitmap_create()
   Field **field_p;
   DBUG_ENTER("spider_mbase_handler::minimum_select_bitmap_create");
   DBUG_PRINT("info",("spider this=%p", this));
-  memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
+  memset(minimum_select_bitmap, 0, my_bitmap_buffer_size(table->read_set));
   if (
     spider->use_index_merge ||
     spider->is_clone
@@ -14840,7 +14736,7 @@ void spider_mbase_handler::minimum_select_bitmap_create()
       table_share->primary_key == MAX_KEY
     ) {
       /* need all columns */
-      memset(minimum_select_bitmap, 0xFF, no_bytes_in_map(table->read_set));
+      memset(minimum_select_bitmap, 0xFF, my_bitmap_buffer_size(table->read_set));
       DBUG_VOID_RETURN;
     } else {
       /* need primary key columns */

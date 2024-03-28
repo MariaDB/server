@@ -67,6 +67,13 @@ if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
 --echo # if the event is still to be delayed, SBM should resume accordingly
 
 --source include/stop_slave.inc
+
+--echo # Lock t1 on slave to ensure the event can't finish (and thereby update
+--echo # Seconds_Behind_Master) so slow running servers don't accidentally
+--echo # catch up to the master before checking SBM.
+--connection server_2
+LOCK TABLES t1 WRITE;
+
 --source include/start_slave.inc
 
 --connection slave
@@ -85,6 +92,9 @@ if (`SELECT $sbm_trx1_after_1s_sleep <= $sbm_trx1_arrive`)
     --die Seconds_Behind_Master did not increase after sleeping, but should have
 }
 --echo # ..done
+
+--connection server_2
+UNLOCK TABLES;
 
 --source include/sync_with_master_gtid.inc
 

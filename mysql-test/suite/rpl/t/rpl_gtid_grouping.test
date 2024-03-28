@@ -93,5 +93,4 @@ CHANGE MASTER TO MASTER_USE_GTID=no;
 
 --connection master
 DROP TABLE t;
-SET GLOBAL LOG_WARNINGS=default;
 --source include/rpl_end.inc

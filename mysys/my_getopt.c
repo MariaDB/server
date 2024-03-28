@@ -172,6 +172,8 @@ static void validate_value(const char *key, const char *value,
 #define validate_value(key, value, filename) (void)filename
 #endif
 
+#define SET_HO_ERROR_AND_CONTINUE(e) { ho_error= (e); continue; }
+
 /**
   Handle command line options.
   Sort options.
@@ -241,7 +243,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
   const char *UNINIT_VAR(prev_found);
   const struct my_option *optp;
   void *value;
-  int error, i;
+  int ho_error= 0, error, i;
   my_bool is_cmdline_arg= 1;
   DBUG_ENTER("handle_options");
 
@@ -255,7 +257,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 
   is_cmdline_arg= !is_file_marker(**argv);
 
-  for (pos= *argv, pos_end=pos+ *argc; pos != pos_end ; pos++)
+  for (pos= *argv, pos_end=pos+ *argc; pos < pos_end ; pos++)
   {
     char **first= pos;
     char *cur_arg= *pos;
@@ -344,7 +346,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                                                my_progname, special_opt_prefix[i],
                                                opt_str, special_opt_prefix[i],
                                                prev_found);
-		    DBUG_RETURN(EXIT_AMBIGUOUS_OPTION);
+		    SET_HO_ERROR_AND_CONTINUE(EXIT_AMBIGUOUS_OPTION)
 		  }
 		  switch (i) {
 		  case OPT_SKIP:
@@ -389,7 +391,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                                          "%s: unknown variable '%s'",
                                          my_progname, cur_arg);
 	      if (!option_is_loose)
-		DBUG_RETURN(EXIT_UNKNOWN_VARIABLE);
+		SET_HO_ERROR_AND_CONTINUE(EXIT_UNKNOWN_VARIABLE)
 	    }
 	    else
 	    {
@@ -399,7 +401,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                                          "%s: unknown option '--%s'", 
                                          my_progname, cur_arg);
 	      if (!option_is_loose)
-		DBUG_RETURN(EXIT_UNKNOWN_OPTION);
+		SET_HO_ERROR_AND_CONTINUE(EXIT_UNKNOWN_OPTION)
 	    }
 	    if (option_is_loose)
 	    {
@@ -416,7 +418,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
               my_getopt_error_reporter(ERROR_LEVEL,
                                        "%s: variable prefix '%s' is not unique",
                                        my_progname, opt_str);
-	    DBUG_RETURN(EXIT_VAR_PREFIX_NOT_UNIQUE);
+	    SET_HO_ERROR_AND_CONTINUE(EXIT_VAR_PREFIX_NOT_UNIQUE)
 	  }
 	  else
 	  {
@@ -425,7 +427,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                                        "%s: ambiguous option '--%s' (%s, %s)",
                                        my_progname, opt_str, prev_found, 
                                        optp->name);
-	    DBUG_RETURN(EXIT_AMBIGUOUS_OPTION);
+	    SET_HO_ERROR_AND_CONTINUE(EXIT_AMBIGUOUS_OPTION)
 	  }
 	}
 	if ((optp->var_type & GET_TYPE_MASK) == GET_DISABLED)
@@ -439,14 +441,14 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	    (*argc)--;
 	    continue;
 	  }
-	  DBUG_RETURN(EXIT_OPTION_DISABLED);
+	  SET_HO_ERROR_AND_CONTINUE(EXIT_OPTION_DISABLED)
 	}
         error= 0;
 	value= optp->var_type & GET_ASK_ADDR
           ? (*my_getopt_get_addr)(key_name, (uint)strlen(key_name), optp, &error)
           : optp->value;
         if (error)
-          DBUG_RETURN(error);
+          SET_HO_ERROR_AND_CONTINUE(error)
 
 	if (optp->arg_type == NO_ARG)
 	{
@@ -461,7 +463,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
               my_getopt_error_reporter(ERROR_LEVEL,
                                        "%s: option '--%s' cannot take an argument",
                                        my_progname, optp->name);
-	    DBUG_RETURN(EXIT_NO_ARGUMENT_ALLOWED);
+	    SET_HO_ERROR_AND_CONTINUE(EXIT_NO_ARGUMENT_ALLOWED)
 	  }
 	  if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL)
 	  {
@@ -490,7 +492,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
             if (get_one_option(optp, *((my_bool*) value) ?
                                enabled_my_option : disabled_my_option,
                                filename))
-              DBUG_RETURN(EXIT_ARGUMENT_INVALID);
+              SET_HO_ERROR_AND_CONTINUE(EXIT_ARGUMENT_INVALID)
 	    continue;
 	  }
 	  argument= optend;
@@ -504,7 +506,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                                      "option '--%s' cannot take an argument",
                                      my_progname, optp->name);
 
-	    DBUG_RETURN(EXIT_NO_ARGUMENT_ALLOWED);
+	    SET_HO_ERROR_AND_CONTINUE(EXIT_NO_ARGUMENT_ALLOWED)
 	  }
 	  if (!(optp->var_type & GET_AUTO))
 	  {
@@ -514,7 +516,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 				     "unsupported by option '--%s'",
                                      my_progname, optp->name);
 	    if (!option_is_loose)
-	      DBUG_RETURN(EXIT_ARGUMENT_INVALID);
+	      SET_HO_ERROR_AND_CONTINUE(EXIT_ARGUMENT_INVALID)
 	    continue;
 	  }
 	  else
@@ -533,7 +535,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
               my_getopt_error_reporter(ERROR_LEVEL,
                                        "%s: option '--%s' requires an argument",
                                        my_progname, optp->name);
-	    DBUG_RETURN(EXIT_ARGUMENT_REQUIRED);
+	    SET_HO_ERROR_AND_CONTINUE(EXIT_ARGUMENT_REQUIRED)
 	  }
 	  argument= *pos;
 	  (*argc)--;
@@ -558,14 +560,14 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		  fprintf(stderr,
 			  "%s: ERROR: Option '-%c' used, but is disabled\n",
 			  my_progname, optp->id);
-		DBUG_RETURN(EXIT_OPTION_DISABLED);
+		SET_HO_ERROR_AND_CONTINUE(EXIT_OPTION_DISABLED)
 	      }
 	      if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL &&
 		  optp->arg_type == NO_ARG)
 	      {
 		*((my_bool*) optp->value)= (my_bool) 1;
                 if (get_one_option(optp, argument, filename))
-                  DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+                  SET_HO_ERROR_AND_CONTINUE(EXIT_UNSPECIFIED_ERROR)
 		continue;
 	      }
 	      else if (optp->arg_type == REQUIRED_ARG ||
@@ -585,7 +587,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                     if (optp->var_type == GET_BOOL)
                       *((my_bool*) optp->value)= (my_bool) 1;
                     if (get_one_option(optp, argument, filename))
-                      DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+                      SET_HO_ERROR_AND_CONTINUE(EXIT_UNSPECIFIED_ERROR)
                     continue;
                   }
 		  /* Check if there are more arguments after this one */
@@ -595,7 +597,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                       my_getopt_error_reporter(ERROR_LEVEL,
                                                "%s: option '-%c' requires an argument",
                                                my_progname, optp->id);
-                    DBUG_RETURN(EXIT_ARGUMENT_REQUIRED);
+                    SET_HO_ERROR_AND_CONTINUE(EXIT_ARGUMENT_REQUIRED)
 		  }
 		  argument= *++pos;
 		  (*argc)--;
@@ -603,10 +605,10 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		}
 	      }
 	      if ((error= setval(optp, optp->value, argument,
-                             set_maximum_value,filename)))
-		DBUG_RETURN(error);
+                                 set_maximum_value,filename)))
+		SET_HO_ERROR_AND_CONTINUE(error)
               if (get_one_option(optp, argument, filename))
-                DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+                SET_HO_ERROR_AND_CONTINUE(EXIT_UNSPECIFIED_ERROR)
 	      break;
 	    }
 	  }
@@ -640,7 +642,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                 my_getopt_error_reporter(ERROR_LEVEL,
                                          "%s: unknown option '-%c'",
                                          my_progname, *optend);
-              DBUG_RETURN(EXIT_UNKNOWN_OPTION);
+              SET_HO_ERROR_AND_CONTINUE(EXIT_UNKNOWN_OPTION)
             }
 	  }
 	}
@@ -651,15 +653,17 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
       if ((!option_is_autoset) &&
         ((error= setval(optp, value, argument, set_maximum_value,filename))) &&
           !option_is_loose)
-	DBUG_RETURN(error);
+	SET_HO_ERROR_AND_CONTINUE(error)
       if (get_one_option(optp, argument, filename))
-        DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
+        SET_HO_ERROR_AND_CONTINUE(EXIT_UNSPECIFIED_ERROR)
 
       (*argc)--; /* option handled (long), decrease argument count */
     }
     else /* non-option found */
       (*argv)[argvpos++]= cur_arg;
   }
+  if (ho_error)
+    DBUG_RETURN(ho_error);
   /*
     Destroy the first, already handled option, so that programs that look
     for arguments in 'argv', without checking 'argc', know when to stop.
