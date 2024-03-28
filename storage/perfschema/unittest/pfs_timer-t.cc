@@ -22,7 +22,6 @@
 
 #include <my_global.h>
 #include <my_pthread.h>
-#include <pfs_atomic.h>
 #include <pfs_timer.h>
 #include "my_sys.h"
 #include <tap.h>

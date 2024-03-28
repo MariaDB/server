@@ -32,6 +32,8 @@
 #include "pfs_events.h"
 #include "pfs_digest.h"
 
+#include <atomic>
+
 struct PFS_thread;
 struct PFS_account;
 struct PFS_user;
@@ -117,7 +119,7 @@ extern bool flag_events_statements_history;
 extern bool flag_events_statements_history_long;
 
 extern bool events_statements_history_long_full;
-extern volatile uint32 events_statements_history_long_index;
+extern std::atomic<uint32> events_statements_history_long_index;
 extern PFS_events_statements *events_statements_history_long_array;
 extern size_t events_statements_history_long_size;
 

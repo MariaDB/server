@@ -30,6 +30,8 @@
 
 #include "pfs_events.h"
 
+#include <atomic>
+
 struct PFS_thread;
 struct PFS_account;
 struct PFS_user;
@@ -49,7 +51,7 @@ extern bool flag_events_stages_history;
 extern bool flag_events_stages_history_long;
 
 extern bool events_stages_history_long_full;
-extern volatile uint32 events_stages_history_long_index;
+extern std::atomic<uint32> events_stages_history_long_index;
 extern PFS_events_stages *events_stages_history_long_array;
 extern ulong events_stages_history_long_size;
 

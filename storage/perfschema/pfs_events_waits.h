@@ -33,6 +33,8 @@
 #include "pfs_lock.h"
 #include "pfs_events.h"
 
+#include <atomic>
+
 struct PFS_mutex;
 struct PFS_rwlock;
 struct PFS_cond;
@@ -124,7 +126,7 @@ extern bool flag_global_instrumentation;
 extern bool flag_thread_instrumentation;
 
 extern bool events_waits_history_long_full;
-extern volatile uint32 events_waits_history_long_index;
+extern std::atomic<uint32> events_waits_history_long_index;
 extern PFS_events_waits *events_waits_history_long_array;
 extern ulong events_waits_history_long_size;
 

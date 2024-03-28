@@ -28,6 +28,8 @@
 #include <my_global.h>
 #include <string.h>
 
+#include <atomic>
+
 #include "my_sys.h"
 #include "pfs.h"
 #include "pfs_stat.h"
@@ -171,7 +173,7 @@ PFS_socket *socket_array= NULL;
 PFS_stage_stat *global_instr_class_stages_array= NULL;
 PFS_statement_stat *global_instr_class_statements_array= NULL;
 
-static volatile uint64 thread_internal_id_counter= 0;
+static std::atomic<uint64> thread_internal_id_counter(0);
 
 static uint thread_instr_class_waits_sizing;
 static uint thread_instr_class_stages_sizing;
@@ -290,7 +292,7 @@ int init_instruments(const PFS_global_param *param)
   thread_instr_class_waits_array= NULL;
   thread_instr_class_stages_array= NULL;
   thread_instr_class_statements_array= NULL;
-  thread_internal_id_counter= 0;
+  thread_internal_id_counter.store(0);
 
   if (mutex_max > 0)
   {
@@ -681,7 +683,7 @@ void PFS_scan::init(uint random, uint max_size)
 */
 PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
 {
-  static uint PFS_ALIGNED mutex_monotonic_index= 0;
+  static std::atomic<uint> mutex_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_mutex *pfs;
@@ -718,7 +720,7 @@ PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
       in a given loop by a given thread, other threads will not attempt this
       slot.
     */
-    index= PFS_atomic::add_u32(& mutex_monotonic_index, 1) % mutex_max;
+    index= mutex_monotonic_index.fetch_add(1) % mutex_max;
     pfs= mutex_array + index;
 
     if (pfs->m_lock.is_free())
@@ -778,7 +780,7 @@ void destroy_mutex(PFS_mutex *pfs)
 */
 PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
 {
-  static uint PFS_ALIGNED rwlock_monotonic_index= 0;
+  static std::atomic<uint> rwlock_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_rwlock *pfs;
@@ -792,7 +794,7 @@ PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
   while (++attempts <= rwlock_max)
   {
     /* See create_mutex() */
-    index= PFS_atomic::add_u32(& rwlock_monotonic_index, 1) % rwlock_max;
+    index= rwlock_monotonic_index.fetch_add(1) % rwlock_max;
     pfs= rwlock_array + index;
 
     if (pfs->m_lock.is_free())
@@ -846,7 +848,7 @@ void destroy_rwlock(PFS_rwlock *pfs)
 */
 PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
 {
-  static uint PFS_ALIGNED cond_monotonic_index= 0;
+  static std::atomic<uint> cond_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_cond *pfs;
@@ -860,7 +862,7 @@ PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
   while (++attempts <= cond_max)
   {
     /* See create_mutex() */
-    index= PFS_atomic::add_u32(& cond_monotonic_index, 1) % cond_max;
+    index= cond_monotonic_index.fetch_add(1) % cond_max;
     pfs= cond_array + index;
 
     if (pfs->m_lock.is_free())
@@ -935,7 +937,7 @@ void PFS_thread::reset_session_connect_attrs()
 PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
                           ulonglong processlist_id)
 {
-  static uint PFS_ALIGNED thread_monotonic_index= 0;
+  static std::atomic<uint> thread_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_thread *pfs;
@@ -949,7 +951,7 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
   while (++attempts <= thread_max)
   {
     /* See create_mutex() */
-    index= PFS_atomic::add_u32(& thread_monotonic_index, 1) % thread_max;
+    index= thread_monotonic_index.fetch_add(1) % thread_max;
     pfs= thread_array + index;
 
     if (pfs->m_lock.is_free())
@@ -957,7 +959,7 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
       if (pfs->m_lock.free_to_dirty())
       {
         pfs->m_thread_internal_id=
-          PFS_atomic::add_u64(&thread_internal_id_counter, 1);
+          thread_internal_id_counter.fetch_add(1);
         pfs->m_parent_thread_internal_id= 0;
         pfs->m_processlist_id= (ulong)processlist_id;
         pfs->m_event_id= 1;
@@ -1307,7 +1309,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   PFS_file **entry;
   uint retry_count= 0;
   const uint retry_max= 3;
-  static uint PFS_ALIGNED file_monotonic_index= 0;
+  static std::atomic<uint> file_monotonic_index(0);
   uint index;
   uint attempts= 0;
 
@@ -1341,7 +1343,7 @@ search:
   while (++attempts <= file_max)
   {
     /* See create_mutex() */
-    index= PFS_atomic::add_u32(& file_monotonic_index, 1) % file_max;
+    index= file_monotonic_index.fetch_add(1) % file_max;
     pfs= file_array + index;
 
     if (pfs->m_lock.is_free())
@@ -1444,7 +1446,7 @@ void destroy_file(PFS_thread *thread, PFS_file *pfs)
 PFS_table* create_table(PFS_table_share *share, PFS_thread *opening_thread,
                         const void *identity)
 {
-  static uint PFS_ALIGNED table_monotonic_index= 0;
+  static std::atomic<uint> table_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_table *pfs;
@@ -1458,7 +1460,7 @@ PFS_table* create_table(PFS_table_share *share, PFS_thread *opening_thread,
   while (++attempts <= table_max)
   {
     /* See create_mutex() */
-    index= PFS_atomic::add_u32(& table_monotonic_index, 1) % table_max;
+    index= table_monotonic_index.fetch_add(1) % table_max;
     pfs= table_array + index;
 
     if (pfs->m_lock.is_free())
@@ -1595,7 +1597,7 @@ void destroy_table(PFS_table *pfs)
 PFS_socket* create_socket(PFS_socket_class *klass, const my_socket *fd,
                           const struct sockaddr *addr, socklen_t addr_len)
 {
-  static uint PFS_ALIGNED socket_monotonic_index= 0;
+  static std::atomic<uint> socket_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_socket *pfs;
@@ -1617,7 +1619,7 @@ PFS_socket* create_socket(PFS_socket_class *klass, const my_socket *fd,
 
   while (++attempts <= socket_max)
   {
-    index= PFS_atomic::add_u32(& socket_monotonic_index, 1) % socket_max;
+    index= socket_monotonic_index.fetch_add(1) % socket_max;
     pfs= socket_array + index;
 
     if (pfs->m_lock.is_free())

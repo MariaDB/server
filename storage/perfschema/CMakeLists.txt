@@ -40,7 +40,6 @@ cursor_by_thread.h
 cursor_by_user.h
 pfs.h
 pfs_account.h
-pfs_atomic.h
 pfs_column_types.h
 pfs_column_values.h
 pfs_con_slice.h

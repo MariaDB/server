@@ -34,8 +34,9 @@
 #include "pfs_host.h"
 #include "pfs_user.h"
 #include "pfs_events_stages.h"
-#include "pfs_atomic.h"
 #include "m_string.h"
+
+#include <atomic>
 
 ulong events_stages_history_long_size= 0;
 /** Consumer flag for table EVENTS_STAGES_CURRENT. */
@@ -48,7 +49,7 @@ bool flag_events_stages_history_long= false;
 /** True if EVENTS_STAGES_HISTORY_LONG circular buffer is full. */
 bool events_stages_history_long_full= false;
 /** Index in EVENTS_STAGES_HISTORY_LONG circular buffer. */
-volatile uint32 events_stages_history_long_index= 0;
+std::atomic<uint32> events_stages_history_long_index(0);
 /** EVENTS_STAGES_HISTORY_LONG circular buffer. */
 PFS_events_stages *events_stages_history_long_array= NULL;
 
@@ -60,7 +61,7 @@ int init_events_stages_history_long(uint events_stages_history_long_sizing)
 {
   events_stages_history_long_size= events_stages_history_long_sizing;
   events_stages_history_long_full= false;
-  PFS_atomic::store_u32(&events_stages_history_long_index, 0);
+  events_stages_history_long_index.store(0);
 
   if (events_stages_history_long_size == 0)
     return 0;
@@ -129,7 +130,7 @@ void insert_events_stages_history_long(PFS_events_stages *stage)
 
   DBUG_ASSERT(events_stages_history_long_array != NULL);
 
-  uint index= PFS_atomic::add_u32(&events_stages_history_long_index, 1);
+  uint index= events_stages_history_long_index.fetch_add(1);
 
   index= index % events_stages_history_long_size;
   if (index == 0)
@@ -172,7 +173,7 @@ void reset_events_stages_history(void)
 /** Reset table EVENTS_STAGES_HISTORY_LONG data. */
 void reset_events_stages_history_long(void)
 {
-  PFS_atomic::store_u32(&events_stages_history_long_index, 0);
+  events_stages_history_long_index.store(0);
   events_stages_history_long_full= false;
 
   PFS_events_stages *pfs= events_stages_history_long_array;

@@ -34,8 +34,9 @@
 #include "pfs_host.h"
 #include "pfs_user.h"
 #include "pfs_events_statements.h"
-#include "pfs_atomic.h"
 #include "m_string.h"
+
+#include <atomic>
 
 size_t events_statements_history_long_size= 0;
 /** Consumer flag for table EVENTS_STATEMENTS_CURRENT. */
@@ -48,7 +49,7 @@ bool flag_events_statements_history_long= false;
 /** True if EVENTS_STATEMENTS_HISTORY_LONG circular buffer is full. */
 bool events_statements_history_long_full= false;
 /** Index in EVENTS_STATEMENTS_HISTORY_LONG circular buffer. */
-volatile uint32 events_statements_history_long_index= 0;
+std::atomic<uint32> events_statements_history_long_index(0);
 /** EVENTS_STATEMENTS_HISTORY_LONG circular buffer. */
 PFS_events_statements *events_statements_history_long_array= NULL;
 static unsigned char *h_long_stmts_digest_token_array= NULL;
@@ -61,7 +62,7 @@ int init_events_statements_history_long(size_t events_statements_history_long_si
 {
   events_statements_history_long_size= events_statements_history_long_sizing;
   events_statements_history_long_full= false;
-  PFS_atomic::store_u32(&events_statements_history_long_index, 0);
+  events_statements_history_long_index.store(0);
 
   if (events_statements_history_long_size == 0)
     return 0;
@@ -163,7 +164,7 @@ void insert_events_statements_history_long(PFS_events_statements *statement)
 
   DBUG_ASSERT(events_statements_history_long_array != NULL);
 
-  uint index= PFS_atomic::add_u32(&events_statements_history_long_index, 1);
+  uint index= events_statements_history_long_index.fetch_add(1);
 
   index= index % events_statements_history_long_size;
   if (index == 0)
@@ -210,7 +211,7 @@ void reset_events_statements_history(void)
 /** Reset table EVENTS_STATEMENTS_HISTORY_LONG data. */
 void reset_events_statements_history_long(void)
 {
-  PFS_atomic::store_u32(&events_statements_history_long_index, 0);
+  events_statements_history_long_index.store(0);
   events_statements_history_long_full= false;
 
   PFS_events_statements *pfs= events_statements_history_long_array;

@@ -34,8 +34,9 @@
 #include "pfs_host.h"
 #include "pfs_account.h"
 #include "pfs_events_waits.h"
-#include "pfs_atomic.h"
 #include "m_string.h"
+
+#include <atomic>
 
 ulong events_waits_history_long_size= 0;
 /** Consumer flag for table EVENTS_WAITS_CURRENT. */
@@ -52,7 +53,7 @@ bool flag_thread_instrumentation= false;
 /** True if EVENTS_WAITS_HISTORY_LONG circular buffer is full. */
 bool events_waits_history_long_full= false;
 /** Index in EVENTS_WAITS_HISTORY_LONG circular buffer. */
-volatile uint32 events_waits_history_long_index= 0;
+std::atomic<uint32> events_waits_history_long_index(0);
 /** EVENTS_WAITS_HISTORY_LONG circular buffer. */
 PFS_events_waits *events_waits_history_long_array= NULL;
 
@@ -64,7 +65,7 @@ int init_events_waits_history_long(uint events_waits_history_long_sizing)
 {
   events_waits_history_long_size= events_waits_history_long_sizing;
   events_waits_history_long_full= false;
-  PFS_atomic::store_u32(&events_waits_history_long_index, 0);
+  events_waits_history_long_index.store(0);
 
   if (events_waits_history_long_size == 0)
     return 0;
@@ -129,7 +130,7 @@ void insert_events_waits_history_long(PFS_events_waits *wait)
   if (unlikely(events_waits_history_long_size == 0))
     return;
 
-  uint index= PFS_atomic::add_u32(&events_waits_history_long_index, 1);
+  uint index= events_waits_history_long_index.fetch_add(1);
 
   index= index % events_waits_history_long_size;
   if (index == 0)
@@ -176,7 +177,7 @@ void reset_events_waits_history(void)
 /** Reset table EVENTS_WAITS_HISTORY_LONG data. */
 void reset_events_waits_history_long(void)
 {
-  PFS_atomic::store_u32(&events_waits_history_long_index, 0);
+  events_waits_history_long_index.store(0);
   events_waits_history_long_full= false;
 
   PFS_events_waits *wait= events_waits_history_long_array;

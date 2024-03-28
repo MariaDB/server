@@ -35,6 +35,8 @@
 #include "pfs_setup_object.h"
 #include "pfs_global.h"
 
+#include <atomic>
+
 /**
   @addtogroup Performance_schema_buffers
   @{
@@ -175,7 +177,7 @@ int insert_setup_object(enum_object_type object_type, const String *schema,
   if (unlikely(pins == NULL))
     return HA_ERR_OUT_OF_MEM;
 
-  static uint PFS_ALIGNED setup_object_monotonic_index= 0;
+  static std::atomic<uint> setup_object_monotonic_index(0);
   uint index;
   uint attempts= 0;
   PFS_setup_object *pfs;
@@ -183,7 +185,7 @@ int insert_setup_object(enum_object_type object_type, const String *schema,
   while (++attempts <= setup_object_max)
   {
     /* See create_mutex() */
-    index= PFS_atomic::add_u32(& setup_object_monotonic_index, 1) % setup_object_max;
+    index= setup_object_monotonic_index.fetch_add(1) % setup_object_max;
     pfs= setup_object_array + index;
 
     if (pfs->m_lock.is_free())
