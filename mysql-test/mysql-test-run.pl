@@ -4518,6 +4518,9 @@ sub extract_warning_lines ($$) {
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
 
+  push @antipatterns, qr/though there are still open handles to table/
+    if $mysql_version_id < 100600;
+
   my $matched_lines= [];
   LINE: foreach my $line ( @lines )
   {
