@@ -3839,24 +3839,276 @@ end:
 
 /*
   SYNOPSIS
+  recursive_copy
+  ds_source      - pointer to dynamic string containing source
+                   directory information
+  ds_destination - pointer to dynamic string containing destination
+                   directory information
+  DESCRIPTION
+  Recursive copy of <ds_source> to <ds_destination>
+
+  Note: When symlink appears, copy the target file
+*/
+
+static int recursive_copy(DYNAMIC_STRING *ds_source,
+                          DYNAMIC_STRING *ds_destination)
+{
+  /* Note that my_dir sorts the list if not given any flags */
+  MY_DIR *src_dir_info= my_dir(ds_source->str,
+                               MYF(MY_DONT_SORT | MY_WANT_STAT));
+
+  int error= 0;
+
+  /* Source directory exists */
+  if (src_dir_info)
+  {
+    /* Note that my_dir sorts the list if not given any flags */
+    MY_DIR *dest_dir_info= my_dir(ds_destination->str,
+                                  MYF(MY_DONT_SORT | MY_WANT_STAT));
+
+    /* Create destination directory if it doesn't exist */
+    if (!dest_dir_info)
+    {
+      error= my_mkdir(ds_destination->str, 0777, MYF(0)) != 0;
+      if (error)
+      {
+        my_dirend(dest_dir_info);
+        goto end;
+      }
+    }
+    else
+    {
+      /* Extracting the source directory name */
+      if (ds_source->str[strlen(ds_source->str) - 1] == '/')
+      {
+        ds_source->str[strlen(ds_source->str) - 1]= '\0';
+        ds_source->length= ds_source->length - 1;
+      }
+      char *src_dir_name= strrchr(ds_source->str, '/');
+
+      /* Extracting the destination directory name */
+      if (ds_destination->str[strlen(ds_destination->str) - 1] == '/')
+      {
+        ds_destination->str[strlen(ds_destination->str) - 1]= '\0';
+        ds_destination->length= ds_destination->length - 1;
+      }
+      char *dest_dir_name= strrchr(ds_destination->str, '/');
+
+      /*
+        Destination directory might not exist if source directory
+        name and destination directory name are not same.
+        For example, if source is "abc" and destintion is "def",
+        check for the existance of directory "def/abc". If it exists
+        then, copy the files from source directory(i.e "abc") to
+        destination directory(i.e "def/abc"), otherwise create a new
+        directory "abc" under "def" and copy the files from source to
+        destination directory.
+      */
+      if (strcmp(src_dir_name, dest_dir_name))
+      {
+        dynstr_append_mem(ds_destination, src_dir_name, strlen(src_dir_name));
+        my_dirend(dest_dir_info);
+        dest_dir_info= my_dir(ds_destination->str,
+                              MYF(MY_DONT_SORT | MY_WANT_STAT));
+
+        /* Create destination directory if it doesn't exist */
+        if (!dest_dir_info)
+        {
+          error= my_mkdir(ds_destination->str, 0777, MYF(0)) != 0;
+          if (error)
+          {
+            my_dirend(dest_dir_info);
+            goto end;
+          }
+        }
+      }
+    }
+
+    char dir_separator[2]= {FN_LIBCHAR, 0};
+    dynstr_append_mem(ds_source, dir_separator, strlen(dir_separator));
+    dynstr_append_mem(ds_destination, dir_separator, strlen(dir_separator));
+
+    /*
+      Storing the length of source and destination
+      directory paths so it can be reused.
+    */
+    size_t source_dir_length= ds_source->length;
+    size_t destination_dir_length= ds_destination->length;
+    ;
+
+    for (uint i= 0; i < src_dir_info->number_of_files; i++)
+    {
+      ds_source->length= source_dir_length;
+      ds_destination->length= destination_dir_length;
+      FILEINFO *file= src_dir_info->dir_entry + i;
+
+      /* Skip the names "." and ".." */
+      if (!strcmp(file->name, ".") || !strcmp(file->name, ".."))
+        continue;
+
+      dynstr_append_mem(ds_source, file->name, strlen(file->name));
+      dynstr_append_mem(ds_destination, file->name, strlen(file->name));
+
+      if (MY_S_ISDIR(file->mystat->st_mode))
+      {
+        if (recursive_copy(ds_source, ds_destination) != 0)
+          error= 1;
+      }
+      else
+      {
+        DBUG_PRINT("info", ("Copying file: %s to %s", ds_source->str,
+                            ds_destination->str));
+
+        /* MY_HOLD_ORIGINAL_MODES prevents attempts to chown the file */
+        if (my_copy(ds_source->str, ds_destination->str,
+                    MYF(MY_HOLD_ORIGINAL_MODES)) != 0)
+          error= 1;
+      }
+    }
+    my_dirend(dest_dir_info);
+  }
+  /* Source directory does not exist or access denied */
+  else
+    error= 1;
+
+end:
+  my_dirend(src_dir_info);
+  return error;
+}
+
+
+
+/*
+  Copy files from source directory to destination directory, by matching
+  a specified file name pattern.
+
+  Copy will fail if no files match the pattern. Copy will also
+  fail if source directory or destination directory or both do not
+  exist.
+
+  ds_source      - pointer to dynamic string containing source
+                   directory information
+  ds_destination - pointer to dynamic string containing destination
+                   directory information
+  ds_wild        - pointer to dynamic string containing wildcard pattern
+  recursive      - indicating whether to copy directory recursively
+*/
+static int wildcard_copy(DYNAMIC_STRING *ds_source,
+                         DYNAMIC_STRING *ds_destination,
+                         DYNAMIC_STRING *ds_wild,
+                         bool recursive)
+{
+  int error= 0;
+
+  /* Note that my_dir sorts the list if not given any flags */
+  MY_DIR *src_dir_info= my_dir(ds_source->str,
+                               MYF(MY_DONT_SORT | MY_WANT_STAT));
+  MY_DIR *dst_dir_info= my_dir(ds_destination->str,
+                               MYF(MY_DONT_SORT | MY_WANT_STAT));
+
+  /* Either one of directories does not exist or access denied */
+  if (!src_dir_info || !dst_dir_info)
+  {
+    error= 1;
+    goto end;
+  }
+
+  char dir_separator[2];
+  dir_separator[0]= FN_LIBCHAR;
+  dir_separator[1]= 0;
+  dynstr_append_mem(ds_source, dir_separator, strlen(dir_separator));
+  dynstr_append_mem(ds_destination, dir_separator, strlen(dir_separator));
+
+  /* Storing the length of the path to the file, so it can be reused */
+  size_t source_file_length;
+  size_t dest_file_length;
+  dest_file_length= ds_destination->length;
+  source_file_length= ds_source->length;
+  uint match_count;
+  match_count= 0;
+
+  for (uint i= 0; i < src_dir_info->number_of_files; i++)
+  {
+    ds_source->length= source_file_length;
+    ds_destination->length= dest_file_length;
+    FILEINFO *file= src_dir_info->dir_entry + i;
+
+    /* Skip directories if recursive copy is not requested */
+    if (MY_S_ISDIR(file->mystat->st_mode) && !recursive)
+      continue;
+
+    /* Copy only those files which the pattern matches */
+    if (ds_wild->length &&
+        wild_compare(file->name, ds_wild->str, false))
+      continue;
+
+    match_count++;
+    dynstr_append_mem(ds_source, file->name, strlen(file->name));
+    dynstr_append_mem(ds_destination, file->name, strlen(file->name));
+
+    if (MY_S_ISDIR(file->mystat->st_mode))
+    {
+      DBUG_PRINT("info", ("Recursive copy files of %s to %s",
+                          ds_source->str, ds_destination->str));
+      DBUG_PRINT("info", ("listing directory: %s", ds_source->str));
+      error= recursive_copy(ds_source, ds_destination);
+    }
+    else
+    {
+      DBUG_PRINT("info", ("Copying file: %s to %s",
+                          ds_source->str, ds_destination->str));
+      /* MY_HOLD_ORIGINAL_MODES prevents attempts to chown the file */
+      error= (my_copy(ds_source->str, ds_destination->str,
+              MYF(MY_HOLD_ORIGINAL_MODES)) != 0);
+    }
+
+    if (error) goto end;
+  }
+
+  /* Pattern did not match any files */
+  if (!match_count)
+  {
+    error= 1;
+  }
+
+end:
+  my_dirend(src_dir_info);
+  my_dirend(dst_dir_info);
+  return error;
+}
+
+
+/*
+  SYNOPSIS
   do_copy_file
   command	command handle
 
   DESCRIPTION
-  copy_file <from_file> <to_file>
-  Copy <from_file> to <to_file>
+  copy_file <source> <destination> [-r]
 
-  NOTE! Will fail if <to_file> exists
+  <source> can be a file, a directory, or a path with wildcard pattern
+
+  - When <source> is a directory, '-r' must be given to copy recursively
+  - When <source> is a wildcard pattern, '-r' is optional. If given, then
+    directories that match the pattern will also be copied.
 */
 
 void do_copy_file(struct st_command *command)
 {
   int error;
-  static DYNAMIC_STRING ds_from_file;
-  static DYNAMIC_STRING ds_to_file;
-  const struct command_arg copy_file_args[] = {
-    { "from_file", ARG_STRING, TRUE, &ds_from_file, "Filename to copy from" },
-    { "to_file", ARG_STRING, TRUE, &ds_to_file, "Filename to copy to" }
+  static DYNAMIC_STRING ds_source;
+  static DYNAMIC_STRING ds_destination;
+  static DYNAMIC_STRING ds_wild;
+  static DYNAMIC_STRING ds_recursive;
+  static bool recursive;
+  MY_STAT stat_buff;
+  const struct command_arg copy_file_args[]=
+  {
+    { "source", ARG_STRING, TRUE, &ds_source, "File/dir name to copy from" },
+    { "destination", ARG_STRING, TRUE, &ds_destination,
+      "File/dir name to copy to" },
+    { "recursive", ARG_STRING, FALSE, &ds_recursive,
+      "Optional argument indicating if directories should be copied recursively" }
   };
   DBUG_ENTER("do_copy_file");
 
@@ -3864,17 +4116,58 @@ void do_copy_file(struct st_command *command)
                      copy_file_args,
                      sizeof(copy_file_args)/sizeof(struct command_arg),
                      ' ');
+  recursive= !strcmp("-r", ds_recursive.str);
 
-  if (bad_path(ds_to_file.str))
-    DBUG_VOID_RETURN;
+  /*
+    Throw an error if destination path is invalid, or source and destination
+    paths are same.
+  */
+  if (bad_path(ds_destination.str) ||
+      !strcmp(ds_source.str, ds_destination.str))
+  {
+    error= 1;
+  }
+  else if (my_stat(ds_source.str, &stat_buff, MYF(0)))
+  {
+    /* For regular file, copy directly */
+    if (MY_S_ISREG(stat_buff.st_mode))
+    {
+      DBUG_PRINT("info", ("Copy %s to %s", ds_source.str, ds_destination.str));
+      /* MY_HOLD_ORIGINAL_MODES prevents attempts to chown the file */
+      error= (my_copy(ds_source.str, ds_destination.str,
+              MYF(MY_DONT_OVERWRITE_FILE | MY_WME | MY_HOLD_ORIGINAL_MODES)) != 0);
+    }
+    /* For directory, copy if recursive is enabled */
+    else if (recursive)
+    {
+      DBUG_PRINT("info", ("Recursive copy files of %s to %s",
+                          ds_source.str, ds_destination.str));
+      DBUG_PRINT("info", ("listing directory: %s", ds_source.str));
+      error= recursive_copy(&ds_source, &ds_destination);
+    }
+    else
+    {
+      error= 1;
+    }
+  }
+  else
+  {
+    /*
+      Cannot get file stat. Could be a wildcard pattern. Extract the basename
+      as wildcard pattern.  If it is not a vaild wildcard pattern,
+      wildcard_copy() will return error.
+    */
+    const char *wild= my_basename(ds_source.str);
+    init_dynamic_string(&ds_wild, wild, strlen(wild) + 1, 0);
+    dynstr_trunc(&ds_source, ds_wild.length+1);
+    error= wildcard_copy(&ds_source, &ds_destination, &ds_wild, recursive);
+  }
 
-  DBUG_PRINT("info", ("Copy %s to %s", ds_from_file.str, ds_to_file.str));
-  /* MY_HOLD_ORIGINAL_MODES prevents attempts to chown the file */
-  error= (my_copy(ds_from_file.str, ds_to_file.str,
-                  MYF(MY_DONT_OVERWRITE_FILE | MY_WME | MY_HOLD_ORIGINAL_MODES)) != 0);
   handle_command_error(command, error, my_errno);
-  dynstr_free(&ds_from_file);
-  dynstr_free(&ds_to_file);
+  dynstr_free(&ds_source);
+  dynstr_free(&ds_destination);
+  dynstr_free(&ds_wild);
+  dynstr_free(&ds_recursive);
   DBUG_VOID_RETURN;
 }
 
