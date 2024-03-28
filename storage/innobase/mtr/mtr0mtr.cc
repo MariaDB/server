@@ -891,7 +891,7 @@ static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
   HMT_low();
   do
     MY_RELAX_CPU();
-  while (--delay)
+  while (--delay);
   HMT_medium();
 }
 
