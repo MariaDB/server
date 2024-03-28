@@ -25,7 +25,7 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 
 
 --echo Test bad binlog format.
---error 1
+--error 13
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --log-bin --binlog-format=badformat >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
 
@@ -35,7 +35,7 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 
 
 --echo Test non-numeric value passed to number option.
---error 1
+--error 9
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables  --min-examined-row-limit=notanumber >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
 
@@ -46,17 +46,37 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --error 7
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --plugin-dir=$MYSQLTEST_VARDIR/plugins --plugin-load=example=ha_example.so --plugin-example-enum-var=noexist >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log
+
 --echo Test to see if multiple unknown options will be displayed in the error output
-# Remove the noise to make the test robust
---replace_regex /^((?!nonexistent).)*$// /.*unknown/unknown/
 --error 7
---exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --nonexistentoption --alsononexistent --nonexistentvariable=1 2>&1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --nonexistentoption2 --alsononexistent --nonexistentvariable=1 >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
+
+--let SEARCH_PATTERN=unknown option '--nonexistentoption2'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=unknown option '--alsononexistent'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=unknown variable 'nonexistentvariable=1'
+--source include/search_pattern_in_file.inc
 
 --echo Test to see if multiple ambiguous options and invalid arguments will be displayed in the error output
-# Remove the noise to make the test robust
---replace_regex /^((?!('sql_mode'|'--character'|'--bootstrap')).)*$// /.*Error while setting value/Error while setting value/ /.*ambiguous option/ambiguous option/ /.*option '--bootstrap'/option '--bootstrap'/
---error 1
---exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --getopt-prefix-matching --sql-mode=invalid_value --character --bootstrap=partstoob 2>&1
+--error 9
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --getopt-prefix-matching --sql-mode=invalid_value --character --bootstrap=partstoob --binlog_cache_size=18446744073709551616 --bulk_insert_buffer_size=123y >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
+
+--let SEARCH_PATTERN=Error while setting value 'invalid_value' to 'sql_mode'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=ambiguous option '--character'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=option '--bootstrap' cannot take an argument
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Integer value out of range for uint64: '18446744073709551616'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Error while setting value '18446744073709551616' to 'binlog_cache_size'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Unknown suffix 'y' used for variable 'bulk_insert_buffer_size' \(value '123y'\). Legal suffix characters are: K, M, G, T, P, E
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Error while setting value '123y' to 'bulk_insert_buffer_size'
+--source include/search_pattern_in_file.inc
 
 #
 # Test that an wrong option with --help --verbose gives an error
