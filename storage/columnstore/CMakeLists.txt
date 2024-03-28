@@ -13,14 +13,16 @@ endmacro()
 
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
-    add_subdirectory(columnstore)
+    cmake_policy(SET CMP0093 NEW)
 
     # https://jira.mariadb.org/browse/MCOL-5611
-    FIND_PACKAGE(Boost 1.80.0 COMPONENTS system filesystem thread regex date_time chrono atomic)
-    IF (Boost_FOUND)
+    FIND_PACKAGE(Boost COMPONENTS system filesystem thread regex date_time chrono atomic)
+    IF (Boost_VERSION VERSION_GREATER "1.79.0")
         MESSAGE_ONCE(CS_NO_BOOST "Boost Libraries >= 1.80.0 not supported!")
         return()
     ENDIF()
+
+    add_subdirectory(columnstore)
 
     IF(TARGET columnstore)
         # Needed to bump the component changes up to the main scope
