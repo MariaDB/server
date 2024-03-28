@@ -6824,7 +6824,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 
     if (direct)
     {
-      /* We come here only for incident events */
+      /* Direct logging includes DDL, incident events. */
       int res;
       uint64 commit_id= 0;
       MDL_request mdl_request;
