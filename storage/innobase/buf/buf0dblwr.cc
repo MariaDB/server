@@ -53,6 +53,7 @@ void buf_dblwr_t::init()
     active_slot= &slots[0];
     mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
     pthread_cond_init(&cond, nullptr);
+    block_size= FSP_EXTENT_SIZE;
   }
 }
 
@@ -67,7 +68,7 @@ inline void buf_dblwr_t::init(const byte *header)
   block1= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK1));
   block2= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK2));
 
-  const uint32_t buf_size= 2 * block_size();
+  const uint32_t buf_size= 2 * block_size;
   for (int i= 0; i < 2; i++)
   {
     slots[i].write_buf= static_cast<byte*>
@@ -86,7 +87,7 @@ bool buf_dblwr_t::create()
     return true;
 
   mtr_t mtr;
-  const ulint size= block_size();
+  const ulint size= block_size;
 
 start_again:
   mtr.start();
@@ -251,7 +252,7 @@ loads the pages from double write buffer into memory.
 dberr_t buf_dblwr_t::init_or_load_pages(pfs_os_file_t file, const char *path)
 {
   ut_ad(this == &buf_dblwr);
-  const uint32_t size= block_size();
+  const uint32_t size= block_size;
 
   /* We do the file i/o past the buffer pool */
   byte *read_buf= static_cast<byte*>(aligned_malloc(srv_page_size,
@@ -488,7 +489,6 @@ void buf_dblwr_t::write_completed()
   mysql_mutex_lock(&mutex);
 
   ut_ad(is_created());
-  ut_ad(srv_use_doublewrite_buf);
   ut_ad(batch_running);
   slot *flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
   ut_ad(flush_slot->reserved);
@@ -574,7 +574,7 @@ static void buf_dblwr_check_block(const buf_page_t *bpage)
 bool buf_dblwr_t::flush_buffered_writes(const ulint size)
 {
   mysql_mutex_assert_owner(&mutex);
-  ut_ad(size == block_size());
+  ut_ad(size == block_size);
 
   for (;;)
   {
@@ -647,7 +647,6 @@ static void *get_frame(const IORequest &request)
 void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
 {
   ut_ad(this == &buf_dblwr);
-  ut_ad(srv_use_doublewrite_buf);
   ut_ad(is_created());
   ut_ad(!srv_read_only_mode);
   ut_ad(!request.bpage);
@@ -670,8 +669,14 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
   pages_written+= flush_slot->first_free;
   mysql_mutex_unlock(&mutex);
 
-  /* Now flush the doublewrite buffer data to disk */
-  fil_system.sys_space->flush<false>();
+  /* Make the doublewrite durable. Note: The doublewrite buffer is
+  always in the first file of the system tablespace. We will not
+  bother about fil_system.unflushed_spaces, which can result in a
+  redundant call during fil_flush_file_spaces() in
+  log_checkpoint(). Writes to the system tablespace should be rare,
+  except when executing DDL or using the non-default settings
+  innodb_file_per_table=OFF or innodb_undo_tablespaces=0. */
+  os_file_flush(request.node->handle);
 
   /* The writes have been flushed to disk now and in recovery we will
   find them in the doublewrite buffer blocks. Next, write the data pages. */
@@ -714,17 +719,18 @@ posted, and also when we may have to wait for a page latch!
 Otherwise a deadlock of threads can occur. */
 void buf_dblwr_t::flush_buffered_writes()
 {
-  if (!is_created() || !srv_use_doublewrite_buf)
+  mysql_mutex_lock(&mutex);
+
+  if (!in_use() && active_slot->first_free == 0)
   {
+    mysql_mutex_unlock(&mutex);
     fil_flush_file_spaces();
     return;
   }
 
   ut_ad(!srv_read_only_mode);
-  const ulint size= block_size();
 
-  mysql_mutex_lock(&mutex);
-  if (!flush_buffered_writes(size))
+  if (!flush_buffered_writes(block_size))
     mysql_mutex_unlock(&mutex);
 }
 
@@ -734,8 +740,6 @@ flush_buffered_writes() will be invoked to make space.
 @param size       payload size in bytes */
 void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
 {
-  ut_ad(request.is_async());
-  ut_ad(request.is_write());
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
   ut_ad(request.node);
@@ -744,7 +748,7 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   ut_ad(request.node->space->referenced());
   ut_ad(!srv_read_only_mode);
 
-  const ulint buf_size= 2 * block_size();
+  const ulint buf_size= 2 * block_size;
 
   mysql_mutex_lock(&mutex);
 
@@ -773,7 +777,7 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   ut_ad(active_slot->reserved == active_slot->first_free);
   ut_ad(active_slot->reserved < buf_size);
   new (active_slot->buf_block_arr + active_slot->first_free++)
-    element{request, size};
+    element{request.doublewritten(), size};
   active_slot->reserved= active_slot->first_free;
 
   if (active_slot->first_free != buf_size ||
