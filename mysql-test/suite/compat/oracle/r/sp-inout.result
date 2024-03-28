@@ -6,13 +6,13 @@ SET sql_mode=ORACLE;
 # CREATE PACKAGE with procedure and function with IN, OUT, INOUT qualifiers
 # And SHOW CREATE PACKAGE
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT);
 FUNCTION func_sub(d OUT INT, a IN INT, b IN INT, c INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT)
 AS
@@ -30,15 +30,15 @@ RETURN a - b;
 END;
 END;
 $$
-SHOW CREATE PACKAGE pkg2;
+SHOW CREATE PACKAGE Pkg2;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg2" AS
+Pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "Pkg2" AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT);
 FUNCTION func_sub(d OUT INT, a IN INT, b IN INT, c INOUT INT) RETURN INT;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
-SHOW CREATE PACKAGE BODY pkg2;
+SHOW CREATE PACKAGE BODY Pkg2;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
-pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pkg2" AS
+Pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "Pkg2" AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT)
 AS
 res INT;
@@ -54,7 +54,7 @@ d := 10;
 RETURN a - b;
 END;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # CREATE FUNCTION with IN, OUT, INOUT qualifiers
 # SHOW CREATE FUNCTION
@@ -99,12 +99,12 @@ DROP PROCEDURE add_proc;
 # Call function from SELECT query
 # SELECT > FUNCTION(IN)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION add_func2 (a IN INT, b IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION add_func2(a IN INT, b IN INT) RETURN INT
 AS
@@ -115,20 +115,20 @@ END;
 $$
 set @a = 2;
 set @b = 3;
-select pkg2.add_func2(@a, @b);
-pkg2.add_func2(@a, @b)
+select Pkg2.add_func2(@a, @b);
+Pkg2.add_func2(@a, @b)
 5
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call function from SELECT query
 # SELECT > FUNCTION(OUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION add_func3 (a IN INT, b IN INT, c OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION add_func3(a IN INT, b IN INT, c OUT INT) RETURN INT
 AS
@@ -141,19 +141,19 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-select pkg2.add_func3(@a, @b, @c);
-ERROR HY000: OUT or INOUT argument 3 for function pkg2.add_func3 is not allowed here
-DROP PACKAGE pkg2;
+select Pkg2.add_func3(@a, @b, @c);
+ERROR HY000: OUT or INOUT argument 3 for function Pkg2.add_func3 is not allowed here
+DROP PACKAGE Pkg2;
 # 
 # Call function from SELECT query
 # SELECT > FUNCTION(INOUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION add_func4 (a IN INT, b IN INT, c OUT INT, d INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION add_func4(a IN INT, b IN INT, c OUT INT, d INOUT INT) RETURN INT
 AS
@@ -168,20 +168,20 @@ set @a = 2;
 set @b = 3;
 set @c = 0;
 set @d = 9;
-select pkg2.add_func4(@a, @b, @c, @d);
-ERROR HY000: OUT or INOUT argument 3 for function pkg2.add_func4 is not allowed here
-DROP PACKAGE pkg2;
+select Pkg2.add_func4(@a, @b, @c, @d);
+ERROR HY000: OUT or INOUT argument 3 for function Pkg2.add_func4 is not allowed here
+DROP PACKAGE Pkg2;
 # 
 # Call from procedure
 # PROCEDURE(OUT) > FUNCTION(IN)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE add_proc2 (a IN INT, b IN INT, c OUT INT);
 FUNCTION add_func2 (a IN INT, b IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE add_proc2(a IN INT, b IN INT, c OUT INT)
 AS
@@ -198,22 +198,22 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-call pkg2.add_proc2(@a, @b, @c);
+call Pkg2.add_proc2(@a, @b, @c);
 select @c;
 @c
 5
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call from procedure
 # PROCEDURE(OUT) > FUNCTION(OUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE add_proc3 (a IN INT, b IN INT, c OUT INT);
 FUNCTION add_func3 (a IN INT, b IN INT, c OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE add_proc3(a IN INT, b IN INT, c OUT INT)
 AS
@@ -232,22 +232,22 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-call pkg2.add_proc3(@a, @b, @c);
+call Pkg2.add_proc3(@a, @b, @c);
 select @c;
 @c
 100
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call from procedure
 # PROCEDURE(OUT) > FUNCTION(INOUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE add_proc4 (a IN INT, b IN INT, c OUT INT);
 FUNCTION add_func4 (a IN INT, b IN INT, c OUT INT, d INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE add_proc4(a IN INT, b IN INT, res OUT INT)
 AS
@@ -270,27 +270,27 @@ $$
 set @a = 2;
 set @b = 3;
 set @res = 0;
-call pkg2.add_proc4(@a, @b, @res);
+call Pkg2.add_proc4(@a, @b, @res);
 select @res;
 @res
 131
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call from procedure
 # PROCEDURE(OUT) > PROCEDURE(OUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE test_proc1 (a IN INT, b IN INT, c OUT INT);
 PROCEDURE add_proc (a IN INT, b IN INT, c OUT INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE test_proc1(a IN INT, b IN INT, c OUT INT)
 AS
 BEGIN
-call pkg2.add_proc(a, b, c);
+call Pkg2.add_proc(a, b, c);
 END;
 PROCEDURE add_proc(a IN INT, b IN INT, c OUT INT)
 AS
@@ -302,22 +302,22 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-call pkg2.test_proc1(@a, @b, @c);
+call Pkg2.test_proc1(@a, @b, @c);
 select @c;
 @c
 5
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Argument's order change
 # PROCEDURE(a IN, b IN, c OUT) > FUNCTION(b IN, a IN, c OUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c OUT INT);
 FUNCTION func_sub(b IN INT, a IN INT, c OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c OUT INT)
 AS
@@ -338,22 +338,22 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-call pkg2.proc_main(@a, @b, @c);
+call Pkg2.proc_main(@a, @b, @c);
 select @c;
 @c
 -1
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Argument's order change
 # PROCEDURE(a IN, b IN, c OUT) > FUNCTION(c OUT, b IN, a IN)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c OUT INT);
 FUNCTION func_sub(c OUT INT, b IN INT, a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c OUT INT)
 AS
@@ -374,22 +374,22 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-call pkg2.proc_main(@a, @b, @c);
+call Pkg2.proc_main(@a, @b, @c);
 select @c;
 @c
 -1
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Argument's order change
 # PROCEDURE(a IN, b IN, c INOUT, d OUT) > FUNCTION(d OUT, a IN, b IN, c INOUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT);
 FUNCTION func_sub(d OUT INT, a IN INT, b IN INT, c INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT)
 AS
@@ -411,23 +411,23 @@ set @a = 15;
 set @b = 5;
 set @c = 4;
 set @d= 0;
-call pkg2.proc_main(@a, @b, @c, @d);
+call Pkg2.proc_main(@a, @b, @c, @d);
 select @d;
 @d
 30
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Argument's order change
 # PROCEDURE(a IN INT, b IN INT, c INOUT INT, d OUT INT) > FUNCTION1(c INOUT INT, b IN INT) > FUNCTION2(d OUT INT, a IN INT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT);
 FUNCTION func_sub1(c INOUT INT, b IN INT) RETURN INT;
 FUNCTION func_sub2(d OUT INT, a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT)
 AS
@@ -456,22 +456,22 @@ set @a = 15;
 set @b = 6;
 set @c = 4;
 set @d= 0;
-call pkg2.proc_main(@a, @b, @c, @d);
+call Pkg2.proc_main(@a, @b, @c, @d);
 select @d;
 @d
 30
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Argument's order change
 # FUNCTION1(a IN, b IN) > FUNCTION2(b IN, c OUT, a IN)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT, b IN INT) RETURN INT;
 FUNCTION func_sub(b IN INT, c OUT INT, a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT, b IN INT) RETURN INT
 AS
@@ -491,21 +491,21 @@ END;
 $$
 set @a = 2;
 set @b = 3;
-select pkg2.func_main(@a, @b);
-pkg2.func_main(@a, @b)
+select Pkg2.func_main(@a, @b);
+Pkg2.func_main(@a, @b)
 105
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call procedure inside function
 # FUNCTION1(a IN, b IN) > PROCEDURE(a IN, b IN, c OUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(b IN INT, a IN INT) RETURN INT;
 PROCEDURE proc_sub(a IN INT, b IN INT, c OUT INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(b IN INT, a IN INT) RETURN INT
 AS
@@ -523,21 +523,21 @@ END;
 $$
 set @a = 2;
 set @b = 3;
-select pkg2.func_main(@a, @b);
-pkg2.func_main(@a, @b)
+select Pkg2.func_main(@a, @b);
+Pkg2.func_main(@a, @b)
 5
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call procedure inside function
 # FUNCTION1(a IN, b IN) > PROCEDURE(a IN, b INOUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(b IN INT, a IN INT) RETURN INT;
 PROCEDURE proc_sub(a IN INT, b INOUT INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(b IN INT, a IN INT) RETURN INT
 AS
@@ -554,21 +554,21 @@ END;
 $$
 set @a = 2;
 set @b = 3;
-select pkg2.func_main(@a, @b);
-pkg2.func_main(@a, @b)
+select Pkg2.func_main(@a, @b);
+Pkg2.func_main(@a, @b)
 5
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call procedure inside function
 # FUNCTION1(a IN, b IN, c OUT) > PROCEDURE(a IN, b IN, c OUT)
 # 
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(b IN INT, a IN INT, c OUT INT) RETURN INT;
 PROCEDURE proc_sub(a IN INT, b IN INT, c OUT INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(b IN INT, a IN INT, c OUT INT) RETURN INT
 AS
@@ -587,9 +587,9 @@ $$
 set @a = 2;
 set @b = 3;
 set @c = 0;
-select pkg2.func_main(@a, @b, @c);
-ERROR HY000: OUT or INOUT argument 3 for function pkg2.func_main is not allowed here
-DROP PACKAGE pkg2;
+select Pkg2.func_main(@a, @b, @c);
+ERROR HY000: OUT or INOUT argument 3 for function Pkg2.func_main is not allowed here
+DROP PACKAGE Pkg2;
 # 
 # Call function from UPDATE query
 # UPDATE <table> SET <column> = FUNCTION(a IN)
@@ -602,12 +602,12 @@ Age int
 INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT
 AS
@@ -617,14 +617,14 @@ END;
 END;
 $$
 set @a = 5;
-UPDATE Persons SET Age = pkg2.func(@a) WHERE ID = 1;
+UPDATE Persons SET Age = Pkg2.func(@a) WHERE ID = 1;
 SELECT * FROM Persons;
 ID	Name	Age
 1	AAA	50
 2	BBB	20
 3	CCC	30
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call function from UPDATE query
 # UPDATE <table> SET <column> = FUNCTION(a OUT)
@@ -637,12 +637,12 @@ Age int
 INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT
 AS
@@ -653,10 +653,10 @@ END;
 END;
 $$
 set @a = 0;
-UPDATE Persons SET Age = pkg2.func(@a) WHERE ID = 1;
-ERROR HY000: OUT or INOUT argument 1 for function pkg2.func is not allowed here
+UPDATE Persons SET Age = Pkg2.func(@a) WHERE ID = 1;
+ERROR HY000: OUT or INOUT argument 1 for function Pkg2.func is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call function from INSERT query
 # INSERT INTO <table> SELECT <val1>, <val2>, FUNCTION(a IN)
@@ -669,12 +669,12 @@ Age int
 INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT
 AS
@@ -692,7 +692,7 @@ ID	Name	Age
 3	CCC	30
 4	DDD	40
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call function from INSERT query
 # INSERT INTO <table> SELECT <val1>, <val2>, FUNCTION(a OUT)
@@ -705,12 +705,12 @@ Age int
 INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT
 AS
@@ -729,7 +729,7 @@ set @a = 0;
 INSERT INTO Persons SELECT 5, 'EEE', PKG2.func(@a);
 ERROR HY000: OUT or INOUT argument 1 for function PKG2.func is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call function from DELETE query
 # DELETE FROM <table> WHERE <column> = FUNCTION(a IN)
@@ -743,12 +743,12 @@ INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT
 AS
@@ -771,7 +771,7 @@ ID	Name	Age
 2	BBB	20
 3	CCC	30
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Call function from DELETE query
 # DELETE FROM <table> WHERE <column> = FUNCTION(a OUT)
@@ -785,12 +785,12 @@ INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT
 AS
@@ -810,7 +810,7 @@ set @a = 0;
 DELETE FROM Persons WHERE ID = PKG2.func(@a);
 ERROR HY000: OUT or INOUT argument 1 for function PKG2.func is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # SELECT query inside function
 # FUNCTION(a IN) > SELECT … FROM <table>
@@ -824,12 +824,12 @@ INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT
 AS
@@ -841,8 +841,8 @@ END;
 END;
 $$
 set @a = 3;
-select pkg2.func_main(@a);
-pkg2.func_main(@a)
+select Pkg2.func_main(@a);
+Pkg2.func_main(@a)
 30
 select * from Persons;
 ID	Name	Age
@@ -851,7 +851,7 @@ ID	Name	Age
 3	CCC	30
 4	DDD	40
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # SELECT query inside function
 # FUNCTION(a OUT) > SELECT … FROM <table>
@@ -865,12 +865,12 @@ INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a OUT INT) RETURN INT
 AS
@@ -881,10 +881,10 @@ END;
 END;
 $$
 set @a = 0;
-select pkg2.func_main(@a);
-ERROR HY000: OUT or INOUT argument 1 for function pkg2.func_main is not allowed here
+select Pkg2.func_main(@a);
+ERROR HY000: OUT or INOUT argument 1 for function Pkg2.func_main is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # SELECT query inside function
 # FUNCTION(a INOUT) > SELECT … FROM <table>
@@ -898,12 +898,12 @@ INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a INOUT INT) RETURN INT
 AS
@@ -914,10 +914,10 @@ END;
 END;
 $$
 set @a = 1;
-select pkg2.func_main(@a);
-ERROR HY000: OUT or INOUT argument 1 for function pkg2.func_main is not allowed here
+select Pkg2.func_main(@a);
+ERROR HY000: OUT or INOUT argument 1 for function Pkg2.func_main is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # SELECT query inside function
 # FUNCTION(a IN) > FUNCTION(a IN, b OUT) > SELECT … FROM <table>
@@ -931,13 +931,13 @@ INSERT INTO Persons VALUES (1, 'AAA', 10);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT;
 FUNCTION func_sub(a IN INT, b OUT INT) RETURN INT;  
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT
 AS
@@ -956,8 +956,8 @@ END;
 END;
 $$
 set @a = 2;
-select pkg2.func_main(@a);
-pkg2.func_main(@a)
+select Pkg2.func_main(@a);
+Pkg2.func_main(@a)
 20
 select * from Persons;
 ID	Name	Age
@@ -966,7 +966,7 @@ ID	Name	Age
 3	CCC	30
 4	DDD	40
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # UPDATE query inside function
 # FUNCTION(a IN) > UPDATE <table> SET …
@@ -981,12 +981,12 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT
 AS
@@ -1006,8 +1006,8 @@ ID	Name	Age
 4	DDD	40
 5	EEE	40
 set @a = 5;
-select pkg2.func_main(@a);
-pkg2.func_main(@a)
+select Pkg2.func_main(@a);
+Pkg2.func_main(@a)
 50
 select * from Persons;
 ID	Name	Age
@@ -1017,7 +1017,7 @@ ID	Name	Age
 4	DDD	40
 5	EEE	50
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # UPDATE query inside function
 # FUNCTION(a IN, b OUT) > UPDATE <table> SET …
@@ -1032,12 +1032,12 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT, b OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT, b OUT INT) RETURN INT
 AS
@@ -1050,10 +1050,10 @@ END;
 $$
 set @a = 5;
 set @b = 0;
-select pkg2.func_main(@a, @b);
-ERROR HY000: OUT or INOUT argument 2 for function pkg2.func_main is not allowed here
+select Pkg2.func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function Pkg2.func_main is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # UPDATE query inside function
 # FUNCTION(a IN, b INOUT) > UPDATE <table> SET …
@@ -1068,12 +1068,12 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT, b INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT, b INOUT INT) RETURN INT
 AS
@@ -1086,10 +1086,10 @@ END;
 $$
 set @a = 5;
 set @b = 0;
-select pkg2.func_main(@a, @b);
-ERROR HY000: OUT or INOUT argument 2 for function pkg2.func_main is not allowed here
+select Pkg2.func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function Pkg2.func_main is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # UPDATE query inside function
 # FUNCTION(a IN) > FUNCTION(a IN, b OUT) > UPDATE <table> SET …
@@ -1104,13 +1104,13 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT;
 FUNCTION func_sub(a IN INT, b OUT INT) RETURN INT;  
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT
 AS
@@ -1137,8 +1137,8 @@ ID	Name	Age
 4	DDD	40
 5	EEE	40
 set @a = 1;
-select pkg2.func_main(@a);
-pkg2.func_main(@a)
+select Pkg2.func_main(@a);
+Pkg2.func_main(@a)
 10
 select * from Persons;
 ID	Name	Age
@@ -1148,7 +1148,7 @@ ID	Name	Age
 4	DDD	40
 5	EEE	40
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # INSERT query inside function
 # FUNCTION(a IN) > INSERT INTO <table> VALUES …
@@ -1163,12 +1163,12 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 50);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT
 AS
@@ -1188,8 +1188,8 @@ ID	Name	Age
 4	DDD	40
 5	EEE	50
 set @a = 6;
-select pkg2.func_main(@a);
-pkg2.func_main(@a)
+select Pkg2.func_main(@a);
+Pkg2.func_main(@a)
 60
 select * from Persons;
 ID	Name	Age
@@ -1200,7 +1200,7 @@ ID	Name	Age
 5	EEE	50
 6	FFF	60
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # INSERT query inside function
 # FUNCTION(a IN, b OUT) > INSERT INTO <table> VALUES …
@@ -1215,12 +1215,12 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 50);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT, b OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT, b OUT INT) RETURN INT
 AS
@@ -1240,10 +1240,10 @@ ID	Name	Age
 5	EEE	50
 set @a = 6;
 set @b = 0;
-select pkg2.func_main(@a, @b);
-ERROR HY000: OUT or INOUT argument 2 for function pkg2.func_main is not allowed here
+select Pkg2.func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function Pkg2.func_main is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # INSERT query inside function
 # FUNCTION(a IN, b INOUT) > INSERT INTO <table> VALUES …
@@ -1258,12 +1258,12 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT, b INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT, b INOUT INT) RETURN INT
 AS
@@ -1283,10 +1283,10 @@ ID	Name	Age
 5	EEE	40
 set @a = 6;
 set @b = 0;
-select pkg2.func_main(@a, @b);
-ERROR HY000: OUT or INOUT argument 2 for function pkg2.func_main is not allowed here
+select Pkg2.func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function Pkg2.func_main is not allowed here
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # INSERT query inside function
 # FUNCTION(a IN) > FUNCTION(a IN, b OUT) > INSERT INTO <table> VALUES …
@@ -1301,13 +1301,13 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'EEE', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT;
 FUNCTION func_sub(a IN INT, b OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func_main(a IN INT) RETURN INT
 AS
@@ -1334,8 +1334,8 @@ ID	Name	Age
 4	DDD	40
 5	EEE	40
 set @a = 6;
-select pkg2.func_main(@a);
-pkg2.func_main(@a)
+select Pkg2.func_main(@a);
+Pkg2.func_main(@a)
 60
 select * from Persons;
 ID	Name	Age
@@ -1346,7 +1346,7 @@ ID	Name	Age
 5	EEE	40
 6	FFF	60
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(IN) > SELECT FROM <table> …
@@ -1360,13 +1360,13 @@ INSERT INTO Persons VALUES (1, 'AAA', 50);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1390,12 +1390,12 @@ ID	Name	Age
 4	DDD	40
 set @a = 2;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select @b;
 @b
 20
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(OUT) > SELECT FROM <table> …
@@ -1409,13 +1409,13 @@ INSERT INTO Persons VALUES (1, 'AAA', 50);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT, b OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1439,12 +1439,12 @@ ID	Name	Age
 4	DDD	40
 set @a = 1;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select @b;
 @b
 50
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(INOUT) > SELECT FROM <table> …
@@ -1458,13 +1458,13 @@ INSERT INTO Persons VALUES (1, 'AAA', 50);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT, b INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1493,12 +1493,12 @@ ID	Name	Age
 4	DDD	40
 set @a = 2;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select @b;
 @b
 500
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(IN) > INSESRT INTO <table> …
@@ -1512,13 +1512,13 @@ INSERT INTO Persons VALUES (1, 'AAA', 50);
 INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1541,7 +1541,7 @@ ID	Name	Age
 4	DDD	40
 set @a = 5;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select * from Persons;
 ID	Name	Age
 1	AAA	50
@@ -1550,7 +1550,7 @@ ID	Name	Age
 4	DDD	40
 5	FFF	50
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(OUT) > INSESRT INTO <table> …
@@ -1565,13 +1565,13 @@ INSERT INTO Persons VALUES (2, 'BBB', 20);
 INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'FFF', 50);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT, b OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1596,7 +1596,7 @@ ID	Name	Age
 5	FFF	50
 set @a = 6;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select * from Persons;
 ID	Name	Age
 1	AAA	50
@@ -1606,7 +1606,7 @@ ID	Name	Age
 5	FFF	50
 6	GGG	60
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(INOUT) > INSESRT INTO <table> …
@@ -1622,13 +1622,13 @@ INSERT INTO Persons VALUES (3, 'CCC', 30);
 INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'FFF', 50);
 INSERT INTO Persons VALUES (6, 'GGG', 60);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT, b INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1659,7 +1659,7 @@ ID	Name	Age
 6	GGG	60
 set @a = 7;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select * from Persons;
 ID	Name	Age
 1	AAA	50
@@ -1670,7 +1670,7 @@ ID	Name	Age
 6	GGG	60
 7	HHH	70
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(IN) > UPDATE <table> SET …
@@ -1687,13 +1687,13 @@ INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'FFF', 50);
 INSERT INTO Persons VALUES (6, 'GGG', 60);
 INSERT INTO Persons VALUES (7, 'HHH', 70);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1719,7 +1719,7 @@ ID	Name	Age
 7	HHH	70
 set @a = 5;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select * from Persons;
 ID	Name	Age
 1	AAA	50
@@ -1730,7 +1730,7 @@ ID	Name	Age
 6	GGG	60
 7	HHH	70
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(OUT) > UPDATE <table> SET …
@@ -1747,13 +1747,13 @@ INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'FFF', 100);
 INSERT INTO Persons VALUES (6, 'GGG', 60);
 INSERT INTO Persons VALUES (7, 'HHH', 70);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT, b OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1781,7 +1781,7 @@ ID	Name	Age
 7	HHH	70
 set @a = 6;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select * from Persons;
 ID	Name	Age
 1	AAA	50
@@ -1792,7 +1792,7 @@ ID	Name	Age
 6	GGG	100
 7	HHH	70
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # PROCEDURE > FUNCTION > SQL query
 # PROCEDURE(OUT) > FUNCTION(INOUT) > UPDATE <table> SET …
@@ -1809,13 +1809,13 @@ INSERT INTO Persons VALUES (4, 'DDD', 40);
 INSERT INTO Persons VALUES (5, 'FFF', 100);
 INSERT INTO Persons VALUES (6, 'GGG', 100);
 INSERT INTO Persons VALUES (7, 'HHH', 70);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT);
 FUNCTION func_sub(a IN INT, b INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc_main(a IN INT, b OUT INT)
 AS
@@ -1847,7 +1847,7 @@ ID	Name	Age
 7	HHH	70
 set @a = 7;
 set @b = 0;
-call pkg2.proc_main(@a, @b);
+call Pkg2.proc_main(@a, @b);
 select * from Persons;
 ID	Name	Age
 1	AAA	50
@@ -1858,7 +1858,7 @@ ID	Name	Age
 6	GGG	100
 7	HHH	100
 DROP TABLE Persons;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 # 
 # Trigger
 # TRIGGER AFTER UPDATE ON TABLE1 > UPDATE TABLE2
@@ -1916,12 +1916,12 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a IN INT) RETURN INT
 AS
@@ -1940,7 +1940,7 @@ res INT;
 BEGIN
 a := 10;
 res := 0;
-res := pkg2.func(a);
+res := Pkg2.func(a);
 END;
 $$
 SELECT * FROM Persons;
@@ -1961,7 +1961,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -1980,12 +1980,12 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a OUT INT) RETURN INT
 AS
@@ -2005,7 +2005,7 @@ res INT;
 BEGIN
 a := 10;
 res := 0;
-res := pkg2.func(a);
+res := Pkg2.func(a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2026,7 +2026,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2045,12 +2045,12 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 FUNCTION func(a INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 FUNCTION func(a INOUT INT) RETURN INT
 AS
@@ -2070,7 +2070,7 @@ res INT;
 BEGIN
 a := 10;
 res := 0;
-res := pkg2.func(a);
+res := Pkg2.func(a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2091,7 +2091,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2110,12 +2110,12 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a IN INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a IN INT)
 AS
@@ -2128,7 +2128,7 @@ CREATE OR REPLACE TRIGGER my_trigger
 AFTER UPDATE ON Persons
 FOR EACH ROW 
 BEGIN
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2149,7 +2149,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2168,12 +2168,12 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a OUT INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a OUT INT)
 AS
@@ -2186,7 +2186,7 @@ CREATE OR REPLACE TRIGGER my_trigger
 AFTER UPDATE ON Persons
 FOR EACH ROW
 BEGIN
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2207,7 +2207,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2226,12 +2226,12 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a INOUT INT);
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a INOUT INT)
 AS
@@ -2246,7 +2246,7 @@ AFTER UPDATE ON Persons
 FOR EACH ROW
 BEGIN
 set @a = 2;
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2267,7 +2267,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2286,13 +2286,13 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a OUT INT);
 FUNCTION func(a IN INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a OUT INT)
 AS
@@ -2313,7 +2313,7 @@ CREATE OR REPLACE TRIGGER my_trigger
 AFTER UPDATE ON Persons
 FOR EACH ROW
 BEGIN
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2334,7 +2334,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2353,13 +2353,13 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a OUT INT);
 FUNCTION func(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a OUT INT)
 AS
@@ -2381,7 +2381,7 @@ CREATE OR REPLACE TRIGGER my_trigger
 AFTER UPDATE ON Persons
 FOR EACH ROW
 BEGIN
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2402,7 +2402,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2421,13 +2421,13 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a OUT INT);
 FUNCTION func(a INOUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a OUT INT)
 AS
@@ -2449,7 +2449,7 @@ CREATE OR REPLACE TRIGGER my_trigger
 AFTER UPDATE ON Persons
 FOR EACH ROW
 BEGIN
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2470,7 +2470,7 @@ SELECT * FROM PersonsLog;
 UpdateCount
 1
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 # 
@@ -2489,13 +2489,13 @@ CREATE TABLE PersonsLog (
 UpdateCount int
 );
 INSERT INTO PersonsLog VALUES (0);
-CREATE OR REPLACE PACKAGE pkg2
+CREATE OR REPLACE PACKAGE Pkg2
 AS
 PROCEDURE proc(a OUT INT);
 FUNCTION func(a OUT INT) RETURN INT;
 END;
 $$
-CREATE OR REPLACE PACKAGE BODY pkg2
+CREATE OR REPLACE PACKAGE BODY Pkg2
 AS
 PROCEDURE proc(a OUT INT)
 AS
@@ -2517,7 +2517,7 @@ CREATE OR REPLACE TRIGGER my_trigger
 AFTER UPDATE ON Persons
 FOR EACH ROW
 BEGIN
-call pkg2.proc(@a);
+call Pkg2.proc(@a);
 END;
 $$
 SELECT * FROM Persons;
@@ -2538,18 +2538,18 @@ SELECT * FROM PersonsLog;
 UpdateCount
 111
 DROP TRIGGER my_trigger;
-DROP PACKAGE pkg2;
+DROP PACKAGE Pkg2;
 DROP TABLE Persons;
 DROP TABLE PersonsLog;
 #
 # Package BODY variables as OUT parameters
 #
-CREATE PACKAGE pkg1 AS
+CREATE PACKAGE pKg1 AS
 FUNCTION f1(b IN OUT INT) RETURN INT;
 FUNCTION show_private_variables() RETURN TEXT;
 END;
 $$
-CREATE PACKAGE BODY pkg1 AS
+CREATE PACKAGE BODY pKg1 AS
 pa INT:= 0;
 pb INT:= 10;
 FUNCTION f1(b IN OUT INT) RETURN INT AS
@@ -2565,7 +2565,7 @@ BEGIN
 SET pa=f1(pb);
 END;
 $$
-SELECT pkg1.show_private_variables();
-pkg1.show_private_variables()
+SELECT pKg1.show_private_variables();
+pKg1.show_private_variables()
 Private variables: pa=510  pb=110
-DROP PACKAGE pkg1;
+DROP PACKAGE pKg1;

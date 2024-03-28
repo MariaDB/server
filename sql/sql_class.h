@@ -8104,6 +8104,7 @@ public:
     m_name.str= name;
     m_name.length= name_length;
   }
+  virtual ~Database_qualified_name() = default;
 
   bool eq(const Database_qualified_name *other) const
   {
@@ -8123,8 +8124,8 @@ public:
     - Lower-case "db" if lower-case-table-names==1.
     - Preserve "name" as is.
   */
-  bool copy_sp_name_internal(MEM_ROOT *mem_root, const LEX_CSTRING &db,
-                             const LEX_CSTRING &name);
+  virtual bool copy_sp_name_internal(MEM_ROOT *mem_root, const LEX_CSTRING &db,
+                                     const LEX_CSTRING &name);
 
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen, bool casedn_name) const
@@ -8148,6 +8149,7 @@ public:
     m_name.length= Identifier_chain2(package, routine).make_qname(tmp, length,
                                                                   false);
     m_name.str= tmp;
+    on_update_name(mem_root, m_db, m_name);
     return false;
   }
 
@@ -8161,7 +8163,16 @@ public:
     if (unlikely(!(m_db.str= strmake_root(mem_root, db.str, db.length))))
       return true;
     m_db.length= db.length;
+    on_update_name(mem_root, m_db, m_name);
     return false;
+  }
+
+  /** Event hook to do work whenever the m_name or m_db fields are updated. */
+  virtual void on_update_name(MEM_ROOT *mem_root,
+                             const LEX_CSTRING &db,
+                             const LEX_CSTRING &name)
+  {
+      // Intentionally do nothing here by default.
   }
 };
 

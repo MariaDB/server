@@ -2775,11 +2775,11 @@ LEX_CSTRING
 Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 {
   /* Calculate length to avoid reallocation of string for sure */
-  size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
+  size_t len= (((m_name->use_explicit_name() ? m_name->m_db.length : 0) +
               m_name->m_name.length)*2 + //characters*quoting
              2 +                         // quotes for the function name
              2 +                         // quotes for the package name
-             (m_name->m_explicit_name ?
+             (m_name->use_explicit_name() ?
               3 : 0) +                   // '`', '`' and '.' for the db
              1 +                         // '.' between package and function
              1 +                         // end of string
@@ -2788,7 +2788,7 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
                system_charset_info);
 
   qname.length(0);
-  if (m_name->m_explicit_name)
+  if (m_name->use_explicit_name())
   {
     append_identifier(thd, &qname, &m_name->m_db);
     qname.append('.');
