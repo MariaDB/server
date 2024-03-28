@@ -14,8 +14,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256),
 INSERT INTO t1 SELECT 100*FLOOR(seq/70)+seq%70, REPEAT('A', 256)
 FROM seq_1_to_1024;
 
---echo # Not enough page splits to trigger persistent stats write yet.
-SELECT * FROM mysql.innodb_index_stats;
+SELECT database_name, table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 
 INSERT INTO t1 SELECT 100*FLOOR(seq/70)+seq%70, REPEAT('A', 256)
 FROM seq_1025_to_1433;
@@ -77,7 +76,7 @@ INSERT INTO t SELECT seq, '' FROM seq_1_to_100;
 --source include/restart_mysqld.inc
 
 --sorted_result
-SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+SELECT index_name, stat_name FROM mysql.innodb_index_stats;
 
 --echo # Clean up
 # Starting with 10.6, DROP TABLE will not touch persistent statistics
@@ -85,4 +84,4 @@ SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
 
-SELECT * FROM mysql.innodb_index_stats;
+SELECT database_name, index_name, stat_name FROM mysql.innodb_index_stats;

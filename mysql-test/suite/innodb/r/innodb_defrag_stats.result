@@ -7,9 +7,21 @@ CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256),
 KEY SECOND(a, b)) ENGINE=INNODB STATS_PERSISTENT=0;
 INSERT INTO t1 SELECT 100*FLOOR(seq/70)+seq%70, REPEAT('A', 256)
 FROM seq_1_to_1024;
-# Not enough page splits to trigger persistent stats write yet.
-SELECT * FROM mysql.innodb_index_stats;
-database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
+SELECT database_name, table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+database_name	table_name	index_name	stat_name
+mysql	innodb_index_stats	PRIMARY	n_diff_pfx01
+mysql	innodb_index_stats	PRIMARY	n_diff_pfx02
+mysql	innodb_index_stats	PRIMARY	n_diff_pfx03
+mysql	innodb_index_stats	PRIMARY	n_diff_pfx04
+mysql	innodb_index_stats	PRIMARY	n_leaf_pages
+mysql	innodb_index_stats	PRIMARY	size
+test	t1	PRIMARY	n_diff_pfx01
+test	t1	PRIMARY	n_leaf_pages
+test	t1	PRIMARY	size
+test	t1	SECOND	n_diff_pfx01
+test	t1	SECOND	n_diff_pfx02
+test	t1	SECOND	n_leaf_pages
+test	t1	SECOND	size
 INSERT INTO t1 SELECT 100*FLOOR(seq/70)+seq%70, REPEAT('A', 256)
 FROM seq_1025_to_1433;
 BEGIN;
@@ -59,42 +71,86 @@ have background defragmentation
 1
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+t1	PRIMARY	n_diff_pfx01
+t1	PRIMARY	n_leaf_pages
 t1	PRIMARY	n_leaf_pages_defrag
 t1	PRIMARY	n_leaf_pages_reserved
 t1	PRIMARY	n_page_split
+t1	PRIMARY	size
+t1	SECOND	n_diff_pfx01
+t1	SECOND	n_diff_pfx02
+t1	SECOND	n_leaf_pages
 t1	SECOND	n_leaf_pages_defrag
 t1	SECOND	n_leaf_pages_reserved
 t1	SECOND	n_page_split
+t1	SECOND	size
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+t1	PRIMARY	n_diff_pfx01
+t1	PRIMARY	n_leaf_pages
 t1	PRIMARY	n_leaf_pages_defrag
 t1	PRIMARY	n_leaf_pages_reserved
 t1	PRIMARY	n_page_split
 t1	PRIMARY	n_pages_freed
+t1	PRIMARY	size
+t1	SECOND	n_diff_pfx01
+t1	SECOND	n_diff_pfx02
+t1	SECOND	n_leaf_pages
 t1	SECOND	n_leaf_pages_defrag
 t1	SECOND	n_leaf_pages_reserved
 t1	SECOND	n_page_split
 t1	SECOND	n_pages_freed
+t1	SECOND	size
 set global innodb_defragment_stats_accuracy = 40;
 Warnings:
 Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 INSERT INTO t1 (b) SELECT b from t1;
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+t1	PRIMARY	n_diff_pfx01
+t1	PRIMARY	n_leaf_pages
 t1	PRIMARY	n_leaf_pages_defrag
 t1	PRIMARY	n_leaf_pages_reserved
 t1	PRIMARY	n_page_split
 t1	PRIMARY	n_pages_freed
+t1	PRIMARY	size
+t1	SECOND	n_diff_pfx01
+t1	SECOND	n_diff_pfx02
+t1	SECOND	n_leaf_pages
 t1	SECOND	n_leaf_pages_defrag
 t1	SECOND	n_leaf_pages_reserved
 t1	SECOND	n_page_split
 t1	SECOND	n_pages_freed
+t1	SECOND	size
 INSERT INTO t1 (b) SELECT b from t1;
 SELECT stat_name FROM mysql.innodb_index_stats WHERE table_name='t1';
 stat_name
+n_diff_pfx01
+n_diff_pfx01
+n_diff_pfx02
+n_leaf_pages
+n_leaf_pages
 n_leaf_pages_defrag
 n_leaf_pages_defrag
 n_leaf_pages_reserved
@@ -103,18 +159,33 @@ n_page_split
 n_page_split
 n_pages_freed
 n_pages_freed
+size
+size
 # Table rename should cause stats rename.
 rename table t1 to t2;
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+t2	PRIMARY	n_diff_pfx01
+t2	PRIMARY	n_leaf_pages
 t2	PRIMARY	n_leaf_pages_defrag
 t2	PRIMARY	n_leaf_pages_reserved
 t2	PRIMARY	n_page_split
 t2	PRIMARY	n_pages_freed
+t2	PRIMARY	size
+t2	SECOND	n_diff_pfx01
+t2	SECOND	n_diff_pfx02
+t2	SECOND	n_leaf_pages
 t2	SECOND	n_leaf_pages_defrag
 t2	SECOND	n_leaf_pages_reserved
 t2	SECOND	n_page_split
 t2	SECOND	n_pages_freed
+t2	SECOND	size
 drop index SECOND on t2;
 #
 # MDEV-26636: Statistics must not be written for temporary tables
@@ -126,14 +197,35 @@ CREATE TEMPORARY TABLE t (a INT PRIMARY KEY, c CHAR(255) NOT NULL)
 ENGINE=InnoDB;
 INSERT INTO t SELECT seq, '' FROM seq_1_to_100;
 # restart
-SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
-table_name	index_name	stat_name
-t2	PRIMARY	n_leaf_pages_defrag
-t2	PRIMARY	n_leaf_pages_reserved
-t2	PRIMARY	n_page_split
-t2	PRIMARY	n_pages_freed
+SELECT index_name, stat_name FROM mysql.innodb_index_stats;
+index_name	stat_name
+PRIMARY	n_diff_pfx01
+PRIMARY	n_diff_pfx01
+PRIMARY	n_diff_pfx01
+PRIMARY	n_diff_pfx02
+PRIMARY	n_diff_pfx03
+PRIMARY	n_diff_pfx04
+PRIMARY	n_leaf_pages
+PRIMARY	n_leaf_pages
+PRIMARY	n_leaf_pages
+PRIMARY	n_leaf_pages_defrag
+PRIMARY	n_leaf_pages_reserved
+PRIMARY	n_page_split
+PRIMARY	n_pages_freed
+PRIMARY	size
+PRIMARY	size
+PRIMARY	size
 # Clean up
 ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
-SELECT * FROM mysql.innodb_index_stats;
-database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
+SELECT database_name, index_name, stat_name FROM mysql.innodb_index_stats;
+database_name	index_name	stat_name
+mysql	PRIMARY	n_diff_pfx01
+mysql	PRIMARY	n_diff_pfx02
+mysql	PRIMARY	n_diff_pfx03
+mysql	PRIMARY	n_diff_pfx04
+mysql	PRIMARY	n_leaf_pages
+mysql	PRIMARY	size
+mysqld?1	PRIMARY	n_diff_pfx01
+mysqld?1	PRIMARY	n_leaf_pages
+mysqld?1	PRIMARY	size

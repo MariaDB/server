@@ -14,6 +14,7 @@ call mtr.add_suppression("InnoDB: Table .*innodb_index_stats.* not found");
 call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table .*");
 call mtr.add_suppression("InnoDB: Table mysql\\.innodb_index_stats has length mismatch in the column name stat_description\\. Please run mariadb-upgrade");
 call mtr.add_suppression("InnoDB: Column stat_description in table mysql\\.innodb_index_stats is VARCHAR");
+call mtr.add_suppression("InnoDB: Recalculation of persistent statistics requested for table `mysql`.`innodb_index_stats` but the required persistent statistics storage is not present or is corrupted. Using transient stats instead.");
 
 -- vertical_results
 

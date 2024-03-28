@@ -1,0 +1,15 @@
+--source include/have_innodb.inc
+
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
+
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;

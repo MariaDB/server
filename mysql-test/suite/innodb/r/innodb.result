@@ -838,6 +838,14 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`a`(5))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+create table t1 (a int unsigned primary key) engine=innodb stats_persistent=1 Stats_percentage=80;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1 `Stats_percentage`=80
+drop table t1;
 create temporary table t1 (a int not null auto_increment, primary key(a)) engine=innodb;
 insert into t1 values (NULL),(NULL),(NULL);
 delete from t1 where a=3;

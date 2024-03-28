@@ -227,3 +227,45 @@ select count(*) from t force index(primary) where d ='2017-09-15';
 count(*)
 18
 DROP TABLE t;
+CREATE TABLE t (
+id bigint(20) unsigned NOT NULL auto_increment,
+d date NOT NULL, 
+a bigint(20) unsigned NOT NULL,
+b smallint(5) unsigned DEFAULT NULL,
+PRIMARY KEY (id,d)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs STATS_PERCENTAGE=10
+PARTITION BY RANGE COLUMNS(d)
+(
+PARTITION p20170914 VALUES LESS THAN ('2017-09-15') ENGINE = InnoDB,
+PARTITION p99991231 VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB);
+insert into t(d,a,b) values ('2017-09-15',rand()*10000,rand()*10);
+insert into t(d,a,b) values ('2017-09-15',rand()*10000,rand()*10);
+replace into t(d,a,b) select '2017-09-15',rand()*10000,rand()*10 from t t1, t t2, t t3, t t4;
+select count(*) from t where d ='2017-09-15';
+count(*)
+18
+ALTER TABLE t CHANGE b c smallint(5) unsigned , ADD KEY idx_d_a (d, a);
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `d` date NOT NULL,
+  `a` bigint(20) unsigned NOT NULL,
+  `c` smallint(5) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`,`d`),
+  KEY `idx_d_a` (`d`,`a`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs `STATS_PERCENTAGE`=10
+ PARTITION BY RANGE  COLUMNS(`d`)
+(PARTITION `p20170914` VALUES LESS THAN ('2017-09-15') ENGINE = InnoDB,
+ PARTITION `p99991231` VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB)
+analyze table t;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	OK
+select count(*) from t where d ='2017-09-15';
+count(*)
+18
+select count(*) from t force index(primary) where d ='2017-09-15';
+count(*)
+18
+DROP TABLE t;

@@ -2760,11 +2760,13 @@ DROP TABLE t1;
 --echo #
 --echo # With --replace
 --echo #
+--replace_regex /','[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',/','TIMESTAMP',/
 --exec $MYSQL_DUMP $ignore $skip_opts --replace mysql
 
 --echo #
 --echo # With --insert-ignore
 --echo #
+--replace_regex /','[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',/','TIMESTAMP',/
 --exec $MYSQL_DUMP $ignore $skip_opts --insert-ignore mysql
 
 --echo # End of 10.2 tests
