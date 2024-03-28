@@ -29,6 +29,8 @@
 
 uint get_rand_bit(uint bitsize)
 {
+  if (bitsize == 0)
+    return 0;
   return (rand() % bitsize);
 }
 
@@ -266,7 +268,7 @@ my_bool test_get_first_bit(MY_BITMAP *map, uint bitsize)
   bitmap_clear_all(map);
   for (i=0; i < bitsize; i++)
     bitmap_set_bit(map, i);
-  if (bitmap_get_first(map) != MY_BIT_NONE)
+  if (bitmap_get_first_clear(map) != MY_BIT_NONE)
     goto error2;
   bitmap_clear_all(map);
 
@@ -278,7 +280,7 @@ my_bool test_get_first_bit(MY_BITMAP *map, uint bitsize)
       goto error1;
     bitmap_set_all(map);
     bitmap_clear_bit(map, test_bit);
-    if (bitmap_get_first(map) != test_bit)
+    if (bitmap_get_first_clear(map) != test_bit)
       goto error2;
     bitmap_clear_all(map);
   }
@@ -297,14 +299,45 @@ my_bool test_get_next_bit(MY_BITMAP *map, uint bitsize)
   uint no_loops= bitsize > 128 ? 128 : bitsize;
   for (i=0; i < no_loops; i++)
   {
+    uint count= 0, bits_set= 0;
+    bitmap_clear_all(map);
     test_bit=get_rand_bit(bitsize);
     for (j=0; j < test_bit; j++)
       bitmap_set_next(map);
     if (!bitmap_is_prefix(map, test_bit))
       goto error1;
+    j=  bitmap_get_first_set(map);
+    if (j == MY_BIT_NONE)
+    {
+      if (test_bit != 0)
+        goto error1;
+      continue;
+    }
+    count= 1;
+    while ((j= bitmap_get_next_set(map,j)) != MY_BIT_NONE)
+      count++;
+    if (count != test_bit)
+      goto error1;
+
+    if (test_bit < 3)
+      continue;
     bitmap_clear_all(map);
+    for (j=1; j < test_bit; j+=2)
+    {
+      bits_set++;
+      bitmap_set_bit(map, j);
+    }
+    if ((j= bitmap_get_first_set(map)) == MY_BIT_NONE)
+      goto error1;
+    count= 1;
+    while ((j= bitmap_get_next_set(map,j)) != MY_BIT_NONE)
+      count++;
+    if (count != bits_set)
+      goto error1;
   }
+
   return FALSE;
+
 error1:
   diag("get_next error  bitsize= %u, prefix_size= %u", bitsize,test_bit);
   return TRUE;
@@ -371,7 +404,7 @@ error5:
 my_bool test_compare(MY_BITMAP *map, uint bitsize)
 {
   MY_BITMAP map2;
-  uint32 map2buf[MAX_TESTED_BITMAP_SIZE];
+  my_bitmap_map map2buf[MAX_TESTED_BITMAP_SIZE];
   uint i, test_bit;
   uint no_loops= bitsize > 128 ? 128 : bitsize;
   if (my_bitmap_init(&map2, map2buf, bitsize))
@@ -431,7 +464,7 @@ my_bool test_intersect(MY_BITMAP *map, uint bitsize)
 {
   uint bitsize2 = 1 + get_rand_bit(MAX_TESTED_BITMAP_SIZE - 1);
   MY_BITMAP map2;
-  uint32 map2buf[MAX_TESTED_BITMAP_SIZE];
+  my_bitmap_map map2buf[MAX_TESTED_BITMAP_SIZE];
   uint i, test_bit1, test_bit2, test_bit3;
   if (my_bitmap_init(&map2, map2buf, bitsize2))
   {
@@ -477,6 +510,107 @@ error:
   return TRUE;
 }
 
+my_bool test_copy(MY_BITMAP *map, uint bitsize)
+{
+  my_bitmap_map buff[16], buff2[16], buff3[16];
+  MY_BITMAP map2, map3;
+  uint rnd_bit;
+
+  my_bitmap_init(&map2, buff, sizeof(buff)*8);
+  my_bitmap_init(&map3, buff2, sizeof(buff)*8);
+  bitmap_set_all(&map2);
+  bitmap_set_all(&map3);
+
+  bitsize= MY_MIN(bitsize, map2.n_bits);
+  bitmap_copy(map, &map2);
+  if (bitmap_bits_set(map) != bitsize)
+  {
+    diag("bitmap_copy failed on bitsize %d", bitsize);
+    return 1;
+  }
+  bitmap_set_prefix(&map2, rnd_bit= get_rand_bit(bitsize)+1);
+  bitmap_export((uchar*) buff3, &map2);
+  bitmap_import(&map3, (uchar*) buff3);
+  if (!bitmap_cmp(&map2, &map3))
+  {
+    diag("bitmap_export/bitmap_import failed on bitsize %d  rnd_bit: %d",
+         bitsize, rnd_bit);
+    return 1;
+  }
+  return 0;
+}
+
+static my_bool exec_bitmap_exists_intersection(MY_BITMAP **maps, uint bitsize,
+                                               uint start, uint end, uint bit)
+{
+  bitmap_clear_all(maps[0]);
+  bitmap_clear_all(maps[1]);
+  bitmap_set_bit(maps[0], bit);
+  bitmap_set_bit(maps[1], bit);
+  return bitmap_exists_intersection(maps, 2, start, end);
+}
+
+my_bool test_bitmap_exists_intersection(MY_BITMAP *map, uint bitsize)
+{
+  MY_BITMAP map2;
+  uint start_bit, end_bit, rnd_bit;
+  MY_BITMAP *maps[2];
+  maps[0]= map;
+  maps[1]= &map2;
+
+  my_bitmap_init(&map2, 0, bitsize);
+  bitmap_clear_all(map);
+  bitmap_clear_all(&map2);
+
+  start_bit= get_rand_bit(bitsize);
+  end_bit= get_rand_bit(bitsize);
+  if (start_bit > end_bit)
+    swap_variables(uint, start_bit, end_bit);
+  rnd_bit= start_bit+get_rand_bit(end_bit-start_bit);
+
+  if (!exec_bitmap_exists_intersection(maps, bitsize, start_bit, end_bit,
+                                       rnd_bit))
+    goto err;
+
+  start_bit= end_bit= rnd_bit= 0;
+  if (!exec_bitmap_exists_intersection(maps, bitsize, start_bit, end_bit,
+                                       rnd_bit))
+    goto err;
+
+  start_bit= rnd_bit= 0 ; end_bit= bitsize-1;
+  if (!exec_bitmap_exists_intersection(maps, bitsize, start_bit, end_bit,
+                                       rnd_bit))
+    goto err;
+
+  start_bit= rnd_bit= end_bit= bitsize-1;
+  if (!exec_bitmap_exists_intersection(maps, bitsize, start_bit, end_bit,
+                                       rnd_bit))
+    goto err;
+
+  if (bitsize > 1)
+  {
+    start_bit= end_bit= 1 ; rnd_bit= 0;
+    if (exec_bitmap_exists_intersection(maps, bitsize, start_bit, end_bit,
+                                         rnd_bit))
+      goto err;
+
+    start_bit= end_bit= bitsize-1 ; rnd_bit= bitsize-2;
+    if (exec_bitmap_exists_intersection(maps, bitsize, start_bit, end_bit,
+                                        rnd_bit))
+      goto err;
+  }
+
+  my_bitmap_free(&map2);
+  return 0;
+err:
+  diag("bitmap_exist_intersection failed on bitsize: %d  start_bit: %d  "
+       "end_bit: %d  rnd_bit: %d",
+       bitsize, start_bit, end_bit, rnd_bit);
+  my_bitmap_free(&map2);
+  return 1;
+}
+
+
 my_bool do_test(uint bitsize)
 {
   MY_BITMAP map;
@@ -514,6 +648,12 @@ my_bool do_test(uint bitsize)
     goto error;
   bitmap_clear_all(&map);
   if (test_intersect(&map,bitsize))
+    goto error;
+  bitmap_clear_all(&map);
+  if (test_copy(&map,bitsize))
+    goto error;
+  bitmap_clear_all(&map);
+  if (test_bitmap_exists_intersection(&map, bitsize))
     goto error;
   return FALSE;
 error:

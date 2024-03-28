@@ -81,6 +81,20 @@ SELECT @@GLOBAL.gtid_current_pos;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+--let $slave_semi_sync_enabled= query_get_value(SHOW VARIABLES LIKE 'Rpl_semi_sync_slave_enabled', Value, 1)
+--echo # Ensuring variable rpl_semi_sync_slave_enabled is ON..
+if (`SELECT strcmp("ON", "$slave_semi_sync_enabled") != 0`)
+{
+  --die Slave started with rpl_semi_sync_slave_enabled=1 yet it is OFF in the variable output
+}
+
+--let $slave_semi_sync_status= query_get_value(SHOW STATUS LIKE 'Rpl_semi_sync_slave_status', Value, 1)
+--echo # Ensuring status rpl_semi_sync_slave_status is OFF..
+if (`SELECT strcmp("OFF", "$slave_semi_sync_status") != 0`)
+{
+  --die Slave started with skip-slave-start yet started with rpl_semi_sync_slave_status=ON
+}
+
 --let $assert_cond= COUNT(*) = $expected_rows_on_master FROM t1
 --let $assert_text= Table t1 should have $expected_rows_on_master rows.
 --source include/assert.inc

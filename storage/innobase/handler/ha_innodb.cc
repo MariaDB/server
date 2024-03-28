@@ -858,6 +858,10 @@ static MYSQL_THDVAR_BOOL(table_locks, PLUGIN_VAR_OPCMDARG,
   /* check_func */ NULL, /* update_func */ NULL,
   /* default */ TRUE);
 
+static MYSQL_THDVAR_BOOL(snapshot_isolation, PLUGIN_VAR_OPCMDARG,
+  "Use snapshot isolation (write-write conflict detection).",
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_BOOL(strict_mode, PLUGIN_VAR_OPCMDARG,
   "Use strict mode when evaluating create options.",
   NULL, NULL, TRUE);
@@ -2132,6 +2136,9 @@ convert_error_code_to_mysql(
 
 		return(HA_ERR_LOCK_DEADLOCK);
 
+	case DB_RECORD_CHANGED:
+		return HA_ERR_RECORD_CHANGED;
+
 	case DB_LOCK_WAIT_TIMEOUT:
 		/* Starting from 5.0.13, we let MySQL just roll back the
 		latest SQL statement in a lock wait timeout. Previously, we
@@ -2775,6 +2782,8 @@ innobase_trx_init(
 
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
+	trx->snapshot_isolation = THDVAR(thd, snapshot_isolation) & 1;
+
 #ifdef WITH_WSREP
 	trx->wsrep = wsrep_on(thd);
 #endif
@@ -12179,7 +12188,7 @@ create_table_info_t::create_foreign_keys()
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
 	dict_index_t*	      err_index	  = NULL;
-	ulint		      err_col;
+	ulint		      err_col	= 0;
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      operation = "Create ";
@@ -15412,7 +15421,6 @@ get_foreign_key_info(
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
-	LEX_CSTRING*		referenced_key_name;
 	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
@@ -15513,17 +15521,15 @@ get_foreign_key_info(
 
 	if (foreign->referenced_index
 	    && foreign->referenced_index->name != NULL) {
-		referenced_key_name = thd_make_lex_string(
+		f_key_info.referenced_key_name = thd_make_lex_string(
 			thd,
-			f_key_info.referenced_key_name,
+			nullptr,
 			foreign->referenced_index->name,
 			strlen(foreign->referenced_index->name),
 			1);
 	} else {
-		referenced_key_name = NULL;
+		f_key_info.referenced_key_name = NULL;
 	}
-
-	f_key_info.referenced_key_name = referenced_key_name;
 
 	pf_key_info = (FOREIGN_KEY_INFO*) thd_memdup(thd, &f_key_info,
 						      sizeof(FOREIGN_KEY_INFO));
@@ -16604,6 +16610,13 @@ ha_innobase::get_auto_increment(
 
 	if (error != DB_SUCCESS) {
 		*first_value = (~(ulonglong) 0);
+		/* This is an error case. We do the error handling by calling
+		the error code conversion function. Specifically, we need to
+		call thd_mark_transaction_to_rollback() to inform sql that we
+		have rolled back innodb transaction after a deadlock error. We
+		ignore the returned mysql error code here. */
+		std::ignore = convert_error_code_to_mysql(
+			error, m_prebuilt->table->flags, m_user_thd);
 		return;
 	}
 
@@ -18480,6 +18493,15 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
+                                              void *, const void *save)
+{
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  mtr_t::spin_wait_delay= *static_cast<const unsigned*>(save);
+  mtr_t::finisher_update();
+  log_sys.latch.wr_unlock();
+}
+
 /** Update innodb_status_output or innodb_status_output_locks,
 which control InnoDB "status monitor" output to the error log.
 @param[out]	var	current value
@@ -19328,6 +19350,12 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
+static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
+  PLUGIN_VAR_OPCMDARG,
+  "Delay between log buffer spin lock polls (0 to use a blocking latch)",
+  nullptr, innodb_log_spin_wait_delay_update,
+  0, 0, 6000, 0);
+
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of the buffer pool to reserve for 'old' blocks.",
@@ -19753,6 +19781,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_buffering),
   MYSQL_SYSVAR(data_file_write_through),
   MYSQL_SYSVAR(log_file_size),
+  MYSQL_SYSVAR(log_spin_wait_delay),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),
@@ -19773,6 +19802,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_server_stopword_table),
   MYSQL_SYSVAR(ft_user_stopword_table),
   MYSQL_SYSVAR(disable_sort_file_cache),
+  MYSQL_SYSVAR(snapshot_isolation),
   MYSQL_SYSVAR(stats_on_metadata),
   MYSQL_SYSVAR(stats_transient_sample_pages),
   MYSQL_SYSVAR(stats_persistent),

@@ -64,7 +64,7 @@ SET sql_mode=@mode;
 # Test litteral concat
 #
 SELECT 'a' 'b';
-a
+ab
 ab
 SELECT 'a' '';
 a
@@ -76,13 +76,13 @@ SELECT '' '';
 NULL
 NULL
 SELECT '' 'b' 'c';
-b
+bc
 bc
 SELECT '' '' 'c';
 c
 c
 SELECT 'a' '' 'c';
-a
+ac
 ac
 SELECT 'a' '' '';
 a
@@ -208,3 +208,22 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+#
+# MDEV-33460 select '123' 'x'; unexpected result
+#
+SELECT '';
+NULL
+NULL
+SELECT '' 'b' 'c';
+bc
+bc
+SELECT '' '' 'c';
+c
+c
+SELECT 'a' '' 'c';
+ac
+ac
+SELECT 'a' '' '';
+a
+a
+# End of 10.5 test

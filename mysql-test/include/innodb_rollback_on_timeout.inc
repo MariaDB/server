@@ -22,7 +22,6 @@ select * from t1;
 connection con1;
 begin work;
 insert into t1 values (5);
-select * from t1;
 # Lock wait timeout set to 2 seconds in <THIS TEST>-master.opt; this
 # statement will time out; in 5.0.13+, it will not roll back transaction.
 --error ER_LOCK_WAIT_TIMEOUT

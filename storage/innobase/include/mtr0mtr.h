@@ -691,9 +691,26 @@ private:
   std::pair<lsn_t,page_flush_ahead> do_write();
 
   /** Append the redo log records to the redo log buffer.
+  @tparam spin whether to use the spin-only log_sys.lock_lsn()
+  @tparam pmem log_sys.is_pmem()
+  @param mtr   mini-transaction
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
+  template<bool spin,bool pmem> static
+  std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
+
+  /** The applicable variant of finish_writer() */
+  static std::pair<lsn_t,page_flush_ahead> (*finisher)(mtr_t *, size_t);
+
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len)
+  { return finisher(this, len); }
+public:
+  /** Poll interval in log_sys.lock_lsn(); 0 to use log_sys.lsn_lock.
+  Protected by LOCK_global_system_variables and log_sys.latch. */
+  static unsigned spin_wait_delay;
+  /** Update finisher when spin_wait_delay is changing to or from 0. */
+  static void finisher_update();
+private:
 
   /** Release all latches. */
   void release();

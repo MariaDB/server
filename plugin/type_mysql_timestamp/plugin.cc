@@ -103,7 +103,19 @@ public:
       Field_mysql_timestampf(*name, rec, attr->unireg_check, share,
                              attr->temporal_dec(MAX_DATETIME_WIDTH));
   }
-  void Column_definition_implicit_upgrade(Column_definition *c) const override
+  const Type_handler *type_handler_for_implicit_upgrade() const override
+  {
+    /*
+      The derived method as of 10.11.8 does "return this;" anyway.
+      However, in the future this may change to return a
+      opt_mysql56_temporal_format dependent handler.
+      Here in this class we need to make sure to do "return this;"
+      not to depend on the derived method changes.
+    */
+    return this;
+  }
+  void Column_definition_implicit_upgrade_to_this(Column_definition *old)
+                                                           const override
   {
     /*
       Suppress the automatic upgrade depending on opt_mysql56_temporal_format,

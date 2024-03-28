@@ -3248,7 +3248,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       }
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
-             granted_thd->mdl_context.has_explicit_locks())
+            /* System transactions with explicit locks are BACKUP. */
+            (granted_thd->system_thread != NON_SYSTEM_THREAD &&
+             granted_thd->mdl_context.has_explicit_locks()))
     {
       WSREP_DEBUG("BF thread waiting for FLUSH for %s",
                   wsrep_thd_query(request_thd));
@@ -3926,21 +3928,11 @@ void wsrep_ready_set(bool ready_value)
   step is performed to leave the wsrep transaction in the state as it
   never existed.
 
-  This should not be an inline functions as it requires a lot of stack space
-  because of WSREP_DBUG() usage.  It's also not a function that is
-  frequently called.
 */
 
 void wsrep_commit_empty(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_commit_empty");
-  WSREP_DEBUG("wsrep_commit_empty for %llu client_state %s client_mode"
-              " %s trans_state %s sql %s",
-              thd_get_thread_id(thd),
-              wsrep::to_c_string(thd->wsrep_cs().state()),
-              wsrep::to_c_string(thd->wsrep_cs().mode()),
-              wsrep::to_c_string(thd->wsrep_cs().transaction().state()),
-              wsrep_thd_query(thd));
 
   if (wsrep_is_real(thd, all) &&
       wsrep_thd_is_local(thd) &&
@@ -3948,14 +3940,40 @@ void wsrep_commit_empty(THD* thd, bool all)
       !thd->internal_transaction() &&
       thd->wsrep_trx().state() != wsrep::transaction::s_committed)
   {
-    /* Here transaction is either empty (i.e. no changes) or
-       it was CREATE TABLE with no row binlog format or
-       we have already aborted transaction e.g. because max writeset size
-       has been reached. */
-    DBUG_ASSERT(!wsrep_has_changes(thd) ||
-                (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                 !thd->is_current_stmt_binlog_format_row()) ||
-                thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted);
+#ifndef DBUG_OFF
+    const bool empty= !wsrep_has_changes(thd);
+    const bool create= thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+      !thd->is_current_stmt_binlog_format_row();
+    const bool aborted= thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted;
+    const bool ddl_replay= ((sql_command_flags[thd->lex->sql_command] &
+                  (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) &&
+                 thd->wsrep_cs().transaction().state() == wsrep::transaction::s_must_replay);
+    /* Here transaction is either
+       (1) empty (i.e. no changes) or
+       (2) it was CREATE TABLE with no row binlog format or
+       (3) we have already aborted transaction e.g. because max writeset size
+       has been reached or
+       (4) it was DDL and got BF aborted and must replay.
+    */
+    if(!(empty || create || aborted || ddl_replay))
+    {
+      WSREP_DEBUG("wsrep_commit_empty: thread: %llu client_state: %s client_mode:"
+                  " %s trans_state: %s error: %s empty: %d create: %d aborted:"
+		  " %d ddl_replay: %d sql: %s",
+                  thd_get_thread_id(thd),
+                  wsrep::to_c_string(thd->wsrep_cs().state()),
+                  wsrep::to_c_string(thd->wsrep_cs().mode()),
+                  wsrep::to_c_string(thd->wsrep_cs().transaction().state()),
+                  wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                  empty, create, aborted, ddl_replay,
+                  wsrep_thd_query(thd));
+
+      DBUG_ASSERT(empty ||     // 1
+                  create ||    // 2
+                  aborted ||   // 3
+                  ddl_replay); // 4
+    }
+#endif /* DBUG_OFF */
     bool have_error= wsrep_current_error(thd);
     int ret= wsrep_before_rollback(thd, all) ||
       wsrep_after_rollback(thd, all) ||
@@ -3969,10 +3987,10 @@ void wsrep_commit_empty(THD* thd, bool all)
       DBUG_ASSERT(wsrep_current_error(thd) == wsrep::e_deadlock_error);
       thd->wsrep_cs().reset_error();
     }
+
     if (ret)
-    {
-      WSREP_DEBUG("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
-    }
+      WSREP_DEBUG("wsrep_commit_empty failed: %s",
+                  wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
   DBUG_VOID_RETURN;
 }

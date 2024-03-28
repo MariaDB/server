@@ -4715,8 +4715,8 @@ protected:
   ulong       m_master_reclength; /* Length of record on master side */
 
   /* Bit buffers in the same memory as the class */
-  uint32    m_bitbuf[128/(sizeof(uint32)*8)];
-  uint32    m_bitbuf_ai[128/(sizeof(uint32)*8)];
+  my_bitmap_map  m_bitbuf[128/(sizeof(my_bitmap_map)*8)];
+  my_bitmap_map  m_bitbuf_ai[128/(sizeof(my_bitmap_map)*8)];
 
   uchar    *m_rows_buf;		/* The rows in packed format */
   uchar    *m_rows_cur;		/* One-after the end of the data */

@@ -680,8 +680,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #ifdef HAVE_REPLICATION
    ,
    current_linfo(0),
-   slave_info(0),
-   is_awaiting_semisync_ack(0)
+   slave_info(0)
 #endif
 #ifdef WITH_WSREP
    ,
@@ -4478,7 +4477,7 @@ void Security_context::destroy()
     my_free((char*) host);
     host= NULL;
   }
-  if (user != delayed_user)
+  if (is_user_defined())
   {
     my_free((char*) user);
     user= NULL;
@@ -5299,14 +5298,6 @@ extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
 {
   return thd->get_command();
 }
-
-#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
-/** @return whether the current thread is for applying binlog in a replica */
-extern "C" int thd_is_slave(const MYSQL_THD thd)
-{
-  return thd && thd->slave_thread;
-}
-#endif /* HAVE_REPLICATION */
 
 /* Returns high resolution timestamp for the start
   of the current query. */

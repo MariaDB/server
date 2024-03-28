@@ -5754,7 +5754,8 @@ public:
   {
     List_iterator<Create_field> it(list);
     while (Create_field *f= it++)
-      f->type_handler()->Column_definition_implicit_upgrade(f);
+      f->type_handler()->type_handler_for_implicit_upgrade()->
+                           Column_definition_implicit_upgrade_to_this(f);
   }
 };
 

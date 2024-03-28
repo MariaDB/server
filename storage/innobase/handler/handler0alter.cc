@@ -864,6 +864,9 @@ my_error_innodb(
 	case DB_DEADLOCK:
 		my_error(ER_LOCK_DEADLOCK, MYF(0));
 		break;
+	case DB_RECORD_CHANGED:
+		my_error(ER_CHECKREAD, MYF(0), table);
+		break;
 	case DB_LOCK_WAIT_TIMEOUT:
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		break;
@@ -2813,6 +2816,14 @@ cannot_create_many_fulltext_index:
 				online = false;
 			}
 		}
+	}
+
+	if (m_prebuilt->table->is_stats_table()) {
+		if (ha_alter_info->online) {
+			ha_alter_info->unsupported_reason =
+				table_share->table_name.str;
+		}
+		online= false;
 	}
 
 	// FIXME: implement Online DDL for system-versioned operations

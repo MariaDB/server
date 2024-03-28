@@ -864,6 +864,11 @@ row_sel_build_committed_vers_for_mysql(
 					column version if any */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
+	if (prebuilt->trx->snapshot_isolation) {
+		*old_vers = rec;
+		return;
+	}
+
 	if (prebuilt->old_vers_heap) {
 		mem_heap_empty(prebuilt->old_vers_heap);
 	} else {

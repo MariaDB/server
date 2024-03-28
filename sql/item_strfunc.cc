@@ -3878,7 +3878,9 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
     return true;
   collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
-  max_length= args[0]->max_length;
+  ulonglong max_char_length= (ulonglong) args[0]->max_char_length();
+  fix_char_length_ulonglong(max_char_length * collation.collation->mbmaxlen);
+
   return FALSE;
 }
 

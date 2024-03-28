@@ -510,9 +510,9 @@ mini-benchmark:
     - |
       mariadb --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
       grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't install properly"
-    - yum install -y sysbench procps-ng perf util-linux || yum install -y https://kojipkgs.fedoraproject.org//packages/luajit/2.0.4/3.el7/x86_64/luajit-2.0.4-3.el7.x86_64.rpm https://kojipkgs.fedoraproject.org//packages/sysbench/1.0.17/2.el7/x86_64/sysbench-1.0.17-2.el7.x86_64.rpm https://kojipkgs.fedoraproject.org//packages/ck/0.5.2/2.el7/x86_64/ck-0.5.2-2.el7.x86_64.rpm
+    - yum install -y sysbench procps-ng perf flamegraph flamegraph-stackcollapse-perf util-linux dnf-utils
     - /usr/share/mysql/mini-benchmark
-    - cp -av */sysbench-run-*.log */metrics.txt ..  # Move files one level down so they can be saved as artifacts
+    - cp -av */sysbench-run-*.log */metrics.txt .  # Move files one level down so they can be saved as artifacts
   artifacts:
     when: always
     paths:

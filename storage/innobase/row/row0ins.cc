@@ -2568,12 +2568,6 @@ row_ins_index_entry_big_rec(
 	return(error);
 }
 
-#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
-extern "C" int thd_is_slave(const MYSQL_THD thd);
-#else
-# define thd_is_slave(thd) 0
-#endif
-
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
 /* Avoid GCC 4.8.5 internal compiler error due to srw_mutex::wr_unlock().
 We would only need this for row_ins_clust_index_entry_low(),
@@ -2724,8 +2718,7 @@ err_exit:
 	    && !index->table->n_rec_locks
 	    && !index->table->is_active_ddl()
 	    && !index->table->has_spatial_index()
-	    && !index->table->versioned()
-	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
+	    && !index->table->versioned()) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		trx->bulk_insert = true;

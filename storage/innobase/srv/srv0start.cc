@@ -91,10 +91,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "zlib.h"
 #include "log.h"
 
-/** We are prepared for a situation that we have this many threads waiting for
-a transactional lock inside InnoDB. srv_start() sets the value. */
-ulint srv_max_n_threads;
-
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
 
@@ -1243,12 +1239,6 @@ dberr_t srv_start(bool create_new_db)
 	mysql_stage_register("innodb", srv_stages,
 			     static_cast<int>(UT_ARR_SIZE(srv_stages)));
 
-	srv_max_n_threads =
-		1 /* dict_stats_thread */
-		+ 1 /* fts_optimize_thread */
-		+ 128 /* safety margin */
-		+ max_connections;
-
 	srv_boot();
 
 	ib::info() << my_crc32c_implementation();
@@ -1634,6 +1624,24 @@ dberr_t srv_start(bool create_new_db)
 
 		fil_system.space_id_reuse_warned = false;
 
+		if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
+			ut_ad(srv_operation == SRV_OPERATION_RESTORE_EXPORT
+			      || srv_operation == SRV_OPERATION_RESTORE);
+			return(err);
+		}
+
+		/* Upgrade or resize or rebuild the redo logs before
+		generating any dirty pages, so that the old redo log
+		file will not be written to. */
+
+		err = srv_log_rebuild_if_needed();
+
+		if (err != DB_SUCCESS) {
+			return srv_init_abort(err);
+		}
+
+		recv_sys.debug_free();
+
 		if (!srv_read_only_mode) {
 			const uint32_t flags = FSP_FLAGS_PAGE_SSIZE();
 			for (uint32_t id = srv_undo_space_id_start;
@@ -1718,23 +1726,6 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
-
-		if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
-			ut_ad(srv_operation == SRV_OPERATION_RESTORE_EXPORT
-			      || srv_operation == SRV_OPERATION_RESTORE);
-			return(err);
-		}
-
-		/* Upgrade or resize or rebuild the redo logs before
-		generating any dirty pages, so that the old redo log
-		file will not be written to. */
-		err = srv_log_rebuild_if_needed();
-
-		if (err != DB_SUCCESS) {
-			return(srv_init_abort(err));
-		}
-
-		recv_sys.debug_free();
 	}
 
 	ut_ad(err == DB_SUCCESS);

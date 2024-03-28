@@ -47,7 +47,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   if (maria_init() ||
       (init_pagecache(maria_pagecache, maria_block_size * 2000, 0, 0,
                       maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
