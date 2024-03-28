@@ -150,7 +150,7 @@ select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select hex(column_create(1,'afaf' AS char charset utf8 ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `ex`
+Note	1003	select hex(column_create(1,'afaf' AS char charset utf8 collate utf8_general_ci ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `ex`
 select hex(column_create(1, 0.0 AS decimal));
 hex(column_create(1, 0.0 AS decimal))
 000100010004
@@ -354,7 +354,7 @@ select column_get(column_create(1, "1212" AS char charset utf8), 1 as char chars
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select column_get(column_create(1,'1212' AS char charset utf8 ),1 as char charset utf8) AS `ex`
+Note	1003	select column_get(column_create(1,'1212' AS char charset utf8 collate utf8_general_ci ),1 as char charset utf8) AS `ex`
 select column_get(column_create(1, 1212 AS unsigned int), 1 as char charset utf8) as ex;
 ex
 1212
@@ -414,7 +414,7 @@ select column_get(column_create(1, "1212" AS char charset utf8), 1 as char chars
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select column_get(column_create(1,'1212' AS char charset utf8 ),1 as char charset binary) AS `ex`
+Note	1003	select column_get(column_create(1,'1212' AS char charset utf8 collate utf8_general_ci ),1 as char charset binary) AS `ex`
 #
 # column get real
 #
@@ -1882,7 +1882,7 @@ drop table t1;
 create view v1 as select column_get(column_add(column_create(1 , 'blue' as char), 2, 'ttt'), 1 as char);
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8 ),2,'ttt'),1 as char charset utf8) AS `Name_exp_1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8 collate utf8_general_ci ),2,'ttt'),1 as char charset utf8) AS `Name_exp_1`	utf8	utf8_general_ci
 select * from v1;
 Name_exp_1
 blue
@@ -1948,4 +1948,24 @@ ex
 000000
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-33788 HEX(COLUMN_CREATE(.. AS CHAR ...)) fails with --view-protocol
+#
+SELECT hex(column_create(1,'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin)) AS ex;
+ex
+0001000100035361
+SELECT hex(column_add(column_create(
+1, 'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin),
+2, 'b' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci)) AS ex;
+ex
+00020001000302001353612162
+#
+# Start of 10.5 tests
 #

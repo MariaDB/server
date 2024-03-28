@@ -1000,3 +1000,24 @@ SELECT HEX(COLUMN_ADD(COLUMN_CREATE(1,10),2,NULL,1,NULL)) as ex;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-33788 HEX(COLUMN_CREATE(.. AS CHAR ...)) fails with --view-protocol
+--echo #
+
+SELECT hex(column_create(1,'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin)) AS ex;
+SELECT hex(column_add(column_create(
+                      1, 'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin),
+                      2, 'b' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci)) AS ex;
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
