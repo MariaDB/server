@@ -342,7 +342,7 @@ INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
 INSERT INTO t2 VALUES (500, 0x6789A, 0x5, 1, 0x7);
 EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col2 = 0x6789A AND col4 = 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	custom_p5	ref	col2	col2	74	const,const	1	Using where
+1	SIMPLE	t2	custom_p5	ref	col2	col2	74	const,const	1	Using index condition
 ALTER TABLE t2 DROP KEY `col2`;
 ALTER TABLE t2 ADD KEY (`col3`, `col4`) COMMENT 'custom_p5_cfname=another_cf_for_p5';
 SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='another_cf_for_p5';
@@ -355,7 +355,7 @@ test.t2	analyze	Warning	Engine-independent statistics are not collected for colu
 test.t2	analyze	status	OK
 EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col3 = 0x4 AND col2 = 0x34567;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	custom_p2	ref	col3	col3	258	const	#	Using where
+1	SIMPLE	t2	custom_p2	ref	col3	col3	258	const	#	Using index condition
 DROP TABLE t2;
 CREATE TABLE `t2` (
 `col1` bigint(20) NOT NULL,

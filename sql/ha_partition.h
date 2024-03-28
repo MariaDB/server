@@ -1309,10 +1309,6 @@ public:
       The underlying storage engine might support Rowid Filtering. But
       ha_partition does not forward the needed SE API calls, so the feature
       will not be used.
-
-      Note: It's the same with IndexConditionPushdown, except for its variant
-      of IndexConditionPushdown+BatchedKeyAccess (that one works). Because of
-      that, we do not clear HA_DO_INDEX_COND_PUSHDOWN here.
     */
     return part_flags & ~HA_DO_RANGE_FILTER_PUSHDOWN;
   }
@@ -1550,6 +1546,8 @@ public:
     const COND *cond_push(const COND *cond) override;
     void cond_pop() override;
     int info_push(uint info_type, void *info) override;
+    Item *idx_cond_push(uint keyno, Item* idx_cond) override;
+    void cancel_pushed_idx_cond() override;
 
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);
