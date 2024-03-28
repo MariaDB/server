@@ -352,8 +352,8 @@ Repl_semi_sync_master::Repl_semi_sync_master()
     m_state(0),
     m_wait_point(0)
 {
-  strcpy(m_reply_file_name, "");
-  strcpy(m_wait_file_name, "");
+  m_reply_file_name[0]= '\0';
+  m_wait_file_name[0]= '\0';
 }
 
 int Repl_semi_sync_master::init_object()
@@ -777,7 +777,8 @@ int Repl_semi_sync_master::report_binlog_update(THD* thd, const char *log_file,
         return 1;
       thd->semisync_info= log_info;
     }
-    strcpy(log_info->log_file, log_file + dirname_length(log_file));
+    safe_strcpy(log_info->log_file, sizeof(log_info->log_file), 
+                log_file + dirname_length(log_file));
     log_info->log_pos = log_pos;
 
     return write_tranx_in_binlog(log_info->log_file, log_pos);
