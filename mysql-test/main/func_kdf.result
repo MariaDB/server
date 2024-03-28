@@ -154,5 +154,10 @@ NULL
 Warnings:
 Warning	3047	Invalid argument error: 65537 in function kdf.
 #
+# MDEV-33659 Test kdf() without parameters
+#
+select kdf();
+ERROR 42000: Incorrect parameter count in the call to native function 'kdf'
+#
 # End of 11.3 tests
 #
