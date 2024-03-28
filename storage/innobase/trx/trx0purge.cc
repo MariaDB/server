@@ -56,84 +56,6 @@ purge_sys_t	purge_sys;
 my_bool		srv_purge_view_update_only_debug;
 #endif /* UNIV_DEBUG */
 
-/** Sentinel value */
-static const TrxUndoRsegs NullElement;
-
-/** Default constructor */
-TrxUndoRsegsIterator::TrxUndoRsegsIterator()
-	: m_rsegs(NullElement), m_iter(m_rsegs.begin())
-{
-}
-
-/** Sets the next rseg to purge in purge_sys.
-Executed in the purge coordinator thread.
-@retval false when nothing is to be purged
-@retval true  when purge_sys.rseg->latch was locked */
-inline bool TrxUndoRsegsIterator::set_next()
-{
-	ut_ad(!purge_sys.next_stored);
-	mysql_mutex_lock(&purge_sys.pq_mutex);
-
-	/* Only purge consumes events from the priority queue, user
-	threads only produce the events. */
-
-	/* Check if there are more rsegs to process in the
-	current element. */
-	if (m_iter != m_rsegs.end()) {
-		/* We are still processing rollback segment from
-		the same transaction and so expected transaction
-		number shouldn't increase. Undo the increment of
-		expected commit done by caller assuming rollback
-		segments from given transaction are done. */
-		purge_sys.tail.trx_no = (*m_iter)->last_trx_no();
-	} else if (!purge_sys.purge_queue.empty()) {
-		m_rsegs = purge_sys.purge_queue.top();
-		purge_sys.purge_queue.pop();
-		ut_ad(purge_sys.purge_queue.empty()
-		      || purge_sys.purge_queue.top() != m_rsegs);
-		m_iter = m_rsegs.begin();
-	} else {
-		/* Queue is empty, reset iterator. */
-		purge_sys.rseg = NULL;
-		mysql_mutex_unlock(&purge_sys.pq_mutex);
-		m_rsegs = NullElement;
-		m_iter = m_rsegs.begin();
-		return false;
-	}
-
-	purge_sys.rseg = *m_iter++;
-	mysql_mutex_unlock(&purge_sys.pq_mutex);
-
-	/* We assume in purge of externally stored fields that space
-	id is in the range of UNDO tablespace space ids */
-	ut_ad(purge_sys.rseg->space->id == TRX_SYS_SPACE
-	      || srv_is_undo_tablespace(purge_sys.rseg->space->id));
-
-	purge_sys.rseg->latch.wr_lock(SRW_LOCK_CALL);
-	trx_id_t last_trx_no = purge_sys.rseg->last_trx_no();
-	purge_sys.hdr_offset = purge_sys.rseg->last_offset();
-	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
-
-	/* Only the purge_coordinator_task will access this object
-	purge_sys.rseg_iter, or any of purge_sys.hdr_page_no,
-	purge_sys.tail.
-	The field purge_sys.head and purge_sys.view are modified by
-	purge_sys_t::clone_end_view()
-	in the purge_coordinator_task
-	while holding exclusive purge_sys.latch.
-	The purge_sys.view may also be modified by
-	purge_sys_t::wake_if_not_active() while holding exclusive
-	purge_sys.latch.
-	The purge_sys.head may be read by
-	purge_truncation_callback(). */
-	ut_ad(last_trx_no == m_rsegs.trx_no);
-	ut_a(purge_sys.hdr_page_no != FIL_NULL);
-	ut_a(purge_sys.tail.trx_no <= last_trx_no);
-	purge_sys.tail.trx_no = last_trx_no;
-
-	return(true);
-}
-
 /** Build a purge 'query' graph. The actual purge is performed by executing
 this query graph.
 @return own: the query graph */
@@ -161,6 +83,13 @@ purge_graph_build()
 	}
 
 	return(fork);
+}
+
+ATTRIBUTE_NOINLINE /* this is a rather complex operation */
+void purge_sys_t::enqueue(trx_rseg_t &rseg)
+{
+  mysql_mutex_assert_owner(&pq_mutex);
+  purge_queue.push(&rseg);
 }
 
 /** Initialise the purge system. */
@@ -571,42 +500,17 @@ loop:
   goto loop;
 }
 
-/** Cleanse purge queue to remove the rseg that reside in undo-tablespace
-marked for truncate.
-@param[in]	space	undo tablespace being truncated */
-static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
+void purge_sys_t::cleanse_purge_queue(const fil_space_t &space)
 {
-	typedef	std::vector<TrxUndoRsegs>	purge_elem_list_t;
-	purge_elem_list_t			purge_elem_list;
-
-	mysql_mutex_lock(&purge_sys.pq_mutex);
-
-	/* Remove rseg instances that are in the purge queue before we start
-	truncate of corresponding UNDO truncate. */
-	while (!purge_sys.purge_queue.empty()) {
-		purge_elem_list.push_back(purge_sys.purge_queue.top());
-		purge_sys.purge_queue.pop();
-	}
-
-	for (purge_elem_list_t::iterator it = purge_elem_list.begin();
-	     it != purge_elem_list.end();
-	     ++it) {
-
-		for (TrxUndoRsegs::iterator it2 = it->begin();
-		     it2 != it->end();
-		     ++it2) {
-			if ((*it2)->space == &space) {
-				it->erase(it2);
-				break;
-			}
-		}
-
-		if (!it->empty()) {
-			purge_sys.purge_queue.push(*it);
-		}
-	}
-
-	mysql_mutex_unlock(&purge_sys.pq_mutex);
+  byte purge_elem_list[TRX_SYS_N_RSEGS];
+  mysql_mutex_lock(&pq_mutex);
+  std::copy(purge_queue.c_begin(), purge_queue.c_end(), purge_elem_list);
+  byte *purge_list_end = purge_elem_list + purge_queue.size();
+  purge_queue.clear();
+  for (byte *elem = purge_elem_list; elem < purge_list_end; ++elem)
+    if (trx_sys.rseg_array[*elem].space != &space)
+      purge_queue.push_rseg_index(*elem);
+  mysql_mutex_unlock(&pq_mutex);
 }
 
 dberr_t purge_sys_t::iterator::free_history() const
@@ -750,7 +654,7 @@ not_free:
 
     const char *file_name= UT_LIST_GET_FIRST(space->chain)->name;
     sql_print_information("InnoDB: Truncating %s", file_name);
-    trx_purge_cleanse_purge_queue(*space);
+    purge_sys.cleanse_purge_queue(*space);
 
     /* Lock all modified pages of the tablespace.
 
@@ -869,7 +773,7 @@ buf_block_t *purge_sys_t::get_page(page_id_t id)
   return nullptr;
 }
 
-void purge_sys_t::rseg_get_next_history_log()
+bool purge_sys_t::rseg_get_next_history_log()
 {
   fil_addr_t prev_log_addr;
 
@@ -917,12 +821,13 @@ void purge_sys_t::rseg_get_next_history_log()
       can never produce events from an empty rollback segment. */
 
       mysql_mutex_lock(&pq_mutex);
-      purge_queue.push(*rseg);
+      purge_queue.push(rseg);
       mysql_mutex_unlock(&pq_mutex);
     }
   }
 
   rseg->latch.wr_unlock();
+  return choose_next_log();
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging.
@@ -930,11 +835,37 @@ void purge_sys_t::rseg_get_next_history_log()
 @retval true  when purge_sys.rseg->latch was locked */
 bool purge_sys_t::choose_next_log()
 {
-  if (!rseg_iter.set_next())
-    return false;
+  ut_ad(!next_stored);
 
-  hdr_offset= rseg->last_offset();
-  hdr_page_no= rseg->last_page_no;
+  mysql_mutex_lock(&pq_mutex);
+  if (purge_queue.empty()) {
+    rseg = nullptr;
+    mysql_mutex_unlock(&purge_sys.pq_mutex);
+    return false;
+  }
+  rseg= purge_queue.pop();
+  mysql_mutex_unlock(&purge_sys.pq_mutex);
+
+  /* We assume in purge of externally stored fields that space
+  id is in the range of UNDO tablespace space ids */
+  ut_ad(rseg->space == fil_system.sys_space ||
+        srv_is_undo_tablespace(rseg->space->id));
+
+  rseg->latch.wr_lock(SRW_LOCK_CALL);
+  trx_id_t last_trx_no = rseg->last_trx_no();
+  hdr_offset = rseg->last_offset();
+  hdr_page_no = rseg->last_page_no;
+
+  /* Only the purge_coordinator_task will access this any of
+  purge_sys.hdr_page_no, purge_sys.tail. The field purge_sys.head and
+  purge_sys.view are modified by clone_end_view() in the
+  purge_coordinator_task while holding exclusive purge_sys.latch. The
+  purge_sys.view may also be modified by wake_if_not_active() while holding
+  exclusive purge_sys.latch. The purge_sys.head may be read by
+  purge_truncation_callback(). */
+  ut_a(hdr_page_no != FIL_NULL);
+  ut_a(tail.trx_no <= last_trx_no);
+  tail.trx_no = last_trx_no;
 
   if (!rseg->needs_purge)
   {
@@ -993,12 +924,9 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
 
   if (!offset)
   {
-    /* It is the dummy undo log record, which means that there is no
-    need to purge this undo log */
-    rseg_get_next_history_log();
-
-    /* Look for the next undo log and record to purge */
-    if (choose_next_log())
+    /* It is the dummy undo log record, which means that there is no need to
+    purge this undo log. Look for the next undo log and record to purge */
+    if (rseg_get_next_history_log())
       rseg->latch.wr_unlock();
     return {nullptr, 1};
   }
@@ -1046,9 +974,8 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
   else
   {
   got_no_rec:
-    rseg_get_next_history_log();
     /* Look for the next undo log and record to purge */
-    locked= choose_next_log();
+    locked= rseg_get_next_history_log();
   }
 
   if (locked)

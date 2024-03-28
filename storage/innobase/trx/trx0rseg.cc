@@ -544,7 +544,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
     if (rseg->last_page_no != FIL_NULL)
       /* There is no need to cover this operation by the purge
       mutex because we are still bootstrapping. */
-      purge_sys.purge_queue.push(*rseg);
+      purge_sys.enqueue(*rseg);
   }
 
   return err;
@@ -584,7 +584,17 @@ dberr_t trx_rseg_array_init()
 #endif
 	mtr_t mtr;
 	dberr_t err = DB_SUCCESS;
-
+	/* mariabackup --prepare only deals with the redo log and the data
+	files, not with	transactions or the data dictionary, that's why
+	trx_lists_init_at_db_start() does not invoke purge_sys.create() and
+	purge queue mutex stays uninitialized, and trx_rseg_mem_restore() quits
+	before initializing undo log lists. */
+	if (srv_operation != SRV_OPERATION_RESTORE)
+		/* Acquiring purge queue mutex here should be fine from the
+		deadlock prevention point of view, because executing that
+		function is a prerequisite for starting the purge subsystem or
+		any transactions. */
+		purge_sys.queue_lock();
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 		mtr.start();
 		if (const buf_block_t* sys = trx_sysf_get(&mtr, false)) {
@@ -640,7 +650,8 @@ dberr_t trx_rseg_array_init()
 
 		mtr.commit();
 	}
-
+	if (srv_operation != SRV_OPERATION_RESTORE)
+		purge_sys.queue_unlock();
 	if (err != DB_SUCCESS) {
 		for (auto& rseg : trx_sys.rseg_array) {
 			while (auto u = UT_LIST_GET_FIRST(rseg.undo_list)) {
