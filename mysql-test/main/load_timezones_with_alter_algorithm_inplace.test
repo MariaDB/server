@@ -1,3 +1,5 @@
+--source include/not_embedded.inc
+
 # MDEV-33044 Loading time zones does not work with alter_algorithm INPLACE
 
 set global alter_algorithm=INPLACE;
