@@ -51,7 +51,6 @@ buffer_flush_n_to_flush_by_age	disabled
 buffer_flush_adaptive_avg_time	disabled
 buffer_flush_adaptive_avg_pass	disabled
 buffer_LRU_get_free_loops	disabled
-buffer_LRU_get_free_waits	disabled
 buffer_flush_avg_page_rate	disabled
 buffer_flush_lsn_avg_rate	disabled
 buffer_flush_pct_for_dirty	disabled
@@ -71,7 +70,6 @@ buffer_LRU_batch_num_scan	disabled
 buffer_LRU_batch_scanned_per_call	disabled
 buffer_LRU_batch_flush_total_pages	enabled
 buffer_LRU_batch_evict_total_pages	enabled
-buffer_LRU_single_flush_failure_count	disabled
 buffer_LRU_get_free_search	disabled
 buffer_LRU_search_scanned	disabled
 buffer_LRU_search_num_scan	disabled

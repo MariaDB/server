@@ -27,6 +27,7 @@
 #include "sp_rcontext.h"
 #include "sp_head.h"
 #include "sql_trigger.h"
+#include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_show.h"                           // append_identifier
 #include "sql_view.h"                           // VIEW_ANY_SQL
@@ -495,7 +496,10 @@ void Item::print_parenthesised(String *str, enum_query_type query_type,
   bool need_parens= precedence() < parent_prec;
   if (need_parens)
     str->append('(');
-  print(str, query_type);
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+    str->append(STRING_WITH_LEN("<STACK OVERRUN>"));
+  else
+    print(str, query_type);
   if (need_parens)
     str->append(')');
 }
@@ -4101,7 +4105,9 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     as an actual parameter. See Item_param::set_from_item().
   */
   m_is_settable_routine_parameter(true),
-  m_clones(thd->mem_root)
+  m_clones(thd->mem_root),
+  m_associated_field(nullptr),
+  m_default_field(nullptr)
 {
   name= *name_arg;
   /*
@@ -4508,10 +4514,29 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
   case NULL_VALUE:
     return set_field_to_null_with_conversions(field, no_conversions);
   case DEFAULT_VALUE:
+    if (m_associated_field)
+      return assign_default(field);
     return field->save_in_field_default_value(field->table->pos_in_table_list->
                                               top_table() !=
                                               field->table->pos_in_table_list);
   case IGNORE_VALUE:
+    if (m_associated_field)
+    {
+      switch (find_ignore_reaction(field->table->in_use))
+      {
+        case IGNORE_MEANS_DEFAULT:
+          DBUG_ASSERT(0); // impossible now, but fully working code if needed
+          return assign_default(field);
+        case IGNORE_MEANS_FIELD_VALUE:
+          m_associated_field->save_val(field);
+          return false;
+        default:
+          ; // fall through to error
+      }
+      DBUG_ASSERT(0); //impossible
+      my_error(ER_INVALID_DEFAULT_PARAM, MYF(0));
+      return true;
+    }
     return field->save_in_field_ignore_value(field->table->pos_in_table_list->
                                              top_table() !=
                                              field->table->pos_in_table_list);
@@ -5092,6 +5117,92 @@ bool Item_param::append_for_log(THD *thd, String *str)
   StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
   const String *val= query_val_str(thd, &buf);
   return str->append(*val);
+}
+
+
+/**
+  Allocate a memory and create on it a copy of Field object.
+
+  @param thd        thread handler
+  @param field_arg  an instance of Field the new Field object be based on
+
+  @return a new created Field object on success, nullptr on error.
+*/
+
+static Field *make_default_field(THD *thd, Field *field_arg)
+{
+  Field *def_field;
+
+  if (!(def_field= (Field*) thd->alloc(field_arg->size_of())))
+    return nullptr;
+
+  memcpy((void *)def_field, (void *)field_arg, field_arg->size_of());
+  def_field->reset_fields();
+  // If non-constant default value expression or a blob
+  if (def_field->default_value &&
+      (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
+  {
+    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
+    if (!newptr)
+      return nullptr;
+
+    if (should_mark_column(thd->column_usage))
+      def_field->default_value->expr->update_used_tables();
+    def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
+  }
+  else
+    def_field->move_field_offset((my_ptrdiff_t)
+                                 (def_field->table->s->default_values -
+                                  def_field->table->record[0]));
+  return def_field;
+}
+
+
+/**
+  Assign a default value of a table column to the positional parameter that
+  is performed on execution of a prepared statement with the clause
+  'USING DEFAULT'
+
+   @param field  a field that should be assigned an actual value of positional
+                 parameter passed via the clause 'USING DEFAULT'
+
+   @return false on success, true on failure
+*/
+
+bool Item_param::assign_default(Field *field)
+{
+  DBUG_ASSERT(m_associated_field);
+
+  if (m_associated_field->field->flags & NO_DEFAULT_VALUE_FLAG)
+  {
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
+             m_associated_field->field->field_name.str);
+    return true;
+  }
+
+  if (!m_default_field)
+  {
+    m_default_field= make_default_field(field->table->in_use,
+                                        m_associated_field->field);
+
+    if (!m_default_field)
+      return true;
+  }
+
+  if (m_default_field->default_value)
+  {
+    return m_default_field->default_value->expr->save_in_field(field, 0);
+  }
+  else if (m_default_field->is_null())
+  {
+    field->set_null();
+    return false;
+  }
+  else
+  {
+    field->set_notnull();
+    return field_conv(field, m_default_field);
+  }
 }
 
 
@@ -6920,6 +7031,7 @@ Item_basic_constant *
 Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 {
   append(str->str, (uint32) str->length);
+  set_name(thd, &str_value);
   if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
   {
     // If the string has been pure ASCII so far, check the new part.
@@ -9623,69 +9735,10 @@ bool Item_default_value::update_func_default_processor(void *)
 
 bool Item_default_value::fix_fields(THD *thd, Item **items)
 {
-  Item *real_arg;
-  Item_field *field_arg;
-  Field *def_field;
   DBUG_ASSERT(fixed() == 0);
   DBUG_ASSERT(arg);
 
-  /*
-    DEFAULT() do not need table field so should not ask handler to bring
-    field value (mark column for read)
-  */
-  enum_column_usage save_column_usage= thd->column_usage;
-  /*
-    Fields which has defult value could be read, so it is better hide system
-    invisible columns.
-  */
-  thd->column_usage= COLUMNS_WRITE;
-  if (arg->fix_fields_if_needed(thd, &arg))
-  {
-    thd->column_usage= save_column_usage;
-    goto error;
-  }
-  thd->column_usage= save_column_usage;
-
-  real_arg= arg->real_item();
-  if (real_arg->type() != FIELD_ITEM)
-  {
-    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name.str);
-    goto error;
-  }
-
-  field_arg= (Item_field *)real_arg;
-  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
-  {
-    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
-             field_arg->field->field_name.str);
-    goto error;
-  }
-  if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
-    goto error;
-  memcpy((void *)def_field, (void *)field_arg->field,
-         field_arg->field->size_of());
-  def_field->reset_fields();
-  // If non-constant default value expression or a blob
-  if (def_field->default_value &&
-      (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
-  {
-    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
-    if (!newptr)
-      goto error;
-    if (should_mark_column(thd->column_usage))
-      def_field->default_value->expr->update_used_tables();
-    def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
-  }
-  else
-    def_field->move_field_offset((my_ptrdiff_t)
-                                 (def_field->table->s->default_values -
-                                  def_field->table->record[0]));
-  set_field(def_field);
-  return FALSE;
-
-error:
-  context->process_error(thd);
-  return TRUE;
+  return tie_field(thd);
 }
 
 void Item_default_value::cleanup()
@@ -9873,6 +9926,75 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
   return (this->*transformer)(thd, args);
 }
 
+
+bool Item_default_value::associate_with_target_field(THD *thd,
+                                                     Item_field *field)
+{
+  m_associated= true;
+  arg= field;
+  return tie_field(thd);
+}
+
+
+/**
+  Call fix_fields for an item representing the default value, create
+  an instance of Field for representing the default value and assign it
+  to the Item_field::field.
+
+  @param thd  thread handler
+
+  @return false on success, true on error
+*/
+
+bool Item_default_value::tie_field(THD *thd)
+{
+  Item *real_arg;
+  Item_field *field_arg;
+  Field *def_field;
+
+  /*
+    DEFAULT() do not need table field so should not ask handler to bring
+    field value (mark column for read)
+  */
+  enum_column_usage save_column_usage= thd->column_usage;
+  /*
+    Fields which has defult value could be read, so it is better hide system
+    invisible columns.
+  */
+  thd->column_usage= COLUMNS_WRITE;
+  if (arg->fix_fields_if_needed(thd, &arg))
+  {
+    thd->column_usage= save_column_usage;
+    goto error;
+  }
+  thd->column_usage= save_column_usage;
+
+  real_arg= arg->real_item();
+  if (real_arg->type() != FIELD_ITEM)
+  {
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name.str);
+    goto error;
+  }
+
+  field_arg= (Item_field *)real_arg;
+  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
+  {
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
+             field_arg->field->field_name.str);
+    goto error;
+  }
+  def_field= make_default_field(thd, field_arg->field);
+  if (!def_field)
+    goto error;
+
+  set_field(def_field);
+  return false;
+
+error:
+  context->process_error(thd);
+  return true;
+
+}
 
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {

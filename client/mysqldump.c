@@ -1266,8 +1266,9 @@ static int get_options(int *argc, char ***argv)
   if (opt_slave_data)
   {
     opt_lock_all_tables= !opt_single_transaction;
-    opt_master_data= 0;
     opt_delete_master_logs= 0;
+    if (opt_slave_data != MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL)
+      opt_master_data= 0;
   }
 
   /* Ensure consistency of the set of binlog & locking options */
@@ -1280,10 +1281,7 @@ static int get_options(int *argc, char ***argv)
     return(EX_USAGE);
   }
   if (opt_master_data)
-  {
     opt_lock_all_tables= !opt_single_transaction;
-    opt_slave_data= 0;
-  }
   if (opt_single_transaction || opt_lock_all_tables)
     lock_tables= 0;
   if (enclosed && opt_enclosed)
@@ -6220,17 +6218,12 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
 
   }
 
-  /* SHOW MASTER STATUS reports file and position */
-  print_comment(md_result_file, 0,
-                "\n--\n-- Position to start replication or point-in-time "
-                "recovery from\n--\n\n");
-  fprintf(md_result_file,
-          "%sCHANGE MASTER TO MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
-          (use_gtid ? "-- " : comment_prefix), file, offset);
+  /* gtid */
   if (have_mariadb_gtid)
   {
     print_comment(md_result_file, 0,
-                  "\n--\n-- GTID to start replication from\n--\n\n");
+                  "\n-- Preferably use GTID to start replication from GTID "
+                  "position:\n\n");
     if (use_gtid)
       fprintf(md_result_file,
               "%sCHANGE MASTER TO MASTER_USE_GTID=slave_pos;\n",
@@ -6239,6 +6232,19 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
             "%sSET GLOBAL gtid_slave_pos='%s';\n",
             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
+
+  /* SHOW MASTER STATUS reports file and position */
+  print_comment(md_result_file, 0,
+                "\n--\n-- Alternately, following is the position of the binary "
+                "logging from SHOW MASTER STATUS at point of backup."
+                "\n-- Use this when creating a replica of the primary server "
+                "where the backup was made."
+                "\n-- The new server will be connecting to the primary server "
+                "where the backup was taken."
+                "\n--\n\n");
+  fprintf(md_result_file,
+          "%sCHANGE MASTER TO MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
+          (use_gtid ? "-- " : comment_prefix), file, offset);
   check_io(md_result_file);
 
   if (!consistent_binlog_pos)
@@ -6317,7 +6323,6 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
-  int set_gtid_done= 0;
 
   if (mysql_query_with_error_report(mysql_con, &slave,
                                     multi_source ?
@@ -6333,23 +6338,36 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
     return 1;
   }
 
+  print_comment(md_result_file, 0,
+                "\n--\n-- The following is the SQL position of the replication "
+                "taken from SHOW SLAVE STATUS at the time of backup.\n"
+                "-- Use this position when creating a clone of, or replacement "
+                "server, from where the backup was taken."
+                "\n-- This new server will connects to the same primary "
+                "server%s.\n--\n",
+                multi_source ? "(s)" : "");
+
+  if (multi_source)
+  {
+    char gtid_pos[MAX_GTID_LENGTH];
+    if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
+    {
+      mysql_free_result(slave);
+      return 1;
+    }
+    print_comment(md_result_file, 0,
+                  "-- GTID position to start replication:\n");
+    fprintf(md_result_file, "%sSET GLOBAL gtid_slave_pos='%s';\n",
+            gtid_comment_prefix, gtid_pos);
+  }
+  if (use_gtid)
+    print_comment(md_result_file, 0,
+                  "\n-- Use only the MASTER_USE_GTID=slave_pos or "
+                  "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
+                  "\n\n");
+
   while ((row= mysql_fetch_row(slave)))
   {
-    if (multi_source && !set_gtid_done)
-    {
-      char gtid_pos[MAX_GTID_LENGTH];
-      if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
-      {
-        mysql_free_result(slave);
-        return 1;
-      }
-      if (opt_comments)
-        fprintf(md_result_file, "\n--\n-- Gtid position to start replication "
-                "from\n--\n\n");
-      fprintf(md_result_file, "%sSET GLOBAL gtid_slave_pos='%s';\n",
-              gtid_comment_prefix, gtid_pos);
-      set_gtid_done= 1;
-    }
     if (row[9 + multi_source] && row[21 + multi_source])
     {
       if (use_gtid)
@@ -6363,11 +6381,6 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
       }
 
       /* SHOW MASTER STATUS reports file and position */
-      if (opt_comments)
-        fprintf(md_result_file,
-                "\n--\n-- Position to start replication or point-in-time "
-                "recovery from (the master of this slave)\n--\n\n");
-
       if (multi_source)
         fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
                 nogtid_comment_prefix, row[0]);
@@ -6388,6 +6401,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
       check_io(md_result_file);
     }
   }
+  fprintf(md_result_file, "\n");
   mysql_free_result(slave);
   return 0;
 }

@@ -413,7 +413,7 @@ void trx_t::free()
   read_view.mem_noaccess();
   MEM_NOACCESS(&lock, sizeof lock);
   MEM_NOACCESS(&op_info, sizeof op_info +
-               sizeof(unsigned) /* isolation_level,
+               sizeof(unsigned) /* isolation_level, snapshot_isolation,
                                    check_foreigns, check_unique_secondary,
                                    bulk_insert */);
   MEM_NOACCESS(&is_registered, sizeof is_registered);

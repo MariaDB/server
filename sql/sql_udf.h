@@ -147,6 +147,20 @@ class udf_handler :public Sql_alloc
     *null_value= (my_bool) (is_null || error);
   }
   String *val_str(String *str,String *save_str);
+
+  udf_handler(const udf_handler &orig)
+  {
+    u_d = orig.u_d;
+    buffers = orig.buffers;
+    f_args = orig.f_args;
+    initid = orig.initid;
+    num_buffer = orig.num_buffer;
+    error = orig.error;
+    is_null = orig.is_null;
+    initialized = orig.initialized;
+    args = orig.args;
+    not_original = true;
+  }
 };
 
 

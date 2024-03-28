@@ -17,6 +17,7 @@
 
 #include <my_global.h>
 #include "semisync_slave.h"
+#include "debug_sync.h"
 
 Repl_semi_sync_slave repl_semisync_slave;
 
@@ -33,7 +34,6 @@ int Repl_semi_sync_slave::init_object()
   m_init_done = true;
 
   /* References to the parameter works after set_options(). */
-  set_slave_enabled(global_rpl_semi_sync_slave_enabled);
   set_trace_level(rpl_semi_sync_slave_trace_level);
   set_delay_master(rpl_semi_sync_slave_delay_master);
   set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
@@ -128,7 +128,21 @@ void Repl_semi_sync_slave::slave_start(Master_info *mi)
 void Repl_semi_sync_slave::slave_stop(Master_info *mi)
 {
   if (get_slave_enabled())
+  {
+#ifdef ENABLED_DEBUG_SYNC
+  /*
+    TODO: Remove after MDEV-28141
+  */
+  DBUG_EXECUTE_IF("delay_semisync_kill_connection_for_mdev_28141", {
+    const char act[]= "now "
+                      "signal at_semisync_kill_connection "
+                      "wait_for continue_semisync_kill_connection";
+    DBUG_ASSERT(debug_sync_service);
+    DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
+  };);
+#endif
     kill_connection(mi->mysql);
+  }
 
   set_slave_enabled(0);
 }
@@ -166,8 +180,6 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
                           "connection");
     goto failed_graceful_kill;
   }
-
-  DBUG_EXECUTE_IF("slave_delay_killing_semisync_connection", my_sleep(400000););
 
   kill_buffer_length= my_snprintf(kill_buffer, 30, "KILL %lu",
                                 mysql->thread_id);

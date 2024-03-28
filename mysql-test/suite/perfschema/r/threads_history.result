@@ -167,16 +167,16 @@ stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 EVENT_NAME
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
@@ -189,29 +189,29 @@ stage/sql/Optimizing
 stage/sql/Executing
 stage/sql/End of update loop
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
@@ -585,16 +585,16 @@ stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 EVENT_NAME
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
@@ -607,29 +607,29 @@ stage/sql/Optimizing
 stage/sql/Executing
 stage/sql/End of update loop
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
 stage/sql/starting
 stage/sql/Query end
-stage/sql/Commit
 stage/sql/closing tables
+stage/sql/Query end
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command

@@ -61,3 +61,15 @@ SELECT * from t6;
 i
 5
 DROP TABLE t6;
+#
+# MDEV-33011 mariabackup --backup: FATAL ERROR: ... Can't open datafile cool_down/t3
+#
+# Simulate zero initialized page to defer tablespace load after rename log is found
+SET @save_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG="+d,checkpoint_after_file_create";
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+# RENAME that fails after redo log entry is written and flushed
+RENAME TABLE t1 TO non_existing_db.t1;
+ERROR HY000: Error on rename of './test/t1' to './non_existing_db/t1' (errno: 168 "Unknown (generic) error from engine")
+DROP TABLE t1;

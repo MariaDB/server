@@ -3111,7 +3111,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
   mtr_add_arg($args, "--character-set-server=latin1");
-  mtr_add_arg($args, "--disable-performance-schema");
+  mtr_add_arg($args, "--loose-disable-performance-schema");
 
   if ( $opt_debug )
   {
@@ -4496,6 +4496,14 @@ sub extract_warning_lines ($$) {
      qr/Slave I\/0: Master command COM_BINLOG_DUMP failed/,
      qr/Error reading packet/,
      qr/Lost connection to MariaDB server at 'reading initial communication packet'/,
+     qr/Could not read packet:.* state: [2-3] /,
+     qr/Could not read packet:.* errno: 104 /,
+     qr/Could not read packet:.* errno: 0 .* length: 0/,
+     qr/Could not write packet:.* errno: 32 /,
+     qr/Could not write packet:.* errno: 104 /,
+     qr/Semisync ack receiver got error 1158/,
+     qr/Semisync ack receiver got hangup/,
+     qr/Connection was killed/,
      qr/Failed on request_dump/,
      qr/Slave: Can't drop database.* database doesn't exist/,
      qr/Slave: Operation DROP USER failed for 'create_rout_db'/,
@@ -4551,6 +4559,7 @@ sub extract_warning_lines ($$) {
      qr/WSREP: Failed to guess base node address/,
      qr/WSREP: Guessing address for incoming client/,
 
+     qr/InnoDB: Difficult to find free blocks in the buffer pool*/,
      # for UBSAN
      qr/decimal\.c.*: runtime error: signed integer overflow/,
      # Disable test for UBSAN on dynamically loaded objects

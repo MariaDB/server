@@ -803,7 +803,8 @@ recv_joiner()
     if [ $tmt -gt 0 ]; then
         if [ -n "$(commandex timeout)" ]; then
             local koption=0
-            if [ "$OS" = 'FreeBSD' ]; then
+            if [ "$OS" = 'FreeBSD' -o "$OS" = 'NetBSD' -o "$OS" = 'OpenBSD' -o \
+                 "$OS" = 'DragonFly' ]; then
                 if timeout 2>&1 | grep -qw -F -- '-k'; then
                     koption=1
                 fi
@@ -1165,12 +1166,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
-
-        if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-            wsrep_log_info "Forcing FTWRL due to environment variable" \
-                           "FORCE_FTWRL equal to $FORCE_FTWRL"
-            iopts="--no-backup-locks${iopts:+ }$iopts"
-        fi
 
         # if compression is enabled for backup files, then add the
         # appropriate options to the mariadb-backup command line:

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Abort on errors
-set -e
+set -ex
 
 display_help() {
   echo "Usage: $(basename "$0") [-h] [--perf] [--perf-flamegraph]"
@@ -10,12 +10,30 @@ display_help() {
   echo "regressions."
   echo
   echo "optional arguments:"
+  echo "  --name STRING      identifier for the benchmark, added to the "
+  echo "                     folder name and (if --log is set) the log file "
+  echo "  --threads \"STRING\" quoted string of space-separated integers "
+  echo "                     representing the threads to run."
+  echo "                     example: --threads \"1 32 64 128\""
+  echo "                     default: \"1 2 4 8 16\""
+  echo "  --duration INTEGER duration of each thread run in seconds"
+  echo "                     default: 60"
+  echo "  --workload STRING  sysbench workload to execute"
+  echo "                     default: oltp_read_write"
+  echo "  --log              logs the mini-benchmark stdout/stderr into the"
+  echo "                     benchmark folder."
   echo "  --perf             measure CPU cycles and instruction count in for "
   echo "                     sysbench runs"
   echo "  --perf-flamegraph  record performance counters in perf.data.* and"
   echo "                     generate flamegraphs automatically"
   echo "  -h, --help         display this help and exit"
 }
+
+# Default parameters
+BENCHMARK_NAME='mini-benchmark'
+THREADS='1 2 4 8 16'
+DURATION=60
+WORKLOAD='oltp_read_write'
 
 while :
 do
@@ -27,6 +45,31 @@ do
     --version)
       display_version
       exit 0
+      ;;
+    --name)
+      shift
+      BENCHMARK_NAME+='-'
+      BENCHMARK_NAME+=$1
+      shift
+      ;;
+    --threads)
+      shift
+      THREADS=$1
+      shift
+      ;;
+    --duration)
+      shift
+      DURATION=$1
+      shift
+      ;;
+    --workload)
+      shift
+      WORKLOAD=$1
+      shift
+      ;;
+    --log)
+      LOG=true
+      shift
       ;;
     --perf)
       PERF=true
@@ -47,6 +90,13 @@ do
   esac
 done
 
+# Save results of this run in a subdirectory so that they are not overwritten by
+# the next run
+TIMESTAMP="$(date -Iseconds)"
+mkdir "$BENCHMARK_NAME-$TIMESTAMP"
+cd "$BENCHMARK_NAME-$TIMESTAMP" || exit 1
+
+(
 # Check that the dependencies of this script are available
 if [ ! -e /usr/bin/pgrep ]
 then
@@ -62,11 +112,18 @@ fi
 
 # If there are multiple processes, assume the last one is the actual server and
 # any potential other ones were just part of the service wrapper chain
+# shellcheck disable=SC2005
 MARIADB_SERVER_PID="$(echo "$(pgrep -f mariadbd || pgrep -f mysqld)" | tail -n 1)"
 
 if [ -z "$MARIADB_SERVER_PID" ]
 then
   echo "ERROR: Server 'mariadbd' or 'mysqld' is not running, please start the service"
+  exit 1
+fi
+
+if [ "$PERF" == true ] && [ "$PERF_RECORD" == true ]
+then
+  echo "ERROR: Cannot select both --perf and --perf-flamegraph options simultaneously. Please choose one or the other."
   exit 1
 fi
 
@@ -102,31 +159,31 @@ then
   echo "Ensure the MariaDB Server debug symbols are installed"
   for x in $(ldd /usr/sbin/mariadbd | grep -oE " /.* ")
   do
-    rpm -q --whatprovides --qf '%{name}' $x | cut -d : -f 1
+    rpm -q --whatprovides --qf '%{name}' "$x" | cut -d : -f 1
   done | sort -u > mariadbd-dependencies.txt
   # shellcheck disable=SC2046
   debuginfo-install -y mariadb-server $(cat mariadbd-dependencies.txt)
-  
-  if [ ! $(perf record echo "testing perf" > /dev/null 2>&1) ]
+
+  if ! (perf record echo "testing perf") > /dev/null 2>&1
   then
     echo "perf does not have permission to run on this system. Skipping."
-    PERF=""
+    PERF_COMMAND=""
   else
     echo "Using 'perf' to record performance counters in perf.data files"
-    PERF="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
+    PERF_COMMAND="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
   fi
 
-elif [ -e /usr/bin/perf ]
+elif [ "$PERF" == true ]
 then
   # If flamegraphs were not requested, log normal perf counters if possible
 
-  if [ ! $(perf stat echo "testing perf" > /dev/null 2>&1) ]
+  if ! (perf stat echo "testing perf") > /dev/null 2>&1
   then
     echo "perf does not have permission to run on this system. Skipping."
-    PERF=""
+    PERF_COMMAND=""
   else
     echo "Using 'perf' to log basic performance counters for benchmark"
-    PERF="perf stat -p $MARIADB_SERVER_PID --"
+    PERF_COMMAND="perf stat -p $MARIADB_SERVER_PID --"
   fi
 fi
 
@@ -156,28 +213,23 @@ mariadb -e "
   CREATE USER IF NOT EXISTS sbtest@localhost;
   GRANT ALL PRIVILEGES ON sbtest.* TO sbtest@localhost"
 
-sysbench oltp_read_write prepare --tables=20 --table-size=100000 | tee sysbench-prepare.log
+sysbench "$WORKLOAD" prepare --tables=20 --table-size=100000 | tee sysbench-prepare.log
 sync && sleep 1 # Ensure writes were propagated to disk
-
-# Save results of this run in a subdirectory so that they are not overwritten by
-# the next run
-TIMESTAMP="$(date -Iseconds)"
-mkdir "mini-benchmark-$TIMESTAMP"
-cd "mini-benchmark-$TIMESTAMP" || exit 1
 
 # Run benchmark with increasing thread counts. The MariaDB Server will be using
 # around 300 MB of RAM and mostly reading and writing in RAM, so I/O usage is
 # also low. The benchmark will most likely be CPU bound to due to the load
 # profile, and also guaranteed to be CPU bound because of being limited to a
 # single CPU with 'tasksel'.
-for t in 1 2 4 8 16
+for t in $THREADS
 do
   # Prepend command with perf if defined
-  # Output stderr to stdout as perf outpus everything in stderr
-  $PERF $TASKSET_SYSBENCH sysbench oltp_read_write run --threads=$t --time=60 --report-interval=10 2>&1 | tee sysbench-run-$t.log
+  # Output stderr to stdout as perf outputs everything in stderr
+  # shellcheck disable=SC2086
+  $PERF_COMMAND $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --time=$DURATION --report-interval=10 2>&1 | tee sysbench-run-$t.log
 done
 
-sysbench oltp_read_write cleanup --tables=20 | tee sysbench-cleanup.log
+sysbench "$WORKLOAD" cleanup --tables=20 | tee sysbench-cleanup.log
 
 # Store results from 4 thread run in a Gitlab-CI compatible metrics file
 grep -oE '[a-z]+:[ ]+[0-9.]+' sysbench-run-4.log | sed -r 's/\s+/ /g' | tail -n 15 > metrics.txt
@@ -197,10 +249,10 @@ then
 
   # Final verdict based on cpu cycle count
   RESULT="$(grep -h -e cycles sysbench-run-*.log | sort -k 1 | awk '{s+=$1}END{print s}')"
-  if [ "$RESULT" -gt 850000000000 ]
+  if [ "$RESULT" -gt 850 ]
   then
     echo # Newline improves readability
-    echo "Benchmark exceeded 8.5 billion cpu cycles, performance most likely regressed!"
+    echo "Benchmark exceeded 850 billion cpu cycles, performance most likely regressed!"
     exit 1
   fi
 fi
@@ -216,12 +268,12 @@ if [ "$PERF_RECORD" == true ]
 then
   for f in perf.data.*
   do
-    perf script -i $f | stackcollapse-perf.pl | flamegraph.pl --width 3000 > $f.svg
+    perf script -i "$f" | stackcollapse-perf.pl | flamegraph.pl --width 1800 > "$f".svg
   done
-  echo "Flamegraphs stored in folder mini-benchmark-$TIMESTAMP/"
+  echo "Flamegraphs stored in folder $BENCHMARK_NAME-$TIMESTAMP/"
 fi
 
-# Fallback if CPU cycle count not availalbe: final verdict based on peak QPS
+# Fallback if CPU cycle count not available: final verdict based on peak QPS
 RESULT="$(sort -k 9 -h sysbench-run-*.log | tail -n 1 | grep -oE "qps: [0-9]+" | grep -oE "[0-9]+")"
 case $RESULT in
   ''|*[!0-9]*)
@@ -240,3 +292,6 @@ case $RESULT in
     fi
     ;;
 esac
+# Record the output into the log file, if requested
+) 2>&1 | ($LOG && tee "$BENCHMARK_NAME"-"$TIMESTAMP".log)
+

@@ -787,6 +787,9 @@ public:
 					string */
   /** TRX_ISO_REPEATABLE_READ, ... */
   unsigned isolation_level:2;
+  /** when set, REPEATABLE READ will actually be Snapshot Isolation, due to
+  detecting write/write conflicts and disabling "semi-consistent read" */
+  unsigned snapshot_isolation:1;
   /** normally set; "SET foreign_key_checks=0" can be issued to suppress
   foreign key checks, in table imports, for example */
   unsigned check_foreigns:1;

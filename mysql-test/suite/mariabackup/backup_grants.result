@@ -6,8 +6,6 @@ GRANT RELOAD, PROCESS on *.* to backup@localhost;
 FOUND 1 /missing required privilege REPLICA MONITOR/ in backup.log
 GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
-FOUND 1 /missing required privilege CONNECTION ADMIN/ in backup.log
-GRANT CONNECTION ADMIN ON *.* TO backup@localhost;
 FOUND 1 /missing required privilege REPLICATION SLAVE ADMIN/ in backup.log
 FOUND 1 /missing required privilege REPLICA MONITOR/ in backup.log
 GRANT REPLICATION SLAVE ADMIN ON *.* TO backup@localhost;

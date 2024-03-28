@@ -3141,7 +3141,7 @@ set timestamp=unix_timestamp('2011-11-11 11-11-11');
 update t1 set b=default, c=default(b) where a=1;
 select * from t1;
 a	b	c
-1	2010-10-10 10:10:10	2010-10-10 10:10:10
+1	2010-10-10 10:10:10	x
 2	2010-10-10 10:10:10	x
 drop table t1;
 set timestamp=default;

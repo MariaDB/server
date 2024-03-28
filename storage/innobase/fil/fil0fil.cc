@@ -342,7 +342,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
   ut_ad(node->space->is_closing());
   mysql_mutex_assert_owner(&fil_system.mutex);
   static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096, "compatibility");
-#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+#if defined _WIN32 || defined O_DIRECT
   ulint type;
   switch (FSP_FLAGS_GET_ZIP_SSIZE(node->space->flags)) {
   case 1:
@@ -361,8 +361,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
     bool success;
     node->handle= os_file_create(innodb_data_file_key, node->name,
                                  node->is_raw_disk
-                                 ? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
-                                 : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+                                 ? OS_FILE_OPEN_RAW : OS_FILE_OPEN,
                                  OS_FILE_AIO, type,
                                  srv_read_only_mode, &success);
 
@@ -930,9 +929,7 @@ bool fil_space_free(uint32_t id, bool x_latched)
 
 			log_sys.latch.wr_unlock();
 		} else {
-#ifndef SUX_LOCK_GENERIC
-			ut_ad(log_sys.latch.is_write_locked());
-#endif
+			ut_ad(log_sys.latch_have_wr());
 			if (space->max_lsn) {
 				ut_d(space->max_lsn = 0);
 				fil_system.named_spaces.remove(*space);
@@ -1395,10 +1392,12 @@ ATTRIBUTE_COLD void fil_space_t::reopen_all()
 
       ulint type= OS_DATA_FILE;
 
+#if defined _WIN32 || defined O_DIRECT
       switch (FSP_FLAGS_GET_ZIP_SSIZE(space.flags)) {
       case 1: case 2:
         type= OS_DATA_FILE_NO_O_DIRECT;
       }
+#endif
 
       for (ulint count= 10000; count--;)
       {
@@ -1804,22 +1803,19 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
-@param[in] path NULL or the directory path or the full path and filename.
+@param[in] path nullptr or the directory path or the full path and filename
 @param[in] name {} if path is full, or Table/Tablespace name
-@param[in] ext the file extension to use
-@param[in] trim_name true if the last name on the path should be trimmed.
+@param[in] extension the file extension to use
+@param[in] trim_name true if the last name on the path should be trimmed
 @return own: file name */
-char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
-                        ib_extention ext, bool trim_name)
+char* fil_make_filepath_low(const char *path,
+                            const fil_space_t::name_type &name,
+                            ib_extention extension, bool trim_name)
 {
 	/* The path may contain the basename of the file, if so we do not
 	need the name.  If the path is NULL, we can use the default path,
 	but there needs to be a name. */
 	ut_ad(path || name.data());
-
-	/* If we are going to strip a name off the path, there better be a
-	path and a new name to put back on. */
-	ut_ad(!trim_name || (path && name.data()));
 
 	if (path == NULL) {
 		path = fil_path_to_mysql_datadir;
@@ -1827,7 +1823,7 @@ char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
 
 	ulint	len		= 0;	/* current length */
 	ulint	path_len	= strlen(path);
-	const char* suffix	= dot_ext[ext];
+	const char* suffix	= dot_ext[extension];
 	ulint	suffix_len	= strlen(suffix);
 	ulint	full_len	= path_len + 1 + name.size() + suffix_len + 1;
 
@@ -1910,8 +1906,16 @@ char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
 char *fil_make_filepath(const char* path, const table_name_t name,
                         ib_extention suffix, bool strip_name)
 {
-  return fil_make_filepath(path, {name.m_name, strlen(name.m_name)},
-                           suffix, strip_name);
+  return fil_make_filepath_low(path, {name.m_name, strlen(name.m_name)},
+                               suffix, strip_name);
+}
+
+/** Wrapper function over fil_make_filepath_low() to build directory name.
+@param path the directory path or the full path and filename
+@return own: directory name */
+static inline char *fil_make_dirpath(const char *path)
+{
+  return fil_make_filepath_low(path, fil_space_t::name_type{}, NO_EXT, true);
 }
 
 dberr_t fil_space_t::rename(const char *path, bool log, bool replace)
@@ -1952,14 +1956,32 @@ dberr_t fil_space_t::rename(const char *path, bool log, bool replace)
     return DB_TABLESPACE_NOT_FOUND;
   }
 
-  exists= false;
-  if (replace);
-  else if (!os_file_status(path, &exists, &ftype) || exists)
+  if (!replace)
   {
-    sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
-                    " because the target file exists.",
-                    old_path, path);
-    return DB_TABLESPACE_EXISTS;
+    char *schema_path= fil_make_dirpath(path);
+    if (!schema_path)
+      return DB_ERROR;
+
+    exists= false;
+    bool schema_fail= os_file_status(schema_path, &exists, &ftype) && !exists;
+    ut_free(schema_path);
+
+    if (schema_fail)
+    {
+      sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
+                      " because the target schema directory doesn't exist.",
+                      old_path, path);
+      return DB_ERROR;
+    }
+
+    exists= false;
+    if (!os_file_status(path, &exists, &ftype) || exists)
+    {
+      sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
+                      " because the target file exists.",
+                      old_path, path);
+      return DB_TABLESPACE_EXISTS;
+    }
   }
 
   mtr_t mtr;
@@ -2019,7 +2041,7 @@ fil_ibd_create(
 
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
 		      "compatibility");
-#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+#if defined _WIN32 || defined O_DIRECT
 	ulint type;
 	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 	case 1:
@@ -2035,7 +2057,7 @@ fil_ibd_create(
 
 	file = os_file_create(
 		innodb_data_file_key, path,
-		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+		OS_FILE_CREATE,
 		OS_FILE_AIO, type, srv_read_only_mode, &success);
 
 	if (!success) {
@@ -3138,9 +3160,7 @@ void
 fil_names_dirty(
 	fil_space_t*	space)
 {
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked());
-#endif
+	ut_ad(log_sys.latch_have_wr());
 	ut_ad(recv_recovery_is_on());
 	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
@@ -3154,9 +3174,7 @@ fil_names_dirty(
 tablespace was modified for the first time since fil_names_clear(). */
 ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
   ut_d(fil_space_validate_for_mtr_commit(m_user_space));
   ut_ad(!m_user_space->max_lsn);
   m_user_space->max_lsn= log_sys.get_lsn();
@@ -3180,9 +3198,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked());
-#endif
+	ut_ad(log_sys.latch_have_wr());
 	ut_ad(lsn);
 	ut_ad(log_sys.is_latest());
 

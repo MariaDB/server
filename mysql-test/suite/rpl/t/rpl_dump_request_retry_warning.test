@@ -30,6 +30,10 @@
 --let $rpl_skip_start_slave=1
 --source include/master-slave.inc
 
+--disable_query_log
+call mtr.add_suppression("Could not read packet:.* errno: 11");
+--enable_query_log
+
 # Do an insert on master
 CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES(1);

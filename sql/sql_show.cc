@@ -2806,9 +2806,10 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
     thd_info->thread_id=tmp->thread_id;
     thd_info->os_thread_id=tmp->os_thread_id;
-    thd_info->user= arg->thd->strdup(tmp_sctx->user ? tmp_sctx->user :
-                                     (tmp->system_thread ?
-                                     "system user" : "unauthenticated user"));
+    thd_info->user= arg->thd->strdup(tmp_sctx->user && tmp_sctx->user != slave_user ?
+                                       tmp_sctx->user :
+                                       (tmp->system_thread ?
+                                         "system user" : "unauthenticated user"));
     if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
         arg->thd->security_ctx->host_or_ip[0])
     {
@@ -3030,7 +3031,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     Show_explain_request::call_in_target_thread, is this necessary anymore?)
   */
   set_current_thd(thd);
-  fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
+  fill_record(thd, dst_table, dst_table->field, items, true, false, false);
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
   DBUG_RETURN(MY_TEST(res));
@@ -3311,7 +3312,7 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   /* ID */
   arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
   /* USER */
-  val= tmp_sctx->user ? tmp_sctx->user :
+  val= tmp_sctx->user && tmp_sctx->user != slave_user ? tmp_sctx->user :
         (tmp->system_thread ? "system user" : "unauthenticated user");
   arg->table->field[1]->store(val, strlen(val), cs);
   /* HOST */

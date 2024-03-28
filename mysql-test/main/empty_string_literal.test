@@ -25,3 +25,15 @@ flush tables;
 update t1 set a = 2;
 show create table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-33460 select '123' 'x'; unexpected result
+--echo #
+
+SELECT '';
+SELECT '' 'b' 'c';
+SELECT '' '' 'c';
+SELECT 'a' '' 'c';
+SELECT 'a' '' '';
+
+--echo # End of 10.5 test

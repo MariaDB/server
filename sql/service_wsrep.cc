@@ -201,11 +201,11 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 
   /* Note: do not store/reset globals before wsrep_bf_abort() call
      to avoid losing BF thd context. */
-  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (!(bf_thd && bf_thd != victim_thd))
   {
     DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
   }
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (bf_thd)
   {
     wsrep_bf_abort(bf_thd, victim_thd);

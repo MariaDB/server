@@ -864,6 +864,11 @@ row_sel_build_committed_vers_for_mysql(
 					column version if any */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
+	if (prebuilt->trx->snapshot_isolation) {
+		*old_vers = rec;
+		return;
+	}
+
 	if (prebuilt->old_vers_heap) {
 		mem_heap_empty(prebuilt->old_vers_heap);
 	} else {
@@ -4458,12 +4463,10 @@ early_not_found:
 			DBUG_RETURN(DB_RECORD_NOT_FOUND);
 		}
 
+#if SIZEOF_SIZE_T < 8
+		if (UNIV_LIKELY(~prebuilt->n_rows_fetched))
+#endif
 		prebuilt->n_rows_fetched++;
-
-		if (prebuilt->n_rows_fetched > 1000000000) {
-			/* Prevent wrap-over */
-			prebuilt->n_rows_fetched = 500000000;
-		}
 
 		mode = pcur->search_mode;
 	}

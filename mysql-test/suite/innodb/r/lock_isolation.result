@@ -1,0 +1,108 @@
+#
+# MDEV-26642 Weird SELECT view when a record is
+#            modified to the same value by two transactions
+# MDEV-32898 Phantom rows caused by updates of PRIMARY KEY
+#
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,1),(2,2);
+BEGIN;
+SELECT * FROM t LOCK IN SHARE MODE;
+a	b
+1	1
+2	2
+connect con_weird,localhost,root;
+BEGIN;
+SELECT * FROM t;
+a	b
+1	1
+2	2
+connect consistent,localhost,root;
+SET innodb_snapshot_isolation=ON;
+BEGIN;
+SELECT * FROM t;
+a	b
+1	1
+2	2
+connection default;
+UPDATE t SET a=3 WHERE b=2;
+COMMIT;
+connection consistent;
+UPDATE t SET b=3;
+ERROR HY000: Record has changed since last read in table 't'
+SELECT * FROM t;
+a	b
+1	1
+3	2
+COMMIT;
+connection con_weird;
+UPDATE t SET b=3;
+SELECT * FROM t;
+a	b
+1	3
+2	2
+3	3
+COMMIT;
+connection default;
+SELECT * FROM t;
+a	b
+1	3
+3	3
+DROP TABLE t;
+#
+# MDEV-26643 Inconsistent behaviors of UPDATE under
+#            READ UNCOMMITTED and READ COMMITTED isolation level
+#
+CREATE TABLE t(a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t VALUES(NULL, 1), (2, 2);
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+BEGIN;
+UPDATE t SET a = 10;
+connection consistent;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+UPDATE t SET b = 20 WHERE a;
+connection default;
+COMMIT;
+connection consistent;
+SELECT * FROM t;
+a	b
+10	20
+10	20
+connection default;
+TRUNCATE TABLE t;
+INSERT INTO t VALUES(NULL, 1), (2, 2);
+BEGIN;
+UPDATE t SET a = 10;
+connection consistent;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+UPDATE t SET b = 20 WHERE a;
+connection default;
+COMMIT;
+connection consistent;
+SELECT * FROM t;
+a	b
+10	20
+10	20
+disconnect consistent;
+connection default;
+TRUNCATE TABLE t;
+INSERT INTO t VALUES(NULL, 1), (2, 2);
+BEGIN;
+UPDATE t SET a = 10;
+connection con_weird;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+UPDATE t SET b = 20 WHERE a;
+connection default;
+SELECT * FROM t;
+a	b
+10	1
+10	2
+COMMIT;
+connection con_weird;
+COMMIT;
+disconnect con_weird;
+connection default;
+SELECT * FROM t;
+a	b
+10	1
+10	20
+DROP TABLE t;

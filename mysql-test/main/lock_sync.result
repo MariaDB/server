@@ -884,6 +884,6 @@ set debug_sync= 'now wait_for s1';
 SELECT * FROM ( SELECT * FROM v1 ) sq;
 COMMIT;
 DROP VIEW v1;
-DROP FUNCTION f;
+DROP FUNCTION IF EXISTS f;
 DROP TABLE t1, t2;
 set debug_sync= 'reset';

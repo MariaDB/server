@@ -3,7 +3,6 @@
 # replicas before shutting down.
 #
 # Parameters:
-#   server_1_dbug (string)          Debug setting for primary (server 1)
 #   server_2_dbug (string)          Debug setting to simulate delay or error on
 #                                   the first replica (server 2)
 #   server_3_dbug (string)          Debug setting to simulate delay or error on
@@ -32,8 +31,8 @@ while (`SELECT $i <= $slave_last`)
   --connection server_$i
   --sync_with_master
 
-  set global rpl_semi_sync_slave_enabled = 1;
   source include/stop_slave.inc;
+  set global rpl_semi_sync_slave_enabled = 1;
   source include/start_slave.inc;
   show status like 'Rpl_semi_sync_slave_status';
 
@@ -56,8 +55,6 @@ show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_clients';
 
 --echo #-- Prepare servers to simulate delay or error
---connection server_1
---eval SET @@GLOBAL.debug_dbug= $server_1_dbug
 --connection server_2
 --eval SET @@GLOBAL.debug_dbug= $server_2_dbug
 --connection server_3
@@ -65,6 +62,11 @@ show status like 'Rpl_semi_sync_master_clients';
 
 --echo #--
 --echo #-- Test begins
+
+--connection server_1_con2
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
 
 --connection server_1
 --echo #-- Begin semi-sync transaction
@@ -75,25 +77,13 @@ show status like 'Rpl_semi_sync_master_clients';
 let $status_var= Rpl_semi_sync_master_wait_sessions;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_wait_sessions';
-
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-wait
-EOF
-
---echo #-- Give enough time after timeout/ack received to query yes_tx/no_tx
-SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
 
 --echo #-- Begin master shutdown
---send SHUTDOWN WAIT FOR ALL SLAVES
+SHUTDOWN WAIT FOR ALL SLAVES;
+--source include/wait_until_disconnected.inc
 
 --connection server_1
---reap
---echo #-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
-show status like 'Rpl_semi_sync_master_yes_tx';
-show status like 'Rpl_semi_sync_master_no_tx';
-
---connection server_1_con2
+--error 2013
 --reap
 --source include/wait_until_disconnected.inc
 
@@ -111,19 +101,72 @@ show status like 'Rpl_semi_sync_master_no_tx';
 --echo #
 --echo #-- Re-synchronize slaves with master and disable semi-sync
 
+if (`SELECT ($server_2_expect_row_count + $server_3_expect_row_count) < 2`)
+{
+--echo #-- FIXME: workaround for MDEV-28141, preventing errored replicas from
+--echo # killing their semi-sync connections
+# I.e. we can't create a new kill connection to the primary if we know that the
+# primary is shutting down for risk of Packets out of order error. So we wait
+# to hit a debug_sync point before the creation of the new kill_connection, and
+# don't progress until the primary has been shutdown, so no new connection can
+# be formed.
+# Note this is only needed in the error case (using corrupt_queue_event), as
+# the running io_thread will otherwise automatically detect that the primary
+# has shutdown before progressing to the cleanup of the io thread.
+}
+
+if (!$server_2_expect_row_count)
+{
+  --connection server_2
+  set debug_sync= "now wait_for at_semisync_kill_connection";
+  set debug_sync= "now signal continue_semisync_kill_connection";
+  --echo # Wait for debug_sync signal to have been received before issuing RESET
+  let $wait_condition= select count(*)=0 from information_schema.processlist where state like "debug sync point%";
+  source include/wait_condition.inc;
+  set debug_sync= "reset";
+}
+if (!$server_3_expect_row_count)
+{
+  --connection server_3
+  set debug_sync= "now wait_for at_semisync_kill_connection";
+  set debug_sync= "now signal continue_semisync_kill_connection";
+  --echo # Wait for debug_sync signal to have been received before issuing RESET
+  let $wait_condition= select count(*)=0 from information_schema.processlist where state like "debug sync point%";
+  source include/wait_condition.inc;
+  set debug_sync= "reset";
+}
+
 --echo #-- Stop slaves
 
 --connection server_2
---eval SET @@GLOBAL.debug_dbug= "$sav_server_2_dbug"
---eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
---let $rpl_only_running_threads= 1
-source include/stop_slave.inc;
+# If server_2_expect_row_count is 0, we are simulating an error on the replica
+# and the IO thread will end with errno 1595.
+# Otherwise, we still expect error, because the master has shutdown at this
+# point, and the IO thread may or may not have realized the shutdown, and
+# started to try to automatically reconnect. This may result in the IO thread
+# giving a 2003 error if the slave tries to reconnect to a shutdown master.
+# Additionally disable warnings because the slave may have stopped in err
+# automatically, and we don't want a sporadic "Slave is already stopped"
+# warning.
+--disable_warnings
+--let $rpl_allow_error= 1
+--source include/stop_slave_io.inc
+--enable_warnings
+--let $rpl_allow_error=
+--source include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_2_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_2;
 
 --connection server_3
---eval SET @@GLOBAL.debug_dbug= "$sav_server_3_dbug"
---eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
---let $rpl_only_running_threads= 1
-source include/stop_slave.inc;
+# Expect error for IO thread, see above comment for stopping server_2
+--disable_warnings
+--let $rpl_allow_error= 1
+--source include/stop_slave_io.inc
+--enable_warnings
+--let $rpl_allow_error=
+--source include/stop_slave_sql.inc
+SET @@GLOBAL.debug_dbug= @sav_server_3_dbug;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @sav_enabled_server_3;
 
 --echo #-- Bring the master back up
 --connection server_1_con2
@@ -141,13 +184,6 @@ EOF
 --connection server_1
 --enable_reconnect
 --source include/wait_until_connected_again.inc
-
---eval SET @@GLOBAL.debug_dbug= "$sav_master_dbug"
-let $status_var= Rpl_semi_sync_master_clients;
-let $status_var_value= 0;
-source include/wait_for_status_var.inc;
---eval SET @@GLOBAL.rpl_semi_sync_master_enabled = 0
-show status like 'Rpl_semi_sync_master_status';
 
 TRUNCATE TABLE t1;
 --save_master_pos
