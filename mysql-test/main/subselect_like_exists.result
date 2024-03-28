@@ -1,0 +1,116 @@
+CREATE TABLE t0 ( c38 DOUBLE ( 87 , 18 ) ) ;
+INSERT INTO t0 VALUES ( DEFAULT ) , ( DEFAULT ) ;
+CREATE INDEX i0 ON t0 ( c38 ) ;
+INSERT INTO t0 VALUES ( 34 ) , ( -14 ) ;
+SELECT t0 . c38 AS c5 FROM ( SELECT c38 AS c27 FROM t0 ) AS t1 JOIN t0 ON t0 . c38 >= LN ( c27 IS TRUE ) LIKE EXISTS ( SELECT SPACE ( c24 ) - UNHEX ( c38 ) + STD( ORD ( -26 ) & RADIANS ( 62 ) / TRIM( LEADING 110 FROM 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx' ) AND -19.704435 | ACOS ( -69 IS TRUE ) ) % + RAND ( CONVERT ( -75 , UNSIGNED ) IN ( -64 , 10 , -118 ) XOR -85 = MAKE_SET ( 11 , ROUND ( -89 , -20 ) SOUNDS LIKE TRIM( TRAILING FROM 34 ) AND RAND ( ) ) ) AS c17 FROM ( SELECT t2 . c38 AS c24 FROM t0 LEFT OUTER JOIN t0 AS t2 USING ( c38 ) ) AS t3 JOIN t0 ON t3 . c24 = t0 . c38 GROUP BY c38 , c24 UNION SELECT c38 + 35 AS c48 FROM t0 WHERE c38 IN ( SELECT c38 AS c12 FROM t0 ) ) ;
+c5
+34.000000000000000000
+34.000000000000000000
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: '                                  '
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: '                                  '
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: '                                  '
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DOUBLE value: 'a4~mq;A825}$&%(C
+{!}
+
+.!
+{S&pATQJb%F}
+
+qU@UH?VHFyU4%))Gx'
+Warning	1365	Division by 0
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect DOUBLE value: '                                  '
+CREATE TABLE t1 ( a double, key (a)) ;
+INSERT INTO t1 VALUES (1),(2),(-3);
+SELECT t1.a FROM ( SELECT a AS a1 FROM t1 ) dt 
+JOIN t1 ON a1  LIKE EXISTS ( SELECT a + RAND () FROM t1 UNION SELECT a FROM t1) ;
+a
+-3
+1
+2
+drop table t0, t1;
