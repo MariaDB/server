@@ -11,6 +11,7 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
 --connection node_1
 --echo cluster 1 node 1
@@ -75,12 +76,12 @@ select @@gtid_binlog_state;
 select @@gtid_binlog_state;
 insert into t1 values (2, 21, 1);
 select @@gtid_binlog_state;
-select * from t1;
 --echo #wait for sync  cluster 1 and 2
 --connection node_1
 --source include/save_master_gtid.inc
 --connection node_4
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 
 --echo cluster 1 node 2
@@ -94,6 +95,7 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_4
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 1 node 3
 --connection node_3
@@ -106,6 +108,7 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_4
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 2 node 2
 --connection node_5
@@ -118,6 +121,7 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_1
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 2 node 3
 --connection node_6
@@ -130,7 +134,21 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_1
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
+--echo # check other nodes are consistent
+--connection node_2
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_3
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_5
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_6
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 1 node 1
 --connection node_1
@@ -226,13 +244,13 @@ select @@gtid_binlog_state;
 --connection node_4
 insert into t1 values (2, 21, 1);
 select @@gtid_binlog_state;
-select * from t1;
 
 --echo #wait for sync  cluster 1 and 2
 --connection node_1
 --source include/save_master_gtid.inc
 --connection node_4
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 
 --echo cluster 1 node 2
@@ -246,6 +264,7 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_4
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 1 node 3
 --connection node_3
@@ -258,6 +277,7 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_4
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 2 node 2
 --connection node_5
@@ -270,6 +290,7 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_1
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 2 node 3
 --connection node_6
@@ -282,7 +303,21 @@ select @@gtid_binlog_state;
 --source include/save_master_gtid.inc
 --connection node_1
 --source include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
 
+--echo # check other nodes are consistent
+--connection node_2
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_3
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_5
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
+--connection node_6
+select @@gtid_binlog_state;
+select * from t1 order by 1, 2, 3;
 
 --echo cluster 1 node 1
 --connection node_1

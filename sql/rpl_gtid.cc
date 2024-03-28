@@ -704,6 +704,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   {
     thd->wsrep_ignore_table= false;
     table->file->row_logging= 1; // replication requires binary logging
+    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+      thd->set_query_id(next_query_id());
     wsrep_start_trx_if_not_started(thd);
   }
   else
