@@ -1,0 +1,106 @@
+--source include/galera_cluster.inc
+--source include/not_valgrind.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+select @@global.innodb_undo_tablespaces AS EXPECT_0;
+
+--connection node_2
+let $MYSQLD_DATADIR= `select @@datadir`;
+--echo # Shutdown node_2
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--echo # On node_1, verify that the node has left the cluster.
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15);
+INSERT INTO t1 VALUES (21),(22),(23),(24),(25);
+
+--connection node_2
+--echo # Clean up datadir to force SST
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data ibdata*
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data ib_logfile*
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--echo # Should list 0 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+--let $restart_noprint=2
+--let $start_mysqld_params="--innodb_undo_tablespaces=3"
+--source include/start_mysqld.inc
+--source include/wait_until_ready.inc
+
+--connection node_1
+--echo # On node_1, verify that the node has joined the cluster.
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+SELECT @@global.innodb_undo_tablespaces AS EXPECT_3;
+
+--echo # Should list 3 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 15 FROM t1;
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+
+--connection node_2
+--echo # Shutdown node_2
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--echo # On node_1, verify that the node has left the cluster.
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--echo # Clean up datadir to force SST
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data ibdata*
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data ib_logfile*
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data undo*;
+
+--echo Starting server ...
+--let $start_mysqld_params=
+--source include/start_mysqld.inc
+--source include/wait_until_ready.inc
+
+--connection node_1
+--echo # On node_1, verify that the node has joined the cluster.
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+SELECT @@global.innodb_undo_tablespaces AS EXPECT_0;
+
+--echo # Should list 0 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 15 FROM t1;
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+
+SET GLOBAL innodb_fast_shutdown=DEFAULT;
+
+--connection node_1
+DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc
