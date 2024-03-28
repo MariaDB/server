@@ -75,15 +75,15 @@ insert into t1 values (2, 21, 1);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
 1-11-2,2-21-1
-select * from t1;
-cluster_domain_id	node_server_id	seq_no
-1	11	2
-2	21	1
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
 connection node_4;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+2	21	1
 cluster 1 node 2
 connection node_2;
 select @@gtid_binlog_state;
@@ -98,6 +98,11 @@ connection node_1;
 include/save_master_gtid.inc
 connection node_4;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+2	21	1
 cluster 1 node 3
 connection node_3;
 select @@gtid_binlog_state;
@@ -112,6 +117,12 @@ connection node_1;
 include/save_master_gtid.inc
 connection node_4;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+1	13	4
+2	21	1
 cluster 2 node 2
 connection node_5;
 select @@gtid_binlog_state;
@@ -126,6 +137,13 @@ connection node_4;
 include/save_master_gtid.inc
 connection node_1;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+1	13	4
+2	21	1
+2	22	2
 cluster 2 node 3
 connection node_6;
 select @@gtid_binlog_state;
@@ -140,6 +158,14 @@ connection node_4;
 include/save_master_gtid.inc
 connection node_1;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+1	13	4
+2	21	1
+2	22	2
+2	23	3
 cluster 1 node 1
 connection node_1;
 select @@gtid_binlog_state;
@@ -220,15 +246,15 @@ insert into t1 values (2, 21, 1);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
 1-11-2,2-21-1
-select * from t1;
-cluster_domain_id	node_server_id	seq_no
-1	11	2
-2	21	1
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
 connection node_4;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+2	21	1
 cluster 1 node 2
 connection node_2;
 select @@gtid_binlog_state;
@@ -243,6 +269,11 @@ connection node_1;
 include/save_master_gtid.inc
 connection node_4;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+2	21	1
 cluster 1 node 3
 connection node_3;
 select @@gtid_binlog_state;
@@ -257,6 +288,12 @@ connection node_1;
 include/save_master_gtid.inc
 connection node_4;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+1	13	4
+2	21	1
 cluster 2 node 2
 connection node_5;
 select @@gtid_binlog_state;
@@ -271,6 +308,13 @@ connection node_4;
 include/save_master_gtid.inc
 connection node_1;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+1	13	4
+2	21	1
+2	22	2
 cluster 2 node 3
 connection node_6;
 select @@gtid_binlog_state;
@@ -285,6 +329,14 @@ connection node_4;
 include/save_master_gtid.inc
 connection node_1;
 include/sync_with_master_gtid.inc
+select * from t1 order by 1, 2, 3;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+1	12	3
+1	13	4
+2	21	1
+2	22	2
+2	23	3
 cluster 1 node 1
 connection node_1;
 select @@gtid_binlog_state;
