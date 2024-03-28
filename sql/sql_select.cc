@@ -1876,6 +1876,8 @@ JOIN::init_range_rowid_filters()
 
 int JOIN::init_join_caches()
 {
+  bool checked_if_expensive= false;
+  bool init_for_explain= false;
   JOIN_TAB *tab;
 
   for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -1895,7 +1897,27 @@ int JOIN::init_join_caches()
     {
       table->prepare_for_keyread(tab->index, table->read_set);
     }
-    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+
+    /*
+      We are about to initialize a join buffer.
+      Can we use lightweight initalization mode just for EXPLAINs? We can if
+      we're certain that the optimizer will not execute the subquery.
+
+      It won't execute it if this join is too expensive.  We follow the logic
+      in Item_subselect::is_expensive() and initalize for explain only if this
+      join examines more than @@expensive_subquery_limit.
+    */
+    if (tab->cache && !checked_if_expensive)
+    {
+      checked_if_expensive= true;
+      if ((select_options & SELECT_DESCRIBE) &&
+          get_examined_rows() >= thd->variables.expensive_subquery_limit)
+      {
+        init_for_explain= true;
+      }
+    }
+
+    if (tab->cache && tab->cache->init(init_for_explain))
       revise_cache_usage(tab);
     else
       tab->remove_redundant_bnl_scan_conds();
