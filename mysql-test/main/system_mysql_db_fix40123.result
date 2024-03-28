@@ -36,29 +36,6 @@ CREATE TABLE time_zone_leap_second ( Transition_time bigint signed NOT NULL, Cor
 Warnings:
 Warning	1280	Name 'TranTime' ignored for PRIMARY key.
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 set sql_mode=''
 --------------
 
@@ -83,55 +60,9 @@ set @have_innodb= (select count(engine) from information_schema.engines where en
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 SET @hadGrantPriv:=0
 --------------
@@ -161,82 +92,17 @@ ALTER TABLE db add Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' 
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 UPDATE user SET Grant_priv=File_priv,References_priv=Create_priv,Index_priv=Create_priv,Alter_priv=Create_priv WHERE @hadGrantPriv = 0
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 UPDATE db SET References_priv=Create_priv,Index_priv=Create_priv,Alter_priv=Create_priv WHERE @hadGrantPriv = 0
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
+set @a=(SELECT concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name='user')
 --------------
 
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 ALTER TABLE user
 ADD ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL,
@@ -246,54 +112,22 @@ ADD x509_subject BLOB NOT NULL
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
+SELECT @a = concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name='user'
 --------------
 
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
++----------------------------------------------------------------------------------------------------------------------------------+
+| @a = concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) |
++----------------------------------------------------------------------------------------------------------------------------------+
+|                                                                                                                                1 |
++----------------------------------------------------------------------------------------------------------------------------------+
 --------------
 ALTER TABLE user MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
+SELECT @a = concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name='user'
 --------------
 
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
 --------------
 ALTER TABLE tables_priv
   ADD KEY Grantor (Grantor)
@@ -322,27 +156,6 @@ ALTER TABLE tables_priv
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE columns_priv
   CHANGE Type Column_priv set('Select','Insert','Update','References')
     COLLATE utf8_general_ci DEFAULT '' NOT NULL
@@ -366,26 +179,6 @@ ALTER TABLE columns_priv
     COLLATE utf8_general_ci DEFAULT '' NOT NULL
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
 --------------
 ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL
 --------------
@@ -420,27 +213,6 @@ UPDATE user SET Show_db_priv= Select_priv, Super_priv=Process_priv, Execute_priv
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE user
 ADD max_questions int(11) NOT NULL DEFAULT 0 AFTER x509_subject,
 ADD max_updates   int(11) unsigned NOT NULL DEFAULT 0 AFTER max_questions,
@@ -457,27 +229,6 @@ ADD Lock_tables_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL
 alter table user change max_questions max_questions int(11) unsigned DEFAULT 0  NOT NULL
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 alter table db comment='Database privileges'
 --------------
@@ -547,26 +298,6 @@ ALTER TABLE user
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | func                      |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE db
   MODIFY Host char(60) NOT NULL default '',
   MODIFY Db char(64) NOT NULL default '',
@@ -600,24 +331,6 @@ ALTER TABLE func
   MODIFY type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
 --------------
 SET @old_log_state = @@global.general_log
 --------------
@@ -686,24 +399,6 @@ ALTER TABLE plugin
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
---------------
 SET @hadCreateViewPriv:=0
 --------------
 
@@ -756,26 +451,6 @@ SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv IS NOT NULL
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE db ADD Create_routine_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Show_view_priv
 --------------
 
@@ -816,26 +491,6 @@ ALTER TABLE db MODIFY Execute_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 UPDATE user SET Create_routine_priv=Create_priv, Alter_routine_priv=Alter_priv where user<>"" AND @hadCreateRoutinePriv = 0
 --------------
 
@@ -874,26 +529,6 @@ UPDATE user LEFT JOIN db USING (Host,User) SET Create_user_priv='Y'
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE procs_priv
   ENGINE=Aria,
   CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin
@@ -922,26 +557,6 @@ ALTER TABLE procs_priv
   MODIFY Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER Proc_priv
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                  MODIFY specific_name char(64) DEFAULT '' NOT NULL,
@@ -1012,26 +627,6 @@ ALTER TABLE proc MODIFY character_set_client
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE proc MODIFY type enum('FUNCTION',
                                   'PROCEDURE',
                                   'PACKAGE',
@@ -1093,26 +688,6 @@ ALTER TABLE proc MODIFY db_collation
                         char(32) collate utf8_bin DEFAULT NULL
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been updated with default values. Please verify if necessary.")
@@ -1185,26 +760,6 @@ ALTER TABLE db MODIFY Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NO
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE event DROP PRIMARY KEY, ADD PRIMARY KEY(db, name)
 --------------
 
@@ -1273,26 +828,6 @@ ALTER TABLE event ADD COLUMN time_zone char(64) CHARACTER SET latin1
         NOT NULL DEFAULT 'SYSTEM' AFTER originator
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 ALTER TABLE event ADD character_set_client
                       char(32) collate utf8_bin DEFAULT NULL
@@ -1388,26 +923,6 @@ UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePr
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 ALTER TABLE user change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N'
 --------------
 
@@ -1498,25 +1013,6 @@ ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-+-------------+---------------+---------------------------+
---------------
 BEGIN NOT ATOMIC
   SET @duplicate_hosts=(SELECT count(*) FROM mysql.user GROUP BY user, lower(host) HAVING count(*) > 1 LIMIT 1);
   IF @duplicate_hosts > 1 THEN
@@ -1600,28 +1096,6 @@ alter table tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_category             |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | help_topic                |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
---------------
 flush privileges
 --------------
 
@@ -1645,26 +1119,6 @@ DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_master" AND NOT EXISTS (SELEC
 DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_slave" AND NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME="rpl_semi_sync_slave")
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------------------+
-| object_type | object_schema | object_name               |
-+-------------+---------------+---------------------------+
-| TABLE       | test          | columns_priv              |
-| TABLE       | test          | db                        |
-| TABLE       | test          | help_keyword              |
-| TABLE       | test          | help_relation             |
-| TABLE       | test          | host                      |
-| TABLE       | test          | tables_priv               |
-| TABLE       | test          | time_zone                 |
-| TABLE       | test          | time_zone_leap_second     |
-| TABLE       | test          | time_zone_name            |
-| TABLE       | test          | time_zone_transition      |
-| TABLE       | test          | time_zone_transition_type |
-| TABLE       | test          | user                      |
-+-------------+---------------+---------------------------+
 --------------
 ALTER TABLE user ENGINE=Aria transactional=1
 --------------
@@ -1762,15 +1216,6 @@ ALTER TABLE index_stats ENGINE=Aria transactional=0
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+-------------+
-| object_type | object_schema | object_name |
-+-------------+---------------+-------------+
-| TABLE       | test          | host        |
-+-------------+---------------+-------------+
---------------
 IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
   CREATE TABLE IF NOT EXISTS global_priv (Host char(60) binary DEFAULT '', User char(80) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
   SELECT Host, User, JSON_COMPACT(JSON_OBJECT('access',
@@ -1832,31 +1277,11 @@ END IF
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+-------------+
-| object_type | object_schema | object_name |
-+-------------+---------------+-------------+
-| TABLE       | test          | global_priv |
-| TABLE       | test          | host        |
-+-------------+---------------+-------------+
---------------
 ALTER TABLE servers
   MODIFY Host varchar(2048) NOT NULL DEFAULT '',
   MODIFY Owner varchar(512) NOT NULL DEFAULT ''
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+-------------+
-| object_type | object_schema | object_name |
-+-------------+---------------+-------------+
-| TABLE       | test          | global_priv |
-| TABLE       | test          | host        |
-+-------------+---------------+-------------+
 --------------
 set sql_mode=''
 --------------
@@ -1974,16 +1399,6 @@ CREATE DEFINER='mariadb.sys'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+-------------+
-| object_type | object_schema | object_name |
-+-------------+---------------+-------------+
-| TABLE       | test          | global_priv |
-| TABLE       | test          | host        |
-+-------------+---------------+-------------+
---------------
 set @had_user_table= @@warning_count != 0
 --------------
 
@@ -2072,22 +1487,6 @@ CREATE TABLE IF NOT EXISTS procs_priv ( Host char(60) binary DEFAULT '' NOT NULL
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------+
-| object_type | object_schema | object_name   |
-+-------------+---------------+---------------+
-| TABLE       | test          | global_priv   |
-| TABLE       | test          | host          |
-| TABLE       | test          | plugin        |
-| TABLE       | test          | proc          |
-| TABLE       | test          | procs_priv    |
-| TABLE       | test          | roles_mapping |
-| TABLE       | test          | servers       |
-| TABLE       | test          | tables_priv   |
-+-------------+---------------+---------------+
---------------
 SET @have_csv = (SELECT support FROM information_schema.engines WHERE engine = 'CSV')
 --------------
 
@@ -2127,25 +1526,6 @@ DROP PREPARE stmt
 CREATE TABLE IF NOT EXISTS event ( db char(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL default '', name char(64) CHARACTER SET utf8 NOT NULL default '', body longblob NOT NULL, definer char(141) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL default '', execute_at DATETIME default NULL, interval_value int(11) default NULL, interval_field ENUM('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND') default NULL, created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, modified TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00', last_executed DATETIME default NULL, starts DATETIME default NULL, ends DATETIME default NULL, status ENUM('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL default 'ENABLED', on_completion ENUM('DROP','PRESERVE') NOT NULL default 'DROP', sql_mode  set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') DEFAULT '' NOT NULL, comment char(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL default '', originator INTEGER UNSIGNED NOT NULL, time_zone char(64) CHARACTER SET latin1 NOT NULL DEFAULT 'SYSTEM', character_set_client char(32) collate utf8_bin, collation_connection char(32) collate utf8_bin, db_collation char(32) collate utf8_bin, body_utf8 longblob, PRIMARY KEY (db, name) ) engine=Aria transactional=1 DEFAULT CHARSET=utf8 COMMENT 'Events'
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+---------------+
-| object_type | object_schema | object_name   |
-+-------------+---------------+---------------+
-| TABLE       | test          | event         |
-| TABLE       | test          | general_log   |
-| TABLE       | test          | global_priv   |
-| TABLE       | test          | host          |
-| TABLE       | test          | plugin        |
-| TABLE       | test          | proc          |
-| TABLE       | test          | procs_priv    |
-| TABLE       | test          | roles_mapping |
-| TABLE       | test          | servers       |
-| TABLE       | test          | slow_log      |
-| TABLE       | test          | tables_priv   |
-+-------------+---------------+---------------+
 --------------
 SET @create_innodb_table_stats="CREATE TABLE IF NOT EXISTS innodb_table_stats (
 	database_name			VARCHAR(64) NOT NULL,
@@ -2314,29 +1694,6 @@ CREATE TABLE IF NOT EXISTS proxies_priv (Host char(60) binary DEFAULT '' NOT NUL
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+----------------------+
-| object_type | object_schema | object_name          |
-+-------------+---------------+----------------------+
-| TABLE       | test          | event                |
-| TABLE       | test          | general_log          |
-| TABLE       | test          | global_priv          |
-| TABLE       | test          | host                 |
-| TABLE       | test          | innodb_index_stats   |
-| TABLE       | test          | innodb_table_stats   |
-| TABLE       | test          | plugin               |
-| TABLE       | test          | proc                 |
-| TABLE       | test          | procs_priv           |
-| TABLE       | test          | proxies_priv         |
-| TABLE       | test          | roles_mapping        |
-| TABLE       | test          | servers              |
-| TABLE       | test          | slow_log             |
-| TABLE       | test          | tables_priv          |
-| TABLE       | test          | transaction_registry |
-+-------------+---------------+----------------------+
---------------
 set @had_proxies_priv_table= @@warning_count != 0
 --------------
 
@@ -2403,33 +1760,6 @@ set default_storage_engine=@orig_storage_engine
 --------------
 
 --------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+----------------------+
-| object_type | object_schema | object_name          |
-+-------------+---------------+----------------------+
-| TABLE       | test          | column_stats         |
-| TABLE       | test          | event                |
-| TABLE       | test          | general_log          |
-| TABLE       | test          | global_priv          |
-| TABLE       | test          | gtid_slave_pos       |
-| TABLE       | test          | host                 |
-| TABLE       | test          | index_stats          |
-| TABLE       | test          | innodb_index_stats   |
-| TABLE       | test          | innodb_table_stats   |
-| TABLE       | test          | plugin               |
-| TABLE       | test          | proc                 |
-| TABLE       | test          | procs_priv           |
-| TABLE       | test          | proxies_priv         |
-| TABLE       | test          | roles_mapping        |
-| TABLE       | test          | servers              |
-| TABLE       | test          | slow_log             |
-| TABLE       | test          | tables_priv          |
-| TABLE       | test          | table_stats          |
-| TABLE       | test          | transaction_registry |
-+-------------+---------------+----------------------+
---------------
 drop table if exists mysql.ndb_binlog_index
 --------------
 
@@ -2461,33 +1791,6 @@ EXECUTE stmt
 DROP PREPARE stmt
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+----------------------+
-| object_type | object_schema | object_name          |
-+-------------+---------------+----------------------+
-| TABLE       | test          | column_stats         |
-| TABLE       | test          | event                |
-| TABLE       | test          | general_log          |
-| TABLE       | test          | global_priv          |
-| TABLE       | test          | gtid_slave_pos       |
-| TABLE       | test          | host                 |
-| TABLE       | test          | index_stats          |
-| TABLE       | test          | innodb_index_stats   |
-| TABLE       | test          | innodb_table_stats   |
-| TABLE       | test          | plugin               |
-| TABLE       | test          | proc                 |
-| TABLE       | test          | procs_priv           |
-| TABLE       | test          | proxies_priv         |
-| TABLE       | test          | roles_mapping        |
-| TABLE       | test          | servers              |
-| TABLE       | test          | slow_log             |
-| TABLE       | test          | tables_priv          |
-| TABLE       | test          | table_stats          |
-| TABLE       | test          | transaction_registry |
-+-------------+---------------+----------------------+
 --------------
 SET @cmd="SET @broken_views = (select count(*) from information_schema.views where table_schema='performance_schema')"
 --------------
@@ -2560,33 +1863,6 @@ EXECUTE stmt
 DROP PREPARE stmt
 --------------
 
---------------
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3
---------------
-
-+-------------+---------------+----------------------+
-| object_type | object_schema | object_name          |
-+-------------+---------------+----------------------+
-| TABLE       | test          | column_stats         |
-| TABLE       | test          | event                |
-| TABLE       | test          | general_log          |
-| TABLE       | test          | global_priv          |
-| TABLE       | test          | gtid_slave_pos       |
-| TABLE       | test          | host                 |
-| TABLE       | test          | index_stats          |
-| TABLE       | test          | innodb_index_stats   |
-| TABLE       | test          | innodb_table_stats   |
-| TABLE       | test          | plugin               |
-| TABLE       | test          | proc                 |
-| TABLE       | test          | procs_priv           |
-| TABLE       | test          | proxies_priv         |
-| TABLE       | test          | roles_mapping        |
-| TABLE       | test          | servers              |
-| TABLE       | test          | slow_log             |
-| TABLE       | test          | tables_priv          |
-| TABLE       | test          | table_stats          |
-| TABLE       | test          | transaction_registry |
-+-------------+---------------+----------------------+
 SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type
 WHERE object_schema='test';
 object_type	object_schema	object_name

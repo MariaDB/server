@@ -24,7 +24,6 @@
 # Warning message(s) produced for a statement can be printed by explicitly
 # adding a 'SHOW WARNINGS' after the statement.
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 set sql_mode='';
 set sql_safe_updates='OFF';
@@ -34,11 +33,9 @@ set alter_algorithm='DEFAULT';
 
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 # Detect whether or not we had the Grant_priv column
 SET @hadGrantPriv:=0;
@@ -53,30 +50,27 @@ ALTER TABLE db add Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' 
                add Index_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                add Alter_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 # Fix privileges for old tables
 UPDATE user SET Grant_priv=File_priv,References_priv=Create_priv,Index_priv=Create_priv,Alter_priv=Create_priv WHERE @hadGrantPriv = 0;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 UPDATE db SET References_priv=Create_priv,Index_priv=Create_priv,Alter_priv=Create_priv WHERE @hadGrantPriv = 0;
 #
 # The second alter changes ssl_type to new 4.0.2 format
 # Adding columns needed by GRANT .. REQUIRE (openssl)
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
+set @a=(SELECT concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name='user');
 ALTER TABLE user
 ADD ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL,
 ADD ssl_cipher BLOB NOT NULL,
 ADD x509_issuer BLOB NOT NULL,
 ADD x509_subject BLOB NOT NULL;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
-
+SELECT @a = concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name='user';
 ALTER TABLE user MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL;
+SELECT @a = concat_ws(',',OBJECT_TYPE,OBJECT_SCHEMA,OBJECT_NAME,COUNT_STAR,SUM_TIMER_WAIT,MIN_TIMER_WAIT,AVG_TIMER_WAIT,MAX_TIMER_WAIT) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name='user';
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 #
 # tables_priv
 #
@@ -101,7 +95,6 @@ ALTER TABLE tables_priv
     COLLATE utf8_general_ci DEFAULT '' NOT NULL,
   COMMENT='Table privileges';
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 #
 # columns_priv
 #
@@ -129,7 +122,6 @@ ALTER TABLE columns_priv
 #
 #  Add the new 'type' column to the func table.
 #
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL;
 
@@ -154,7 +146,6 @@ ADD Repl_client_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL 
 
 UPDATE user SET Show_db_priv= Select_priv, Super_priv=Process_priv, Execute_priv=Process_priv, Create_tmp_table_priv='Y', Lock_tables_priv='Y', Repl_slave_priv=file_priv, Repl_client_priv=File_priv where user<>"" AND @hadShowDbPriv = 0;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 #  Add fields that can be used to limit number of questions and connections
 #  for some users.
@@ -175,7 +166,6 @@ ADD Lock_tables_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
 alter table user change max_questions max_questions int(11) unsigned DEFAULT 0  NOT NULL;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 alter table db comment='Database privileges';
 alter table user comment='Users and global privileges';
@@ -230,7 +220,6 @@ ALTER TABLE user
   MODIFY Repl_slave_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   MODIFY Repl_client_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') COLLATE utf8_general_ci DEFAULT '' NOT NULL;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 ALTER TABLE db
   MODIFY Host char(60) NOT NULL default '',
@@ -256,7 +245,6 @@ ALTER TABLE func
   ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 ALTER TABLE func
   MODIFY type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 #
 # Modify log tables.
@@ -299,7 +287,6 @@ ALTER TABLE plugin
   MODIFY dl varchar(128) COLLATE utf8_general_ci NOT NULL DEFAULT '',
   CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 #
 # Detect whether we had Create_view_priv
 #
@@ -336,7 +323,6 @@ UPDATE user SET Create_view_priv=Create_priv, Show_view_priv=Create_priv where u
 SET @hadCreateRoutinePriv:=0;
 SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv IS NOT NULL;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 #
 # Create PROCEDUREs privileges (v5.0)
 #
@@ -358,7 +344,6 @@ ALTER TABLE user MODIFY Alter_routine_priv enum('N','Y') COLLATE utf8_general_ci
 ALTER TABLE db ADD Execute_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 ALTER TABLE db MODIFY Execute_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 #
 # Assign create/alter routine privileges to people who have create privileges
 #
@@ -385,7 +370,6 @@ ALTER TABLE user MODIFY Create_user_priv enum('N','Y') COLLATE utf8_general_ci D
 UPDATE user LEFT JOIN db USING (Host,User) SET Create_user_priv='Y'
   WHERE @hadCreateUserPriv = 0 AND
         (user.Grant_priv = 'Y' OR db.Grant_priv = 'Y');
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 #
 # procs_priv
@@ -414,7 +398,6 @@ ALTER TABLE procs_priv
 # proc
 #
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 # Correct the name fields to not binary, and expand sql_data_access
 ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                  MODIFY specific_name char(64) DEFAULT '' NOT NULL,
@@ -477,7 +460,6 @@ ALTER TABLE proc ADD character_set_client
                      AFTER comment;
 ALTER TABLE proc MODIFY character_set_client
                         char(32) collate utf8_bin DEFAULT NULL;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 ALTER TABLE proc MODIFY type enum('FUNCTION',
                                   'PROCEDURE',
@@ -518,7 +500,6 @@ ALTER TABLE proc ADD db_collation
                      AFTER collation_connection;
 ALTER TABLE proc MODIFY db_collation
                         char(32) collate utf8_bin DEFAULT NULL;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been updated with default values. Please verify if necessary.")
@@ -563,7 +544,6 @@ UPDATE user SET Event_priv=Super_priv WHERE @hadEventPriv = 0;
 ALTER TABLE db ADD Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NOT NULL;
 ALTER TABLE db MODIFY Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NOT NULL;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 #
 # EVENT table
 #
@@ -618,7 +598,6 @@ ALTER TABLE event MODIFY COLUMN status ENUM('ENABLED','DISABLED','SLAVESIDE_DISA
 ALTER TABLE event ADD COLUMN time_zone char(64) CHARACTER SET latin1
         NOT NULL DEFAULT 'SYSTEM' AFTER originator;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 ALTER TABLE event ADD character_set_client
                       char(32) collate utf8_bin DEFAULT NULL
@@ -671,7 +650,6 @@ ALTER TABLE user ADD Create_tablespace_priv enum('N','Y') COLLATE utf8_general_c
 ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
 
 UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePriv = 0;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 #
 # System versioning
@@ -721,7 +699,6 @@ ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL
                  MODIFY IF EXISTS password_lifetime smallint unsigned DEFAULT NULL AFTER password_last_changed,
                  MODIFY IF EXISTS account_locked enum('N', 'Y') CHARACTER SET utf8 DEFAULT 'N' NOT NULL after password_lifetime;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 -- Checking for any duplicate hostname and username combination are exists.
 -- If exits we will throw error.
 DELIMITER //
@@ -767,7 +744,6 @@ alter table servers      modify Username     char(80)                   not null
 alter table procs_priv   modify Grantor      char(141) COLLATE utf8_bin not null default '';
 alter table tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null default '';
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 # Activate the new, possible modified privilege tables
 # This should not be needed, but gives us some extra testing that the above
 # changes was correct
@@ -794,7 +770,6 @@ DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_slave" AND NOT EXISTS (SELECT
 --
 -- Ensure that all tables are of type Aria and transactional
 --
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 ALTER TABLE user ENGINE=Aria transactional=1;
 ALTER TABLE db ENGINE=Aria transactional=1;
@@ -822,7 +797,6 @@ ALTER TABLE help_keyword ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
 ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 DELIMITER //
 IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
@@ -883,7 +857,6 @@ IF 1 = (SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def
 END IF//
 
 DELIMITER ;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 # MDEV-22683 - upgrade Host and Owner of servers
 ALTER TABLE servers
@@ -908,7 +881,6 @@ ALTER TABLE servers
 --
 -- The system tables of MySQL Server
 --
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 set sql_mode='';
 
@@ -988,7 +960,6 @@ CREATE DEFINER='mariadb.sys'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS
   IFNULL(JSON_VALUE(Priv, '$.default_role'), '') AS default_role,
   CAST(IFNULL(JSON_VALUE(Priv, '$.max_statement_time'), 0.0) AS DECIMAL(12,6)) AS max_statement_time
   FROM global_priv;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 -- Remember for later if user table already existed
 set @had_user_table= @@warning_count != 0;
@@ -1044,7 +1015,6 @@ CREATE TABLE IF NOT EXISTS proc (db char(64) collate utf8_bin DEFAULT '' NOT NUL
 
 CREATE TABLE IF NOT EXISTS procs_priv ( Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(80) binary DEFAULT '' NOT NULL, Routine_name char(64) COLLATE utf8_general_ci DEFAULT '' NOT NULL, Routine_type enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL, Grantor char(141) DEFAULT '' NOT NULL, Proc_priv set('Execute','Alter Routine','Grant') COLLATE utf8_general_ci DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (Host,Db,User,Routine_name,Routine_type), KEY Grantor (Grantor) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='Procedure privileges';
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 -- Create general_log if CSV is enabled.
 SET @have_csv = (SELECT support FROM information_schema.engines WHERE engine = 'CSV');
@@ -1063,7 +1033,6 @@ EXECUTE stmt;
 DROP PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS event ( db char(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL default '', name char(64) CHARACTER SET utf8 NOT NULL default '', body longblob NOT NULL, definer char(141) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL default '', execute_at DATETIME default NULL, interval_value int(11) default NULL, interval_field ENUM('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND') default NULL, created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, modified TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00', last_executed DATETIME default NULL, starts DATETIME default NULL, ends DATETIME default NULL, status ENUM('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL default 'ENABLED', on_completion ENUM('DROP','PRESERVE') NOT NULL default 'DROP', sql_mode  set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') DEFAULT '' NOT NULL, comment char(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL default '', originator INTEGER UNSIGNED NOT NULL, time_zone char(64) CHARACTER SET latin1 NOT NULL DEFAULT 'SYSTEM', character_set_client char(32) collate utf8_bin, collation_connection char(32) collate utf8_bin, db_collation char(32) collate utf8_bin, body_utf8 longblob, PRIMARY KEY (db, name) ) engine=Aria transactional=1 DEFAULT CHARSET=utf8 COMMENT 'Events';
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 SET @create_innodb_table_stats="CREATE TABLE IF NOT EXISTS innodb_table_stats (
 	database_name			VARCHAR(64) NOT NULL,
@@ -1191,7 +1160,6 @@ SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_aria);
 
 CREATE TABLE IF NOT EXISTS proxies_priv (Host char(60) binary DEFAULT '' NOT NULL, User char(80) binary DEFAULT '' NOT NULL, Proxied_host char(60) binary DEFAULT '' NOT NULL, Proxied_user char(80) binary DEFAULT '' NOT NULL, With_grant BOOL DEFAULT 0 NOT NULL, Grantor char(141) DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY /*Host*/ (Host,User,Proxied_host,Proxied_user), KEY Grantor (Grantor) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='User proxy privileges';
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 -- Remember for later if proxies_priv table already existed
 set @had_proxies_priv_table= @@warning_count != 0;
 
@@ -1229,7 +1197,6 @@ DROP PREPARE stmt;
 
 set default_storage_engine=@orig_storage_engine;
 
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 --
 -- Drop some tables not used anymore in MariaDB
 --
@@ -1256,7 +1223,6 @@ SET @str = IF(@have_old_pfs = 1, @cmd, 'SET @broken_tables = 0');
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
 
 SET @cmd="SET @broken_views = (select count(*) from information_schema.views where table_schema='performance_schema')";
 
@@ -1292,4 +1258,3 @@ SET @str = IF(@broken_pfs = 0, @cmd, 'SET @dummy = 0');
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
-SELECT object_type, object_schema, object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' ORDER BY 3;
