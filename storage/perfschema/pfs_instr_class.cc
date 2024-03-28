@@ -1952,7 +1952,11 @@ void drop_table_share(PFS_thread *thread,
   PFS_table_share_key key;
   LF_PINS* pins= get_table_share_hash_pins(thread);
   if (unlikely(pins == NULL))
+  {
+    fprintf(stderr, "PFS: pins=0 %.*s.%.*s\n", schema_name_length, schema_name,
+            table_name_length, table_name);
     return;
+  }
   set_table_share_key(&key, temporary, schema_name, schema_name_length,
                       table_name, table_name_length);
   PFS_table_share **entry;
@@ -1968,6 +1972,11 @@ void drop_table_share(PFS_thread *thread,
     pfs->destroy_index_stats();
 
     pfs->m_lock.allocated_to_free();
+  }
+  else
+  {
+    fprintf(stderr, "PFS: entry=%p %.*s.%.*s\n", entry, schema_name_length, schema_name,
+            table_name_length, table_name);
   }
 
   lf_hash_search_unpin(pins);

@@ -61,3 +61,5 @@ enum sys_var::where get_sys_var_value_origin(void *ptr)
 }
 
 MY_TIMER_INFO sys_timer_info;
+
+THD *_current_thd() { return 0; }
