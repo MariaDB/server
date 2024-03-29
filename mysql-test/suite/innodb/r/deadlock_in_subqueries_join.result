@@ -1,12 +1,15 @@
+InnoDB		0 transactions not purged
+connect prevent_purge,localhost,root,,;
+start transaction with consistent snapshot;
 CREATE TABLE t1 (
 pkey int NOT NULL PRIMARY KEY,
 c int
-) ENGINE=InnoDB;
+) ENGINE=InnoDB, STATS_PERSISTENT=0;
 INSERT INTO t1 VALUES(1,1);
 CREATE TABLE t2 (
 pkey int NOT NULL PRIMARY KEY,
 c int
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1, STATS_PERSISTENT=0;
 INSERT INTO t2 VALUES (2, NULL);
 CREATE TABLE t3 (c int) engine = InnoDB;
 INSERT INTO t3 VALUES (10), (20), (30), (40), (50);
@@ -19,8 +22,10 @@ pkey	c
 1	1
 connection con1;
 START TRANSACTION;
+SET DEBUG_SYNC = 'lock_wait_start SIGNAL subquery_locked';
 DELETE FROM t2 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey);
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR subquery_locked';
 SELECT * FROM t2 FOR UPDATE;
 pkey	c
 2	NULL
@@ -36,8 +41,10 @@ pkey	c
 1	1
 connection con1;
 START TRANSACTION;
+SET DEBUG_SYNC = 'lock_wait_start SIGNAL subquery_locked';
 UPDATE t2 SET pkey=pkey+10 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey);
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR subquery_locked';
 SELECT * FROM t2 FOR UPDATE;
 pkey	c
 2	NULL
@@ -46,5 +53,7 @@ connection con1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 COMMIT;
 disconnect con1;
+disconnect prevent_purge;
 connection default;
+SET DEBUG_SYNC="RESET";
 DROP TABLE t1,t2,t3;

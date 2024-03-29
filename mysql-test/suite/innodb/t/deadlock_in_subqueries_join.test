@@ -1,17 +1,24 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--source include/wait_all_purged.inc
+--connect(prevent_purge,localhost,root,,)
+start transaction with consistent snapshot;
+
 
 CREATE TABLE t1 (
   pkey int NOT NULL PRIMARY KEY,
   c int
-) ENGINE=InnoDB;
+) ENGINE=InnoDB, STATS_PERSISTENT=0;
 
 INSERT INTO t1 VALUES(1,1);
 
 CREATE TABLE t2 (
   pkey int NOT NULL PRIMARY KEY,
   c int
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1, STATS_PERSISTENT=0;
 
 INSERT INTO t2 VALUES (2, NULL);
 
@@ -42,6 +49,7 @@ START TRANSACTION; # trx 2
 # as the record from t1 is locked by trx 1, the subselect will be suspended.
 # see 'while' loop in mysql_delete() or mysql_update() and
 # select->skip_record(thd) call for details.
+SET DEBUG_SYNC = 'lock_wait_start SIGNAL subquery_locked';
 if ($i == $delete) {
 --send DELETE FROM t2 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey)
 }
@@ -50,13 +58,7 @@ if ($i == $update) {
 }
 
 --connection default
-let $wait_condition=
-  SELECT count(*) = 1 FROM information_schema.processlist
-  WHERE (state = 'Sending data' OR state = "Updating")
-  AND (info LIKE 'delete from t2 where%' OR
-       info LIKE 'UPDATE t2 SET pkey=pkey+10 WHERE%');
---source include/wait_condition.inc
-
+SET DEBUG_SYNC = 'now WAIT_FOR subquery_locked';
 # The record from t2 is locked by the previous delete, so trx 2 is waiting for
 # trx 1, and trx 1 will be blocked by trx 2 with the following SELECT. So we
 # have deadlock here. And trx 2 is chosen as deadlock victim as trx 1 has
@@ -75,7 +77,8 @@ COMMIT;
 }
 
 --disconnect con1
-
+--disconnect prevent_purge
 --connection default
+SET DEBUG_SYNC="RESET";
 DROP TABLE t1,t2,t3;
 --source include/wait_until_count_sessions.inc
