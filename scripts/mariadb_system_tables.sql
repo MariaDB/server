@@ -152,8 +152,8 @@ CREATE TABLE IF NOT EXISTS procs_priv ( Host char(255) binary DEFAULT '' NOT NUL
 
 
 -- Create general_log if CSV is enabled.
-SET @have_csv = (SELECT support FROM information_schema.engines WHERE engine = 'CSV');
-SET @str = IF (@have_csv = 'YES', 'CREATE TABLE IF NOT EXISTS general_log (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, user_host MEDIUMTEXT NOT NULL, thread_id BIGINT(21) UNSIGNED NOT NULL, server_id INTEGER UNSIGNED NOT NULL, command_type VARCHAR(64) NOT NULL, argument MEDIUMTEXT NOT NULL) engine=CSV CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment="General log"', 'SET @dummy = 0');
+SET @have_csv = 'YES'=(SELECT support FROM information_schema.engines WHERE engine = 'CSV');
+SET @str = IF (@have_csv, 'CREATE TABLE IF NOT EXISTS general_log (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, user_host MEDIUMTEXT NOT NULL, thread_id BIGINT(21) UNSIGNED NOT NULL, server_id INTEGER UNSIGNED NOT NULL, command_type VARCHAR(64) NOT NULL, argument MEDIUMTEXT NOT NULL) engine=CSV CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment="General log"', 'SET @dummy = 0');
 
 PREPARE stmt FROM @str;
 EXECUTE stmt;
@@ -161,7 +161,7 @@ DROP PREPARE stmt;
 
 -- Create slow_log if CSV is enabled.
 
-SET @str = IF (@have_csv = 'YES', 'CREATE TABLE IF NOT EXISTS slow_log (start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, user_host MEDIUMTEXT NOT NULL, query_time TIME(6) NOT NULL, lock_time TIME(6) NOT NULL, rows_sent BIGINT UNSIGNED NOT NULL, rows_examined BIGINT UNSIGNED NOT NULL, db VARCHAR(512) NOT NULL, last_insert_id INTEGER NOT NULL, insert_id INTEGER NOT NULL, server_id INTEGER UNSIGNED NOT NULL, sql_text MEDIUMTEXT NOT NULL, thread_id BIGINT(21) UNSIGNED NOT NULL, rows_affected BIGINT UNSIGNED NOT NULL) engine=CSV CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment="Slow log"', 'SET @dummy = 0');
+SET @str = IF (@have_csv, 'CREATE TABLE IF NOT EXISTS slow_log (start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, user_host MEDIUMTEXT NOT NULL, query_time TIME(6) NOT NULL, lock_time TIME(6) NOT NULL, rows_sent BIGINT UNSIGNED NOT NULL, rows_examined BIGINT UNSIGNED NOT NULL, db VARCHAR(512) NOT NULL, last_insert_id INTEGER NOT NULL, insert_id INTEGER NOT NULL, server_id INTEGER UNSIGNED NOT NULL, sql_text MEDIUMTEXT NOT NULL, thread_id BIGINT(21) UNSIGNED NOT NULL, rows_affected BIGINT UNSIGNED NOT NULL) engine=CSV CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment="Slow log"', 'SET @dummy = 0');
 
 PREPARE stmt FROM @str;
 EXECUTE stmt;
