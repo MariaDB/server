@@ -1938,13 +1938,13 @@ static void trace_engine_stats(handler *file, Json_writer *writer)
 
 static void print_r_icp_filtered(handler *file, Json_writer *writer)
 {
-  if (file && file->handler_stats && file->pushed_idx_cond)
-  {
-    ha_handler_stats *hs= file->handler_stats;
-    double r_icp_filtered = hs->icp_attempts ?
-      (double)(hs->icp_match) / (double)(hs->icp_attempts) : 1.0;
-    writer->add_member("r_icp_filtered").add_double(r_icp_filtered * 100);
-  }
+  if (!file || !file->handler_stats || !file->pushed_idx_cond)
+    return;
+
+  ha_handler_stats *hs= file->handler_stats;
+  double r_icp_filtered = hs->icp_attempts ?
+    (double)(hs->icp_match) / (double)(hs->icp_attempts) : 0.0;
+  writer->add_member("r_icp_filtered").add_double(r_icp_filtered * 100);
 }
 
 void Explain_table_access::print_explain_json(Explain_query *query,

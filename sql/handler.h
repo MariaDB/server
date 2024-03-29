@@ -3208,7 +3208,13 @@ protected:
 
   ha_rows estimation_rows_to_insert;
   handler *lookup_handler;
-  /* Statistics for the query. Updated if handler_stats.in_use is set */
+  /*
+    Statistics for the query.  Prefer to use the handler_stats pointer
+    below rather than this object directly as the clone() method will
+    modify how stats are accounted by adjusting the handler_stats
+    pointer.  Referring to active_handler_stats directly will yield
+    surprising and possibly incorrect results.
+  */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
 public:
