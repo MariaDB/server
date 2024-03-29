@@ -9878,7 +9878,6 @@ wsrep_append_foreign_key(
 			foreign->referenced_table->name.m_name :
 			foreign->foreign_table->name.m_name) :
 		foreign->foreign_table->name.m_name;
-	cache_key_len = strlen(cache_key);
 
         /* convert db and table name parts separately to system charset */
 	ulint	db_name_len = dict_get_db_name_len(fk_table);
