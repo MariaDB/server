@@ -121,11 +121,11 @@ public:
   {
     if (info->handle_duplicates == DUP_REPLACE)
     {
-      bool has_delete_triggers= use_triggers &&
+      const bool has_delete_triggers= use_triggers &&
                                 table->triggers->has_delete_triggers();
-      bool referenced_by_fk= table->file->referenced_by_foreign_key();
-      can_optimize= !referenced_by_fk && !has_delete_triggers
-                    && !versioned && !table->versioned();
+      const bool referenced_by_fk= table->file->referenced_by_foreign_key();
+      can_optimize= !referenced_by_fk && !has_delete_triggers &&
+                    !table->versioned(VERS_TRX_ID);
     }
   }
   Write_record(THD *thd, TABLE *table, COPY_INFO *info,

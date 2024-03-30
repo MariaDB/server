@@ -1986,7 +1986,9 @@ public:
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
-  int delete_row();
+  inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
+  template <bool replace>
+  int delete_row(bool versioned);
   /* Used in majority of DML (called from fill_record()) */
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
