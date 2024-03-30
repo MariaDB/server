@@ -2131,16 +2131,8 @@ int Write_record::replace_row(ha_rows *inserted, ha_rows *deleted)
       if (use_triggers && trg->process_triggers(table->in_use, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
         return restore_on_error();
-      if (!versioned)
-        error = table->file->ha_delete_row(table->record[1]);
-      else
-      {
-        store_record(table, record[2]);
-        restore_record(table, record[1]);
-        table->vers_update_end();
-        error = table->file->ha_update_row(table->record[1], table->record[0]);
-        restore_record(table, record[2]);
-      }
+
+      error= table->delete_row<true>(versioned);
 
       if (unlikely(error))
         return on_ha_error(error);
