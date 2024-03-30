@@ -20,6 +20,7 @@ if (!$MYSQL_FIX_PRIVILEGE_TABLES)
 # Instead, concentrate on the errors in r/system_mysql_db.reject
 
 use test;
+flush status;
 
 # create system tables as in mysql-4.1.23
 # created by executing "./mysql_create_system_tables real ."
@@ -46,9 +47,11 @@ CREATE TABLE time_zone_transition_type ( Time_zone_id int unsigned NOT NULL, Tra
 CREATE TABLE time_zone_leap_second ( Transition_time bigint signed NOT NULL, Correction int signed NOT NULL, PRIMARY KEY TranTime (Transition_time) ) engine=MyISAM CHARACTER SET utf8 comment='Leap seconds information for time zones';
 
 # Run the mysql_fix_privilege_tables.sql using "mysql --force"
--- disable_result_log
---exec $MYSQL --force test < $MYSQL_FIX_PRIVILEGE_TABLES
--- enable_result_log
+--exec $MYSQL --force test < $MYSQL_FIX_PRIVILEGE_TABLES > $MYSQL_TMP_DIR/priv.out
+--cat_file $MYSQL_TMP_DIR/priv.out
+--remove_file $MYSQL_TMP_DIR/priv.out
+
+show create database test;
 
 # Dump the tables that should be compared
 -- source include/system_db_struct.inc

@@ -42,6 +42,7 @@ ALTER TABLE user add Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N
                  add References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                  add Index_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                  add Alter_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+
 ALTER TABLE db add Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                add References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                add Index_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
@@ -59,7 +60,19 @@ ADD ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL,
 ADD ssl_cipher BLOB NOT NULL,
 ADD x509_issuer BLOB NOT NULL,
 ADD x509_subject BLOB NOT NULL;
+
+SELECT "before ALTER:", object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test';
 ALTER TABLE user MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') DEFAULT '' NOT NULL;
+SELECT "after ALTER:", object_name FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test';
+
+DELIMITER //
+IF 1 = (SELECT COUNT(*) FROM performance_schema.objects_summary_global_by_type WHERE object_schema='test' AND object_name = 'user')
+THEN
+  show status like 'performance%';
+  show status like '%tmp%';
+  show status like '%temp%';
+END IF //
+DELIMITER ;
 
 #
 # tables_priv

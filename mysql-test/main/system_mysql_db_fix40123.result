@@ -1,4 +1,5 @@
 use test;
+flush status;
 set default_storage_engine=myisam;
 CREATE TABLE db ( Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Insert_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Update_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Delete_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Create_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Drop_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Index_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Alter_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Create_tmp_table_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Lock_tables_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, PRIMARY KEY Host (Host,Db,User), KEY User (User) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Database privileges';
 Warnings:
@@ -35,6 +36,46 @@ Warning	1280	Name 'TzIdTrTId' ignored for PRIMARY key.
 CREATE TABLE time_zone_leap_second ( Transition_time bigint signed NOT NULL, Correction int signed NOT NULL, PRIMARY KEY TranTime (Transition_time) ) engine=MyISAM CHARACTER SET utf8 comment='Leap seconds information for time zones';
 Warnings:
 Warning	1280	Name 'TranTime' ignored for PRIMARY key.
+@hadGrantPriv:=1
+1
+1
+before ALTER:	object_name
+before ALTER:	db
+before ALTER:	host
+before ALTER:	user
+before ALTER:	func
+before ALTER:	tables_priv
+before ALTER:	columns_priv
+before ALTER:	help_topic
+before ALTER:	help_category
+before ALTER:	help_relation
+before ALTER:	help_keyword
+before ALTER:	time_zone_name
+before ALTER:	time_zone
+before ALTER:	time_zone_transition
+before ALTER:	time_zone_transition_type
+before ALTER:	time_zone_leap_second
+after ALTER:	object_name
+after ALTER:	db
+after ALTER:	host
+after ALTER:	func
+after ALTER:	tables_priv
+after ALTER:	columns_priv
+after ALTER:	help_topic
+after ALTER:	help_category
+after ALTER:	help_relation
+after ALTER:	help_keyword
+after ALTER:	time_zone_name
+after ALTER:	time_zone
+after ALTER:	time_zone_transition
+after ALTER:	time_zone_transition_type
+after ALTER:	time_zone_leap_second
+@hadShowDbPriv:=1
+1
+1
+show create database test;
+Database	Create Database
+test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 show tables;
 Tables_in_db
 column_stats
