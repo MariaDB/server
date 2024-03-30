@@ -285,26 +285,80 @@ int update_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
-inline
-int TABLE::delete_row()
-{
-  if (!versioned(VERS_TIMESTAMP) ||
-      !vers_end_field()->is_max())
-    return file->ha_delete_row(record[0]);
+/**
+  Delete a record stored in:
+  replace= true: record[0]
+  replace= false: record[1]
 
-  store_record(this, record[1]);
-  vers_update_end();
-  int err= file->ha_update_row(record[1], record[0]);
-  /*
-     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
-     row with same trx_id which is the result of foreign key action, so we
-     don't need one more history row.
-  */
-  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-    return file->ha_delete_row(record[0]);
+  with regard to the treat_versioned flag, which can be false for a versioned
+  table in case of versioned->versioned replication.
+
+ For a versioned case, we detect a few conditions, under which we should delete
+ a row instead of updating it to a history row.
+ This includes:
+ * History deletion by user;
+ * History collision, in case of REPLACE or very fast sequence of dmls
+   so that timestamp doesn't change;
+ * History collision in the parent table
+
+ A normal delete is processed here as well.
+*/
+template <bool replace>
+int TABLE::delete_row(bool treat_versioned)
+{
+  int err= 0;
+  uchar *del_buf= record[replace ? 1 : 0];
+  bool delete_row= !treat_versioned
+                   || in_use->lex->vers_conditions.delete_history
+                   || versioned(VERS_TRX_ID)
+                   || !vers_end_field()->is_max(
+                           vers_end_field()->ptr_in_record(del_buf));
+  if (!delete_row)
+  {
+    if (replace)
+    {
+      store_record(this, record[2]);
+      restore_record(this, record[1]);
+    }
+    else
+    {
+      store_record(this, record[1]);
+    }
+    vers_update_end();
+    err= file->ha_update_row(record[1], record[0]);
+    if (unlikely(err))
+    {
+      /*
+        MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+        history row with same trx_id which is the result of foreign key
+        action, so we don't need one more history row.
+
+        Additionally, delete the row if versioned record already exists.
+        This happens on replace, a very fast sequence of inserts and deletes,
+        or if timestamp is frozen.
+      */
+      delete_row= err == HA_ERR_FOUND_DUPP_KEY
+                  || err == HA_ERR_FOUND_DUPP_UNIQUE
+                  || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
+      if (!delete_row)
+        return err;
+
+      if (!replace)
+        del_buf= record[1];
+    }
+
+    if (replace)
+      restore_record(this, record[2]);
+  }
+
+  if (delete_row)
+    err= file->ha_delete_row(del_buf);
+
   return err;
 }
 
+template int TABLE::delete_row<true>(bool treat_versioned);
+template int TABLE::delete_row<false>(bool treat_versioned);
 
 /**
   Implement DELETE SQL word.

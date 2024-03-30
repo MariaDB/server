@@ -1283,7 +1283,7 @@ where table_name = 't1';
 partition_name	table_rows
 p0	150
 p1	60
-pn	90
+pn	91
 rollback;
 select partition_name, table_rows
 from information_schema.partitions
@@ -1291,7 +1291,7 @@ where table_name = 't1';
 partition_name	table_rows
 p0	0
 p1	0
-pn	90
+pn	91
 replace into t1 select seq from seq_1_to_10;
 select partition_name, table_rows
 from information_schema.partitions
