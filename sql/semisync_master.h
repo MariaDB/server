@@ -599,8 +599,7 @@ class Repl_semi_sync_master
    * received replies from the slave indicating that it already get the events.
    *
    * Input:
-   *  replica_thd   - (IN)  replica thread
-   *  server_id     - (IN)  master server id number
+   *  replica_thd   - (IN)  replica thread slave info
    *  log_file_name - (IN)  binlog file name
    *  end_offset    - (IN)  the offset in the binlog file up to which we have
    *                        the replies from the slave
@@ -608,8 +607,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int report_reply_binlog(THD *replica_thd, uint32 server_id,
-                          const char* log_file_name,
+  int report_reply_binlog(Slave_info *replica_thd_si, const char* log_file_name,
                           my_off_t end_offset);
 
   /* Commit a transaction in the final step.  This function is called from

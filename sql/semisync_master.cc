@@ -623,7 +623,7 @@ int Repl_semi_sync_master::report_reply_packet(THD *thd, uint32 server_id,
                           "Repl_semi_sync_master::report_reply_packet",
                           log_file_name, (ulong)log_file_pos, server_id));
   rpl_semi_sync_master_get_ack++;
-  report_reply_binlog(thd, server_id, log_file_name, log_file_pos);
+  report_reply_binlog(thd->slave_info, log_file_name, log_file_pos);
 
 l_end:
   {
@@ -637,7 +637,7 @@ l_end:
   DBUG_RETURN(result);
 }
 
-int Repl_semi_sync_master::report_reply_binlog(THD *replica_thd, uint32 server_id,
+int Repl_semi_sync_master::report_reply_binlog(Slave_info *replica_thd_si,
                                                const char *log_file_name,
                                                my_off_t log_file_pos)
 {
@@ -657,7 +657,7 @@ int Repl_semi_sync_master::report_reply_binlog(THD *replica_thd, uint32 server_i
 
   if (!is_on())
     /* We check to see whether we can switch semi-sync ON. */
-    try_switch_on(server_id, log_file_name, log_file_pos);
+    try_switch_on(replica_thd_si->server_id, log_file_name, log_file_pos);
 
   /* The position should increase monotonically, if there is only one
    * thread sending the binlog to the slave.
@@ -703,11 +703,9 @@ int Repl_semi_sync_master::report_reply_binlog(THD *replica_thd, uint32 server_i
                             log_file_name, (ulong)log_file_pos));
   }
 
-  if (rpl_semi_sync_master_enabled)
-  {
-    strncpy(replica_thd->slave_info->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
-    replica_thd->slave_info->gtid_state_ack.log_pos= log_file_pos;
-  }
+  strncpy(replica_thd_si->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
+  replica_thd_si->gtid_state_ack.log_pos= log_file_pos;
+
  l_end:
   unlock();
 
@@ -814,7 +812,7 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   }
 
   add_slave();
-  report_reply_binlog(thd, thd->variables.server_id,
+  report_reply_binlog(thd->slave_info,
                       log_file + dirname_length(log_file), log_pos);
   sql_print_information("Start semi-sync binlog_dump to slave "
                         "(server_id: %ld), pos(%s, %lu)",
@@ -844,7 +842,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
   bool success= 0;
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
-  if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
+  if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave &&
+      !m_wait_timeout)
   {
     rpl_semi_sync_master_no_transactions++;
     DBUG_RETURN(0);
@@ -859,11 +858,6 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
     THD *thd= current_thd;
     bool aborted __attribute__((unused)) = 0;
     set_timespec(start_ts, 0);
-
-    if (!m_wait_timeout)
-    {
-      DBUG_RETURN(0);
-    }
 
     DEBUG_SYNC(thd, "rpl_semisync_master_commit_trx_before_lock");
     /* Acquire the mutex. */
