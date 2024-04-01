@@ -2285,13 +2285,15 @@ public:
 
 class Item_func_coercibility :public Item_long_func
 {
+  longlong m_cached_collation_derivation;
+
   bool check_arguments() const override
   { return args[0]->check_type_can_return_str(func_name()); }
 public:
   Item_func_coercibility(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int() override;
   const char *func_name() const override { return "coercibility"; }
-  bool fix_length_and_dec() override { max_length=10; maybe_null= 0; return FALSE; }
+  bool fix_length_and_dec() override;
   bool eval_not_null_tables(void *) override
   {
     not_null_tables_cache= 0;
@@ -2306,6 +2308,7 @@ public:
   bool const_item() const override { return true; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_coercibility>(thd, this); }
+  table_map used_tables() const override { return 0; }
 };
 
 
