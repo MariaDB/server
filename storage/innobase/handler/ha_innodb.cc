@@ -7392,6 +7392,7 @@ ha_innobase::build_template(
 
 	if (active_index != MAX_KEY
 	     && active_index == pushed_idx_cond_keyno) {
+		handler_stats = handler_stats ? handler_stats : &active_handler_stats;
 		m_prebuilt->idx_cond = this;
 		goto icp;
 	} else if (pushed_rowid_filter && rowid_filter_is_active) {
