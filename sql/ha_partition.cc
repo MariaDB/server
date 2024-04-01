@@ -11287,14 +11287,6 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
 
   DBUG_ASSERT(m_file);
 
-  if (m_part_info->vers_info &&
-      read_part_id != m_part_info->vers_info->now_part->id &&
-      !m_part_info->vers_info->interval.is_set())
-  {
-    /* Skip this check as it is not supported for non-INTERVAL history partitions. */
-    DBUG_RETURN(HA_ADMIN_OK);
-  }
-
   if (do_repair)
   {
     /* We must read the full row, if we need to move it! */
@@ -11334,6 +11326,14 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
                                           &func_value);
     if (result)
       break;
+
+    /* Row can be in any history partition if there is no interval set */
+    if (m_part_info->vers_info &&
+        correct_part_id != read_part_id &&
+        !m_part_info->vers_info->interval.is_set() &&
+        correct_part_id < m_part_info->vers_info->now_part->id &&
+        read_part_id < m_part_info->vers_info->now_part->id)
+      correct_part_id= read_part_id;
 
     if (correct_part_id != read_part_id)
     {

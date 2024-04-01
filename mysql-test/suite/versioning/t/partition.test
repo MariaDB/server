@@ -2673,5 +2673,48 @@ create table t (a int) with system versioning partition by system_time partition
 --echo # End of 10.5 tests
 --echo #
 
+--echo #
+--echo # MDEV-33125 CHECK TABLE does not recognize corruption
+--echo #            after EXCHANGE WITHOUT VALIDATION on system-time partitioning
+--echo #
+create or replace table t1 (a int) with system versioning
+partition by system_time partitions 2;
+insert into t1 (a) values (1), (2);
+
+create or replace table t2 (a int) with system versioning;
+insert into t2 (a) values (3), (4);
+
+create or replace table t3 (a int)
+partition by range (a) (
+  partition p0 values less than (10),
+  partition p1 values less than maxvalue);
+insert into t3 (a) values (5), (6);
+
+create or replace table t4 (a int);
+insert into t4 (a) values (10), (20);
+
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table t1 exchange partition p0 with table t2;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table t1 exchange partition p0 with table t2 with validation;
+call mtr.add_suppression("altered WITHOUT VALIDATION");
+alter table t1 exchange partition p0 with table t2 without validation;
+alter table t3 exchange partition p0 with table t4 without validation;
+
+select a, check_row_ts(row_start, row_end) from t1 partition (p0) order by a;
+select a, check_row_ts(row_start, row_end) from t1 partition (pn) order by a;
+check table t1;
+repair table t1;
+select a, check_row_ts(row_start, row_end) from t1 partition (p0) order by a;
+select a, check_row_ts(row_start, row_end) from t1 partition (pn) order by a;
+
+select a from t3 partition (p0) order by a;
+check table t3;
+repair table t3;
+select a from t3 partition (p0) order by a;
+
+# Cleanup
+drop tables t1, t2, t3, t4;
+
 set global innodb_stats_persistent= @save_persistent;
 --source suite/versioning/common_finish.inc
