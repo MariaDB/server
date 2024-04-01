@@ -5383,6 +5383,10 @@ static int init_server_components()
   if (ddl_log_initialize())
     unireg_abort(1);
 
+#ifndef EMBEDDED_LIBRARY
+  start_handle_manager();
+#endif
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5394,9 +5398,6 @@ static int init_server_components()
   if (ha_recover(0))
     unireg_abort(1);
 
-#ifndef EMBEDDED_LIBRARY
-  start_handle_manager();
-#endif
   if (opt_bin_log)
   {
     int error;
