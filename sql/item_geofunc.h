@@ -979,6 +979,65 @@ public:
   { return get_item_copy<Item_func_issimple>(thd, this); }
 };
 
+
+class Item_func_latlongfromgeohash : public Item_real_func {
+ private:
+  static constexpr double lower_latitude= -90.0;
+  static constexpr double upper_latitude= 90.0;
+  static constexpr double lower_longitude= -180.0;
+  static constexpr double upper_longitude= 180.0;
+
+  /**
+   If this is set to true the algorithm will start decoding on the first bit,
+   which decodes a longitude value. If it is false, it will start on the
+   second bit which decodes a latitude value.
+  */
+  const bool start_on_even_bit;
+
+ public:
+  Item_func_latlongfromgeohash(THD *thd, Item *a, bool start_on_even_bit_arg)
+      : Item_real_func(thd, a),
+        start_on_even_bit(start_on_even_bit_arg) {}
+  double val_real() override;
+  static bool decode_geohash(String *geohash, double upper_latitude,
+                             double lower_latitude, double upper_longitude,
+                             double lower_longitude, double *result_latitude,
+                             double *result_longitude);
+  static double round_latlongitude(double latlongitude, double error_range,
+                                   double lower_limit, double upper_limit);
+};
+
+
+class Item_func_latfromgeohash: public Item_func_latlongfromgeohash
+{
+public:
+  Item_func_latfromgeohash(THD *thd, Item *a)
+   :Item_func_latlongfromgeohash(thd, a, false) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_latfromgeohash") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_latfromgeohash>(thd, this); }
+};
+
+
+class Item_func_longfromgeohash: public Item_func_latlongfromgeohash
+{
+public:
+  Item_func_longfromgeohash(THD *thd, Item *a)
+   :Item_func_latlongfromgeohash(thd, a, true) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_longfromgeohash") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_longfromgeohash>(thd, this); }
+};
+
+
 class Item_func_isclosed: public Item_long_func_args_geometry
 {
 public:
