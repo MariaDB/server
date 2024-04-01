@@ -3463,6 +3463,11 @@ unlock tables;
 drop table t1, t2;
 set timestamp= default;
 #
+# MDEV-29872 MSAN/Valgrind uninitialised value errors in TABLE::vers_switch_partition
+#
+create table t (a int) with system versioning partition by system_time limit 100 partitions 3;
+drop table t;
+#
 # End of 10.9 tests
 #
 set global innodb_stats_persistent= @save_persistent;
