@@ -1645,6 +1645,7 @@ derived_handler *TABLE_LIST::find_derived_handler(THD *thd)
       handlerton *ht= tbl->table->file->partition_ht();
       if (!ht->create_derived)
         continue;
+      DBUG_ASSERT(0);
       derived_handler *dh= ht->create_derived(thd, this);
       if (dh)
       {
