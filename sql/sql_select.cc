@@ -5133,6 +5133,7 @@ select_handler *find_select_handler_inner(THD *thd,
     handlerton *ht= tbl->table->file->partition_ht();
     if (!ht->create_select)
       continue;
+    DBUG_ASSERT(0);
     select_handler *sh= ht->create_select(thd, select_lex, select_lex_unit);
     if (sh)
       return sh;
