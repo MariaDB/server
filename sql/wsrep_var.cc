@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1174,6 +1174,29 @@ bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
                  "if wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA]", MYF(0));
       return true;
     }
+  }
+
+  return false;
+}
+
+bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
+{
+  ulonglong new_slave_threads= var->save_result.ulonglong_value;
+
+  if (!WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
+  if (new_slave_threads &&
+      Wsrep_server_state::instance().state() == wsrep::server_state::s_disconnected)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WRONG_VALUE_FOR_VAR,
+                 "Cannot set 'wsrep_slave_threads' because "
+                 "wsrep is disconnected");
+    return true;
   }
 
   return false;
