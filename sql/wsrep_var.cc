@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2024 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1061,4 +1061,28 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, void *,
 void wsrep_free_status (THD* thd)
 {
   thd->wsrep_status_vars.clear();
+}
+
+bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
+{
+  ulonglong new_slave_threads= var->save_result.ulonglong_value;
+
+  // We need to allow default i.e. 1
+  if (new_slave_threads > 1 && !WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
+  if (new_slave_threads > 1 &&
+      Wsrep_server_state::instance().state() == wsrep::server_state::s_disconnected)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		 ER_WRONG_VALUE_FOR_VAR,
+		 "Cannot set 'wsrep_slave_threads' because "
+		 "wsrep is disconnected");
+    return true;
+  }
+
+  return false;
 }
