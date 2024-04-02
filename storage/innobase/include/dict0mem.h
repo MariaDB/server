@@ -1011,8 +1011,6 @@ struct dict_index_t {
 				/*!< number of columns the user defined to
 				be in the index: in the internal
 				representation we add more columns */
-	unsigned	nulls_equal:1;
-				/*!< if true, SQL NULL == SQL NULL */
 #ifdef BTR_CUR_HASH_ADAPT
 #ifdef MYSQL_INDEX_DISABLE_AHI
  	unsigned	disable_ahi:1;

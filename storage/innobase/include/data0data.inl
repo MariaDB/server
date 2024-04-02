@@ -599,28 +599,18 @@ data_write_sql_null(
 	memset(data, 0, len);
 }
 
-/**********************************************************************//**
-Checks if a dtuple contains an SQL null value.
-@return TRUE if some field is SQL null */
+/** Checks if a dtuple contains an SQL null value.
+@param tuple tuple
+@param fields_number number of fields in the tuple to check
+@return true if some field is SQL null */
 UNIV_INLINE
-ibool
-dtuple_contains_null(
-/*=================*/
-	const dtuple_t*	tuple)	/*!< in: dtuple */
+bool dtuple_contains_null(const dtuple_t *tuple, ulint fields_number)
 {
-	ulint	n;
-	ulint	i;
-
-	n = dtuple_get_n_fields(tuple);
-
-	for (i = 0; i < n; i++) {
-		if (dfield_is_null(dtuple_get_nth_field(tuple, i))) {
-
-			return(TRUE);
-		}
-	}
-
-	return(FALSE);
+  ulint n= fields_number ? fields_number : dtuple_get_n_fields(tuple);
+  for (ulint i= 0; i < n; i++)
+    if (dfield_is_null(dtuple_get_nth_field(tuple, i)))
+      return true;
+  return false;
 }
 
 /**************************************************************//**
