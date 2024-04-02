@@ -9881,8 +9881,7 @@ wsrep_append_foreign_key(
 
         /* convert db and table name parts separately to system charset */
 	ulint	db_name_len = dict_get_db_name_len(fk_table);
-	strncpy(db_name, fk_table, db_name_len);
-
+	strmake(db_name, fk_table, db_name_len);
 	uint errors;
 	cache_key_len= innobase_convert_to_system_charset(cache_key,
 				db_name, sizeof(cache_key), &errors);
