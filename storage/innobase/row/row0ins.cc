@@ -2000,7 +2000,7 @@ row_ins_dupl_error_with_rec(
 	/* In a unique secondary index we allow equal key values if they
 	contain SQL NULLs */
 
-	if (!dict_index_is_clust(index) && !index->nulls_equal) {
+	if (!dict_index_is_clust(index)) {
 
 		for (i = 0; i < n_unique; i++) {
 			if (dfield_is_null(dtuple_get_nth_field(entry, i))) {
@@ -2103,13 +2103,11 @@ row_ins_scan_sec_index_for_duplicate(
 	n_unique first fields is NULL, a unique key violation cannot occur,
 	since we define NULL != NULL in this case */
 
-	if (!index->nulls_equal) {
-		for (ulint i = 0; i < n_unique; i++) {
-			if (UNIV_SQL_NULL == dfield_get_len(
-					dtuple_get_nth_field(entry, i))) {
+	for (ulint i = 0; i < n_unique; i++) {
+		if (UNIV_SQL_NULL == dfield_get_len(
+				dtuple_get_nth_field(entry, i))) {
 
-				DBUG_RETURN(DB_SUCCESS);
-			}
+			DBUG_RETURN(DB_SUCCESS);
 		}
 	}
 
