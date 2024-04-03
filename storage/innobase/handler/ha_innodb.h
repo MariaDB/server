@@ -522,6 +522,9 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+        /** old value for rnd_init to restore */
+        bool                    m_old_rowid_filter= false;
 };
 
 

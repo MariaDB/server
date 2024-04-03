@@ -9359,6 +9359,9 @@ ha_innobase::rnd_init(
 		try_semi_consistent_read(0);
 	}
 
+        m_old_rowid_filter= rowid_filter_is_active;
+        rowid_filter_is_active= false;
+
 	m_start_of_scan = true;
 
 	return(err);
@@ -9372,6 +9375,7 @@ int
 ha_innobase::rnd_end(void)
 /*======================*/
 {
+        rowid_filter_is_active= m_old_rowid_filter;
 	return(index_end());
 }
 
@@ -9425,6 +9429,7 @@ ha_innobase::rnd_pos(
 	/* Note that we assume the length of the row reference is fixed
 	for the table, and it is == ref_length */
 
+        DBUG_ASSERT(rowid_filter_is_active == false);
 	int	error = index_read(buf, pos, (uint)ref_length, HA_READ_KEY_EXACT);
 
 	if (error != 0) {
