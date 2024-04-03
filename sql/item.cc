@@ -6085,6 +6085,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
                                   select->context_analysis_place == IN_GROUP_BY && 
 				  alias_name_used  ?  *rf->ref : rf);
 
+            (*res)->walk(&Item::increment_refcount_subselects_processor, FALSE,
+                         NULL);
+
             /*
               We can not "move" aggregate function in the place where
               its arguments are not defined.

@@ -623,6 +623,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
+   parser_current_job(NORMAL_QUERY),
 #ifndef EMBEDDED_LIBRARY
    audit_plugin_version(-1),
 #endif

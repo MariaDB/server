@@ -1766,6 +1766,13 @@ show_system_thread(enum_thread_type thread)
 #undef RETURN_NAME_AS_STRING
 }
 
+enum parser_current_job_type 
+{
+  NORMAL_QUERY= 0,
+  VIEW_DEFINITION,
+  PROCEDURE_DEFINITION
+};
+
 /**
   This class represents the interface for internal error handlers.
   Internal error handlers are exception handlers used by the server
@@ -3374,6 +3381,11 @@ public:
     state here. This member is valid only when executing code during parsing.
   */
   Parser_state *m_parser_state;
+
+  /**
+    External parser state.  i.e. what it is currently processing
+  */
+  enum parser_current_job_type parser_current_job;
 
   Locked_tables_list locked_tables_list;
 

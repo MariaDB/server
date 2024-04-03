@@ -836,6 +836,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   sp_rcontext *old_spcont= thd->spcont;
   Silence_deprecated_warning warning_handler;
   Parser_state parser_state;
+  enum parser_current_job_type pcj_save= thd->parser_current_job;
 
   thd->variables.sql_mode= sql_mode;
   thd->variables.select_limit= HA_POS_ERROR;
@@ -851,6 +852,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   thd->lex->sphead= parent;
   thd->push_internal_handler(&warning_handler);
   thd->spcont= 0;
+  thd->parser_current_job= PROCEDURE_DEFINITION;
 
   if (parse_sql(thd, & parser_state, creation_ctx) || thd->lex == NULL)
   {
@@ -863,6 +865,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
     sp= thd->lex->sphead;
   }
 
+  thd->parser_current_job= pcj_save;
   thd->pop_internal_handler();
   thd->spcont= old_spcont;
   thd->variables.sql_mode= old_sql_mode;

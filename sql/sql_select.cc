@@ -664,6 +664,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   if (subq_select_lex->group_list.elements &&
       !subq_select_lex->with_sum_func && !subq_select_lex->join->having)
   {
+    bool all_eliminated= true;
     for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
     {
       /*
@@ -676,25 +677,74 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
       */
       if (!ord->in_field_list)
       {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+        bool can_eliminate= true;
+        List<Item_subselect> subqs;
+        (*ord->item)->walk(&Item::collect_subselects_processor, FALSE, &subqs);
+        List_iterator<Item_subselect> it(subqs);
+        Item_subselect *subq_item;
         /*
-          Remove from the JOIN::all_fields list any reference to the elements
-          of the eliminated GROUP BY list unless it is 'in_field_list'.
-          This is needed in order not to confuse JOIN::make_aggr_tables_info()
-          when it constructs different structure for execution phase.
-	*/
-        List_iterator<Item> li(subq_select_lex->join->all_fields);
-	Item *item;
-        while ((item= li++))
-	{
-          if (item == *ord->item)
-	    li.remove();
-	}
+          For this group by clause item, we look through all the subselects
+          and if any of these subselects is referenced elsewhere,
+          we ban removal of this item.
+        */
+        while ((subq_item= it++))
+        {
+          if (subq_item->reference_count > 1)
+            can_eliminate= false;
+        }
+
+        if (can_eliminate)
+        {
+          it.rewind();
+          while ((subq_item= it++))
+            subq_item->reference_count--;
+
+          DBUG_PRINT("info", ("GROUP BY element removed"));
+          /*
+            Remove from the JOIN::all_fields list any reference to the elements
+            of the eliminated GROUP BY list unless it is 'in_field_list'.
+            This is needed in order not to confuse JOIN::make_aggr_tables_info()
+            when it constructs different structure for execution phase.
+          */
+          List_iterator<Item> li(subq_select_lex->join->all_fields);
+          Item *item;
+          while ((item= li++))
+          {
+            if (item == *ord->item)
+              li.remove();
+          }
+
+          /*
+            Remove from JOIN::group_list
+          */
+          for (ORDER *prev= NULL, *order= subq_select_lex->join->group_list;
+                order;
+                order= order->next)
+          {
+            if (*order->item == *ord->item)               // to be removed
+            {
+              if (prev)
+                prev->next= order->next;
+              else
+                subq_select_lex->join->group_list= order->next;
+              break;
+            }
+            prev= order;
+          }
+
+          (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+        }
+        else
+          all_eliminated= false;
       }
     }
-    subq_select_lex->join->group_list= NULL;
-    subq_select_lex->group_list.empty();
-    DBUG_PRINT("info", ("GROUP BY removed"));
+
+    if (all_eliminated)
+    {
+      subq_select_lex->join->group_list= NULL;
+      subq_select_lex->group_list.empty();
+      DBUG_PRINT("info", ("GROUP BY clause removed"));
+    }
   }
 
   /*

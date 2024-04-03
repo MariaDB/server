@@ -6698,6 +6698,12 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
     field= *field_ref;
   }
   thd->lex->current_select->no_wrap_view_item= save_wrapper;
+
+  /*
+    Walk this item looking for subselects and increment the reference count
+  */
+  field->walk(&Item::increment_refcount_subselects_processor, FALSE, NULL);
+
   if (save_wrapper)
   {
     DBUG_RETURN(field);

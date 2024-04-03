@@ -1424,8 +1424,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
     /* Parse the query. */
-
+ 
+    enum parser_current_job_type pcj_save= thd->parser_current_job;
+    thd->parser_current_job= VIEW_DEFINITION;
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
+    thd->parser_current_job= pcj_save;
 
     view_select= lex->first_select_lex();
 
