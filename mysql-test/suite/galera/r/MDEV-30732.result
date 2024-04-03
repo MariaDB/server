@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+SET GLOBAL sql_mode=0;
+SET sql_mode=DEFAULT;
+CREATE TABLE t (c INT,c2 BLOB NOT NULL,KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * FROM t;
+c	c2
+1	
+1	
+1	
+1	
+1	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 VARCHAR(270) NOT NULL,KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * FROM t;
+c	c2
+1	
+1	
+1	
+1	
+1	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 CHAR(80) NOT NULL,KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * FROM t;
+c	c2
+1	
+1	
+1	
+1	
+1	
+DROP TABLE t;
+SET GLOBAL sql_mode=DEFAULT;
