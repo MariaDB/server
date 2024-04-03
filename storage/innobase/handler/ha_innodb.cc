@@ -7115,7 +7115,7 @@ wsrep_store_key_val_for_row(
 
 		field = key_part->field;
 		mysql_type = field->type();
-
+		
 		if (mysql_type == MYSQL_TYPE_VARCHAR) {
 						/* >= 5.0.3 true VARCHAR */
 			ulint		lenlen;
@@ -7172,10 +7172,13 @@ wsrep_store_key_val_for_row(
 			/* cannot exceed max column lenght either, we may need to truncate
 			the stored value: */
 			if (true_len > sizeof(sorted)) {
-			  true_len = sizeof(sorted);
+				true_len = sizeof(sorted);
 			}
 
-			memcpy(sorted, data, true_len);
+			if (data) {
+				memcpy(sorted, data, true_len);
+			}
+
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
 				REC_VERSION_56_MAX_INDEX_COL_LEN);
@@ -7263,7 +7266,10 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
-			memcpy(sorted, blob_data, true_len);
+			if (blob_data) {
+				memcpy(sorted, blob_data, true_len);
+			}
+			
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
 				REC_VERSION_56_MAX_INDEX_COL_LEN);
@@ -7343,7 +7349,11 @@ wsrep_store_key_val_for_row(
 								cs->mbmaxlen),
 							&error);
 				}
-				memcpy(sorted, src_start, true_len);
+
+				if (src_start) {
+					memcpy(sorted, src_start, true_len);
+				}
+
 				true_len = wsrep_innobase_mysql_sort(
 					mysql_type, cs->number, sorted, true_len,
 					REC_VERSION_56_MAX_INDEX_COL_LEN);
@@ -7356,7 +7366,9 @@ wsrep_store_key_val_for_row(
 				}
 				memcpy(buff, sorted, true_len);
 			} else {
-				memcpy(buff, src_start, true_len);
+				if (src_start) {
+					memcpy(buff, src_start, true_len);
+				}
 			}
 			buff       += true_len;
 			buff_space -= true_len;
