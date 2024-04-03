@@ -1390,6 +1390,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
    */
   if (args[1]->type() == Item::SUBSELECT_ITEM)
     sub= (Item_subselect *)args[1];
+//      sub->reference_count++;
 
   if (fix_left(thd))
     return TRUE;

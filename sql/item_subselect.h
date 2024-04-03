@@ -130,6 +130,8 @@ public:
           (and so it is not part of QEP, etc)
   */
   bool eliminated;
+  uint reference_count;       /* number of item references to unit in query */
+  uint init_reference_count;
   
   /* subquery is transformed */
   bool changed;
@@ -176,7 +178,8 @@ public:
   void cleanup();
   virtual void reset()
   {
-    eliminated= FALSE;
+    if (!eliminated)
+      reference_count= init_reference_count;
     null_value= 1;
   }
   /**
@@ -244,6 +247,8 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   bool mark_as_eliminated_processor(void *arg);
   bool eliminate_subselect_processor(void *arg);
+  bool collect_subselects_processor(void *arg);
+  bool increment_refcount_subselects_processor(void *arg);
   bool enumerate_field_refs_processor(void *arg);
   bool check_vcol_func_processor(void *arg) 
   {
@@ -407,6 +412,7 @@ public:
   void reset() 
   {
     eliminated= FALSE;
+    reference_count= init_reference_count;
     value= 0;
   }
   void no_rows_in_result();
@@ -632,6 +638,7 @@ public:
   void reset() 
   {
     eliminated= FALSE;
+    reference_count= init_reference_count;
     value= 0;
     null_value= 0;
     was_null= 0;

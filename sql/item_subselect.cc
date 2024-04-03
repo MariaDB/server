@@ -66,6 +66,15 @@ Item_subselect::Item_subselect(THD *thd_arg):
   exec_counter= 0;
 #endif
   reset();
+  // Initializing a view does not constitute a reference.
+  // TODO, gotta be a better way than this to tell what the parser is doing.
+  // this sux.
+  init_reference_count= (thd_arg->proc_info && 
+                         strncmp(thd_arg->proc_info,"Opening", 7))? 1 : 0 ;
+  reference_count= init_reference_count;
+
+
+
   /*
     Item value is NULL if select_result_interceptor didn't change this value
     (i.e. some rows will be found returned)
@@ -90,6 +99,8 @@ void Item_subselect::init(st_select_lex *select_lex,
   select_lex->parent_lex->relink_hack(select_lex);
 
   unit= select_lex->master_unit();
+
+  eliminated= FALSE;
 
   if (unit->item)
   {
@@ -237,7 +248,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 {
   char const *save_where= thd_param->where;
   uint8 uncacheable;
-  bool res;
+  bool res= FALSE;
 
   thd= thd_param;
 
@@ -266,7 +277,12 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
     */
   }
 
-  eliminated= FALSE;
+  if (eliminated)               // 2nd execution
+  {
+    fixed= 1;
+    goto end;
+  }
+
   parent_select= thd_param->lex->current_select;
 
   if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar*)&res))
@@ -392,6 +408,18 @@ bool Item_subselect::eliminate_subselect_processor(void *arg)
   return FALSE;
 }
 
+bool Item_subselect::increment_refcount_subselects_processor(void *arg)
+{
+  reference_count++;
+  return false;
+}
+
+bool Item_subselect::collect_subselects_processor(void *arg)
+{
+  List<Item_subselect> *plist=(List<Item_subselect>*)arg;
+  plist->push_back(this);
+  return false;
+}
 
 bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select, 
                                        Item *item)
