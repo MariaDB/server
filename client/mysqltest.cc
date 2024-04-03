@@ -6015,8 +6015,8 @@ do_handle_error:
 enum use_ssl
 {
   USE_SSL_FORBIDDEN = -1,
-  USE_SSL_IF_POSSIBLE,
-  USE_SSL_REQUIRED
+  USE_SSL_IF_POSSIBLE = 0,
+  USE_SSL_REQUIRED = 1
 };
 
 void do_connect(struct st_command *command)

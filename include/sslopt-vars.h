@@ -36,9 +36,21 @@ SSL_STATIC char *opt_ssl_fp      = 0;
 SSL_STATIC char *opt_ssl_fplist  = 0;
 SSL_STATIC my_bool opt_ssl_verify_server_cert= 2;
 
+/* FIXME: there's a major TLS-related hole here. This macro treats
+ * USE_SSL_FORBIDDEN (-1) identically to USE_SSL_REQUIRED (1). See
+ * 'enum use_ssl' in mysqltest.cc for their definitions.
+ *
+ * This means that, among other things, when MTR tests THINK they are
+ * connecting WITHOUT SSL, they may actually be connecting with
+ * obligatory SSL.
+ *
+ * Tests that use 'NOSSL' are NOT TESTING WHAT THEY INTEND TO TEST.
+ */
+
 #define SET_SSL_OPTS(M)                                                 \
   do {                                                                  \
-    if (opt_use_ssl)                                                    \
+    /* if (opt_use_ssl == -1) {} else */ /* SSL forbidden */            \
+    if (opt_use_ssl) /* SSL required */                                 \
     {                                                                   \
       mysql_ssl_set((M), opt_ssl_key, opt_ssl_cert, opt_ssl_ca,         \
                     opt_ssl_capath, opt_ssl_cipher);                    \
@@ -48,7 +60,7 @@ SSL_STATIC my_bool opt_ssl_verify_server_cert= 2;
       mysql_options((M), MARIADB_OPT_TLS_PEER_FP, opt_ssl_fp);          \
       mysql_options((M), MARIADB_OPT_TLS_PEER_FP_LIST, opt_ssl_fplist); \
     }                                                                   \
-    else                                                                \
+    else /* SSL if available */                                         \
       opt_ssl_verify_server_cert= 0;                                    \
     mysql_options((M),MYSQL_OPT_SSL_VERIFY_SERVER_CERT,                 \
                   &opt_ssl_verify_server_cert);                         \
