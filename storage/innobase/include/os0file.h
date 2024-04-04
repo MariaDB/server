@@ -185,10 +185,14 @@ public:
     WRITE_SYNC= 16,
     /** Asynchronous write */
     WRITE_ASYNC= WRITE_SYNC | 1,
+    /** Asynchronous doublewritten page */
+    WRITE_DBL= WRITE_ASYNC | 4,
     /** A doublewrite batch */
     DBLWR_BATCH= WRITE_ASYNC | 8,
     /** Write data and punch hole for the rest */
     PUNCH= WRITE_ASYNC | 16,
+    /** Write doublewritten data and punch hole for the rest */
+    PUNCH_DBL= PUNCH | 4,
     /** Zero out a range of bytes in fil_space_t::io() */
     PUNCH_RANGE= WRITE_SYNC | 32,
   };
@@ -204,6 +208,14 @@ public:
   bool is_read() const { return (type & READ_SYNC) != 0; }
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
+  bool is_doublewritten() const { return (type & 4) != 0; }
+
+  /** Create a write request for the doublewrite buffer. */
+  IORequest doublewritten() const
+  {
+    ut_ad(type == WRITE_ASYNC || type == PUNCH);
+    return IORequest{bpage, slot, node, Type(type | 4)};
+  }
 
   void write_complete(int io_error) const;
   void read_complete(int io_error) const;

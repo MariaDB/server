@@ -352,7 +352,7 @@ static TYPELIB innodb_default_row_format_typelib = {
 };
 
 /** Names of allowed values of innodb_flush_method */
-const char* innodb_flush_method_names[] = {
+static const char* innodb_flush_method_names[] = {
 	"fsync",
 	"O_DSYNC",
 	"littlesync",
@@ -379,6 +379,18 @@ TYPELIB innodb_flush_method_typelib = {
 
 /** Deprecated parameter */
 static ulong innodb_flush_method;
+
+/** Names of allowed values of innodb_doublewrite */
+static const char *innodb_doublewrite_names[]=
+  {"OFF", "ON", "fast", nullptr};
+
+/** Enumeration of innodb_doublewrite */
+TYPELIB innodb_doublewrite_typelib= {
+  array_elements(innodb_doublewrite_names) - 1,
+  "innodb_doublewrite_typelib",
+  innodb_doublewrite_names,
+  nullptr
+};
 
 /** Names of allowed values of innodb_deadlock_report */
 static const char *innodb_deadlock_report_names[]= {
@@ -3982,6 +3994,10 @@ static int innodb_init_params()
 	} else if (innodb_flush_method >= 4 /* O_DIRECT */
 		   IF_WIN(&& innodb_flush_method < 8 /* normal */,)) {
 		/* O_DIRECT and similar settings do nothing */
+		if (innodb_flush_method == 5 /* O_DIRECT_NO_FSYNC */
+		    && buf_dblwr.use) {
+			buf_dblwr.use = buf_dblwr.USE_FAST;
+		}
 #ifdef O_DIRECT
 	} else if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/* If atomic writes are enabled, do the same as with
@@ -18442,6 +18458,12 @@ static void innodb_data_file_write_through_update(THD *, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+static void innodb_doublewrite_update(THD *, st_mysql_sys_var*,
+                                      void *, const void *save)
+{
+  fil_system.set_use_doublewrite(*static_cast<const ulong*>(save));
+}
+
 static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                                         void *var, const void *save)
 {
@@ -18775,11 +18797,14 @@ static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   "The common part for InnoDB table spaces.",
   NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_BOOL(doublewrite, srv_use_doublewrite_buf,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Enable InnoDB doublewrite buffer (enabled by default)."
-  " Disable with --skip-innodb-doublewrite.",
-  NULL, NULL, TRUE);
+static MYSQL_SYSVAR_ENUM(doublewrite, buf_dblwr.use,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether and how to use the doublewrite buffer. "
+  "OFF=Assume that writes of innodb_page_size are atomic; "
+  "ON=Prevent torn writes (the default); "
+  "fast=Like ON, but do not synchronize writes to data files",
+  nullptr, innodb_doublewrite_update, true,
+  &innodb_doublewrite_typelib);
 
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, srv_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,

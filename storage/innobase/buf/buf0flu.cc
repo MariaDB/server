@@ -350,9 +350,9 @@ void buf_page_write_complete(const IORequest &request, bool error)
   else
   {
     bpage->write_complete(persistent, error, state);
-    if (state < buf_page_t::WRITE_FIX_REINIT &&
-        request.node->space->use_doublewrite())
+    if (request.is_doublewritten())
     {
+      ut_ad(state < buf_page_t::WRITE_FIX_REINIT);
       ut_ad(persistent);
       buf_dblwr.write_completed();
     }

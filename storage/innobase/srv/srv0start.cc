@@ -1193,7 +1193,7 @@ dberr_t srv_start(bool create_new_db)
 
 	if (srv_read_only_mode) {
 		sql_print_information("InnoDB: Started in read only mode");
-		srv_use_doublewrite_buf = false;
+		buf_dblwr.use = buf_dblwr.USE_NO;
 	}
 
 	high_level_read_only = srv_read_only_mode
