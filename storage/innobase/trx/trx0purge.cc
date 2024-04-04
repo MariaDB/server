@@ -495,14 +495,12 @@ loop:
 
 void purge_sys_t::cleanse_purge_queue(const fil_space_t &space)
 {
-  byte purge_elem_list[TRX_SYS_N_RSEGS];
   mysql_mutex_lock(&pq_mutex);
-  std::copy(purge_queue.c_begin(), purge_queue.c_end(), purge_elem_list);
-  byte *purge_list_end = purge_elem_list + purge_queue.size();
+  auto purge_elem_list= clone_queue_container();
   purge_queue.clear();
-  for (byte *elem = purge_elem_list; elem < purge_list_end; ++elem)
-    if (trx_sys.rseg_array[*elem].space != &space)
-      purge_queue.push_rseg_index(*elem);
+  for (auto elem : purge_elem_list)
+    if (purge_queue::rseg(elem)->space != &space)
+      purge_queue.push_trx_no_rseg(elem);
   mysql_mutex_unlock(&pq_mutex);
 }
 
@@ -814,7 +812,7 @@ bool purge_sys_t::rseg_get_next_history_log()
       can never produce events from an empty rollback segment. */
 
       mysql_mutex_lock(&pq_mutex);
-      purge_queue.push(rseg);
+      enqueue(*rseg);
       mysql_mutex_unlock(&pq_mutex);
     }
   }
