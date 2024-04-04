@@ -188,6 +188,16 @@ static bool query_response_time_should_log(MYSQL_THD thd)
         (session_stat_val == session_stat_global &&
          opt_query_response_time_stats)))
     return 0;
+
+  if (!thd->lex)
+  {
+    /*
+      This can only happen for stored procedures/functions that failed
+      when calling sp_lex_keeper::validate_lex_and_exec_core(). In this
+      case the statement was never executed.
+    */
+    return 0;
+  }
   if (thd->lex->sql_command == SQLCOM_CALL)
   {
     /*
