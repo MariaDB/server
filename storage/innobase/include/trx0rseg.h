@@ -179,7 +179,7 @@ public:
   /** @return header offset of the last committed transaction */
   uint16_t last_offset() const
   {
-    return static_cast<uint16_t>(last_commit_and_offset & ((1ULL << 16) - 1));
+    return static_cast<uint16_t>(last_commit_and_offset);
   }
 
   void set_last_commit(uint16_t last_offset, trx_id_t trx_no)

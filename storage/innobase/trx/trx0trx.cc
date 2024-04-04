@@ -1153,7 +1153,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
       /* end cannot be less than anything in rseg. User threads only
       produce events when a rollback segment is empty. */
       rseg->set_last_commit(undo->hdr_offset, end);
-      purge_sys.enqueue(*rseg);
+      purge_sys.enqueue(end, *rseg);
       purge_sys.queue_unlock();
     }
     else
