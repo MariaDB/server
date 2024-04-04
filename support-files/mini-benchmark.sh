@@ -310,4 +310,4 @@ case $RESULT in
 esac
 # Record the output into the log file, if requested
 ) 2>&1 | ($LOG && tee "$BENCHMARK_NAME"-"$TIMESTAMP".log)
-
+exit ${PIPESTATUS[0]} # Propagate errors in the sub-shell
