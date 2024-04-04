@@ -18,15 +18,15 @@
 
 
 #include "item.h"
+#include "sql_type_uuid.h"
 
 class Item_func_sys_guid: public Item_str_func
 {
 protected:
-  bool with_dashes;
-  size_t uuid_len() const
-  { return MY_UUID_BARE_STRING_LENGTH + with_dashes*MY_UUID_SEPARATORS; }
+  static size_t uuid_len()
+  { return MY_UUID_BARE_STRING_LENGTH; }
 public:
-  Item_func_sys_guid(THD *thd): Item_str_func(thd), with_dashes(false) {}
+  Item_func_sys_guid(THD *thd): Item_str_func(thd) {}
   bool fix_length_and_dec(THD *thd) override
   {
     collation.set(DTCollation_numeric());
@@ -49,17 +49,31 @@ public:
   { return get_item_copy<Item_func_sys_guid>(thd, this); }
 };
 
-class Item_func_uuid: public Item_func_sys_guid
+class Item_func_uuid: public Type_handler_uuid_new::Item_fbt_func
 {
 public:
-  Item_func_uuid(THD *thd): Item_func_sys_guid(thd) { with_dashes= true; }
-  const Type_handler *type_handler() const override;
+  Item_func_uuid(THD *thd): Item_fbt_func(thd) { }
+  bool const_item() const override { return false; }
+  table_map used_tables() const override { return RAND_TABLE_BIT; }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("uuid") };
     return name;
   }
-  bool val_native(THD *thd, Native *to) override;
+  String *val_str(String *str) override
+  {
+    DBUG_ASSERT(fixed());
+    return UUIDv1().to_string(str) ? NULL : str;
+  }
+  bool val_native(THD *thd, Native *to) override
+  {
+    DBUG_ASSERT(fixed());
+    return UUIDv1::construct_native(to);
+  }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };

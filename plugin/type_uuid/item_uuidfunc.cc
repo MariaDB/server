@@ -16,7 +16,6 @@
 #define MYSQL_SERVER
 #include "mariadb.h"
 #include "item_uuidfunc.h"
-#include "sql_type_uuid.h"
 
 String *Item_func_sys_guid::val_str(String *str)
 {
@@ -27,20 +26,6 @@ String *Item_func_sys_guid::val_str(String *str)
 
   uchar buf[MY_UUID_SIZE];
   my_uuid(buf);
-  my_uuid2str(buf, const_cast<char*>(str->ptr()), with_dashes);
+  my_uuid2str(buf, const_cast<char*>(str->ptr()), 0);
   return str;
-}
-
-const Type_handler *Item_func_uuid::type_handler() const
-{
-  return Type_handler_uuid_new::singleton();
-}
-
-bool Item_func_uuid::val_native(THD *, Native *to)
-{
-  DBUG_ASSERT(fixed());
-  to->alloc(MY_UUID_SIZE);
-  to->length(MY_UUID_SIZE);
-  my_uuid((uchar*)to->ptr());
-  return 0;
 }
