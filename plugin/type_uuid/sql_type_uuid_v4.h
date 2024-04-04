@@ -35,28 +35,62 @@
   bits of random data.
 */
 
+#include "sql_type_uuid.h"
 #include "my_rnd.h"
 
-#define UUID_VERSION                         0x40
-#define UUID_VERSION_MASK                    0x0F
-#define UUID_VARIANT                         0x80
-#define UUID_VARIANT_MASK                    0x3F
-
-/**
-   Create a global unique identifier version 4 (uuidv4)
-
-   @func  my_uuid_v4()
-   @param to   Store uuidv4 here. Must be of size MY_UUID_SIZE (16)
-   @return 1 in case of success and 0 in case of failure
-*/
-static inline bool my_uuid_v4(uchar *to)
+class UUIDv4: public Type_handler_uuid_new::Fbt
 {
-  if (my_random_bytes(to, 16) != MY_AES_OK)
-      return 0;
+  static constexpr uchar UUID_VERSION()      { return 0x40; }
+  static constexpr uchar UUID_VERSION_MASK() { return 0x0F; }
+  static constexpr uchar UUID_VARIANT()      { return 0x80; }
+  static constexpr uchar UUID_VARIANT_MASK() { return 0x3F; }
 
-  to[6]= ((to[6] & UUID_VERSION_MASK) | UUID_VERSION);
-  to[8]= ((to[8] & UUID_VARIANT_MASK) | UUID_VARIANT);
-  return 1;
-}
+  static void inject_version_and_variant(uchar *to)
+  {
+    to[6]= ((to[6] & UUID_VERSION_MASK()) | UUID_VERSION());
+    to[8]= ((to[8] & UUID_VARIANT_MASK()) | UUID_VARIANT());
+  }
+
+  // Construct using a my_rnd()-based fallback method
+  static void construct_fallback(char *to)
+  {
+    for (uint i= 0; i < 4; i++)
+      int4store(&to[i * 4], (uint32) (my_rnd(&sql_rand)*0xFFFFFFFF));
+  }
+
+  static void construct(char *to)
+  {
+    bool error= my_random_bytes((uchar*) to, 16) != MY_AES_OK;
+    DBUG_EXECUTE_IF("simulate_uuidv4_my_random_bytes_failure", error= true; );
+
+    if (error) // A very unlikely failure happened.
+    {
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR,
+                          "UUIDv4 generation failed; using a my_rnd fallback");
+      construct_fallback(to);
+    }
+    /*
+      We have random bytes at to[6] and to[8].
+      Let's inject proper version and variant to make it good UUIDv4.
+    */
+    inject_version_and_variant((uchar*) to);
+  }
+
+public:
+
+  UUIDv4()
+  {
+    construct(m_buffer);
+  }
+  static bool construct_native(Native *to)
+  {
+    to->alloc(MY_UUID_SIZE);
+    to->length(MY_UUID_SIZE);
+    construct((char*)to->ptr());
+    return 0;
+  }
+
+};
 
 #endif // SQL_TYPE_UUID_V4_INCLUDED
