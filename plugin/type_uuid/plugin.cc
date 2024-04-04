@@ -1,4 +1,4 @@
-/* Copyright (c) 2019,2021, MariaDB Corporation
+/* Copyright (c) 2019,2024, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 #define MYSQL_SERVER
 #include "mariadb.h"
 #include "sql_class.h"
-#include "sql_type_uuid.h"
 #include "item_uuidfunc.h"
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>

@@ -1,7 +1,7 @@
 #ifndef ITEM_UUIDFUNC_INCLUDED
 #define ITEM_UUIDFUNC_INCLUDED
 
-/* Copyright (c) 2019,2021, MariaDB Corporation
+/* Copyright (c) 2019,2024, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,8 @@
 
 
 #include "item.h"
-#include "sql_type_uuid.h"
+#include "sql_type_uuid_v1.h"
+#include "sql_type_uuid_v4.h"
 
 class Item_func_sys_guid: public Item_str_func
 {
@@ -87,8 +88,16 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("uuidv4") };
     return name;
   }
-  String *val_str(String *) override;
-  bool val_native(THD *thd, Native *to) override;
+  String *val_str(String *str) override
+  {
+    DBUG_ASSERT(fixed());
+    return UUIDv4().to_string(str) ? NULL : str;
+  }
+  bool val_native(THD *thd, Native *to) override
+  {
+    DBUG_ASSERT(fixed());
+    return UUIDv4::construct_native(to);
+  }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_uuid_v4>(thd, this); }
 };
