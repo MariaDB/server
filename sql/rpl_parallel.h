@@ -331,7 +331,9 @@ struct rpl_parallel_entry {
     I_List) for round-robin scheduling.
   */
   struct sched_bucket : public ilink {
-    sched_bucket() : thr(nullptr) { }
+    sched_bucket() : last_gen(0), thr(nullptr) { }
+    /* Generation this bucket was last scheduled in. */
+    uint64 last_gen;
     rpl_parallel_thread *thr;
   };
   /*
@@ -399,12 +401,8 @@ struct rpl_parallel_entry {
 
     A new generation means that every worker thread in the rpl_threads array
     have been scheduled at least one event group.
-
-    When we have scheduled to slot current_generation_idx= 0, 1, ..., N-1 in this
-    order, we know that (at least) one generation has passed.
   */
   uint64 current_generation;
-  uint32 current_generation_idx;
 
   /*
     The sub_id of the last transaction to commit within this domain_id.
@@ -459,7 +457,6 @@ struct rpl_parallel_entry {
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 
-  void check_scheduling_generation(sched_bucket *cur);
   sched_bucket *check_xa_xid_dependency(xid_t *xid);
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,

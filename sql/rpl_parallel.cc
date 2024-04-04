@@ -2326,33 +2326,6 @@ rpl_parallel_thread_pool::copy_pool_for_pfs(Relay_log_info *rli)
 }
 
 
-/*
-  Check when we have done a complete round of scheduling for workers
-  0, 1, ..., (rpl_thread_max-1), in this order.
-  This often occurs every rpl_thread_max event group, but XA XID dependency
-  restrictions can cause insertion of extra out-of-order worker scheduling
-  in-between the normal round-robin scheduling.
-*/
-void
-rpl_parallel_entry::check_scheduling_generation(sched_bucket *cur)
-{
-  uint32 idx= static_cast<uint32>(cur - rpl_threads);
-  DBUG_ASSERT(cur >= rpl_threads);
-  DBUG_ASSERT(cur < rpl_threads + rpl_thread_max);
-  if (idx == current_generation_idx)
-  {
-    ++idx;
-    if (idx >= rpl_thread_max)
-    {
-      /* A new generation; all workers have been scheduled at least once. */
-      idx= 0;
-      ++current_generation;
-    }
-    current_generation_idx= idx;
-  }
-}
-
-
 rpl_parallel_entry::sched_bucket *
 rpl_parallel_entry::check_xa_xid_dependency(xid_t *xid)
 {
@@ -2440,6 +2413,14 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
     /* New event group; cycle the thread scheduling buckets round-robin. */
     thread_sched_fifo->push_back(thread_sched_fifo->get());
 
+    sched_bucket *fifo_head= thread_sched_fifo->head();
+    /*
+      When the next scheduling bucket is marked with the current generation
+      number, it means that _all_ buckets were now scheduled in this generation,
+      and we should move to the next one. */
+    if (fifo_head->last_gen == current_generation)
+      ++current_generation;
+
     if (gtid_ev->flags2 &
         (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
     {
@@ -2460,15 +2441,15 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
           (xid_active_generation *)alloc_dynamic(&maybe_active_xid);
         if (!a)
           return NULL;
-        a->thr= cur_thr= thread_sched_fifo->head();
+        a->thr= cur_thr= fifo_head;
         a->generation= current_generation;
         a->xid.set(&gtid_ev->xid);
       }
     }
     else
-      cur_thr= thread_sched_fifo->head();
+      cur_thr= fifo_head;
 
-    check_scheduling_generation(cur_thr);
+    cur_thr->last_gen= current_generation;
   }
   else
     cur_thr= thread_sched_fifo->head();
@@ -2634,7 +2615,6 @@ rpl_parallel::find(uint32 domain_id)
     e->rpl_threads= p;
     e->rpl_thread_max= count;
     e->current_generation = 0;
-    e->current_generation_idx = 0;
     init_dynamic_array2(PSI_INSTRUMENT_ME, &e->maybe_active_xid,
                         sizeof(rpl_parallel_entry::xid_active_generation),
                         0, e->active_xid_init_alloc(), 0, MYF(0));
