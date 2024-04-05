@@ -327,26 +327,45 @@ struct rpl_parallel_thread_pool {
 
 struct rpl_parallel_entry {
   /*
-    A small struct to put worker threads references into a FIFO (using an
-    I_List) for round-robin scheduling.
-  */
-  struct sched_bucket : public ilink {
-    sched_bucket() : last_gen(0), thr(nullptr) { }
-    /* Generation this bucket was last scheduled in. */
-    uint64 last_gen;
-    rpl_parallel_thread *thr;
-  };
-  /*
     A struct to keep track of into which "generation" an XA XID was last
     scheduled. A "generation" means that we know that every worker thread
     slot in the rpl_parallel_entry was scheduled at least once. When more
     that two generations have passed, we can safely reuse the XID in a
     different worker.
   */
-  struct xid_active_generation {
+  struct sched_bucket;
+  struct xid_active_generation : public ilink {
+    xid_active_generation(xid_t *xid_, sched_bucket *thr_, uint64 gen) :
+      generation(gen), next_sched_sub_id(0), thr(thr_) { xid.set(xid_); }
+
     uint64 generation;
+    /*
+      The sub_id of the event group scheduled _after_ this XID on the same
+      scheduling bucket, if any; else 0.
+    */
+    uint64 next_sched_sub_id;
     sched_bucket *thr;
     xid_t xid;
+  };
+  /*
+    A struct to put worker threads references into a FIFO (using an
+    I_List) for round-robin scheduling.
+  */
+  struct sched_bucket : public ilink {
+    sched_bucket()
+      : last_gen(0), last_sched_sub_id(0), thr(nullptr), last_xid(nullptr)
+    { }
+    void update_sub_id_for_xa_xid(uint64 sub_id);
+
+    /* Generation this bucket was last scheduled in. */
+    uint64 last_gen;
+    /* Last sub_id scheduled on this bucket, for XA XID dependency tracking. */
+    uint64_t last_sched_sub_id;
+    /* List of XIDs that were recently scheduled in this bucket. */
+    I_List<xid_active_generation> xids;
+    /* The worker thread last assigned to this scheduling bucket. */
+    rpl_parallel_thread *thr;
+    xid_active_generation *last_xid;
   };
 
   mysql_mutex_t LOCK_parallel_entry;
@@ -392,10 +411,10 @@ struct rpl_parallel_entry {
   I_List<sched_bucket> *thread_sched_fifo;
   uint32 rpl_thread_max;
   /*
-    Keep track of all XA XIDs that may still be active in a worker thread.
-    The elements are of type xid_active_generation.
+    Hash mapping external XA XID to the corresponding xid_active_generation
+    object, for dependency tracking.
   */
-  DYNAMIC_ARRAY maybe_active_xid;
+  HASH xa_xid_hash;
   /*
     Keeping track of the current scheduling generation.
 
@@ -457,18 +476,12 @@ struct rpl_parallel_entry {
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 
-  sched_bucket *check_xa_xid_dependency(xid_t *xid);
-  rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                      PSI_stage_info *old_stage,
-                                      Gtid_log_event *gtid_ev);
+  sched_bucket *check_xa_xid_dependency(xid_t *xid, sched_bucket *bucket);
+  sched_bucket *choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
+                              PSI_stage_info *old_stage,
+                              Gtid_log_event *gtid_ev);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
-  /*
-    the initial size of maybe_ array corresponds to the case of
-    each worker receives perhaps unlikely XA-PREPARE and XA-COMMIT within
-    the same generation.
-  */
-  inline uint active_xid_init_alloc() { return 3 * 2 * rpl_thread_max; }
 };
 struct rpl_parallel {
   HASH domain_hash;
