@@ -5662,6 +5662,8 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
   }
 
+  mtr_add_arg($args, "--wait-for-pos-timeout=%d", $opt_debug_sync_timeout);
+
   client_debug_arg($args, "mysqltest");
 
   if ( $opt_record )
