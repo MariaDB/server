@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright (C) 2017-2022 MariaDB
 # Copyright (C) 2012-2015 Codership Oy
 #
