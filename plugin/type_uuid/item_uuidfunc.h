@@ -50,53 +50,53 @@ public:
   { return get_item_copy<Item_func_sys_guid>(thd, this); }
 };
 
-class Item_func_uuid: public Type_handler_uuid_new::Item_fbt_func
+
+template<class UUIDvX>
+class Item_func_uuid_vx: public Type_handler_uuid_new::Item_fbt_func
 {
 public:
-  Item_func_uuid(THD *thd): Item_fbt_func(thd) { }
+  using Item_fbt_func::Item_fbt_func;
   bool const_item() const override { return false; }
   table_map used_tables() const override { return RAND_TABLE_BIT; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
+  String *val_str(String *str) override
+  {
+    DBUG_ASSERT(fixed());
+    return UUIDvX().to_string(str) ? NULL : str;
+  }
+  bool val_native(THD *thd, Native *to) override
+  {
+    DBUG_ASSERT(fixed());
+    return UUIDvX::construct_native(to);
+  }
+};
+
+
+class Item_func_uuid: public Item_func_uuid_vx<UUIDv1>
+{
+public:
+  using Item_func_uuid_vx::Item_func_uuid_vx;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("uuid") };
     return name;
   }
-  String *val_str(String *str) override
-  {
-    DBUG_ASSERT(fixed());
-    return UUIDv1().to_string(str) ? NULL : str;
-  }
-  bool val_native(THD *thd, Native *to) override
-  {
-    DBUG_ASSERT(fixed());
-    return UUIDv1::construct_native(to);
-  }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 
-class Item_func_uuid_v4: public Item_func_uuid
+
+class Item_func_uuid_v4: public Item_func_uuid_vx<UUIDv4>
 {
 public:
-  Item_func_uuid_v4(THD *thd): Item_func_uuid(thd) { }
+  using Item_func_uuid_vx::Item_func_uuid_vx;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("uuidv4") };
     return name;
-  }
-  String *val_str(String *str) override
-  {
-    DBUG_ASSERT(fixed());
-    return UUIDv4().to_string(str) ? NULL : str;
-  }
-  bool val_native(THD *thd, Native *to) override
-  {
-    DBUG_ASSERT(fixed());
-    return UUIDv4::construct_native(to);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_uuid_v4>(thd, this); }
