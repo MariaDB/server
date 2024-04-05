@@ -7684,7 +7684,6 @@ btr_store_big_rec_extern_fields(
 			buf_block_t*	block;
 			page_t*		page;
 			const ulint	commit_freq = 4;
-			ulint		r_extents;
 
 			ut_ad(page_align(field_ref) == page_align(rec));
 
@@ -7723,20 +7722,17 @@ btr_store_big_rec_extern_fields(
 				alloc_mtr = &mtr;
 			}
 
-			if (!fsp_reserve_free_extents(&r_extents,
-						      index->table->space, 1,
-						      FSP_BLOB, alloc_mtr,
-						      1)) {
-
-				alloc_mtr->commit();
-				error = DB_OUT_OF_FILE_SPACE;
-				goto func_exit;
-			}
-
 			block = btr_page_alloc(index, hint_page_no, FSP_NO_DIR,
 					       0, alloc_mtr, &mtr);
 
-			index->table->space->release_free_extents(r_extents);
+			if (!block) {
+				error = DB_OUT_OF_FILE_SPACE;
+				alloc_mtr->commit();
+				if (op == BTR_STORE_INSERT_BULK) {
+					mtr.commit();
+				}
+				goto func_exit;
+			}
 
 			if (UNIV_UNLIKELY(op == BTR_STORE_INSERT_BULK)) {
 				mtr_bulk.commit();
