@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0);
+connection slave;
+include/stop_slave.inc
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 8;
+SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode= aggressive;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+*** Create a lot of XA intermixed with each other and with misc. non-XA. ***
+connection master;
+Omitting query log for lots of random transactions ...
+SELECT COUNT(*), SUM(a), AVG(a), SUM(b), AVG(b) FROM t1;
+COUNT(*)	SUM(a)	AVG(a)	SUM(b)	AVG(b)
+1001	500500	500.0000	9500	9.4905
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), AVG(a), SUM(b), AVG(b) FROM t1;
+COUNT(*)	SUM(a)	AVG(a)	SUM(b)	AVG(b)
+1001	500500	500.0000	9500	9.4905
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode= @old_parallel_mode;
+SET GLOBAL slave_parallel_threads= @old_parallel_threads;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

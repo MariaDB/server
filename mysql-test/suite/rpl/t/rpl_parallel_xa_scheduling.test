@@ -1,0 +1,102 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0);
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 8;
+SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode= aggressive;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo *** Create a lot of XA intermixed with each other and with misc. non-XA. ***
+--connection master
+--let $max_xa= 50
+--let $iterations= 20
+--let $uniq_id= 0
+
+--echo Omitting query log for lots of random transactions ...
+--disable_query_log
+
+--let $i= 0
+while ($i < $max_xa) {
+  connect(con$i, localhost, root,,);
+  inc $i;
+}
+
+--let $outer= 0
+while ($outer < $iterations) {
+
+  --let $inner= 0
+  --let $xa_prob= `SELECT rand()`
+  --let $xa_idx= 0
+  while ($inner < $max_xa) {
+    inc $uniq_id;
+
+    let $check= `SELECT rand() < $xa_prob`;
+    if ($check) {
+      # XA.
+      let $trxid= trx_$xa_idx;
+      connection con$xa_idx;
+      eval XA BEGIN '$trxid';
+      eval INSERT INTO t1 VALUES ($uniq_id, $outer);
+      eval XA END '$trxid';
+      eval XA PREPARE '$trxid';
+      inc $xa_idx;
+      connection master;
+    }
+    if (!$check) {
+      # Non-XA.
+      eval INSERT INTO t1 VALUES ($uniq_id, $outer);
+    }
+    inc $inner;
+  }
+
+  let $i= 0;
+  while ($i < $xa_idx) {
+    connection con$i;
+    eval XA COMMIT 'trx_$i';
+    inc $i;
+  }
+  connection master;
+
+  inc $outer;
+}
+
+--let $i= 0
+while ($i < $max_xa) {
+  disconnect con$i;
+  inc $i;
+}
+--enable_query_log
+
+SELECT COUNT(*), SUM(a), AVG(a), SUM(b), AVG(b) FROM t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), AVG(a), SUM(b), AVG(b) FROM t1;
+
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode= @old_parallel_mode;
+SET GLOBAL slave_parallel_threads= @old_parallel_threads;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
