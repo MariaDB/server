@@ -16,3 +16,4 @@ galera_ssl_reload : MDEV-32778 galera_ssl_reload failed with warning message
 galera_ipv6_mariabackup : temporarily disabled at the request of Codership
 galera_pc_bootstrap : temporarily disabled at the request of Codership
 galera_ipv6_mariabackup_section : temporarily disabled at the request of Codership
+MDEV-29171 : MDEV-33842 galera_3nodes.MDEV-29171 fails on shutdown_server
