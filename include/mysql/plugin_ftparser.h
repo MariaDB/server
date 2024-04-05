@@ -124,6 +124,7 @@ typedef struct st_mysql_ftparser_boolean_info
   int weight_adjust;
   char wasign;
   char trunc;
+  int position;
   /* These are parser state and must be removed. */
   char prev;
   char *quot;

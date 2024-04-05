@@ -148,7 +148,7 @@ static int simple_parser_deinit(MYSQL_FTPARSER_PARAM *param
 static void add_word(MYSQL_FTPARSER_PARAM *param, const char *word, size_t len)
 {
   MYSQL_FTPARSER_BOOLEAN_INFO bool_info=
-    { FT_TOKEN_WORD, 0, 0, 0, 0, ' ', 0 };
+    { FT_TOKEN_WORD, 0, 0, 0, 0, 0, ' ', 0 };
 
   param->mysql_add_word(param, word, (int)len, &bool_info);
 }
