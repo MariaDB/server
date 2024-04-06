@@ -150,4 +150,11 @@ INSERT INTO t1 VALUES
 UPDATE t1 SET a = '' LIMIT 100;
 ERROR HY000: Local temporary space limit reached
 DROP TABLE t1;
+#
+# MDEV-33680 Server hangs or assertion fails upon SELECT with limited
+# max_tmp_space_usage
+#
+set max_tmp_session_space_usage = 1024*1024;
+select count(distinct concat(seq,repeat('x',1000))) from seq_1_to_1000;
+ERROR HY000: Global temporary space limit reached
 # End of 11.5 tests

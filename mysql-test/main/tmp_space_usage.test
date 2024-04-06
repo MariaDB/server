@@ -200,4 +200,13 @@ UPDATE t1 SET a = '' LIMIT 100;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-33680 Server hangs or assertion fails upon SELECT with limited
+--echo # max_tmp_space_usage
+--echo #
+
+set max_tmp_session_space_usage = 1024*1024;
+--error 201
+select count(distinct concat(seq,repeat('x',1000))) from seq_1_to_1000;
+
 --echo # End of 11.5 tests

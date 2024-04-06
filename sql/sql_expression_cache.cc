@@ -307,7 +307,7 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
                                                 cache_table_param.start_recinfo,
                                                 &cache_table_param.recinfo,
                                                 error, 1, NULL))
-          goto err;
+          goto err2;
       }
     }
   }
@@ -318,6 +318,8 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
   DBUG_RETURN(FALSE);
 
 err:
+  cache_table->file->print_error(error, MYF(0));
+err2:
   disable_cache();
   DBUG_RETURN(TRUE);
 }

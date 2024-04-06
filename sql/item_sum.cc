@@ -1026,7 +1026,10 @@ bool Aggregator_distinct::add()
     }
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
         table->file->is_fatal_error(error, HA_CHECK_DUP))
+    {
+      table->file->print_error(error, MYF(0));
       return TRUE;
+    }
     return FALSE;
   }
   else
