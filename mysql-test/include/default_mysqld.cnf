@@ -92,7 +92,7 @@ loose-performance-schema-events-statements-history-size=10
 loose-performance-schema-events-statements-history-long-size=1000
 loose-performance-schema-events-transactions-history-size=10
 loose-performance-schema-events-transactions-history-long-size=1000
-loose-performance-schema-max-thread-instances=200
+loose-performance-schema-max-thread-instances=400
 loose-performance-schema-session-connect-attrs-size=2048
 loose-performance-schema-max-metadata-locks=10000
 
