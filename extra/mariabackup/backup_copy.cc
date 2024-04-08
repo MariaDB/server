@@ -1439,9 +1439,10 @@ bool backup_start(ds_ctxt *ds_data, ds_ctxt *ds_meta,
 
         if (!backup_files_from_datadir(ds_data, fil_path_to_mysql_datadir,
 	                               "aws-kms-key") ||
-            !backup_files_from_datadir(ds_data,
-                                       aria_log_dir_path,
-                                       "aria_log")) {
+            (aria_log_dir_path &&
+             !backup_files_from_datadir(ds_data,
+                                        aria_log_dir_path,
+                                        "aria_log"))) {
 		return false;
 	}
 
