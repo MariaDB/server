@@ -1,0 +1,50 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+set statement sql_log_bin=0 for call mtr.add_suppression("Signal handler thread did not exit in a timely manner");
+#
+# Main test
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+set @@global.debug_dbug= "+d,hold_sighup_log_refresh";
+# Waiting for sighup to reach reload_acl_and_cache..
+set debug_sync="now wait_for in_reload_acl_and_cache";
+# Signalling signal handler to proceed to sleep before REFRESH_HOSTS
+set debug_sync="now signal refresh_logs";
+# Starting shutdown (note this will take 3+ seconds due to DBUG my_sleep in reload_acl_and_cache)
+shutdown;
+connection server_2;
+connection slave;
+include/assert_grep.inc [Ensure Mariadbd did not segfault when shutting down]
+connection master;
+connection slave;
+#
+# Error testcase to ensure an error message is shown if the signal
+# takes longer than the timeout while processing the SIGHUP
+connection slave;
+set @@global.debug_dbug= "+d,force_sighup_processing_timeout";
+set @@global.debug_dbug= "+d,hold_sighup_log_refresh";
+connection master;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Waiting for sighup to reach reload_acl_and_cache..
+set debug_sync="now wait_for in_reload_acl_and_cache";
+# Signalling signal handler to proceed to sleep before REFRESH_HOSTS
+set debug_sync="now signal refresh_logs";
+# Starting shutdown (note this will take 3+ seconds due to DBUG my_sleep in reload_acl_and_cache)
+shutdown;
+connection server_2;
+connection slave;
+include/assert_grep.inc [Ensure warning is issued that signal handler thread is still processing]
+#
+# Cleanup
+connection master;
+drop table t1;
+include/rpl_end.inc
+# End of rpl_shutdown_sighup.test
