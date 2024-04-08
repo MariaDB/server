@@ -134,8 +134,9 @@ trx_undo_page_get_first_rec(const buf_block_t *block, uint32_t page_no,
                             uint16_t offset)
 {
   uint16_t start= trx_undo_page_get_start(block, page_no, offset);
-  return start == trx_undo_page_get_end(block, page_no, offset)
-    ? nullptr : block->page.frame + start;
+  uint16_t end= trx_undo_page_get_end(block, page_no, offset);
+  ut_ad(start <= end);
+  return start >= end ? nullptr : block->page.frame + start;
 }
 
 /** Get the last undo log record on a page.
@@ -149,8 +150,10 @@ trx_undo_rec_t*
 trx_undo_page_get_last_rec(const buf_block_t *block, uint32_t page_no,
                            uint16_t offset)
 {
+  uint16_t start= trx_undo_page_get_start(block, page_no, offset);
   uint16_t end= trx_undo_page_get_end(block, page_no, offset);
-  return trx_undo_page_get_start(block, page_no, offset) == end
+  ut_ad(start <= end);
+  return start >= end
     ? nullptr
     : block->page.frame + mach_read_from_2(block->page.frame + end - 2);
 }

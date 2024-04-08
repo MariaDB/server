@@ -793,8 +793,7 @@ bool purge_sys_t::rseg_get_next_history_log()
     /* Read the previous log header. */
     trx_id_t trx_no= 0;
     if (const buf_block_t* undo_page=
-        get_page(page_id_t(rseg->space->id,
-                                     prev_log_addr.page)))
+        get_page(page_id_t(rseg->space->id, prev_log_addr.page)))
     {
       const byte *log_hdr= undo_page->page.frame + prev_log_addr.boffset;
       trx_no= mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
@@ -887,7 +886,7 @@ bool purge_sys_t::choose_next_log()
       if (!b)
         goto purge_nothing;
       undo_rec=
-        trx_undo_page_get_first_rec(b, page_no, hdr_offset);
+        trx_undo_page_get_first_rec(b, hdr_page_no, hdr_offset);
       if (!undo_rec)
         goto purge_nothing;
     }
