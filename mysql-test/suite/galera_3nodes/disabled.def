@@ -17,3 +17,4 @@ galera_ipv6_mariabackup : temporarily disabled at the request of Codership
 galera_pc_bootstrap : temporarily disabled at the request of Codership
 galera_ipv6_mariabackup_section : temporarily disabled at the request of Codership
 MDEV-29171 : MDEV-33842 galera_3nodes.MDEV-29171 fails on shutdown_server
+GCF-354 : MDEV-25614 Galera test failure on GCF-354
