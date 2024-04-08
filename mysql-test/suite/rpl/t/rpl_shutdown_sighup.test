@@ -1,0 +1,154 @@
+#
+#   The signal handler thread can use various different runtime resources when
+# processing a SIGHUP (e.g. master-info information), as the logic calls into
+# reload_acl_and_cache(). This test ensures that SIGHUP processing, when
+# concurrent with server shutdown, the shutdown logic must wait for the SIGHUP
+# processing to finish before cleaning up any resources.
+#
+#   Additionally, the error case is tested such that the signal handler thread
+# takes too long processing a SIGHUP, and the main mysqld thread must skip its
+# wait and output a warning.
+#
+# Note the SIGHUP is sent via the command-line kill program via a perl script.
+#
+# References:
+#  MDEV-30260: Slave crashed:reload_acl_and_cache during shutdown
+#
+
+--source include/not_windows.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+# Binlog format doesn't matter
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+# For error test case which forces timeout
+--connection slave
+set statement sql_log_bin=0 for call mtr.add_suppression("Signal handler thread did not exit in a timely manner");
+
+
+--echo #
+--echo # Main test
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+# Make signal handler handle SIGHUP..
+set @@global.debug_dbug= "+d,hold_sighup_log_refresh";
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+  my $mysqld_pid = `cat $pid_filename`;
+  chomp($mysqld_pid);
+  system("kill -HUP $mysqld_pid");
+  exit(0);
+EOF
+
+--echo # Waiting for sighup to reach reload_acl_and_cache..
+set debug_sync="now wait_for in_reload_acl_and_cache";
+--echo # Signalling signal handler to proceed to sleep before REFRESH_HOSTS
+set debug_sync="now signal refresh_logs";
+
+# ..while we are shutting down
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--echo # Starting shutdown (note this will take 3+ seconds due to DBUG my_sleep in reload_acl_and_cache)
+shutdown;
+
+--source include/wait_until_disconnected.inc
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $assert_text= Ensure Mariadbd did not segfault when shutting down
+--let $assert_select= got signal 11
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_count= 0
+--let $assert_only_after = CURRENT_TEST: rpl.rpl_shutdown_sighup
+--source include/assert_grep.inc
+
+--connection master
+--sync_slave_with_master
+
+
+--echo #
+--echo # Error testcase to ensure an error message is shown if the signal
+--echo # takes longer than the timeout while processing the SIGHUP
+
+--connection slave
+set @@global.debug_dbug= "+d,force_sighup_processing_timeout";
+set @@global.debug_dbug= "+d,hold_sighup_log_refresh";
+
+--connection master
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+# Make signal handler handle SIGHUP..
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+--perl
+  my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
+  my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+  my $mysqld_pid = `cat $pid_filename`;
+  chomp($mysqld_pid);
+  system("kill -HUP $mysqld_pid");
+  exit(0);
+EOF
+--echo # Waiting for sighup to reach reload_acl_and_cache..
+set debug_sync="now wait_for in_reload_acl_and_cache";
+--echo # Signalling signal handler to proceed to sleep before REFRESH_HOSTS
+set debug_sync="now signal refresh_logs";
+
+# ..while we are shutting down
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--echo # Starting shutdown (note this will take 3+ seconds due to DBUG my_sleep in reload_acl_and_cache)
+shutdown;
+
+--source include/wait_until_disconnected.inc
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $assert_text= Ensure warning is issued that signal handler thread is still processing
+--let $assert_select= Signal handler thread did not exit in a timely manner.
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_count= 1
+--let $assert_only_after = CURRENT_TEST: rpl.rpl_shutdown_sighup
+--source include/assert_grep.inc
+
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+
+--source include/rpl_end.inc
+--echo # End of rpl_shutdown_sighup.test
