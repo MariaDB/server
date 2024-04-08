@@ -3044,5 +3044,37 @@ SELECT * FROM t1 WHERE a IN (SELECT b FROM t2 JOIN t1);
 DROP TABLE t1, t2;
 set optimizer_search_depth= @tmp_28871;
 
+--echo #
+--echo #     MDEV-31793 LooseScan join on derived table crashes
+--echo #
+--source include/have_innodb.inc
+
+DROP TABLE if exists t1,t2;
+CREATE TABLE t1 (id int, a int, KEY (a), KEY (id))
+ engine=innodb STATS_AUTO_RECALC=0;
+
+INSERT INTO t1 VALUES  (1, 1), (2, 1), (3, 1), (4, 1);
+ 
+CREATE TABLE t2 (id2 int,  b TEXT) engine=innodb STATS_AUTO_RECALC=0;
+INSERT INTO t2 VALUES (1,'F'),( 2,'D'),(3,''), (3,NULL),( 4,'F'),( 5,'Q');
+
+SET SESSION OPTIMIZER_WHERE_COST=1.0;
+SET GLOBAL OPTIMIZER_ROW_COPY_COST=1.0;
+set optimizer_switch='firstmatch=off,materialization=off,loosescan=on';
+
+let $q=
+SELECT id, a 
+FROM t1 JOIN t2 ON id = id2 
+WHERE t1.id IN 
+(SELECT dt.id FROM (SELECT id, a, b  FROM t1 JOIN t2 ON id = id2 limit 1000)dt);
+
+eval explain $q;
+eval $q;
+
+SET GLOBAL OPTIMIZER_ROW_COPY_COST=default;
+SET SESSION OPTIMIZER_WHERE_COST=default;
+DROP TABLE t1,t2;
+
+
 # The following command must be the last one the file 
 set optimizer_switch=@subselect_sj_tmp;
