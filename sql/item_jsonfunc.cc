@@ -1648,7 +1648,7 @@ static bool is_json_type(const Item *item)
 }
 
 
-static int append_json_value(String *str, Item *item, String *tmp_val)
+static int append_json_value(String *str, Item *item, String *tmp_val, bool is_always_json= false)
 {
   if (item->type_handler()->is_bool_type())
   {
@@ -1676,7 +1676,7 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
     String *sv= item->val_json(tmp_val);
     if (item->null_value)
       goto append_null;
-    if (is_json_type(item))
+    if (is_always_json || is_json_type(item))
       return str->append(sv->ptr(), sv->length());
 
     if (item->result_type() == STRING_RESULT)
@@ -1694,7 +1694,7 @@ append_null:
 
 
 static int append_json_value_from_field(String *str,
-  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val)
+  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val, bool is_always_json= false)
 {
   if (i->type_handler()->is_bool_type())
   {
@@ -1722,7 +1722,7 @@ static int append_json_value_from_field(String *str,
     String *sv= f->val_str(tmp_val, key + offset);
     if (f->is_null_in_record(key))
       goto append_null;
-    if (is_json_type(i))
+    if (is_always_json || is_json_type(i))
       return str->append(sv->ptr(), sv->length());
 
     if (i->result_type() == STRING_RESULT)
@@ -3963,7 +3963,7 @@ bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
   m_tmp_json.length(0);
-  if (append_json_value(&m_tmp_json, i, tmp))
+  if (append_json_value(&m_tmp_json, i, tmp, true))
     return NULL;
   return &m_tmp_json;
 }
@@ -3974,7 +3974,7 @@ String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
 {
   m_tmp_json.length(0);
 
-  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp, true))
     return NULL;
 
   return &m_tmp_json;

@@ -1186,10 +1186,10 @@ INSERT INTO t1 VALUES
 ('"double_quoted_value"'), ("'single_quoted_value'");
 SELECT JSON_VALID(JSON_ARRAYAGG(a)) FROM t1;
 JSON_VALID(JSON_ARRAYAGG(a))
-1
+0
 SELECT JSON_ARRAYAGG(a) FROM t1;
 JSON_ARRAYAGG(a)
-["\"double_quoted_value\"","'single_quoted_value'","\"double_quoted_value\"","'single_quoted_value'"]
+["double_quoted_value",'single_quoted_value',"double_quoted_value",'single_quoted_value']
 DROP TABLE t1;
 #
 # Strings and NULLs
@@ -1200,50 +1200,50 @@ INSERT INTO t1 VALUES
 (1, "Hello"),(1, "World"), (2, "This"),(2, "Will"), (2, "Work"),(2, "!"), (3, NULL);
 SELECT JSON_VALID(JSON_ARRAYAGG(b)) FROM t1;
 JSON_VALID(JSON_ARRAYAGG(b))
-1
+0
 SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1;
 JSON_ARRAYAGG(a)	JSON_ARRAYAGG(b)
-[1,1,2,2,2,2,3,1,1,2,2,2,2,3]	["Hello","World","This","Will","Work","!",null,"Hello","World","This","Will","Work","!",null]
+[1,1,2,2,2,2,3,1,1,2,2,2,2,3]	[Hello,World,This,Will,Work,!,null,Hello,World,This,Will,Work,!,null]
 SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1 GROUP BY a;
 JSON_ARRAYAGG(a)	JSON_ARRAYAGG(b)
-[1,1,1,1]	["Hello","World","Hello","World"]
-[2,2,2,2,2,2,2,2]	["!","Work","Will","This","Will","This","!","Work"]
+[1,1,1,1]	[Hello,World,Hello,World]
+[2,2,2,2,2,2,2,2]	[!,Work,Will,This,Will,This,!,Work]
 [3,3]	[null,null]
 #
 # DISTINCT and LIMIT
 #
 SELECT JSON_ARRAYAGG(b LIMIT 1) FROM t1;
 JSON_ARRAYAGG(b LIMIT 1)
-["Hello"]
+[Hello]
 SELECT JSON_ARRAYAGG(b LIMIT 2) FROM t1;
 JSON_ARRAYAGG(b LIMIT 2)
-["Hello","World"]
+[Hello,World]
 SELECT JSON_ARRAYAGG(b LIMIT 1) FROM t1 GROUP BY b;
 JSON_ARRAYAGG(b LIMIT 1)
 [null]
-["!"]
-["Hello"]
-["This"]
-["Will"]
-["Work"]
-["World"]
+[!]
+[Hello]
+[This]
+[Will]
+[Work]
+[World]
 SELECT JSON_ARRAYAGG(b LIMIT 2) FROM t1 GROUP BY a;
 JSON_ARRAYAGG(b LIMIT 2)
-["Hello","World"]
-["!","Work"]
+[Hello,World]
+[!,Work]
 [null,null]
 SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
 JSON_ARRAYAGG(DISTINCT a)
 [1,2,3]
 SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
 JSON_ARRAYAGG(DISTINCT b)
-[null,"!","Hello","This","Will","Work","World"]
+[null,!,Hello,This,Will,Work,World]
 SELECT JSON_ARRAYAGG(DISTINCT a LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT a LIMIT 2)
 [1,2]
 SELECT JSON_ARRAYAGG(DISTINCT b LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT b LIMIT 2)
-[null,"!"]
+[null,!]
 #
 # JSON aggregation
 #
@@ -1516,7 +1516,7 @@ JSON_ARRAYAGG(NULL)
 [null]
 SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
 JSON_ARRAYAGG("null")
-["null"]
+[null]
 create view v as (select json_arrayagg(json_object("type", "permPeriod", "id", "asd")) as JSON_DATA);
 select * from v;
 JSON_DATA
@@ -1553,17 +1553,17 @@ INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
 SELECT JSON_ARRAYAGG(a) FROM t1;
 JSON_ARRAYAGG(a)
-["1","2","3","1","2","3"]
+[1,2,3,1,2,3]
 SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
 JSON_ARRAYAGG(DISTINCT a)
-["1","2","3"]
+[1,2,3]
 INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
 SELECT JSON_ARRAYAGG(a) FROM t1;
 JSON_ARRAYAGG(a)
-["1","2","3","1","2","3",null,null]
+[1,2,3,1,2,3,null,null]
 SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
 JSON_ARRAYAGG(DISTINCT a)
-[null,"1","2","3"]
+[null,1,2,3]
 DROP TABLE t1;
 #
 # MDEV-22840: JSON_ARRAYAGG gives wrong results with NULL values and ORDER by clause
@@ -1572,23 +1572,23 @@ CREATE TABLE t1(a VARCHAR(255));
 INSERT INTO t1 VALUES ('red'),('blue');
 SELECT JSON_ARRAYAGG(a) FROM t1;
 JSON_ARRAYAGG(a)
-["red","blue"]
+[red,blue]
 SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
 JSON_ARRAYAGG(a ORDER BY a DESC)
-["red","blue"]
+[red,blue]
 SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
 JSON_ARRAYAGG(a ORDER BY a ASC)
-["blue","red"]
+[blue,red]
 INSERT INTO t1 VALUES (NULL);
 SELECT JSON_ARRAYAGG(a) FROM t1;
 JSON_ARRAYAGG(a)
-["red","blue",null]
+[red,blue,null]
 SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
 JSON_ARRAYAGG(a ORDER BY a DESC)
-["red","blue",null]
+[red,blue,null]
 SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
 JSON_ARRAYAGG(a ORDER BY a ASC)
-[null,"blue","red"]
+[null,blue,red]
 DROP TABLE t1;
 set group_concat_max_len=64;
 create table t1 (a varchar(254));
@@ -1597,9 +1597,9 @@ insert into t1 values (concat('x64-', repeat('b', 60)));
 insert into t1 values (concat('x64-', repeat('c', 60)));
 select json_arrayagg(a) from t1;
 json_arrayagg(a)
-["x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+[x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
 Warnings:
-Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
 drop table t1;
 SET group_concat_max_len= default;
 create table t1 (col1 json);
@@ -1640,9 +1640,9 @@ SELECT t1.id, JSON_ARRAYAGG(JSON_OBJECT('id',t2.id) ORDER BY t2.id) as materials
 from t1 LEFT JOIN t2 on t1.id = t2.owner_id
 GROUP BY t1.id ORDER BY id;
 id	materials
-1	["{\"id\": 1}","{\"id\": 2}"]
-2	["{\"id\": 3}"]
-3	["{\"id\": 4}"]
+1	[{"id": 1},{"id": 2}]
+2	[{"id": 3}]
+3	[{"id": 4}]
 DROP TABLE t1;
 DROP TABLE t2;
 #
@@ -1684,11 +1684,24 @@ JSON_OBJECTAGG('\\', 1)
 set names utf8;
 select json_arrayagg('ä'), json_objectagg(1, 'ä');
 json_arrayagg('ä')	json_objectagg(1, 'ä')
-["ä"]	{"1":"ä"}
+[ä]	{"1":"ä"}
 set names latin1;
 select json_arrayagg('ä'), json_objectagg(1, 'ä');
 json_arrayagg('ä')	json_objectagg(1, 'ä')
-["ä"]	{"1":"ä"}
+[ä]	{"1":"ä"}
+#
+# MDEV-30646: View created via JSON_ARRAYAGG returns incorrect json object
+#
+CREATE VIEW v1 AS SELECT JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket') as v1_json;
+SELECT JSON_ARRAYAGG(v1_json) FROM v1;
+JSON_ARRAYAGG(v1_json)
+[{"plugin": "unix_socket"}]
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT JSON_OBJECT('plugin','unix_socket') as v1_json;
+SELECT JSON_ARRAYAGG(v1_json) FROM v1;
+JSON_ARRAYAGG(v1_json)
+[{"plugin": "unix_socket"}]
+DROP VIEW v1;
 #
 # End of 10.5 tests
 #
