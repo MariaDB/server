@@ -15,13 +15,13 @@ Variable_name	Value
 Ssl_cipher	AES128-SHA256
 ERROR 1045 (28000): Access denied for user 'ssl_tls12'@'localhost' (using password: NO)
 SSLv3 ciphers: user is ok with any cipher
-ERROR 2026 (HY000): TLS/SSL error: sslv3 alert handshake failure
-ERROR 2026 (HY000): TLS/SSL error: sslv3 alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
 SSLv3 ciphers: user requires SSLv3 cipher AES128-SHA
-ERROR 2026 (HY000): TLS/SSL error: sslv3 alert handshake failure
-ERROR 2026 (HY000): TLS/SSL error: sslv3 alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
 SSLv3 ciphers: user requires TLSv1.2 cipher AES128-SHA256
-ERROR 2026 (HY000): TLS/SSL error: sslv3 alert handshake failure
-ERROR 2026 (HY000): TLS/SSL error: sslv3 alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
 drop user ssl_sslv3@localhost;
 drop user ssl_tls12@localhost;
