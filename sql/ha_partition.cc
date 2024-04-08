@@ -8416,7 +8416,7 @@ int ha_partition::info(uint flag)
                         file->stats.auto_increment_value);
         } while (*(++file_array));
 
-        DBUG_ASSERT(auto_increment_value);
+        DBUG_ASSERT(!all_parts_opened || auto_increment_value);
         stats.auto_increment_value= auto_increment_value;
         if (all_parts_opened && auto_inc_is_first_in_idx)
         {
