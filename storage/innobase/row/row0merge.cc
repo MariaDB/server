@@ -5351,18 +5351,8 @@ dberr_t trx_mod_table_time_t::write_bulk(dict_table_t *table, trx_t *trx)
   return err;
 }
 
-dberr_t trx_t::bulk_insert_apply_low()
+void trx_t::bulk_rollback_low()
 {
-  ut_ad(bulk_insert);
-  ut_ad(!check_unique_secondary);
-  ut_ad(!check_foreigns);
-  dberr_t err;
-  for (auto& t : mod_tables)
-    if (t.second.is_bulk_insert())
-      if ((err= t.second.write_bulk(t.first, this)) != DB_SUCCESS)
-        goto bulk_rollback;
-  return DB_SUCCESS;
-bulk_rollback:
   undo_no_t low_limit= UINT64_MAX;
   for (auto& t : mod_tables)
   {
@@ -5376,5 +5366,28 @@ bulk_rollback:
   }
   trx_savept_t bulk_save{low_limit};
   rollback(&bulk_save);
+}
+
+dberr_t trx_t::bulk_insert_apply_for_table(dict_table_t *table)
+{
+  auto t= check_bulk_buffer(table);
+  if (!t || !t->is_bulk_insert())
+    return DB_SUCCESS;
+  dberr_t err= t->write_bulk(table, this);
+  if (err != DB_SUCCESS)
+    bulk_rollback_low();
   return err;
+}
+
+dberr_t trx_t::bulk_insert_apply_low()
+{
+  ut_ad(bulk_insert);
+  for (auto& t : mod_tables)
+    if (t.second.is_bulk_insert())
+      if (dberr_t err= t.second.write_bulk(t.first, this))
+      {
+        bulk_rollback_low();
+        return err;
+      }
+  return DB_SUCCESS;
 }

@@ -15824,7 +15824,7 @@ ha_innobase::start_stmt(
 		}
 		/* fall through */
 	default:
-		trx->end_bulk_insert(*m_prebuilt->table);
+		trx->bulk_insert_apply_for_table(m_prebuilt->table);
 		if (!trx->bulk_insert) {
 			break;
 		}
@@ -16018,7 +16018,7 @@ ha_innobase::external_lock(
 		}
 		/* fall through */
 	default:
-		trx->end_bulk_insert(*m_prebuilt->table);
+		trx->bulk_insert_apply_for_table(m_prebuilt->table);
 		if (!trx->bulk_insert) {
 			break;
 		}
