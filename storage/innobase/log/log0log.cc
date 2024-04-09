@@ -235,7 +235,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
       log.close();
       mprotect(ptr, size_t(size), PROT_READ);
       buf= static_cast<byte*>(ptr);
-      max_buf_free= size;
+      max_buf_free= 1;
 # if defined __linux__ || defined _WIN32
       set_block_size(CPU_LEVEL1_DCACHE_LINESIZE);
 # endif

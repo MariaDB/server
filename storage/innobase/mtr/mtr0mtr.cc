@@ -39,19 +39,26 @@ Created 11/26/1995 Heikki Tuuri
 #include "mariadb_stats.h"
 #include "my_cpu.h"
 
+#ifdef HAVE_PMEM
+void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
+#endif
 std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
 unsigned mtr_t::spin_wait_delay;
 
 void mtr_t::finisher_update()
 {
   ut_ad(log_sys.latch_have_wr());
-  finisher=
 #ifdef HAVE_PMEM
-    log_sys.is_pmem()
-    ? (spin_wait_delay
-       ? mtr_t::finish_writer<true,true> : mtr_t::finish_writer<false,true>)
-    :
+  if (log_sys.is_pmem())
+  {
+    commit_logger= mtr_t::commit_log<true>;
+    finisher= spin_wait_delay
+      ? mtr_t::finish_writer<true,true> : mtr_t::finish_writer<false,true>;
+    return;
+  }
+  commit_logger= mtr_t::commit_log<false>;
 #endif
+  finisher=
     (spin_wait_delay
      ? mtr_t::finish_writer<true,false> : mtr_t::finish_writer<false,false>);
 }
@@ -336,13 +343,140 @@ inline lsn_t log_t::get_write_target() const
   ut_ad(latch_have_any());
   if (UNIV_LIKELY(buf_free_ok()))
     return 0;
-  ut_ad(!is_pmem());
   /* The LSN corresponding to the end of buf is
   write_lsn - (first_lsn & 4095) + buf_free,
   but we use simpler arithmetics to return a smaller write target in
   order to minimize waiting in log_write_up_to(). */
   ut_ad(max_buf_free >= 4096 * 4);
   return write_lsn + max_buf_free / 2;
+}
+
+template<bool pmem>
+void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
+{
+  size_t modified= 0;
+  const lsn_t write_lsn= pmem ? 0 : log_sys.get_write_target();
+
+  if (mtr->m_made_dirty)
+  {
+    auto it= mtr->m_memo.rbegin();
+
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+    buf_page_t *const prev=
+      buf_pool.prepare_insert_into_flush_list(lsns.first);
+
+    while (it != mtr->m_memo.rend())
+    {
+      const mtr_memo_slot_t &slot= *it++;
+      if (slot.type & MTR_MEMO_MODIFY)
+      {
+        ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
+              slot.type == MTR_MEMO_PAGE_SX_MODIFY);
+        modified++;
+        buf_block_t *b= static_cast<buf_block_t*>(slot.object);
+        ut_ad(b->page.id() < end_page_id);
+        ut_d(const auto s= b->page.state());
+        ut_ad(s > buf_page_t::FREED);
+        ut_ad(s < buf_page_t::READ_FIX);
+        ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <=
+              mtr->m_commit_lsn);
+        mach_write_to_8(b->page.frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
+        if (UNIV_LIKELY_NULL(b->page.zip.data))
+          memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
+                            FIL_PAGE_LSN + b->page.frame, 8);
+        buf_pool.insert_into_flush_list(prev, b, lsns.first);
+      }
+    }
+
+    ut_ad(modified);
+    buf_pool.flush_list_requests+= modified;
+    buf_pool.page_cleaner_wakeup();
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+    if (mtr->m_latch_ex)
+    {
+      log_sys.latch.wr_unlock();
+      mtr->m_latch_ex= false;
+    }
+    else
+      log_sys.latch.rd_unlock();
+
+    mtr->release();
+  }
+  else
+  {
+    if (mtr->m_latch_ex)
+    {
+      log_sys.latch.wr_unlock();
+      mtr->m_latch_ex= false;
+    }
+    else
+      log_sys.latch.rd_unlock();
+
+    for (auto it= mtr->m_memo.rbegin(); it != mtr->m_memo.rend(); )
+    {
+      const mtr_memo_slot_t &slot= *it++;
+      ut_ad(slot.object);
+      switch (slot.type) {
+      case MTR_MEMO_S_LOCK:
+        static_cast<index_lock*>(slot.object)->s_unlock();
+        break;
+      case MTR_MEMO_SPACE_X_LOCK:
+        static_cast<fil_space_t*>(slot.object)->set_committed_size();
+        static_cast<fil_space_t*>(slot.object)->x_unlock();
+        break;
+      case MTR_MEMO_X_LOCK:
+      case MTR_MEMO_SX_LOCK:
+        static_cast<index_lock*>(slot.object)->
+          u_or_x_unlock(slot.type == MTR_MEMO_SX_LOCK);
+        break;
+      default:
+        buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
+        ut_d(const auto s=)
+          bpage->unfix();
+        if (slot.type & MTR_MEMO_MODIFY)
+        {
+          ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
+                slot.type == MTR_MEMO_PAGE_SX_MODIFY);
+          ut_ad(bpage->oldest_modification() > 1);
+          ut_ad(bpage->oldest_modification() < mtr->m_commit_lsn);
+          ut_ad(bpage->id() < end_page_id);
+          ut_ad(s >= buf_page_t::FREED);
+          ut_ad(s < buf_page_t::READ_FIX);
+          ut_ad(mach_read_from_8(bpage->frame + FIL_PAGE_LSN) <=
+                mtr->m_commit_lsn);
+          mach_write_to_8(bpage->frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
+          if (UNIV_LIKELY_NULL(bpage->zip.data))
+            memcpy_aligned<8>(FIL_PAGE_LSN + bpage->zip.data,
+                              FIL_PAGE_LSN + bpage->frame, 8);
+          modified++;
+        }
+        switch (auto latch= slot.type & ~MTR_MEMO_MODIFY) {
+        case MTR_MEMO_PAGE_S_FIX:
+          bpage->lock.s_unlock();
+          continue;
+        case MTR_MEMO_PAGE_SX_FIX:
+        case MTR_MEMO_PAGE_X_FIX:
+          bpage->lock.u_or_x_unlock(latch == MTR_MEMO_PAGE_SX_FIX);
+          continue;
+        default:
+          ut_ad(latch == MTR_MEMO_BUF_FIX);
+        }
+      }
+    }
+
+    buf_pool.add_flush_list_requests(modified);
+    mtr->m_memo.clear();
+  }
+
+  mariadb_increment_pages_updated(modified);
+
+  if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
+    buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
+
+  if (!pmem && UNIV_UNLIKELY(write_lsn != 0))
+    log_write_up_to(write_lsn, false);
 }
 
 /** Commit a mini-transaction. */
@@ -367,129 +501,11 @@ void mtr_t::commit()
     ut_ad(!srv_read_only_mode);
     std::pair<lsn_t,page_flush_ahead> lsns{do_write()};
     process_freed_pages();
-    size_t modified= 0;
-    const lsn_t write_lsn= log_sys.get_write_target();
-
-    if (m_made_dirty)
-    {
-      auto it= m_memo.rbegin();
-
-      mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
-      buf_page_t *const prev=
-        buf_pool.prepare_insert_into_flush_list(lsns.first);
-
-      while (it != m_memo.rend())
-      {
-        const mtr_memo_slot_t &slot= *it++;
-        if (slot.type & MTR_MEMO_MODIFY)
-        {
-          ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
-                slot.type == MTR_MEMO_PAGE_SX_MODIFY);
-          modified++;
-          buf_block_t *b= static_cast<buf_block_t*>(slot.object);
-          ut_ad(b->page.id() < end_page_id);
-          ut_d(const auto s= b->page.state());
-          ut_ad(s > buf_page_t::FREED);
-          ut_ad(s < buf_page_t::READ_FIX);
-          ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <=
-                m_commit_lsn);
-          mach_write_to_8(b->page.frame + FIL_PAGE_LSN, m_commit_lsn);
-          if (UNIV_LIKELY_NULL(b->page.zip.data))
-            memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
-                              FIL_PAGE_LSN + b->page.frame, 8);
-          buf_pool.insert_into_flush_list(prev, b, lsns.first);
-        }
-      }
-
-      ut_ad(modified);
-      buf_pool.flush_list_requests+= modified;
-      buf_pool.page_cleaner_wakeup();
-      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-
-      if (m_latch_ex)
-      {
-        log_sys.latch.wr_unlock();
-        m_latch_ex= false;
-      }
-      else
-        log_sys.latch.rd_unlock();
-
-      release();
-    }
-    else
-    {
-      if (m_latch_ex)
-      {
-        log_sys.latch.wr_unlock();
-        m_latch_ex= false;
-      }
-      else
-        log_sys.latch.rd_unlock();
-
-      for (auto it= m_memo.rbegin(); it != m_memo.rend(); )
-      {
-        const mtr_memo_slot_t &slot= *it++;
-        ut_ad(slot.object);
-        switch (slot.type) {
-        case MTR_MEMO_S_LOCK:
-          static_cast<index_lock*>(slot.object)->s_unlock();
-          break;
-        case MTR_MEMO_SPACE_X_LOCK:
-          static_cast<fil_space_t*>(slot.object)->set_committed_size();
-          static_cast<fil_space_t*>(slot.object)->x_unlock();
-          break;
-        case MTR_MEMO_X_LOCK:
-        case MTR_MEMO_SX_LOCK:
-          static_cast<index_lock*>(slot.object)->
-            u_or_x_unlock(slot.type == MTR_MEMO_SX_LOCK);
-          break;
-        default:
-          buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
-          ut_d(const auto s=)
-            bpage->unfix();
-          if (slot.type & MTR_MEMO_MODIFY)
-          {
-            ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
-                  slot.type == MTR_MEMO_PAGE_SX_MODIFY);
-            ut_ad(bpage->oldest_modification() > 1);
-            ut_ad(bpage->oldest_modification() < m_commit_lsn);
-            ut_ad(bpage->id() < end_page_id);
-            ut_ad(s >= buf_page_t::FREED);
-            ut_ad(s < buf_page_t::READ_FIX);
-            ut_ad(mach_read_from_8(bpage->frame + FIL_PAGE_LSN) <=
-                  m_commit_lsn);
-            mach_write_to_8(bpage->frame + FIL_PAGE_LSN, m_commit_lsn);
-            if (UNIV_LIKELY_NULL(bpage->zip.data))
-              memcpy_aligned<8>(FIL_PAGE_LSN + bpage->zip.data,
-                                FIL_PAGE_LSN + bpage->frame, 8);
-            modified++;
-          }
-          switch (auto latch= slot.type & ~MTR_MEMO_MODIFY) {
-          case MTR_MEMO_PAGE_S_FIX:
-            bpage->lock.s_unlock();
-            continue;
-          case MTR_MEMO_PAGE_SX_FIX:
-          case MTR_MEMO_PAGE_X_FIX:
-            bpage->lock.u_or_x_unlock(latch == MTR_MEMO_PAGE_SX_FIX);
-            continue;
-          default:
-            ut_ad(latch == MTR_MEMO_BUF_FIX);
-          }
-        }
-      }
-
-      buf_pool.add_flush_list_requests(modified);
-      m_memo.clear();
-    }
-
-    mariadb_increment_pages_updated(modified);
-
-    if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
-      buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
-
-    if (UNIV_UNLIKELY(write_lsn != 0))
-      log_write_up_to(write_lsn, false);
+#ifdef HAVE_PMEM
+    commit_logger(this, lsns);
+#else
+    commit_log<false>(this, lsns);
+#endif
   }
   else
   {

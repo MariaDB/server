@@ -230,8 +230,6 @@ public:
 
   /** Last written LSN */
   lsn_t write_lsn;
-  /** recommended maximum buf_free size, after which the buffer is flushed */
-  size_t max_buf_free;
 
   /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
   In write_buf(), buf and flush_buf are swapped */
@@ -241,6 +239,10 @@ public:
   std::atomic<bool> need_checkpoint;
   /** whether a checkpoint is pending; protected by latch.wr_lock() */
   Atomic_relaxed<bool> checkpoint_pending;
+  /** next checkpoint number (protected by latch.wr_lock()) */
+  byte next_checkpoint_no;
+  /** recommended maximum buf_free size, after which the buffer is flushed */
+  unsigned max_buf_free;
   /** Log sequence number when a log file overwrite (broken crash recovery)
   was noticed. Protected by latch.wr_lock(). */
   lsn_t overwrite_warned;
@@ -249,8 +251,6 @@ public:
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
   lsn_t next_checkpoint_lsn;
-  /** next checkpoint number (protected by latch.wr_lock()) */
-  ulint next_checkpoint_no;
 
   /** Log file */
   log_file_t log;
@@ -323,6 +323,7 @@ public:
   /** whether there is capacity in the log buffer */
   bool buf_free_ok() const noexcept
   {
+    ut_ad(!is_pmem());
     return (buf_free.load(std::memory_order_relaxed) & ~buf_free_LOCK) <
       max_buf_free;
   }
