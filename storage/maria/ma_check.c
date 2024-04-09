@@ -3390,7 +3390,7 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
   length= page.size;
   bzero(buff+length,keyinfo->block_length-length);
   if (write_page(share, new_file, buff, keyinfo->block_length,
-                 new_page_pos, MYF(MY_NABP | MY_WAIT_IF_FULL)))
+                 new_page_pos, MYF(MY_NABP | MY_WAIT_IF_FULL) & param->myf_rw))
   {
     _ma_check_print_error(param,"Can't write indexblock, error: %d",my_errno);
     goto err;

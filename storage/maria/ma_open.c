@@ -172,7 +172,6 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   mysql_mutex_lock(&share->intern_lock);
   info.read_record= share->read_record;
   share->reopen++;
-  share->write_flag=MYF(MY_NABP | MY_WAIT_IF_FULL);
   if (share->options & HA_OPTION_READ_ONLY_DATA)
   {
     info.lock_type=F_RDLCK;
@@ -987,6 +986,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       share->options|= HA_OPTION_READ_ONLY_DATA;
     share->is_log_table= FALSE;
 
+    share->write_flag=MYF(MY_NABP | MY_WAIT_IF_FULL);
     if (open_flags & HA_OPEN_TMP_TABLE || share->options & HA_OPTION_TMP_TABLE)
     {
       share->options|= HA_OPTION_TMP_TABLE;

@@ -644,6 +644,7 @@ extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
 extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_disk_space;
 extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;

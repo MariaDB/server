@@ -8185,6 +8185,9 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
+C_MODE_START
+void mariadb_sleep_for_space(unsigned int seconds);
+C_MODE_END
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

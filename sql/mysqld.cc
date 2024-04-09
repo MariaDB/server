@@ -4880,6 +4880,9 @@ static int init_server_components()
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
 
+  /* Set up hook to handle disk full */
+  my_sleep_for_space= mariadb_sleep_for_space;
+
   /*
     Print source revision hash, as one of the first lines, if not the
     first in error log, for troubleshooting and debugging purposes
@@ -9216,6 +9219,7 @@ PSI_stage_info stage_user_lock= { 0, "User lock", 0};
 PSI_stage_info stage_user_sleep= { 0, "User sleep", 0};
 PSI_stage_info stage_verifying_table= { 0, "Verifying table", 0};
 PSI_stage_info stage_waiting_for_delay_list= { 0, "Waiting for delay_list", 0};
+PSI_stage_info stage_waiting_for_disk_space= {0, "Waiting for someone to free space", 0};
 PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log= { 0, "Waiting for GTID to be written to binary log", 0};
 PSI_stage_info stage_waiting_for_handler_insert= { 0, "Waiting for handler insert", 0};
 PSI_stage_info stage_waiting_for_handler_lock= { 0, "Waiting for handler lock", 0};

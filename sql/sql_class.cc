@@ -8323,6 +8323,34 @@ wait_for_commit::unregister_wait_for_prior_commit2()
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
 
+/*
+  Wait # seconds or until someone sends a signal (through kill)
+
+  Note that this must have same prototype as my_sleep_for_space()
+*/
+
+C_MODE_START
+
+void mariadb_sleep_for_space(unsigned int seconds)
+{
+  THD *thd= current_thd;
+  PSI_stage_info old_stage;
+  if (!thd)
+  {
+    sleep(seconds);
+    return;
+  }
+ mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                  &stage_waiting_for_disk_space, &old_stage);
+  if (!thd->killed)
+    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+  thd->EXIT_COND(&old_stage);
+  return;
+}
+
+C_MODE_END
+
 
 bool Discrete_intervals_list::append(ulonglong start, ulonglong val,
                                  ulonglong incr)
