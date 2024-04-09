@@ -4811,18 +4811,21 @@ int mysql_create_table_no_lock(THD *thd,
 #ifdef WITH_WSREP
 /** Additional sequence checks for Galera cluster.
 
-@param thd    thread handle
-@param seq    sequence definition
+@param thd         thread handle
+@param seq         sequence definition
+@param used_engine create used ENGINE=
 @retval false success
 @retval true  failure
 */
-bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
+bool wsrep_check_sequence(THD* thd,
+                          const sequence_definition *seq,
+                          const bool used_engine)
 {
     enum legacy_db_type db_type;
 
     DBUG_ASSERT(WSREP(thd));
 
-    if (thd->lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
+    if (used_engine)
     {
       db_type= thd->lex->create_info.db_type->db_type;
     }
@@ -4852,6 +4855,57 @@ bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
     }
 
     return (false);
+}
+
+/** Additional CREATE TABLE/SEQUENCE checks for Galera cluster.
+
+@param thd         thread handle
+@param wsrep_ctas  CREATE TABLE AS SELECT ?
+@param used_engine CREATE TABLE ... ENGINE = ?
+@param create_info Create information
+
+@retval false      Galera cluster does support used clause
+@retval true       Galera cluster does not support used clause
+*/
+static
+bool wsrep_check_support(THD* thd,
+                         const bool wsrep_ctas,
+                         const bool used_engine,
+                         const HA_CREATE_INFO* create_info)
+{
+  /* CREATE TABLE ... AS SELECT */
+  if (wsrep_ctas &&
+      thd->variables.wsrep_trx_fragment_size > 0)
+  {
+    my_message(ER_NOT_ALLOWED_COMMAND,
+               "CREATE TABLE AS SELECT is not supported with streaming replication",
+               MYF(0));
+    return true;
+  }
+  /* CREATE TABLE .. WITH SYSTEM VERSIONING AS SELECT
+     is not supported in Galera cluster.
+  */
+  if (wsrep_ctas &&
+      create_info->versioned())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "SYSTEM VERSIONING AS SELECT in Galera cluster");
+    return true;
+  }
+  /*
+    CREATE TABLE ... ENGINE=SEQUENCE is not supported in
+    Galera cluster.
+    CREATE SEQUENCE ... ENGINE=xxx Galera cluster supports
+    only InnoDB-sequences.
+  */
+  if (((used_engine && create_info->db_type &&
+       (create_info->db_type->db_type == DB_TYPE_SEQUENCE ||
+        create_info->db_type->db_type >= DB_TYPE_FIRST_DYNAMIC)) ||
+       thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE) &&
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
+    return true;
+
+  return false;
 }
 #endif /* WITH_WSREP */
 
@@ -4927,15 +4981,6 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
-
-#ifdef WITH_WSREP
-  if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
-      WSREP(thd) && wsrep_thd_is_local_toi(thd))
-  {
-    if (wsrep_check_sequence(thd, create_info->seq_create_info))
-      DBUG_RETURN(true);
-  }
-#endif /* WITH_WSREP */
 
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
@@ -6563,8 +6608,6 @@ static KEY *find_key_ci(const char *key_name, KEY *key_start, KEY *key_end)
 
    @param          thd                Thread
    @param          table              The original table.
-   @param          varchar            Indicates that new definition has new
-                                      VARCHAR column.
    @param[in/out]  ha_alter_info      Data structure which already contains
                                       basic information about create options,
                                       field and keys for the new version of
@@ -6599,7 +6642,7 @@ static KEY *find_key_ci(const char *key_name, KEY *key_start, KEY *key_end)
    @retval false success
 */
 
-static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
+static bool fill_alter_inplace_info(THD *thd, TABLE *table,
                                     Alter_inplace_info *ha_alter_info)
 {
   Field **f_ptr, *field;
@@ -6649,13 +6692,6 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
   if (alter_info->flags & ALTER_CHANGE_COLUMN)
     ha_alter_info->handler_flags|= ALTER_COLUMN_DEFAULT;
 
-  /*
-    If we altering table with old VARCHAR fields we will be automatically
-    upgrading VARCHAR column types.
-  */
-  if (table->s->frm_version < FRM_VER_TRUE_VARCHAR && varchar)
-    ha_alter_info->handler_flags|=  ALTER_STORED_COLUMN_TYPE;
-
   DBUG_PRINT("info", ("handler_flags: %llu", ha_alter_info->handler_flags));
 
   /*
@@ -6697,6 +6733,30 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         Check if type of column has changed.
       */
       bool is_equal= field->is_equal(*new_field);
+
+      if (is_equal)
+      {
+        const Type_handler *th= field->type_handler();
+        if (th != th->type_handler_for_implicit_upgrade())
+        {
+          /*
+            The field data type says it wants upgrade.
+            This should not be possible:
+            - if this is a new column definition, e.g. from statements like:
+                ALTER TABLE t1 ADD a INT;
+                ALTER TABLE t1 MODIFY a INT;
+              then it's coming from the parser, which returns
+              only up-to-date data types.
+            - if this is an old column definition, e.g. from:
+                ALTER TABLE t1 COMMENT 'new comment';
+              it should have ealier called Column_definition_implicit_upgrade(),
+              which replaces old data types to up-to-date data types.
+          */
+          DBUG_ASSERT(0);
+          is_equal= false;
+        }
+      }
+
       if (!is_equal)
       {
         if (field->table->file->can_convert_nocopy(*field, *new_field))
@@ -9100,7 +9160,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       case Alter_drop::CHECK_CONSTRAINT:
       case Alter_drop::PERIOD:
         my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
-                 alter_info->drop_list.head()->name);
+                 drop->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
@@ -10213,12 +10273,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   */
   KEY *key_info;
   uint key_count;
-  /*
-    Remember if the new definition has new VARCHAR column;
-    create_info->varchar will be reset in create_table_impl()/
-    mysql_prepare_create_table().
-  */
-  bool varchar= create_info->varchar, table_creation_was_logged= 0;
+  bool table_creation_was_logged= 0;
   bool binlog_as_create_select= 0, log_if_exists= 0;
   uint tables_opened;
   handlerton *new_db_type= create_info->db_type, *old_db_type;
@@ -10253,6 +10308,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     TODO: this design is obsolete and will be removed.
   */
   int table_kind= check_if_log_table(table_list, FALSE, NullS);
+  const bool used_engine= create_info->used_fields & HA_CREATE_USED_ENGINE;
 
   if (table_kind)
   {
@@ -10264,7 +10320,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
 
     /* Disable alter of log tables to unsupported engine */
-    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+    if ((used_engine) &&
         (!create_info->db_type || /* unknown engine */
          !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
     {
@@ -10372,7 +10428,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if we can support implementing storage engine.
   */
   if (WSREP(thd) && table && table->s->sequence &&
-      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info))
+      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info, used_engine))
     DBUG_RETURN(TRUE);
 
   if (WSREP(thd) &&
@@ -10875,12 +10931,10 @@ do_continue:;
 #endif
 
 #ifdef WITH_WSREP
+  // ALTER TABLE for sequence object, check can we support it
   if (table->s->sequence && WSREP(thd) &&
-      wsrep_thd_is_local_toi(thd))
-  {
-    if (wsrep_check_sequence(thd, create_info->seq_create_info))
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
       DBUG_RETURN(TRUE);
-  }
 #endif /* WITH_WSREP */
 
   /*
@@ -11052,7 +11106,7 @@ do_continue:;
     bool use_inplace= true;
 
     /* Fill the Alter_inplace_info structure. */
-    if (fill_alter_inplace_info(thd, table, varchar, &ha_alter_info))
+    if (fill_alter_inplace_info(thd, table, &ha_alter_info))
       goto err_new_table_cleanup;
 
     alter_ctx.tmp_storage_engine_name_partitioned=
@@ -12863,17 +12917,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #endif
 
 #ifdef WITH_WSREP
-  if (wsrep_ctas)
+  if (WSREP(thd) &&
+      wsrep_check_support(thd, wsrep_ctas, used_engine, &create_info))
   {
-    if (thd->variables.wsrep_trx_fragment_size > 0)
-    {
-      my_message(
-        ER_NOT_ALLOWED_COMMAND,
-        "CREATE TABLE AS SELECT is not supported with streaming replication",
-        MYF(0));
-      res= 1;
-      goto end_with_restore_list;
-    }
+    res= 1;
+    goto end_with_restore_list;
   }
 #endif /* WITH_WSREP */
 
@@ -13025,6 +13073,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
                                    create_table->table_name, create_table->db))
 	goto end_with_restore_list;
 
+#ifdef WITH_WSREP
       /*
         In STATEMENT format, we probably have to replicate also temporary
         tables, like mysql replication does. Also check if the requested
@@ -13033,15 +13082,15 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       if (WSREP(thd))
       {
         handlerton *orig_ht= create_info.db_type;
+
         if (!check_engine(thd, create_table->db.str,
                           create_table->table_name.str,
                           &create_info) &&
             (!thd->is_current_stmt_binlog_format_row() ||
              !create_info.tmp_table()))
         {
-#ifdef WITH_WSREP
           if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
-              wsrep_check_sequence(thd, lex->create_info.seq_create_info))
+              wsrep_check_sequence(thd, lex->create_info.seq_create_info, used_engine))
             DBUG_RETURN(true);
 
           WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
@@ -13052,14 +13101,15 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 	    WSREP_WARN("CREATE TABLE isolation failure");
             res= true;
             goto end_with_restore_list;
-	  }
-#endif /* WITH_WSREP */
+          }
         }
         // check_engine will set db_type to  NULL if e.g. TEMPORARY is
         // not supported by the storage engine, this case is checked
         // again in mysql_create_table
         create_info.db_type= orig_ht;
       }
+#endif /* WITH_WSREP */
+
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
     }

@@ -548,3 +548,124 @@ template void ssux_lock_impl<false>::rd_unlock();
 template void ssux_lock_impl<false>::u_unlock();
 template void ssux_lock_impl<false>::wr_unlock();
 #endif /* UNIV_PFS_RWLOCK */
+
+#ifdef UNIV_DEBUG
+void srw_lock_debug::SRW_LOCK_INIT(mysql_pfs_key_t key)
+{
+  srw_lock::SRW_LOCK_INIT(key);
+  readers_lock.init();
+  ut_ad(!readers.load(std::memory_order_relaxed));
+  ut_ad(!have_any());
+}
+
+void srw_lock_debug::destroy()
+{
+  ut_ad(!writer);
+  if (auto r= readers.load(std::memory_order_relaxed))
+  {
+    readers.store(0, std::memory_order_relaxed);
+    ut_ad(r->empty());
+    delete r;
+  }
+  srw_lock::destroy();
+}
+
+bool srw_lock_debug::wr_lock_try()
+{
+  ut_ad(!have_any());
+  if (!srw_lock::wr_lock_try())
+    return false;
+  ut_ad(!writer);
+  writer.store(pthread_self(), std::memory_order_relaxed);
+  return true;
+}
+
+void srw_lock_debug::wr_lock(SRW_LOCK_ARGS(const char *file, unsigned line))
+{
+  ut_ad(!have_any());
+  srw_lock::wr_lock(SRW_LOCK_ARGS(file, line));
+  ut_ad(!writer);
+  writer.store(pthread_self(), std::memory_order_relaxed);
+}
+
+void srw_lock_debug::wr_unlock()
+{
+  ut_ad(have_wr());
+  writer.store(0, std::memory_order_relaxed);
+  srw_lock::wr_unlock();
+}
+
+void srw_lock_debug::readers_register()
+{
+  readers_lock.wr_lock();
+  auto r= readers.load(std::memory_order_relaxed);
+  if (!r)
+  {
+    r= new std::unordered_multiset<pthread_t>();
+    readers.store(r, std::memory_order_relaxed);
+  }
+  r->emplace(pthread_self());
+  readers_lock.wr_unlock();
+}
+
+bool srw_lock_debug::rd_lock_try()
+{
+  ut_ad(!have_any());
+  if (!srw_lock::rd_lock_try())
+    return false;
+  readers_register();
+  return true;
+}
+
+void srw_lock_debug::rd_lock(SRW_LOCK_ARGS(const char *file, unsigned line))
+{
+  ut_ad(!have_any());
+  srw_lock::rd_lock(SRW_LOCK_ARGS(file, line));
+  readers_register();
+}
+
+void srw_lock_debug::rd_unlock()
+{
+  const pthread_t self= pthread_self();
+  ut_ad(writer != self);
+  readers_lock.wr_lock();
+  auto r= readers.load(std::memory_order_relaxed);
+  ut_ad(r);
+  auto i= r->find(self);
+  ut_ad(i != r->end());
+  r->erase(i);
+  readers_lock.wr_unlock();
+
+  srw_lock::rd_unlock();
+}
+
+bool srw_lock_debug::have_rd() const noexcept
+{
+  if (auto r= readers.load(std::memory_order_relaxed))
+  {
+    readers_lock.wr_lock();
+    bool found= r->find(pthread_self()) != r->end();
+    readers_lock.wr_unlock();
+# ifndef SUX_LOCK_GENERIC
+    ut_ad(!found || is_locked());
+# endif
+    return found;
+  }
+  return false;
+}
+
+bool srw_lock_debug::have_wr() const noexcept
+{
+  if (writer != pthread_self())
+    return false;
+# ifndef SUX_LOCK_GENERIC
+  ut_ad(is_write_locked());
+# endif
+  return true;
+}
+
+bool srw_lock_debug::have_any() const noexcept
+{
+  return have_wr() || have_rd();
+}
+#endif

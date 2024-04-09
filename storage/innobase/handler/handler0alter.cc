@@ -864,6 +864,9 @@ my_error_innodb(
 	case DB_DEADLOCK:
 		my_error(ER_LOCK_DEADLOCK, MYF(0));
 		break;
+	case DB_RECORD_CHANGED:
+		my_error(ER_CHECKREAD, MYF(0), table);
+		break;
 	case DB_LOCK_WAIT_TIMEOUT:
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		break;
@@ -1457,11 +1460,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
     }
   }
 };
-
-/********************************************************************//**
-Get the upper limit of the MySQL integral and floating-point type.
-@return maximum allowed value for the field */
-ulonglong innobase_get_int_col_max_value(const Field *field);
 
 /** Determine if fulltext indexes exist in a given table.
 @param table MySQL table
@@ -2748,6 +2746,9 @@ cannot_create_many_fulltext_index:
 		online = false;
 	}
 
+	static constexpr const char *not_implemented
+		= "Not implemented for system-versioned operations";
+
 	if (ha_alter_info->handler_flags
 		& ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
@@ -2773,6 +2774,12 @@ cannot_create_many_fulltext_index:
 						  | HA_BINARY_PACK_KEY)));
 				if (add_fulltext) {
 					goto cannot_create_many_fulltext_index;
+				}
+
+				if (altered_table->versioned()) {
+					ha_alter_info->unsupported_reason
+						= not_implemented;
+					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 				}
 
 				add_fulltext = true;
@@ -2811,12 +2818,18 @@ cannot_create_many_fulltext_index:
 		}
 	}
 
-	// FIXME: implement Online DDL for system-versioned operations
-	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
-
+	if (m_prebuilt->table->is_stats_table()) {
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
-				"Not implemented for system-versioned operations";
+				table_share->table_name.str;
+		}
+		online= false;
+	}
+
+	// FIXME: implement Online DDL for system-versioned operations
+	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
+		if (ha_alter_info->online) {
+			ha_alter_info->unsupported_reason = not_implemented;
 		}
 
 		online = false;
@@ -9865,13 +9878,7 @@ commit_set_autoinc(
 			const dict_col_t*	autoinc_col
 				= dict_table_get_nth_col(ctx->old_table,
 							 innodb_col_no(ai));
-			dict_index_t*		index
-				= dict_table_get_first_index(ctx->old_table);
-			while (index != NULL
-			       && index->fields[0].col != autoinc_col) {
-				index = dict_table_get_next_index(index);
-			}
-
+			auto index = ctx->old_table->get_index(*autoinc_col);
 			ut_ad(index);
 
 			ib_uint64_t	max_in_table = index
@@ -11234,16 +11241,7 @@ ha_innobase::commit_inplace_alter_table(
 			fts_optimize_remove_table(ctx->old_table);
 		}
 
-		dict_sys.freeze(SRW_LOCK_CALL);
-		for (auto f : ctx->old_table->referenced_set) {
-			if (dict_table_t* child = f->foreign_table) {
-				error = lock_table_for_trx(child, trx, LOCK_X);
-				if (error != DB_SUCCESS) {
-					break;
-				}
-			}
-		}
-		dict_sys.unfreeze();
+		error = lock_table_children(ctx->old_table, trx);
 
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);

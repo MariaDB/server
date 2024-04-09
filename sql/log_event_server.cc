@@ -4646,20 +4646,12 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
     set_flags(NO_CHECK_CONSTRAINT_CHECKS_F);
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
-                          m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width)))
+                             m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
+                             m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
-    {
-      memcpy(m_cols.bitmap, cols->bitmap, no_bytes_in_map(cols));
-      create_last_word_mask(&m_cols);
-    }
-  }
-  else
-  {
-    // Needed because my_bitmap_init() does not set it to null on failure
-    m_cols.bitmap= 0;
+      bitmap_copy(&m_cols, cols);
   }
 }
 
@@ -5129,9 +5121,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     if (table->versioned())
     {
+      bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
       bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
+      bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
       bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
     }
+    m_table->mark_columns_per_binlog_row_image();
 
     if (!rpl_data.is_online_alter())
       this->slave_exec_mode= (enum_slave_exec_mode)slave_exec_mode_options;
@@ -5486,29 +5481,36 @@ bool Rows_log_event::write_data_body()
   my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
+  uint bitmap_size= no_bytes_in_export_map(&m_cols);
+  uchar *bitmap;
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
   res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
 
-  DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
-  res= res || write_data((uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
+  bitmap= (uchar*) my_alloca(bitmap_size);
+  bitmap_export(bitmap, &m_cols);
+
+  DBUG_DUMP("m_cols", bitmap, bitmap_size);
+  res= res || write_data(bitmap, bitmap_size);
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
   if (get_general_type_code() == UPDATE_ROWS_EVENT)
   {
-    DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
-              no_bytes_in_map(&m_cols_ai));
-    res= res || write_data((uchar*)m_cols_ai.bitmap,
-                           no_bytes_in_map(&m_cols_ai));
+    DBUG_ASSERT(m_cols.n_bits == m_cols_ai.n_bits);
+    bitmap_export(bitmap, &m_cols_ai);
+
+    DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
+    res= res || write_data(bitmap, bitmap_size);
   }
   DBUG_DUMP("rows", m_rows_buf, data_size);
   res= res || write_data(m_rows_buf, (size_t) data_size);
+  my_afree(bitmap);
 
   return res;
-
 }
+
 
 bool Rows_log_event::write_compressed()
 {
@@ -6792,7 +6794,9 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     TODO: Add safety measures against infinite looping. 
    */
 
-  if (unlikely(table->s->sequence))
+  DBUG_EXECUTE_IF("write_row_inject_sleep_before_ha_write_row",
+                  my_sleep(20000););
+  if (table->s->sequence)
     error= update_sequence();
   else while (unlikely(error= table->file->ha_write_row(table->record[0])))
   {
@@ -7441,6 +7445,12 @@ bool Rows_log_event::use_pk_position() const
       && m_usable_key_parts == m_table->key_info->user_defined_key_parts;
 }
 
+static int end_of_file_error(rpl_group_info *rgi)
+{
+  return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
+         ? HA_ERR_END_OF_FILE : HA_ERR_RECORD_CHANGED;
+}
+
 /**
   Locate the current row in event's table.
 
@@ -7682,6 +7692,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       while ((error= table->file->ha_index_next(table->record[0])))
       {
         DBUG_PRINT("info",("no record matching the given row found"));
+        if (error == HA_ERR_END_OF_FILE)
+          error= end_of_file_error(rgi);
         table->file->print_error(error, MYF(0));
         table->file->ha_index_end();
         goto end;
@@ -7716,6 +7728,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         break;
 
       case HA_ERR_END_OF_FILE:
+        error= end_of_file_error(rgi);
         DBUG_PRINT("info", ("Record not found"));
         table->file->ha_rnd_end();
         goto end;
@@ -7920,10 +7933,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
-    {
-      memcpy(m_cols_ai.bitmap, cols->bitmap, no_bytes_in_map(cols));
-      create_last_word_mask(&m_cols_ai);
-    }
+      bitmap_copy(&m_cols_ai, cols);
   }
 }
 

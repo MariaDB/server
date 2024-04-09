@@ -3,6 +3,14 @@ Test bad binlog format.
 Test bad default storage engine.
 Test non-numeric value passed to number option.
 Test that bad value for plugin enum option is rejected correctly.
+Test to see if multiple unknown options will be displayed in the error output
+unknown option '--nonexistentoption'
+unknown option '--alsononexistent'
+unknown variable 'nonexistentvariable=1'
+Test to see if multiple ambiguous options and invalid arguments will be displayed in the error output
+Error while setting value 'invalid_value' to 'sql_mode'
+ambiguous option '--character' (character-set-client-handshake, character_sets_dir)
+option '--bootstrap' cannot take an argument
 Test that --help --verbose works
 Test that --not-known-option --help --verbose gives error
 Done.

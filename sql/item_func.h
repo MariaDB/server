@@ -89,7 +89,7 @@ public:
   static void wrong_param_count_error(const LEX_CSTRING &schema_name,
                                       const LEX_CSTRING &func_name);
 
-  table_map not_null_tables_cache;
+  table_map not_null_tables_cache= 0;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -1264,6 +1264,24 @@ public:
 };
 
 
+class Item_long_ge0_func: public Item_int_func
+{
+public:
+  Item_long_ge0_func(THD *thd): Item_int_func(thd) { }
+  Item_long_ge0_func(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_long_ge0_func(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_long_ge0_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
+  Item_long_ge0_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
+  Item_long_ge0_func(THD *thd, Item_long_ge0_func *item) :Item_int_func(thd, item) {}
+  const Type_handler *type_handler() const override
+  {
+    DBUG_ASSERT(!unsigned_flag);
+    return &type_handler_slong_ge0;
+  }
+  bool fix_length_and_dec(THD *) override { max_length= 10; return FALSE; }
+};
+
+
 class Item_func_hash: public Item_int_func
 {
 public:
@@ -1407,6 +1425,13 @@ public:
   void fix_length_and_dec_double()
   {
     fix_char_length(MAX_BIGINT_WIDTH);
+  }
+  void fix_length_and_dec_sint_ge0()
+  {
+    uint32 digits= args[0]->decimal_precision();
+    DBUG_ASSERT(digits > 0);
+    DBUG_ASSERT(digits <= MY_INT64_NUM_DECIMAL_DIGITS);
+    fix_char_length(digits + (unsigned_flag ? 0 : 1/*sign*/));
   }
   void fix_length_and_dec_generic()
   {
@@ -1824,6 +1849,7 @@ public:
     return name;
   }
   void fix_length_and_dec_int();
+  void fix_length_and_dec_sint_ge0();
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   bool fix_length_and_dec(THD *thd) override;
@@ -2153,6 +2179,7 @@ public:
   void fix_arg_int(const Type_handler *preferred,
                    const Type_std_attributes *preferred_attributes,
                    bool use_decimal_on_length_increase);
+  void fix_arg_slong_ge0();
   void fix_arg_hex_hybrid();
   void fix_arg_double();
   void fix_arg_time();

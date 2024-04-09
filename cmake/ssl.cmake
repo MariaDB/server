@@ -53,7 +53,7 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
     ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl
     ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl/wolfssl
   )
-  SET(SSL_LIBRARIES  wolfssl wolfcrypt)
+  SET(SSL_LIBRARIES  wolfssl)
   SET(SSL_INCLUDE_DIRS ${INC_DIRS})
   SET(SSL_DEFINES "-DHAVE_OPENSSL -DHAVE_WOLFSSL  -DWOLFSSL_USER_SETTINGS")
   SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")

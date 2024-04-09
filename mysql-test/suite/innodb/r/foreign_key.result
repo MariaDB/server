@@ -1035,8 +1035,21 @@ BEGIN;
 INSERT INTO child SET a=1;
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
 connection default;
+TRUNCATE TABLE parent;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+DROP TABLE parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+SET innodb_lock_wait_timeout=0;
+RENAME TABLE parent TO transparent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
 TRUNCATE TABLE parent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP TABLE parent;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
@@ -1052,7 +1065,13 @@ TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
-DROP TABLE child, parent;
+SET foreign_key_checks=ON;
+TRUNCATE TABLE parent;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+RENAME TABLE parent TO transparent;
+DROP TABLE child, transparent;
 #
 # MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
 # or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table

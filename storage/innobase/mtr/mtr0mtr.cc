@@ -37,6 +37,24 @@ Created 11/26/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "log.h"
 #include "mariadb_stats.h"
+#include "my_cpu.h"
+
+std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
+unsigned mtr_t::spin_wait_delay;
+
+void mtr_t::finisher_update()
+{
+  ut_ad(log_sys.latch_have_wr());
+  finisher=
+#ifdef HAVE_PMEM
+    log_sys.is_pmem()
+    ? (spin_wait_delay
+       ? mtr_t::finish_writer<true,true> : mtr_t::finish_writer<false,true>)
+    :
+#endif
+    (spin_wait_delay
+     ? mtr_t::finish_writer<true,false> : mtr_t::finish_writer<false,false>);
+}
 
 void mtr_memo_slot_t::release() const
 {
@@ -82,9 +100,7 @@ void mtr_memo_slot_t::release() const
 inline buf_page_t *buf_pool_t::prepare_insert_into_flush_list(lsn_t lsn)
   noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(recv_recovery_is_on() || log_sys.latch.is_locked());
-#endif
+  ut_ad(recv_recovery_is_on() || log_sys.latch_have_any());
   ut_ad(lsn >= log_sys.last_checkpoint_lsn);
   mysql_mutex_assert_owner(&flush_list_mutex);
   static_assert(log_t::FIRST_LSN >= 2, "compatibility");
@@ -233,7 +249,14 @@ static void insert_imported(buf_block_t *block)
   if (block->page.oldest_modification() <= 1)
   {
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
-    const lsn_t lsn= log_sys.last_checkpoint_lsn;
+    /* For unlogged mtrs (MTR_LOG_NO_REDO), we use the current system LSN. The
+    mtr that generated the LSN is either already committed or in mtr_t::commit.
+    Shared latch and relaxed atomics should be fine here as it is guaranteed
+    that both the current mtr and the mtr that generated the LSN would have
+    added the dirty pages to flush list before we access the minimum LSN during
+    checkpoint. log_checkpoint_low() acquires exclusive log_sys.latch before
+    commencing. */
+    const lsn_t lsn= log_sys.get_lsn();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_pool.insert_into_flush_list
       (buf_pool.prepare_insert_into_flush_list(lsn), block, lsn);
@@ -309,10 +332,8 @@ void mtr_t::release()
 
 inline lsn_t log_t::get_write_target() const
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_locked());
-#endif
-  if (UNIV_LIKELY(buf_free < max_buf_free))
+  ut_ad(latch_have_any());
+  if (UNIV_LIKELY(buf_free_ok()))
     return 0;
   ut_ad(!is_pmem());
   /* The LSN corresponding to the end of buf is
@@ -511,10 +532,8 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 /** Set create_lsn. */
 inline void fil_space_t::set_create_lsn(lsn_t lsn)
 {
-#ifndef SUX_LOCK_GENERIC
   /* Concurrent log_checkpoint_low() must be impossible. */
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch.have_wr());
   create_lsn= lsn;
 }
 
@@ -557,9 +576,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
 
   os_file_truncate(file->name, file->handle,
                    os_offset_t{file->size} << srv_page_size_shift, true);
@@ -715,9 +732,7 @@ This is to be used at log_checkpoint().
 @return current LSN */
 ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
   ut_ad(is_active());
   ut_ad(m_log_mode == MTR_LOG_ALL);
   ut_ad(!m_made_dirty);
@@ -871,13 +886,111 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
-/** Wait in append_prepare() for buffer to become available
-@param lsn  log sequence number to write up to
-@param ex   whether log_sys.latch is exclusively locked */
-ATTRIBUTE_COLD void log_t::append_prepare_wait(lsn_t lsn, bool ex) noexcept
+static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
+{
+  delay*= mult * 2; // GCC 13.2.0 -O2 targeting AMD64 wants to unroll twice
+  HMT_low();
+  do
+    MY_RELAX_CPU();
+  while (--delay);
+  HMT_medium();
+}
+
+#if defined __clang_major__ && __clang_major__ < 10
+/* Only clang-10 introduced support for asm goto */
+#elif defined __APPLE__
+/* At least some versions of Apple Xcode do not support asm goto */
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+# if SIZEOF_SIZE_T == 8
+#  define LOCK_TSET                                             \
+  __asm__ goto("lock btsq $63, %0\n\t" "jnc %l1"                \
+               : : "m"(buf_free) : "cc", "memory" : got)
+# else
+#  define LOCK_TSET                                             \
+  __asm__ goto("lock btsl $31, %0\n\t" "jnc %l1"                \
+               : : "m"(buf_free) : "cc", "memory" : got)
+# endif
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+# if SIZEOF_SIZE_T == 8
+#  define LOCK_TSET                                                     \
+  if (!_interlockedbittestandset64                                      \
+      (reinterpret_cast<volatile LONG64*>(&buf_free), 63)) return
+# else
+#  define LOCK_TSET                                                     \
+  if (!_interlockedbittestandset                                        \
+      (reinterpret_cast<volatile long*>(&buf_free), 31)) return
+# endif
+#endif
+
+#ifdef LOCK_TSET
+ATTRIBUTE_NOINLINE
+void log_t::lsn_lock_bts() noexcept
+{
+  LOCK_TSET;
+  {
+    const size_t m= mtr_t::spin_wait_delay;
+    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
+    for (size_t delay_count= DELAY, delay_iterations= 1;;
+         lsn_delay(delay_iterations, m))
+    {
+      if (!(buf_free.load(std::memory_order_relaxed) & buf_free_LOCK))
+        LOCK_TSET;
+      if (!delay_count);
+      else if (delay_iterations < MAX_ITERATIONS)
+        delay_count= DELAY, delay_iterations++;
+      else
+        delay_count--;
+    }
+  }
+
+# ifdef __GNUC__
+ got:
+  return;
+# endif
+}
+
+inline
+#else
+ATTRIBUTE_NOINLINE
+#endif
+size_t log_t::lock_lsn() noexcept
+{
+#ifdef LOCK_TSET
+  lsn_lock_bts();
+  return ~buf_free_LOCK & buf_free.load(std::memory_order_relaxed);
+# undef LOCK_TSET
+#else
+  size_t b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
+  if (b & buf_free_LOCK)
+  {
+    const size_t m= mtr_t::spin_wait_delay;
+    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
+    for (size_t delay_count= DELAY, delay_iterations= 1;
+         ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
+           (buf_free_LOCK & (b= buf_free.fetch_or(buf_free_LOCK,
+                                                  std::memory_order_acquire)));
+         lsn_delay(delay_iterations, m))
+      if (!delay_count);
+      else if (delay_iterations < MAX_ITERATIONS)
+        delay_count= DELAY, delay_iterations++;
+      else
+        delay_count--;
+  }
+  return b;
+#endif
+}
+
+template<bool spin>
+ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
+  noexcept
 {
   waits++;
-  unlock_lsn();
+  ut_ad(buf_free.load(std::memory_order_relaxed) ==
+        (spin ? (b | buf_free_LOCK) : b));
+  if (spin)
+    buf_free.store(b, std::memory_order_release);
+  else
+    lsn_lock.wr_unlock();
 
   if (ex)
     latch.wr_unlock();
@@ -891,51 +1004,57 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(lsn_t lsn, bool ex) noexcept
   else
     latch.rd_lock(SRW_LOCK_CALL);
 
-  lock_lsn();
+  if (spin)
+    return lock_lsn();
+
+  lsn_lock.wr_lock();
+  return buf_free.load(std::memory_order_relaxed);
 }
 
 /** Reserve space in the log buffer for appending data.
+@tparam spin  whether to use the spin-only lock_lsn()
 @tparam pmem  log_sys.is_pmem()
 @param size   total length of the data to append(), in bytes
 @param ex     whether log_sys.latch is exclusively locked
 @return the start LSN and the buffer position for append() */
-template<bool pmem>
+template<bool spin,bool pmem>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_locked());
-# ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
-  ut_ad(ex == latch.is_write_locked());
-# endif
-#endif
+  ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(pmem == is_pmem());
-  lock_lsn();
+  if (!spin)
+    lsn_lock.wr_lock();
+  size_t b{spin ? lock_lsn() : buf_free.load(std::memory_order_relaxed)};
   write_to_buf++;
 
   const lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
-  size_t b{buf_free};
 
   if (UNIV_UNLIKELY(pmem
                     ? (end_lsn -
                        get_flushed_lsn(std::memory_order_relaxed)) > capacity()
                     : b + size >= buf_size))
-  {
-    append_prepare_wait(l, ex);
-    b= buf_free;
-  }
+    b= append_prepare_wait<spin>(b, ex, l);
 
-  lsn.store(end_lsn, std::memory_order_relaxed);
   size_t new_buf_free= b + size;
   if (pmem && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
-  buf_free= new_buf_free;
-  unlock_lsn();
+
+  lsn.store(end_lsn, std::memory_order_relaxed);
 
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
-    set_check_for_checkpoint();
+    set_check_for_checkpoint(true);
 
-  return {l, &buf[b]};
+  byte *our_buf= buf;
+  if (spin)
+    buf_free.store(new_buf_free, std::memory_order_release);
+  else
+  {
+    buf_free.store(new_buf_free, std::memory_order_relaxed);
+    lsn_lock.wr_unlock();
+  }
+
+  return {l, our_buf + b};
 }
 
 /** Finish appending data to the log.
@@ -943,9 +1062,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 @return whether buf_flush_ahead() will have to be invoked */
 static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_locked());
-#endif
+  ut_ad(log_sys.latch_have_any());
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
 
@@ -1010,9 +1127,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   ut_ad(!recv_no_log_write);
   ut_ad(is_logged());
   ut_ad(m_log.size());
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(!m_latch_ex || log_sys.latch.is_write_locked());
-#endif
+  ut_ad(!m_latch_ex || log_sys.latch_have_wr());
 
 #ifndef DBUG_OFF
   do
@@ -1070,9 +1185,7 @@ func_exit:
 inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
                                 size_t seq) noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_locked());
-#endif
+  ut_ad(latch_have_any());
 
   if (UNIV_LIKELY_NULL(resize_buf))
   {
@@ -1177,50 +1290,47 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
   }
 }
 
+template<bool spin,bool pmem>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
-mtr_t::finish_write(size_t len)
+mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
+  ut_ad(log_sys.is_latest());
   ut_ad(!recv_no_log_write);
-  ut_ad(is_logged());
-#ifndef SUX_LOCK_GENERIC
-# ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
-  ut_ad(m_latch_ex == log_sys.latch.is_write_locked());
-# endif
-#endif
+  ut_ad(mtr->is_logged());
+  ut_ad(mtr->m_latch_ex ? log_sys.latch_have_wr() : log_sys.latch_have_rd());
 
-  const size_t size{m_commit_lsn ? 5U + 8U : 5U};
-  std::pair<lsn_t, byte*> start;
+  const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
+  std::pair<lsn_t, byte*> start=
+    log_sys.append_prepare<spin,pmem>(len, mtr->m_latch_ex);
 
-  if (!log_sys.is_pmem())
+  if (!pmem)
   {
-    start= log_sys.append_prepare<false>(len, m_latch_ex);
-    m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     { log_sys.append(start.second, b->begin(), b->used()); return true; });
 
 #ifdef HAVE_PMEM
   write_trailer:
 #endif
     *start.second++= log_sys.get_sequence_bit(start.first + len - size);
-    if (m_commit_lsn)
+    if (mtr->m_commit_lsn)
     {
-      mach_write_to_8(start.second, m_commit_lsn);
-      m_crc= my_crc32c(m_crc, start.second, 8);
+      mach_write_to_8(start.second, mtr->m_commit_lsn);
+      mtr->m_crc= my_crc32c(mtr->m_crc, start.second, 8);
       start.second+= 8;
     }
-    mach_write_to_4(start.second, m_crc);
+    mach_write_to_4(start.second, mtr->m_crc);
     start.second+= 4;
   }
 #ifdef HAVE_PMEM
   else
   {
-    start= log_sys.append_prepare<true>(len, m_latch_ex);
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
     {
-      m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+      mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
       { log_sys.append(start.second, b->begin(), b->used()); return true; });
       goto write_trailer;
     }
-    m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     {
       size_t size{b->used()};
       const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
@@ -1243,14 +1353,14 @@ mtr_t::finish_write(size_t len)
     byte tail[5 + 8];
     tail[0]= log_sys.get_sequence_bit(start.first + len - size);
 
-    if (m_commit_lsn)
+    if (mtr->m_commit_lsn)
     {
-      mach_write_to_8(tail + 1, m_commit_lsn);
-      m_crc= my_crc32c(m_crc, tail + 1, 8);
-      mach_write_to_4(tail + 9, m_crc);
+      mach_write_to_8(tail + 1, mtr->m_commit_lsn);
+      mtr->m_crc= my_crc32c(mtr->m_crc, tail + 1, 8);
+      mach_write_to_4(tail + 9, mtr->m_crc);
     }
     else
-      mach_write_to_4(tail + 1, m_crc);
+      mach_write_to_4(tail + 1, mtr->m_crc);
 
     ::memcpy(start.second, tail, size_left);
     ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
@@ -1259,12 +1369,14 @@ mtr_t::finish_write(size_t len)
       ((size >= size_left) ? log_sys.START_OFFSET : log_sys.file_size) +
       (size - size_left);
   }
+#else
+  static_assert(!pmem, "");
 #endif
 
   log_sys.resize_write(start.first, start.second, len, size);
 
-  m_commit_lsn= start.first + len;
-  return {start.first, log_close(m_commit_lsn)};
+  mtr->m_commit_lsn= start.first + len;
+  return {start.first, log_close(mtr->m_commit_lsn)};
 }
 
 bool mtr_t::have_x_latch(const buf_block_t &block) const

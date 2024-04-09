@@ -816,8 +816,10 @@ int close_thread_tables(THD *thd)
 {
   TABLE *table;
   int error= 0;
+  PSI_stage_info org_stage;
   DBUG_ENTER("close_thread_tables");
 
+  thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_closing_tables);
 
 #ifdef EXTRA_DEBUG
@@ -933,7 +935,10 @@ int close_thread_tables(THD *thd)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
-      DBUG_RETURN(0);
+    {
+      error= 0;
+      goto end;
+    }
 
     /*
       We are in the top-level statement of a prelocked statement,
@@ -944,7 +949,10 @@ int close_thread_tables(THD *thd)
       thd->locked_tables_mode= LTM_LOCK_TABLES;
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
-      DBUG_RETURN(0);
+    {
+      error= 0;
+      goto end;
+    }
 
     thd->leave_locked_tables_mode();
 
@@ -973,6 +981,8 @@ int close_thread_tables(THD *thd)
   while (thd->open_tables)
     (void) close_thread_table(thd, &thd->open_tables);
 
+end:
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
 
@@ -5035,6 +5045,9 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   Query_arena *arena, backup;
   TABLE *table= table_list->table;
 
+  if (!table->file->referenced_by_foreign_key())
+    DBUG_RETURN(FALSE);
+
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   table->file->get_parent_foreign_key_list(thd, &fk_list);
@@ -5120,16 +5133,12 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
         return TRUE;
     }
 
-    if (table->file->referenced_by_foreign_key())
-    {
-      if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
-                                     need_prelocking,
-                                     table_list->trg_event_map))
-        return TRUE;
-    }
+    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
+                                   need_prelocking,
+                                   table_list->trg_event_map))
+      return TRUE;
   }
-  else if (table_list->slave_fk_event_map &&
-           table->file->referenced_by_foreign_key())
+  else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
@@ -9266,6 +9275,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param use_value     forces usage of value of the items instead of result
+  @param check_for_computability whether to check for ability to invoke val_*()
+                                 methods (val_int () etc) against supplied
+                                 values
 
   @details
     fill_record() may set table->auto_increment_field_not_null and a
@@ -9279,7 +9291,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
 bool
 fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
-            bool ignore_errors, bool use_value)
+            bool ignore_errors, bool use_value, bool check_for_computability)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
@@ -9318,6 +9330,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     value=v++;
     /* Ensure the end of the list of values is not reached */
     DBUG_ASSERT(value);
+
+    if (check_for_computability &&
+        value->check_is_evaluable_expression_or_error())
+      goto err;
 
     const bool skip_sys_field= field->vers_sys_field() &&
                                !thd->vers_insert_history_fast(table);
@@ -9395,7 +9411,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   bool result;
   Table_triggers_list *triggers= table->triggers;
 
-  result= fill_record(thd, table, ptr, values, ignore_errors, FALSE);
+  result= fill_record(thd, table, ptr, values, ignore_errors, false, false);
 
   if (!result && triggers && *ptr)
     result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||

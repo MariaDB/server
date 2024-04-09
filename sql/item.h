@@ -946,7 +946,7 @@ protected:
                                             const Tmp_field_param *param,
                                             bool is_explicit_null);
 
-  void raise_error_not_evaluable();
+  virtual void raise_error_not_evaluable();
   void push_note_converted_to_negative_complement(THD *thd);
   void push_note_converted_to_positive_complement(THD *thd);
 
@@ -2737,6 +2737,18 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+
+  /**
+    This method is to set relationship between a positional parameter
+    represented by the '?' and an actual argument value passed to the
+    call of PS/SP by the USING clause. The method is overridden in classes
+    Item_param and Item_default_value.
+  */
+  virtual bool associate_with_target_field(THD *, Item_field *)
+  {
+    DBUG_ASSERT(fixed());
+    return false;
+  }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -4139,6 +4151,12 @@ public:
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
 
+  void cleanup() override
+  {
+    m_default_field= NULL;
+    Item::cleanup();
+  }
+
   Type type() const override
   {
     // Don't pretend to be a constant unless value for this item is set.
@@ -4343,6 +4361,10 @@ public:
   void sync_clones();
   bool register_clone(Item_param *i) { return m_clones.push_back(i); }
 
+  void raise_error_not_evaluable() override
+  {
+    invalid_default_param();
+  }
 private:
   void invalid_default_param() const;
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
@@ -4353,6 +4375,17 @@ public:
   Item_param *get_item_param() override { return this; }
   void make_send_field(THD *thd, Send_field *field) override;
 
+  /**
+    See comments on @see Item::associate_with_target_field for method
+    description
+  */
+  bool associate_with_target_field(THD *, Item_field *field) override
+  {
+    m_associated_field= field;
+    return false;
+  }
+  bool assign_default(Field *field);
+
 private:
   Send_field *m_out_param_info;
   bool m_is_settable_routine_parameter;
@@ -4362,6 +4395,8 @@ private:
     synchronize the actual value of the parameter with the values of the clones.
   */
   Mem_root_array<Item_param *, true> m_clones;
+  Item_field *m_associated_field;
+  Field *m_default_field;
 };
 
 
@@ -6059,6 +6094,8 @@ class Item_direct_view_ref :public Item_direct_ref
     if (!view->is_inner_table_of_outer_join() ||
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
+    if (null_ref_table && null_ref_table != NO_NULL_TABLE)
+      set_maybe_null();
   }
 
   bool check_null_ref()
@@ -6699,6 +6736,8 @@ public:
 class Item_default_value : public Item_field
 {
   bool vcol_assignment_ok;
+  bool m_associated= false;
+
   void calculate();
 public:
   Item *arg= nullptr;
@@ -6767,6 +6806,15 @@ public:
     override;
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
+
+  /**
+    See comments on @see Item::associate_with_target_field for method
+    description
+  */
+  bool associate_with_target_field(THD *thd, Item_field *field) override;
+
+private:
+  bool tie_field(THD *thd);
 };
 
 

@@ -393,9 +393,7 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
 void purge_sys_t::rseg_enable(trx_rseg_t &rseg)
 {
   ut_ad(this == &purge_sys);
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(rseg.latch.is_write_locked());
-#endif
+  ut_ad(rseg.latch.have_wr());
   uint8_t skipped= skipped_rseg;
   ut_ad(skipped < TRX_SYS_N_RSEGS);
   if (&rseg == &trx_sys.rseg_array[skipped])
@@ -669,7 +667,9 @@ fil_space_t *purge_sys_t::truncating_tablespace()
   if (space || srv_undo_tablespaces_active < 2 || !srv_undo_log_truncate)
     return space;
 
-  const uint32_t size= uint32_t(srv_max_undo_log_size >> srv_page_size_shift);
+  const uint32_t size=
+    uint32_t(std::min(ulonglong{std::numeric_limits<uint32_t>::max()},
+                      srv_max_undo_log_size >> srv_page_size_shift));
   for (uint32_t i= truncate_undo_space.last, j= i;; )
   {
     if (fil_space_t *s= undo_truncate_try(srv_undo_space_id_start + i, size))
@@ -871,9 +871,7 @@ void purge_sys_t::rseg_get_next_history_log()
 {
   fil_addr_t prev_log_addr;
 
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(rseg->latch.is_write_locked());
-#endif
+  ut_ad(rseg->latch.have_wr());
   ut_a(rseg->last_page_no != FIL_NULL);
 
   tail.trx_no= rseg->last_trx_no() + 1;
@@ -988,9 +986,7 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
 {
   ut_ad(next_stored);
   ut_ad(tail.trx_no < low_limit_no());
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(rseg->latch.is_write_locked());
-#endif
+  ut_ad(rseg->latch.have_wr());
 
   if (!offset)
   {

@@ -1546,6 +1546,7 @@ String *Item_func_sformat::val_str(String *res)
 
 bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
 {
+  set_maybe_null();
   used_tables_cache|= RAND_TABLE_BIT;
   if (args[0]->can_eval_in_optimize())
   {
@@ -3926,7 +3927,9 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
     return true;
   collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
-  max_length= args[0]->max_length;
+  ulonglong max_char_length= (ulonglong) args[0]->max_char_length();
+  fix_char_length_ulonglong(max_char_length * collation.collation->mbmaxlen);
+
   return FALSE;
 }
 

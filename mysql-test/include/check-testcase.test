@@ -32,7 +32,6 @@ if ($tmp)
   --echo Relay_Master_Log_File	#
   --echo Slave_IO_Running	No
   --echo Slave_SQL_Running	No
-  --echo Replicate_Rewrite_DB	#
   --echo Replicate_Do_DB	#
   --echo Replicate_Ignore_DB	#
   --echo Replicate_Do_Table	#
@@ -74,13 +73,22 @@ if ($tmp)
   --echo Slave_DDL_Groups	#
   --echo Slave_Non_Transactional_Groups	#
   --echo Slave_Transactional_Groups	#
+  --echo Replicate_Rewrite_DB	#
 }
 if (!$tmp) {
   # Note: after WL#5177, fields 13-18 shall not be filtered-out.
-  --replace_column 4 # 5 # 6 # 7 # 8 # 9 # 10 # 13 # 14 # 15 # 16 # 17 # 18 # 19 # 23 # 24 # 25 # 26 # 27 # 41 # 42 # 43 # 45 # 52 # 53 # 54 #
+  --replace_column 4 # 5 # 6 # 7 # 8 # 9 # 10 # 13 # 14 # 15 # 16 # 17 # 18 # 22 # 23 # 24 # 25 # 26 # 40 # 41 # 42 # 44 # 51 # 52 # 53 # 54 #
   query_vertical
   SHOW SLAVE STATUS;
 }
+#
+# Note, we must never, _ever_, add extra rows to this output of SHOW SLAVE
+# STATUS, except at the very end, as this breaks backwards compatibility
+# with applications or scripts that parse the output. This also means that
+# we cannot add _any_ new rows in a GA version if a different row was
+# already added in a later MariaDB version, as this would make it impossible
+# to merge the change up while preserving the order of rows.
+#
 
 #
 # Ensure that we don't get warnings from mysql.proc (used by check_mysqld)
