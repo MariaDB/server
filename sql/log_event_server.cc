@@ -3759,7 +3759,9 @@ Gtid_log_event::write()
     write_len++;
   }
 
-  if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
+  if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1)
+      && !DBUG_IF("negate_alter_fl_from_gtid")
+  )
   {
     int8store(buf + write_len, sa_seq_no);
     write_len+= 8;
