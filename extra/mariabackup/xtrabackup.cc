@@ -1888,8 +1888,8 @@ struct my_option xb_server_options[] =
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "Redo log buffer size in bytes.",
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
-   IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, 2U << 20,
-   2U << 20, SIZE_T_MAX, 0, 4096, 0},
+   GET_UINT, REQUIRED_ARG, 2U << 20,
+   2U << 20, log_sys.buf_size_max, 0, 4096, 0},
 #if defined __linux__ || defined _WIN32
   {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
    "Whether the file system cache for ib_logfile0 is enabled during --backup",

@@ -19316,10 +19316,10 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   NULL, NULL, UNIV_PAGE_SIZE_DEF,
   UNIV_PAGE_SIZE_MIN, UNIV_PAGE_SIZE_MAX, 0);
 
-static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
+static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Redo log buffer size in bytes.",
-  NULL, NULL, 16U << 20, 2U << 20, SIZE_T_MAX, 4096);
+  NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
 #if defined __linux__ || defined _WIN32
 static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,

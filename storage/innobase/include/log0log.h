@@ -132,6 +132,9 @@ public:
 /** Redo log buffer */
 struct log_t
 {
+  /** The maximum buf_size */
+  static constexpr unsigned buf_size_max= os_file_request_size_max;
+
   /** The original (not version-tagged) InnoDB redo log format */
   static constexpr uint32_t FORMAT_3_23= 0;
   /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
@@ -187,7 +190,7 @@ public:
   /** number of append_prepare_wait(); protected by lock_lsn() or lsn_lock */
   size_t waits;
   /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
-  size_t buf_size;
+  unsigned buf_size;
   /** log file size in bytes, including the header */
   lsn_t file_size;
 
