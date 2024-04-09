@@ -6395,6 +6395,8 @@ Item *Item_field::propagate_equal_fields(THD *thd,
     item_equal= NULL;
     return this;
   }
+  if (item->with_subquery())
+    return this;
   return item;
 }
 
