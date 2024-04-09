@@ -116,17 +116,3 @@ buf_block_modify_clock_inc(
 
 	block->modify_clock++;
 }
-
-/********************************************************************//**
-Returns the value of the modify clock. The caller must have an s-lock
-or x-lock on the block.
-@return value */
-UNIV_INLINE
-ib_uint64_t
-buf_block_get_modify_clock(
-/*=======================*/
-	buf_block_t*	block)	/*!< in: block */
-{
-	ut_ad(block->page.lock.have_any());
-	return(block->modify_clock);
-}

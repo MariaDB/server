@@ -672,8 +672,13 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
                                        buf_mode, mtr, &err, false);
   if (!block)
   {
-    if (err == DB_DECRYPTION_FAILED)
-      btr_decryption_failed(*index);
+    if (err)
+    {
+    err_exit:
+      if (err == DB_DECRYPTION_FAILED)
+        btr_decryption_failed(*index);
+      mtr->rollback_to_savepoint(savepoint);
+    }
   func_exit:
     if (UNIV_LIKELY_NULL(heap))
       mem_heap_free(heap);
@@ -737,7 +742,8 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 #endif
   }
 
-  if (height == 0) {
+  if (height == 0)
+  {
     if (rw_latch == RW_NO_LATCH)
     {
       ut_ad(block == mtr->at_savepoint(block_savepoint));
@@ -821,7 +827,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     if (page_cur_search_with_match(tuple, page_mode, &up_match,
                                    &low_match, &cur->page_cur, nullptr)) {
       err= DB_CORRUPTION;
-      goto func_exit;
+      goto err_exit;
     }
   }
 
@@ -1584,23 +1590,6 @@ rtr_check_discard_page(
 	lock_sys.prdt_page_free_from_discard(id, true);
 }
 
-/** Structure acts as functor to get the optimistic access of the page.
-It returns true if it successfully gets the page. */
-struct optimistic_get
-{
-  btr_pcur_t *const r_cursor;
-  mtr_t *const mtr;
-
-  optimistic_get(btr_pcur_t *r_cursor,mtr_t *mtr)
-  :r_cursor(r_cursor), mtr(mtr) {}
-
-  bool operator()(buf_block_t *hint) const
-  {
-    return hint && buf_page_optimistic_get(
-       RW_X_LATCH, hint, r_cursor->modify_clock, mtr);
-  }
-};
-
 /** Restore the stored position of a persistent cursor bufferfixing the page */
 static
 bool
@@ -1632,8 +1621,11 @@ rtr_cur_restore_position(
 		r_cursor->modify_clock = 100;
 	);
 
-	if (r_cursor->block_when_stored.run_with_hint(
-		optimistic_get(r_cursor, mtr))) {
+	if (buf_page_optimistic_fix(r_cursor->btr_cur.page_cur.block,
+				    r_cursor->old_page_id)
+	    && buf_page_optimistic_get(r_cursor->btr_cur.page_cur.block,
+				       RW_X_LATCH, r_cursor->modify_clock,
+				       mtr)) {
 		ut_ad(r_cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
 		ut_ad(r_cursor->rel_pos == BTR_PCUR_ON);

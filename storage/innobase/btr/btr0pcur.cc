@@ -179,10 +179,8 @@ before_first:
 						 cursor->old_n_fields,
 						 &cursor->old_rec_buf,
 						 &cursor->buf_size);
-	cursor->block_when_stored.store(block);
-
-	/* Function try to check if block is S/X latch. */
-	cursor->modify_clock = buf_block_get_modify_clock(block);
+	cursor->old_page_id = block->page.id();
+	cursor->modify_clock = block->modify_clock;
 }
 
 /**************************************************************//**
@@ -214,101 +212,80 @@ btr_pcur_copy_stored_position(
 }
 
 /** Optimistically latches the leaf page or pages requested.
-@param[in]	block		guessed buffer block
-@param[in,out]	pcur		cursor
-@param[in,out]	latch_mode	BTR_SEARCH_LEAF, ...
-@param[in,out]	mtr		mini-transaction
-@return true if success */
+@param pcur        persistent cursor
+@param latch_mode  BTR_SEARCH_LEAF, ...
+@param mtr         mini-transaction
+@return true on success */
 TRANSACTIONAL_TARGET
-static bool btr_pcur_optimistic_latch_leaves(buf_block_t *block,
-                                             btr_pcur_t *pcur,
+static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
                                              btr_latch_mode *latch_mode,
                                              mtr_t *mtr)
 {
-  ut_ad(block->page.buf_fix_count());
-  ut_ad(block->page.in_file());
-  ut_ad(block->page.frame);
-
   static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
   static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
   static_assert((BTR_SEARCH_PREV ^ BTR_MODIFY_PREV) ==
                 (RW_S_LATCH ^ RW_X_LATCH), "");
 
+  buf_block_t *const block=
+    buf_page_optimistic_fix(pcur->btr_cur.page_cur.block, pcur->old_page_id);
+
+  if (!block)
+    return false;
+
+  if (*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF)
+    return buf_page_optimistic_get(block, rw_lock_type_t(*latch_mode),
+                                   pcur->modify_clock, mtr);
+
+  ut_ad(*latch_mode == BTR_SEARCH_PREV || *latch_mode == BTR_MODIFY_PREV);
   const rw_lock_type_t mode=
     rw_lock_type_t(*latch_mode & (RW_X_LATCH | RW_S_LATCH));
 
-  switch (*latch_mode) {
-  default:
-    ut_ad(*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF);
-    return buf_page_optimistic_get(mode, block, pcur->modify_clock, mtr);
-  case BTR_SEARCH_PREV:
-  case BTR_MODIFY_PREV:
-    page_id_t id{0};
-    uint32_t left_page_no;
-    ulint zip_size;
-    buf_block_t *left_block= nullptr;
-    {
-      transactional_shared_lock_guard<block_lock> g{block->page.lock};
-      if (block->modify_clock != pcur->modify_clock)
-        return false;
-      id= block->page.id();
-      zip_size= block->zip_size();
-      left_page_no= btr_page_get_prev(block->page.frame);
-    }
+  uint64_t modify_clock;
+  uint32_t left_page_no;
+  const page_t *const page= block->page.frame;
+  {
+    transactional_shared_lock_guard<block_lock> g{block->page.lock};
+    modify_clock= block->modify_clock;
+    left_page_no= btr_page_get_prev(page);
+  }
 
-    if (left_page_no != FIL_NULL)
-    {
-      left_block=
-        buf_page_get_gen(page_id_t(id.space(), left_page_no), zip_size,
-                         mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
+  const auto savepoint= mtr->get_savepoint();
+  mtr->memo_push(block, MTR_MEMO_BUF_FIX);
 
-      if (!left_block);
-      else if (btr_page_get_next(left_block->page.frame) != id.page_no())
-      {
-release_left_block:
-        mtr->release_last_page();
-        return false;
-      }
-      else
-        buf_page_make_young_if_needed(&left_block->page);
-    }
-
-    if (buf_page_optimistic_get(mode, block, pcur->modify_clock, mtr))
-    {
-      if (btr_page_get_prev(block->page.frame) == left_page_no)
-      {
-        /* block was already buffer-fixed while entering the function and
-        buf_page_optimistic_get() buffer-fixes it again. */
-        ut_ad(2 <= block->page.buf_fix_count());
-        *latch_mode= btr_latch_mode(mode);
-        return true;
-      }
-
-      mtr->release_last_page();
-    }
-
-    ut_ad(block->page.buf_fix_count());
-    if (left_block)
-      goto release_left_block;
+  if (UNIV_UNLIKELY(modify_clock != pcur->modify_clock))
+  {
+  fail:
+    mtr->rollback_to_savepoint(savepoint);
     return false;
   }
-}
 
-/** Structure acts as functor to do the latching of leaf pages.
-It returns true if latching of leaf pages succeeded and false
-otherwise. */
-struct optimistic_latch_leaves
-{
-  btr_pcur_t *const cursor;
-  btr_latch_mode *const latch_mode;
-  mtr_t *const mtr;
-
-  bool operator()(buf_block_t *hint) const
+  buf_block_t *prev;
+  if (left_page_no != FIL_NULL)
   {
-    return hint &&
-      btr_pcur_optimistic_latch_leaves(hint, cursor, latch_mode, mtr);
+    prev= buf_page_get_gen(page_id_t(pcur->old_page_id.space(),
+                                     left_page_no), block->zip_size(),
+                           mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
+    if (!prev ||
+        page_is_comp(prev->page.frame) != page_is_comp(block->page.frame) ||
+        memcmp_aligned<2>(block->page.frame, prev->page.frame, 2) ||
+        memcmp_aligned<2>(block->page.frame + PAGE_HEADER + PAGE_INDEX_ID,
+                          prev->page.frame + PAGE_HEADER + PAGE_INDEX_ID, 8))
+      goto fail;
   }
-};
+  else
+    prev= nullptr;
+
+  mtr->upgrade_buffer_fix(savepoint, mode);
+
+  if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
+      UNIV_UNLIKELY(block->page.is_freed()) ||
+      (prev &&
+       memcmp_aligned<4>(FIL_PAGE_NEXT + prev->page.frame,
+                         FIL_PAGE_OFFSET + page, 4)))
+    goto fail;
+
+  return true;
+}
 
 /** Restores the stored position of a persistent cursor bufferfixing
 the page and obtaining the specified latches. If the cursor position
@@ -331,6 +308,7 @@ btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
 record with the same unique field values as in the stored record,
 btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
 the record with not the samebuniq field values as in the stored */
+TRANSACTIONAL_TARGET
 btr_pcur_t::restore_status
 btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 {
@@ -361,7 +339,6 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 		latch_mode =
 			BTR_LATCH_MODE_WITHOUT_INTENTION(restore_latch_mode);
 		pos_state = BTR_PCUR_IS_POSITIONED;
-		block_when_stored.clear();
 
 		return restore_status::NOT_SAME;
 	}
@@ -378,9 +355,8 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
-		if (block_when_stored.run_with_hint(
-			optimistic_latch_leaves{this, &restore_latch_mode,
-						mtr})) {
+		if (btr_pcur_optimistic_latch_leaves(this, &restore_latch_mode,
+						     mtr)) {
 			pos_state = BTR_PCUR_IS_POSITIONED;
 			latch_mode = restore_latch_mode;
 
@@ -485,9 +461,8 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 			since the cursor can now be on a different page!
 			But we can retain the value of old_rec */
 
-			block_when_stored.store(btr_pcur_get_block(this));
-			modify_clock= buf_block_get_modify_clock(
-			    block_when_stored.block());
+			old_page_id = btr_cur.page_cur.block->page.id();
+			modify_clock = btr_cur.page_cur.block->modify_clock;
 
 			mem_heap_free(heap);
 
@@ -612,40 +587,33 @@ btr_pcur_move_backward_from_page(
 		return true;
 	}
 
-	buf_block_t* block = btr_pcur_get_block(cursor);
+	buf_block_t* block = mtr->at_savepoint(0);
+	ut_ad(block == btr_pcur_get_block(cursor));
+	const page_t* const page = block->page.frame;
+	/* btr_pcur_optimistic_latch_leaves() will acquire a latch on
+	the preceding page if one exists;
+	if that fails, btr_cur_t::search_leaf() invoked by
+	btr_pcur_open_with_no_init() will also acquire a latch on the
+	succeeding page. Our caller only needs one page latch. */
+	ut_ad(mtr->get_savepoint() <= 3);
 
-	if (page_has_prev(block->page.frame)) {
-		buf_block_t* left_block
-			= mtr->at_savepoint(mtr->get_savepoint() - 1);
-		const page_t* const left = left_block->page.frame;
-		if (memcmp_aligned<4>(left + FIL_PAGE_NEXT,
-				      block->page.frame
-				      + FIL_PAGE_OFFSET, 4)) {
-			/* This should be the right sibling page, or
-			if there is none, the current block. */
-			ut_ad(left_block == block
-			      || !memcmp_aligned<4>(left + FIL_PAGE_PREV,
-						    block->page.frame
-						    + FIL_PAGE_OFFSET, 4));
-			/* The previous one must be the left sibling. */
-			left_block
-				= mtr->at_savepoint(mtr->get_savepoint() - 2);
-			ut_ad(!memcmp_aligned<4>(left_block->page.frame
-						 + FIL_PAGE_NEXT,
-						 block->page.frame
-						 + FIL_PAGE_OFFSET, 4));
-		}
+	if (page_has_prev(page)) {
+		buf_block_t* const left_block = mtr->at_savepoint(1);
+		ut_ad(!memcmp_aligned<4>(page + FIL_PAGE_OFFSET,
+					 left_block->page.frame
+					 + FIL_PAGE_NEXT, 4));
 		if (btr_pcur_is_before_first_on_page(cursor)) {
+			/* Reposition on the previous page. */
 			page_cur_set_after_last(left_block,
 						&cursor->btr_cur.page_cur);
 			/* Release the right sibling. */
-		} else {
-			/* Release the left sibling. */
+			mtr->rollback_to_savepoint(0, 1);
 			block = left_block;
 		}
-		mtr->release(*block);
 	}
 
+	mtr->rollback_to_savepoint(1);
+	ut_ad(block == mtr->at_savepoint(0));
 	cursor->latch_mode = latch_mode;
 	cursor->old_rec = nullptr;
 	return false;

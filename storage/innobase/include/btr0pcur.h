@@ -28,7 +28,6 @@ Created 2/23/1996 Heikki Tuuri
 
 #include "dict0dict.h"
 #include "btr0cur.h"
-#include "buf0block_hint.h"
 #include "btr0btr.h"
 #include "gis0rtree.h"
 
@@ -332,8 +331,8 @@ struct btr_pcur_t
   /** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
   whether cursor was on, before, or after the old_rec record */
   btr_pcur_pos_t rel_pos= btr_pcur_pos_t(0);
-  /** buffer block when the position was stored */
-  buf::Block_hint block_when_stored;
+  /** the page identifier of old_rec */
+  page_id_t old_page_id{0,0};
   /** the modify clock value of the buffer block when the cursor position
   was stored */
   ib_uint64_t modify_clock= 0;
