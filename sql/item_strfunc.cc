@@ -1375,15 +1375,16 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
   LEX_CSTRING src, rpl;
   size_t startoffset= 0;
 
-  if ((null_value=
-        (!(source= args[0]->val_str(&tmp0)) ||
-         !(replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty)) ||
-         re.recompile(args[1]))))
-    return (String *) 0;
-
+  source= args[0]->val_str(&tmp0);
+  if (!source)
+    goto err;
+  replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty);
+  if (!replace || re.recompile(args[1]))
+    goto err;
   if (!(source= re.convert_if_needed(source, &re.subject_converter)) ||
       !(replace= re.convert_if_needed(replace, &re.replace_converter)))
     goto err;
+  null_value= false;
 
   source->get_value(&src);
   replace->get_value(&rpl);
@@ -1429,7 +1430,7 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
 
 err:
   null_value= true;
-  return (String *) 0;
+  return nullptr;
 }
 
 
@@ -1565,13 +1566,21 @@ bool Item_func_insert::fix_length_and_dec()
 String *Item_str_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  String *res;
-  size_t alloced_length, len;
+  String *res= args[0]->val_str(&tmp_value);
 
-  if ((null_value= (!(res= args[0]->val_str(&tmp_value)) ||
-                    str->alloc((alloced_length= res->length() * multiply)))))
-    return 0;
+  if (!res)
+  {
+  err:
+    null_value= true;
+    return nullptr;
+  }
 
+  size_t alloced_length= res->length() * multiply, len;
+
+  if (str->alloc((alloced_length)))
+    goto err;
+
+  null_value= false;
   len= converter(collation.collation, (char*) res->ptr(), res->length(),
                                       (char*) str->ptr(), alloced_length);
   DBUG_ASSERT(len <= alloced_length);

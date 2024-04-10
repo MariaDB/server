@@ -18,10 +18,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "my_getopt.h"
@@ -31,7 +27,6 @@
 #include "sql_select.h"
 #include "tztime.h"
 #include "sql_parse.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -144,6 +139,11 @@ extern SPIDER_DBTON spider_dbton_oracle;
 SPIDER_THREAD *spider_table_sts_threads;
 SPIDER_THREAD *spider_table_crd_threads;
 #endif
+extern volatile ulonglong spider_mon_table_cache_version;
+extern volatile ulonglong spider_mon_table_cache_version_req;
+extern ulonglong spider_conn_id;
+extern Time_zone *UTC;
+extern ulonglong spider_thread_id;
 
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key spd_key_mutex_tbl;
@@ -3564,13 +3564,15 @@ error_alloc_conn_string:
   DBUG_RETURN(error_num);
 }
 
+/* Set default connect info of a SPIDER_SHARE if needed */
 int spider_set_connect_info_default(
-  SPIDER_SHARE *share,
+  SPIDER_SHARE *share,               /* The `SPIDER_SHARE' to set
+                                     default connect info */
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_element *part_elem,
-  partition_element *sub_elem,
+  partition_element *part_elem, /* partition info used as input */
+  partition_element *sub_elem,  /* subpartition info used as input */
 #endif
-  TABLE_SHARE *table_share
+  TABLE_SHARE *table_share      /* table share info used as input */
 ) {
   bool check_socket;
   bool check_database;
@@ -3763,22 +3765,6 @@ int spider_set_connect_info_default(
       }
     }
 
-/*
-    if (!share->static_link_ids[roop_count])
-    {
-      DBUG_PRINT("info",("spider create default static_link_ids"));
-      share->static_link_ids_lengths[roop_count] =
-        SPIDER_DB_STATIC_LINK_ID_LEN;
-      if (
-        !(share->static_link_ids[roop_count] = spider_create_string(
-          SPIDER_DB_STATIC_LINK_ID_STR,
-          share->static_link_ids_lengths[roop_count]))
-      ) {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-    }
-*/
-
     if (share->tgt_ports[roop_count] == -1)
     {
       share->tgt_ports[roop_count] = MYSQL_PORT;
@@ -3829,11 +3815,7 @@ int spider_set_connect_info_default(
     if (share->monitoring_limit[roop_count] == -1)
       share->monitoring_limit[roop_count] = 1;
     if (share->monitoring_sid[roop_count] == -1)
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
       share->monitoring_sid[roop_count] = global_system_variables.server_id;
-#else
-      share->monitoring_sid[roop_count] = current_thd->server_id;
-#endif
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (share->hs_read_ports[roop_count] == -1)
@@ -3908,6 +3890,11 @@ int spider_set_connect_info_default(
   DBUG_RETURN(0);
 }
 
+/*
+  This function is a no-op if all share->tgt_dbs and
+  share->tgt_table_names are non-null, otherwise it may assign them
+  with db_name and table_name
+*/
 int spider_set_connect_info_default_db_table(
   SPIDER_SHARE *share,
   const char *db_name,
@@ -3993,6 +3980,11 @@ int spider_set_connect_info_default_db_table(
   DBUG_RETURN(0);
 }
 
+/*
+  Parse `dbtable_name' into db name and table name, and call
+  spider_set_connect_info_default_db_table() to set the db/table name
+  values of `share' if needed
+*/
 int spider_set_connect_info_default_dbtable(
   SPIDER_SHARE *share,
   const char *dbtable_name,
@@ -4513,12 +4505,12 @@ SPIDER_SHARE *spider_create_share(
   share->table.read_set = &table_share->all_set;
 #endif
 
-  if (table_share->keys > 0 &&
-    !(share->key_hint = new spider_string[table_share->keys])
-  ) {
-    *error_num = HA_ERR_OUT_OF_MEM;
-    goto error_init_hint_string;
-  }
+  if (table_share->keys > 0)
+    if (!(share->key_hint = new spider_string[table_share->keys]))
+    {
+      *error_num = HA_ERR_OUT_OF_MEM;
+      goto error_init_hint_string;
+    }
   for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
     share->key_hint[roop_count].init_calc_mem(SPD_MID_CREATE_SHARE_2);
   DBUG_PRINT("info",("spider share->key_hint=%p", share->key_hint));
@@ -4557,34 +4549,22 @@ SPIDER_SHARE *spider_create_share(
   if (share->table_count_mode & 2)
     share->additional_table_flags |= HA_HAS_RECORDS;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&share->mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_share,
     &share->mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_mutex;
   }
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&share->sts_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_share_sts,
     &share->sts_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_sts_mutex;
   }
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&share->crd_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_share_crd,
     &share->crd_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_crd_mutex;
@@ -6050,13 +6030,8 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
     lgtm_tblhnd_share->table_path_hash_value = hash_value;
 #endif
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&lgtm_tblhnd_share->auto_increment_mutex,
-      MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_share_auto_increment,
       &lgtm_tblhnd_share->auto_increment_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_auto_increment_mutex;
@@ -6166,23 +6141,15 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
     wide_share->crd_get_time = wide_share->sts_get_time =
       share->crd_get_time;
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&wide_share->sts_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_wide_share_sts,
       &wide_share->sts_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_sts_mutex;
     }
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&wide_share->crd_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_wide_share_crd,
       &wide_share->crd_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_crd_mutex;
@@ -6353,7 +6320,7 @@ int spider_open_all_tables(
       (error_num = spider_get_sys_tables(
         table_tables, &db_name, &table_name, &mem_root)) ||
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, &tmp_share, 0, &mem_root)) ||
+        table_tables, &tmp_share, &mem_root)) ||
       (error_num = spider_set_connect_info_default(
         &tmp_share,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -6960,6 +6927,12 @@ int spider_db_init(
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
 
+  spider_mon_table_cache_version= 0;
+  spider_mon_table_cache_version_req= 1;
+  spider_conn_id= 1;
+  spider_conn_mutex_id= 0;
+  UTC = 0;
+  spider_thread_id = 1;
   const LEX_CSTRING aria_name={STRING_WITH_LEN("Aria")};
   if (!plugin_is_ready(&aria_name, MYSQL_STORAGE_ENGINE_PLUGIN))
     DBUG_RETURN(HA_ERR_RETRY_INIT);
@@ -6970,16 +6943,6 @@ int spider_db_init(
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
@@ -7057,117 +7020,61 @@ int spider_db_init(
 */
 #endif
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_tbl_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_tbl,
     &spider_tbl_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_tbl_mutex_init;
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_thread_id_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_thread_id,
     &spider_thread_id_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_thread_id_mutex_init;
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_conn_id_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_conn_id,
     &spider_conn_id_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_conn_id_mutex_init;
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_ipport_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_ipport_count,
     &spider_ipport_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_ipport_count_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_init_error_tbl_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_init_error_tbl,
     &spider_init_error_tbl_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_init_error_tbl_mutex_init;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_wide_share_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_wide_share,
     &spider_wide_share_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_wide_share_mutex_init;
 
 #endif
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_lgtm_tblhnd_share_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_lgtm_tblhnd_share,
     &spider_lgtm_tblhnd_share_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_lgtm_tblhnd_share_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_conn,
     &spider_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_conn_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_open_conn,
     &spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_open_conn_mutex_init;
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_hs_r_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_hs_r_conn,
     &spider_hs_r_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_hs_r_conn_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_hs_w_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_hs_w_conn,
     &spider_hs_w_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_hs_w_conn_mutex_init;
 
 #endif
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_allocated_thds_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_allocated_thds,
     &spider_allocated_thds_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_allocated_thds_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_mon_table_cache_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mon_table_cache,
     &spider_mon_table_cache_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_mon_table_cache_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_mem_calc_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mem_calc,
     &spider_mem_calc_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_mem_calc_mutex_init;
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &spider_open_tables, spd_charset_utf8mb3_bin, 32, 0, 0,
@@ -7281,25 +7188,16 @@ int spider_db_init(
     roop_count < (int) spider_param_udf_table_mon_mutex_count();
     roop_count++)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&spider_udf_table_mon_mutexes[roop_count],
-      MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_udf_table_mon,
       &spider_udf_table_mon_mutexes[roop_count], MY_MUTEX_INIT_FAST))
-#endif
       goto error_init_udf_table_mon_mutex;
   }
   for (roop_count = 0;
     roop_count < (int) spider_param_udf_table_mon_mutex_count();
     roop_count++)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&spider_udf_table_mon_conds[roop_count], NULL))
-#else
     if (mysql_cond_init(spd_key_cond_udf_table_mon,
       &spider_udf_table_mon_conds[roop_count], NULL))
-#endif
       goto error_init_udf_table_mon_cond;
   }
   for (roop_count = 0;
@@ -8773,10 +8671,8 @@ bool spider_check_direct_order_limit(
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
     bool first_check = TRUE;
     DBUG_PRINT("info",("spider select_lex=%p", select_lex));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     DBUG_PRINT("info",("spider leaf_tables.elements=%u",
       select_lex ? select_lex->leaf_tables.elements : 0));
-#endif
 
     if (select_lex && (select_lex->options & SELECT_DISTINCT))
     {
@@ -8789,22 +8685,16 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
 #endif
-#endif
 #ifdef SPIDER_NEED_CHECK_CONDITION_AT_CHECKING_DIRECT_ORDER_LIMIT
       !spider->condition ||
 #endif
       !select_lex ||
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||
-#endif
       select_lex->table_list.elements != 1
     ) {
       DBUG_PRINT("info",("spider first_check is FALSE"));
@@ -9071,14 +8961,10 @@ int spider_set_direct_limit_offset(
 
   // contain where
   if (
-#if MYSQL_VERSION_ID < 50500
-    !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
     !(thd->variables.optimizer_switch &
       OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
     // conditions is null may be no where condition in rand_init
     spider->wide_handler->condition
@@ -9225,20 +9111,11 @@ ulong spider_calc_for_sort(
 double spider_rand(
   uint32 rand_source
 ) {
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   struct my_rnd_struct rand;
-#else
-  struct rand_struct rand;
-#endif
   DBUG_ENTER("spider_rand");
   /* generate same as rand function for applications */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   my_rnd_init(&rand, (uint32) (rand_source * 65537L + 55555555L),
     (uint32) (rand_source * 268435457L));
-#else
-  randominit(&rand, (uint32) (rand_source * 65537L + 55555555L),
-    (uint32) (rand_source * 268435457L));
-#endif
   DBUG_RETURN(my_rnd(&rand));
 }
 
@@ -9775,46 +9652,27 @@ int spider_create_sts_threads(
 ) {
   int error_num;
   DBUG_ENTER("spider_create_sts_threads");
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_thread->mutex,
-    MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_bg_stss,
     &spider_thread->mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_stss,
     &spider_thread->cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->sync_cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_sts_syncs,
     &spider_thread->sync_cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_sync_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_create(&spider_thread->thread, &spider_pt_attr,
-    spider_table_bg_sts_action, (void *) spider_thread)
-  )
-#else
   if (mysql_thread_create(spd_key_thd_bg_stss, &spider_thread->thread,
     &spider_pt_attr, spider_table_bg_sts_action, (void *) spider_thread)
   )
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_thread_create;
@@ -9862,46 +9720,27 @@ int spider_create_crd_threads(
 ) {
   int error_num;
   DBUG_ENTER("spider_create_crd_threads");
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_thread->mutex,
-    MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_bg_crds,
     &spider_thread->mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_crds,
     &spider_thread->cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->sync_cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_crd_syncs,
     &spider_thread->sync_cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_sync_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_create(&spider_thread->thread, &spider_pt_attr,
-    spider_table_bg_crd_action, (void *) spider_thread)
-  )
-#else
   if (mysql_thread_create(spd_key_thd_bg_crds, &spider_thread->thread,
     &spider_pt_attr, spider_table_bg_crd_action, (void *) spider_thread)
   )
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_thread_create;

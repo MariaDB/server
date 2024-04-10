@@ -3341,7 +3341,7 @@ bool JOIN::make_aggr_tables_info()
     distinct in the engine, so we do this for all queries, not only
     GROUP BY queries.
   */
-  if (tables_list && top_join_tab_count && !procedure)
+  if (tables_list && top_join_tab_count && !only_const_tables() && !procedure)
   {
     /*
       At the moment we only support push down for queries where
@@ -30574,7 +30574,26 @@ void JOIN::init_join_cache_and_keyread()
       if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
         table->mark_index_columns(table->file->keyread, table->read_set);
     }
-    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+    bool init_for_explain= false;
+
+    /*
+       Can we use lightweight initalization mode just for EXPLAINs? We can if
+       we're certain that the optimizer will not execute the subquery.
+       The optimzier will not execute the subquery if it's too expensive. For
+       the exact criteria, see Item_subselect::is_expensive().
+       Note that the subquery might be a UNION and we might not yet know if it
+       is expensive.
+       What we do know is that if this SELECT is too expensive, then the whole
+       subquery will be too expensive as well.
+       So, we can use lightweight initialization (init_for_explain=true) if this
+       SELECT examines more than @@expensive_subquery_limit rows.
+     */
+    if ((select_options & SELECT_DESCRIBE) &&
+        get_examined_rows() >= thd->variables.expensive_subquery_limit)
+    {
+      init_for_explain= true;
+    }
+    if (tab->cache && tab->cache->init(init_for_explain))
       revise_cache_usage(tab);
     else
       tab->remove_redundant_bnl_scan_conds();

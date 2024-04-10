@@ -87,12 +87,16 @@ sub flush_out {
     $out_line = "";
 }
 
+use if $^O eq "MSWin32", "threads::shared";
+my $flush_lock :shared;
+
 # Print to stdout
 sub print_out {
   if(IS_WIN32PERL) {
     $out_line .= $_[0];
     # Flush buffered output on new lines.
     if (rindex($_[0], "\n") != -1) {
+      lock($flush_lock);
       flush_out();
     }
   } else {

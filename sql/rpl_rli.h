@@ -917,7 +917,7 @@ struct rpl_group_info
   }
 
   void clear_tables_to_lock();
-  void cleanup_context(THD *, bool);
+  void cleanup_context(THD *, bool, bool keep_domain_owner= false);
   void slave_close_thread_tables(THD *);
   void mark_start_commit_no_lock();
   void mark_start_commit();

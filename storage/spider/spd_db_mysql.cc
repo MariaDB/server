@@ -18,10 +18,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -31,7 +27,6 @@
 #include "tztime.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "sql_common.h"
 #include <mysql.h>
@@ -824,11 +819,7 @@ int spider_db_mbase_result::fetch_table_status(
   int error_num;
   MYSQL_ROW mysql_row;
   MYSQL_TIME mysql_time;
-#ifdef MARIADB_BASE_VERSION
   uint not_used_uint;
-#else
-  my_bool not_used_my_bool;
-#endif
 #ifdef SPIDER_HAS_TIME_STATUS
   MYSQL_TIME_STATUS time_status;
 #else
@@ -906,13 +897,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.create_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -931,13 +917,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -956,13 +937,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.check_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -1035,13 +1011,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[6], strlen(mysql_row[6]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.create_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -1060,13 +1031,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[7], strlen(mysql_row[7]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.update_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -1085,13 +1051,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[8], strlen(mysql_row[8]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.check_time = (time_t) 0;
 #ifdef DBUG_TRACE
@@ -2425,11 +2386,7 @@ int spider_db_mbase::next_result()
   strmov(db_conn->net.sqlstate, "00000");
   db_conn->affected_rows = ~(my_ulonglong) 0;
 
-#if MYSQL_VERSION_ID < 50500
-  if (db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS)
-#else
   if (db_conn->server_status & SERVER_MORE_RESULTS_EXISTS)
-#endif
   {
     if ((status = db_conn->methods->read_query_result(db_conn)) > 0)
       DBUG_RETURN(spider_db_errorno(conn));
@@ -2443,11 +2400,7 @@ uint spider_db_mbase::affected_rows()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mbase::affected_rows");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   DBUG_RETURN((uint) last_used_con->affected_rows);
 }
 
@@ -2456,11 +2409,7 @@ uint spider_db_mbase::matched_rows()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mysql::matched_rows");
   DBUG_PRINT("info", ("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   /* Rows matched: 65 Changed: 65 Warnings: 0 */
   const char *info = last_used_con->info;
   if (!info)
@@ -2485,11 +2434,7 @@ bool spider_db_mbase::inserted_info(
   {
     DBUG_RETURN(TRUE);
   }
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   /* Records: 10  Duplicates: 4  Warnings: 0 */
   const char *info = last_used_con->info;
   if (!info)
@@ -2531,11 +2476,7 @@ ulonglong spider_db_mbase::last_insert_id()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mbase::last_insert_id");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   DBUG_RETURN((uint) last_used_con->insert_id);
 }
 
@@ -5609,14 +5550,6 @@ int spider_db_mbase_util::open_item_func(
     alias_length, use_fields, fields));
 }
 
-static bool item_func_is_timestampdiff(
-  const char *func_name,
-  int func_name_length
-) {
-  return func_name_length == 13 &&
-    !strncasecmp("timestampdiff", func_name, func_name_length);
-}
-
 static bool not_func_should_be_skipped(
   Item_func *item_func
 ){
@@ -5686,10 +5619,6 @@ int spider_db_mbase_util::check_item_func(
   Item_func::Functype func_type = item_func->functype();
   DBUG_PRINT("info",("spider functype = %d", func_type));
 
-  const char *func_name = (char*) item_func->func_name();
-  int func_name_length = strlen(func_name);
-  DBUG_PRINT("info",("spider func_name = %s", func_name));
-
   /* The blacklist of the functions that cannot be pushed down */
   switch (func_type)
   {
@@ -5704,13 +5633,6 @@ int spider_db_mbase_util::check_item_func(
       break;
     case Item_func::FUNC_SP:
     case Item_func::UDF_FUNC:
-      /* Notes on merging regarding MDEV-29447: please refer to the
-      following commits for build error or merge conflicts:
-      10.6: 1ed20b993b0dd4e95450cab2e8347e5bf4617a69
-      10.9: dd316b6e20265cfd832bb5585cb4c96e716387c8
-      10.10-11: 3f67f110ba1b23a89c5ede0fbeeb203cf5e164f4
-      11.0-1: 17ba6748afa8834df5658361088e6c8e65aca16f
-      Please remove this comment after merging. */
       use_pushdown_udf= spider_param_use_pushdown_udf(
           spider->wide_handler->trx->thd, spider->share->use_pushdown_udf);
       if (!use_pushdown_udf)
@@ -5720,12 +5642,17 @@ int spider_db_mbase_util::check_item_func(
       if (spider_db_check_ft_idx(item_func, spider) == MAX_KEY)
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       break;
-#ifndef ITEM_FUNC_TIMESTAMPDIFF_ARE_PUBLIC
-    case Item_func::UNKNOWN_FUNC:
-      if (item_func_is_timestampdiff(func_name, func_name_length))
-        DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-      break;
-#endif
+    case Item_func::MULT_EQUAL_FUNC:
+      /* If there is still Item_equal by the time of
+      JOIN::make_aggr_tables_info() where the spider group by handler
+      is created, it indicates a bug in the optimizer, because there
+      shouldn't be any. */
+      push_warning_printf(
+        spider->trx->thd, SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
+        ER_THD(spider->trx->thd, ER_INTERNAL_ERROR),
+        "Spider group by handler: Encountered multiple equalities, likely "
+        "an optimizer bug");
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
       break;
   }
@@ -6090,12 +6017,11 @@ int spider_db_mbase_util::print_item_func(
             alias, alias_length, dbton_id, use_fields, fields));
         } else if (!strncasecmp("timestampdiff", func_name, func_name_length))
         {
-#ifdef ITEM_FUNC_TIMESTAMPDIFF_ARE_PUBLIC
           Item_func_timestamp_diff *item_func_timestamp_diff =
             (Item_func_timestamp_diff *) item_func;
           const char *interval_str;
           uint interval_len;
-          switch (item_func_timestamp_diff->int_type)
+          switch (item_func_timestamp_diff->get_int_type())
           {
           case INTERVAL_YEAR:
             interval_str = SPIDER_SQL_YEAR_STR;
@@ -6146,7 +6072,7 @@ int spider_db_mbase_util::print_item_func(
           str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
           str->q_append(interval_str, interval_len);
           str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-          
+
           if ((error_num = spider_db_print_item_type(item_list[0], NULL, spider,
                                                      str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
@@ -6167,9 +6093,6 @@ int spider_db_mbase_util::print_item_func(
                           SPIDER_SQL_CLOSE_PAREN_LEN);
           }
           DBUG_RETURN(0);
-#else
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
         }
       } else if (func_name_length == 14)
       {
@@ -6657,6 +6580,17 @@ int spider_db_mbase_util::print_item_func(
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
+    case Item_func::MULT_EQUAL_FUNC:
+      /* If there is still Item_equal by the time of
+      JOIN::make_aggr_tables_info() where the spider group by handler
+      is created, it indicates a bug in the optimizer, because there
+      shouldn't be any. */
+      push_warning_printf(
+        spider->trx->thd, SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
+        ER_THD(spider->trx->thd, ER_INTERNAL_ERROR),
+        "Spider group by handler: Encountered multiple equalities, likely "
+        "an optimizer bug");
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
       THD *thd = spider->wide_handler->trx->thd;
       SPIDER_SHARE *share = spider->share;
@@ -7301,11 +7235,9 @@ int spider_mbase_share::init()
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
 
-  if (keys > 0 &&
-    !(key_hint = new spider_string[keys])
-  ) {
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
+  if (keys > 0)
+    if (!(key_hint = new spider_string[keys]))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   for (roop_count = 0; roop_count < keys; roop_count++)
   {
     key_hint[roop_count].init_calc_mem(SPD_MID_MBASE_SHARE_INIT_2);
@@ -7313,12 +7245,12 @@ int spider_mbase_share::init()
   }
   DBUG_PRINT("info",("spider key_hint=%p", key_hint));
 
-  if (
-    !(table_select = new spider_string[1]) ||
-    (keys > 0 &&
-      !(key_select = new spider_string[keys])
-    ) ||
-    (error_num = create_table_names_str()) ||
+  if (!(table_select = new spider_string[1]))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (keys > 0)
+    if (!(key_select = new spider_string[keys]))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if ((error_num = create_table_names_str()) ||
     (table_share &&
       (
         (error_num = create_column_name_str()) ||
@@ -7469,11 +7401,18 @@ int spider_mbase_share::create_table_names_str()
   table_names_str = NULL;
   db_names_str = NULL;
   db_table_str = NULL;
-  if (
-    !(table_names_str = new spider_string[spider_share->all_link_count]) ||
-    !(db_names_str = new spider_string[spider_share->all_link_count]) ||
-    !(db_table_str = new spider_string[spider_share->all_link_count])
-  ) {
+  if (!(table_names_str = new spider_string[spider_share->all_link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error;
+  }
+  if (!(db_names_str = new spider_string[spider_share->all_link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error;
+  }
+  if (!(db_table_str = new spider_string[spider_share->all_link_count]))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
   }
@@ -7624,11 +7563,9 @@ int spider_mbase_share::create_column_name_str()
   Field **field;
   TABLE_SHARE *table_share = spider_share->table_share;
   DBUG_ENTER("spider_mbase_share::create_column_name_str");
-  if (
-    table_share->fields &&
-    !(column_name_str = new spider_string[table_share->fields])
-  )
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (table_share->fields)
+    if (!(column_name_str = new spider_string[table_share->fields]))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   for (field = table_share->field, str = column_name_str;
    *field; field++, str++)
   {
@@ -13245,11 +13182,7 @@ int spider_mbase_handler::bulk_tmp_table_rnd_next()
   int error_num;
   DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_rnd_next");
   DBUG_PRINT("info",("spider this=%p", this));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   error_num = upd_tmp_tbl->file->ha_rnd_next(upd_tmp_tbl->record[0]);
-#else
-  error_num = upd_tmp_tbl->file->rnd_next(upd_tmp_tbl->record[0]);
-#endif
   if (!error_num)
   {
     error_num = restore_sql_from_bulk_tmp_table(&insert_sql, upd_tmp_tbl);

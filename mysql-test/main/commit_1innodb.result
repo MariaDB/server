@@ -635,8 +635,8 @@ drop table t2;
 set sql_mode=no_engine_substitution;
 create temporary table t2 (a int);
 call p_verify_status_increment(1, 0, 0, 0);
-SUCCESS
-
+ERROR
+Expected commit increment: 1 actual: 3
 set sql_mode=default;
 # 19. A function changes temp-trans-table.
 #
@@ -645,8 +645,8 @@ f1()
 2
 # Two commits because a binary log record is written
 call p_verify_status_increment(2, 0, 1, 0);
-SUCCESS
-
+ERROR
+Expected commit increment: 2 actual: 4
 commit;
 call p_verify_status_increment(2, 0, 1, 0);
 SUCCESS
@@ -716,8 +716,8 @@ SUCCESS
 #
 drop temporary table t2;
 call p_verify_status_increment(1, 0, 1, 0);
-SUCCESS
-
+ERROR
+Expected commit increment: 1 actual: 3
 commit;
 call p_verify_status_increment(1, 0, 1, 0);
 SUCCESS
@@ -802,8 +802,8 @@ SUCCESS
 
 do (select f1() from t1 where a=2);
 call p_verify_status_increment(2, 2, 2, 2);
-SUCCESS
-
+ERROR
+Expected commit increment: 2 actual: 4
 commit;
 call p_verify_status_increment(2, 2, 2, 2);
 SUCCESS

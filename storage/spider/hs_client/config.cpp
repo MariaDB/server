@@ -9,13 +9,8 @@
 
 #include <my_global.h>
 #include "mysql_version.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
-#endif
 
 #include "config.hpp"
 
@@ -228,23 +223,22 @@ config::operator =(const config& x)
     conf_param *param, *new_param;
     for(ulong i = 0; i < x.conf_hash.records; i++)
     {
-      if (
-        (param = (conf_param *) my_hash_element((HASH *) &x.conf_hash, i)) &&
-        (new_param = new conf_param())
-      ) {
-        if (
-          !new_param->key.copy(param->key) &&
-          !new_param->val.copy(param->val)
-        ) {
-          new_param->key.c_ptr_safe();
-          new_param->val.c_ptr_safe();
-          DENA_VERBOSE(10, fprintf(stderr, "CONFIG: %s=%s\n",
-            new_param->key.ptr(), new_param->val.ptr()));
-          if (my_hash_insert(&conf_hash, (uchar*) new_param))
+      if ((param = (conf_param *) my_hash_element((HASH *) &x.conf_hash, i)))
+        if ((new_param = new conf_param()))
+        {
+          if (
+            !new_param->key.copy(param->key) &&
+            !new_param->val.copy(param->val)
+          ) {
+            new_param->key.c_ptr_safe();
+            new_param->val.c_ptr_safe();
+            DENA_VERBOSE(10, fprintf(stderr, "CONFIG: %s=%s\n",
+                                     new_param->key.ptr(), new_param->val.ptr()));
+            if (my_hash_insert(&conf_hash, (uchar*) new_param))
+              delete new_param;
+          } else
             delete new_param;
-        } else
-          delete new_param;
-      }
+        }
     }
   }
   DENA_VERBOSE(10, fprintf(stderr, "config operator = end %p", this));

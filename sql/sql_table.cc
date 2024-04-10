@@ -2393,6 +2393,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         table->table= 0;
         temporary_table_was_dropped= 1;
       }
+      thd->reset_sp_cache= true;
     }
 
     if ((drop_temporary && if_exists) || temporary_table_was_dropped)
@@ -2701,8 +2702,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DBUG_PRINT("table", ("table: %p  s: %p", table->table,
                          table->table ?  table->table->s :  NULL));
+    if (is_temporary_table(table))
+      thd->reset_sp_cache= true;
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
+
   thd->thread_specific_used= TRUE;
   error= 0;
 
@@ -5424,6 +5428,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
     if (is_trans != NULL)
       *is_trans= table->file->has_transactions();
 
+    thd->reset_sp_cache= true;
     thd->thread_specific_used= TRUE;
     create_info->table= table;                  // Store pointer to table
   }
