@@ -3274,6 +3274,7 @@ pthread_handler_t signal_hand(void *)
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
+
       break_connect_loop();
       DBUG_ASSERT(abort_loop);
       break;
