@@ -7115,7 +7115,7 @@ wsrep_store_key_val_for_row(
 
 		field = key_part->field;
 		mysql_type = field->type();
-		
+
 		if (mysql_type == MYSQL_TYPE_VARCHAR) {
 						/* >= 5.0.3 true VARCHAR */
 			ulint		lenlen;
@@ -7175,13 +7175,13 @@ wsrep_store_key_val_for_row(
 				true_len = sizeof(sorted);
 			}
 
-			if (data) {
+			if (true_len > 0) {
 				memcpy(sorted, data, true_len);
+				true_len = wsrep_innobase_mysql_sort(
+					mysql_type, cs->number, sorted, true_len,
+					REC_VERSION_56_MAX_INDEX_COL_LEN);
 			}
 
-			true_len = wsrep_innobase_mysql_sort(
-				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
 			if (wsrep_protocol_version > 1) {
 				/* Note that we always reserve the maximum possible
 				length of the true VARCHAR in the key value, though
@@ -7194,7 +7194,9 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
- 				memcpy(buff, sorted, true_len);
+				if (true_len > 0) {
+					memcpy(buff, sorted, true_len);
+				}
 				buff += true_len;
 				buff_space -= true_len;
 			} else {
@@ -7266,14 +7268,12 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
-			if (blob_data) {
+			if (blob_len > 0) {
 				memcpy(sorted, blob_data, true_len);
+				true_len = wsrep_innobase_mysql_sort(
+					mysql_type, cs->number, sorted, true_len,
+					REC_VERSION_56_MAX_INDEX_COL_LEN);
 			}
-			
-			true_len = wsrep_innobase_mysql_sort(
-				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
-
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -7289,7 +7289,9 @@ wsrep_store_key_val_for_row(
 			} else {
 				buff += key_len;
 			}
-			memcpy(buff, sorted, true_len);
+			if (true_len > 0) {
+				memcpy(buff, sorted, true_len);
+			}
 		} else {
 			/* Here we handle all other data types except the
 			true VARCHAR, BLOB and TEXT. Note that the column
@@ -7350,7 +7352,7 @@ wsrep_store_key_val_for_row(
 							&error);
 				}
 
-				if (src_start) {
+				if (true_len > 0) {
 					memcpy(sorted, src_start, true_len);
 				}
 
@@ -7364,9 +7366,11 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len   = buff_space;
 				}
-				memcpy(buff, sorted, true_len);
+				if (true_len > 0) {
+					memcpy(buff, sorted, true_len);
+				}
 			} else {
-				if (src_start) {
+				if (true_len > 0) {
 					memcpy(buff, src_start, true_len);
 				}
 			}
