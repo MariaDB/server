@@ -79,6 +79,7 @@ flush tables t2 for export;
 unlock tables;
 
 alter table t1 import tablespace;
+--source include/restart_mysqld.inc
 select * from t1;
 
 drop table t2;
