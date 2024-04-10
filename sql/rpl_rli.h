@@ -668,6 +668,8 @@ struct rpl_group_info
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
   uint64 commit_id;
+  /* Copy of the external XA XID in the GTID, if any. */
+  xid_t *gtid_xid;
   /*
     This is used to keep transaction commit order.
     We will signal this when we commit, and can register it to wait for the

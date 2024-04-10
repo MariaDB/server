@@ -3270,7 +3270,8 @@ bool Binlog_checkpoint_log_event::write()
 Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint32 domain_id_arg, bool standalone,
                                uint16 flags_arg, bool is_transactional,
-                               uint64 commit_id_arg)
+                               uint64 commit_id_arg,
+                               uchar xa_flag, xid_t *xid_arg)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
     flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
@@ -3298,17 +3299,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
 
-  XID_STATE &xid_state= thd->transaction->xid_state;
-  if (is_transactional && xid_state.is_explicit_XA() &&
-      (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
-       xid_state.get_state_code() == XA_PREPARED))
+  if (xa_flag)
   {
-    DBUG_ASSERT(!(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
-                  thd->lex->xa_opt == XA_ONE_PHASE));
-
-    flags2|= thd->lex->sql_command == SQLCOM_XA_PREPARE ?
-      FL_PREPARED_XA : FL_COMPLETED_XA;
-    xid.set(xid_state.get_xid());
+    flags2 |= xa_flag;
+    xid.set(xid_arg);
   }
 
   DBUG_ASSERT(thd_arg->lex->sql_command != SQLCOM_CREATE_SEQUENCE ||
@@ -3494,6 +3488,16 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_PRINT("info", ("Set OPTION_GTID_BEGIN"));
   thd->is_slave_error= 0;
 
+  if (flags2 & FL_COMPLETED_XA)
+  {
+    if (!(rgi->gtid_xid= new xid_t()))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(xid_t));
+      thd->is_slave_error= 1;
+    }
+    else
+      rgi->gtid_xid->set(&xid);
+  }
   char buf_xa[sizeof("XA START") + 1 + ser_buf_size];
   if (flags2 & FL_PREPARED_XA)
   {
@@ -8528,8 +8532,15 @@ Xa_prepared_trx_log_event::pack_info(Protocol* protocol)
 int
 Xa_prepared_trx_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  DBUG_ASSERT(0 /* ToDo */);
-  return 0;
+  int err;
+  /* ToDo: Could set THD::query to "XA PREPARE <tid>" for SHOW PROCESSLIST? */
+
+  /* ToDo: Don't binlog if I have it already - will be visible in some in-memory info. Maybe this could even go higher, when queueing the event, not sure. */
+  if ((err= mysql_bin_log.write_xa_prepared_event_to_cache(rgi->thd, this)))
+    return err;
+  return mysql_bin_log.binlog_trx_cache(rgi->thd);
+  /* ToDo: Something needs to handle binlog checkpointing about this binlog remaining for as long as needed. Maybe that needs to go in the above function, which then becomes specific for xa prepared? */
+  /* ToDo: How to update the slave (non-gtid) position here? Maybe it's handled by do_update_pos()? But it needs to consider this a "committed event group". */
 }
 #endif
 

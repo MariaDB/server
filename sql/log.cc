@@ -96,7 +96,7 @@ static int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
-                              bool using_trx);
+                              bool using_trx, uchar xa_flag, xid_t *xid);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -1744,7 +1744,7 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
 static int
 binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                    Log_event *end_ev, bool all, bool using_stmt,
-                   bool using_trx)
+                   bool using_trx, uchar xa_flag, xid_t *xid)
 {
   int error= 0;
   DBUG_ENTER("binlog_flush_cache");
@@ -1771,7 +1771,8 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
     */
     error= mysql_bin_log.write_transaction_to_binlog(thd, cache_mngr,
                                                      end_ev, all,
-                                                     using_stmt, using_trx);
+                                                     using_stmt, using_trx,
+                                                     xa_flag, xid);
   }
   else
   {
@@ -1821,7 +1822,8 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
 
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           FALSE, TRUE, TRUE, 0);
-  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, FALSE));
+  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, FALSE,
+                                 0, nullptr));
 }
 
 
@@ -1851,7 +1853,22 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr)
 
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"), TRUE, TRUE, TRUE, 0);
 
-  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
+  uchar xa_flag;
+  xid_t *xid;
+  XID_STATE *xid_state= &thd->transaction->xid_state;
+  if (xid_state->is_explicit_XA() && xid_state->get_state_code() == XA_PREPARED)
+  {
+    xa_flag= Gtid_log_event::FL_COMPLETED_XA;
+    xid= xid_state->get_xid();
+  }
+  else
+  {
+    xa_flag= 0;
+    xid= nullptr;
+  }
+
+  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE,
+                                 xa_flag, xid));
 }
 
 
@@ -1873,16 +1890,22 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
   char buf[q_len + ser_buf_size]= "ROLLBACK";
   size_t buflen= sizeof("ROLLBACK") - 1;
 
+  uchar xa_flag= 0;
+  xid_t *xid= nullptr;
   if (thd->transaction->xid_state.is_explicit_XA())
   {
     /* for not prepared use plain ROLLBACK */
     if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
-      buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                                 buf, query, q_len);
+    {
+      xa_flag= Gtid_log_event::FL_COMPLETED_XA;
+      xid= thd->transaction->xid_state.get_xid();
+      buflen= serialize_with_xid(xid, buf, query, q_len);
+    }
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
+  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE,
+                             xa_flag, xid));
 }
 
 /**
@@ -1902,7 +1925,21 @@ binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
   DBUG_ASSERT(xid); // replaced former treatment of ONE-PHASE XA
 
   Xid_log_event end_evt(thd, xid, TRUE);
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
+  uchar xa_flag;
+  xid_t *xa_xid;
+  if (thd->rgi_slave && thd->rgi_slave->gtid_xid)
+  {
+    xa_flag= Gtid_log_event::FL_COMPLETED_XA;
+    xa_xid= thd->rgi_slave->gtid_xid;
+  }
+  else
+  {
+    xa_flag= 0;
+    xa_xid= nullptr;
+  }
+
+  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE,
+                             xa_flag, xa_xid));
 }
 
 /**
@@ -2076,6 +2113,47 @@ MYSQL_BIN_LOG::binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid)
 
 
 int
+MYSQL_BIN_LOG::write_xa_prepared_event_to_cache(THD *thd,
+                                                Xa_prepared_trx_log_event *xev)
+{
+  binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
+  if (!cache_mngr)
+    return 1;
+  bool is_trans_cache= true; // Xa_prepared_log_event always through trx cache
+  binlog_cache_data *cache_data=
+    cache_mngr->get_binlog_cache_data(is_trans_cache);
+  IO_CACHE *file= &cache_data->cache_log;
+  Log_event_writer writer(file, cache_data);
+  int err= writer.write(xev);
+  if (unlikely(err))
+    set_write_error(thd, is_trans_cache);
+  return err;
+}
+
+
+int
+MYSQL_BIN_LOG::binlog_trx_cache(THD *thd)
+{
+  int err= 0;
+  PSI_stage_info org_stage;
+  binlog_cache_mngr *cache_mngr=
+    (binlog_cache_mngr*)thd_get_ha_data(thd, binlog_hton);
+
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_binlog_write);
+  err= binlog_flush_cache(thd, cache_mngr, nullptr /* No GTID/ end event */,
+                          true /* Full event group */,
+                          false /* No stmt cache */,
+                          true /* Use trx cache */,
+                          0, nullptr);
+  err= binlog_commit_flush_trx_cache(thd, true, cache_mngr);
+  cache_mngr->reset(true, true);
+  THD_STAGE_INFO(thd, org_stage);
+  return err;
+}
+
+
+int
 MYSQL_BIN_LOG::read_xa_to_trx_cache(THD *thd, xa_prepared *prepared_trx,
                                     binlog_cache_mngr *cache_mngr)
 {
@@ -2218,7 +2296,9 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           TRUE, TRUE, TRUE, 0);
   return mysql_bin_log.
-    write_transaction_to_binlog(thd, cache_mngr, &end_evt, all, TRUE, TRUE);
+    write_transaction_to_binlog(thd, cache_mngr, &end_evt, all, TRUE, TRUE,
+                                Gtid_log_event::FL_PREPARED_XA,
+                                thd->transaction->xid_state.get_xid());
   /*
     We deliberately leave the trx cache around. It will be used to binlog the
     following XA COMMIT, in the common case that this happens in the same THD.
@@ -6467,7 +6547,8 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
-                                bool is_transactional, uint64 commit_id)
+                                bool is_transactional, uint64 commit_id,
+                                uchar xa_flag, xid_t *xid)
 {
   rpl_gtid gtid;
   uint32 domain_id;
@@ -6520,7 +6601,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
-                            commit_id);
+                            commit_id, xa_flag, xid);
 
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
@@ -6859,7 +6940,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                                              commit_name.length);
           commit_id= entry->val_int(&null_value);
         });
-      res= write_gtid_event(thd, true, using_trans, commit_id);
+      res= write_gtid_event(thd, true, using_trans, commit_id, 0, nullptr);
       if (mdl_request.ticket)
         thd->mdl_context.release_lock(mdl_request.ticket);
       thd->backup_commit_lock= 0;
@@ -7908,7 +7989,8 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
                                            binlog_cache_mngr *cache_mngr,
                                            Log_event *end_ev, bool all,
                                            bool using_stmt_cache,
-                                           bool using_trx_cache)
+                                           bool using_trx_cache,
+                                          uchar xa_flag, xid_t *xid)
 {
   group_commit_entry entry;
   Ha_trx_info *ha_info;
@@ -7937,11 +8019,13 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.using_trx_cache= using_trx_cache;
   entry.int_xid_count= entry.ext_xid_count= 0;
   entry.end_event= end_ev;
+  entry.xa_flag= xa_flag;
+  entry.xid= xid;
 
   // ToDo: can we do better than this random check here?
   if (is_preparing_xa(thd))
     entry.ext_xid_count= 1;
-  else if (entry.end_event->get_type_code() == XID_EVENT)
+  else if (end_ev && end_ev->get_type_code() == XID_EVENT)
   {
     ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
     for (; ha_info; ha_info= ha_info->next())
@@ -8844,9 +8928,11 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
+  /* NULL entry->end_event means no GTID at start nor COMMIT/XID at the end. */
   /* ToDo: Use a flag in the group_commit_entry instead of querying random stuff in the THD. */
-  if (!is_preparing_xa(thd) &&
-      write_gtid_event(thd, false, entry->using_trx_cache, commit_id))
+  if (entry->end_event && !is_preparing_xa(thd) &&
+      write_gtid_event(thd, false, entry->using_trx_cache, commit_id,
+                       entry->xa_flag, entry->xid))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
@@ -8885,7 +8971,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                     DBUG_RETURN(ER_ERROR_ON_WRITE);
                   });
 
-  if (!is_preparing_xa(thd))
+  if (entry->end_event && !is_preparing_xa(thd))
   {
     if (write_event(entry->end_event))
     {

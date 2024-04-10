@@ -22,8 +22,6 @@
 
 class Relay_log_info;
 
-class Format_description_log_event;
-
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
 bool trans_has_updated_trans_table(const THD* thd);
@@ -280,7 +278,9 @@ typedef struct st_log_info
 #define LOG_TABLE      4U
 
 class Log_event;
+class Format_description_log_event;
 class Rows_log_event;
+class Xa_prepared_trx_log_event;
 
 enum enum_log_type { LOG_UNKNOWN, LOG_NORMAL, LOG_BIN };
 enum enum_log_state { LOG_OPENED, LOG_CLOSED, LOG_TO_BE_OPENED };
@@ -470,6 +470,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     /* Flag used to optimise around wait_for_prior_commit. */
     bool queued_by_other;
     ulong binlog_id;
+    /* Flags for replication around external user XA. */
+    uchar xa_flag;
+    xid_t *xid;
   };
 
   /*
@@ -837,7 +840,8 @@ public:
              my_bool *with_annotate= 0); // binary log write
   bool write_transaction_to_binlog(THD *thd, binlog_cache_mngr *cache_mngr,
                                    Log_event *end_ev, bool all,
-                                   bool using_stmt_cache, bool using_trx_cache);
+                                   bool using_stmt_cache, bool using_trx_cache,
+                                   uchar xa_flag, xid_t *xid);
 
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
@@ -864,6 +868,9 @@ public:
                      bool write_checkpoint);
   int insert_prepared_xid(XID *xid, size_t binlog_offset);
   int binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid);
+  int write_xa_prepared_event_to_cache(THD *thd,
+                                       Xa_prepared_trx_log_event *xev);
+  int binlog_trx_cache(THD *thd);
   int read_xa_to_trx_cache(THD *thd, xa_prepared *prepared_trx,
                            binlog_cache_mngr *cache_mngr);
   void ext_xa_complete_commit(XID *xid);
@@ -932,7 +939,7 @@ public:
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id);
+                        uint64 commit_id, uchar flags2, xid_t *xid);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

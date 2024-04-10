@@ -2143,6 +2143,8 @@ rpl_group_info::reinit(Relay_log_info *rli)
   last_event_start_time= 0;
   gtid_sub_id= 0;
   commit_id= 0;
+  delete gtid_xid;
+  gtid_xid= NULL;
   gtid_pending= false;
   worker_error= 0;
   row_stmt_start_timestamp= 0;
@@ -2156,7 +2158,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
-  : thd(0), wait_commit_sub_id(0),
+  : thd(0), gtid_xid(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
 {
@@ -2170,6 +2172,7 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
 
 rpl_group_info::~rpl_group_info()
 {
+  delete gtid_xid;
   free_annotate_event();
   delete deferred_events;
   mysql_mutex_destroy(&sleep_lock);

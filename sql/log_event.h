@@ -3616,7 +3616,8 @@ public:
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
-                 uint16 flags, bool is_transactional, uint64 commit_id);
+                 uint16 flags, bool is_transactional, uint64 commit_id,
+                 uchar xa_flag, xid_t *xid_arg);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol);
   virtual int do_apply_event(rpl_group_info *rgi);
