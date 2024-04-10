@@ -478,4 +478,14 @@ INSERT INTO t VALUES (1),(1);
 ERROR 21000: Subquery returns more than 1 row
 COMMIT;
 DROP TABLE t;
+#
+#  MDEV-33868 Assertion `trx->bulk_insert' failed in
+#             innodb_prepare_commit_versioned
+#
+CREATE TABLE t (id INT) ENGINE=InnoDB;
+select 1 into outfile "VARDIR/tmp/t.outfile";
+BEGIN;
+LOAD DATA INFILE 'VARDIR/tmp/t.outfile' INTO TABLE t;
+COMMIT;
+DROP TABLE t;
 # End of 10.11 tests

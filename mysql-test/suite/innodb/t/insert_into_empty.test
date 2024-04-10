@@ -507,4 +507,20 @@ BEGIN;
 INSERT INTO t VALUES (1),(1);
 COMMIT;
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-33868 Assertion `trx->bulk_insert' failed in
+--echo #             innodb_prepare_commit_versioned
+--echo #
+CREATE TABLE t (id INT) ENGINE=InnoDB;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+--disable_ps2_protocol
+eval select 1 into outfile "$MYSQLTEST_VARDIR/tmp/t.outfile";
+--enable_ps2_protocol
+BEGIN;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t;
+COMMIT;
+DROP TABLE t;
+--remove_file $MYSQLTEST_VARDIR/tmp/t.outfile
 --echo # End of 10.11 tests
