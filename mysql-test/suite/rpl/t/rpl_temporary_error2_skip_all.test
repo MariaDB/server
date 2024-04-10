@@ -1,0 +1,3 @@
+--source include/have_binlog_format_row.inc
+--let $ignored_db_deadlock= 1
+--source rpl_temporary_error2.test
