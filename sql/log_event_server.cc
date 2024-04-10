@@ -7157,17 +7157,9 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
   m_table->triggers->mark_fields_used(event);
-  if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
-  {
-    result= m_table->triggers->process_triggers(thd, event,
-                                                time_type,
-                                                old_row_is_record1);
-  }
-  else
-    result= m_table->triggers->process_triggers(thd, event,
-                                                time_type,
-                                                old_row_is_record1);
-
+  result= m_table->triggers->process_triggers(thd, event,
+                                              time_type,
+                                              old_row_is_record1);
   DBUG_RETURN(result);
 }
 /*
