@@ -5897,7 +5897,7 @@ Rows_log_event::do_shall_skip(rpl_group_info *rgi)
 
 static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
 {
-  int error;
+  int error= 0;
   DBUG_ENTER("rows_event_stmt_cleanup");
 
   {
@@ -5915,8 +5915,12 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
       could have a group relay log position which lags behind "forever"
       (assume the last master's transaction is ignored by the slave because of
       replicate-ignore rules).
+
+      Also don't flush the binlog rows if we are marked to rollback; the binlog
+      cache will eventually be truncated during cleanup.
     */
-    error= thd->binlog_flush_pending_rows_event(TRUE);
+    if (!thd->transaction_rollback_request)
+      error= thd->binlog_flush_pending_rows_event(TRUE);
 
     /*
       If this event is not in a transaction, the call below will, if some
@@ -5926,11 +5930,13 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
       Xid_log_event will come next which will, if some transactional engines
       are involved, commit the transaction and flush the pending event to the
       binlog.
-      If there was a deadlock the transaction should have been rolled back
-      already. So there should be no need to rollback the transaction.
+      We check for thd->transaction_rollback_request because it is possible
+      there was a deadlock that was ignored by slave-skip-errors. Normally, the
+      deadlock would have been rolled back already.
     */
-    DBUG_ASSERT(! thd->transaction_rollback_request);
-    error|= (int)(error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
+    error|= (int) ((error || thd->transaction_rollback_request)
+                       ? trans_rollback_stmt(thd)
+                       : trans_commit_stmt(thd));
 
     /*
       Now what if this is not a transactional engine? we still need to
