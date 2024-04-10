@@ -679,7 +679,7 @@ SyncFileIO::execute(const IORequest& request)
 {
 	ssize_t	n_bytes;
 	ut_ad(m_n > 0);
-	ut_ad(m_n <= os_file_request_size_max);
+	ut_ad(size_t(m_n) <= os_file_request_size_max);
 
 	if (request.is_read()) {
 #ifdef _WIN32
