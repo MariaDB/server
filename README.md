@@ -33,6 +33,11 @@ https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
 https://mariadb.com/kb/en/new-and-old-releases/
 
+Getting the code, building it and testing it
+---------------------------------------------------------------
+
+Refer to the following guide: https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/ which outlines how to correctly build the source code and run the MariaDB testing framework.
+
 Help
 -----
 
