@@ -5648,8 +5648,9 @@ int spider_db_mbase_util::check_item_func(
       is created, it indicates a bug in the optimizer, because there
       shouldn't be any. */
       push_warning_printf(
-        spider->trx->thd, SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
-        ER_THD(spider->trx->thd, ER_INTERNAL_ERROR),
+        spider->wide_handler->trx->thd, SPIDER_WARN_LEVEL_WARN,
+        ER_INTERNAL_ERROR,
+        ER_THD(spider->wide_handler->trx->thd, ER_INTERNAL_ERROR),
         "Spider group by handler: Encountered multiple equalities, likely "
         "an optimizer bug");
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
@@ -6586,8 +6587,9 @@ int spider_db_mbase_util::print_item_func(
       is created, it indicates a bug in the optimizer, because there
       shouldn't be any. */
       push_warning_printf(
-        spider->trx->thd, SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
-        ER_THD(spider->trx->thd, ER_INTERNAL_ERROR),
+        spider->wide_handler->trx->thd,
+        SPIDER_WARN_LEVEL_WARN, ER_INTERNAL_ERROR,
+        ER_THD(spider->wide_handler->trx->thd, ER_INTERNAL_ERROR),
         "Spider group by handler: Encountered multiple equalities, likely "
         "an optimizer bug");
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
