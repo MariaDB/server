@@ -402,18 +402,22 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 let $innodb_monitor_enable = `SELECT @@innodb_monitor_enable`;
 
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*1*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
 INSERT INTO t1 VALUES (1), (2), (3), (4); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+
+let $wait_condition= select count > 0 from information_schema.innodb_metrics where name like 'buffer_page_written_index_leaf';
+source include/wait_condition.inc;
+
+SELECT /*2*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*3*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='%';
@@ -421,18 +425,22 @@ SET GLOBAL innodb_monitor_enable='%';
 SET GLOBAL innodb_monitor_reset_all= '%', innodb_compression_algorithm= foo;
 INSERT INTO t1 VALUES (5), (6), (7), (8); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+
+let $wait_condition= select count > 0 from information_schema.innodb_metrics where name like 'buffer_page_written_index_leaf';
+source include/wait_condition.inc;
+
+SELECT /*4*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_disable='%';
 SET GLOBAL innodb_monitor_reset_all='%';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*5*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='ALL';
 INSERT INTO t1 VALUES (9), (10), (11), (12); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*6*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 DROP TABLE t1;

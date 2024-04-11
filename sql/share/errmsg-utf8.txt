@@ -9969,7 +9969,7 @@ ER_UNKNOWN_DATA_TYPE
         eng "Unknown data type: '%-.64s'"
         spa "Tipo de datos desconocido: '%-.64s'"
 ER_UNKNOWN_OPERATOR
-        eng "Operator does not exists: '%-.128s'"
+        eng "Operator does not exist: '%-.128s'"
         spa "El operador no existe: '%-.128s'"
 ER_WARN_HISTORY_ROW_START_TIME
         eng "Table `%s.%s` history row start '%s' is later than row end '%s'"

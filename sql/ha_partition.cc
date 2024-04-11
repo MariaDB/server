@@ -10917,18 +10917,19 @@ int ha_partition::update_next_auto_inc_val()
 
 bool ha_partition::need_info_for_auto_inc()
 {
-  handler **file= m_file;
   DBUG_ENTER("ha_partition::need_info_for_auto_inc");
 
-  do
+  for (uint i= bitmap_get_first_set(&m_locked_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_locked_partitions, i))
   {
-    if ((*file)->need_info_for_auto_inc())
+    if ((m_file[i])->need_info_for_auto_inc())
     {
       /* We have to get new auto_increment values from handler */
       part_share->auto_inc_initialized= FALSE;
       DBUG_RETURN(TRUE);
     }
-  } while (*(++file));
+  }
   DBUG_RETURN(FALSE);
 }
 
