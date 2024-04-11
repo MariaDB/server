@@ -1831,7 +1831,7 @@ corrupted:
 
 	err = flst_add_last(ibuf_root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
 			    block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
-			    &mtr);
+			    fil_system.sys_space->free_limit, &mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		goto corrupted;
 	}
@@ -1862,7 +1862,6 @@ Removes a page from the free list and frees it to the fsp system. */
 static void ibuf_remove_free_page()
 {
 	mtr_t	mtr;
-	mtr_t	mtr2;
 	page_t*	header_page;
 
 	log_free_check();
@@ -1889,26 +1888,28 @@ early_exit:
 		return;
 	}
 
-	ibuf_mtr_start(&mtr2);
-
-	buf_block_t* root = ibuf_tree_root_get(&mtr2);
+	const auto root_savepoint = mtr.get_savepoint();
+	buf_block_t* root = ibuf_tree_root_get(&mtr);
 
 	if (UNIV_UNLIKELY(!root)) {
-		ibuf_mtr_commit(&mtr2);
 		goto early_exit;
 	}
-
-	mysql_mutex_unlock(&ibuf_mutex);
 
 	const uint32_t page_no = flst_get_last(PAGE_HEADER
 					       + PAGE_BTR_IBUF_FREE_LIST
 					       + root->page.frame).page;
 
+	if (page_no >= fil_system.sys_space->free_limit) {
+		goto early_exit;
+	}
+
+	mysql_mutex_unlock(&ibuf_mutex);
+
 	/* NOTE that we must release the latch on the ibuf tree root
 	because in fseg_free_page we access level 1 pages, and the root
 	is a level 2 page. */
-
-	ibuf_mtr_commit(&mtr2);
+	root->page.lock.u_unlock();
+	mtr.lock_register(root_savepoint, MTR_MEMO_BUF_FIX);
 	ibuf_exit(&mtr);
 
 	/* Since pessimistic inserts were prevented, we know that the
@@ -1931,15 +1932,7 @@ early_exit:
 	ibuf_enter(&mtr);
 
 	mysql_mutex_lock(&ibuf_mutex);
-
-	root = ibuf_tree_root_get(&mtr, &err);
-	if (UNIV_UNLIKELY(!root)) {
-		mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
-		goto func_exit;
-	}
-
-	ut_ad(page_no == flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST
-				       + root->page.frame).page);
+	mtr.upgrade_buffer_fix(root_savepoint, RW_X_LATCH);
 
 	/* Remove the page from the free list and update the ibuf size data */
 	if (buf_block_t* block =
@@ -1948,7 +1941,7 @@ early_exit:
 		err = flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
 				  block,
 				  PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
-				  &mtr);
+				  fil_system.sys_space->free_limit, &mtr);
 	}
 
 	mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);

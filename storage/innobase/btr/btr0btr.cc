@@ -562,7 +562,8 @@ btr_page_alloc_for_ibuf(
   {
     buf_page_make_young_if_needed(&new_block->page);
     *err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, new_block,
-                PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, mtr);
+                      PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
+                      fil_system.sys_space->free_limit, mtr);
   }
   ut_d(if (*err == DB_SUCCESS)
          flst_validate(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr));
@@ -666,7 +667,8 @@ btr_page_free_for_ibuf(
   buf_block_t *root= btr_get_latched_root(*index, mtr);
   dberr_t err=
     flst_add_first(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
-                   block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, mtr);
+                   block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
+                   fil_system.sys_space->free_limit, mtr);
   ut_d(if (err == DB_SUCCESS)
          flst_validate(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr));
   return err;

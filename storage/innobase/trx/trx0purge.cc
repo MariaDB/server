@@ -266,7 +266,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   that is known to be corrupted. */
   ut_a(flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,
                       uint16_t(page_offset(undo_header) +
-                               TRX_UNDO_HISTORY_NODE), mtr) == DB_SUCCESS);
+                               TRX_UNDO_HISTORY_NODE), rseg->space->free_limit,
+                      mtr) == DB_SUCCESS);
 
   mtr->write<2>(*undo_page, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE +
                 undo_page->page.frame, undo_state);
@@ -356,6 +357,19 @@ inline dberr_t purge_sys_t::iterator::free_history_rseg(trx_rseg_t &rseg) const
   mtr_t mtr;
   bool freed= false;
   uint32_t rseg_ref= 0;
+  const auto last_boffset= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE;
+  /* Technically, rseg.space->free_limit is not protected by
+  rseg.latch, which we are holding, but rseg.space->latch. The value
+  that we are reading may become stale (too small) if other pages are
+  being allocated in this tablespace, for other rollback
+  segments. Nothing can be added to this rseg without holding
+  rseg.latch, and hence we can validate the entire file-based list
+  against the limit that we are reading here.
+
+  Note: The read here may look like a data race. On none of our target
+  architectures this should be an actual problem, because the uint32_t
+  value should always fit in a register and be correctly aligned. */
+  const auto last_page= rseg.space->free_limit;
 
   mtr.start();
 
@@ -371,13 +385,23 @@ func_exit:
   }
 
   hdr_addr= flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY + rseg_hdr->page.frame);
+
+  if (hdr_addr.page == FIL_NULL)
+    goto func_exit;
+
+  if (hdr_addr.page >= last_page ||
+      hdr_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+      hdr_addr.boffset >= last_boffset)
+  {
+  corrupted:
+    err= DB_CORRUPTION;
+    goto func_exit;
+  }
+
   hdr_addr.boffset= static_cast<uint16_t>(hdr_addr.boffset -
                                           TRX_UNDO_HISTORY_NODE);
 
 loop:
-  if (hdr_addr.page == FIL_NULL)
-    goto func_exit;
-
   buf_block_t *b=
     buf_page_get_gen(page_id_t(rseg.space->id, hdr_addr.page),
                      0, RW_X_LATCH, nullptr, BUF_GET_POSSIBLY_FREED,
@@ -426,11 +450,18 @@ loop:
   fil_addr_t prev_hdr_addr=
     flst_get_prev_addr(b->page.frame + hdr_addr.boffset +
                        TRX_UNDO_HISTORY_NODE);
+  if (prev_hdr_addr.page == FIL_NULL);
+  else if (prev_hdr_addr.page >= last_page ||
+           prev_hdr_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+           prev_hdr_addr.boffset >= last_boffset)
+    goto corrupted;
+
   prev_hdr_addr.boffset= static_cast<uint16_t>(prev_hdr_addr.boffset -
                                                TRX_UNDO_HISTORY_NODE);
 
   err= flst_remove(rseg_hdr, TRX_RSEG + TRX_RSEG_HISTORY, b,
-                   uint16_t(hdr_addr.boffset + TRX_UNDO_HISTORY_NODE), &mtr);
+                   uint16_t(hdr_addr.boffset + TRX_UNDO_HISTORY_NODE),
+                   last_page, &mtr);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
     goto func_exit;
 
@@ -489,6 +520,9 @@ loop:
   rseg_hdr->page.lock.x_lock();
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
   mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
+
+  if (hdr_addr.page == FIL_NULL)
+    goto func_exit;
 
   goto loop;
 }
@@ -780,13 +814,17 @@ bool purge_sys_t::rseg_get_next_history_log()
   {
     const byte *log_hdr= undo_page->page.frame + rseg->last_offset();
     prev_log_addr= flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE);
+    if (prev_log_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+        prev_log_addr.boffset >= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE)
+      goto corrupted;
     prev_log_addr.boffset = static_cast<uint16_t>(prev_log_addr.boffset -
                                                   TRX_UNDO_HISTORY_NODE);
   }
   else
-    prev_log_addr.page= FIL_NULL;
+    goto corrupted;
 
-  if (prev_log_addr.page == FIL_NULL)
+  if (prev_log_addr.page >= rseg->space->free_limit)
+  corrupted:
     rseg->last_page_no= FIL_NULL;
   else
   {
