@@ -213,6 +213,7 @@ icp_attempts	disabled
 icp_no_match	disabled
 icp_out_of_range	disabled
 icp_match	disabled
+create temporary table orig_innodb_metrics as select name, enabled from information_schema.innodb_metrics;
 set global innodb_monitor_disable = All;
 select name from information_schema.innodb_metrics where enabled;
 name
@@ -745,6 +746,43 @@ DROP TABLE t1;
 DROP TABLE fl2;
 DROP TABLE fl1;
 DROP TABLE fl0;
-SET GLOBAL innodb_monitor_enable=default;
-SET GLOBAL innodb_monitor_disable=default;
-SET GLOBAL innodb_monitor_reset_all=default;
+set global innodb_monitor_disable = 'adaptive\\_hash\\_p%';
+set global innodb_monitor_disable = 'adaptive\\_hash\\_r%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_batch\\_n%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_batch\\_s%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_g%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_s%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_u%';
+set global innodb_monitor_disable = 'buffer\\_f%';
+set global innodb_monitor_disable = 'buffer\\_page\\_%';
+set global innodb_monitor_disable = 'c%';
+set global innodb_monitor_disable = 'ddl%';
+set global innodb_monitor_disable = 'dml\\_reads%';
+set global innodb_monitor_disable = 'icp%';
+set global innodb_monitor_disable = 'index\\_p%';
+set global innodb_monitor_disable = 'innodb\\_di%';
+set global innodb_monitor_disable = 'innodb\\_l%';
+set global innodb_monitor_disable = 'innodb\\_m%';
+set global innodb_monitor_disable = 'lock\\_re%';
+set global innodb_monitor_disable = 'lock\\_ta%';
+set global innodb_monitor_disable = 'log%';
+set global innodb_monitor_disable = 'm%';
+set global innodb_monitor_disable = 'p%';
+set global innodb_monitor_disable = 't%';
+set global innodb_monitor_enable = 'log_padded';
+set global innodb_monitor_enable = 'log\\_w%';
+set global innodb_monitor_enable = 'trx_rseg_history_len';
+set global innodb_monitor_enable = 'trx_undo_slots_cached';
+set global innodb_monitor_enable=default;
+Warnings:
+Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
+set global innodb_monitor_disable=default;
+Warnings:
+Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
+set global innodb_monitor_reset_all=default;
+Warnings:
+Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
+select name, orig.enabled, new.enabled from
+orig_innodb_metrics orig join information_schema.innodb_metrics new using(name)
+where orig.enabled != new.enabled;
+name	enabled	enabled
