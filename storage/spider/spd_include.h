@@ -134,15 +134,8 @@ const LEX_CSTRING SPIDER_empty_string = {"", 0};
 #define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime_or_date(A,B,C,D,E)
 #define SPIDER_get_linkage(A) A->get_linkage()
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100500
 typedef start_new_trans *SPIDER_Open_tables_backup;
-#elif MYSQL_VERSION_ID < 50500
-typedef Open_tables_state SPIDER_Open_tables_backup;
-#else
-typedef Open_tables_backup SPIDER_Open_tables_backup;
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100500
 #define SPIDER_reset_n_backup_open_tables_state(A,B,C) do { \
   if (!(*(B) = new start_new_trans(A))) \
   { \
@@ -154,12 +147,6 @@ typedef Open_tables_backup SPIDER_Open_tables_backup;
   delete *(B); \
 } while (0)
 #define SPIDER_sys_close_thread_tables(A) (A)->commit_whole_transaction_and_close_tables()
-#else
-#define SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
-#define SPIDER_reset_n_backup_open_tables_state(A,B,C) (A)->reset_n_backup_open_tables_state(B)
-#define SPIDER_restore_backup_open_tables_state(A,B) (A)->restore_backup_open_tables_state(B)
-#define SPIDER_sys_close_thread_tables(A) close_thread_tables(A)
-#endif
 
 #define spider_bitmap_size(A) ((A + 7) / 8)
 #define spider_set_bit(BITMAP, BIT) \

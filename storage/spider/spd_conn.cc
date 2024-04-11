@@ -169,12 +169,8 @@ int spider_conn_init(
 ) {
   int error_num = HA_ERR_OUT_OF_MEM;
   DBUG_ENTER("spider_conn_init");
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&conn->loop_check_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_conn_loop_check, &conn->loop_check_mutex,
     MY_MUTEX_INIT_FAST))
-#endif
   {
     goto error_loop_check_mutex_init;
   }
