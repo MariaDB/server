@@ -6813,7 +6813,11 @@ int spider_close_connection(
   }
 
   spider_rollback(spider_hton_ptr, thd, TRUE);
+
+  Dummy_error_handler deh; // suppress network errors at this stage
+  thd->push_internal_handler(&deh);
   spider_free_trx(trx, TRUE, false);
+  thd->pop_internal_handler();
 
   DBUG_RETURN(0);
 }
