@@ -143,6 +143,7 @@ extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
 extern const char *shared_memory_base_name;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+extern MYSQL_PLUGIN_IMPORT bool metadata_lock_info_plugin_loaded;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;

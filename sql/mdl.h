@@ -699,7 +699,17 @@ public:
   */
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
+
+#ifndef DBUG_OFF
+  /**
+    Duration of lock represented by this ticket.
+    Context public. Debug-only.
+  */
 public:
+  enum_mdl_duration m_duration;
+#endif
+  ulonglong m_time;
+
 #ifdef WITH_WSREP
   void wsrep_report(bool debug) const;
 #endif /* WITH_WSREP */
@@ -741,10 +751,12 @@ private:
              , enum_mdl_duration duration_arg
 #endif
             )
-   : m_type(type_arg),
+   :
 #ifndef DBUG_OFF
      m_duration(duration_arg),
 #endif
+     m_time(0),
+     m_type(type_arg),
      m_ctx(ctx_arg),
      m_lock(NULL),
      m_psi(NULL)
@@ -764,13 +776,7 @@ private:
 private:
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
-#ifndef DBUG_OFF
-  /**
-    Duration of lock represented by this ticket.
-    Context private. Debug-only.
-  */
-  enum_mdl_duration m_duration;
-#endif
+
   /**
     Context of the owner of the metadata lock ticket. Externally accessible.
   */
